@@ -6,12 +6,11 @@ from waldur_mastermind.marketplace.models import ServiceProvider
 
 
 def create_customer(name):
-    customer = Customer.objects.filter(name=name)
-    if customer:
-        return None
-
+    customer, created = Customer.objects.get_or_create(name=name)
+    if created:
+        return customer
     else:
-        return Customer.objects.create(name=name)
+        return None
 
 
 def create_provider(customer):
@@ -23,7 +22,7 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument('-n', type=str, help='Customer name')
-        parser.add_argument('-c', nargs='+', type=str, help='Category name')
+        parser.add_argument('-c', nargs='+', type=str, help='Category List of categories to load')
 
     def handle(self, *args, **options):
         name = options['n']
