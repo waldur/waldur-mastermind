@@ -1386,6 +1386,8 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         except nova_exceptions.NotFound:
             # Fine, it's a new key, let's add it
             try:
+                # An extra strip, just in case
+                key_name = key_name.strip()
                 logger.info('Propagating ssh public key %s to backend', key_name)
                 return nova.keypairs.create(name=key_name, public_key=public_key)
             except nova_exceptions.ClientException as e:
