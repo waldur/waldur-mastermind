@@ -153,7 +153,7 @@ class CustomerFilter(NameFilterSet):
                 | Q(native_name__icontains=value)
                 | Q(abbreviation__icontains=value)
                 | Q(domain__icontains=value)
-                | Q(uuid__icontains=value)
+                | Q(uuid=value)
                 | Q(registration_code__icontains=value)
                 | Q(agreement_number__contains=value)
                 | Q(projects__name__icontains=value)

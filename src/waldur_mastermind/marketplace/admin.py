@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.core.exceptions import ValidationError
+from django.db.models import Q
 from django.forms.models import ModelForm
 from django.shortcuts import redirect
 from django.urls import resolve, reverse
@@ -522,6 +523,7 @@ class OrderItemInline(admin.TabularInline):
 
 class OrderAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
     list_display = ('uuid', 'project', 'created', 'created_by', 'state', 'total_cost')
+    search_fields = ('query',)
     fields = [
         'created_by',
         'approved_by',
@@ -549,6 +551,17 @@ class OrderAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
 
     def get_extra_actions(self):
         return []
+
+    def get_search_results(self, request, queryset, search_term):
+        ids = models.OrderItem.objects.filter(
+            Q(uuid=search_term) | Q(resource__name__icontains=search_term)
+        ).values_list('order_id', flat=True)
+        result = queryset.filter(
+            Q(uuid=search_term)
+            | Q(project__name__icontains=search_term)
+            | Q(id__in=ids)
+        ).distinct()
+        return result, False
 
 
 class ResourceForm(ModelForm):
