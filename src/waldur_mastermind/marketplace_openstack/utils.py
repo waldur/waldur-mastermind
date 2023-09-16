@@ -98,6 +98,11 @@ def import_instance_metadata(resource: marketplace_models.Resource):
     instance: openstack_tenant_models.Instance = resource.scope
     resource.backend_metadata['internal_ips'] = instance.internal_ips
     resource.backend_metadata['external_ips'] = instance.external_ips
+    bootable_volume = instance.volumes.filter(bootable=True).first()
+    if bootable_volume and (bootable_volume.image or bootable_volume.image_name):
+        resource.backend_metadata['system_volume_image_name'] = (
+            bootable_volume.image_name or bootable_volume.image.name
+        )
     resource.save(update_fields=['backend_metadata'])
 
 
