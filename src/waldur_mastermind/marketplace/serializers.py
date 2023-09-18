@@ -660,7 +660,7 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
         if attrs.get('is_boolean'):
             attrs['min_value'] = 0
             attrs['max_value'] = 1
-            attrs['limit_period'] = ''
+            attrs['limit_period'] = models.OfferingComponent.LimitPeriods.MONTH
             attrs['limit_amount'] = None
         return attrs
 

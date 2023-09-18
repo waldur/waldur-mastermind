@@ -153,6 +153,7 @@ class MarketplaceOpenStackConfig(AppConfig):
                     name='Cores',
                     measured_unit='cores',
                     billing_type=USAGE,
+                    limit_period=MONTH,
                 ),
                 Component(
                     type=RAM_TYPE,
@@ -160,6 +161,7 @@ class MarketplaceOpenStackConfig(AppConfig):
                     measured_unit='GB',
                     billing_type=USAGE,
                     factor=1024,
+                    limit_period=MONTH,
                 ),
                 Component(
                     type=STORAGE_TYPE,
@@ -167,6 +169,7 @@ class MarketplaceOpenStackConfig(AppConfig):
                     measured_unit='GB',
                     billing_type=USAGE,
                     factor=1024,
+                    limit_period=MONTH,
                 ),
             ),
             service_type=OpenStackTenantConfig.service_name,
