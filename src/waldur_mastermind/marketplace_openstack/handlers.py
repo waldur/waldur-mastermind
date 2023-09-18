@@ -380,6 +380,7 @@ def create_offering_component_for_volume_type(
             measured_unit='GB',
             description=instance.description,
             billing_type=marketplace_models.OfferingComponent.BillingTypes.LIMIT,
+            limit_period=marketplace_models.OfferingComponent.LimitPeriods.MONTH,
         ),
     )
 
