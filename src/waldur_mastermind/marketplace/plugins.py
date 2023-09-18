@@ -11,6 +11,7 @@ class Component:
         billing_type,
         factor=1,
         description='',
+        limit_period='',
     ):
         self.type = type
         self.name = name
@@ -18,15 +19,17 @@ class Component:
         self.billing_type = billing_type
         self.factor = factor
         self.description = description
+        self.limit_period = limit_period
 
     def _asdict(self):
         # Note that factor is not serialized to dict because it is not stored in the database.
-        # Currently it is used only for cost estimation when order item is created.
+        # Currently, it is used only for cost estimation when order item is created.
         return {
             'type': self.type,
             'name': self.name,
             'measured_unit': self.measured_unit,
             'billing_type': self.billing_type,
+            'limit_period': self.limit_period,
         }
 
 
