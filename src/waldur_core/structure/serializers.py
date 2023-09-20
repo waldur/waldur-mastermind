@@ -12,6 +12,7 @@ from django.template.loader import get_template
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions, serializers
+from rest_framework.authtoken import models as authtoken_models
 
 from waldur_core.core import fields as core_fields
 from waldur_core.core import models as core_models
@@ -1698,3 +1699,23 @@ class NotificationTemplateDetailSerializers(serializers.ModelSerializer):
 
 class NotificationTemplateUpdateSerializers(serializers.Serializer):
     content = serializers.CharField()
+
+
+class AuthTokenSerializers(serializers.HyperlinkedModelSerializer):
+    user_name = serializers.CharField(source='user.username')
+
+    class Meta:
+        model = authtoken_models.Token
+        fields = (
+            'url',
+            'created',
+            'user',
+            'user_name',
+        )
+        extra_kwargs = {
+            'url': {
+                'view_name': 'auth-tokens-detail',
+                'lookup_field': 'user_id',
+            },
+            'user': {'lookup_field': 'uuid', 'view_name': 'user-detail'},
+        }
