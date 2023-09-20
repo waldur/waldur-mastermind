@@ -1702,7 +1702,10 @@ class NotificationTemplateUpdateSerializers(serializers.Serializer):
 
 
 class AuthTokenSerializers(serializers.HyperlinkedModelSerializer):
-    user_name = serializers.CharField(source='user.username')
+    user_first_name = serializers.CharField(source='user.first_name')
+    user_last_name = serializers.CharField(source='user.last_name')
+    user_username = serializers.CharField(source='user.username')
+    user_is_active = serializers.CharField(source='user.is_active')
 
     class Meta:
         model = authtoken_models.Token
@@ -1710,7 +1713,10 @@ class AuthTokenSerializers(serializers.HyperlinkedModelSerializer):
             'url',
             'created',
             'user',
-            'user_name',
+            'user_first_name',
+            'user_last_name',
+            'user_username',
+            'user_is_active',
         )
         extra_kwargs = {
             'url': {
