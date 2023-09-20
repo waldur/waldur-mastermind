@@ -1,5 +1,6 @@
 import django.contrib.auth
 import factory.fuzzy
+from rest_framework.authtoken import models as authtoken_models
 from rest_framework.reverse import reverse
 
 from waldur_core.core import models as core_models
@@ -338,3 +339,25 @@ class NotificationFactory(factory.DjangoModelFactory):
         self.templates.create(path=f"{module}/{event_type}_subject.txt")
         self.templates.create(path=f"{module}/{event_type}_message.txt")
         self.templates.create(path=f"{module}/{event_type}_message.html")
+
+
+class AuthTokenFactory(factory.DjangoModelFactory):
+    key = factory.Sequence(lambda n: 'key_%s' % n)
+    user = factory.SubFactory(UserFactory)
+
+    class Meta:
+        model = authtoken_models.Token
+
+    @classmethod
+    def get_url(cls, token=None, action=None):
+        if token is None:
+            token = AuthTokenFactory()
+        url = 'http://testserver' + reverse(
+            'auth-tokens-detail',
+            kwargs={'user_id': token.user_id},
+        )
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls):
+        return 'http://testserver' + reverse('auth-tokens-list')
