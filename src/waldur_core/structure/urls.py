@@ -54,6 +54,11 @@ def register_in(router):
         views.NotificationTemplateViewSet,
         basename='notification-messages-templates',
     )
+    router.register(
+        r'auth-tokens',
+        views.AuthTokenViewSet,
+        basename='auth-tokens',
+    )
 
 
 urlpatterns = [
