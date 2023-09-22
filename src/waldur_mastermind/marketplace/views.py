@@ -2427,12 +2427,15 @@ class ResourceOfferingsViewSet(ProjectChoicesViewSet):
 
 
 class RuntimeStatesViewSet(views.APIView):
-    def get(self, request, project_uuid):
+    def get(self, request, project_uuid=None):
         projects = filter_queryset_for_user(
             structure_models.Project.objects.all(), request.user
         )
-        project = get_object_or_404(projects, uuid=project_uuid)
-        resources = models.Resource.objects.filter(project=project)
+        if project_uuid and is_uuid_like(project_uuid):
+            project = get_object_or_404(projects, uuid=project_uuid)
+            resources = models.Resource.objects.filter(project=project)
+        else:
+            resources = models.Resource.objects.filter(project__in=projects)
         category_uuid = request.query_params.get('category_uuid')
         if category_uuid and is_uuid_like(category_uuid):
             resources = resources.filter(offering__category__uuid=category_uuid)
