@@ -117,7 +117,7 @@ Try building docker image:
         - Dockerfile
         - docker/**/*
   services:
-    - name: "registry.hpc.ut.ee/mirror/library/docker:19.03.12-dind"
+    - name: "registry.hpc.ut.ee/mirror/library/docker:24.0.6-dind"
       alias: docker
       command: ["--mtu=1400"]
   variables:
@@ -132,7 +132,7 @@ Build docker image for tests:
     # If scheduled pipeline for 'develop' branch is set up
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
   services:
-    - name: "registry.hpc.ut.ee/mirror/library/docker:19.03.12-dind"
+    - name: "registry.hpc.ut.ee/mirror/library/docker:24.0.6-dind"
       alias: docker
       command: ["--mtu=1400"]
   variables:
