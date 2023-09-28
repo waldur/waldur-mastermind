@@ -314,6 +314,16 @@ class ProjectSerializer(
         elif image and not self.instance:
             structure_permissions.is_owner(self.context['request'], None, customer)
 
+        if settings.WALDUR_CORE.get('OECD_FOS_2007_CODE_MANDATORY'):
+            if (not self.instance and not attrs.get('oecd_fos_2007_code')) or (
+                self.instance
+                and not self.instance.oecd_fos_2007_code
+                and not attrs.get('oecd_fos_2007_code')
+            ):
+                raise serializers.ValidationError(
+                    {'oecd_fos_2007_code': _('This field is required.')}
+                )
+
         return attrs
 
     def get_resources_count(self, project):

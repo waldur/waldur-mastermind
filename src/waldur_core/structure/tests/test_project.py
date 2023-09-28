@@ -9,6 +9,7 @@ from freezegun import freeze_time
 from mock_django import mock_signal_receiver
 from rest_framework import status, test
 
+from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.media.utils import dummy_image
 from waldur_core.structure import executors, models, permissions, signals
 from waldur_core.structure.models import CustomerRole, Project, ProjectRole
@@ -210,6 +211,17 @@ class ProjectUpdateDeleteTest(test.APITransactionTestCase):
         self.assertFalse(Project.available_objects.filter(pk=pk).exists())
         self.assertTrue(Project.objects.filter(pk=pk).exists())
 
+    @override_waldur_core_settings(OECD_FOS_2007_CODE_MANDATORY=True)
+    def test_update_if_oecd_is_not_passed(self):
+        self.fixture.project.save()
+        self.client.force_authenticate(self.fixture.staff)
+
+        data = {'backend_id': 'backend_id'}
+        response = self.client.patch(
+            factories.ProjectFactory.get_url(self.fixture.project), data
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
 
 @ddt
 class ProjectCreateTest(test.APITransactionTestCase):
@@ -326,6 +338,14 @@ class ProjectCreateTest(test.APITransactionTestCase):
         response = self.client.post(factories.ProjectFactory.get_list_url(), payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual('1.1', response.data['oecd_fos_2007_code'])
+
+    @override_waldur_core_settings(OECD_FOS_2007_CODE_MANDATORY=True)
+    def test_oecd_fos_2007_code_is_required(self):
+        self.client.force_authenticate(self.fixture.owner)
+        payload = self._get_valid_project_payload(self.fixture.customer)
+        payload['name'] = 'new'
+        response = self.client.post(factories.ProjectFactory.get_list_url(), payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def _get_valid_project_payload(self, customer):
         return {
