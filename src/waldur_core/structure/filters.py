@@ -272,18 +272,19 @@ class ProjectFilter(NameFilterSet):
 
     def filter_query(self, queryset, name, value):
         if is_uuid_like(value):
-            return queryset.filter(
+            queryset = queryset.filter(
                 Q(uuid=value)
                 | Q(resource__backend_id=value)
                 | Q(resource__effective_id=value)
             )
         else:
-            return queryset.filter(
+            queryset = queryset.filter(
                 Q(resource__name=value)
                 | Q(name__icontains=value)
                 | Q(resource__backend_id=value)
                 | Q(resource__effective_id=value)
             )
+        return queryset.distinct()
 
 
 class CustomerUserFilter(BaseFilterBackend):
