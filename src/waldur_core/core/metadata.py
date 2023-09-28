@@ -252,6 +252,11 @@ class WaldurCore(BaseModel):
         description='The list of protected fields for local IdP.',
     )
 
+    OECD_FOS_2007_CODE_MANDATORY = Field(
+        False,
+        description='Field oecd_fos_2007_code must be required for project.',
+    )
+
     class Meta:
         public_settings = [
             'MASTERMIND_URL',
