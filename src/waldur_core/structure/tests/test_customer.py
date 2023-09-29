@@ -1,23 +1,23 @@
+import datetime
 from unittest import mock
 
 from ddt import data, ddt
 from django.urls import reverse
 from django.utils import timezone
 from freezegun import freeze_time
-from mock_django import mock_signal_receiver
 from rest_framework import status, test
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.quotas.tests import factories as quota_factories
-from waldur_core.structure import signals
-from waldur_core.structure.models import (
-    Customer,
-    CustomerRole,
-    Project,
-    ProjectPermission,
-    ProjectRole,
-)
+from waldur_core.structure.models import Customer, Project, get_old_role_name
 from waldur_core.structure.tests import factories, fixtures
+from waldur_core.structure.tests.utils import (
+    client_add_user,
+    client_delete_user,
+    client_update_user,
+)
 
 
 class CustomerBaseTest(test.APITransactionTestCase):
@@ -44,98 +44,11 @@ class CustomerUserTest(CustomerBaseTest):
         self.user = factories.UserFactory()
         self.created_by = factories.UserFactory()
 
-    def test_add_user_returns_created_if_grant_didnt_exist_before(self):
-        _, created = self.customer.add_user(self.user, CustomerRole.OWNER)
-
-        self.assertTrue(
-            created, 'Customer permission should have been reported as created'
-        )
-
-    def test_add_user_returns_not_created_if_grant_existed_before(self):
-        self.customer.add_user(self.user, CustomerRole.OWNER)
-        _, created = self.customer.add_user(self.user, CustomerRole.OWNER)
-
-        self.assertFalse(
-            created, 'Customer permission should have been reported as not created'
-        )
-
     def test_add_user_returns_membership(self):
-        membership, _ = self.customer.add_user(self.user, CustomerRole.OWNER)
+        permission = self.customer.add_user(self.user, CustomerRole.OWNER)
 
-        self.assertEqual(membership.user, self.user)
-        self.assertEqual(membership.customer, self.customer)
-
-    def test_add_user_returns_same_membership_for_consequent_calls_with_same_arguments(
-        self,
-    ):
-        membership1, _ = self.customer.add_user(self.user, CustomerRole.OWNER)
-        membership2, _ = self.customer.add_user(self.user, CustomerRole.OWNER)
-
-        self.assertEqual(membership1, membership2)
-
-    def test_add_user_emits_structure_role_granted_if_grant_didnt_exist_before(self):
-        with mock_signal_receiver(signals.structure_role_granted) as receiver:
-            self.customer.add_user(self.user, CustomerRole.OWNER, self.created_by)
-
-        receiver.assert_called_once_with(
-            structure=self.customer,
-            user=self.user,
-            role=CustomerRole.OWNER,
-            sender=Customer,
-            signal=signals.structure_role_granted,
-            created_by=self.created_by,
-            expiration_time=None,
-        )
-
-    def test_add_user_doesnt_emit_structure_role_granted_if_grant_existed_before(self):
-        self.customer.add_user(self.user, CustomerRole.OWNER)
-
-        with mock_signal_receiver(signals.structure_role_granted) as receiver:
-            self.customer.add_user(self.user, CustomerRole.OWNER)
-
-        self.assertFalse(
-            receiver.called, 'structure_role_granted should not be emitted'
-        )
-
-    def test_remove_user_emits_structure_role_revoked_for_each_role_user_had_in_customer(
-        self,
-    ):
-        self.customer.add_user(self.user, CustomerRole.OWNER)
-
-        with mock_signal_receiver(signals.structure_role_revoked) as receiver:
-            self.customer.remove_user(self.user, removed_by=self.created_by)
-
-        receiver.assert_called_once_with(
-            structure=self.customer,
-            user=self.user,
-            role=CustomerRole.OWNER,
-            removed_by=self.created_by,
-            sender=Customer,
-            signal=signals.structure_role_revoked,
-        )
-
-    def test_remove_user_emits_structure_role_revoked_if_grant_existed_before(self):
-        self.customer.add_user(self.user, CustomerRole.OWNER)
-
-        with mock_signal_receiver(signals.structure_role_revoked) as receiver:
-            self.customer.remove_user(self.user, CustomerRole.OWNER, self.created_by)
-
-        receiver.assert_called_once_with(
-            structure=self.customer,
-            user=self.user,
-            role=CustomerRole.OWNER,
-            removed_by=self.created_by,
-            sender=Customer,
-            signal=signals.structure_role_revoked,
-        )
-
-    def test_remove_user_doesnt_emit_structure_role_revoked_if_grant_didnt_exist_before(
-        self,
-    ):
-        with mock_signal_receiver(signals.structure_role_revoked) as receiver:
-            self.customer.remove_user(self.user, CustomerRole.OWNER)
-
-        self.assertFalse(receiver.called, 'structure_role_remove should not be emitted')
+        self.assertEqual(permission.user, self.user)
+        self.assertEqual(permission.scope, self.customer)
 
     def test_get_owners_returns_empty_list(self):
         self.assertEqual(0, self.customer.get_owners().count())
@@ -382,7 +295,7 @@ class CustomerCreateTest(BaseCustomerMutationTest):
         self.assertEqual(customer.projects.count(), 0)
 
     @override_waldur_core_settings(OWNER_CAN_MANAGE_CUSTOMER=True)
-    def test_user_can_create_customer_if_he_is_not_staff_if_settings_are_tweaked(self):
+    def test_user_can_create_customer_if_he_is_not_staff(self):
         self.client.force_authenticate(user=self.fixture.user)
         response = self.client.post(
             factories.CustomerFactory.get_list_url(), self._get_valid_payload()
@@ -589,13 +502,13 @@ class CustomerQuotasTest(test.APITransactionTestCase):
     def test_customer_users_quota_increases_on_adding_administrator(self):
         project = factories.ProjectFactory(customer=self.customer)
         user = factories.UserFactory()
-        project.add_user(user, ProjectRole.ADMINISTRATOR)
+        project.add_user(user, ProjectRole.ADMIN)
         self.assert_quota_usage('nc_user_count', 1)
 
     def test_customer_users_quota_decreases_on_removing_administrator(self):
         project = factories.ProjectFactory(customer=self.customer)
         user = factories.UserFactory()
-        project.add_user(user, ProjectRole.ADMINISTRATOR)
+        project.add_user(user, ProjectRole.ADMIN)
         project.remove_user(user)
         self.assert_quota_usage('nc_user_count', 0)
 
@@ -603,7 +516,7 @@ class CustomerQuotasTest(test.APITransactionTestCase):
         user = factories.UserFactory()
         project = factories.ProjectFactory(customer=self.customer)
         self.customer.add_user(user, CustomerRole.OWNER)
-        project.add_user(user, ProjectRole.ADMINISTRATOR)
+        project.add_user(user, ProjectRole.ADMIN)
 
         self.assert_quota_usage('nc_user_count', 1)
 
@@ -611,7 +524,7 @@ class CustomerQuotasTest(test.APITransactionTestCase):
         user = factories.UserFactory()
         project = factories.ProjectFactory(customer=self.customer)
         self.customer.add_user(user, CustomerRole.OWNER)
-        project.add_user(user, ProjectRole.ADMINISTRATOR)
+        project.add_user(user, ProjectRole.ADMIN)
 
         self.assert_quota_usage('nc_user_count', 1)
 
@@ -619,7 +532,7 @@ class CustomerQuotasTest(test.APITransactionTestCase):
         project = factories.ProjectFactory(customer=self.customer)
         user = factories.UserFactory()
 
-        project.add_user(user, ProjectRole.ADMINISTRATOR)
+        project.add_user(user, ProjectRole.ADMIN)
         self.assert_quota_usage('nc_user_count', 1)
 
         project.delete()
@@ -630,7 +543,7 @@ class CustomerQuotasTest(test.APITransactionTestCase):
         for _ in range(count):
             project = factories.ProjectFactory(customer=self.customer)
             user = factories.UserFactory()
-            project.add_user(user, ProjectRole.ADMINISTRATOR)
+            project.add_user(user, ProjectRole.ADMIN)
 
         self.assert_quota_usage('nc_user_count', count)
 
@@ -744,7 +657,7 @@ class CustomerUsersListTest(test.APITransactionTestCase):
         self.fixture.project.add_user(walter, ProjectRole.MANAGER)
 
         self.fixture.customer.add_user(admin, CustomerRole.OWNER)
-        self.fixture.project.add_user(admin, ProjectRole.ADMINISTRATOR)
+        self.fixture.project.add_user(admin, ProjectRole.ADMIN)
 
         self.fixture.customer.add_user(alice, CustomerRole.SUPPORT)
         self.fixture.project.add_user(alice, ProjectRole.MEMBER)
@@ -755,7 +668,13 @@ class CustomerUsersListTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 3)
 
         response = self.client.get(
-            self.url, {'project_role': [ProjectRole.ADMINISTRATOR, ProjectRole.MANAGER]}
+            self.url,
+            {
+                'project_role': [
+                    get_old_role_name(ProjectRole.ADMIN.name),
+                    get_old_role_name(ProjectRole.MANAGER.name),
+                ]
+            },
         )
         usernames = [item['username'] for item in response.data]
         self.assertEqual(len(usernames), 2)
@@ -763,7 +682,8 @@ class CustomerUsersListTest(test.APITransactionTestCase):
         self.assertTrue(walter.username in usernames)
 
         response = self.client.get(
-            self.url, {'organization_role': [CustomerRole.SUPPORT]}
+            self.url,
+            {'organization_role': [get_old_role_name(CustomerRole.SUPPORT.name)]},
         )
         usernames = [item['username'] for item in response.data]
         self.assertEqual(len(usernames), 2)
@@ -771,7 +691,8 @@ class CustomerUsersListTest(test.APITransactionTestCase):
         self.assertTrue(alice.username in usernames)
 
         response = self.client.get(
-            self.url, {'organization_role': [CustomerRole.OWNER]}
+            self.url,
+            {'organization_role': [get_old_role_name(CustomerRole.OWNER.name)]},
         )
         usernames = [item['username'] for item in response.data]
         self.assertEqual(len(usernames), 1)
@@ -780,8 +701,8 @@ class CustomerUsersListTest(test.APITransactionTestCase):
         response = self.client.get(
             self.url,
             {
-                'organization_role': [CustomerRole.OWNER],
-                'project_role': [ProjectRole.MEMBER],
+                'organization_role': [get_old_role_name(CustomerRole.OWNER.name)],
+                'project_role': [get_old_role_name(ProjectRole.MEMBER.name)],
             },
         )
         usernames = [item['username'] for item in response.data]
@@ -791,7 +712,7 @@ class CustomerUsersListTest(test.APITransactionTestCase):
 
     def test_is_service_manager_property_in_users_serializer(self):
         user = factories.UserFactory()
-        self.fixture.customer.add_user(user, role=CustomerRole.SERVICE_MANAGER)
+        self.fixture.customer.add_user(user, role=CustomerRole.MANAGER)
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.get(self.url)
 
@@ -805,7 +726,7 @@ class CustomerUsersListTest(test.APITransactionTestCase):
         user = factories.UserFactory()
         self.fixture.customer.add_user(user, role=CustomerRole.OWNER)
         new_customer = factories.CustomerFactory()
-        new_customer.add_user(user, role=CustomerRole.SERVICE_MANAGER)
+        new_customer.add_user(user, role=CustomerRole.MANAGER)
 
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.get(self.url, {'organization_role': 'service_manager'})
@@ -816,7 +737,7 @@ class CustomerUsersListTest(test.APITransactionTestCase):
         self,
     ):
         user = factories.UserFactory()
-        self.fixture.customer.add_user(user, role=ProjectRole.ADMINISTRATOR)
+        self.fixture.customer.add_user(user, role=ProjectRole.ADMIN)
         new_project = factories.ProjectFactory()
         new_project.add_user(user, role=ProjectRole.MANAGER)
 
@@ -833,14 +754,14 @@ class CustomerUsersListTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 0)
 
-        self.fixture.customer.add_user(user, role=CustomerRole.SERVICE_MANAGER)
+        self.fixture.customer.add_user(user, CustomerRole.MANAGER)
         response = self.client.get(self.url, {'organization_role': 'service_manager'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]['is_service_manager'], True)
 
         # Even if user has project role, he is skipped when organization filter is applied
-        self.fixture.project.add_user(user, role=ProjectRole.MEMBER)
+        self.fixture.project.add_user(user, ProjectRole.MEMBER)
         self.fixture.customer.remove_user(user)
         response = self.client.get(self.url, {'organization_role': 'service_manager'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -957,14 +878,13 @@ class AccountingIsRunningFilterTest(test.APITransactionTestCase):
         self.assertEqual(expected, actual)
 
 
-@override_waldur_core_settings(
-    OWNER_CAN_MANAGE_CUSTOMER=True, OWNERS_CAN_MANAGE_OWNERS=True
-)
+@override_waldur_core_settings(OWNER_CAN_MANAGE_CUSTOMER=True)
 class CustomerBlockedTest(CustomerBaseTest):
     def setUp(self):
         self.user = factories.UserFactory()
         self.customer = factories.CustomerFactory(blocked=True)
         self.customer.add_user(self.user, CustomerRole.OWNER)
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
 
     def test_blocked_organization_is_not_available_for_updating(self):
         self.client.force_authenticate(user=self.user)
@@ -1004,46 +924,44 @@ class CustomerBlockedTest(CustomerBaseTest):
 
     def test_customer_permission_adding_is_not_available_for_blocked_organization(self):
         user = factories.UserFactory()
-        data = {
-            'customer': factories.CustomerFactory.get_url(self.customer),
-            'user': factories.UserFactory.get_url(user),
-            'role': CustomerRole.OWNER,
-        }
-        self.client.force_authenticate(user=self.user)
-        response = self.client.post(reverse('customer_permission-list'), data)
+        response = client_add_user(
+            self.client, self.user, user, self.customer, CustomerRole.OWNER
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_customer_permission_updating_is_not_available_for_blocked_organization(
         self,
     ):
-        permission = factories.CustomerPermissionFactory(customer=self.customer)
-        url = factories.CustomerPermissionFactory.get_url(permission)
-        data = {
-            'is_active': False,
-        }
-        self.client.force_authenticate(user=self.user)
-        response = self.client.put(url, data)
+        user = factories.UserFactory()
+        self.customer.add_user(user, CustomerRole.OWNER)
+
+        response = client_update_user(
+            self.client,
+            self.user,
+            user,
+            self.customer,
+            CustomerRole.OWNER,
+            timezone.now() + datetime.timedelta(days=100),
+        )
+
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_customer_permission_deleting_is_not_available_for_blocked_organization(
         self,
     ):
-        permission = factories.CustomerPermissionFactory(customer=self.customer)
-        url = factories.CustomerPermissionFactory.get_url(permission)
-        self.client.force_authenticate(user=self.user)
-        response = self.client.delete(url)
+        user = factories.UserFactory()
+        self.customer.add_user(user, CustomerRole.OWNER)
+        response = client_delete_user(
+            self.client, self.user, user, self.customer, CustomerRole.OWNER
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_project_permission_adding_is_not_available_for_blocked_organization(self):
         user = factories.UserFactory()
         project = factories.ProjectFactory(customer=self.customer)
-        data = {
-            'project': factories.ProjectFactory.get_url(project),
-            'user': factories.UserFactory.get_url(user),
-            'role': CustomerRole.OWNER,
-        }
-        self.client.force_authenticate(user=self.user)
-        response = self.client.post(reverse('project_permission-list'), data)
+        response = client_add_user(
+            self.client, self.user, user, project, ProjectRole.ADMIN
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_project_permission_updating_is_not_available_for_blocked_organization(
@@ -1051,14 +969,15 @@ class CustomerBlockedTest(CustomerBaseTest):
     ):
         project = factories.ProjectFactory(customer=self.customer)
         user = factories.UserFactory()
-        project.add_user(user, ProjectRole.ADMINISTRATOR)
-        permission = ProjectPermission.objects.get(project=project)
-        url = factories.ProjectPermissionFactory.get_url(permission)
-        data = {
-            'is_active': False,
-        }
-        self.client.force_authenticate(user=self.user)
-        response = self.client.put(url, data)
+        project.add_user(user, ProjectRole.ADMIN)
+        response = client_update_user(
+            self.client,
+            self.user,
+            user,
+            project,
+            ProjectRole.ADMIN,
+            timezone.now() + datetime.timedelta(days=100),
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_project_permission_deleting_is_not_available_for_blocked_organization(
@@ -1066,11 +985,14 @@ class CustomerBlockedTest(CustomerBaseTest):
     ):
         project = factories.ProjectFactory(customer=self.customer)
         user = factories.UserFactory()
-        project.add_user(user, ProjectRole.ADMINISTRATOR)
-        permission = ProjectPermission.objects.get(project=project)
-        url = factories.ProjectPermissionFactory.get_url(permission)
-        self.client.force_authenticate(user=self.user)
-        response = self.client.delete(url)
+        project.add_user(user, ProjectRole.ADMIN)
+        response = client_delete_user(
+            self.client,
+            self.user,
+            user,
+            project,
+            ProjectRole.ADMIN,
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 

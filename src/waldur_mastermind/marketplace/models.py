@@ -554,13 +554,6 @@ class Offering(
             'marketplace-public-offering/{offering_uuid}/', offering_uuid=self.uuid.hex
         )
 
-    def can_manage_role(self, user, role=None, timestamp=False):
-        if not self.shared:
-            return False
-        return user.is_staff or self.customer.has_user(
-            user, structure_models.CustomerRole.OWNER, timestamp
-        )
-
     def get_users(self, role=None):
         query = Q(offeringpermission__offering=self, offeringpermission__is_active=True)
         return User.objects.filter(query).order_by('username')

@@ -5,6 +5,10 @@ from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 
 from waldur_core.structure import models
+from waldur_core.structure.managers import (
+    get_connected_customers,
+    get_connected_projects,
+)
 
 User = get_user_model()
 
@@ -73,15 +77,17 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         # fetch objects
         users = User.objects.all()
-        project_roles = models.ProjectPermission.objects.filter(is_active=True)
-        customer_roles = models.CustomerPermission.objects.filter(is_active=True)
 
         # build table
         columns = list(USER_COLUMNS.keys()) + ['Organizations', 'Projects']
         table = prettytable.PrettyTable(columns, hrules=prettytable.ALL)
         for user in users:
-            user_customers = to_string(list(customer_roles.filter(user=user)))
-            user_projects = to_string(list(project_roles.filter(user=user)))
+            customers = models.Customer.objects.filter(
+                id__in=get_connected_customers(user)
+            ).values_list('name', flat=True)
+            projects = models.Project.objects.filter(
+                id__in=get_connected_projects(user)
+            ).values_list('name', flat=True)
             row = [
                 to_string(
                     [
@@ -91,8 +97,7 @@ class Command(BaseCommand):
                     ]
                 )
                 for fields in USER_COLUMNS.values()
-            ]
-            row += [user_customers, user_projects]
+            ] + [to_string(list(customers)), to_string(list(projects))]
             table.add_row(row)
 
         # output

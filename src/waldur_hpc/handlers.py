@@ -5,7 +5,8 @@ from django.conf import settings
 from django.db import transaction
 
 from waldur_core.core.utils import is_uuid_like
-from waldur_core.structure.models import Customer, Project, ProjectRole
+from waldur_core.permissions.fixtures import ProjectRole
+from waldur_core.structure.models import Customer, Project
 from waldur_core.structure.utils import move_project
 from waldur_mastermind.marketplace.models import (
     Offering,
@@ -102,7 +103,7 @@ def get_or_create_project(customer, user, wrong_customer):
             pass
 
         project = Project.objects.create(customer=customer, name=user.username)
-        project.add_user(user, ProjectRole.ADMINISTRATOR)
+        project.add_user(user, ProjectRole.ADMIN)
         return project
     else:
         logger.warning('Projects with name %s already exists.', user.username)
@@ -245,7 +246,7 @@ def handle_new_user(sender, instance, created=False, **kwargs):
         if not project:
             return
         # assure that user has permissions connected with the project
-        project.add_user(user, ProjectRole.ADMINISTRATOR)
+        project.add_user(user, ProjectRole.ADMIN)
 
         order, order_created = get_or_create_order(
             project,
@@ -268,7 +269,7 @@ def handle_new_user(sender, instance, created=False, **kwargs):
             return
 
         # assure that user has permissions connected with the project
-        project.add_user(user, ProjectRole.ADMINISTRATOR)
+        project.add_user(user, ProjectRole.ADMIN)
 
         order, order_created = get_or_create_order(
             project,

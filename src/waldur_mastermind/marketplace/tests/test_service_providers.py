@@ -6,9 +6,9 @@ from rest_framework import status, test
 
 from waldur_core.core.utils import format_homeport_link
 from waldur_core.media.utils import dummy_image
-from waldur_core.permissions.enums import PermissionEnum, RoleEnum
-from waldur_core.permissions.utils import add_permission
-from waldur_core.structure import models as structure_models
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.permissions.utils import get_permissions
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models, tasks, utils
@@ -100,9 +100,7 @@ class ServiceProviderRegisterTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_owner_can_register_service_provider_with_settings_enabled(self):
-        add_permission(
-            RoleEnum.CUSTOMER_OWNER, PermissionEnum.REGISTER_SERVICE_PROVIDER
-        )
+        CustomerRole.OWNER.add_permission(PermissionEnum.REGISTER_SERVICE_PROVIDER)
         response = self.create_service_provider('owner')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -406,11 +404,7 @@ class ConsumerProjectPermissionListTest(test.APITransactionTestCase):
         self.consumer_project = self.mp_fixture.project
         self.consumable_resource = self.mp_fixture.resource
         self.admin = self.mp_fixture.admin
-        self.permission = structure_models.ProjectPermission.objects.get(
-            user=self.admin,
-            project=self.consumer_project,
-            is_active=True,
-        )
+        self.permission = get_permissions(self.consumer_project, self.admin).get()
         self.url = factories.ServiceProviderFactory.get_url(
             self.mp_fixture.service_provider, action='project_permissions'
         )

@@ -12,7 +12,7 @@ from waldur_core.core.models import User
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.core.utils import format_homeport_link
 from waldur_core.media.utils import dummy_image
-from waldur_core.structure.models import CustomerRole, ProjectRole
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure.tests import factories, fixtures
 
 from .. import tasks

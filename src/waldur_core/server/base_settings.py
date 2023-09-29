@@ -241,7 +241,7 @@ CELERY_BEAT_SCHEDULE = {
         'args': (),
     },
     'check-expired-permissions': {
-        'task': 'waldur_core.structure.check_expired_permissions',
+        'task': 'waldur_core.permissions.check_expired_permissions',
         'schedule': timedelta(hours=24),
         'args': (),
     },

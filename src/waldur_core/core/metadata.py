@@ -38,10 +38,6 @@ class WaldurCore(BaseModel):
         timedelta(weeks=1),
         description='Defines for how long group invitation remains valid.',
     )
-    OWNERS_CAN_MANAGE_OWNERS = Field(
-        False,
-        description='Enables organization owners to manage other organization owners.',
-    )
     OWNER_CAN_MANAGE_CUSTOMER = Field(
         False, description='Enables organization owners to create an organization.'
     )
@@ -264,7 +260,6 @@ class WaldurCore(BaseModel):
             'INVITATIONS_ENABLED',
             'VALIDATE_INVITATION_EMAIL',
             'OWNER_CAN_MANAGE_CUSTOMER',
-            'OWNERS_CAN_MANAGE_OWNERS',
             'NATIVE_NAME_ENABLED',
             'ONLY_STAFF_MANAGES_SERVICES',
             'PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS',

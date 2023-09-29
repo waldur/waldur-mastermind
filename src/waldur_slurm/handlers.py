@@ -5,6 +5,8 @@ from django.db import transaction
 from django.db.models import Sum
 
 from waldur_core.core import utils as core_utils
+from waldur_core.permissions.models import UserRole
+from waldur_core.structure.models import Customer, Project
 from waldur_freeipa import models as freeipa_models
 
 from . import models, tasks, utils
@@ -38,11 +40,18 @@ def process_user_deletion(sender, instance, **kwargs):
 
 
 @if_plugin_enabled
-def process_role_granted(sender, structure, user, role, **kwargs):
+def process_role_granted(sender, instance: UserRole, **kwargs):
+    # Skip synchronization of custom roles
+    if not instance.role.is_system_role:
+        return
+
+    if not isinstance(instance.scope, (Customer, Project)):
+        return
+
     try:
-        freeipa_profile = freeipa_models.Profile.objects.get(user=user)
+        freeipa_profile = freeipa_models.Profile.objects.get(user=instance.user)
         serialized_profile = core_utils.serialize_instance(freeipa_profile)
-        serialized_structure = core_utils.serialize_instance(structure)
+        serialized_structure = core_utils.serialize_instance(instance.scope)
         transaction.on_commit(
             lambda: tasks.process_role_granted.delay(
                 serialized_profile, serialized_structure
@@ -53,11 +62,18 @@ def process_role_granted(sender, structure, user, role, **kwargs):
 
 
 @if_plugin_enabled
-def process_role_revoked(sender, structure, user, role, **kwargs):
+def process_role_revoked(sender, instance, **kwargs):
+    # Skip synchronization of custom roles
+    if not instance.role.is_system_role:
+        return
+
+    if not isinstance(instance.scope, (Customer, Project)):
+        return
+
     try:
-        freeipa_profile = freeipa_models.Profile.objects.get(user=user)
+        freeipa_profile = freeipa_models.Profile.objects.get(user=instance.user)
         serialized_profile = core_utils.serialize_instance(freeipa_profile)
-        serialized_structure = core_utils.serialize_instance(structure)
+        serialized_structure = core_utils.serialize_instance(instance.scope)
         transaction.on_commit(
             lambda: tasks.process_role_revoked.delay(
                 serialized_profile, serialized_structure

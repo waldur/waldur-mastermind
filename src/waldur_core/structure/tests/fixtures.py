@@ -1,6 +1,6 @@
 from django.utils.functional import cached_property
 
-from waldur_core.structure import models
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 
 from . import factories
 
@@ -26,21 +26,21 @@ class CustomerFixture(UserFixture):
 
     @cached_property
     def owner(self):
-        owner = factories.UserFactory()
-        self.customer.add_user(owner, models.CustomerRole.OWNER)
-        return owner
+        user = factories.UserFactory()
+        self.customer.add_user(user, CustomerRole.OWNER)
+        return user
 
     @cached_property
     def customer_support(self):
-        support = factories.UserFactory()
-        self.customer.add_user(support, models.CustomerRole.SUPPORT)
-        return support
+        user = factories.UserFactory()
+        self.customer.add_user(user, CustomerRole.SUPPORT)
+        return user
 
     @cached_property
     def service_manager(self):
-        support = factories.UserFactory()
-        self.customer.add_user(support, models.CustomerRole.SERVICE_MANAGER)
-        return support
+        user = factories.UserFactory()
+        self.customer.add_user(user, CustomerRole.MANAGER)
+        return user
 
 
 class ProjectFixture(CustomerFixture):
@@ -51,19 +51,19 @@ class ProjectFixture(CustomerFixture):
     @cached_property
     def admin(self):
         admin = factories.UserFactory()
-        self.project.add_user(admin, models.ProjectRole.ADMINISTRATOR)
+        self.project.add_user(admin, ProjectRole.ADMIN)
         return admin
 
     @cached_property
     def manager(self):
         manager = factories.UserFactory()
-        self.project.add_user(manager, models.ProjectRole.MANAGER)
+        self.project.add_user(manager, ProjectRole.MANAGER)
         return manager
 
     @cached_property
     def member(self):
         member = factories.UserFactory()
-        self.project.add_user(member, models.ProjectRole.MEMBER)
+        self.project.add_user(member, ProjectRole.MEMBER)
         return member
 
 

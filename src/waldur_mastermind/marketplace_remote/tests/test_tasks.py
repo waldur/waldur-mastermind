@@ -7,8 +7,10 @@ from django.test import override_settings
 from django.utils import timezone
 from rest_framework import test
 
+from waldur_auth_social.models import ProviderChoices
 from waldur_core.core.utils import format_text, serialize_instance
-from waldur_core.structure.models import CustomerRole
+from waldur_core.permissions.enums import RoleEnum
+from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests.factories import (
     NotificationFactory,
     ProjectFactory,
@@ -73,7 +75,7 @@ class SyncRemoteProjectPermissionsTest(test.APITransactionTestCase):
 
     def test_project_is_created_if_it_does_not_exist_yet(self):
         # Arrange
-        self.fixture.manager.registration_method = 'eduteams'
+        self.fixture.manager.registration_method = ProviderChoices.EDUTEAMS
         self.fixture.manager.save()
 
         self.client.list_projects.return_value = []
@@ -91,7 +93,7 @@ class SyncRemoteProjectPermissionsTest(test.APITransactionTestCase):
 
     def test_project_is_not_created_if_it_already_exists(self):
         # Arrange
-        self.fixture.manager.registration_method = 'eduteams'
+        self.fixture.manager.registration_method = ProviderChoices.EDUTEAMS
         self.fixture.manager.save()
 
         self.client.list_projects.return_value = [{'uuid': self.remote_project_uuid}]
@@ -108,7 +110,7 @@ class SyncRemoteProjectPermissionsTest(test.APITransactionTestCase):
 
     def test_project_permission_is_created_if_it_does_not_exist_yet(self):
         # Arrange
-        self.fixture.manager.registration_method = 'eduteams'
+        self.fixture.manager.registration_method = ProviderChoices.EDUTEAMS
         self.fixture.manager.save()
 
         self.client.list_projects.return_value = [{'uuid': self.remote_project_uuid}]
@@ -122,12 +124,15 @@ class SyncRemoteProjectPermissionsTest(test.APITransactionTestCase):
 
         # Assert
         self.client.create_project_permission.assert_called_once_with(
-            self.remote_user_uuid, self.remote_project_uuid, 'manager', None
+            self.remote_project_uuid,
+            self.remote_user_uuid,
+            RoleEnum.PROJECT_MANAGER,
+            None,
         )
 
     def test_project_permission_is_not_created_if_it_already_exists(self):
         # Arrange
-        self.fixture.manager.registration_method = 'eduteams'
+        self.fixture.manager.registration_method = ProviderChoices.EDUTEAMS
         self.fixture.manager.save()
 
         self.client.list_projects.return_value = [{'uuid': self.remote_project_uuid}]
@@ -137,9 +142,9 @@ class SyncRemoteProjectPermissionsTest(test.APITransactionTestCase):
         self.client.get_project_permissions.return_value = [
             {
                 'expiration_time': None,
-                'role': 'manager',
+                'role_name': RoleEnum.PROJECT_MANAGER,
                 'user_username': self.fixture.manager.username,
-                'pk': 1,
+                'user_uuid': self.remote_user_uuid,
             }
         ]
 
@@ -151,7 +156,7 @@ class SyncRemoteProjectPermissionsTest(test.APITransactionTestCase):
 
     def test_project_permission_is_updated_if_expiration_time_differs(self):
         # Arrange
-        self.fixture.manager.registration_method = 'eduteams'
+        self.fixture.manager.registration_method = ProviderChoices.EDUTEAMS
         self.fixture.manager.save()
 
         self.client.list_projects.return_value = [{'uuid': self.remote_project_uuid}]
@@ -161,9 +166,9 @@ class SyncRemoteProjectPermissionsTest(test.APITransactionTestCase):
         self.client.get_project_permissions.return_value = [
             {
                 'expiration_time': timezone.now().isoformat(),
-                'role': 'manager',
+                'role_name': RoleEnum.PROJECT_MANAGER,
                 'user_username': self.fixture.manager.username,
-                'pk': 1,
+                'user_uuid': self.remote_user_uuid,
             }
         ]
 
@@ -171,11 +176,16 @@ class SyncRemoteProjectPermissionsTest(test.APITransactionTestCase):
         tasks.sync_remote_project_permissions()
 
         # Assert
-        self.client.update_project_permission.assert_called_once_with('1', None)
+        self.client.update_project_permission.assert_called_once_with(
+            self.remote_project_uuid,
+            self.remote_user_uuid,
+            RoleEnum.PROJECT_MANAGER,
+            None,
+        )
 
     def test_project_permission_is_updated_if_role_differs(self):
         # Arrange
-        self.fixture.manager.registration_method = 'eduteams'
+        self.fixture.manager.registration_method = ProviderChoices.EDUTEAMS
         self.fixture.manager.save()
 
         self.client.list_projects.return_value = [{'uuid': self.remote_project_uuid}]
@@ -185,9 +195,9 @@ class SyncRemoteProjectPermissionsTest(test.APITransactionTestCase):
         self.client.get_project_permissions.return_value = [
             {
                 'expiration_time': timezone.now().isoformat(),
-                'role': 'admin',
+                'role_name': RoleEnum.PROJECT_ADMIN,
                 'user_username': self.fixture.manager.username,
-                'pk': 1,
+                'user_uuid': self.remote_user_uuid,
             }
         ]
 
@@ -195,14 +205,19 @@ class SyncRemoteProjectPermissionsTest(test.APITransactionTestCase):
         tasks.sync_remote_project_permissions()
 
         # Assert
-        self.client.remove_project_permission.assert_called_once_with('1')
+        self.client.remove_project_permission.assert_called_once_with(
+            self.remote_project_uuid, self.remote_user_uuid, RoleEnum.PROJECT_ADMIN
+        )
         self.client.create_project_permission.assert_called_once_with(
-            self.remote_user_uuid, self.remote_project_uuid, 'manager', None
+            self.remote_project_uuid,
+            self.remote_user_uuid,
+            RoleEnum.PROJECT_MANAGER,
+            None,
         )
 
     def test_if_user_is_owner_and_admin_then_manager_role_is_created(self):
         # Arrange
-        self.fixture.admin.registration_method = 'eduteams'
+        self.fixture.admin.registration_method = ProviderChoices.EDUTEAMS
         self.fixture.admin.save()
         self.fixture.customer.add_user(self.fixture.admin, CustomerRole.OWNER)
 
@@ -217,12 +232,15 @@ class SyncRemoteProjectPermissionsTest(test.APITransactionTestCase):
 
         # Assert
         self.client.create_project_permission.assert_called_once_with(
-            self.remote_user_uuid, self.remote_project_uuid, 'manager', None
+            self.remote_project_uuid,
+            self.remote_user_uuid,
+            RoleEnum.PROJECT_MANAGER,
+            None,
         )
 
     def test_skip_mapping_for_owners_if_offering_belongs_to_the_same_customer(self):
         # Arrange
-        self.fixture.owner.registration_method = 'eduteams'
+        self.fixture.owner.registration_method = ProviderChoices.EDUTEAMS
         self.fixture.owner.save()
 
         self.resource.project.customer = self.fixture.resource.offering.customer
@@ -249,9 +267,9 @@ class SyncRemoteProjectPermissionsTest(test.APITransactionTestCase):
         self.client.get_project_permissions.return_value = [
             {
                 'expiration_time': timezone.now().isoformat(),
-                'role': 'admin',
+                'role_name': RoleEnum.PROJECT_ADMIN,
                 'user_username': self.fixture.manager.username,
-                'pk': 1,
+                'user_uuid': self.remote_user_uuid,
             }
         ]
 
@@ -259,7 +277,9 @@ class SyncRemoteProjectPermissionsTest(test.APITransactionTestCase):
         tasks.sync_remote_project_permissions()
 
         # Assert
-        self.client.remove_project_permission.assert_called_once_with('1')
+        self.client.remove_project_permission.assert_called_once_with(
+            self.remote_project_uuid, self.remote_user_uuid, RoleEnum.PROJECT_ADMIN
+        )
 
 
 class DeleteRemoteProjectsTest(test.APITransactionTestCase):
@@ -271,18 +291,17 @@ class DeleteRemoteProjectsTest(test.APITransactionTestCase):
         )
         self.offering.secret_options = {'api_url': 'api_url', 'token': 'token'}
         self.offering.save()
+        self.remote_project_uuid = uuid.uuid4().hex
 
     @mock.patch('waldur_mastermind.marketplace_remote.tasks.WaldurClient')
     def test_clean_remote_projects(self, mock_client):
         self.project.delete()
 
         mock_client().list_projects.return_value = [
-            {'backend_id': self.backend_id, 'uuid': '7f906264d0704af1b6589c65269e4357'}
+            {'backend_id': self.backend_id, 'uuid': self.remote_project_uuid}
         ]
         tasks.clean_remote_projects()
-        mock_client().delete_project.assert_called_once_with(
-            '7f906264d0704af1b6589c65269e4357'
-        )
+        mock_client().delete_project.assert_called_once_with(self.remote_project_uuid)
 
     @mock.patch('waldur_mastermind.marketplace_remote.tasks.delete_remote_project')
     def test_handler(self, mock_task):
@@ -294,14 +313,12 @@ class DeleteRemoteProjectsTest(test.APITransactionTestCase):
     def test_delete_remote_project(self, mock_client):
         factories.ResourceFactory(offering=self.offering, project=self.project)
         mock_client().list_projects.return_value = [
-            {'backend_id': self.backend_id, 'uuid': '7f906264d0704af1b6589c65269e4357'}
+            {'backend_id': self.backend_id, 'uuid': self.remote_project_uuid}
         ]
         serialized_project = serialize_instance(self.project)
         self.project.delete()
         tasks.delete_remote_project(serialized_project)
-        mock_client().delete_project.assert_called_once_with(
-            '7f906264d0704af1b6589c65269e4357'
-        )
+        mock_client().delete_project.assert_called_once_with(self.remote_project_uuid)
 
 
 class OfferingUserPullTest(test.APITransactionTestCase):

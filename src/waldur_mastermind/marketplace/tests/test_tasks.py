@@ -7,7 +7,7 @@ from freezegun import freeze_time
 from rest_framework import test
 
 from waldur_core.core import utils as core_utils
-from waldur_core.structure import models as structure_models
+from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.invoices import models as invoices_models
@@ -199,7 +199,7 @@ class ProjectEndDate(test.APITransactionTestCase):
             customer=self.fixture.customer
         )
         manager = structure_factories.UserFactory()
-        other_project.add_user(manager, structure_models.ProjectRole.MANAGER)
+        other_project.add_user(manager, ProjectRole.MANAGER)
 
         with freeze_time('2019-12-25'):
             event_type = 'notification_about_project_ending'

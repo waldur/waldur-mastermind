@@ -18,6 +18,10 @@ def fill_system_roles(apps, schema_editor):
     Offering = apps.get_model('marketplace', 'Offering')
     OfferingPermission = apps.get_model('marketplace', 'OfferingPermission')
 
+    customer_ct = ContentType.objects.get_for_model(Customer)
+    project_ct = ContentType.objects.get_for_model(Project)
+    offering_ct = ContentType.objects.get_for_model(Offering)
+
     customer_owner = Role.objects.create(
         name=RoleEnum.CUSTOMER_OWNER,
         description='Organization owner',
@@ -57,7 +61,6 @@ def fill_system_roles(apps, schema_editor):
             **kwargs
         )
 
-    customer_ct = ContentType.objects.get_for_model(Customer)
     for permission in CustomerPermission.objects.all():
         role = None
         if permission.role == 'owner':
@@ -73,7 +76,6 @@ def fill_system_roles(apps, schema_editor):
             role=role,
         )
 
-    project_ct = ContentType.objects.get_for_model(Project)
     for permission in ProjectPermission.objects.all():
         role = None
         if permission.role == 'admin':
@@ -89,7 +91,6 @@ def fill_system_roles(apps, schema_editor):
             role=role,
         )
 
-    offering_ct = ContentType.objects.get_for_model(Offering)
     for permission in OfferingPermission.objects.all():
         create_user_role(
             permission,

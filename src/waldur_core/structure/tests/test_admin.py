@@ -7,6 +7,7 @@ from django.contrib.admin.sites import AdminSite
 from django.test import TestCase
 from rest_framework import serializers as rf_serializers
 
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure import admin as structure_admin
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories, fixtures
@@ -131,21 +132,21 @@ class ProjectAdminTest(TestCase):
         project = self.change_project(members=[user1.pk, user2.pk])
 
         # Asset
-        self.assertTrue(project.has_user(user1, structure_models.ProjectRole.MEMBER))
-        self.assertTrue(project.has_user(user2, structure_models.ProjectRole.MEMBER))
+        self.assertTrue(project.has_user(user1, ProjectRole.MEMBER))
+        self.assertTrue(project.has_user(user2, ProjectRole.MEMBER))
 
     def test_old_users_are_deleted_and_existing_are_preserved(self):
         # Arrange
         user1 = factories.UserFactory()
         user2 = factories.UserFactory()
-        self.project.add_user(user1, structure_models.ProjectRole.MEMBER)
+        self.project.add_user(user1, ProjectRole.MEMBER)
 
         # Act
         project = self.change_project(members=[user2.pk])
 
         # Asset
-        self.assertFalse(project.has_user(user1, structure_models.ProjectRole.MEMBER))
-        self.assertTrue(project.has_user(user2, structure_models.ProjectRole.MEMBER))
+        self.assertFalse(project.has_user(user1, ProjectRole.MEMBER))
+        self.assertTrue(project.has_user(user2, ProjectRole.MEMBER))
 
     def test_user_may_have_only_one_role_in_the_same_project(self):
         # Arrange
@@ -201,8 +202,8 @@ class CustomerAdminTest(TestCase):
         customer = self.change_customer(support_users=[user1.pk, user2.pk])
 
         # Asset
-        self.assertTrue(customer.has_user(user1, structure_models.CustomerRole.SUPPORT))
-        self.assertTrue(customer.has_user(user2, structure_models.CustomerRole.SUPPORT))
+        self.assertTrue(customer.has_user(user1, CustomerRole.SUPPORT))
+        self.assertTrue(customer.has_user(user2, CustomerRole.SUPPORT))
 
     def test_new_customer_owners_are_added(self):
         # Arrange
@@ -213,8 +214,8 @@ class CustomerAdminTest(TestCase):
         customer = self.change_customer(owners=[user1.pk, user2.pk])
 
         # Asset
-        self.assertTrue(customer.has_user(user1, structure_models.CustomerRole.OWNER))
-        self.assertTrue(customer.has_user(user2, structure_models.CustomerRole.OWNER))
+        self.assertTrue(customer.has_user(user1, CustomerRole.OWNER))
+        self.assertTrue(customer.has_user(user2, CustomerRole.OWNER))
 
     def test_new_service_managers_are_added(self):
         # Arrange
@@ -225,41 +226,33 @@ class CustomerAdminTest(TestCase):
         customer = self.change_customer(service_managers=[user1.pk, user2.pk])
 
         # Asset
-        self.assertTrue(
-            customer.has_user(user1, structure_models.CustomerRole.SERVICE_MANAGER)
-        )
-        self.assertTrue(
-            customer.has_user(user2, structure_models.CustomerRole.SERVICE_MANAGER)
-        )
+        self.assertTrue(customer.has_user(user1, CustomerRole.MANAGER))
+        self.assertTrue(customer.has_user(user2, CustomerRole.MANAGER))
 
     def test_user_can_be_owner_and_service_manager(self):
         # Arrange
         user = factories.UserFactory()
-        self.customer.add_user(user, structure_models.CustomerRole.OWNER)
+        self.customer.add_user(user, CustomerRole.OWNER)
 
         # Act
         customer = self.change_customer(service_managers=[user], owners=[user])
 
         # Asset
-        self.assertTrue(
-            customer.has_user(user, structure_models.CustomerRole.SERVICE_MANAGER)
-        )
-        self.assertTrue(customer.has_user(user, structure_models.CustomerRole.OWNER))
+        self.assertTrue(customer.has_user(user, CustomerRole.MANAGER))
+        self.assertTrue(customer.has_user(user, CustomerRole.OWNER))
 
     def test_old_users_are_deleted_and_existing_are_preserved(self):
         # Arrange
         user1 = factories.UserFactory()
         user2 = factories.UserFactory()
-        self.customer.add_user(user1, structure_models.CustomerRole.SUPPORT)
+        self.customer.add_user(user1, CustomerRole.SUPPORT)
 
         # Act
         customer = self.change_customer(support_users=[user2.pk])
 
         # Asset
-        self.assertFalse(
-            customer.has_user(user1, structure_models.CustomerRole.SUPPORT)
-        )
-        self.assertTrue(customer.has_user(user2, structure_models.CustomerRole.SUPPORT))
+        self.assertFalse(customer.has_user(user1, CustomerRole.SUPPORT))
+        self.assertTrue(customer.has_user(user2, CustomerRole.SUPPORT))
 
     def test_user_may_have_only_one_role_in_the_same_customer(self):
         # Arrange

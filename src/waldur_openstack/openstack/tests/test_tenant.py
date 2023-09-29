@@ -8,8 +8,8 @@ from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
-from waldur_core.permissions.enums import PermissionEnum, RoleEnum
-from waldur_core.permissions.utils import add_permission
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_openstack.openstack import executors, models, tasks
 from waldur_openstack.openstack.tests import factories, fixtures
@@ -550,7 +550,7 @@ class TenantDeleteTest(BaseTenantActionsTest):
         self, mocked_task
     ):
         # Arrange
-        add_permission(RoleEnum.PROJECT_MANAGER, PermissionEnum.APPROVE_ORDER)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.APPROVE_ORDER)
         self.fixture.openstack_service_settings.shared = True
         self.fixture.openstack_service_settings.save()
 
@@ -566,7 +566,7 @@ class TenantDeleteTest(BaseTenantActionsTest):
         self, mocked_task
     ):
         # Arrange
-        add_permission(RoleEnum.PROJECT_ADMIN, PermissionEnum.APPROVE_ORDER)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.APPROVE_ORDER)
         self.fixture.openstack_service_settings.shared = True
         self.fixture.openstack_service_settings.save()
 

@@ -4,8 +4,8 @@ from django.conf import settings
 from rest_framework import status, test
 from rest_framework.reverse import reverse
 
+from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.exceptions import ServiceBackendError
-from waldur_core.structure.models import ProjectRole
 from waldur_core.structure.tests.factories import CustomerFactory, UserFactory
 from waldur_mastermind.marketplace.models import Offering
 from waldur_mastermind.marketplace.tests.factories import OfferingFactory, PlanFactory

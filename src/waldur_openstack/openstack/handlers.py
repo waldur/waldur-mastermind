@@ -38,12 +38,18 @@ def clear_cache_when_service_settings_are_updated(sender, instance, **kwargs):
     cache.delete_many(get_affected_cache_keys(instance))
 
 
-def remove_ssh_key_from_tenants(sender, structure, user, role, **kwargs):
+def remove_ssh_key_from_tenants(sender, instance, **kwargs):
     """Delete user ssh keys from tenants that he does not have access now."""
-    tenants = Tenant.objects.filter(**{sender.__name__.lower(): structure})
-    ssh_keys = core_models.SshPublicKey.objects.filter(user=user)
+    tenants = Tenant.objects.all()
+    if isinstance(instance.scope, structure_models.Customer):
+        tenants = tenants.filter(project__customer=instance.scope)
+    elif isinstance(instance.scope, structure_models.Project):
+        tenants = tenants.filter(project=instance.scope)
+    else:
+        return
+    ssh_keys = core_models.SshPublicKey.objects.filter(user=instance.user)
     for tenant in tenants:
-        if structure_permissions._has_admin_access(user, tenant.project):
+        if structure_permissions._has_admin_access(instance.user, tenant.project):
             continue  # no need to delete ssh keys if user still have permissions for tenant.
         serialized_tenant = core_utils.serialize_instance(tenant)
         for key in ssh_keys:

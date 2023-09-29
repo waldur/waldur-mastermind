@@ -8,10 +8,10 @@ class FreeIPAConfig(AppConfig):
 
     def ready(self):
         from waldur_core.core import models as core_models
+        from waldur_core.permissions import signals as permission_signals
         from waldur_core.quotas import models as quota_models
         from waldur_core.quotas.fields import QuotaField
         from waldur_core.structure import models as structure_models
-        from waldur_core.structure import signals as structure_signals
         from waldur_slurm import models as slurm_models
         from waldur_slurm import signals as slurm_signals
 
@@ -32,19 +32,15 @@ class FreeIPAConfig(AppConfig):
                 % model.__class__,
             )
 
-            structure_signals.structure_role_granted.connect(
-                handlers.schedule_sync,
-                sender=model,
-                dispatch_uid='waldur_freeipa.handlers.schedule_sync_on_%s_role_granted'
-                % model.__class__,
-            )
+        permission_signals.role_granted.connect(
+            handlers.schedule_sync,
+            dispatch_uid='waldur_freeipa.handlers.schedule_sync_when_role_granted',
+        )
 
-            structure_signals.structure_role_revoked.connect(
-                handlers.schedule_sync,
-                sender=model,
-                dispatch_uid='waldur_freeipa.handlers.schedule_sync_on_%s_role_revoked'
-                % model.__class__,
-            )
+        permission_signals.role_revoked.connect(
+            handlers.schedule_sync,
+            dispatch_uid='waldur_freeipa.handlers.schedule_sync_when_role_revoked',
+        )
 
         signals.post_save.connect(
             handlers.schedule_sync_on_quota_change,

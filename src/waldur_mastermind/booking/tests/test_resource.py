@@ -4,8 +4,8 @@ from ddt import data, ddt
 from rest_framework import status, test
 from rest_framework.reverse import reverse
 
-from waldur_core.permissions.enums import PermissionEnum, RoleEnum
-from waldur_core.permissions.utils import add_permission
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
@@ -89,8 +89,8 @@ class OrderItemAcceptTest(test.APITransactionTestCase):
         self.fixture = MarketplaceFixture()
         self.fixture.order_item
 
-        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.ACCEPT_BOOKING_REQUEST)
-        add_permission(RoleEnum.CUSTOMER_MANAGER, PermissionEnum.ACCEPT_BOOKING_REQUEST)
+        CustomerRole.OWNER.add_permission(PermissionEnum.ACCEPT_BOOKING_REQUEST)
+        CustomerRole.MANAGER.add_permission(PermissionEnum.ACCEPT_BOOKING_REQUEST)
 
     def accept(self, resource, user=None):
         user = user or self.fixture.owner
@@ -140,7 +140,7 @@ class OrderItemRejectTest(test.APITransactionTestCase):
         super().setUp()
         self.fixture = MarketplaceFixture()
         self.fixture.order_item
-        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.REJECT_BOOKING_REQUEST)
+        CustomerRole.OWNER.add_permission(PermissionEnum.REJECT_BOOKING_REQUEST)
 
     def reject(self, resource, user=None):
         user = user or self.fixture.owner

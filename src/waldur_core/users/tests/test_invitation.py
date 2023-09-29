@@ -6,12 +6,13 @@ from django.core import mail
 from django.test import override_settings
 from django.utils import timezone
 from freezegun import freeze_time
-from mock_django import mock_signal_receiver
 from rest_framework import status, test
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
+from waldur_core.permissions.utils import get_permissions
 from waldur_core.structure import models as structure_models
-from waldur_core.structure import signals
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.users import models, tasks
 from waldur_core.users.tests import factories
@@ -28,27 +29,22 @@ class BaseInvitationTest(test.APITransactionTestCase):
 
         self.customer = structure_factories.CustomerFactory()
         self.second_customer = structure_factories.CustomerFactory()
-        self.customer.add_user(self.customer_owner, structure_models.CustomerRole.OWNER)
+        self.customer.add_user(self.customer_owner, CustomerRole.OWNER)
 
-        self.customer_role = structure_models.CustomerRole.OWNER
         self.extra_invitation_text = 'invitation text'
         self.customer_invitation = factories.CustomerInvitationFactory(
             customer=self.customer,
-            customer_role=self.customer_role,
+            customer_role=structure_models.CustomerRole.OWNER,
             extra_invitation_text=self.extra_invitation_text,
         )
 
         self.project = structure_factories.ProjectFactory(customer=self.customer)
-        self.project.add_user(
-            self.project_admin, structure_models.ProjectRole.ADMINISTRATOR
-        )
-        self.project.add_user(
-            self.project_manager, structure_models.ProjectRole.MANAGER
-        )
+        self.project.add_user(self.project_admin, ProjectRole.ADMIN)
+        self.project.add_user(self.project_manager, ProjectRole.MANAGER)
 
-        self.project_role = structure_models.ProjectRole.ADMINISTRATOR
         self.project_invitation = factories.ProjectInvitationFactory(
-            project=self.project, project_role=self.project_role
+            project=self.project,
+            project_role=structure_models.ProjectRole.ADMINISTRATOR,
         )
 
 
@@ -164,7 +160,7 @@ class RetrievePendingInvitationDetailsTest(BaseInvitationTest):
     def test_if_user_has_civil_number_only_matching_invitation_is_shown(self):
         customer_invitation = factories.CustomerInvitationFactory(
             customer=self.customer,
-            customer_role=self.customer_role,
+            customer_role=structure_models.CustomerRole.OWNER,
             civil_number='123456789',
         )
         self.user.civil_number = '123456789'
@@ -175,7 +171,7 @@ class RetrievePendingInvitationDetailsTest(BaseInvitationTest):
     def test_customer_uuid_exists_in_response(self):
         customer_invitation = factories.CustomerInvitationFactory(
             customer=self.customer,
-            customer_role=self.customer_role,
+            customer_role=structure_models.CustomerRole.OWNER,
         )
         response = self.get_details(self.user, customer_invitation)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -184,7 +180,7 @@ class RetrievePendingInvitationDetailsTest(BaseInvitationTest):
     def test_if_user_has_civil_number_non_matching_invitation_is_concealed(self):
         customer_invitation = factories.CustomerInvitationFactory(
             customer=self.customer,
-            customer_role=self.customer_role,
+            customer_role=structure_models.CustomerRole.OWNER,
             civil_number='123456789',
         )
         response = self.get_details(self.user, customer_invitation)
@@ -220,7 +216,8 @@ class RetrievePendingInvitationDetailsTest(BaseInvitationTest):
 @ddt
 class InvitationCreateTest(BaseInvitationTest):
     @data('staff', 'customer_owner')
-    def test_user_with_access_can_create_project_admin_invitation(self, user):
+    def test_authorized_user_can_create_project_admin_invitation(self, user):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT_PERMISSION)
         self.client.force_authenticate(user=getattr(self, user))
         payload = self._get_valid_project_invitation_payload(
             self.project_invitation,
@@ -232,7 +229,8 @@ class InvitationCreateTest(BaseInvitationTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     @data('staff', 'customer_owner')
-    def test_user_with_access_can_create_project_manager_invitation(self, user):
+    def test_authorized_user_can_create_project_manager_invitation(self, user):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT_PERMISSION)
         self.client.force_authenticate(user=getattr(self, user))
         payload = self._get_valid_project_invitation_payload(
             self.project_invitation, project_role=structure_models.ProjectRole.MANAGER
@@ -242,8 +240,8 @@ class InvitationCreateTest(BaseInvitationTest):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=False)
-    def test_owner_can_create_project_manager_invitation_if_settings_are_tweaked(self):
+    def test_owner_can_create_project_manager_invitation(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT_PERMISSION)
         self.client.force_authenticate(user=self.customer_owner)
         payload = self._get_valid_project_invitation_payload(
             self.project_invitation, project_role=structure_models.ProjectRole.MANAGER
@@ -253,7 +251,6 @@ class InvitationCreateTest(BaseInvitationTest):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=True)
     @data('project_admin', 'user')
     def test_user_without_access_cannot_create_project_invitation(self, user):
         self.client.force_authenticate(user=getattr(self, user))
@@ -267,9 +264,9 @@ class InvitationCreateTest(BaseInvitationTest):
             {'detail': 'You do not have permission to perform this action.'},
         )
 
-    @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=True)
     @data('staff', 'customer_owner')
-    def test_user_with_access_can_create_customer_owner_invitation(self, user):
+    def test_authorized_user_can_create_customer_owner_invitation(self, user):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
         self.client.force_authenticate(user=getattr(self, user))
         payload = self._get_valid_customer_invitation_payload(self.customer_invitation)
         response = self.client.post(
@@ -277,8 +274,7 @@ class InvitationCreateTest(BaseInvitationTest):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=False)
-    def test_owner_can_not_create_customer_owner_invitation_if_settings_are_tweaked(
+    def test_owner_can_not_create_customer_owner_invitation(
         self,
     ):
         self.client.force_authenticate(user=self.customer_owner)
@@ -288,9 +284,9 @@ class InvitationCreateTest(BaseInvitationTest):
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=True)
     @data('staff', 'customer_owner')
     def test_user_which_created_invitation_is_stored_in_invitation(self, user):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
         self.client.force_authenticate(user=getattr(self, user))
         payload = self._get_valid_customer_invitation_payload(self.customer_invitation)
         response = self.client.post(
@@ -316,6 +312,7 @@ class InvitationCreateTest(BaseInvitationTest):
         'project_manager',
     )
     def test_user_can_create_project_invitation(self, user):
+        ProjectRole.MANAGER.add_permission(PermissionEnum.CREATE_PROJECT_PERMISSION)
         self.client.force_authenticate(user=getattr(self, user))
         payload = self._get_valid_project_invitation_payload(self.project_invitation)
         response = self.client.post(
@@ -328,7 +325,7 @@ class InvitationCreateTest(BaseInvitationTest):
     ):
         user = self.project_admin
         another_project = structure_factories.ProjectFactory()
-        another_project.add_user(user, structure_models.ProjectRole.MANAGER)
+        another_project.add_user(user, ProjectRole.MANAGER)
         self.client.force_authenticate(user=user)
         payload = self._get_valid_project_invitation_payload(self.project_invitation)
         response = self.client.post(
@@ -413,12 +410,11 @@ class InvitationCreateTest(BaseInvitationTest):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    @override_waldur_core_settings(
-        OWNERS_CAN_MANAGE_OWNERS=True, ONLY_STAFF_CAN_INVITE_USERS=True
-    )
+    @override_waldur_core_settings(ONLY_STAFF_CAN_INVITE_USERS=True)
     def test_if_only_staff_can_create_invitation_then_owner_creates_invitation_request(
         self,
     ):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
         self.client.force_authenticate(user=self.customer_owner)
         payload = self._get_valid_customer_invitation_payload(self.customer_invitation)
         response = self.client.post(
@@ -428,9 +424,9 @@ class InvitationCreateTest(BaseInvitationTest):
         invitation = models.Invitation.objects.get(uuid=response.data['uuid'])
         self.assertEqual(invitation.state, models.Invitation.State.REQUESTED)
 
-    @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=True)
     @data('customer_owner', 'staff')
     def test_staff_and_owner_can_pass_extra_invitation_text(self, user):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
         self.client.force_authenticate(user=getattr(self, user))
         payload = self._get_valid_customer_invitation_payload(self.customer_invitation)
         payload['extra_invitation_text'] = self.extra_invitation_text
@@ -444,6 +440,7 @@ class InvitationCreateTest(BaseInvitationTest):
 
     @data('project_manager')
     def test_manager_can_pass_extra_invitation_text(self, user):
+        ProjectRole.MANAGER.add_permission(PermissionEnum.CREATE_PROJECT_PERMISSION)
         self.client.force_authenticate(user=getattr(self, user))
         payload = self._get_valid_project_invitation_payload(self.project_invitation)
         payload['extra_invitation_text'] = self.extra_invitation_text
@@ -480,7 +477,9 @@ class InvitationCreateTest(BaseInvitationTest):
 @ddt
 class InvitationCancelTest(BaseInvitationTest):
     @data('staff', 'customer_owner', 'project_manager')
-    def test_user_with_access_can_cancel_project_invitation(self, user):
+    def test_authorized_user_can_cancel_project_invitation(self, user):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT_PERMISSION)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.CREATE_PROJECT_PERMISSION)
         self.client.force_authenticate(user=getattr(self, user))
         response = self.client.post(
             factories.ProjectInvitationFactory.get_url(
@@ -503,9 +502,9 @@ class InvitationCancelTest(BaseInvitationTest):
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=True)
     @data('staff', 'customer_owner')
-    def test_user_with_access_can_cancel_customer_invitation(self, user):
+    def test_authorized_user_can_cancel_customer_invitation(self, user):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
         self.client.force_authenticate(user=getattr(self, user))
         response = self.client.post(
             factories.CustomerInvitationFactory.get_url(
@@ -518,8 +517,7 @@ class InvitationCancelTest(BaseInvitationTest):
             self.customer_invitation.state, models.Invitation.State.CANCELED
         )
 
-    @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=False)
-    def test_owner_can_not_cancel_customer_invitation_if_settings_are_tweaked(self):
+    def test_owner_can_not_cancel_customer_invitation(self):
         self.client.force_authenticate(user=self.customer_owner)
         response = self.client.post(
             factories.CustomerInvitationFactory.get_url(
@@ -577,9 +575,9 @@ class InvitationCancelTest(BaseInvitationTest):
 
 @ddt
 class InvitationSendTest(BaseInvitationTest):
-    @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=True)
     @data('staff', 'customer_owner')
-    def test_user_with_access_can_send_customer_invitation(self, user):
+    def test_authorized_user_can_send_customer_invitation(self, user):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
         self.client.force_authenticate(user=getattr(self, user))
         response = self.client.post(
             factories.CustomerInvitationFactory.get_url(
@@ -605,8 +603,7 @@ class InvitationSendTest(BaseInvitationTest):
         self.assertTrue(link in mail.outbox[0].body)
         self.assertTrue(self.extra_invitation_text in mail.outbox[0].body)
 
-    @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=False)
-    def test_owner_can_not_send_customer_invitation_if_settings_are_tweaked(self):
+    def test_owner_can_not_send_customer_invitation(self):
         self.client.force_authenticate(user=self.customer_owner)
         response = self.client.post(
             factories.CustomerInvitationFactory.get_url(
@@ -616,7 +613,9 @@ class InvitationSendTest(BaseInvitationTest):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     @data('staff', 'customer_owner', 'project_manager')
-    def test_user_with_access_can_send_project_invitation(self, user):
+    def test_authorized_user_can_send_project_invitation(self, user):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT_PERMISSION)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.CREATE_PROJECT_PERMISSION)
         self.client.force_authenticate(user=getattr(self, user))
         response = self.client.post(
             factories.ProjectInvitationFactory.get_url(
@@ -625,7 +624,8 @@ class InvitationSendTest(BaseInvitationTest):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    def test_owner_can_send_project_invitation_if_settings_are_tweaked(self):
+    def test_owner_can_send_project_invitation(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT_PERMISSION)
         self.client.force_authenticate(user=self.customer_owner)
         response = self.client.post(
             factories.ProjectInvitationFactory.get_url(
@@ -703,7 +703,7 @@ class InvitationAcceptTest(BaseInvitationTest):
     def test_user_with_invalid_civil_number_cannot_accept_invitation(self):
         customer_invitation = factories.CustomerInvitationFactory(
             customer=self.customer,
-            customer_role=self.customer_role,
+            customer_role=structure_models.CustomerRole.OWNER,
             civil_number='123456789',
         )
         self.client.force_authenticate(user=self.user)
@@ -717,7 +717,7 @@ class InvitationAcceptTest(BaseInvitationTest):
 
     def test_user_which_already_has_role_within_customer_cannot_accept_invitation(self):
         customer_invitation = factories.CustomerInvitationFactory(
-            customer=self.customer, customer_role=self.customer_role
+            customer=self.customer, customer_role=structure_models.CustomerRole.OWNER
         )
         self.client.force_authenticate(user=self.user)
         self.customer.add_user(self.user, customer_invitation.customer_role)
@@ -732,7 +732,8 @@ class InvitationAcceptTest(BaseInvitationTest):
 
     def test_user_which_already_has_role_within_project_cannot_accept_invitation(self):
         project_invitation = factories.ProjectInvitationFactory(
-            project=self.project, project_role=self.project_role
+            project=self.project,
+            project_role=structure_models.ProjectRole.ADMINISTRATOR,
         )
         self.client.force_authenticate(user=self.user)
         self.project.add_user(self.user, project_invitation.project_role)
@@ -765,9 +766,7 @@ class InvitationAcceptTest(BaseInvitationTest):
         self.client.post(
             factories.CustomerInvitationFactory.get_url(invitation, action='accept')
         )
-        permission = structure_models.CustomerPermission.objects.get(
-            user=self.user, customer=invitation.customer
-        )
+        permission = get_permissions(invitation.customer, self.user).get()
         self.assertEqual(permission.created_by, self.customer_owner)
 
     def test_user_can_rewrite_his_email_on_invitation_accept(self):
@@ -844,31 +843,6 @@ class InvitationAcceptTest(BaseInvitationTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.user.refresh_from_db()
         self.assertEqual(self.user.email, invitation.email)
-
-    def test_when_invitation_is_accepted_event_is_emitted(self):
-        # Arrange
-        self.project_invitation.created_by = self.customer_owner
-        self.project_invitation.save()
-
-        # Act
-        with mock_signal_receiver(signals.structure_role_granted) as mock_signal:
-            self.client.force_authenticate(user=self.user)
-            self.client.post(
-                factories.ProjectInvitationFactory.get_url(
-                    self.project_invitation, action='accept'
-                )
-            )
-
-            # Assert
-            mock_signal.assert_called_once_with(
-                structure=self.project,
-                user=self.user,
-                role=self.project_role,
-                sender=structure_models.Project,
-                signal=signals.structure_role_granted,
-                created_by=self.customer_owner,
-                expiration_time=None,
-            )
 
 
 class InvitationApproveTest(BaseInvitationTest):

@@ -4,8 +4,8 @@ from ddt import data, ddt
 from rest_framework import status, test
 
 from waldur_core.media.utils import dummy_image
-from waldur_core.permissions.enums import PermissionEnum, RoleEnum
-from waldur_core.permissions.utils import add_permission
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import fixtures
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.tests.helpers import override_marketplace_settings
@@ -52,9 +52,7 @@ class ScreenshotsCreateTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
-        add_permission(
-            RoleEnum.CUSTOMER_OWNER, PermissionEnum.CREATE_OFFERING_SCREENSHOT
-        )
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_OFFERING_SCREENSHOT)
 
     @data('staff', 'owner')
     def test_authorized_user_can_create_screenshot(self, user):
@@ -96,9 +94,7 @@ class ScreenshotsUpdateTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
-        add_permission(
-            RoleEnum.CUSTOMER_OWNER, PermissionEnum.UPDATE_OFFERING_SCREENSHOT
-        )
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_SCREENSHOT)
 
     @data('staff', 'owner')
     def test_authorized_user_can_update_screenshot(self, user):
@@ -136,9 +132,7 @@ class ScreenshotsDeleteTest(test.APITransactionTestCase):
         self.provider = factories.ServiceProviderFactory(customer=self.customer)
         self.offering = factories.OfferingFactory(customer=self.customer)
         self.screenshot = factories.ScreenshotFactory(offering=self.offering)
-        add_permission(
-            RoleEnum.CUSTOMER_OWNER, PermissionEnum.DELETE_OFFERING_SCREENSHOT
-        )
+        CustomerRole.OWNER.add_permission(PermissionEnum.DELETE_OFFERING_SCREENSHOT)
 
     @data('staff', 'owner')
     def test_authorized_user_can_delete_screenshot(self, user):

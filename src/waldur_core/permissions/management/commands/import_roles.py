@@ -32,3 +32,13 @@ class Command(BaseCommand):
 
                 for permission in new_permissions - current_permissions:
                     RolePermission.objects.create(role=role, permission=permission)
+
+                description = row.get('description')
+                if description and role.description != description:
+                    role.description = description
+                    role.save(update_fields=['description'])
+
+                is_active = row.get('is_active')
+                if is_active and role.is_active != is_active:
+                    role.is_active = is_active
+                    role.save(update_fields=['is_active'])

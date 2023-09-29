@@ -5,7 +5,7 @@ from python_freeipa import exceptions as freeipa_exceptions
 from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
-from waldur_core.structure import models as structure_models
+from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_freeipa import tasks
 from waldur_freeipa.backend import FreeIPABackend
@@ -267,9 +267,7 @@ class ProfileAllocationTest(test.APITransactionTestCase):
         self.fixture = slurm_fixtures.SlurmFixture()
 
     def test_when_association_is_created_profile_is_enabled(self):
-        self.fixture.allocation.project.add_user(
-            self.user, structure_models.ProjectRole.ADMINISTRATOR
-        )
+        self.fixture.allocation.project.add_user(self.user, ProjectRole.ADMIN)
 
         slurm_signals.slurm_association_created.send(
             slurm_models.Allocation,
@@ -295,9 +293,7 @@ class ProfileAllocationTest(test.APITransactionTestCase):
         self.profile.is_active = True
         self.profile.save()
 
-        self.fixture.allocation.project.add_user(
-            self.user, structure_models.ProjectRole.ADMINISTRATOR
-        )
+        self.fixture.allocation.project.add_user(self.user, ProjectRole.ADMIN)
 
         tasks.disable_accounts_without_allocations()
 

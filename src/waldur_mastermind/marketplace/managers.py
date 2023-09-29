@@ -7,14 +7,15 @@ from django.db.models import Q
 from waldur_core.core import managers as core_managers
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.permissions.enums import RoleEnum
+from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import get_scope_ids
 from waldur_core.structure import models as structure_models
-from waldur_core.structure.constants import ROLE_MAP
 from waldur_core.structure.managers import (
     get_connected_customers,
     get_connected_projects,
     get_divisions,
 )
+from waldur_core.structure.models import get_new_role_name
 
 from . import models
 
@@ -37,12 +38,13 @@ class OfferingQuerySet(django_models.QuerySet):
 
         if project_roles:
             project_roles = [
-                ROLE_MAP.get((structure_models.Project, role)) for role in project_roles
+                get_new_role_name(structure_models.Project, role)
+                for role in project_roles
             ]
 
         if customer_roles:
             customer_roles = [
-                ROLE_MAP.get((structure_models.Customer, role))
+                get_new_role_name(structure_models.Customer, role)
                 for role in customer_roles
             ]
 
@@ -216,3 +218,21 @@ class PlanManager(MixinManager):
 def get_connected_offerings(user, role=None):
     content_type = ContentType.objects.get_for_model(models.Offering)
     return get_scope_ids(user, content_type, role)
+
+
+def filter_offering_permissions(user, is_active=True):
+    queryset = UserRole.objects.filter(
+        content_type=ContentType.objects.get_for_model(models.Offering),
+        role__name=RoleEnum.OFFERING_MANAGER,
+        is_active=is_active,
+    ).order_by('-created')
+
+    if not (user.is_staff or user.is_support):
+        visible_offerings = models.Offering.objects.filter(
+            customer__in=get_connected_customers(user)
+        )
+        queryset = queryset.filter(
+            models.Q(user=user) | models.Q(object_id__in=visible_offerings)
+        ).distinct()
+
+    return queryset

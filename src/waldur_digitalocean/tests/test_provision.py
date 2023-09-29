@@ -3,7 +3,7 @@ from unittest import mock, skip
 import digitalocean
 from rest_framework import test
 
-from waldur_core.structure.models import CustomerRole
+from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests.factories import ProjectFactory, ServiceSettingsFactory
 from waldur_digitalocean.apps import DigitalOceanConfig

@@ -1,7 +1,7 @@
 from rest_framework import status, test
 
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
-from waldur_core.permissions.utils import add_permission
+from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests.factories import UserFactory
 
 ROLE_ENDPOINT = '/api/roles/'
@@ -9,7 +9,7 @@ ROLE_ENDPOINT = '/api/roles/'
 
 class RoleTest(test.APITransactionTestCase):
     def test_get_role(self):
-        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.UPDATE_OFFERING)
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING)
         response = self.client.get(ROLE_ENDPOINT)
         self.assertEqual(
             list(response.data[0]['permissions']), [PermissionEnum.UPDATE_OFFERING]
@@ -22,6 +22,7 @@ class RoleTest(test.APITransactionTestCase):
             ROLE_ENDPOINT,
             {
                 'name': RoleEnum.CUSTOMER_OWNER,
+                'content_type': 'customer',
                 'permissions': [PermissionEnum.UPDATE_OFFERING.value],
             },
         )
@@ -34,13 +35,14 @@ class RoleTest(test.APITransactionTestCase):
             ROLE_ENDPOINT,
             {
                 'name': RoleEnum.CUSTOMER_OWNER,
+                'content_type': 'customer',
                 'permissions': [PermissionEnum.UPDATE_OFFERING.value],
             },
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_staff_can_update_role(self):
-        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.UPDATE_OFFERING)
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING)
         user = UserFactory(is_staff=True)
         self.client.force_login(user)
         response = self.client.get(ROLE_ENDPOINT)
@@ -49,6 +51,7 @@ class RoleTest(test.APITransactionTestCase):
             f'{ROLE_ENDPOINT}{role_uuid}/',
             {
                 'name': RoleEnum.CUSTOMER_OWNER,
+                'content_type': 'customer',
                 'permissions': [
                     PermissionEnum.UPDATE_OFFERING.value,
                     PermissionEnum.APPROVE_ORDER.value,
@@ -62,7 +65,7 @@ class RoleTest(test.APITransactionTestCase):
         )
 
     def test_staff_can_not_update_system_role_name(self):
-        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.UPDATE_OFFERING)
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING)
         user = UserFactory(is_staff=True)
         self.client.force_login(user)
         response = self.client.get(ROLE_ENDPOINT)
@@ -80,7 +83,7 @@ class RoleTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_staff_can_not_destroy_system_role(self):
-        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.UPDATE_OFFERING)
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING)
         user = UserFactory(is_staff=True)
         self.client.force_login(user)
         response = self.client.get(ROLE_ENDPOINT)

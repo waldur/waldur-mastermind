@@ -32,7 +32,14 @@ from waldur_core.core.validators import validate_cidr_list, validate_name
 from waldur_core.logging.loggers import LoggableMixin
 from waldur_core.media.models import ImageModelMixin
 from waldur_core.media.validators import CertificateValidator
-from waldur_core.permissions.enums import RoleEnum
+from waldur_core.permissions.enums import SYSTEM_PROJECT_ROLES, RoleEnum
+from waldur_core.permissions.models import Role
+from waldur_core.permissions.utils import (
+    add_user,
+    delete_user,
+    get_permissions,
+    has_user,
+)
 from waldur_core.quotas import fields as quotas_fields
 from waldur_core.quotas import models as quotas_models
 from waldur_core.structure.managers import (
@@ -45,9 +52,9 @@ from waldur_core.structure.managers import (
     get_customer_users,
     get_nested_customer_users,
     get_project_users,
+    get_visible_customers,
 )
 from waldur_core.structure.registry import SupportedServices, get_resource_type
-from waldur_core.structure.signals import structure_role_granted, structure_role_revoked
 from waldur_geo_ip.mixins import CoordinatesMixin, IPCoordinatesMixin
 from waldur_geo_ip.utils import get_coordinates_by_ip
 
@@ -195,93 +202,32 @@ class PermissionMixin:
     Provides method to grant, revoke and check object permissions.
     """
 
-    def has_user(self, user, role=None, timestamp=False):
-        """
-        Checks whether user has role in entity.
-        `timestamp` can have following values:
-            - False - check whether user has role in entity at the moment.
-            - None - check whether user has permanent role in entity.
-            - Datetime object - check whether user will have role in entity at specific timestamp.
-        """
-        permissions = self.get_active_permissions(user, role)
-
-        if timestamp is None:
-            permissions = permissions.filter(expiration_time=None)
-        elif timestamp:
-            permissions = permissions.filter(
-                Q(expiration_time=None) | Q(expiration_time__gte=timestamp)
+    def get_or_create_role(self, role=None):
+        if role and isinstance(role, str):
+            return Role.objects.get_system_role(
+                name=get_new_role_name(self._meta.model, role),
+                content_type=ContentType.objects.get_for_model(self._meta.model),
             )
+        return role
 
-        return permissions.exists()
+    def has_user(self, user, role=None, timestamp=False):
+        role = self.get_or_create_role(role)
+        return has_user(self, user, role, timestamp)
 
     @transaction.atomic()
-    def add_user(self, user, role=None, created_by=None, expiration_time=None):
-        permission = self.get_active_permissions(user, role).first()
-        if permission:
-            return permission, False
-
-        kwargs = dict(
-            user=user,
-            is_active=True,
-            created_by=created_by,
-            expiration_time=expiration_time,
-        )
-        if role:
-            kwargs['role'] = role
-        permission = self.permissions.create(**kwargs)
-
-        structure_role_granted.send(
-            sender=self.__class__,
-            structure=self,
-            user=user,
-            role=role,
-            created_by=created_by,
-            expiration_time=expiration_time,
-        )
-
-        return permission, True
+    def add_user(self, user, role, created_by=None, expiration_time=None):
+        role = self.get_or_create_role(role)
+        permission = add_user(self, user, role, created_by, expiration_time)
+        return permission
 
     @transaction.atomic()
     def remove_user(self, user, role=None, removed_by=None):
-        permissions = self.get_active_permissions(user, role)
-
-        affected_permissions = list(permissions)
-        permissions.update(is_active=None, expiration_time=timezone.now())
-
-        for permission in affected_permissions:
-            self.log_role_revoked(permission, removed_by)
-
-    def get_active_permissions(self, user, role=None):
-        permissions = self.permissions.filter(user=user, is_active=True)
-
-        if role is not None:
-            permissions = permissions.filter(role=role)
-        return permissions
-
-    @transaction.atomic()
-    def remove_all_users(self):
-        for permission in self.permissions.all().iterator():
-            permission.delete()
-            self.log_role_revoked(permission)
-
-    def log_role_revoked(self, permission, removed_by=None):
-        structure_role_revoked.send(
-            sender=self.__class__,
-            structure=self,
-            user=permission.user,
-            role=getattr(permission, 'role', None),
-            removed_by=removed_by,
-        )
-
-    def can_manage_role(self, user, role=None, timestamp=False):
-        """
-        Checks whether user can grant/update/revoke permissions for specific role.
-        `timestamp` can have following values:
-            - False - check whether user can manage permissions at the moment.
-            - None - check whether user can permanently manage permissions.
-            - Datetime object - check whether user will be able to manage permissions at specific timestamp.
-        """
-        raise NotImplementedError
+        role = self.get_or_create_role(role)
+        if role:
+            delete_user(self, user, role, removed_by)
+        else:
+            for perm in get_permissions(self, user):
+                perm.revoke(removed_by)
 
     def get_users(self, role=None):
         """Return all connected to scope users"""
@@ -532,12 +478,6 @@ class Customer(
     def can_user_update_quotas(self, user):
         return user.is_staff
 
-    def can_manage_role(self, user, role=None, timestamp=False):
-        return user.is_staff or (
-            self.has_user(user, CustomerRole.OWNER, timestamp)
-            and settings.WALDUR_CORE['OWNERS_CAN_MANAGE_OWNERS']
-        )
-
     def get_children(self):
         return itertools.chain.from_iterable(
             m.objects.filter(customer=self) for m in [Project]
@@ -774,8 +714,6 @@ class Project(
     tracker = FieldTracker()
     # Entities returned in manager available_objects are limited to not-deleted instances.
     # Entities returned in manager objects include deleted objects.
-    # Usage of all_objects manager is discouraged as it is going to
-    # be removed in next release of django-model-utils.
     available_objects = SoftDeletableManager()
     objects = StructureManager()
 
@@ -788,10 +726,9 @@ class Project(
         return self.name
 
     def get_users(self, role=None):
-        from waldur_core.structure.constants import ROLE_MAP
-
-        if role:
-            role = ROLE_MAP.get((Project, role))
+        if isinstance(role, str):
+            if role not in SYSTEM_PROJECT_ROLES:
+                role = get_new_role_name(Project, role)
         project_users = get_project_users(self.id, role)
         return (
             get_user_model().objects.filter(id__in=project_users).order_by('username')
@@ -822,16 +759,6 @@ class Project(
 
     def can_user_update_quotas(self, user):
         return user.is_staff or self.customer.has_user(user, CustomerRole.OWNER)
-
-    def can_manage_role(self, user, role=None, timestamp=False):
-        if user.is_staff:
-            return True
-        if self.customer.has_user(user, CustomerRole.OWNER, timestamp):
-            return True
-
-        return (
-            role == ProjectRole.ADMINISTRATOR or role == ProjectRole.MEMBER
-        ) and self.has_user(user, ProjectRole.MANAGER, timestamp)
 
     def get_log_fields(self):
         return ('uuid', 'customer', 'name')
@@ -872,14 +799,10 @@ class CustomerPermissionReview(core_models.UuidMixin):
 
 
 def build_service_settings_query(user):
-    return (
-        Q(shared=True)
-        | Q(
-            shared=False,
-            customer__projects__permissions__user=user,
-            is_active=True,
-        )
-        | Q(shared=False, customer__permissions__user=user, is_active=True)
+    return Q(shared=True) | Q(
+        shared=False,
+        customer__in=get_visible_customers(user),
+        is_active=True,
     )
 
 
@@ -1259,3 +1182,24 @@ class UserAgreement(LoggableMixin, TimeStampedModel):
 
 
 reversion.register(Customer)
+
+
+ROLE_MAP = {
+    ('customer', 'owner'): RoleEnum.CUSTOMER_OWNER,
+    ('customer', 'service_manager'): RoleEnum.CUSTOMER_MANAGER,
+    ('customer', 'support'): RoleEnum.CUSTOMER_SUPPORT,
+    ('project', 'admin'): RoleEnum.PROJECT_ADMIN,
+    ('project', 'manager'): RoleEnum.PROJECT_MANAGER,
+    ('project', 'member'): RoleEnum.PROJECT_MEMBER,
+    ('offering', None): RoleEnum.OFFERING_MANAGER,
+}
+
+
+def get_new_role_name(type, old_role_name):
+    return ROLE_MAP.get((type._meta.model_name, old_role_name)) or old_role_name
+
+
+def get_old_role_name(new_role_name):
+    keys = [key for key, value in ROLE_MAP.items() if value == new_role_name]
+    if keys:
+        return keys[0][1]

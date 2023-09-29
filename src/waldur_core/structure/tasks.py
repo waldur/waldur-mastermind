@@ -35,13 +35,6 @@ def reraise_exceptions(func):
     return wrapped
 
 
-@shared_task(name='waldur_core.structure.check_expired_permissions')
-def check_expired_permissions():
-    for cls in structure_models.BasePermission.get_all_models():
-        for permission in cls.get_expired():
-            permission.revoke()
-
-
 class BackgroundPullTask(core_tasks.BackgroundTask):
     """Pull information about object from backend. Method "pull" should be implemented.
 
