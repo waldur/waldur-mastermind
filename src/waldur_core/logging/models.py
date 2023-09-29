@@ -188,12 +188,21 @@ class EmailHook(BaseHook):
         logger.info(
             'Submitting email hook to %s, payload: %s', self.email, text_message
         )
-        send_mail(
-            subject,
-            text_message,
-            [self.email],
-            html_message=html_message,
-        )
+        if settings.EMAIL_HOOK_FROM_EMAIL:
+            send_mail(
+                subject,
+                text_message,
+                [self.email],
+                html_message=html_message,
+                from_email=settings.EMAIL_HOOK_FROM_EMAIL,
+            )
+        else:
+            send_mail(
+                subject,
+                text_message,
+                [self.email],
+                html_message=html_message,
+            )
 
 
 class SystemNotification(EventTypesMixin, models.Model):

@@ -929,6 +929,10 @@ class WaldurConfiguration(BaseModel):
         'webmaster@localhost',
         description='Default email address to use for automated correspondence from Waldur.',
     )
+    EMAIL_HOOK_FROM_EMAIL = Field(
+        '',
+        description='Alternative email address to use for email hooks.',
+    )
     DEFAULT_REPLY_TO_EMAIL = Field(
         '',
         description='Default email address to use for email replies.',
