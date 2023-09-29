@@ -6,6 +6,7 @@ import python_freeipa
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 
+from waldur_core.permissions.models import UserRole
 from waldur_core.quotas import models as quota_models
 from waldur_core.structure import models as structure_models
 
@@ -99,15 +100,11 @@ class GroupSynchronizer:
             self.group_users[group].add(username)
 
     def collect_waldur_permissions(self):
-        for permission in structure_models.CustomerPermission.objects.filter(
-            is_active=True
-        ):
-            self.add_customer_user(permission.customer, permission.user)
-
-        for permission in structure_models.ProjectPermission.objects.filter(
-            is_active=True
-        ):
-            self.add_project_user(permission.project, permission.user)
+        for permission in UserRole.objects.filter(is_active=True):
+            if isinstance(permission.scope, structure_models.Customer):
+                self.add_customer_user(permission.scope, permission.user)
+            elif isinstance(permission.scope, structure_models.Project):
+                self.add_project_user(permission.scope, permission.user)
 
     def get_limits(self, model):
         ctype = ContentType.objects.get_for_model(model)

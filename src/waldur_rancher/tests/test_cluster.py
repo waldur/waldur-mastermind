@@ -5,7 +5,7 @@ from rest_framework import status, test
 from rest_framework.response import Response
 
 from waldur_core.core.models import StateMixin
-from waldur_core.structure.models import ProjectRole
+from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests.factories import (
     ProjectFactory,
     ServiceSettingsFactory,
@@ -63,7 +63,7 @@ class ClusterGetTest(test.APITransactionTestCase):
     def test_rancher_cluster_is_filtered_out_for_unrelated_user(self):
         project = ProjectFactory(customer=self.fixture.customer)
         admin = UserFactory()
-        project.add_user(admin, ProjectRole.ADMINISTRATOR)
+        project.add_user(admin, ProjectRole.ADMIN)
         vm = openstack_tenant_factories.InstanceFactory(
             service_settings=self.fixture.tenant_settings,
             project=project,

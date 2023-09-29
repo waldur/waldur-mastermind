@@ -7,9 +7,8 @@ from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
 from waldur_core.logging import models as logging_models
-from waldur_core.permissions.enums import PermissionEnum, RoleEnum
-from waldur_core.permissions.utils import add_permission
-from waldur_core.structure import models as structure_models
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole, OfferingRole, ProjectRole
 from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests.factories import ProjectFactory, UserFactory
 from waldur_mastermind.common.utils import parse_date
@@ -64,7 +63,7 @@ class ResourceGetTest(test.APITransactionTestCase):
 
     def test_service_provider_can_get_resource_data(self):
         owner = UserFactory()
-        self.offering.customer.add_user(owner, structure_models.CustomerRole.OWNER)
+        self.offering.customer.add_user(owner, CustomerRole.OWNER)
 
         response = self.get_resource()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -76,7 +75,7 @@ class ResourceGetTest(test.APITransactionTestCase):
     def test_filter_resources_for_service_manager(self):
         # Arrange
         offering = factories.OfferingFactory(customer=self.fixture.customer)
-        offering.add_user(self.fixture.user)
+        offering.add_user(self.fixture.user, OfferingRole.MANAGER)
         resource = factories.ResourceFactory(project=self.project, offering=offering)
 
         # Act
@@ -130,10 +129,10 @@ class ResourceSwitchPlanTest(test.APITransactionTestCase):
             offering=self.offering,
             plan=self.plan2,
         )
-        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.SWITCH_RESOURCE_PLAN)
-        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.APPROVE_ORDER)
-        add_permission(RoleEnum.PROJECT_ADMIN, PermissionEnum.SWITCH_RESOURCE_PLAN)
-        add_permission(RoleEnum.PROJECT_MANAGER, PermissionEnum.SWITCH_RESOURCE_PLAN)
+        CustomerRole.OWNER.add_permission(PermissionEnum.SWITCH_RESOURCE_PLAN)
+        CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_ORDER)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.SWITCH_RESOURCE_PLAN)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.SWITCH_RESOURCE_PLAN)
 
     def switch_plan(self, user, resource, plan):
         self.client.force_authenticate(user)
@@ -297,8 +296,8 @@ class ResourceTerminateTest(test.APITransactionTestCase):
             plan=self.plan,
             state=models.Resource.States.OK,
         )
-        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.TERMINATE_RESOURCE)
-        add_permission(RoleEnum.PROJECT_ADMIN, PermissionEnum.TERMINATE_RESOURCE)
+        CustomerRole.OWNER.add_permission(PermissionEnum.TERMINATE_RESOURCE)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.TERMINATE_RESOURCE)
 
     def terminate(self, user, attributes=None):
         attributes = attributes or {}
@@ -313,7 +312,7 @@ class ResourceTerminateTest(test.APITransactionTestCase):
     def test_service_provider_can_terminate_resource(self, mocked_approve):
         # Arrange
         owner = UserFactory()
-        self.offering.customer.add_user(owner, structure_models.CustomerRole.OWNER)
+        self.offering.customer.add_user(owner, CustomerRole.OWNER)
 
         # Act
         response = self.terminate(owner)
@@ -729,8 +728,8 @@ class ResourceSetEndDateByProviderTest(test.APITransactionTestCase):
         self.url = factories.ResourceFactory.get_url(
             self.resource, 'set_end_date_by_provider'
         )
-        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.SET_RESOURCE_END_DATE)
-        add_permission(RoleEnum.CUSTOMER_MANAGER, PermissionEnum.SET_RESOURCE_END_DATE)
+        CustomerRole.OWNER.add_permission(PermissionEnum.SET_RESOURCE_END_DATE)
+        CustomerRole.MANAGER.add_permission(PermissionEnum.SET_RESOURCE_END_DATE)
 
     def make_request(self, user, payload):
         self.client.force_authenticate(user)
@@ -902,7 +901,7 @@ class ResourceUpdateLimitsTest(test.APITransactionTestCase):
         self.resource.offering.type = 'TEST_TYPE'
         self.resource.offering.save()
 
-        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.UPDATE_RESOURCE_LIMITS)
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_RESOURCE_LIMITS)
 
     def update_limits(self, user, resource, limits=None):
         limits = limits or {'vcpu': 10}
@@ -1110,13 +1109,11 @@ class ResourceBackendIDTest(test.APITransactionTestCase):
 
         service_manager = UserFactory()
         self.resource.offering.customer.add_user(
-            service_manager, role=structure_models.CustomerRole.SERVICE_MANAGER
+            service_manager, role=CustomerRole.MANAGER
         )
         setattr(self.fixture, 'service_manager', service_manager)
-        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.SET_RESOURCE_BACKEND_ID)
-        add_permission(
-            RoleEnum.CUSTOMER_MANAGER, PermissionEnum.SET_RESOURCE_BACKEND_ID
-        )
+        CustomerRole.OWNER.add_permission(PermissionEnum.SET_RESOURCE_BACKEND_ID)
+        CustomerRole.MANAGER.add_permission(PermissionEnum.SET_RESOURCE_BACKEND_ID)
 
     def make_request(self, role):
         self.client.force_authenticate(role)
@@ -1148,17 +1145,15 @@ class ResourceReportTest(test.APITransactionTestCase):
 
         service_manager = UserFactory()
         self.resource.offering.customer.add_user(
-            service_manager, role=structure_models.CustomerRole.SERVICE_MANAGER
+            service_manager, role=CustomerRole.MANAGER
         )
         setattr(self.fixture, 'service_manager', service_manager)
 
         service_owner = UserFactory()
-        self.resource.offering.customer.add_user(
-            service_owner, role=structure_models.CustomerRole.OWNER
-        )
+        self.resource.offering.customer.add_user(service_owner, role=CustomerRole.OWNER)
         setattr(self.fixture, 'service_owner', service_manager)
-        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.SUBMIT_RESOURCE_REPORT)
-        add_permission(RoleEnum.CUSTOMER_MANAGER, PermissionEnum.SUBMIT_RESOURCE_REPORT)
+        CustomerRole.OWNER.add_permission(PermissionEnum.SUBMIT_RESOURCE_REPORT)
+        CustomerRole.MANAGER.add_permission(PermissionEnum.SUBMIT_RESOURCE_REPORT)
 
     def make_request(self, role, payload):
         self.client.force_authenticate(role)
@@ -1189,7 +1184,7 @@ class ResourceDetailsTest(test.APITransactionTestCase):
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
         self.offering = factories.OfferingFactory(customer=self.fixture.customer)
-        self.offering.add_user(self.fixture.user)
+        self.offering.add_user(self.fixture.user, OfferingRole.MANAGER)
         self.resource = factories.ResourceFactory(
             project=self.project, offering=self.offering
         )
@@ -1223,7 +1218,7 @@ class ResourceGetTeamTest(test.APITransactionTestCase):
         )
 
         self.url = factories.ResourceFactory.get_url(self.resource, action='team')
-        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.LIST_RESOURCE_USERS)
+        CustomerRole.OWNER.add_permission(PermissionEnum.LIST_RESOURCE_USERS)
 
     def test_service_owner_can_get_resource_team(self):
         self.client.force_authenticate(self.service_owner)
@@ -1321,9 +1316,7 @@ class DownscalingRequestCompletedTest(test.APITransactionTestCase):
         self.url = factories.ResourceFactory.get_url(
             self.resource, action='downscaling_request_completed'
         )
-        add_permission(
-            RoleEnum.CUSTOMER_OWNER, PermissionEnum.COMPLETE_RESOURCE_DOWNSCALING
-        )
+        CustomerRole.OWNER.add_permission(PermissionEnum.COMPLETE_RESOURCE_DOWNSCALING)
 
     def test_service_owner_can_downscaling_request_completed(self):
         self.client.force_authenticate(self.service_owner)

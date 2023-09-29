@@ -15,8 +15,8 @@ from waldur_core.core import models as core_models
 from waldur_core.core.filters import ExternalFilterBackend
 from waldur_core.core.utils import get_ordering, is_uuid_like, order_with_nulls
 from waldur_core.permissions.enums import RoleEnum
+from waldur_core.permissions.models import UserRole
 from waldur_core.structure import models
-from waldur_core.structure.constants import ROLE_MAP
 from waldur_core.structure.managers import (
     filter_queryset_by_user_ip,
     filter_queryset_for_user,
@@ -26,6 +26,7 @@ from waldur_core.structure.managers import (
     get_project_users,
     get_visible_users,
 )
+from waldur_core.structure.models import get_new_role_name
 from waldur_core.structure.registry import SupportedServices
 from waldur_mastermind.billing import models as billing_models
 
@@ -35,54 +36,6 @@ User = auth.get_user_model()
 class NameFilterSet(django_filters.FilterSet):
     name = django_filters.CharFilter(lookup_expr='icontains')
     name_exact = django_filters.CharFilter(field_name='name', lookup_expr='exact')
-
-
-class ScopeTypeFilterBackend(BaseFilterBackend):
-    """Scope filters:
-
-    * ?scope = ``URL``
-    * ?scope_type = ``string`` (can be list)
-    """
-
-    content_type_field = 'content_type'
-    scope_param = 'scope_type'
-    scope_models = {
-        'customer': models.Customer,
-        'project': models.Project,
-        'resource': models.BaseResource,
-    }
-
-    @classmethod
-    def get_scope_type(cls, model):
-        for scope_type, scope_model in cls.scope_models.items():
-            if issubclass(model, scope_model):
-                return scope_type
-
-    @classmethod
-    def _get_scope_models(cls, types):
-        for scope_type, scope_model in cls.scope_models.items():
-            if scope_type in types:
-                try:
-                    for submodel in scope_model.get_all_models():
-                        yield submodel
-                except AttributeError:
-                    yield scope_model
-
-    @classmethod
-    def _get_scope_content_types(cls, types):
-        return ContentType.objects.get_for_models(
-            *cls._get_scope_models(types)
-        ).values()
-
-    def filter_queryset(self, request, queryset, view):
-        if self.scope_param in request.query_params:
-            content_types = self._get_scope_content_types(
-                request.query_params.getlist(self.scope_param)
-            )
-            return queryset.filter(
-                **{'%s__in' % self.content_type_field: content_types}
-            )
-        return queryset
 
 
 class GenericRoleFilter(BaseFilterBackend):
@@ -488,41 +441,52 @@ class UserPermissionFilter(django_filters.FilterSet):
 
 class ProjectPermissionFilter(UserPermissionFilter):
     class Meta:
-        fields = ['role']
-        model = models.ProjectPermission
+        fields = []
+        model = UserRole
 
-    customer = django_filters.UUIDFilter(
-        field_name='project__customer__uuid',
-    )
-    project = django_filters.UUIDFilter(
-        field_name='project__uuid',
-    )
-    project_url = core_filters.URLFilter(
-        view_name='project-detail',
-        field_name='project__uuid',
-    )
-    project_name = django_filters.CharFilter(
-        field_name='project__name',
-        lookup_expr='icontains',
-    )
+    customer = django_filters.UUIDFilter(method='filter_by_customer')
+    project = django_filters.UUIDFilter(method='filter_by_project')
+    role = django_filters.CharFilter(method='filter_by_role')
+
+    def filter_by_role(self, queryset, name, value):
+        role_name = get_new_role_name(models.Project, value)
+        return queryset.filter(role__name=role_name)
+
+    def filter_by_customer(self, queryset, name, value):
+        try:
+            customer = models.Customer.objects.get(uuid=value)
+        except models.Customer.DoesNotExist:
+            return queryset.none()
+        return queryset.filter(
+            object_id__in=customer.projects.values_list('id', flat=True)
+        )
+
+    def filter_by_project(self, queryset, name, value):
+        try:
+            project = models.Project.objects.get(uuid=value)
+        except models.Project.DoesNotExist:
+            return queryset.none()
+        return queryset.filter(object_id=project.id)
 
 
 class CustomerPermissionFilter(UserPermissionFilter):
     class Meta:
-        fields = ['role']
-        model = models.CustomerPermission
+        fields = []
+        model = UserRole
 
-    customer = django_filters.UUIDFilter(
-        field_name='customer__uuid',
-    )
-    customer_url = core_filters.URLFilter(
-        view_name='customer-detail',
-        field_name='customer__uuid',
-    )
-    customer_name = django_filters.CharFilter(
-        field_name='customer__name',
-        lookup_expr='icontains',
-    )
+    customer = django_filters.UUIDFilter(method='filter_by_customer')
+    role = django_filters.CharFilter(method='filter_by_role')
+
+    def filter_by_role(self, queryset, name, value):
+        role_name = get_new_role_name(models.Customer, value)
+        return queryset.filter(role__name=role_name)
+
+    def filter_by_customer(self, queryset, name, value):
+        try:
+            customer = models.Customer.objects.get(uuid=value)
+        except models.Customer.DoesNotExist:
+            return queryset.none()
+        return queryset.filter(object_id=customer.id)
 
 
 class CustomerPermissionReviewFilter(django_filters.FilterSet):
@@ -737,7 +701,7 @@ class UserRolesFilter(BaseFilterBackend):
             # Filter project permissions by current customer
             projects = customer.projects.values_list('id', flat=True)
             project_roles = [
-                ROLE_MAP.get((models.Project, role)) for role in project_roles
+                get_new_role_name(models.Project, role) for role in project_roles
             ]
             project_users = get_project_users(projects, project_roles)
             query = query | Q(id__in=project_users)
@@ -745,7 +709,7 @@ class UserRolesFilter(BaseFilterBackend):
         if organization_roles:
             # Filter customer permissions by current customer
             organization_roles = [
-                ROLE_MAP.get((models.Customer, role)) for role in organization_roles
+                get_new_role_name(models.Customer, role) for role in organization_roles
             ]
             customer_users = get_customer_users(customer.id, organization_roles)
             query = query | Q(id__in=customer_users)

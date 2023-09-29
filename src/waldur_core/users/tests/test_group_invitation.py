@@ -1,16 +1,16 @@
 from datetime import timedelta
 from unittest import mock
-from unittest.mock import patch
 
 from ddt import data, ddt
 from django.conf import settings
 from django.utils import timezone
 from rest_framework import status
 
-from waldur_core.core import utils as core_utils
 from waldur_core.core.tests.helpers import override_waldur_core_settings
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.permissions.utils import has_user
 from waldur_core.structure import models as structure_models
-from waldur_core.structure import tasks as structure_tasks
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.users import models, tasks
 from waldur_core.users.tests import factories
@@ -22,11 +22,11 @@ class BaseGroupInvitationTest(BaseInvitationTest):
     def setUp(self):
         super().setUp()
         self.customer_group_invitation = factories.CustomerGroupInvitationFactory(
-            customer=self.customer, customer_role=self.customer_role
+            customer=self.customer
         )
 
         self.project_group_invitation = factories.ProjectGroupInvitationFactory(
-            project=self.project, project_role=self.project_role
+            project=self.project
         )
 
         factories.CustomerGroupInvitationFactory()
@@ -134,6 +134,8 @@ class GroupInvitationRetrieveTest(BaseGroupInvitationTest):
 class GroupInvitationCreateTest(BaseGroupInvitationTest):
     @data('staff', 'customer_owner')
     def test_user_with_access_can_create_project_admin_invitation(self, user):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT_PERMISSION)
+
         self.client.force_authenticate(user=getattr(self, user))
         payload = self._get_valid_project_invitation_payload(
             self.project_group_invitation,
@@ -146,6 +148,8 @@ class GroupInvitationCreateTest(BaseGroupInvitationTest):
 
     @data('staff', 'customer_owner')
     def test_user_with_access_can_create_project_manager_invitation(self, user):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT_PERMISSION)
+
         self.client.force_authenticate(user=getattr(self, user))
         payload = self._get_valid_project_invitation_payload(
             self.project_group_invitation,
@@ -156,8 +160,8 @@ class GroupInvitationCreateTest(BaseGroupInvitationTest):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=False)
-    def test_owner_can_create_project_manager_invitation_if_settings_are_tweaked(self):
+    def test_owner_can_create_project_manager_invitation(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT_PERMISSION)
         self.client.force_authenticate(user=self.customer_owner)
         payload = self._get_valid_project_invitation_payload(
             self.project_group_invitation,
@@ -168,9 +172,9 @@ class GroupInvitationCreateTest(BaseGroupInvitationTest):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=True)
     @data('project_admin', 'project_manager', 'user')
     def test_user_without_access_cannot_create_project_invitation(self, user):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
         self.client.force_authenticate(user=getattr(self, user))
         payload = self._get_valid_project_invitation_payload(
             self.project_group_invitation
@@ -184,9 +188,9 @@ class GroupInvitationCreateTest(BaseGroupInvitationTest):
             {'detail': 'You do not have permission to perform this action.'},
         )
 
-    @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=True)
     @data('staff', 'customer_owner')
     def test_user_with_access_can_create_customer_owner_invitation(self, user):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
         self.client.force_authenticate(user=getattr(self, user))
         payload = self._get_valid_customer_invitation_payload(
             self.customer_group_invitation
@@ -196,8 +200,7 @@ class GroupInvitationCreateTest(BaseGroupInvitationTest):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=False)
-    def test_owner_can_not_create_customer_owner_invitation_if_settings_are_tweaked(
+    def test_owner_can_not_create_customer_owner_invitation(
         self,
     ):
         self.client.force_authenticate(user=self.customer_owner)
@@ -209,9 +212,9 @@ class GroupInvitationCreateTest(BaseGroupInvitationTest):
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=True)
     @data('staff', 'customer_owner')
     def test_user_which_created_invitation_is_stored_in_invitation(self, user):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
         self.client.force_authenticate(user=getattr(self, user))
         payload = self._get_valid_customer_invitation_payload(
             self.customer_group_invitation
@@ -310,12 +313,11 @@ class GroupInvitationCreateTest(BaseGroupInvitationTest):
             {'customer_role': ["Customer and its role must be provided."]},
         )
 
-    @override_waldur_core_settings(
-        OWNERS_CAN_MANAGE_OWNERS=True, ONLY_STAFF_CAN_INVITE_USERS=True
-    )
+    @override_waldur_core_settings(ONLY_STAFF_CAN_INVITE_USERS=True)
     def test_if_only_staff_can_create_invitation_then_owner_creates_invitation_request(
         self,
     ):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
         self.client.force_authenticate(user=self.customer_owner)
         payload = self._get_valid_customer_invitation_payload(
             self.customer_group_invitation
@@ -351,6 +353,8 @@ class GroupInvitationCreateTest(BaseGroupInvitationTest):
 class GroupInvitationCancelTest(BaseGroupInvitationTest):
     @data('staff', 'customer_owner')
     def test_user_with_access_can_cancel_project_invitation(self, user):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT_PERMISSION)
+
         self.client.force_authenticate(user=getattr(self, user))
         response = self.client.post(
             factories.ProjectGroupInvitationFactory.get_url(
@@ -371,9 +375,9 @@ class GroupInvitationCancelTest(BaseGroupInvitationTest):
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=True)
     @data('staff', 'customer_owner')
     def test_user_with_access_can_cancel_customer_invitation(self, user):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
         self.client.force_authenticate(user=getattr(self, user))
         response = self.client.post(
             factories.CustomerGroupInvitationFactory.get_url(
@@ -384,8 +388,7 @@ class GroupInvitationCancelTest(BaseGroupInvitationTest):
         self.customer_group_invitation.refresh_from_db()
         self.assertEqual(self.customer_group_invitation.is_active, False)
 
-    @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=False)
-    def test_owner_can_not_cancel_customer_invitation_if_settings_are_tweaked(self):
+    def test_owner_can_not_cancel_customer_invitation(self):
         self.client.force_authenticate(user=self.customer_owner)
         response = self.client.post(
             factories.CustomerGroupInvitationFactory.get_url(
@@ -414,7 +417,7 @@ class RequestCreateTest(BaseInvitationTest):
     def setUp(self):
         super().setUp()
         self.group_invitation = factories.CustomerGroupInvitationFactory(
-            customer=self.customer, customer_role=self.customer_role
+            customer=self.customer
         )
         self.url = factories.CustomerGroupInvitationFactory.get_url(
             self.group_invitation, 'request'
@@ -451,7 +454,7 @@ class RequestRetrieveTest(BaseInvitationTest):
     def setUp(self):
         super().setUp()
         self.customer_group_invitation = factories.CustomerGroupInvitationFactory(
-            customer=self.customer, customer_role=self.customer_role
+            customer=self.customer
         )
         self.permission_request = factories.PermissionRequestFactory(
             invitation=self.customer_group_invitation,
@@ -494,7 +497,7 @@ class RequestApproveTest(BaseInvitationTest):
     def setUp(self):
         super().setUp()
         self.customer_group_invitation = factories.CustomerGroupInvitationFactory(
-            customer=self.customer, customer_role=self.customer_role
+            customer=self.customer
         )
         self.permission_request = factories.PermissionRequestFactory(
             invitation=self.customer_group_invitation,
@@ -504,9 +507,9 @@ class RequestApproveTest(BaseInvitationTest):
         )
         self.created_by = self.permission_request.created_by
 
-    @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=True)
     @data('staff', 'customer_owner')
     def test_user_can_approve_request(self, user):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
         self.client.force_authenticate(user=getattr(self, user))
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -514,17 +517,11 @@ class RequestApproveTest(BaseInvitationTest):
         self.assertEqual(
             self.permission_request.state, models.PermissionRequest.States.APPROVED
         )
-        self.assertTrue(
-            structure_models.CustomerPermission.objects.filter(
-                user=self.permission_request.created_by,
-                customer=self.customer,
-            ).exists()
-        )
+        self.assertTrue(has_user(self.customer, self.permission_request.created_by))
 
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
-    @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=False)
     @data('customer_owner', 'created_by')
     def test_user_cannot_approve_request(self, user):
         self.client.force_authenticate(user=getattr(self, user))
@@ -535,40 +532,13 @@ class RequestApproveTest(BaseInvitationTest):
             self.permission_request.state, models.PermissionRequest.States.PENDING
         )
 
-    @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=True)
-    @patch('waldur_core.structure.handlers.tasks')
-    def test_task_notification_calling(self, mock_tasks):
-        self.client.force_authenticate(user=self.staff)
-        response = self.client.post(self.url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        mock_tasks.send_structure_role_granted_notification.delay.assert_called_once()
-        permission = structure_models.CustomerPermission.objects.get(
-            user=self.permission_request.created_by,
-            customer=self.customer,
-        )
-        mock_tasks.send_structure_role_granted_notification.delay.assert_called_once_with(
-            core_utils.serialize_instance(permission),
-            core_utils.serialize_instance(self.customer),
-        )
-
-    @patch('waldur_core.core.utils.send_mail')
-    def test_task_notification(self, mock_send_mail):
-        permission = structure_factories.CustomerPermissionFactory()
-        event_type = 'structure_role_granted'
-        structure_factories.NotificationFactory(key=f"structure.{event_type}")
-        structure_tasks.send_structure_role_granted_notification(
-            core_utils.serialize_instance(permission),
-            core_utils.serialize_instance(permission.customer),
-        )
-        mock_send_mail.assert_called_once()
-
 
 @ddt
 class RequestRejectTest(BaseInvitationTest):
     def setUp(self):
         super().setUp()
         self.customer_group_invitation = factories.CustomerGroupInvitationFactory(
-            customer=self.customer, customer_role=self.customer_role
+            customer=self.customer
         )
         self.permission_request = factories.PermissionRequestFactory(
             invitation=self.customer_group_invitation,
@@ -577,9 +547,9 @@ class RequestRejectTest(BaseInvitationTest):
             self.permission_request, 'reject'
         )
 
-    @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=True)
     @data('staff', 'customer_owner')
     def test_user_can_reject_request(self, user):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
         self.client.force_authenticate(user=getattr(self, user))
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -591,7 +561,6 @@ class RequestRejectTest(BaseInvitationTest):
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
-    @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=False)
     @data('customer_owner')
     def test_user_cannot_reject_request(self, user):
         self.client.force_authenticate(user=getattr(self, user))

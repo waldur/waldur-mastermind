@@ -8,10 +8,12 @@ from django.utils.timezone import now
 
 from waldur_core.core import utils as core_utils
 from waldur_core.permissions.enums import RoleEnum
-from waldur_core.permissions.models import Role, UserRole
+from waldur_core.permissions.models import UserRole
+from waldur_core.permissions.utils import get_permissions
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.log import event_logger
-from waldur_core.structure.models import Customer, CustomerRole, Project
+from waldur_core.structure.models import Customer, Project
+from waldur_mastermind.marketplace.managers import get_connected_offerings
 from waldur_mastermind.marketplace_script import PLUGIN_NAME as SCRIPT_PLUGIN_NAME
 from waldur_mastermind.marketplace_slurm_remote import (
     PLUGIN_NAME as SLURM_REMOTE_PLUGIN_NAME,
@@ -374,47 +376,36 @@ def limit_update_failed(sender, order_item, error_message, **kwargs):
     log.log_resource_limit_update_failed(resource)
 
 
-def log_offering_permission_granted(
-    sender, structure, user, role=None, created_by=None, **kwargs
-):
-    log.log_offering_permission_granted(structure, user, created_by)
-
-
-def log_offering_permission_revoked(
-    sender, structure, user, role=None, removed_by=None, **kwargs
-):
-    log.log_offering_permission_revoked(structure, user, removed_by)
-
-
-def log_offering_permission_updated(sender, instance, user, **kwargs):
-    log.log_offering_permission_updated(instance, user)
-
-
 def add_service_manager_role_to_customer(
-    sender, structure, user, role=None, created_by=None, **kwargs
+    sender, instance: UserRole, current_user=None, **kwargs
 ):
-    if not structure.customer.has_user(user, CustomerRole.SERVICE_MANAGER):
-        structure.customer.add_user(user, CustomerRole.SERVICE_MANAGER)
+    if instance.role.name == RoleEnum.OFFERING_MANAGER:
+        customer: Customer = instance.scope.customer
+        if not customer.has_user(instance.user, RoleEnum.CUSTOMER_MANAGER):
+            customer.add_user(
+                instance.user,
+                RoleEnum.CUSTOMER_MANAGER,
+                current_user,
+                instance.expiration_time,
+            )
 
 
 def drop_service_manager_role_from_customer(
-    sender, structure, user, role=None, removed_by=None, **kwargs
+    sender, instance: UserRole, current_user=None, **kwargs
 ):
-    if not models.OfferingPermission.objects.filter(
-        offering__customer=structure.customer, user=user, is_active=True
-    ).exists():
-        structure.customer.remove_user(user, CustomerRole.SERVICE_MANAGER)
-
-
-def drop_offering_permissions_if_service_manager_role_is_revoked(
-    sender, structure, user, role=None, removed_by=None, **kwargs
-):
-    if role != CustomerRole.SERVICE_MANAGER:
-        return
-    for perm in models.OfferingPermission.objects.filter(
-        offering__customer=structure, user=user, is_active=True
-    ):
-        perm.revoke()
+    if instance.role.name == RoleEnum.OFFERING_MANAGER:
+        customer: Customer = instance.scope.customer
+        offerings = models.Offering.objects.filter(customer=customer).values_list(
+            'id', flat=True
+        )
+        connected_offerings = get_connected_offerings(instance.user)
+        if not connected_offerings.intersection(offerings).exists():
+            customer.remove_user(instance.user, RoleEnum.CUSTOMER_MANAGER, current_user)
+    elif instance.role.name == RoleEnum.CUSTOMER_MANAGER:
+        offerings = models.Offering.objects.filter(customer=instance.scope)
+        for offering in offerings:
+            for permission in get_permissions(offering, instance.user):
+                permission.revoke(current_user)
 
 
 def update_customer_of_offering_if_project_has_been_moved(
@@ -624,8 +615,11 @@ def log_resource_robot_account_deleted(sender, instance, **kwargs):
     )
 
 
-def create_offering_users_when_project_role_granted(sender, structure, user, **kwargs):
-    project = structure
+def create_offering_users_when_project_role_granted(sender, instance, **kwargs):
+    if not isinstance(instance.scope, structure_models.Project):
+        return
+    project = instance.scope
+    user = instance.user
     resources = project.resource_set.filter(
         state=models.Resource.States.OK,
         offering__type__in=OFFERING_USER_ALLOWED_OFFERING_TYPES,
@@ -722,26 +716,3 @@ def update_offering_user_username_after_offering_settings_change(
 
         utils.setup_linux_related_data(offering_user, offering)
         offering_user.save(update_fields=['username', 'backend_metadata'])
-
-
-def sync_offering_permission_creation(sender, instance, created=False, **kwargs):
-    if not created:
-        return
-    content_type = ContentType.objects.get_for_model(models.Offering)
-    new_role, _ = Role.objects.get_or_create(name=RoleEnum.OFFERING_MANAGER)
-    UserRole.objects.create(
-        user=instance.user,
-        content_type=content_type,
-        object_id=instance.offering_id,
-        role=new_role,
-    )
-
-
-def sync_offering_permission_deletion(sender, instance, **kwargs):
-    content_type = ContentType.objects.get_for_model(models.Offering)
-    UserRole.objects.filter(
-        user=instance.user,
-        content_type=content_type,
-        object_id=instance.offering_id,
-        role__name=RoleEnum.OFFERING_MANAGER,
-    ).update(is_active=False)

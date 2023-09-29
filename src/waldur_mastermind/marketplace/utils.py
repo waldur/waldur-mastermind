@@ -12,6 +12,7 @@ from io import BytesIO
 from typing import Union
 
 from django.conf import settings
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage as storage
@@ -28,6 +29,7 @@ from rest_framework import serializers, status
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import utils as core_utils
+from waldur_core.permissions.models import UserRole
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.managers import (
@@ -856,11 +858,13 @@ def get_service_provider_project_ids(service_provider):
 
 def get_service_provider_user_ids(user, service_provider, customer=None):
     project_ids = get_service_provider_project_ids(service_provider)
-    qs = structure_models.ProjectPermission.objects.filter(
-        project_id__in=project_ids, is_active=True
-    )
     if customer:
-        qs = qs.filter(project__customer=customer)
+        customer_projects = customer.project.all().values_list('id', flat=True)
+        project_ids = project_ids.intersection(customer_projects)
+    content_type = ContentType.objects.get_for_model(structure_models.Project)
+    qs = UserRole.objects.filter(
+        content_type=content_type, object_id__in=project_ids, is_active=True
+    )
     if not user.is_staff and not user.is_support:
         qs = qs.filter(user__is_active=True)
     return qs.values_list('user_id', flat=True).distinct()

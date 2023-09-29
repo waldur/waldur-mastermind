@@ -12,8 +12,8 @@ from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.utils import month_end
-from waldur_core.permissions.enums import PermissionEnum, RoleEnum
-from waldur_core.permissions.utils import add_permission
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure.tests import fixtures
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -270,9 +270,9 @@ class RequestActionBaseTest(BaseTest):
 class RequestDeleteTest(RequestActionBaseTest):
     def setUp(self):
         super().setUp()
-        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.TERMINATE_RESOURCE)
-        add_permission(RoleEnum.PROJECT_ADMIN, PermissionEnum.TERMINATE_RESOURCE)
-        add_permission(RoleEnum.PROJECT_MANAGER, PermissionEnum.TERMINATE_RESOURCE)
+        CustomerRole.OWNER.add_permission(PermissionEnum.TERMINATE_RESOURCE)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.TERMINATE_RESOURCE)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.TERMINATE_RESOURCE)
 
     def test_success_terminate_resource_if_issue_is_resolved(self):
         order_item = self.get_order_item(self.success_issue_status)
@@ -360,9 +360,9 @@ class RequestSwitchPlanTest(RequestActionBaseTest):
         self.order_item.set_state_done()
         self.order_item.save()
 
-        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.SWITCH_RESOURCE_PLAN)
-        add_permission(RoleEnum.PROJECT_ADMIN, PermissionEnum.SWITCH_RESOURCE_PLAN)
-        add_permission(RoleEnum.PROJECT_MANAGER, PermissionEnum.SWITCH_RESOURCE_PLAN)
+        CustomerRole.OWNER.add_permission(PermissionEnum.SWITCH_RESOURCE_PLAN)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.SWITCH_RESOURCE_PLAN)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.SWITCH_RESOURCE_PLAN)
 
     def test_success_switch_plan_if_issue_is_resolved(self):
         order_item = self.get_order_item(self.success_issue_status)

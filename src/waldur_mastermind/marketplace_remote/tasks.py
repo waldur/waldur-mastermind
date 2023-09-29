@@ -649,7 +649,11 @@ def pull_offering_invoices(serialized_offering):
     name='waldur_mastermind.marketplace_remote.update_remote_project_permissions'
 )
 def update_remote_project_permissions(
-    serialized_project, serialized_user, role, grant=True, expiration_time=None
+    serialized_project,
+    serialized_user,
+    role_name,
+    grant=True,
+    expiration_time=None,
 ):
     project = deserialize_instance(serialized_project)
     user = deserialize_instance(serialized_user)
@@ -659,14 +663,18 @@ def update_remote_project_permissions(
         else expiration_time
     )
 
-    sync_project_permission(grant, project, role, user, new_expiration_time)
+    sync_project_permission(grant, project, role_name, user, new_expiration_time)
 
 
 @shared_task(
     name='waldur_mastermind.marketplace_remote.update_remote_customer_permissions'
 )
 def update_remote_customer_permissions(
-    serialized_customer, serialized_user, role, grant=True, expiration_time=None
+    serialized_customer,
+    serialized_user,
+    role_name,
+    grant=True,
+    expiration_time=None,
 ):
     customer = deserialize_instance(serialized_customer)
     user = deserialize_instance(serialized_user)
@@ -677,7 +685,7 @@ def update_remote_customer_permissions(
     )
 
     for project in customer.projects.all():
-        sync_project_permission(grant, project, role, user, new_expiration_time)
+        sync_project_permission(grant, project, role_name, user, new_expiration_time)
 
 
 @shared_task(
@@ -733,10 +741,11 @@ def sync_remote_project_permissions():
             for remote_permission in remote_permissions:
                 remote_expiration_time = remote_permission['expiration_time']
                 remote_user_roles[remote_permission['user_username']] = (
-                    remote_permission['role'],
+                    remote_permission['role_name'],
                     dateparse.parse_datetime(remote_expiration_time)
                     if remote_expiration_time
                     else remote_expiration_time,
+                    remote_permission['user_uuid'],
                 )
 
             for username, (new_role, new_expiration_time) in local_permissions.items():
@@ -751,8 +760,8 @@ def sync_remote_project_permissions():
                 if username not in remote_user_roles:
                     try:
                         client.create_project_permission(
-                            remote_user_uuid,
                             remote_project_uuid,
+                            remote_user_uuid,
                             new_role,
                             new_expiration_time.isoformat()
                             if new_expiration_time
@@ -765,19 +774,13 @@ def sync_remote_project_permissions():
                         )
                     continue
 
-                old_role, old_expiration_time = remote_user_roles[username]
-
-                old_permission_id = None
-                for permission in remote_permissions:
-                    if permission['role'] == old_role:
-                        old_permission_id = str(permission['pk'])
-
-                if not old_permission_id:
-                    continue
+                old_role, old_expiration_time, _ = remote_user_roles[username]
 
                 if old_role != new_role:
                     try:
-                        client.remove_project_permission(old_permission_id)
+                        client.remove_project_permission(
+                            remote_project_uuid, remote_user_uuid, old_role
+                        )
                     except WaldurClientException as e:
                         logger.warning(
                             f'Unable to remove permission for user [{remote_user_uuid}] with role {old_role} '
@@ -785,8 +788,8 @@ def sync_remote_project_permissions():
                         )
                     try:
                         client.create_project_permission(
-                            remote_user_uuid,
                             remote_project_uuid,
+                            remote_user_uuid,
                             new_role,
                             new_expiration_time.isoformat()
                             if new_expiration_time
@@ -802,7 +805,9 @@ def sync_remote_project_permissions():
                 if old_expiration_time != new_expiration_time:
                     try:
                         client.update_project_permission(
-                            old_permission_id,
+                            remote_project_uuid,
+                            remote_user_uuid,
+                            new_role,
                             new_expiration_time.isoformat()
                             if new_expiration_time
                             else new_expiration_time,
@@ -817,18 +822,14 @@ def sync_remote_project_permissions():
                 local_permissions.keys()
             )
             for username in stale_usernames:
-                old_permission_id = None
-                for permission in remote_permissions:
-                    if permission['user_username'] == username:
-                        old_permission_id = str(permission['pk'])
-
-                if not old_permission_id:
-                    continue
+                role_name, _, remote_user_uuid = remote_user_roles[username]
                 try:
-                    client.remove_project_permission(old_permission_id)
+                    client.remove_project_permission(
+                        remote_project_uuid, remote_user_uuid, role_name
+                    )
                 except WaldurClientException as e:
                     logger.warning(
-                        f'Unable to remove permission [{old_permission_id}] for user [{username}] in offering [{offering}]: {e}'
+                        f'Unable to remove permission [{role_name}] for user [{username}] in offering [{offering}]: {e}'
                     )
 
 
@@ -845,7 +846,7 @@ def sync_remote_project(serialized_request):
 
 @shared_task
 def delete_remote_project(serialized_project):
-    model_name, pk = serialized_project.split(':')
+    _, pk = serialized_project.split(':')
     try:
         local_project = structure_models.Project.objects.get(pk=pk)
     except structure_models.Project.DoesNotExist:

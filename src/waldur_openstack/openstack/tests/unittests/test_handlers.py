@@ -3,7 +3,7 @@ from unittest.mock import patch
 from django.test import TestCase
 
 from waldur_core.core import utils as core_utils
-from waldur_core.structure import models as structure_models
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_openstack.openstack import apps
 
@@ -21,8 +21,8 @@ class SshKeysHandlersTest(TestCase):
         self, mocked_task_call
     ):
         project = self.tenant.project
-        project.add_user(self.user, structure_models.ProjectRole.ADMINISTRATOR)
-        project.remove_user(self.user)
+        perm = project.add_user(self.user, ProjectRole.ADMIN)
+        perm.revoke()
 
         serialized_tenant = core_utils.serialize_instance(self.tenant)
         mocked_task_call.assert_called_once_with(
@@ -36,9 +36,9 @@ class SshKeysHandlersTest(TestCase):
         self, mocked_task_call
     ):
         project = self.tenant.project
-        project.add_user(self.user, structure_models.ProjectRole.ADMINISTRATOR)
-        project.customer.add_user(self.user, structure_models.CustomerRole.OWNER)
-        project.remove_user(self.user)
+        perm = project.add_user(self.user, ProjectRole.ADMIN)
+        project.customer.add_user(self.user, CustomerRole.OWNER)
+        perm.revoke()
 
         self.assertEqual(mocked_task_call.call_count, 0)
 
@@ -46,7 +46,7 @@ class SshKeysHandlersTest(TestCase):
         self, mocked_task_call
     ):
         project = self.tenant.project
-        project.add_user(self.user, structure_models.ProjectRole.ADMINISTRATOR)
+        project.add_user(self.user, ProjectRole.ADMIN)
         self.user.delete()
 
         serialized_tenant = core_utils.serialize_instance(self.tenant)
@@ -61,7 +61,7 @@ class SshKeysHandlersTest(TestCase):
         self, mocked_task_call
     ):
         project = self.tenant.project
-        project.add_user(self.user, structure_models.ProjectRole.ADMINISTRATOR)
+        project.add_user(self.user, ProjectRole.ADMIN)
         self.ssh_key.delete()
 
         serialized_tenant = core_utils.serialize_instance(self.tenant)

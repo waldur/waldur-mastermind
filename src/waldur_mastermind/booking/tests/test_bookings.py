@@ -2,7 +2,7 @@ from dateutil.parser import parse as parse_datetime
 from freezegun import freeze_time
 from rest_framework import status, test
 
-from waldur_core.structure import models as structure_models
+from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.booking import models
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -74,9 +74,7 @@ class BookingsTest(test.APITransactionTestCase):
     ):
         creator = self.fixture.order.created_by
         new_fixture = structure_fixtures.CustomerFixture()
-        new_fixture.customer.add_user(
-            creator, role=structure_models.CustomerRole.SERVICE_MANAGER
-        )
+        new_fixture.customer.add_user(creator, role=CustomerRole.MANAGER)
         self.client.force_authenticate(new_fixture.owner)
         response = self.client.get(
             f'/api/marketplace-bookings/{self.fixture.offering.uuid.hex}/'

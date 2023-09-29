@@ -1,330 +1,224 @@
-import collections
 import datetime
-from unittest import mock
 
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework import status, test
 from rest_framework.reverse import reverse
 
-from waldur_core.core.tests.helpers import override_waldur_core_settings
-from waldur_core.structure import tasks
-from waldur_core.structure.models import CustomerPermission, CustomerRole, ProjectRole
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
+from waldur_core.permissions.tasks import check_expired_permissions
+from waldur_core.permissions.utils import get_permissions
 from waldur_core.structure.tests import factories
+from waldur_core.structure.tests.utils import (
+    client_add_user,
+    client_delete_user,
+    client_list_users,
+    client_update_user,
+)
 
 User = get_user_model()
 
-TestRole = collections.namedtuple('TestRole', ['user', 'customer', 'role'])
 
-TestRole.__test__ = False
-
-
-class CustomerPermissionBaseTest(test.APITransactionTestCase):
-    all_roles = (
-        # user customer role
-        TestRole('first', 'first', 'owner'),
-        TestRole('second', 'second', 'owner'),
-    )
-
-    role_map = {
-        'owner': CustomerRole.OWNER,
-    }
-
-    def setUp(self):
-        self.users = {
-            'staff': factories.UserFactory(is_staff=True),
-            'first': factories.UserFactory(),
-            'first_manager': factories.UserFactory(),
-            'first_admin': factories.UserFactory(),
-            'second': factories.UserFactory(),
-            'no_role': factories.UserFactory(),
-        }
-
-        self.customers = {
-            'first': factories.CustomerFactory(),
-            'second': factories.CustomerFactory(),
-        }
-
-        customer = self.customers['first']
-        project = factories.ProjectFactory(customer=customer)
-
-        for user, customer, role in self.all_roles:
-            self.customers[customer].add_user(self.users[user], self.role_map[role])
-
-        project.add_user(self.users['first_admin'], ProjectRole.ADMINISTRATOR)
-
-    # Helper methods
-    def _get_permission_url(self, user, customer, role):
-        permission = CustomerPermission.objects.get(
-            user=self.users[user],
-            role=self.role_map[role],
-            customer=self.customers[customer],
-        )
-        return 'http://testserver' + reverse(
-            'customer_permission-detail', kwargs={'pk': permission.pk}
-        )
-
-
-class CustomerPermissionListTest(CustomerPermissionBaseTest):
-    def test_anonymous_user_cannot_list_customer_permissions(self):
-        response = self.client.get(reverse('customer_permission-list'))
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-
+class CustomerPermissionListTest(test.APITransactionTestCase):
     def test_user_cannot_list_roles_of_customer_he_is_not_affiliated(self):
-        self.assert_user_access_to_permission_list(
-            user='no_role', customer='first', should_see=False
+        response = client_list_users(
+            self.client, factories.UserFactory(), factories.CustomerFactory()
         )
-        self.assert_user_access_to_permission_list(
-            user='no_role', customer='second', should_see=False
-        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_customer_owner_can_list_roles_of_his_customer(self):
-        self.assert_user_access_to_permission_list(
-            user='first', customer='first', should_see=True
-        )
-
-    def test_project_admin_can_list_roles_of_his_customer(self):
-        self.assert_user_access_to_permission_list(
-            user='first_admin', customer='first', should_see=True
-        )
-
-    def test_staff_can_list_roles_of_any_customer(self):
-        self.assert_user_access_to_permission_list(
-            user='staff', customer='first', should_see=True
-        )
-        self.assert_user_access_to_permission_list(
-            user='staff', customer='second', should_see=True
-        )
-
-    def test_customer_owner_cannot_list_roles_of_another_customer(self):
-        self.assert_user_access_to_permission_list(
-            user='first', customer='second', should_see=False
-        )
-
-    def test_project_admin_cannot_list_roles_of_another_customer(self):
-        self.assert_user_access_to_permission_list(
-            user='first_admin', customer='second', should_see=False
-        )
-
-    def assert_user_access_to_permission_list(self, user, customer, should_see):
-        self.client.force_authenticate(user=self.users[user])
-
-        response = self.client.get(reverse('customer_permission-list'))
+        owner = factories.UserFactory()
+        customer = factories.CustomerFactory()
+        customer.add_user(owner, CustomerRole.OWNER)
+        response = client_list_users(self.client, owner, customer)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        expected_urls = {
-            r: self._get_permission_url(*r)
-            for r in self.all_roles
-            if r.customer == customer
-        }
+    def test_project_admin_can_list_roles_of_his_customer(self):
+        admin = factories.UserFactory()
+        customer = factories.CustomerFactory()
+        project = factories.ProjectFactory(customer=customer)
+        project.add_user(admin, ProjectRole.ADMIN)
+        response = client_list_users(self.client, admin, customer)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        actual_urls = set([role['url'] for role in response.data])
+    def test_staff_can_list_roles_of_any_customer(self):
+        response = client_list_users(
+            self.client,
+            factories.UserFactory(is_staff=True),
+            factories.CustomerFactory(),
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        for role, role_url in expected_urls.items():
-            if should_see:
-                self.assertIn(
-                    role_url,
-                    actual_urls,
-                    f'{user} user does not see privilege he is supposed to see: {role}',
-                )
-            else:
-                self.assertNotIn(
-                    role_url,
-                    actual_urls,
-                    f'{user} user sees privilege he is not supposed to see: {role}',
-                )
+    def test_customer_owner_cannot_list_roles_of_another_customer(self):
+        owner = factories.UserFactory()
+        customer = factories.CustomerFactory()
+        customer.add_user(owner, CustomerRole.OWNER)
+        response = client_list_users(self.client, owner, factories.CustomerFactory())
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_project_admin_cannot_list_roles_of_another_customer(self):
+        admin = factories.UserFactory()
+        customer = factories.CustomerFactory()
+        project = factories.ProjectFactory(customer=customer)
+        project.add_user(admin, ProjectRole.ADMIN)
+        response = client_list_users(self.client, admin, factories.CustomerFactory())
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
-class CustomerPermissionGrantTest(CustomerPermissionBaseTest):
-    @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=True)
+class CustomerPermissionGrantTest(test.APITransactionTestCase):
+    def setUp(self):
+        super().setUp()
+        self.owner = factories.UserFactory()
+        self.customer = factories.CustomerFactory()
+        self.customer.add_user(self.owner, CustomerRole.OWNER)
+
+    def test_user_which_granted_permission_is_stored(self):
+        staff_user = factories.UserFactory(is_staff=True)
+
+        user = factories.UserFactory()
+        customer = factories.CustomerFactory()
+
+        response = client_add_user(
+            self.client, staff_user, user, customer, CustomerRole.OWNER
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        permission = get_permissions(customer, user).get()
+        self.assertEqual(permission.created_by, staff_user)
+
     def test_customer_owner_can_grant_new_role_within_his_customer(self):
-        self.assert_user_access_to_permission_granting(
-            login_user='first',
-            affected_user='no_role',
-            affected_customer='first',
-            expected_status=status.HTTP_201_CREATED,
-        )
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
 
-    def test_customer_owner_cannot_grant_existing_role_within_his_customer(self):
-        self.assert_user_access_to_permission_granting(
-            login_user='staff',
-            affected_user='first',
-            affected_customer='first',
-            expected_status=status.HTTP_400_BAD_REQUEST,
-            expected_payload={
-                'non_field_errors': [
-                    'The fields customer and user must make a unique set.'
-                ],
-            },
+        response = client_add_user(
+            self.client,
+            self.owner,
+            factories.UserFactory(),
+            self.customer,
+            CustomerRole.OWNER,
         )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_staff_cannot_grant_existing_role_within_his_customer(self):
+        response = client_add_user(
+            self.client,
+            factories.UserFactory(is_staff=True),
+            self.owner,
+            self.customer,
+            CustomerRole.OWNER,
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_customer_owner_cannot_grant_role_within_another_customer(self):
-        self.assert_user_access_to_permission_granting(
-            login_user='first',
-            affected_user='no_role',
-            affected_customer='second',
-            expected_status=status.HTTP_400_BAD_REQUEST,
-            expected_payload={
-                'customer': ['Invalid hyperlink - Object does not exist.'],
-            },
+        response = client_add_user(
+            self.client,
+            self.owner,
+            factories.UserFactory(),
+            factories.CustomerFactory(),
+            CustomerRole.OWNER,
         )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=False)
-    def test_customer_owner_can_not_grant_new_role_within_his_customer_if_settings_are_tweaked(
+    def test_customer_owner_can_not_grant_new_role_within_his_customer(
         self,
     ):
-        self.assert_user_access_to_permission_granting(
-            login_user='first',
-            affected_user='no_role',
-            affected_customer='first',
-            expected_status=status.HTTP_403_FORBIDDEN,
+        response = client_add_user(
+            self.client,
+            self.owner,
+            factories.UserFactory(),
+            self.customer,
+            CustomerRole.OWNER,
         )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=True)
     def test_project_admin_cannot_grant_role_within_his_customer(self):
-        self.assert_user_access_to_permission_granting(
-            login_user='first_admin',
-            affected_user='no_role',
-            affected_customer='first',
-            expected_status=status.HTTP_403_FORBIDDEN,
-            expected_payload={
-                'detail': 'You do not have permission to perform this action.',
-            },
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
+        admin = factories.UserFactory()
+        customer = factories.CustomerFactory()
+        project = factories.ProjectFactory(customer=customer)
+        project.add_user(admin, ProjectRole.ADMIN)
+
+        response = client_add_user(
+            self.client,
+            admin,
+            factories.UserFactory(),
+            customer,
+            CustomerRole.OWNER,
         )
-
-    def test_staff_can_grant_new_role_within_any_customer(self):
-        self.assert_user_access_to_permission_granting(
-            login_user='staff',
-            affected_user='no_role',
-            affected_customer='first',
-            expected_status=status.HTTP_201_CREATED,
-        )
-        self.assert_user_access_to_permission_granting(
-            login_user='staff',
-            affected_user='no_role',
-            affected_customer='second',
-            expected_status=status.HTTP_201_CREATED,
-        )
-
-    def test_staff_cannot_grant_existing_role_within_any_customer(self):
-        self.assert_user_access_to_permission_granting(
-            login_user='staff',
-            affected_user='first',
-            affected_customer='first',
-            expected_status=status.HTTP_400_BAD_REQUEST,
-            expected_payload={
-                'non_field_errors': [
-                    'The fields customer and user must make a unique set.'
-                ],
-            },
-        )
-        self.assert_user_access_to_permission_granting(
-            login_user='staff',
-            affected_user='second',
-            affected_customer='second',
-            expected_status=status.HTTP_400_BAD_REQUEST,
-            expected_payload={
-                'non_field_errors': [
-                    'The fields customer and user must make a unique set.'
-                ],
-            },
-        )
-
-    def assert_user_access_to_permission_granting(
-        self,
-        login_user,
-        affected_user,
-        affected_customer,
-        expected_status,
-        expected_payload=None,
-    ):
-        self.client.force_authenticate(user=self.users[login_user])
-
-        data = {
-            'customer': factories.CustomerFactory.get_url(
-                self.customers[affected_customer]
-            ),
-            'user': factories.UserFactory.get_url(self.users[affected_user]),
-            'role': 'owner',
-        }
-
-        response = self.client.post(reverse('customer_permission-list'), data)
-        self.assertEqual(response.status_code, expected_status)
-        if expected_payload is not None:
-            self.assertDictContainsSubset(expected_payload, response.data)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
-class CustomerPermissionRevokeTest(CustomerPermissionBaseTest):
-    @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=True)
+class CustomerPermissionRevokeTest(test.APITransactionTestCase):
+    def setUp(self):
+        super().setUp()
+        self.owner = factories.UserFactory()
+        self.customer = factories.CustomerFactory()
+        self.customer.add_user(self.owner, CustomerRole.OWNER)
+
     def test_customer_owner_can_revoke_role_within_his_customer(self):
-        self.assert_user_access_to_permission_revocation(
-            login_user='first',
-            affected_user='first',
-            affected_customer='first',
-            expected_status=status.HTTP_204_NO_CONTENT,
+        CustomerRole.OWNER.add_permission(PermissionEnum.DELETE_CUSTOMER_PERMISSION)
+
+        response = client_delete_user(
+            self.client,
+            self.owner,
+            self.owner,
+            self.customer,
+            CustomerRole.OWNER,
         )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_customer_owner_cannot_revoke_role_within_another_customer(self):
-        self.assert_user_access_to_permission_revocation(
-            login_user='first',
-            affected_user='second',
-            affected_customer='second',
-            expected_status=status.HTTP_404_NOT_FOUND,
-        )
+        another_owner = factories.UserFactory()
+        another_customer = factories.CustomerFactory()
+        another_customer.add_user(another_owner, CustomerRole.OWNER)
 
-    @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=False)
-    def test_customer_owner_can_not_revoke_role_within_his_customer_if_settings_are_tweaked(
+        response = client_delete_user(
+            self.client,
+            self.owner,
+            another_owner,
+            another_customer,
+            CustomerRole.OWNER,
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_customer_owner_can_not_revoke_role_within_his_customer(
         self,
     ):
-        self.assert_user_access_to_permission_revocation(
-            login_user='first',
-            affected_user='first',
-            affected_customer='first',
-            expected_status=status.HTTP_403_FORBIDDEN,
+        response = client_delete_user(
+            self.client,
+            self.owner,
+            self.owner,
+            self.customer,
+            CustomerRole.OWNER,
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_project_admin_cannot_revoke_role_within_his_customer(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.DELETE_CUSTOMER_PERMISSION)
+
+        admin = factories.UserFactory()
+        project = factories.ProjectFactory(customer=self.customer)
+        project.add_user(admin, ProjectRole.ADMIN)
+
+        response = client_delete_user(
+            self.client,
+            admin,
+            self.owner,
+            self.customer,
+            CustomerRole.OWNER,
         )
 
-    @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=True)
-    def test_project_admin_cannot_revoke_role_within_his_customer(self):
-        self.assert_user_access_to_permission_revocation(
-            login_user='first_admin',
-            affected_user='first',
-            affected_customer='first',
-            expected_status=status.HTTP_403_FORBIDDEN,
-            expected_payload={
-                'detail': 'You do not have permission to perform this action.',
-            },
-        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_staff_can_revoke_role_within_any_customer(self):
-        self.assert_user_access_to_permission_revocation(
-            login_user='staff',
-            affected_user='first',
-            affected_customer='first',
-            expected_status=status.HTTP_204_NO_CONTENT,
+        response = client_delete_user(
+            self.client,
+            factories.UserFactory(is_staff=True),
+            self.owner,
+            self.customer,
+            CustomerRole.OWNER,
         )
-        self.assert_user_access_to_permission_revocation(
-            login_user='staff',
-            affected_user='second',
-            affected_customer='second',
-            expected_status=status.HTTP_204_NO_CONTENT,
-        )
-
-    def assert_user_access_to_permission_revocation(
-        self,
-        login_user,
-        affected_user,
-        affected_customer,
-        expected_status,
-        expected_payload=None,
-    ):
-        self.client.force_authenticate(user=self.users[login_user])
-
-        url = self._get_permission_url(affected_user, affected_customer, 'owner')
-
-        response = self.client.delete(url)
-        self.assertEqual(response.status_code, expected_status)
-        if expected_payload is not None:
-            self.assertDictContainsSubset(expected_payload, response.data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
 class CustomerPermissionFilterTest(test.APITransactionTestCase):
@@ -460,150 +354,128 @@ class CustomerPermissionFilterTest(test.APITransactionTestCase):
 
 class CustomerPermissionExpirationTest(test.APITransactionTestCase):
     def setUp(self):
-        permission = factories.CustomerPermissionFactory()
-        self.user = permission.user
-        self.customer = permission.customer
-        self.url = factories.CustomerPermissionFactory.get_url(permission)
+        super().setUp()
+        self.user = factories.UserFactory()
+        self.customer = factories.CustomerFactory()
+        self.customer.add_user(self.user, CustomerRole.OWNER)
+
+    def update_expiration_time(self, current_user, target_user, expiration_time):
+        return client_update_user(
+            self.client,
+            current_user,
+            target_user,
+            self.customer,
+            CustomerRole.OWNER,
+            expiration_time,
+        )
 
     def test_user_can_not_update_permission_expiration_time_for_himself(self):
-        self.client.force_authenticate(user=self.user)
-
         expiration_time = timezone.now() + datetime.timedelta(days=100)
-        response = self.client.put(self.url, {'expiration_time': expiration_time})
+        response = self.update_expiration_time(self.user, self.user, expiration_time)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_staff_can_update_permission_expiration_time_for_any_user(self):
         staff_user = factories.UserFactory(is_staff=True)
-        self.client.force_authenticate(user=staff_user)
 
         expiration_time = timezone.now() + datetime.timedelta(days=100)
-        response = self.client.put(self.url, {'expiration_time': expiration_time})
+        response = self.update_expiration_time(staff_user, self.user, expiration_time)
+
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(
             response.data['expiration_time'], expiration_time, response.data
         )
 
-    @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=True)
     def test_owner_can_update_permission_expiration_time_for_other_owner_in_same_customer(
         self,
     ):
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_CUSTOMER_PERMISSION)
         owner = factories.UserFactory()
         self.customer.add_user(owner, CustomerRole.OWNER)
-        self.client.force_authenticate(user=owner)
 
         expiration_time = timezone.now() + datetime.timedelta(days=100)
-        response = self.client.put(self.url, {'expiration_time': expiration_time})
+        response = self.update_expiration_time(owner, self.user, expiration_time)
+
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(
             response.data['expiration_time'], expiration_time, response.data
         )
 
-    @override_waldur_core_settings(OWNERS_CAN_MANAGE_OWNERS=False)
-    def test_owner_can_not_update_permission_expiration_time_for_other_owner_if_settings_are_tweaked(
+    def test_owner_can_not_update_permission_expiration_time_for_other_owner(
         self,
     ):
         owner = factories.UserFactory()
         self.customer.add_user(owner, CustomerRole.OWNER)
-        self.client.force_authenticate(user=owner)
 
         expiration_time = timezone.now() + datetime.timedelta(days=100)
-        response = self.client.put(self.url, {'expiration_time': expiration_time})
+        response = self.update_expiration_time(owner, self.user, expiration_time)
+
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_user_can_not_set_permission_expiration_time_lower_than_current(self):
         staff_user = factories.UserFactory(is_staff=True)
-        self.client.force_authenticate(user=staff_user)
-
         expiration_time = timezone.now() - datetime.timedelta(days=100)
-        response = self.client.put(self.url, {'expiration_time': expiration_time})
+
+        response = self.update_expiration_time(staff_user, self.user, expiration_time)
+
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_user_cannot_grant_permissions_with_greater_expiration_time(self):
         customer = factories.CustomerFactory()
-        user = factories.UserFactory()
+        current_user = factories.UserFactory()
+        target_user = factories.UserFactory()
         expiration_time = timezone.now() + datetime.timedelta(days=100)
-        customer.add_user(user, CustomerRole.OWNER, expiration_time=expiration_time)
-        self.client.force_authenticate(user=user)
-        response = self.client.post(
-            factories.CustomerPermissionFactory.get_list_url(),
-            {
-                'customer': factories.CustomerFactory.get_url(customer=customer),
-                'user': factories.UserFactory.get_url(),
-                'role': CustomerRole.OWNER,
-                'expiration_time': expiration_time + datetime.timedelta(days=1),
-            },
+        customer.add_user(
+            current_user, CustomerRole.OWNER, expiration_time=expiration_time
         )
+
+        response = client_add_user(
+            self.client,
+            current_user,
+            target_user,
+            customer,
+            CustomerRole.OWNER,
+            expiration_time=expiration_time + datetime.timedelta(days=1),
+        )
+
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_user_can_set_expiration_time_when_role_is_created(self):
+        customer = factories.CustomerFactory()
         staff_user = factories.UserFactory(is_staff=True)
-        self.client.force_authenticate(user=staff_user)
-
+        target_user = factories.UserFactory()
         expiration_time = timezone.now() + datetime.timedelta(days=100)
-        response = self.client.post(
-            factories.CustomerPermissionFactory.get_list_url(),
-            {
-                'customer': factories.CustomerFactory.get_url(),
-                'user': factories.UserFactory.get_url(),
-                'role': factories.CustomerPermissionFactory.role,
-                'expiration_time': expiration_time,
-            },
+
+        response = client_add_user(
+            self.client,
+            staff_user,
+            target_user,
+            customer,
+            CustomerRole.OWNER,
+            expiration_time,
         )
+
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(
             response.data['expiration_time'], expiration_time, response.data
         )
 
     def test_task_revokes_expired_permissions(self):
-        expired_permission = factories.CustomerPermissionFactory(
-            expiration_time=timezone.now() - datetime.timedelta(days=100)
-        )
-        not_expired_permission = factories.CustomerPermissionFactory(
-            expiration_time=timezone.now() + datetime.timedelta(days=100)
-        )
-        tasks.check_expired_permissions()
-
-        self.assertFalse(
-            expired_permission.customer.has_user(
-                expired_permission.user, expired_permission.role
-            )
-        )
-        self.assertTrue(
-            not_expired_permission.customer.has_user(
-                not_expired_permission.user, not_expired_permission.role
-            )
-        )
-
-    def test_when_expiration_time_is_updated_event_is_emitted(self):
-        staff_user = factories.UserFactory(is_staff=True)
-        self.client.force_authenticate(user=staff_user)
-        expiration_time = timezone.now() + datetime.timedelta(days=100)
-
-        with mock.patch('logging.LoggerAdapter.info') as mocked_info:
-            self.client.put(self.url, {'expiration_time': expiration_time})
-            (args, kwargs) = mocked_info.call_args_list[-1]
-            event_type = kwargs['extra']['event_type']
-            event_message = args[0]
-            self.assertEqual(event_type, 'role_updated')
-            self.assertTrue(staff_user.full_name in event_message)
-
-
-class CustomerPermissionCreatedByTest(test.APITransactionTestCase):
-    def test_user_which_granted_permission_is_stored(self):
-        staff_user = factories.UserFactory(is_staff=True)
-        self.client.force_authenticate(user=staff_user)
-
-        user = factories.UserFactory()
         customer = factories.CustomerFactory()
+        expired_user = factories.UserFactory()
+        non_expired_user = factories.UserFactory()
 
-        data = {
-            'customer': factories.CustomerFactory.get_url(customer),
-            'user': factories.UserFactory.get_url(user),
-            'role': CustomerRole.OWNER,
-        }
+        customer.add_user(
+            expired_user,
+            CustomerRole.OWNER,
+            expiration_time=timezone.now() - datetime.timedelta(days=100),
+        )
+        customer.add_user(
+            non_expired_user,
+            CustomerRole.OWNER,
+            expiration_time=timezone.now() + datetime.timedelta(days=100),
+        )
 
-        response = self.client.post(reverse('customer_permission-list'), data)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        check_expired_permissions()
 
-        permission = CustomerPermission.objects.get(pk=response.data['pk'])
-        self.assertEqual(permission.created_by, staff_user)
+        self.assertFalse(customer.has_user(expired_user, CustomerRole.OWNER))
+        self.assertTrue(customer.has_user(non_expired_user, CustomerRole.OWNER))

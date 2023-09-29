@@ -4,6 +4,7 @@ from rest_framework.authtoken import models as authtoken_models
 from rest_framework.reverse import reverse
 
 from waldur_core.core import models as core_models
+from waldur_core.core.types import BaseMetaFactory
 from waldur_core.core.utils import normalize_unicode
 from waldur_core.structure import models
 
@@ -11,7 +12,9 @@ from . import models as test_models
 from .apps import TestConfig
 
 
-class UserFactory(factory.DjangoModelFactory):
+class UserFactory(
+    factory.DjangoModelFactory, metaclass=BaseMetaFactory[core_models.User]
+):
     class Meta:
         model = django.contrib.auth.get_user_model()
 
@@ -91,7 +94,9 @@ class SshPublicKeyFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('sshpublickey-list')
 
 
-class CustomerFactory(factory.DjangoModelFactory):
+class CustomerFactory(
+    factory.DjangoModelFactory, metaclass=BaseMetaFactory[models.Customer]
+):
     class Meta:
         model = models.Customer
 
@@ -113,7 +118,9 @@ class CustomerFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('customer-list')
 
 
-class ProjectFactory(factory.DjangoModelFactory):
+class ProjectFactory(
+    factory.DjangoModelFactory, metaclass=BaseMetaFactory[models.Project]
+):
     class Meta:
         model = models.Project
 
@@ -132,50 +139,6 @@ class ProjectFactory(factory.DjangoModelFactory):
     @classmethod
     def get_list_url(cls):
         return 'http://testserver' + reverse('project-list')
-
-
-class ProjectPermissionFactory(factory.DjangoModelFactory):
-    class Meta:
-        model = models.ProjectPermission
-
-    project = factory.SubFactory(ProjectFactory)
-    user = factory.SubFactory(UserFactory)
-    role = models.ProjectRole.ADMINISTRATOR
-
-    @classmethod
-    def get_url(cls, permission=None, action=None):
-        if permission is None:
-            permission = ProjectPermissionFactory()
-        url = 'http://testserver' + reverse(
-            'project_permission-detail', kwargs={'pk': permission.pk}
-        )
-        return url if action is None else url + action + '/'
-
-    @classmethod
-    def get_list_url(cls):
-        return 'http://testserver' + reverse('project_permission-list')
-
-
-class CustomerPermissionFactory(factory.DjangoModelFactory):
-    class Meta:
-        model = models.CustomerPermission
-
-    customer = factory.SubFactory(CustomerFactory)
-    user = factory.SubFactory(UserFactory)
-    role = models.CustomerRole.OWNER
-
-    @classmethod
-    def get_url(cls, permission=None, action=None):
-        if permission is None:
-            permission = CustomerPermissionFactory()
-        url = 'http://testserver' + reverse(
-            'customer_permission-detail', kwargs={'pk': permission.pk}
-        )
-        return url if action is None else url + action + '/'
-
-    @classmethod
-    def get_list_url(cls):
-        return 'http://testserver' + reverse('customer_permission-list')
 
 
 class ServiceSettingsFactory(factory.DjangoModelFactory):

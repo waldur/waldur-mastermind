@@ -45,7 +45,7 @@ class InvitationViewSet(ProtectedViewSet):
         project_role = serializer.validated_data.get('project_role')
 
         if not can_manage_invitation_with(
-            self.request.user, customer, customer_role, project_role, project
+            self.request, customer, customer_role, project_role, project
         ):
             raise PermissionDenied()
 
@@ -119,7 +119,7 @@ class InvitationViewSet(ProtectedViewSet):
         invitation = self.get_object()
 
         if not can_manage_invitation_with(
-            self.request.user,
+            self.request,
             invitation.customer,
             invitation.customer_role,
             invitation.project_role,
@@ -151,7 +151,7 @@ class InvitationViewSet(ProtectedViewSet):
         invitation = self.get_object()
 
         if not can_manage_invitation_with(
-            self.request.user,
+            self.request,
             invitation.customer,
             invitation.customer_role,
             invitation.project_role,
@@ -277,7 +277,7 @@ class GroupInvitationViewSet(ProtectedViewSet):
         invitation = self.get_object()
 
         if not can_manage_invitation_with(
-            self.request.user,
+            self.request,
             invitation.customer,
             invitation.customer_role,
             invitation.project_role,
@@ -330,7 +330,7 @@ class GroupInvitationViewSet(ProtectedViewSet):
         project_role = serializer.validated_data.get('project_role')
 
         if not can_manage_invitation_with(
-            self.request.user, customer, customer_role, project_role
+            self.request, customer, customer_role, project_role
         ):
             raise PermissionDenied()
 
@@ -348,7 +348,7 @@ class PermissionRequestViewSet(ReadOnlyActionsViewSet):
         permission_request = self.get_object()
 
         if not can_manage_invitation_with(
-            self.request.user,
+            self.request,
             permission_request.invitation.customer,
             permission_request.invitation.customer_role,
             permission_request.invitation.project_role,

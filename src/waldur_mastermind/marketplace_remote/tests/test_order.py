@@ -4,10 +4,9 @@ from django.core import mail
 from django.test import override_settings
 from rest_framework import test
 
-import waldur_core.structure.models as structure_models
 import waldur_core.structure.tests.factories as structure_factories
-from waldur_core.permissions.enums import PermissionEnum, RoleEnum
-from waldur_core.permissions.utils import add_permission
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole, OfferingRole
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tasks import approve_order
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -115,16 +114,16 @@ class LimitsUpdateTest(test.APITransactionTestCase):
             marketplace_models.OfferingComponent.BillingTypes.LIMIT
         )
         self.offering_component.save()
-        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.UPDATE_RESOURCE_LIMITS)
-        add_permission(RoleEnum.CUSTOMER_MANAGER, PermissionEnum.UPDATE_RESOURCE_LIMITS)
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_RESOURCE_LIMITS)
+        CustomerRole.MANAGER.add_permission(PermissionEnum.UPDATE_RESOURCE_LIMITS)
 
-        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.APPROVE_ORDER)
-        add_permission(RoleEnum.CUSTOMER_MANAGER, PermissionEnum.APPROVE_ORDER)
+        CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_ORDER)
+        CustomerRole.MANAGER.add_permission(PermissionEnum.APPROVE_ORDER)
 
     def update_limits(self, user, resource):
         limits = {'cpu': 10}
         customer = self.fixture.customer
-        customer.add_user(user, structure_models.CustomerRole.OWNER)
+        customer.add_user(user, CustomerRole.OWNER)
 
         self.client.force_authenticate(user)
         url = marketplace_factories.ResourceFactory.get_url(resource, 'update_limits')
@@ -156,7 +155,7 @@ class LimitsUpdateTest(test.APITransactionTestCase):
     ):
         # Act
         user = self.fixture.service_manager
-        self.offering.add_user(user)
+        self.offering.add_user(user, OfferingRole.MANAGER)
         response = self.update_limits(user, self.resource)
 
         # Assert

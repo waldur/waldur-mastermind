@@ -6,7 +6,7 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework.exceptions import ValidationError
 
 from waldur_auth_social.models import IdentityProvider, ProviderChoices
-from waldur_core.structure import models as structure_models
+from waldur_core.permissions.utils import get_permissions
 from waldur_core.structure.signals import project_moved
 
 logger = logging.getLogger(__name__)
@@ -194,7 +194,7 @@ def check_project_end_date(obj):
 
 
 @transaction.atomic
-def move_project(project, customer):
+def move_project(project, customer, current_user=None):
     if customer.blocked:
         raise ValidationError(_('New customer must be not blocked'))
 
@@ -205,10 +205,8 @@ def move_project(project, customer):
     project.customer = customer
     project.save(update_fields=['customer'])
 
-    for permission in structure_models.ProjectPermission.objects.filter(
-        project=project
-    ):
-        permission.revoke()
+    for permission in get_permissions(project):
+        permission.revoke(current_user)
         logger.info('Permission %s has been revoked' % permission)
 
     project_moved.send(

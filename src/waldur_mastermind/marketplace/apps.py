@@ -8,6 +8,7 @@ class MarketplaceConfig(AppConfig):
 
     def ready(self):
         from waldur_core.core import signals as core_signals
+        from waldur_core.permissions import signals as permission_signals
         from waldur_core.quotas import signals as quota_signals
         from waldur_core.structure import models as structure_models
         from waldur_core.structure import signals as structure_signals
@@ -18,8 +19,6 @@ class MarketplaceConfig(AppConfig):
         from . import signals as marketplace_signals
         from . import utils
         from .plugins import manager
-
-        OfferingPermission = self.get_model('OfferingPermission')
 
         signals.post_save.connect(
             handlers.create_screenshot_thumbnail,
@@ -154,40 +153,14 @@ class MarketplaceConfig(AppConfig):
 
         marketplace_registrators.MarketplaceRegistrator.connect()
 
-        structure_signals.structure_role_granted.connect(
-            handlers.log_offering_permission_granted,
-            sender=models.Offering,
-            dispatch_uid='waldur_mastermind.marketplace.log_offering_permission_granted',
-        )
-
-        structure_signals.structure_role_revoked.connect(
-            handlers.log_offering_permission_revoked,
-            sender=models.Offering,
-            dispatch_uid='waldur_mastermind.marketplace.log_offering_permission_revoked',
-        )
-
-        structure_signals.structure_role_updated.connect(
-            handlers.log_offering_permission_updated,
-            sender=models.OfferingPermission,
-            dispatch_uid='waldur_mastermind.marketplace.log_offering_permission_updated',
-        )
-
-        structure_signals.structure_role_granted.connect(
+        permission_signals.role_granted.connect(
             handlers.add_service_manager_role_to_customer,
-            sender=models.Offering,
             dispatch_uid='waldur_mastermind.marketplace.add_service_manager_role_to_customer',
         )
 
-        structure_signals.structure_role_revoked.connect(
+        permission_signals.role_revoked.connect(
             handlers.drop_service_manager_role_from_customer,
-            sender=models.Offering,
             dispatch_uid='waldur_mastermind.marketplace.drop_service_manager_role_from_customer',
-        )
-
-        structure_signals.structure_role_revoked.connect(
-            handlers.drop_offering_permissions_if_service_manager_role_is_revoked,
-            sender=structure_models.Customer,
-            dispatch_uid='waldur_mastermind.marketplace.drop_offering_permissions_if_service_manager_role_is_revoked',
         )
 
         structure_signals.project_moved.connect(
@@ -233,9 +206,8 @@ class MarketplaceConfig(AppConfig):
             dispatch_uid='waldur_core.marketplace.handlers.log_resource_robot_account_deleted',
         )
 
-        structure_signals.structure_role_granted.connect(
+        permission_signals.role_granted.connect(
             handlers.create_offering_users_when_project_role_granted,
-            sender=structure_models.Project,
             dispatch_uid='waldur_mastermind.marketplace.create_offering_user_when_project_role_created',
         )
 
@@ -249,18 +221,4 @@ class MarketplaceConfig(AppConfig):
             handlers.update_offering_user_username_after_offering_settings_change,
             sender=models.Offering,
             dispatch_uid='waldur_mastermind.marketplace.update_offering_user_username_after_offering_settings_change',
-        )
-
-        signals.post_save.connect(
-            handlers.sync_offering_permission_creation,
-            sender=OfferingPermission,
-            dispatch_uid='waldur_core.permissions.handlers.'
-            'sync_offering_permission_creation',
-        )
-
-        signals.post_delete.connect(
-            handlers.sync_offering_permission_deletion,
-            sender=OfferingPermission,
-            dispatch_uid='waldur_core.permissions.handlers.'
-            'sync_offering_permission_deletion',
         )

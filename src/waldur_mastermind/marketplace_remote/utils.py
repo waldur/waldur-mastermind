@@ -9,7 +9,10 @@ from django.utils.dateparse import parse_datetime
 from rest_framework.exceptions import ValidationError
 from waldur_client import WaldurClient, WaldurClientException
 
+from waldur_auth_social.models import ProviderChoices
 from waldur_core.core.utils import get_system_robot
+from waldur_core.permissions.enums import RoleEnum
+from waldur_core.permissions.utils import get_permissions
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace_remote.constants import (
@@ -169,16 +172,16 @@ def update_remote_project(request):
 
 
 def create_or_update_project_permission(
-    client, remote_project_uuid, remote_user_uuid, role, expiration_time
+    client, remote_project_uuid, remote_user_uuid, role_name, expiration_time
 ):
     permissions = client.get_project_permissions(
-        remote_project_uuid, remote_user_uuid, role
+        remote_project_uuid, remote_user_uuid, role_name
     )
     if not permissions:
         return client.create_project_permission(
-            remote_user_uuid,
             remote_project_uuid,
-            role,
+            remote_user_uuid,
+            role_name,
             expiration_time.isoformat() if expiration_time else expiration_time,
         )
     permission = permissions[0]
@@ -189,22 +192,26 @@ def create_or_update_project_permission(
     )
     if old_expiration_time != expiration_time:
         return client.update_project_permission(
-            permission['pk'],
+            remote_project_uuid,
+            remote_user_uuid,
+            role_name,
             expiration_time.isoformat() if expiration_time else expiration_time,
         )
 
 
-def remove_project_permission(client, remote_project_uuid, remote_user_uuid, role):
+def remove_project_permission(client, remote_project_uuid, remote_user_uuid, role_name):
     remote_permissions = client.get_project_permissions(
-        remote_project_uuid, remote_user_uuid, role
+        remote_project_uuid, remote_user_uuid, role_name
     )
     if remote_permissions:
-        client.remove_project_permission(remote_permissions[0]['pk'])
+        client.remove_project_permission(
+            remote_project_uuid, remote_user_uuid, role_name
+        )
         return True
     return False
 
 
-def sync_project_permission(grant, project, role, user, expiration_time):
+def sync_project_permission(grant, project, role_name, user, expiration_time):
     for offering in get_remote_offerings_for_project(project):
         client = get_client_for_offering(offering)
         try:
@@ -230,22 +237,22 @@ def sync_project_permission(grant, project, role, user, expiration_time):
                     client,
                     remote_project_uuid,
                     remote_user_uuid,
-                    role,
+                    role_name,
                     expiration_time,
                 )
             except WaldurClientException as e:
                 logger.debug(
-                    f'Unable to create permission for user [{remote_user_uuid}] with role {role} (until {expiration_time}) '
+                    f'Unable to create permission for user [{remote_user_uuid}] with role {role_name} (until {expiration_time}) '
                     f'and project [{remote_project_uuid}] in offering [{offering}]: {e}'
                 )
         else:
             try:
                 remove_project_permission(
-                    client, remote_project_uuid, remote_user_uuid, role
+                    client, remote_project_uuid, remote_user_uuid, role_name
                 )
             except WaldurClientException as e:
                 logger.debug(
-                    f'Unable to remove permission for user [{remote_user_uuid}] with role {role} '
+                    f'Unable to remove permission for user [{remote_user_uuid}] with role {role_name} '
                     f'and project [{remote_project_uuid}] in offering [{offering}]: {e}'
                 )
 
@@ -255,7 +262,7 @@ def push_project_users(offering, project, remote_project_uuid):
 
     permissions = collect_local_permissions(offering, project)
 
-    for username, (role, expiration_time) in permissions.items():
+    for username, (role_name, expiration_time) in permissions.items():
         try:
             remote_user_uuid = client.get_remote_eduteams_user(username)['uuid']
         except WaldurClientException as e:
@@ -266,36 +273,41 @@ def push_project_users(offering, project, remote_project_uuid):
 
         try:
             create_or_update_project_permission(
-                client, remote_project_uuid, remote_user_uuid, role, expiration_time
+                client,
+                remote_project_uuid,
+                remote_user_uuid,
+                role_name,
+                expiration_time,
             )
         except WaldurClientException as e:
             logger.debug(
-                f'Unable to create permission for user [{remote_user_uuid}] with role {role} '
+                f'Unable to create permission for user [{remote_user_uuid}] with role {role_name} '
                 f'and project [{remote_project_uuid}] in offering [{offering}]: {e}'
             )
 
 
-def collect_local_permissions(offering, project):
+def collect_local_permissions(
+    offering: marketplace_models.Offering, project: structure_models.Project
+):
     permissions = defaultdict()
-    for permission in structure_models.ProjectPermission.objects.filter(
-        project=project, is_active=True, user__registration_method='eduteams'
+    for permission in get_permissions(project).filter(
+        user__registration_method=ProviderChoices.EDUTEAMS,
+        role__is_system_role=True,
     ):
         permissions[permission.user.username] = (
-            permission.role,
+            permission.role.name,
             permission.expiration_time,
         )
     # Skip mapping for owners if offering belongs to the same customer
     if offering.customer == project.customer:
         return permissions
-    for permission in structure_models.CustomerPermission.objects.filter(
-        customer=project.customer,
-        is_active=True,
-        role=structure_models.CustomerRole.OWNER,
-        user__registration_method='eduteams',
+    for permission in get_permissions(project.customer).filter(
+        role__name=RoleEnum.CUSTOMER_OWNER,
+        user__registration_method=ProviderChoices.EDUTEAMS,
     ):
         # Organization owner is mapped to project manager in remote Waldur
         permissions[permission.user.username] = (
-            structure_models.ProjectRole.MANAGER,
+            RoleEnum.PROJECT_MANAGER,
             permission.expiration_time,
         )
     return permissions

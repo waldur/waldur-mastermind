@@ -14,6 +14,7 @@ from waldur_core.core import filters as core_filters
 from waldur_core.core.filters import LooseMultipleChoiceFilter
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
+from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import role_has_permission
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
@@ -224,17 +225,28 @@ class OfferingFilterMixin(django_filters.FilterSet):
         )
 
 
-class OfferingPermissionFilter(
-    OfferingFilterMixin, structure_filters.UserPermissionFilter
-):
-    customer = core_filters.URLFilter(
-        view_name='customer-detail', field_name='offering__customer__uuid'
-    )
-    customer_uuid = django_filters.UUIDFilter(field_name='offering__customer__uuid')
-
+class OfferingPermissionFilter(structure_filters.UserPermissionFilter):
     class Meta:
-        model = models.OfferingPermission
         fields = []
+        model = UserRole
+
+    offering = django_filters.UUIDFilter(method='filter_by_offering')
+    customer = django_filters.UUIDFilter(method='filter_by_customer')
+
+    def filter_by_offering(self, queryset, name, value):
+        try:
+            offering = models.Offering.objects.get(uuid=value)
+        except models.Offering.DoesNotExist:
+            return queryset.none()
+        return queryset.filter(object_id=offering.id)
+
+    def filter_by_customer(self, queryset, name, value):
+        try:
+            customer = structure_models.Customer.objects.get(uuid=value)
+        except structure_models.Customer.DoesNotExist:
+            return queryset.none()
+        offerings = models.Offering.objects.filter(customer=customer)
+        return queryset.filter(object_id__in=offerings.values_list('id', flat=True))
 
 
 class ScreenshotFilter(OfferingFilterMixin, django_filters.FilterSet):

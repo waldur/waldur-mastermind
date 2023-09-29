@@ -1,18 +1,18 @@
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
+from django.db.models import Q
 from django.db.models.query import QuerySet
 from rest_framework import exceptions
 
-from . import models
+from . import models, signals
 
 
 def has_permission(request, permission, scope):
     if request.user.is_staff:
         return True
 
-    content_type = ContentType.objects.get_for_model(scope)
     roles = models.UserRole.objects.filter(
-        user=request.user, is_active=True, object_id=scope.id, content_type=content_type
+        user=request.user, is_active=True, scope=scope
     ).values_list('role', flat=True)
     if not roles:
         return False
@@ -43,19 +43,6 @@ def permission_factory(permission, sources=None):
     return permission_function
 
 
-def add_permission(role, permission):
-    role, _ = models.Role.objects.get_or_create(
-        name=role,
-        defaults=dict(
-            is_system_role=True,
-        ),
-    )
-    models.RolePermission.objects.create(
-        role=role,
-        permission=permission,
-    )
-
-
 def role_has_permission(role, permission):
     return models.RolePermission.objects.filter(
         role__name=role, permission=permission
@@ -63,9 +50,8 @@ def role_has_permission(role, permission):
 
 
 def get_users(scope, role):
-    content_type = ContentType.objects.get_for_model(scope)
     user_ids = models.UserRole.objects.filter(
-        is_active=True, object_id=scope.id, content_type=content_type, role__name=role
+        is_active=True, scope=scope, role__name=role
     ).values_list('user_id', flat=True)
     return get_user_model().objects.filter(id__in=user_ids)
 
@@ -88,33 +74,100 @@ def get_user_ids(content_type, scope_ids, role=None):
         is_active=True, object_id__in=scope_ids, content_type=content_type
     )
     if role:
-        if not isinstance(role, (list, tuple)):
-            role = [role]
-        qs = qs.filter(role__name__in=role)
+        if isinstance(role, models.Role):
+            qs = qs.filter(role=role)
+        else:
+            if not isinstance(role, (list, tuple)):
+                role = [role]
+            qs = qs.filter(role__name__in=role)
     return qs.values_list('user_id', flat=True)
 
 
 def count_users(scope):
-    content_type = ContentType.objects.get_for_model(scope)
     return (
-        models.UserRole.objects.filter(
-            is_active=True, object_id=scope.id, content_type=content_type
-        )
+        models.UserRole.objects.filter(is_active=True, scope=scope)
         .values_list('user_id')
         .distinct()
         .count()
     )
 
 
-def has_user(scope, user, timestamp=None):
-    content_type = ContentType.objects.get_for_model(scope)
-    qs = models.UserRole.objects.filter(
-        is_active=True, user=user, object_id=scope.id, content_type=content_type
-    )
-    if timestamp is None:
+def has_user(scope, user, role=None, expiration_time=None):
+    """
+    Checks whether user has role in entity.
+    `expiration_time` can have following values:
+        - False - check whether user has role in entity at the moment.
+        - None - check whether user has permanent role in entity.
+        - Datetime object - check whether user will have role in entity at specific timestamp.
+    """
+    qs = models.UserRole.objects.filter(is_active=True, user=user, scope=scope)
+    if role:
+        qs = qs.filter(role=role)
+    if expiration_time is None:
         qs = qs.filter(expiration_time=None)
-    elif timestamp:
+    elif expiration_time:
         qs = qs.filter(
-            models.Q(expiration_time=None) | models.Q(expiration_time__gte=timestamp)
+            Q(expiration_time=None) | Q(expiration_time__gte=expiration_time)
         )
     return qs.exists()
+
+
+def get_permissions(scope, user=None):
+    qs = models.UserRole.objects.filter(scope=scope, is_active=True)
+    if user:
+        qs = qs.filter(user=user)
+    return qs
+
+
+def add_user(scope, user, role, created_by=None, expiration_time=None):
+    content_type = ContentType.objects.get_for_model(scope)
+    permission = models.UserRole.objects.create(
+        user=user,
+        role=role,
+        content_type=content_type,
+        object_id=scope.id,
+        expiration_time=expiration_time,
+        created_by=created_by,
+    )
+    signals.role_granted.send(
+        sender=models.UserRole,
+        instance=permission,
+        current_user=created_by,
+    )
+    return permission
+
+
+def update_user(scope, user, role, expiration_time=None, current_user=None):
+    try:
+        permission = models.UserRole.objects.get(
+            user=user,
+            role=role,
+            scope=scope,
+            is_active=True,
+        )
+    except models.UserRole.DoesNotExist:
+        return False
+    permission.set_expiration_time(expiration_time, current_user)
+    return permission
+
+
+def delete_user(scope, user, role, current_user=None):
+    try:
+        permission = models.UserRole.objects.get(
+            user=user,
+            role=role,
+            scope=scope,
+            is_active=True,
+        )
+    except models.UserRole.DoesNotExist:
+        return False
+    permission.revoke(current_user)
+    return True
+
+
+def get_customer(scope):
+    model_name = scope._meta.model_name
+    if model_name == 'customer':
+        return scope
+    else:
+        return scope.customer

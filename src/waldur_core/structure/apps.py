@@ -11,6 +11,7 @@ class StructureConfig(AppConfig):
         from django.core import checks
 
         from waldur_core.core.models import ChangeEmailRequest, User
+        from waldur_core.permissions import signals as permission_signals
         from waldur_core.quotas import signals as quota_signals
         from waldur_core.structure import handlers
         from waldur_core.structure import signals as structure_signals
@@ -27,8 +28,15 @@ class StructureConfig(AppConfig):
         Customer = self.get_model('Customer')
         Project = self.get_model('Project')
 
-        CustomerPermission = self.get_model('CustomerPermission')
-        ProjectPermission = self.get_model('ProjectPermission')
+        permission_signals.role_granted.connect(
+            handlers.change_users_quota,
+            dispatch_uid='waldur_core.structure.increase_users_quota_when_role_is_granted',
+        )
+
+        permission_signals.role_revoked.connect(
+            handlers.change_users_quota,
+            dispatch_uid='waldur_core.structure.increase_users_quota_when_role_is_granted',
+        )
 
         signals.post_save.connect(
             handlers.log_customer_save,
@@ -52,82 +60,6 @@ class StructureConfig(AppConfig):
             handlers.log_project_delete,
             sender=Project,
             dispatch_uid='waldur_core.structure.handlers.log_project_delete',
-        )
-
-        structure_models_with_roles = (Customer, Project)
-
-        for model in structure_models_with_roles:
-            structure_signals.structure_role_granted.connect(
-                handlers.sync_permission_when_role_is_granted,
-                sender=model,
-                dispatch_uid='waldur_core.permissions.handlers.'
-                'sync_permission_when_role_is_granted_%s' % model.__name__,
-            )
-
-            structure_signals.structure_role_revoked.connect(
-                handlers.sync_permission_when_role_is_revoked,
-                sender=model,
-                dispatch_uid='waldur_core.permissions.handlers.'
-                'sync_permission_when_role_is_revoked_%s' % model.__name__,
-            )
-
-        # increase nc_user_count quota usage on adding user to customer
-        for model in structure_models_with_roles:
-            name = (
-                'increase_customer_nc_users_quota_on_adding_user_to_%s' % model.__name__
-            )
-            structure_signals.structure_role_granted.connect(
-                handlers.change_customer_nc_users_quota,
-                sender=model,
-                dispatch_uid='waldur_core.structure.handlers.%s' % name,
-            )
-
-        # decrease nc_user_count quota usage on removing user from customer
-        for model in structure_models_with_roles:
-            name = (
-                'decrease_customer_nc_users_quota_on_removing_user_from_%s'
-                % model.__name__
-            )
-            structure_signals.structure_role_revoked.connect(
-                handlers.change_customer_nc_users_quota,
-                sender=model,
-                dispatch_uid='waldur_core.structure.handlers.%s' % name,
-            )
-
-        structure_signals.structure_role_granted.connect(
-            handlers.log_customer_role_granted,
-            sender=Customer,
-            dispatch_uid='waldur_core.structure.handlers.log_customer_role_granted',
-        )
-
-        structure_signals.structure_role_revoked.connect(
-            handlers.log_customer_role_revoked,
-            sender=Customer,
-            dispatch_uid='waldur_core.structure.handlers.log_customer_role_revoked',
-        )
-
-        structure_signals.structure_role_updated.connect(
-            handlers.log_customer_role_updated,
-            sender=CustomerPermission,
-            dispatch_uid='waldur_core.structure.handlers.log_customer_role_updated',
-        )
-
-        structure_signals.structure_role_granted.connect(
-            handlers.log_project_role_granted,
-            sender=Project,
-            dispatch_uid='waldur_core.structure.handlers.log_project_role_granted',
-        )
-
-        structure_signals.structure_role_revoked.connect(
-            handlers.log_project_role_revoked,
-            sender=Project,
-            dispatch_uid='waldur_core.structure.handlers.log_project_role_revoked',
-        )
-
-        structure_signals.structure_role_updated.connect(
-            handlers.log_project_role_updated,
-            sender=ProjectPermission,
-            dispatch_uid='waldur_core.structure.handlers.log_project_role_updated',
         )
 
         signals.pre_delete.connect(
@@ -193,6 +125,11 @@ class StructureConfig(AppConfig):
             handlers.notify_about_user_profile_changes,
             sender=User,
             dispatch_uid='waldur_core.structure.handlers.notify_about_user_profile_changes',
+        )
+
+        permission_signals.role_granted.connect(
+            handlers.change_users_quota,
+            dispatch_uid='waldur_core.structure.increase_users_quota_when_role_is_granted',
         )
 
         quota_signals.recalculate_quotas.connect(

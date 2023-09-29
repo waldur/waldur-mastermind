@@ -7,7 +7,7 @@ from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.core import middleware
-from waldur_core.structure import models as structure_models
+from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests.factories import ProjectFactory
 from waldur_mastermind.marketplace.models import Resource
 from waldur_mastermind.marketplace.tests.fixtures import MarketplaceFixture
@@ -153,9 +153,7 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
     def test_when_changes_made_by_same_owner_they_applied_immediately(self):
         offering_owner = self.fixture.offering_owner
         self.client.force_login(offering_owner)
-        self.fixture.customer.add_user(
-            offering_owner, structure_models.CustomerRole.OWNER
-        )
+        self.fixture.customer.add_user(offering_owner, CustomerRole.OWNER)
 
         response = self.client.patch(
             ProjectFactory.get_url(self.project), {'name': 'First project'}

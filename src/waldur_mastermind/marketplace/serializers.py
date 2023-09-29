@@ -8,6 +8,7 @@ from dateutil.parser import parse as parse_datetime
 from django import forms
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db import transaction
 from django.db.models import Count, Sum
@@ -33,6 +34,7 @@ from waldur_core.media.serializers import (
     ProtectedMediaSerializerMixin,
 )
 from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import count_users, has_permission
 from waldur_core.quotas.serializers import BasicQuotaSerializer
 from waldur_core.structure import models as structure_models
@@ -1709,13 +1711,20 @@ class OfferingSecretOptionsUpdateSerializer(serializers.ModelSerializer):
 
 
 class OfferingPermissionSerializer(
-    structure_serializers.PermissionFieldFilteringMixin,
     structure_serializers.BasePermissionSerializer,
 ):
-    offering_name = serializers.ReadOnlyField(source='offering.name')
+    offering = serializers.HyperlinkedRelatedField(
+        source='scope',
+        view_name='marketplace-provider-offering-detail',
+        read_only=True,
+        lookup_field='uuid',
+    )
+    offering_name = serializers.ReadOnlyField(source='scope.name')
+    offering_uuid = serializers.ReadOnlyField(source='scope.uuid')
+    role_name = serializers.ReadOnlyField(source='role.name')
 
     class Meta(structure_serializers.BasePermissionSerializer.Meta):
-        model = models.OfferingPermission
+        model = UserRole
         fields = (
             'url',
             'pk',
@@ -1725,63 +1734,22 @@ class OfferingPermissionSerializer(
             'offering',
             'offering_uuid',
             'offering_name',
+            'role_name',
         ) + structure_serializers.BasePermissionSerializer.Meta.fields
-        related_paths = dict(
-            offering=('name', 'uuid'),
-            **structure_serializers.BasePermissionSerializer.Meta.related_paths,
-        )
         protected_fields = ('offering', 'user', 'created_by', 'created')
+        view_name = 'marketplace-offering-permission-detail'
         extra_kwargs = {
             'user': {
                 'view_name': 'user-detail',
                 'lookup_field': 'uuid',
-                'queryset': get_user_model().objects.all(),
+                'read_only': True,
             },
             'created_by': {
                 'view_name': 'user-detail',
                 'lookup_field': 'uuid',
                 'read_only': True,
             },
-            'offering': {
-                'view_name': 'marketplace-provider-offering-detail',
-                'lookup_field': 'uuid',
-                'queryset': models.Offering.objects.all(),
-            },
         }
-
-    def validate(self, data):
-        if not self.instance:
-            offering = data['offering']
-            user = data['user']
-
-            if offering.has_user(user):
-                raise serializers.ValidationError(
-                    _('The fields offering and user must make a unique set.')
-                )
-
-        return data
-
-    def create(self, validated_data):
-        offering = validated_data['offering']
-        user = validated_data['user']
-        expiration_time = validated_data.get('expiration_time')
-
-        created_by = self.context['request'].user
-        permission, _ = offering.add_user(
-            user=user, created_by=created_by, expiration_time=expiration_time
-        )
-
-        return permission
-
-    def validate_expiration_time(self, value):
-        if value is not None and value < timezone.now():
-            raise serializers.ValidationError(
-                _('Expiration time should be greater than current time.')
-            )
-        return value
-
-    def get_filtered_field_names(self):
-        return ('offering',)
 
 
 class OfferingPermissionLogSerializer(OfferingPermissionSerializer):
@@ -3412,8 +3380,9 @@ class DetailedProviderUserSerializer(serializers.ModelSerializer):
     def get_projects_count(self, user):
         service_provider = self.context['service_provider']
         projects = utils.get_service_provider_project_ids(service_provider)
-        return structure_models.ProjectPermission.objects.filter(
-            user=user, project__in=projects, is_active=True
+        content_type = ContentType.objects.get_for_model(structure_models.Project)
+        return UserRole.objects.filter(
+            user=user, object_id__in=projects, content_type=content_type, is_active=True
         ).count()
 
     def get_fields(self):

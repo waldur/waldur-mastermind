@@ -7,7 +7,7 @@ from rest_framework import test
 from waldur_core.logging import models as logging_models
 from waldur_core.logging.tasks import process_event
 from waldur_core.logging.tests.factories import EventFactory
-from waldur_core.structure import models as structure_models
+from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import factories as structure_factories
 
 
@@ -16,7 +16,7 @@ class TestHookService(test.APITransactionTestCase):
     def setUp(self):
         self.owner = structure_factories.UserFactory()
         self.customer = structure_factories.CustomerFactory()
-        self.customer.add_user(self.owner, structure_models.CustomerRole.OWNER)
+        self.customer.add_user(self.owner, CustomerRole.OWNER)
         self.other_user = structure_factories.UserFactory()
 
         self.event_type = 'customer_update_succeeded'

@@ -74,8 +74,6 @@ class ProjectSection(FeatureSection):
         key = 'project'
         description = 'Project workspace'
 
-    member_role = Feature('Allow to grant user a project member role.')
-
     team = Feature('Enable team management in project workspace.')
 
     estimated_cost = Feature('Render estimated cost column in projects list.')

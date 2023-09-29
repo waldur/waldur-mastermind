@@ -165,12 +165,12 @@ class PermissionRequest(core_mixins.ReviewMixin, core_models.UuidMixin):
         super().approve(user, comment)
 
         if self.invitation.project_role:
-            permission, created = self.invitation.project.add_user(
+            permission = self.invitation.project.add_user(
                 self.created_by, self.invitation.project_role
             )
             structure = self.invitation.project
         elif self.invitation.customer_role:
-            permission, created = self.invitation.customer.add_user(
+            permission = self.invitation.customer.add_user(
                 self.created_by, self.invitation.customer_role
             )
             structure = self.invitation.customer

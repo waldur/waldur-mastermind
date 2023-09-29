@@ -15,9 +15,9 @@ class OpenStackConfig(AppConfig):
 
     def ready(self):
         from waldur_core.core import models as core_models
+        from waldur_core.permissions import signals as permission_signals
         from waldur_core.quotas.fields import QuotaField
         from waldur_core.structure import models as structure_models
-        from waldur_core.structure import signals as structure_signals
         from waldur_core.structure.registry import SupportedServices
 
         from . import handlers
@@ -53,13 +53,10 @@ class OpenStackConfig(AppConfig):
                 ),
             )
 
-        for model in (structure_models.Project, structure_models.Customer):
-            structure_signals.structure_role_revoked.connect(
-                handlers.remove_ssh_key_from_tenants,
-                sender=model,
-                dispatch_uid='openstack.handlers.remove_ssh_key_from_tenants__%s'
-                % model.__name__,
-            )
+        permission_signals.role_revoked.connect(
+            handlers.remove_ssh_key_from_tenants,
+            dispatch_uid='openstack.handlers.remove_ssh_key_from_tenants',
+        )
 
         signals.pre_delete.connect(
             handlers.remove_ssh_key_from_all_tenants_on_it_deletion,

@@ -6,9 +6,8 @@ from django.core import mail
 from freezegun import freeze_time
 from rest_framework import status, test
 
-from waldur_core.permissions.enums import PermissionEnum, RoleEnum
-from waldur_core.permissions.utils import add_permission
-from waldur_core.structure.models import CustomerRole
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_mastermind.marketplace import models, tasks
@@ -447,8 +446,8 @@ class OrderApproveTest(test.APITransactionTestCase):
             project=self.project, created_by=self.manager
         )
         self.url = factories.OrderFactory.get_url(self.order, 'approve')
-        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.APPROVE_ORDER)
-        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.APPROVE_ORDER_ITEM)
+        CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_ORDER)
+        CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_ORDER_ITEM)
 
     def test_owner_can_approve_order(self):
         self.ensure_user_can_approve_order(self.fixture.owner)
@@ -460,11 +459,11 @@ class OrderApproveTest(test.APITransactionTestCase):
         self.ensure_user_can_not_approve_order(self.fixture.admin)
 
     def test_manager_can_approve_order_if_feature_is_enabled(self):
-        add_permission(RoleEnum.PROJECT_MANAGER, PermissionEnum.APPROVE_ORDER)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.APPROVE_ORDER)
         self.ensure_user_can_approve_order(self.fixture.manager)
 
     def test_admin_can_approve_order_if_feature_is_enabled(self):
-        add_permission(RoleEnum.PROJECT_ADMIN, PermissionEnum.APPROVE_ORDER)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.APPROVE_ORDER)
         self.ensure_user_can_approve_order(self.fixture.admin)
 
     def test_user_can_not_reapprove_active_order(self):
@@ -630,9 +629,9 @@ class OrderRejectTest(test.APITransactionTestCase):
         self.order_item_2 = factories.OrderItemFactory(order=self.order)
         self.url = factories.OrderFactory.get_url(self.order, 'reject')
 
-        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.REJECT_ORDER)
-        add_permission(RoleEnum.PROJECT_MANAGER, PermissionEnum.REJECT_ORDER)
-        add_permission(RoleEnum.PROJECT_ADMIN, PermissionEnum.REJECT_ORDER)
+        CustomerRole.OWNER.add_permission(PermissionEnum.REJECT_ORDER)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.REJECT_ORDER)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.REJECT_ORDER)
 
     @data('staff', 'manager', 'admin', 'owner')
     def test_authorized_user_can_reject_order(self, user):
@@ -742,38 +741,39 @@ class OrderStateTest(test.APITransactionTestCase):
         self.assertEqual(order.state, models.Order.States.EXECUTING)
 
 
-@ddt
 class OrderApprovalNotificationTest(test.APITransactionTestCase):
+    def setUp(self) -> None:
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+
     @override_marketplace_settings(NOTIFY_STAFF_ABOUT_APPROVALS=True)
     def test_staff(self):
-        fixture = marketplace_fixtures.MarketplaceFixture()
-        user = fixture.staff
+        user = self.fixture.staff
         event_type = 'notification_approval'
         structure_factories.NotificationFactory(key=f"marketplace.{event_type}")
-        tasks.notify_order_approvers(fixture.order.uuid.hex)
+        tasks.notify_order_approvers(self.fixture.order.uuid.hex)
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, [user.email])
 
-    @data(
-        ('owner', RoleEnum.CUSTOMER_OWNER),
-        ('manager', RoleEnum.PROJECT_MANAGER),
-        ('admin', RoleEnum.PROJECT_ADMIN),
-    )
-    def test_valid_user(self, option):
-        user_name, option_name = option
-        fixture = marketplace_fixtures.MarketplaceFixture()
-        user = getattr(fixture, user_name)
+    def check_notification(self, user, role):
+        role.add_permission(PermissionEnum.APPROVE_ORDER)
+        role.add_permission(PermissionEnum.APPROVE_ORDER_ITEM)
         event_type = 'notification_approval'
         structure_factories.NotificationFactory(key=f"marketplace.{event_type}")
-        add_permission(option_name, PermissionEnum.APPROVE_ORDER)
-        add_permission(option_name, PermissionEnum.APPROVE_ORDER_ITEM)
-        tasks.notify_order_approvers(fixture.order.uuid.hex)
+        tasks.notify_order_approvers(self.fixture.order.uuid.hex)
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, [user.email])
+
+    def test_check_owner(self):
+        self.check_notification(self.fixture.owner, CustomerRole.OWNER)
+
+    def test_check_manager(self):
+        self.check_notification(self.fixture.manager, ProjectRole.MANAGER)
+
+    def test_check_admin(self):
+        self.check_notification(self.fixture.admin, ProjectRole.ADMIN)
 
     def test_notification_is_not_sent_when_there_are_no_approvers(self):
-        fixture = marketplace_fixtures.MarketplaceFixture()
-        tasks.notify_order_approvers(fixture.order.uuid.hex)
+        tasks.notify_order_approvers(self.fixture.order.uuid.hex)
         self.assertEqual(len(mail.outbox), 0)
 
 

@@ -2,7 +2,7 @@ import textwrap
 
 from rest_framework import test
 
-from waldur_core.structure import models as structure_models
+from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.callbacks import resource_creation_succeeded
@@ -41,9 +41,7 @@ class OfferingUserCreationTest(test.APITransactionTestCase):
             ).exists()
         )
 
-        self.resource.project.add_user(
-            self.offering_admin, structure_models.ProjectRole.ADMINISTRATOR
-        )
+        self.resource.project.add_user(self.offering_admin, ProjectRole.ADMIN)
 
         self.assertTrue(
             marketplace_models.OfferingUser.objects.filter(
@@ -65,9 +63,7 @@ class OfferingUserCreationTest(test.APITransactionTestCase):
         )
 
     def test_offering_user_created_after_resource_creation(self):
-        self.resource.project.add_user(
-            self.offering_admin, structure_models.ProjectRole.ADMINISTRATOR
-        )
+        self.resource.project.add_user(self.offering_admin, ProjectRole.ADMIN)
         self.assertFalse(
             marketplace_models.OfferingUser.objects.filter(
                 offering=self.resource.offering, user=self.offering_admin
@@ -88,12 +84,8 @@ class OfferingUserCreationTest(test.APITransactionTestCase):
         self.assertIsNotNone(offering_user.propagation_date)
 
     def test_offering_user_unix_data(self):
-        self.resource.project.add_user(
-            self.offering_admin, structure_models.ProjectRole.ADMINISTRATOR
-        )
-        self.resource.project.add_user(
-            self.offering_owner, structure_models.ProjectRole.MANAGER
-        )
+        self.resource.project.add_user(self.offering_admin, ProjectRole.ADMIN)
+        self.resource.project.add_user(self.offering_owner, ProjectRole.MANAGER)
 
         resource_creation_succeeded(self.resource)
         offering_user = marketplace_models.OfferingUser.objects.get(

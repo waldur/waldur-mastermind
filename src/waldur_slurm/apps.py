@@ -8,9 +8,9 @@ class SlurmConfig(AppConfig):
     service_name = 'SLURM'
 
     def ready(self):
+        from waldur_core.permissions import signals as permission_signals
         from waldur_core.quotas.fields import CounterQuotaField, QuotaField
         from waldur_core.structure import models as structure_models
-        from waldur_core.structure import signals as structure_signals
         from waldur_core.structure.registry import SupportedServices
         from waldur_freeipa import models as freeipa_models
 
@@ -31,24 +31,15 @@ class SlurmConfig(AppConfig):
             dispatch_uid='waldur_slurm.handlers.process_user_deletion',
         )
 
-        structure_models_with_roles = (
-            structure_models.Customer,
-            structure_models.Project,
+        permission_signals.role_granted.connect(
+            handlers.process_role_granted,
+            dispatch_uid='waldur_slurm.handlers.process_role_granted',
         )
-        for model in structure_models_with_roles:
-            structure_signals.structure_role_granted.connect(
-                handlers.process_role_granted,
-                sender=model,
-                dispatch_uid='waldur_slurm.handlers.process_role_granted.%s'
-                % model.__class__,
-            )
 
-            structure_signals.structure_role_revoked.connect(
-                handlers.process_role_revoked,
-                sender=model,
-                dispatch_uid='waldur_slurm.handlers.process_role_revoked.%s'
-                % model.__class__,
-            )
+        permission_signals.role_revoked.connect(
+            handlers.process_role_revoked,
+            dispatch_uid='waldur_slurm.handlers.process_role_revoked',
+        )
 
         for quota in utils.QUOTA_NAMES:
             structure_models.Customer.add_quota_field(

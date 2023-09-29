@@ -1,7 +1,7 @@
 from ddt import data, ddt
 from rest_framework import status, test
 
-from waldur_core.structure.models import ProjectRole
+from waldur_core.permissions.fixtures import ProjectRole
 from waldur_openstack.openstack.models import Tenant
 from waldur_openstack.openstack_tenant.models import Instance
 
@@ -246,7 +246,7 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
 
         instance = factories.InstanceFactory(state=Instance.States.CREATION_SCHEDULED)
         project = instance.project
-        project.add_user(self.fixture.user, ProjectRole.ADMINISTRATOR)
+        project.add_user(self.fixture.user, ProjectRole.ADMIN)
 
         response = self.client.post(
             factories.InstanceFactory.get_url(instance, action='change_flavor'), {}
@@ -265,7 +265,7 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
 
         for state in forbidden_states:
             instance = factories.InstanceFactory(state=state)
-            instance.project.add_user(self.fixture.user, ProjectRole.ADMINISTRATOR)
+            instance.project.add_user(self.fixture.user, ProjectRole.ADMIN)
 
             changed_flavor = factories.FlavorFactory(settings=instance.service_settings)
 
@@ -292,7 +292,7 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
         )
         project = instance.project
 
-        project.add_user(self.fixture.user, ProjectRole.ADMINISTRATOR)
+        project.add_user(self.fixture.user, ProjectRole.ADMIN)
 
         data = {}
 

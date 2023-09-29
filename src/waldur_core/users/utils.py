@@ -7,10 +7,9 @@ from rest_framework import serializers
 
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
-from waldur_core.core.constants import get_domain_message
 from waldur_core.core.utils import pwgen
-from waldur_core.structure import models as structure_models
-from waldur_core.structure.models import CustomerRole, ProjectRole
+from waldur_core.permissions.enums import PermissionEnum, RoleEnum
+from waldur_core.permissions.utils import has_permission, role_has_permission
 from waldur_core.users import models
 from waldur_freeipa import tasks
 from waldur_freeipa.backend import FreeIPABackend
@@ -18,32 +17,26 @@ from waldur_freeipa.models import Profile
 from waldur_freeipa.utils import generate_username
 
 
-def get_invitation_context(invitation, sender):
+def get_invitation_context(invitation: models.Invitation, sender):
     context = {'extra_invitation_text': invitation.extra_invitation_text}
 
     if invitation.project_role is not None:
-        role_display = {
-            ProjectRole.MANAGER: 'project manager',
-            ProjectRole.MEMBER: 'project member',
-            ProjectRole.ADMINISTRATOR: 'system administrator',
-        }.get(invitation.project_role, invitation.get_project_role_display())
+        role = invitation.project.get_or_create_role(invitation.project_role)
         context.update(
             dict(
                 type=_('project'),
                 name=invitation.project.name,
-                role=_(get_domain_message(role_display)),
+                role=role.description,
                 org_name=invitation.customer.name,
             )
         )
     else:
-        role_display = {
-            CustomerRole.OWNER: 'organization owner',
-        }.get(invitation.customer_role, invitation.get_customer_role_display())
+        role = invitation.customer.get_or_create_role(invitation.customer_role)
         context.update(
             dict(
                 type=_('organization'),
                 name=invitation.customer.name,
-                role=_(get_domain_message(role_display)),
+                role=role.description,
                 org_name=invitation.customer.name,
             )
         )
@@ -174,26 +167,30 @@ def get_invitation_link(uuid):
 
 
 def can_manage_invitation_with(
-    user, customer, customer_role=None, project_role=None, project=None
+    request, customer, customer_role=None, project_role=None, project=None
 ):
-    if user.is_staff:
+    if request.user.is_staff:
         return True
-
-    is_owner = customer.has_user(user, structure_models.CustomerRole.OWNER)
-    can_manage_owners = settings.WALDUR_CORE['OWNERS_CAN_MANAGE_OWNERS']
 
     # It is assumed that either customer_role or project_role is not None
     if customer_role:
-        return is_owner and can_manage_owners
+        return has_permission(
+            request, PermissionEnum.CREATE_CUSTOMER_PERMISSION, customer
+        )
     if project_role and not project:
-        return is_owner
+        return has_permission(
+            request, PermissionEnum.CREATE_PROJECT_PERMISSION, customer
+        )
     if project_role and project:
-        is_manager = project.has_user(user, structure_models.ProjectRole.MANAGER)
-        return is_owner or is_manager
+        return has_permission(
+            request, PermissionEnum.CREATE_PROJECT_PERMISSION, customer
+        ) or has_permission(request, PermissionEnum.CREATE_PROJECT_PERMISSION, project)
 
 
 def get_users_for_notification_about_request_has_been_submitted(permission_request):
-    can_manage_owners = settings.WALDUR_CORE['OWNERS_CAN_MANAGE_OWNERS']
+    can_manage_owners = role_has_permission(
+        RoleEnum.CUSTOMER_OWNER, PermissionEnum.CREATE_CUSTOMER_PERMISSION
+    )
     project_role = permission_request.invitation.project_role
     owners = permission_request.invitation.customer.get_owners()
     staff_users = (

@@ -24,6 +24,7 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.response import Response
 
+from waldur_auth_social.models import ProviderChoices
 from waldur_auth_social.utils import pull_remote_eduteams_user
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models
@@ -35,24 +36,25 @@ from waldur_core.core.utils import is_uuid_like
 from waldur_core.core.views import ActionsViewSet, ReadOnlyActionsViewSet
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.utils import count_users
+from waldur_core.permissions.views import UserRoleMixin
 from waldur_core.structure import filters, models, permissions, serializers, utils
 from waldur_core.structure.executors import ServiceSettingsCreateExecutor
 from waldur_core.structure.managers import (
     count_customer_users,
+    filter_customer_permissions,
+    filter_project_permissions,
     filter_queryset_for_user,
     get_connected_customers,
     get_connected_projects,
-    get_visible_customers,
 )
 from waldur_core.structure.permissions import _has_owner_access
-from waldur_core.structure.signals import structure_role_updated
 
 logger = logging.getLogger(__name__)
 
 User = auth.get_user_model()
 
 
-class CustomerViewSet(core_mixins.EagerLoadMixin, viewsets.ModelViewSet):
+class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelViewSet):
     queryset = models.Customer.objects.all().order_by('name')
     serializer_class = serializers.CustomerSerializer
     lookup_field = 'uuid'
@@ -249,7 +251,9 @@ class ProjectTypeViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_class = filters.ProjectTypeFilter
 
 
-class ProjectViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
+class ProjectViewSet(
+    UserRoleMixin, core_mixins.EagerLoadMixin, core_views.ActionsViewSet
+):
     queryset = models.Project.available_objects.all().order_by('name')
     serializer_class = serializers.ProjectSerializer
     lookup_field = 'uuid'
@@ -402,7 +406,7 @@ class ProjectViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
 
         customer = serializer.validated_data['customer']
 
-        utils.move_project(project, customer)
+        utils.move_project(project, customer, request.user)
         serialized_project = serializers.ProjectSerializer(
             project, context={'request': self.request}
         )
@@ -574,7 +578,7 @@ class UserViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def pull_remote_user(self, request, uuid=None):
         user = self.get_object()
-        if user.registration_method != 'eduteams':
+        if user.registration_method != ProviderChoices.EDUTEAMS:
             raise ValidationError(_('User is not managed by eduTEAMS.'))
         if not django_settings.WALDUR_AUTH_SOCIAL['REMOTE_EDUTEAMS_ENABLED']:
             raise ValidationError(
@@ -584,238 +588,39 @@ class UserViewSet(viewsets.ModelViewSet):
         return Response(status=status.HTTP_200_OK)
 
 
-class BasePermissionViewSet(viewsets.ModelViewSet):
-    """
-    This is a base class for both customer and project permissions.
-    scope_field is required parameter, it should be either 'customer' or 'project'.
-    """
-
-    scope_field = None
-
-    def perform_create(self, serializer):
-        scope = serializer.validated_data[self.scope_field]
-        role = serializer.validated_data.get('role')
-        expiration_time = serializer.validated_data.get('expiration_time')
-
-        if isinstance(scope, models.Project):
-            user_is_owner = scope.customer.has_user(
-                self.request.user, models.CustomerRole.OWNER
-            )
-            if (
-                scope.has_user(
-                    self.request.user, models.ProjectRole.MANAGER, expiration_time
-                )
-                and not user_is_owner
-            ):
-                raise PermissionDenied(
-                    {
-                        'detail': "Project managers can not add users to the project directly."
-                    }
-                )
-
-        if not scope.can_manage_role(self.request.user, role, expiration_time):
-            raise PermissionDenied()
-
-        utils.check_customer_blocked_or_archived(scope)
-
-        super().perform_create(serializer)
-
-    def perform_update(self, serializer):
-        permission = serializer.instance
-        scope = getattr(permission, self.scope_field)
-        role = getattr(permission, 'role', None)
-
-        utils.check_customer_blocked_or_archived(scope)
-
-        new_expiration_time = serializer.validated_data.get('expiration_time')
-        old_expiration_time = permission.expiration_time
-        if new_expiration_time == old_expiration_time:
-            return
-
-        if not scope.can_manage_role(self.request.user, role, new_expiration_time):
-            raise PermissionDenied()
-
-        serializer.save()
-        structure_role_updated.send(
-            sender=self.queryset.model,
-            instance=permission,
-            user=self.request.user,
-        )
-
-    def perform_destroy(self, instance):
-        permission = instance
-        scope = getattr(permission, self.scope_field)
-        role = getattr(permission, 'role', None)
-        affected_user = permission.user
-        expiration_time = permission.expiration_time
-
-        if not scope.can_manage_role(self.request.user, role, expiration_time):
-            raise PermissionDenied()
-
-        utils.check_customer_blocked_or_archived(scope)
-
-        scope.remove_user(affected_user, role, removed_by=self.request.user)
-
-
-class ProjectPermissionViewSet(BasePermissionViewSet):
-    """
-    - Projects are connected to customers, whereas the project may belong to one customer only,
-      and the customer may have
-      multiple projects.
-    - Projects are connected to services, whereas the project may contain multiple services,
-      and the service may belong to multiple projects.
-    - Staff members can list all available projects of any customer and create new projects.
-    - Customer owners can list all projects that belong to any of the customers they own.
-      Customer owners can also create projects for the customers they own.
-    - Project administrators can list all the projects they are administrators in.
-    - Project managers can list all the projects they are managers in.
-    """
-
-    # See CustomerPermissionViewSet for implementation details.
-
-    queryset = models.ProjectPermission.objects.filter(is_active=True).order_by(
-        '-created'
-    )
+class ProjectPermissionViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = serializers.ProjectPermissionSerializer
-    filter_backends = (
-        filters.GenericRoleFilter,
-        DjangoFilterBackend,
-    )
+    filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.ProjectPermissionFilter
-    scope_field = 'project'
-
-    def list(self, request, *args, **kwargs):
-        """
-        Project permissions expresses connection of user to a project.
-        User may have either project manager or system administrator permission in the project.
-        Use */api/project-permissions/* endpoint to maintain project permissions.
-
-        Note that project permissions can be viewed and modified only by customer owners and staff users.
-
-        To list all visible permissions, run a **GET** query against a list.
-        Response will contain a list of project users and their brief data.
-
-        To add a new user to the project, **POST** a new relationship to */api/project-permissions/* endpoint specifying
-        project, user and the role of the user ('admin' or 'manager'):
-
-        .. code-block:: http
-
-            POST /api/project-permissions/ HTTP/1.1
-            Accept: application/json
-            Authorization: Token 95a688962bf68678fd4c8cec4d138ddd9493c93b
-            Host: example.com
-
-            {
-                "project": "http://example.com/api/projects/6c9b01c251c24174a6691a1f894fae31/",
-                "role": "manager",
-                "user": "http://example.com/api/users/82cec6c8e0484e0ab1429412fe4194b7/"
-            }
-        """
-        return super().list(request, *args, **kwargs)
-
-    def destroy(self, request, *args, **kwargs):
-        """
-        To remove a user from a project, delete corresponding connection (**url** field). Successful deletion
-        will return status code 204.
-
-        .. code-block:: http
-
-            DELETE /api/project-permissions/42/ HTTP/1.1
-            Authorization: Token 95a688962bf68678fd4c8cec4d138ddd9493c93b
-            Host: example.com
-        """
-        return super().destroy(request, *args, **kwargs)
-
-
-class ProjectPermissionLogViewSet(
-    mixins.RetrieveModelMixin, mixins.ListModelMixin, viewsets.GenericViewSet
-):
-    queryset = models.ProjectPermission.objects.filter(is_active=None)
-    serializer_class = serializers.ProjectPermissionLogSerializer
-    filter_backends = (
-        filters.GenericRoleFilter,
-        DjangoFilterBackend,
-    )
-    filterset_class = filters.ProjectPermissionFilter
-
-
-class CustomerPermissionViewSet(BasePermissionViewSet):
-    """
-    - Customers are connected to users through roles, whereas user may have role "customer owner".
-    - Each customer may have multiple owners, and each user may own multiple customers.
-    - Staff members can list all available customers and create new customers.
-    - Customer owners can list all customers they own. Customer owners can also create new customers.
-    - Project administrators can list all the customers that own any of the projects they are administrators in.
-    - Project managers can list all the customers that own any of the projects they are managers in.
-    """
-
-    queryset = models.CustomerPermission.objects.filter(is_active=True).order_by(
-        '-created'
-    )
-    serializer_class = serializers.CustomerPermissionSerializer
-    filterset_class = filters.CustomerPermissionFilter
-    scope_field = 'customer'
 
     def get_queryset(self):
-        queryset = super().get_queryset()
-        user = self.request.user
-
-        if not (user.is_staff or user.is_support):
-            queryset = queryset.filter(
-                Q(user=user) | Q(customer__in=get_visible_customers(user))
-            ).distinct()
-
-        return queryset
-
-    def list(self, request, *args, **kwargs):
-        """
-        Each customer is associated with a group of users that represent customer owners. The link is maintained
-        through **api/customer-permissions/** endpoint.
-
-        To list all visible links, run a **GET** query against a list.
-        Response will contain a list of customer owners and their brief data.
-
-        To add a new user to the customer, **POST** a new relationship to **customer-permissions** endpoint:
-
-        .. code-block:: http
-
-            POST /api/customer-permissions/ HTTP/1.1
-            Accept: application/json
-            Authorization: Token 95a688962bf68678fd4c8cec4d138ddd9493c93b
-            Host: example.com
-
-            {
-                "customer": "http://example.com/api/customers/6c9b01c251c24174a6691a1f894fae31/",
-                "role": "owner",
-                "user": "http://example.com/api/users/82cec6c8e0484e0ab1429412fe4194b7/"
-            }
-        """
-        return super().list(request, *args, **kwargs)
-
-    def retrieve(self, request, *args, **kwargs):
-        """
-        To remove a user from a customer owner group, delete corresponding connection (**url** field).
-        Successful deletion will return status code 204.
-
-        .. code-block:: http
-
-            DELETE /api/customer-permissions/71/ HTTP/1.1
-            Authorization: Token 95a688962bf68678fd4c8cec4d138ddd9493c93b
-            Host: example.com
-        """
-        return super().retrieve(request, *args, **kwargs)
+        return filter_project_permissions(self.request.user)
 
 
-class CustomerPermissionLogViewSet(
-    mixins.RetrieveModelMixin, mixins.ListModelMixin, viewsets.GenericViewSet
-):
-    queryset = models.CustomerPermission.objects.filter(is_active=None)
-    serializer_class = serializers.CustomerPermissionLogSerializer
-    filter_backends = (
-        filters.GenericRoleFilter,
-        DjangoFilterBackend,
-    )
+class ProjectPermissionLogViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = serializers.ProjectPermissionLogSerializer
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.ProjectPermissionFilter
+
+    def get_queryset(self):
+        return filter_project_permissions(self.request.user, is_active=None)
+
+
+class CustomerPermissionViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = serializers.CustomerPermissionSerializer
     filterset_class = filters.CustomerPermissionFilter
+
+    def get_queryset(self):
+        return filter_customer_permissions(self.request.user)
+
+
+class CustomerPermissionLogViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = serializers.CustomerPermissionLogSerializer
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.CustomerPermissionFilter
+
+    def get_queryset(self):
+        return filter_customer_permissions(self.request.user, is_active=None)
 
 
 class CustomerPermissionReviewViewSet(

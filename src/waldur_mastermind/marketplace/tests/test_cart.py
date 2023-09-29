@@ -5,8 +5,8 @@ import ddt
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import status, test
 
-from waldur_core.permissions.enums import PermissionEnum, RoleEnum
-from waldur_core.permissions.utils import add_permission
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.quotas import models as quotas_models
 from waldur_core.quotas.fields import TotalQuotaField
 from waldur_core.structure import models as structure_models
@@ -220,10 +220,10 @@ class AutoapproveTest(test.APITransactionTestCase):
         self.service_settings = structure_factories.ServiceSettingsFactory(
             type='Test', shared=True
         )
-        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.APPROVE_ORDER)
-        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.APPROVE_PRIVATE_ORDER)
-        add_permission(RoleEnum.PROJECT_MANAGER, PermissionEnum.APPROVE_PRIVATE_ORDER)
-        add_permission(RoleEnum.PROJECT_ADMIN, PermissionEnum.APPROVE_PRIVATE_ORDER)
+        CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_ORDER)
+        CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_PRIVATE_ORDER)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.APPROVE_PRIVATE_ORDER)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.APPROVE_PRIVATE_ORDER)
 
     def submit(self, project):
         return self.client.post(
@@ -333,7 +333,7 @@ class AutoapproveTest(test.APITransactionTestCase):
     def test_public_offering_is_autoapproved_if_feature_is_enabled_for_manager(
         self, mocked_task
     ):
-        add_permission(RoleEnum.PROJECT_MANAGER, PermissionEnum.APPROVE_ORDER)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.APPROVE_ORDER)
         response = self.submit_public_and_private('manager')
         self.assertEqual(response.data['state'], 'executing')
         mocked_task.delay.assert_not_called()
@@ -341,7 +341,7 @@ class AutoapproveTest(test.APITransactionTestCase):
     def test_public_offering_is_autoapproved_if_feature_is_enabled_for_admin(
         self, mocked_task
     ):
-        add_permission(RoleEnum.PROJECT_ADMIN, PermissionEnum.APPROVE_ORDER)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.APPROVE_ORDER)
         response = self.submit_public_and_private('admin')
         self.assertEqual(response.data['state'], 'executing')
         mocked_task.delay.assert_not_called()

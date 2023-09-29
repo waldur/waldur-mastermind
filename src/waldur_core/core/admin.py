@@ -24,6 +24,7 @@ from rest_framework import permissions as rf_permissions
 from rest_framework.exceptions import ParseError
 from reversion.admin import VersionAdmin
 
+from waldur_auth_social.models import ProviderChoices
 from waldur_auth_social.utils import pull_remote_eduteams_user
 from waldur_core.core import models
 from waldur_core.core.authentication import can_access_admin_site
@@ -293,19 +294,16 @@ class UserAdmin(NativeNameAdminMixin, auth_admin.UserAdmin, VersionAdmin):
     add_form = UserCreationForm
 
     def customer_roles(self, instance):
-        from waldur_core.structure.models import CustomerPermission
+        from waldur_core.structure.managers import get_connected_customers
+        from waldur_core.structure.models import Customer
 
-        permissions = CustomerPermission.objects.filter(
-            user=instance, is_active=True
-        ).order_by('customer')
+        customer_ids = get_connected_customers(instance)
+        customers = Customer.objects.filter(id__in=customer_ids).order_by('name')
 
         return format_html_join(
             mark_safe('<br/>'),  # noqa: S308
             '<a href={}>{}</a>',
-            (
-                (get_admin_url(permission.customer), str(permission))
-                for permission in permissions
-            ),
+            ((get_admin_url(customer), str(customer)) for customer in customers),
         ) or mark_safe(  # noqa: S308, S703
             "<span class='errors'>%s</span>"
             % _('User has no roles in any organization.')
@@ -314,19 +312,16 @@ class UserAdmin(NativeNameAdminMixin, auth_admin.UserAdmin, VersionAdmin):
     customer_roles.short_description = _('Roles in organizations')
 
     def project_roles(self, instance):
-        from waldur_core.structure.models import ProjectPermission
+        from waldur_core.structure.managers import get_connected_projects
+        from waldur_core.structure.models import Project
 
-        permissions = ProjectPermission.objects.filter(
-            user=instance, is_active=True
-        ).order_by('project')
+        project_ids = get_connected_projects(instance)
+        projects = Project.objects.filter(id__in=project_ids).order_by('name')
 
         return format_html_join(
             mark_safe('<br/>'),  # noqa: S308
             '<a href={}>{}</a>',
-            (
-                (get_admin_url(permission.project), str(permission))
-                for permission in permissions
-            ),
+            ((get_admin_url(project), str(project)) for project in projects),
         ) or mark_safe(  # noqa: S308, S703
             "<span class='errors'>%s</span>" % _('User has no roles in any project.')
         )
@@ -349,7 +344,7 @@ class UserAdmin(NativeNameAdminMixin, auth_admin.UserAdmin, VersionAdmin):
             )
             return
         for remote_user in queryset:
-            if remote_user.registration_method == 'eduteams':
+            if remote_user.registration_method == ProviderChoices.EDUTEAMS:
                 try:
                     pull_remote_eduteams_user(remote_user.username)
                 except ParseError:

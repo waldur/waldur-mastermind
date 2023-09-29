@@ -6,13 +6,13 @@ from ddt import data, ddt
 from django.test import TransactionTestCase
 from django.urls import reverse
 from freezegun import freeze_time
-from mock_django import mock_signal_receiver
 from rest_framework import status, test
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.media.utils import dummy_image
-from waldur_core.structure import executors, models, permissions, signals
-from waldur_core.structure.models import CustomerRole, Project, ProjectRole
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
+from waldur_core.structure import executors, models, permissions
+from waldur_core.structure.models import Project
 from waldur_core.structure.tests import factories, fixtures
 from waldur_core.structure.tests import models as test_models
 from waldur_core.structure.utils import move_project
@@ -24,120 +24,11 @@ class ProjectPermissionGrantTest(TransactionTestCase):
         self.project = factories.ProjectFactory()
         self.user = factories.UserFactory()
 
-    def test_add_user_returns_created_if_grant_didnt_exist_before(self):
-        _, created = self.project.add_user(self.user, ProjectRole.ADMINISTRATOR)
+    def test_add_user_returns_permission(self):
+        permission = self.project.add_user(self.user, ProjectRole.ADMIN)
 
-        self.assertTrue(
-            created, 'Project permission should have been reported as created'
-        )
-
-    def test_add_user_returns_not_created_if_grant_existed_before(self):
-        self.project.add_user(self.user, ProjectRole.ADMINISTRATOR)
-        _, created = self.project.add_user(self.user, ProjectRole.ADMINISTRATOR)
-
-        self.assertFalse(
-            created, 'Project permission should have been reported as not created'
-        )
-
-    def test_add_user_returns_membership(self):
-        membership, _ = self.project.add_user(self.user, ProjectRole.ADMINISTRATOR)
-
-        self.assertEqual(membership.user, self.user)
-        self.assertEqual(membership.project, self.project)
-
-    def test_add_user_returns_same_membership_for_consequent_calls_with_same_arguments(
-        self,
-    ):
-        membership1, _ = self.project.add_user(self.user, ProjectRole.ADMINISTRATOR)
-        membership2, _ = self.project.add_user(self.user, ProjectRole.ADMINISTRATOR)
-
-        self.assertEqual(membership1, membership2)
-
-    def test_add_user_emits_structure_role_granted_if_grant_didnt_exist_before(self):
-        with mock_signal_receiver(signals.structure_role_granted) as receiver:
-            self.project.add_user(self.user, ProjectRole.ADMINISTRATOR)
-
-        receiver.assert_called_once_with(
-            structure=self.project,
-            user=self.user,
-            role=ProjectRole.ADMINISTRATOR,
-            created_by=None,
-            sender=Project,
-            signal=signals.structure_role_granted,
-            expiration_time=None,
-        )
-
-    def test_add_user_doesnt_emit_structure_role_granted_if_grant_existed_before(self):
-        self.project.add_user(self.user, ProjectRole.ADMINISTRATOR)
-
-        with mock_signal_receiver(signals.structure_role_granted) as receiver:
-            self.project.add_user(self.user, ProjectRole.ADMINISTRATOR)
-
-        self.assertFalse(
-            receiver.called, 'structure_role_granted should not be emitted'
-        )
-
-
-class ProjectPermissionRevokeTest(TransactionTestCase):
-    def setUp(self):
-        self.project = factories.ProjectFactory()
-        self.user = factories.UserFactory()
-        self.removed_by = factories.UserFactory()
-
-    def test_remove_user_emits_structure_role_revoked_for_each_role_user_had_in_project(
-        self,
-    ):
-        self.project.add_user(self.user, ProjectRole.ADMINISTRATOR)
-        self.project.add_user(self.user, ProjectRole.MANAGER)
-
-        with mock_signal_receiver(signals.structure_role_revoked) as receiver:
-            self.project.remove_user(self.user, removed_by=self.removed_by)
-
-        calls = [
-            mock.call(
-                structure=self.project,
-                user=self.user,
-                removed_by=self.removed_by,
-                role=ProjectRole.MANAGER,
-                sender=Project,
-                signal=signals.structure_role_revoked,
-            ),
-            mock.call(
-                structure=self.project,
-                user=self.user,
-                removed_by=self.removed_by,
-                role=ProjectRole.ADMINISTRATOR,
-                sender=Project,
-                signal=signals.structure_role_revoked,
-            ),
-        ]
-
-        receiver.assert_has_calls(calls, any_order=True)
-
-        self.assertEqual(receiver.call_count, 2, 'Excepted exactly 2 signals emitted')
-
-    def test_remove_user_emits_structure_role_revoked_if_grant_existed_before(self):
-        self.project.add_user(self.user, ProjectRole.MANAGER)
-
-        with mock_signal_receiver(signals.structure_role_revoked) as receiver:
-            self.project.remove_user(self.user, ProjectRole.MANAGER, self.removed_by)
-
-        receiver.assert_called_once_with(
-            structure=self.project,
-            user=self.user,
-            role=ProjectRole.MANAGER,
-            sender=Project,
-            signal=signals.structure_role_revoked,
-            removed_by=self.removed_by,
-        )
-
-    def test_remove_user_doesnt_emit_structure_role_revoked_if_grant_didnt_exist_before(
-        self,
-    ):
-        with mock_signal_receiver(signals.structure_role_revoked) as receiver:
-            self.project.remove_user(self.user, ProjectRole.MANAGER)
-
-        self.assertFalse(receiver.called, 'structure_role_remove should not be emitted')
+        self.assertEqual(permission.user, self.user)
+        self.assertEqual(permission.scope, self.project)
 
 
 @ddt
@@ -382,12 +273,10 @@ class ProjectApiPermissionTest(test.APITransactionTestCase):
             'inaccessible': factories.ProjectFactory(),
         }
 
-        self.projects['admin'].add_user(self.users['admin'], ProjectRole.ADMINISTRATOR)
+        self.projects['admin'].add_user(self.users['admin'], ProjectRole.ADMIN)
         self.projects['manager'].add_user(self.users['manager'], ProjectRole.MANAGER)
 
-        self.projects['admin'].add_user(
-            self.users['multirole'], ProjectRole.ADMINISTRATOR
-        )
+        self.projects['admin'].add_user(self.users['multirole'], ProjectRole.ADMIN)
         self.projects['manager'].add_user(self.users['multirole'], ProjectRole.MANAGER)
         self.projects['owner'].customer.add_user(
             self.users['owner'], CustomerRole.OWNER

@@ -7,8 +7,8 @@ class MarketplaceRemoteConfig(AppConfig):
     verbose_name = 'Remote Marketplace'
 
     def ready(self):
-        from waldur_core.structure import signals as structure_signals
-        from waldur_core.structure.models import Customer, Project, ProjectPermission
+        from waldur_core.permissions import signals as permission_signals
+        from waldur_core.structure.models import Project
         from waldur_mastermind.marketplace import models, plugins
         from waldur_mastermind.marketplace_remote import (
             PLUGIN_NAME,
@@ -31,34 +31,19 @@ class MarketplaceRemoteConfig(AppConfig):
             can_manage_plans=False,
         )
 
-        structure_signals.structure_role_granted.connect(
-            handlers.sync_permission_with_remote_project,
-            sender=Project,
-            dispatch_uid='marketplace_remote.sync_permission_with_remote_project_granting',
+        permission_signals.role_granted.connect(
+            handlers.sync_permission_with_remote,
+            dispatch_uid='marketplace_remote.sync_permission_when_role_granted',
         )
 
-        structure_signals.structure_role_revoked.connect(
-            handlers.sync_permission_with_remote_project,
-            sender=Project,
-            dispatch_uid='marketplace_remote.sync_permission_with_remote_project_revoking',
+        permission_signals.role_revoked.connect(
+            handlers.sync_permission_with_remote,
+            dispatch_uid='marketplace_remote.sync_permission_when_role_revoked',
         )
 
-        structure_signals.structure_role_granted.connect(
-            handlers.sync_permission_with_remote_customer,
-            sender=Customer,
-            dispatch_uid='marketplace_remote.sync_permission_with_remote_customer_granting',
-        )
-
-        structure_signals.structure_role_revoked.connect(
-            handlers.sync_permission_with_remote_customer,
-            sender=Customer,
-            dispatch_uid='marketplace_remote.sync_permission_with_remote_customer_revoking',
-        )
-
-        structure_signals.structure_role_updated.connect(
-            handlers.update_remote_project_permission,
-            sender=ProjectPermission,
-            dispatch_uid='marketplace_remote.update_remote_project_permission',
+        permission_signals.role_updated.connect(
+            handlers.sync_permission_with_remote,
+            dispatch_uid='marketplace_remote.sync_permission_when_role_updated',
         )
 
         signals.post_save.connect(

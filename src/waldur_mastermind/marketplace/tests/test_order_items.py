@@ -5,10 +5,9 @@ from ddt import data, ddt
 from django.core.exceptions import ValidationError
 from rest_framework import status, test
 
-from waldur_core.permissions.enums import PermissionEnum, RoleEnum
-from waldur_core.permissions.utils import add_permission
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole, OfferingRole, ProjectRole
 from waldur_core.quotas import signals as quota_signals
-from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models
@@ -50,7 +49,7 @@ class OrderItemFilterTest(test.APITransactionTestCase):
     def test_filter_order_items_for_service_manager(self):
         # Arrange
         offering = factories.OfferingFactory(customer=self.fixture.customer)
-        offering.add_user(self.fixture.user)
+        offering.add_user(self.fixture.user, OfferingRole.MANAGER)
         order_item = factories.OrderItemFactory(offering=offering, order=self.order)
 
         # Act
@@ -66,9 +65,7 @@ class OrderItemFilterTest(test.APITransactionTestCase):
     def test_service_provider_can_see_order(self):
         # Arrange
         user = structure_factories.UserFactory()
-        self.order_item.offering.customer.add_user(
-            user, structure_models.CustomerRole.OWNER
-        )
+        self.order_item.offering.customer.add_user(user, CustomerRole.OWNER)
 
         # Act
         self.client.force_authenticate(user)
@@ -195,9 +192,9 @@ class ItemDeleteTest(test.APITransactionTestCase):
             project=self.project, created_by=self.manager
         )
         self.order_item = factories.OrderItemFactory(order=self.order)
-        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.DESTROY_ORDER_ITEM)
-        add_permission(RoleEnum.PROJECT_MANAGER, PermissionEnum.DESTROY_ORDER_ITEM)
-        add_permission(RoleEnum.PROJECT_ADMIN, PermissionEnum.DESTROY_ORDER_ITEM)
+        CustomerRole.OWNER.add_permission(PermissionEnum.DESTROY_ORDER_ITEM)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.DESTROY_ORDER_ITEM)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.DESTROY_ORDER_ITEM)
 
     @data('staff', 'owner', 'admin', 'manager')
     def test_authorized_user_can_delete_item(self, user):
@@ -246,9 +243,9 @@ class ItemTerminateTest(test.APITransactionTestCase):
         self.order_item = factories.OrderItemFactory(
             order=self.order, offering=self.offering
         )
-        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.TERMINATE_ORDER_ITEM)
-        add_permission(RoleEnum.PROJECT_MANAGER, PermissionEnum.TERMINATE_ORDER_ITEM)
-        add_permission(RoleEnum.PROJECT_ADMIN, PermissionEnum.TERMINATE_ORDER_ITEM)
+        CustomerRole.OWNER.add_permission(PermissionEnum.TERMINATE_ORDER_ITEM)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.TERMINATE_ORDER_ITEM)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.TERMINATE_ORDER_ITEM)
 
     @data('staff', 'owner', 'admin', 'manager')
     def test_authorized_user_can_terminate_item(self, user):
@@ -382,7 +379,7 @@ class ItemRejectTest(test.APITransactionTestCase):
             state=models.OrderItem.States.EXECUTING,
         )
 
-        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.REJECT_ORDER_ITEM)
+        CustomerRole.OWNER.add_permission(PermissionEnum.REJECT_ORDER_ITEM)
 
     @data(
         'staff',
@@ -488,7 +485,7 @@ class BaseItemSetStateTest(test.APITransactionTestCase):
 
         self.order_item = self.fixture.order_item
 
-        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.APPROVE_ORDER_ITEM)
+        CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_ORDER_ITEM)
 
 
 @ddt
@@ -610,7 +607,7 @@ class ApproveOrderFilterTest(test.APITransactionTestCase):
         'manager',
     )
     def test_user_can_get_order_if_manager_can_approve_order_is_true(self, user):
-        add_permission(RoleEnum.PROJECT_MANAGER, PermissionEnum.APPROVE_ORDER)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.APPROVE_ORDER)
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         response = self.client.get(self.url, {'can_approve_as_consumer': True})
@@ -619,8 +616,8 @@ class ApproveOrderFilterTest(test.APITransactionTestCase):
 
     @data('owner', 'manager', 'admin')
     def test_user_can_get_order_if_admin_can_approve_order_is_true(self, user):
-        add_permission(RoleEnum.PROJECT_ADMIN, PermissionEnum.APPROVE_ORDER)
-        add_permission(RoleEnum.PROJECT_MANAGER, PermissionEnum.APPROVE_ORDER)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.APPROVE_ORDER)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.APPROVE_ORDER)
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         response = self.client.get(self.url, {'can_approve_as_consumer': True})

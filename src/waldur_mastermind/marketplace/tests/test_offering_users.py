@@ -3,9 +3,8 @@ from rest_framework import status, test
 from rest_framework.reverse import reverse
 
 from waldur_core.logging.models import Event
-from waldur_core.permissions.enums import PermissionEnum, RoleEnum
-from waldur_core.permissions.utils import add_permission
-from waldur_core.structure import models as structure_models
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_core.structure.tests.factories import UserFactory
 from waldur_mastermind.marketplace.models import OfferingUser, Resource
@@ -25,11 +24,11 @@ class ListOfferingUsersTest(test.APITransactionTestCase):
         }
         self.offering.save()
         user = UserFactory()
-        self.fixture.project.add_user(user, structure_models.ProjectRole.ADMINISTRATOR)
+        self.fixture.project.add_user(user, ProjectRole.ADMIN)
         OfferingUser.objects.create(offering=self.offering, user=user, username='user')
         user2 = UserFactory()
         offering2 = factories.OfferingFactory(shared=True)
-        self.fixture.project.add_user(user, structure_models.ProjectRole.MANAGER)
+        self.fixture.project.add_user(user, ProjectRole.MANAGER)
         OfferingUser.objects.create(offering=offering2, user=user2, username='user2')
 
     def list_permissions(self, user):
@@ -106,7 +105,7 @@ class CreateOfferingUsersTest(test.APITransactionTestCase):
         )
         self.offering.secret_options['service_provider_can_create_offering_user'] = True
         self.offering.save()
-        add_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.CREATE_OFFERING_USER)
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_OFFERING_USER)
 
     def create_offering_user(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))

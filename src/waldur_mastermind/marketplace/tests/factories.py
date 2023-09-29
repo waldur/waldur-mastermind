@@ -7,6 +7,7 @@ from django.utils import timezone
 from rest_framework.reverse import reverse
 
 from waldur_core.core import utils as core_utils
+from waldur_core.core.types import BaseMetaFactory
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.marketplace import models
@@ -118,7 +119,9 @@ class CategoryComponentFactory(factory.DjangoModelFactory):
     type = factory.Sequence(lambda n: 'component-%s' % n)
 
 
-class OfferingFactory(factory.DjangoModelFactory):
+class OfferingFactory(
+    factory.DjangoModelFactory, metaclass=BaseMetaFactory[models.Offering]
+):
     class Meta:
         model = models.Offering
 

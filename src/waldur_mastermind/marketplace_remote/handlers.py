@@ -3,11 +3,14 @@ import logging
 from django.conf import settings
 from django.db import transaction
 
+from waldur_auth_social.models import ProviderChoices
 from waldur_core.core import middleware
 from waldur_core.core.utils import serialize_instance
+from waldur_core.permissions import signals as permission_signals
+from waldur_core.permissions.enums import RoleEnum
+from waldur_core.permissions.models import UserRole
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
-from waldur_core.structure import signals as structure_signals
 from waldur_mastermind.marketplace.models import Resource
 from waldur_mastermind.marketplace_remote.utils import INVALID_RESOURCE_STATES
 
@@ -16,67 +19,39 @@ from . import PLUGIN_NAME, log, models, tasks
 logger = logging.getLogger(__name__)
 
 
-def update_remote_project_permission(sender, instance, user, **kwargs):
+def sync_permission_with_remote(sender, instance: UserRole, signal, **kwargs):
     if not settings.WALDUR_AUTH_SOCIAL['ENABLE_EDUTEAMS_SYNC']:
         return
 
-    transaction.on_commit(
-        lambda: tasks.update_remote_project_permissions.delay(
-            serialize_instance(instance.project),
-            serialize_instance(instance.user),
-            instance.role,
-            True,
-            instance.expiration_time and instance.expiration_time.isoformat() or None,
-        )
+    if instance.user.registration_method != ProviderChoices.EDUTEAMS:
+        return
+
+    # Skip synchronization of custom roles
+    if not instance.role.is_system_role:
+        return
+
+    if not isinstance(
+        instance.scope, (structure_models.Customer, structure_models.Project)
+    ):
+        return
+
+    args = (
+        serialize_instance(instance.scope),
+        serialize_instance(instance.user),
+        instance.role.name,
+        signal in (permission_signals.role_granted, permission_signals.role_updated),
+        instance.expiration_time and instance.expiration_time.isoformat() or None,
     )
 
-
-def sync_permission_with_remote_project(
-    sender, structure, user, role, signal, expiration_time=None, **kwargs
-):
-    if not settings.WALDUR_AUTH_SOCIAL['ENABLE_EDUTEAMS_SYNC']:
-        return
-
-    if user.registration_method != 'eduteams':
-        return
-
-    grant = signal == structure_signals.structure_role_granted
-
-    transaction.on_commit(
-        lambda: tasks.update_remote_project_permissions.delay(
-            serialize_instance(structure),
-            serialize_instance(user),
-            role,
-            grant,
-            expiration_time and expiration_time.isoformat() or None,
+    if isinstance(instance.scope, structure_models.Customer):
+        if instance.role.name == RoleEnum.CUSTOMER_OWNER:
+            transaction.on_commit(
+                lambda: tasks.update_remote_customer_permissions.apply_async(args=args)
+            )
+    elif isinstance(instance.scope, structure_models.Project):
+        transaction.on_commit(
+            lambda: tasks.update_remote_project_permissions.apply_async(args=args)
         )
-    )
-
-
-def sync_permission_with_remote_customer(
-    sender, structure, user, role, signal, expiration_time=None, **kwargs
-):
-    if not settings.WALDUR_AUTH_SOCIAL['ENABLE_EDUTEAMS_SYNC']:
-        return
-
-    if user.registration_method != 'eduteams':
-        return
-
-    if role != structure_models.CustomerRole.OWNER:
-        # Skip support role synchronization
-        return
-
-    grant = signal == structure_signals.structure_role_granted
-
-    transaction.on_commit(
-        lambda: tasks.update_remote_customer_permissions.delay(
-            serialize_instance(structure),
-            serialize_instance(user),
-            role,
-            grant,
-            expiration_time and expiration_time.isoformat() or None,
-        )
-    )
 
 
 def create_request_when_project_is_updated(sender, instance, created=False, **kwargs):

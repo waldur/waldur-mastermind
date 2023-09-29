@@ -33,6 +33,7 @@ from waldur_core.core.admin_filters import RelatedOnlyDropdownFilter
 from waldur_core.core.models import Notification, NotificationTemplate, User
 from waldur_core.core.utils import get_fake_context
 from waldur_core.core.validators import BackendURLValidator
+from waldur_core.permissions.enums import RoleEnum
 from waldur_core.quotas.admin import QuotaInline
 from waldur_core.structure import executors, models
 from waldur_core.structure.registry import SupportedServices, get_service_type
@@ -202,15 +203,13 @@ class CustomerAdminForm(ModelForm):
         if not customer.pk:
             customer.save()
 
-        self.populate_users('owners', customer, models.CustomerRole.OWNER)
-        self.populate_users('support_users', customer, models.CustomerRole.SUPPORT)
-        self.populate_users(
-            'service_managers', customer, models.CustomerRole.SERVICE_MANAGER
-        )
+        self.populate_users('owners', customer, RoleEnum.CUSTOMER_OWNER)
+        self.populate_users('support_users', customer, RoleEnum.CUSTOMER_SUPPORT)
+        self.populate_users('service_managers', customer, RoleEnum.CUSTOMER_MANAGER)
 
         return customer
 
-    def populate_users(self, field_name, customer, role):
+    def populate_users(self, field_name, customer: models.Customer, role):
         field = getattr(self, field_name)
         new_users = self.cleaned_data[field_name]
 
@@ -367,7 +366,7 @@ class ProjectAdminForm(ModelForm):
                 raise ValidationError(
                     _(
                         'User role within project must be unique. '
-                        'Role assignment of The following users is invalid: %s.'
+                        'Role assignment of the following users is invalid: %s.'
                     )
                     % invalid_users_list
                 )
@@ -385,7 +384,7 @@ class ProjectAdminForm(ModelForm):
 
         return project
 
-    def populate_users(self, field_name, project, role):
+    def populate_users(self, field_name, project: models.Project, role):
         field = getattr(self, field_name)
         new_users = self.cleaned_data[field_name]
 

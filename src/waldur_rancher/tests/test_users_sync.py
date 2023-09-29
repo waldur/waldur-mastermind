@@ -4,7 +4,7 @@ from django.core import mail
 from rest_framework import test
 
 import waldur_core.structure.tests.factories as structure_factories
-from waldur_core.structure.models import ProjectRole
+from waldur_core.permissions.fixtures import ProjectRole
 from waldur_rancher import enums, models, tasks, utils
 from waldur_rancher.tests import factories, fixtures
 from waldur_rancher.tests.base import override_rancher_settings

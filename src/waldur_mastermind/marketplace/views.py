@@ -11,6 +11,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import (
     Count,
+    Exists,
     ExpressionWrapper,
     F,
     OuterRef,
@@ -51,7 +52,10 @@ from waldur_core.core.mixins import EagerLoadMixin
 from waldur_core.core.renderers import PlainTextRenderer
 from waldur_core.core.utils import is_uuid_like, month_start, order_with_nulls
 from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import has_permission, permission_factory
+from waldur_core.permissions.views import UserRoleMixin
+from waldur_core.quotas.models import Quota
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
@@ -76,6 +80,7 @@ from waldur_core.structure.signals import resource_imported
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import serializers as invoice_serializers
 from waldur_mastermind.marketplace import callbacks
+from waldur_mastermind.marketplace.managers import filter_offering_permissions
 from waldur_mastermind.marketplace.utils import validate_attributes
 from waldur_mastermind.marketplace_slurm_remote import (
     PLUGIN_NAME as SLURM_REMOTE_PLUGIN_NAME,
@@ -214,8 +219,9 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
     @action(detail=True, methods=['GET'])
     def project_permissions(self, request, uuid=None):
         project_ids = self.get_customer_project_ids()
-        permissions = structure_models.ProjectPermission.objects.filter(
-            project_id__in=project_ids, is_active=True
+        content_type = ContentType.objects.get_for_model(structure_models.Project)
+        permissions = UserRole.objects.filter(
+            content_type=content_type, object_id__in=project_ids, is_active=True
         )
         page = self.paginate_queryset(permissions)
         serializer = structure_serializers.ProjectPermissionLogSerializer(
@@ -538,6 +544,7 @@ def validate_offering_update(offering):
 
 
 class ProviderOfferingViewSet(
+    UserRoleMixin,
     core_views.CreateReversionMixin,
     core_views.UpdateReversionMixin,
     core_views.ActionsViewSet,
@@ -1416,31 +1423,20 @@ class OfferingReferralsViewSet(PublicViewsetMixin, rf_viewsets.ReadOnlyModelView
     filterset_class = filters.OfferingReferralFilter
 
 
-class OfferingPermissionViewSet(structure_views.BasePermissionViewSet):
-    queryset = models.OfferingPermission.objects.filter(is_active=True).order_by(
-        '-created'
-    )
+class OfferingPermissionViewSet(rf_viewsets.ReadOnlyModelViewSet):
     serializer_class = serializers.OfferingPermissionSerializer
-    filter_backends = (
-        structure_filters.GenericRoleFilter,
-        DjangoFilterBackend,
-    )
     filterset_class = filters.OfferingPermissionFilter
-    scope_field = 'offering'
+
+    def get_queryset(self):
+        return filter_offering_permissions(self.request.user)
 
 
-class OfferingPermissionLogViewSet(
-    mixins.RetrieveModelMixin, mixins.ListModelMixin, rf_viewsets.GenericViewSet
-):
-    queryset = models.OfferingPermission.objects.filter(is_active=None).order_by(
-        'offering__name'
-    )
-    serializer_class = serializers.OfferingPermissionLogSerializer
-    filter_backends = (
-        structure_filters.GenericRoleFilter,
-        DjangoFilterBackend,
-    )
+class OfferingPermissionLogViewSet(rf_viewsets.ReadOnlyModelViewSet):
+    serializer_class = serializers.OfferingPermissionSerializer
     filterset_class = filters.OfferingPermissionFilter
+
+    def get_queryset(self):
+        return filter_offering_permissions(self.request.user, is_active=False)
 
 
 class PlanUsageReporter:
@@ -2711,77 +2707,23 @@ class StatsViewSet(rf_viewsets.ViewSet):
 
     @action(detail=False, methods=['get'])
     def customer_member_count(self, request, *args, **kwargs):
-        active_customer_ids = models.Resource.objects.filter(
-            state__in=(models.Resource.States.OK, models.Resource.States.UPDATING)
-        ).values('project__customer_id')
-
-        has_resources = []
-
-        customers = (
-            structure_models.CustomerPermission.objects.filter(
-                is_active=True, customer_id__in=active_customer_ids
-            )
-            .values('customer__abbreviation', 'customer__name', 'customer__uuid')
-            .annotate(count=Count('customer__uuid'))
+        has_resources = models.Resource.objects.filter(
+            state__in=(models.Resource.States.OK, models.Resource.States.UPDATING),
+            project__customer_id=OuterRef('pk'),
         )
 
-        projects = (
-            structure_models.ProjectPermission.objects.filter(
-                is_active=True, project__customer_id__in=active_customer_ids
-            )
-            .values(
-                'project__customer__abbreviation',
-                'project__customer__name',
-                'project__customer__uuid',
-            )
-            .annotate(count=Count('project__customer__uuid'))
-        )
+        users_count = Quota.objects.filter(
+            object_id=OuterRef('pk'),
+            content_type=ContentType.objects.get_for_model(structure_models.Customer),
+            name='nc_user_count',
+        ).values('usage')[:1]
 
-        for c in serializers.CustomerStatsSerializer(customers, many=True).data:
-            c['has_resources'] = True
-            c['count'] += sum(
-                [
-                    p['count']
-                    for p in projects
-                    if p['project__customer__uuid'] == c['uuid']
-                ]
-            )
-            has_resources.append(c)
+        customers = structure_models.Customer.objects.annotate(
+            users=Subquery(users_count),
+            has_resources=Exists(has_resources),
+        ).values('uuid', 'name', 'abbreviation', 'users', 'has_resources')
 
-        has_not_resources = []
-
-        customers = (
-            structure_models.CustomerPermission.objects.filter(is_active=True)
-            .exclude(customer_id__in=active_customer_ids)
-            .values('customer__abbreviation', 'customer__name', 'customer__uuid')
-            .annotate(count=Count('customer__uuid'))
-        )
-
-        projects = (
-            structure_models.ProjectPermission.objects.filter(is_active=True)
-            .exclude(project__customer_id__in=active_customer_ids)
-            .values(
-                'project__customer__abbreviation',
-                'project__customer__name',
-                'project__customer__uuid',
-            )
-            .annotate(count=Count('project__customer__uuid'))
-        )
-
-        for c in serializers.CustomerStatsSerializer(customers, many=True).data:
-            c['has_resources'] = False
-            c['count'] += sum(
-                [
-                    p['count']
-                    for p in projects
-                    if p['project__customer__uuid'] == c['uuid']
-                ]
-            )
-            has_not_resources.append(c)
-
-        return Response(
-            status=status.HTTP_200_OK, data=has_resources + has_not_resources
-        )
+        return Response(customers)
 
     @action(detail=False, methods=['get'])
     def resources_limits(self, request, *args, **kwargs):

@@ -4,7 +4,8 @@ from celery import shared_task
 
 from waldur_auth_social.models import OAuthToken
 from waldur_core.core.utils import deserialize_instance
-from waldur_core.structure.models import ProjectPermission
+from waldur_core.structure.managers import get_connected_projects
+from waldur_core.structure.models import Project
 from waldur_firecrest.client import FirecrestException
 from waldur_firecrest.models import Job
 from waldur_mastermind.marketplace.models import OfferingUser
@@ -44,12 +45,14 @@ def pull_jobs():
             )
             continue
 
-        project = ProjectPermission.objects.filter(
-            user=offering_user.user, is_active=True
-        ).first()
-        if not project:
-            logger.debug('User %s does not have access to any project', project)
+        project_id = get_connected_projects(offering_user.user).first()
+        if not project_id:
+            logger.debug(
+                'User %s does not have access to any project', offering_user.user
+            )
             continue
+
+        project = Project.objects.get(id=project_id)
 
         try:
             utils.pull_jobs(api_url, token, service_settings, project)

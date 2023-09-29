@@ -2,7 +2,7 @@ from unittest import mock
 
 from django.test import TestCase
 
-from waldur_core.structure import models as structure_models
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure.tests import factories, fixtures
 
 
@@ -69,19 +69,17 @@ class LogRoleEventTest(TestCase):
         with mock.patch(
             'waldur_core.structure.handlers.event_logger.customer_role.info'
         ) as logger_mock:
-            fixture.customer.add_user(
-                fixture.user, structure_models.CustomerRole.OWNER, owner
-            )
+            fixture.customer.add_user(fixture.user, CustomerRole.OWNER, owner)
 
             logger_mock.assert_called_once_with(
-                'User {affected_user_username} has gained role of {role_name} in customer {customer_name}.',
+                mock.ANY,
                 event_type='role_granted',
                 event_context={
                     'customer': fixture.customer,
                     'user': fixture.owner,
                     'affected_user': fixture.user,
                     'structure_type': 'customer',
-                    'role_name': 'Owner',
+                    'role_name': 'owner',
                 },
             )
 
@@ -92,19 +90,17 @@ class LogRoleEventTest(TestCase):
         with mock.patch(
             'waldur_core.structure.handlers.event_logger.customer_role.info'
         ) as logger_mock:
-            fixture.customer.remove_user(
-                owner, structure_models.CustomerRole.OWNER, fixture.staff
-            )
+            fixture.customer.remove_user(owner, CustomerRole.OWNER, fixture.staff)
 
             logger_mock.assert_called_once_with(
-                'User {affected_user_username} has lost role of {role_name} in customer {customer_name}.',
+                mock.ANY,
                 event_type='role_revoked',
                 event_context={
                     'customer': fixture.customer,
                     'user': fixture.staff,
                     'affected_user': fixture.owner,
                     'structure_type': 'customer',
-                    'role_name': 'Owner',
+                    'role_name': 'owner',
                 },
             )
 
@@ -114,19 +110,17 @@ class LogRoleEventTest(TestCase):
         with mock.patch(
             'waldur_core.structure.handlers.event_logger.project_role.info'
         ) as logger_mock:
-            fixture.project.add_user(
-                fixture.user, structure_models.ProjectRole.MANAGER, fixture.owner
-            )
+            fixture.project.add_user(fixture.user, ProjectRole.MANAGER, fixture.owner)
 
             logger_mock.assert_called_once_with(
-                'User {affected_user_username} has gained role of {role_name} in project {project_name}.',
+                mock.ANY,
                 event_type='role_granted',
                 event_context={
                     'project': fixture.project,
                     'user': fixture.owner,
                     'affected_user': fixture.user,
                     'structure_type': 'project',
-                    'role_name': 'Manager',
+                    'role_name': 'manager',
                 },
             )
 
@@ -137,18 +131,16 @@ class LogRoleEventTest(TestCase):
         with mock.patch(
             'waldur_core.structure.handlers.event_logger.project_role.info'
         ) as logger_mock:
-            fixture.project.remove_user(
-                manager, structure_models.ProjectRole.MANAGER, fixture.owner
-            )
+            fixture.project.remove_user(manager, ProjectRole.MANAGER, fixture.owner)
 
             logger_mock.assert_called_once_with(
-                'User {affected_user_username} has revoked role of {role_name} in project {project_name}.',
+                mock.ANY,
                 event_type='role_revoked',
                 event_context={
                     'project': fixture.project,
                     'user': fixture.owner,
                     'affected_user': fixture.manager,
                     'structure_type': 'project',
-                    'role_name': 'Manager',
+                    'role_name': 'manager',
                 },
             )

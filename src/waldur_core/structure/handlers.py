@@ -2,7 +2,6 @@ import logging
 import re
 
 from django.conf import settings
-from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.template.loader import render_to_string
 from django.utils import timezone
@@ -10,31 +9,37 @@ from django.utils import timezone
 from waldur_core.core import utils as core_utils
 from waldur_core.core.models import StateMixin
 from waldur_core.permissions.enums import RoleEnum
-from waldur_core.permissions.models import Role, UserRole
-from waldur_core.structure import signals
-from waldur_core.structure.constants import ROLE_MAP
+from waldur_core.permissions.models import UserRole
+from waldur_core.permissions.utils import get_customer, get_permissions
 from waldur_core.structure.log import event_logger
 from waldur_core.structure.managers import count_customer_users, get_connected_customers
-from waldur_core.structure.models import (
-    Customer,
-    CustomerPermission,
-    Project,
-    ProjectPermission,
-    ServiceSettings,
-)
+from waldur_core.structure.models import Customer, Project, ServiceSettings
 
 from . import tasks
 
 logger = logging.getLogger(__name__)
 
 
+def change_users_quota(sender, instance: UserRole, **kwargs):
+    # Skip synchronization of custom roles
+    if not instance.role.is_system_role:
+        return
+
+    if not isinstance(instance.scope, (Customer, Project)):
+        return
+
+    customer = get_customer(instance.scope)
+    customer.set_quota_usage('nc_user_count', count_customer_users(customer))
+
+
 def revoke_roles_on_project_deletion(sender, instance=None, **kwargs):
     """
     When project is deleted, all project permissions are cascade deleted
-    by Django without emitting structure_role_revoked signal.
+    by Django without emitting role_revoked signal.
     So in order to invalidate nc_user_count quota we need to emit it manually.
     """
-    instance.remove_all_users()
+    for permission in get_permissions(instance):
+        permission.revoke()
 
 
 def log_customer_save(sender, instance, created=False, **kwargs):
@@ -106,145 +111,6 @@ def log_project_delete(sender, instance, **kwargs):
         event_context={
             'project': instance,
         },
-    )
-
-
-def log_customer_role_granted(sender, structure, user, role, created_by=None, **kwargs):
-    event_context = {
-        'customer': structure,
-        'affected_user': user,
-        'structure_type': 'customer',
-        'role_name': CustomerPermission(role=role).get_role_display(),
-    }
-    if created_by:
-        event_context['user'] = created_by
-
-    event_logger.customer_role.info(
-        'User {affected_user_username} has gained role of {role_name} in customer {customer_name}.',
-        event_type='role_granted',
-        event_context=event_context,
-    )
-
-
-def log_customer_role_revoked(sender, structure, user, role, removed_by=None, **kwargs):
-    event_context = {
-        'customer': structure,
-        'affected_user': user,
-        'structure_type': 'customer',
-        'role_name': CustomerPermission(role=role).get_role_display(),
-    }
-    if removed_by:
-        event_context['user'] = removed_by
-
-    event_logger.customer_role.info(
-        'User {affected_user_username} has lost role of {role_name} in customer {customer_name}.',
-        event_type='role_revoked',
-        event_context=event_context,
-    )
-
-
-def log_customer_role_updated(sender, instance, user, **kwargs):
-    template = (
-        'User %(user_username)s has changed permission expiration time '
-        'for user {affected_user_username} in customer {customer_name} from '
-        '%(old_expiration_time)s to %(new_expiration_time)s.'
-    )
-
-    context = {
-        'old_expiration_time': instance.tracker.previous('expiration_time'),
-        'new_expiration_time': instance.expiration_time,
-        'user_username': user.full_name or user.username,
-    }
-
-    event_logger.customer_role.info(
-        template % context,
-        event_type='role_updated',
-        event_context={
-            'customer': instance.customer,
-            'affected_user': instance.user,
-            'structure_type': 'customer',
-            'role_name': instance.get_role_display(),
-        },
-    )
-
-
-def log_project_role_granted(sender, structure, user, role, created_by=None, **kwargs):
-    event_context = {
-        'project': structure,
-        'affected_user': user,
-        'structure_type': 'project',
-        'role_name': ProjectPermission(role=role).get_role_display(),
-    }
-    if created_by:
-        event_context['user'] = created_by
-
-    event_logger.project_role.info(
-        'User {affected_user_username} has gained role of {role_name} in project {project_name}.',
-        event_type='role_granted',
-        event_context=event_context,
-    )
-
-
-def log_project_role_revoked(sender, structure, user, role, removed_by=None, **kwargs):
-    event_context = {
-        'project': structure,
-        'affected_user': user,
-        'structure_type': 'project',
-        'role_name': ProjectPermission(role=role).get_role_display(),
-    }
-    if removed_by:
-        event_context['user'] = removed_by
-
-    event_logger.project_role.info(
-        'User {affected_user_username} has revoked role of {role_name} in project {project_name}.',
-        event_type='role_revoked',
-        event_context=event_context,
-    )
-
-
-def log_project_role_updated(sender, instance, user, **kwargs):
-    template = (
-        'User %(user_username)s has changed permission expiration time '
-        'for user {affected_user_username} in project {project_name} from '
-        '%(old_expiration_time)s to %(new_expiration_time)s.'
-    )
-
-    context = {
-        'old_expiration_time': instance.tracker.previous('expiration_time'),
-        'new_expiration_time': instance.expiration_time,
-        'user_username': user.full_name or user.username,
-    }
-
-    event_logger.project_role.info(
-        template % context,
-        event_type='role_updated',
-        event_context={
-            'project': instance.project,
-            'affected_user': instance.user,
-            'structure_type': 'project',
-            'role_name': instance.get_role_display(),
-        },
-    )
-
-
-def change_customer_nc_users_quota(sender, structure, user, role, signal, **kwargs):
-    """Modify nc_user_count quota usage on structure role grant or revoke"""
-    assert signal in (
-        signals.structure_role_granted,
-        signals.structure_role_revoked,
-    ), 'Handler "change_customer_nc_users_quota" has to be used only with structure_role signals'
-    assert sender in (
-        Customer,
-        Project,
-    ), 'Handler "change_customer_nc_users_quota" works only with Project and Customer models'
-
-    if sender == Customer:
-        customer = structure
-    elif sender == Project:
-        customer = structure.customer
-
-    customer.set_quota_usage(
-        Customer.Quotas.nc_user_count, count_customer_users(customer)
     )
 
 
@@ -421,28 +287,3 @@ def permissions_request_approved(sender, permission, structure, **kwargs):
             permission_serialized, structure_serialized
         )
     )
-
-
-def sync_permission_when_role_is_granted(sender, structure, user, role, **kwargs):
-    content_type = ContentType.objects.get_for_model(structure)
-    role_name = ROLE_MAP.get((structure._meta.model, role))
-    if role_name:
-        new_role, _ = Role.objects.get_or_create(name=role_name)
-        UserRole.objects.create(
-            user=user,
-            content_type=content_type,
-            object_id=structure.id,
-            role=new_role,
-        )
-
-
-def sync_permission_when_role_is_revoked(sender, structure, user, role, **kwargs):
-    content_type = ContentType.objects.get_for_model(structure)
-    role_name = ROLE_MAP.get((structure._meta.model, role))
-    if role_name:
-        UserRole.objects.filter(
-            user=user,
-            content_type=content_type,
-            object_id=structure.id,
-            role__name=role_name,
-        ).update(is_active=False)
