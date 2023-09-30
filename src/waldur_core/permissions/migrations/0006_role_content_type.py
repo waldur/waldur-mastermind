@@ -22,6 +22,7 @@ def fill_system_roles(apps, schema_editor):
     Role.objects.filter(name=RoleEnum.PROJECT_MANAGER).update(content_type=project_ct)
     Role.objects.filter(name=RoleEnum.PROJECT_MEMBER).update(content_type=project_ct)
     Role.objects.filter(name=RoleEnum.OFFERING_MANAGER).update(content_type=offering_ct)
+    Role.objects.filter(content_type=null).update(content_type=customer_ct)
 
 
 class Migration(migrations.Migration):
