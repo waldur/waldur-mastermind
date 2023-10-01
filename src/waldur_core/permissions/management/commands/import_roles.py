@@ -24,6 +24,13 @@ class Command(BaseCommand):
                 current_permissions = set(
                     RolePermission.objects.filter(role=role).values_list('permission')
                 )
+                if 'permissions' not in row:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f'Role {row["role"]} is missing permissions block, skipping'
+                        )
+                    )
+                    continue
                 new_permissions = set(row['permissions'])
 
                 RolePermission.objects.filter(
