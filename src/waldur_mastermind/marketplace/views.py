@@ -3253,7 +3253,9 @@ class RobotAccountViewSet(core_views.ActionsViewSet):
     queryset = models.RobotAccount.objects.all()
     lookup_field = 'uuid'
     create_serializer_class = serializers.RobotAccountSerializer
-    update_serializer_class = serializers.RobotAccountSerializer
+    update_serializer_class = (
+        partial_update_serializer_class
+    ) = serializers.RobotAccountSerializer
     serializer_class = serializers.RobotAccountDetailsSerializer
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.RobotAccountFilter

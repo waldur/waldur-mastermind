@@ -1551,6 +1551,13 @@ class RobotAccount(
     # service provider after the account is created
     username = models.CharField(max_length=32, blank=True)
     users = models.ManyToManyField(User, blank=True)
+    responsible_user = models.ForeignKey(
+        on_delete=models.SET_NULL,
+        to=User,
+        null=True,
+        blank=True,
+        related_name='+',
+    )
     keys = models.JSONField(blank=True, default=list)
 
     tracker = FieldTracker(fields=['resource', 'type', 'username', 'users', 'keys'])
