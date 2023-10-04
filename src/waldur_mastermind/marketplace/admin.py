@@ -605,6 +605,14 @@ class RobotAccountInline(admin.StackedInline):
             kwargs["queryset"] = users
         return super().formfield_for_manytomany(db_field, request, **kwargs)
 
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        object_id = request.resolver_match.kwargs.get('object_id')
+        if db_field.name == "responsible_user" and object_id:
+            resource = models.Resource.objects.get(id=object_id)
+            resource_users = utils.get_resource_users(resource)
+            kwargs["queryset"] = resource_users
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
 
 class ResourceAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
     form = ResourceForm

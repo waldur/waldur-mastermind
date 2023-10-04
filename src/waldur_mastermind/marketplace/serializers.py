@@ -3559,6 +3559,7 @@ class RobotAccountSerializer(
             'users',
             'keys',
             'backend_id',
+            'responsible_user',
         )
         read_only_fields = ['backend_id']
         protected_fields = ['resource']
@@ -3568,6 +3569,7 @@ class RobotAccountSerializer(
                 'view_name': 'marketplace-resource-detail',
             },
             users={'lookup_field': 'uuid', 'view_name': 'user-detail'},
+            responsible_user={'lookup_field': 'uuid', 'view_name': 'user-detail'},
         )
 
     def validate_keys(self, keys):
@@ -3605,6 +3607,12 @@ class RobotAccountSerializer(
         if set(user.id for user in users) - set(user.id for user in resource_users):
             raise serializers.ValidationError(
                 'User should belong to the same project or organization as resource.'
+            )
+
+        responsible_user = validated_data.get('responsible_user')
+        if responsible_user and responsible_user not in resource_users:
+            raise serializers.ValidationError(
+                'The responsible user should belong to the same project or organization as resource.'
             )
         return validated_data
 
