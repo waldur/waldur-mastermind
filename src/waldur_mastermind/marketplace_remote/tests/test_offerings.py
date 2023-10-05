@@ -64,6 +64,10 @@ class OfferingDetailsPullTest(test.APITransactionTestCase):
             'description': self.offering.description,
             'full_description': self.offering.full_description,
             'terms_of_service': self.offering.terms_of_service,
+            'terms_of_service_link': self.offering.terms_of_service_link,
+            'privacy_policy_link': self.offering.privacy_policy_link,
+            'country': self.offering.country,
+            'getting_started': self.offering.getting_started,
             'options': self.offering.options,
             'thumbnail': None,
             'components': [
