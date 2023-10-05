@@ -1687,6 +1687,7 @@ class AuthTokenSerializers(serializers.HyperlinkedModelSerializer):
     user_last_name = serializers.CharField(source='user.last_name')
     user_username = serializers.CharField(source='user.username')
     user_is_active = serializers.CharField(source='user.is_active')
+    user_token_lifetime = serializers.CharField(source='user.token_lifetime')
 
     class Meta:
         model = authtoken_models.Token
@@ -1698,6 +1699,7 @@ class AuthTokenSerializers(serializers.HyperlinkedModelSerializer):
             'user_last_name',
             'user_username',
             'user_is_active',
+            'user_token_lifetime',
         )
         extra_kwargs = {
             'url': {
