@@ -816,6 +816,7 @@ class ExportImportOfferingSerializer(serializers.ModelSerializer):
             'native_name',
             'native_description',
             'vendor_details',
+            'getting_started',
             'type',
             'shared',
             'billable',
@@ -972,6 +973,7 @@ class OfferingDetailsSerializer(
             'native_name',
             'native_description',
             'vendor_details',
+            'getting_started',
             'thumbnail',
             'order_item_count',
             'plans',
@@ -1685,6 +1687,7 @@ class OfferingOverviewUpdateSerializer(
             'terms_of_service',
             'terms_of_service_link',
             'privacy_policy_link',
+            'getting_started',
         )
 
 

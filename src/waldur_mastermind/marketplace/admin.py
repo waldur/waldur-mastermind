@@ -378,6 +378,7 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
         'type',
         'scope_link',
         'vendor_details',
+        'getting_started',
         'paused_reason',
         'datacite_doi',
         'citation_count',
