@@ -3622,6 +3622,7 @@ class RobotAccountSerializer(
 
 class RobotAccountDetailsSerializer(RobotAccountSerializer):
     users = structure_serializers.BasicUserSerializer(many=True, read_only=True)
+    responsible_user = structure_serializers.BasicUserSerializer(read_only=True)
     user_keys = serializers.SerializerMethodField()
     resource_uuid = serializers.ReadOnlyField(source='resource.uuid')
     resource_name = serializers.ReadOnlyField(source='resource.name')
