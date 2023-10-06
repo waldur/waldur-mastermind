@@ -142,7 +142,8 @@ class ZammadBackend:
             id=str(response.get('id')),
             filename=response.get('filename'),
             size=response.get('size'),
-            content_type=response.get('preferences', {}).get('Content-Type'),
+            content_type=response.get('preferences', {}).get('Content-Type')
+            or response.get('preferences', {}).get('Mime-Type'),
             article_id=article_id,
             ticket_id=ticket_id,
         )
