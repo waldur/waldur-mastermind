@@ -39,6 +39,9 @@ class Role(DescribableMixin, UuidMixin):
     def add_permission(self, name):
         RolePermission.objects.create(role=self, permission=name)
 
+    def __str__(self):
+        return f'{self.name}'
+
 
 class UserRoleManager(GenericKeyMixin, models.Manager):
     pass

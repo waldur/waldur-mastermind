@@ -42,10 +42,20 @@ class Command(BaseCommand):
 
                 description = row.get('description')
                 if description and role.description != description:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f'Updating description of role {row["role"]} from {role.description} to {description}.'
+                        )
+                    )
                     role.description = description
-                    role.save(update_fields=['description'])
+                    role.save()
 
                 is_active = row.get('is_active')
                 if is_active and role.is_active != is_active:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f'Updating is_active status of role {row["role"]} from {role.is_active} to {is_active}.'
+                        )
+                    )
                     role.is_active = is_active
                     role.save(update_fields=['is_active'])
