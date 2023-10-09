@@ -8,7 +8,7 @@
     {% for event in events %}
     <li>
         {{ event.message }}
-        <div>{{ event.created|date:"M d H:m e"}}</div>
+        <div>{{ event.created|date:"M d H:i e"}}</div>
     </li>
     {% endfor %}
 </ul>
