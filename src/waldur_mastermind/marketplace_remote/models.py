@@ -33,6 +33,12 @@ class ProjectUpdateRequest(UuidMixin, ReviewMixin):
         null=True,
     )
 
+    def get_old_oecd_fos_2007_code_display(self):
+        return Project.OECD_FOS_2007_CODES_DICT.get(self.old_oecd_fos_2007_code)
+
+    def get_new_oecd_fos_2007_code_display(self):
+        return Project.OECD_FOS_2007_CODES_DICT.get(self.new_oecd_fos_2007_code)
+
     class Permissions:
         customer_path = 'offering__customer'
         project_path = 'project'

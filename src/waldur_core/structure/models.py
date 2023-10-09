@@ -647,6 +647,8 @@ class ProjectDetailsMixin(core_models.DescribableMixin):
         ('6.5', _('Other humanities')),
     )
 
+    OECD_FOS_2007_CODES_DICT = dict(OECD_FOS_2007_CODES)
+
     # NameMixin is not used because it has too strict limitation for max_length.
     name = models.CharField(
         _('name'), max_length=PROJECT_NAME_LENGTH, validators=[validate_name]
