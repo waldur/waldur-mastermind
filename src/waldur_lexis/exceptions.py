@@ -1,0 +1,2 @@
+class HeappeConfigError(Exception):
+    pass
