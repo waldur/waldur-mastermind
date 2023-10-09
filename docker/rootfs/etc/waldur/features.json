@@ -15,7 +15,6 @@
   "invitations.conceal_civil_number": true,
   "support.offering_comments": false,
   "marketplace.private_offerings": true,
-  "openstack.volume_types": true,
   "marketplace.terms_of_service": true,
   "user.ssh_keys": true,
   "customer.events": true,

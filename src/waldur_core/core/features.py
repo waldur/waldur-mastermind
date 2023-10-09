@@ -227,16 +227,6 @@ class InvoiceSection(FeatureSection):
     events = Feature('Render list of events related to invoice item in modal dialog.')
 
 
-class OpenstackSection(FeatureSection):
-    class Meta:
-        key = 'openstack'
-        description = 'OpenStack resources provisioning'
-
-    volume_types = Feature(
-        'Allow to select OpenStack volume type when instance or volume is provisioned.'
-    )
-
-
 class RancherSection(FeatureSection):
     class Meta:
         key = 'rancher'
