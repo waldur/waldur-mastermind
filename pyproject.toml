@@ -156,6 +156,7 @@ waldur_keycloak = "waldur_keycloak.extension:KeycloakExtension"
 waldur_firecrest = "waldur_firecrest.extension:FirecrestExtension"
 waldur_keycloak_rancher = "waldur_keycloak_rancher.extension:KeycloakRancherExtension"
 waldur_zammad = "waldur_zammad.extension:ZammadExtension"
+waldur_lexis = "waldur_lexis.extension:LexisExtension"
 
 [build-system]
 requires = ["poetry=1.2.1"]
