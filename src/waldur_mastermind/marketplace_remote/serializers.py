@@ -27,6 +27,13 @@ class ProjectUpdateRequestSerializer(serializers.ModelSerializer):
     reviewed_by_full_name = serializers.ReadOnlyField(source='reviewed_by.full_name')
     reviewed_by_uuid = serializers.ReadOnlyField(source='reviewed_by.uuid')
 
+    old_oecd_fos_2007_label = serializers.ReadOnlyField(
+        source='get_old_oecd_fos_2007_code_display'
+    )
+    new_oecd_fos_2007_label = serializers.ReadOnlyField(
+        source='get_new_oecd_fos_2007_code_display'
+    )
+
     class Meta:
         model = models.ProjectUpdateRequest
 
@@ -48,7 +55,9 @@ class ProjectUpdateRequestSerializer(serializers.ModelSerializer):
             'old_end_date',
             'new_end_date',
             'old_oecd_fos_2007_code',
+            'old_oecd_fos_2007_label',
             'new_oecd_fos_2007_code',
+            'new_oecd_fos_2007_label',
             'old_is_industry',
             'new_is_industry',
             'created_by',
