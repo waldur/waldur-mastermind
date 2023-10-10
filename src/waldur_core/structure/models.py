@@ -1161,7 +1161,7 @@ class SubResource(BaseResource):
         return [model for model in apps.get_models() if issubclass(model, cls)]
 
 
-class UserAgreement(LoggableMixin, TimeStampedModel):
+class UserAgreement(core_models.UuidMixin, LoggableMixin, TimeStampedModel):
     class UserAgreements:
         TOS = 'TOS'
         PP = 'PP'
