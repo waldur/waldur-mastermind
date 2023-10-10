@@ -28,4 +28,9 @@ class AuthSocialExtension(WaldurExtension):
                 'schedule': timedelta(minutes=5),
                 'args': (),
             },
+            'waldur-pull-remote-eduteams-ssh-keys': {
+                'task': 'waldur_auth_social.pull_remote_eduteams_ssh_keys',
+                'schedule': timedelta(minutes=3),
+                'args': (),
+            },
         }
