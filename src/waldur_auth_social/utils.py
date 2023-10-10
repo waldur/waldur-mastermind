@@ -7,6 +7,7 @@ from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.utils import timezone
+from requests.auth import HTTPBasicAuth
 from rest_framework.exceptions import NotFound, ParseError
 
 from waldur_auth_social.exceptions import OAuthException
@@ -228,6 +229,43 @@ def get_remote_eduteams_user_info(username):
         return user_response.json()
     except (ValueError, TypeError):
         raise ParseError('Unable to parse JSON in user info response.')
+
+
+def get_remote_eduteams_ssh_keys():
+    ssh_api_url = settings.WALDUR_AUTH_SOCIAL.get('REMOTE_EDUTEAMS_SSH_API_URL')
+    if ssh_api_url is None:
+        raise Exception('REMOTE_EDUTEAMS_SSH_API_URL is empty')
+
+    ssh_api_username = settings.WALDUR_AUTH_SOCIAL.get(
+        "REMOTE_EDUTEAMS_SSH_API_USERNAME"
+    )
+    if ssh_api_username is None:
+        raise Exception('REMOTE_EDUTEAMS_SSH_API_USERNAME is empty')
+
+    ssh_api_password = settings.WALDUR_AUTH_SOCIAL.get(
+        "REMOTE_EDUTEAMS_SSH_API_PASSWORD"
+    )
+    if ssh_api_password is None:
+        raise Exception('REMOTE_EDUTEAMS_SSH_API_PASSWORD is empty')
+
+    ssh_api_endpoint = f"{ssh_api_url}/api/vo/puhuri/ssh_keys"
+
+    try:
+        basic_auth = HTTPBasicAuth(ssh_api_username, ssh_api_password)
+        response = requests.get(ssh_api_endpoint, auth=basic_auth)
+    except requests.exceptions.RequestException as e:
+        logger.warning('Unable to get eduTEAMS ssh keys. Error is %s', e)
+        raise ParseError('Unable to get eduTEAMS ssh keys for %s' % ssh_api_endpoint)
+
+    if response.status_code != 200:
+        raise ParseError('Unable to get eduTEAMS ssh keys for %s' % ssh_api_endpoint)
+
+    try:
+        ssh_keys_json = response.json()
+        ssh_keys_list = ssh_keys_json['data']
+        return ssh_keys_list
+    except (ValueError, TypeError) as exc:
+        raise ParseError('Unable to parse JSON in user info response: %s' % exc)
 
 
 def refresh_remote_eduteams_token():

@@ -297,6 +297,13 @@ class WaldurAuthSocial(BaseModel):
     REMOTE_EDUTEAMS_ENABLED: bool = Field(
         False, description='Enable remote eduTEAMS extension.'
     )
+    REMOTE_EDUTEAMS_SSH_API_URL: str = Field('', description="API URL SSH keys")
+    REMOTE_EDUTEAMS_SSH_API_USERNAME: str = Field(
+        '', description="Username for SSH API URL"
+    )
+    REMOTE_EDUTEAMS_SSH_API_PASSWORD: str = Field(
+        '', description="Password for SSH API URL"
+    )
     ENABLE_EDUTEAMS_SYNC = Field(
         False, description='Enable eduTEAMS synchronization with remote Waldur.'
     )
