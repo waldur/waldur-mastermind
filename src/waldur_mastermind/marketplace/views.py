@@ -2721,7 +2721,7 @@ class StatsViewSet(rf_viewsets.ViewSet):
         customers = structure_models.Customer.objects.annotate(
             count=Subquery(users_count),
             has_resources=Exists(has_resources),
-        ).values('uuid', 'name', 'abbreviation', 'users', 'has_resources')
+        ).values('uuid', 'name', 'abbreviation', 'count', 'has_resources')
 
         return Response(customers)
 
