@@ -33,7 +33,7 @@ from waldur_core.core import signals as core_signals
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.utils import is_uuid_like
-from waldur_core.core.views import ActionsViewSet, ReadOnlyActionsViewSet
+from waldur_core.core.views import ActionsViewSet
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.utils import count_users
 from waldur_core.permissions.views import UserRoleMixin
@@ -996,9 +996,11 @@ class DivisionTypesViewSet(core_views.ReadOnlyActionsViewSet):
     filterset_class = filters.DivisionTypesFilter
 
 
-class UserAgreementsViewSet(ReadOnlyActionsViewSet):
+class UserAgreementsViewSet(ActionsViewSet):
     serializer_class = serializers.UserAgreementSerializer
-    permission_classes = []
+    permission_classes = (core_permissions.ActionsPermission,)
+    unsafe_methods_permissions = [permissions.is_staff]
+    lookup_field = 'uuid'
 
     def get_queryset(self):
         queryset = models.UserAgreement.objects.all()
