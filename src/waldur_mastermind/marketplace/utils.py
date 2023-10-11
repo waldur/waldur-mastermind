@@ -1318,7 +1318,9 @@ def user_offerings_mapping(offerings):
                 user_offerings_set.add((user, offering))
 
     for user, offering in user_offerings_set:
-        if not models.OfferingUser.objects.filter(user=user, offering=user).exists():
+        if not models.OfferingUser.objects.filter(
+            user=user, offering=offering
+        ).exists():
             username = generate_username(user, offering)
             offering_user = models.OfferingUser.objects.create(
                 user=user, offering=offering, username=username
