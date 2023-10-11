@@ -275,6 +275,7 @@ class WaldurCore(BaseModel):
             'HOMEPORT_SENTRY_ENVIRONMENT',
             'HOMEPORT_SENTRY_TRACES_SAMPLE_RATE',
             'HOMEPORT_URL',
+            'OECD_FOS_2007_CODE_MANDATORY',
         ]
 
 
