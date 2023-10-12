@@ -8,20 +8,44 @@ from . import models
 class LexisLinkSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = models.LexisLink
-        fields = ('url', 'uuid', 'created', 'modified', 'robot_account', 'state')
+        fields = (
+            'url',
+            'uuid',
+            'created',
+            'modified',
+            'robot_account',
+            'state',
+            'resource_uuid',
+            'resource_name',
+            'project_uuid',
+            'project_name',
+            'customer_uuid',
+            'customer_name',
+        )
         read_only_fields = ['state', 'robot_account']
         protected_fields = ['robot_account']
         extra_kwargs = dict(
             url={'lookup_field': 'uuid', 'view_name': 'lexis-link-detail'},
-            resource={
-                'lookup_field': 'uuid',
-                'view_name': 'marketplace-resource-detail',
-            },
             robot_account={
                 'lookup_field': 'uuid',
                 'view_name': 'marketplace-robot-account-detail',
             },
         )
+
+    resource_uuid = serializers.ReadOnlyField(source='robot_account.resource.uuid')
+    resource_name = serializers.ReadOnlyField(source='robot_account.resource.name')
+    project_uuid = serializers.ReadOnlyField(
+        source='robot_account.resource.project.uuid'
+    )
+    project_name = serializers.ReadOnlyField(
+        source='robot_account.resource.project.name'
+    )
+    customer_uuid = serializers.ReadOnlyField(
+        source='robot_account.resource.project.customer.uuid'
+    )
+    customer_name = serializers.ReadOnlyField(
+        source='robot_account.resource.project.customer.name'
+    )
 
 
 class LexisLinkCreateSerializer(serializers.HyperlinkedModelSerializer):
