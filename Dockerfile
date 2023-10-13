@@ -37,7 +37,7 @@ RUN apt-get update       && \
     libxslt-dev             \
     libyaml-dev             \
     tini                    \
-    uwsgi-src            && \
+    nginx                && \
     rm -rf /var/lib/apt/lists
 
 RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
@@ -48,17 +48,6 @@ RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
 WORKDIR /tmp/xmlsec1
 COPY --from=xmlsec1 /xmlsec1/*.deb ./
 RUN dpkg -i ./*.deb && rm ./*.deb
-
-# Create python3.11 uwsgi plugin
-RUN curl -L https://github.com/unbit/uwsgi/archive/refs/tags/2.0.21.tar.gz > uwsgi-2.0.21.tar.gz && \
-    tar -xf uwsgi-2.0.21.tar.gz && \
-    cd uwsgi-2.0.21 && \
-    make && \
-    PYTHON=python3.11 ./uwsgi --build-plugin "plugins/python python311" && \
-    mv python311_plugin.so /usr/lib/uwsgi/plugins/ && \
-    cd ../ && \
-    rm -rf uwsgi*
-
 
 RUN mkdir -p /usr/src/waldur
 
