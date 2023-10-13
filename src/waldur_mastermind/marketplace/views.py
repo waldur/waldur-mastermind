@@ -3097,7 +3097,7 @@ class StatsViewSet(rf_viewsets.ViewSet):
                 continue
 
             key = resource.offering.customer.uuid.hex
-            user_ids = get_project_users(resource.project_id)
+            user_ids = set(get_project_users(resource.project_id))
 
             if key in result:
                 user_ids |= result[key]['user_ids']
@@ -3106,7 +3106,7 @@ class StatsViewSet(rf_viewsets.ViewSet):
                 'user_ids': user_ids,
                 'customer_uuid': resource.offering.customer.uuid.hex,
                 'customer_name': resource.offering.customer.name,
-                'count_users': user_ids.count(),
+                'count_users': len(user_ids),
             }
 
         result = list(result.values())
