@@ -1,11 +1,11 @@
 #!/bin/bash
 set -e
 
-SOCKET=$(grep "^socket" /etc/waldur/uwsgi.ini)
+BIND=$(grep "^bind" /etc/waldur/gunicorn.conf.py)
 
-echo "INFO: Running Mastermind on port $SOCKET"
-mkdir -p /run/waldur/uwsgi
-chown -R waldur:waldur /run/waldur/uwsgi
-gosu waldur sh -c "/usr/bin/uwsgi --ini /etc/waldur/uwsgi.ini"
+echo "INFO: Running Mastermind on address $BIND"
+rm /etc/nginx/sites-enabled/default || true
+nginx -g 'daemon on;'
+gosu waldur sh -c "gunicorn -c /etc/waldur/gunicorn.conf.py --env DJANGO_SETTINGS_MODULE=waldur_core.server.settings waldur_core.server.wsgi:application"
 
 exit 0

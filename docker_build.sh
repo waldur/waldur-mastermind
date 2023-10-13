@@ -4,7 +4,7 @@ set -e
 python3 -m pip install --upgrade pip
 # Upgrade setuptools to the latest
 python3 -m pip install --upgrade setuptools==65.4.0
-python3 -m pip install poetry==1.2.1
+python3 -m pip install poetry==1.2.1 gunicorn==21.2.0
 poetry config experimental.new-installer false
 poetry config virtualenvs.create false
 
