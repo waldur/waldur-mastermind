@@ -7,7 +7,7 @@ from rest_framework import status, test
 from waldur_core.core.utils import format_homeport_link
 from waldur_core.media.utils import dummy_image
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.permissions.utils import get_permissions
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
@@ -518,3 +518,35 @@ class SetOfferingUsersTest(test.APITransactionTestCase):
             user=self.admin, offering=self.offering
         )
         self.assertEqual('ADMIN_NEW', offering_user.username)
+
+
+class ServiceProviderUserCustomersTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.CustomerFixture()
+        self.service_provider = factories.ServiceProviderFactory(
+            customer=self.fixture.customer
+        )
+        self.url = factories.ServiceProviderFactory.get_url(
+            self.service_provider, 'user_customers'
+        )
+
+    def test_get_user_customers_list(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 0)
+
+    def test_user_uuid(self):
+        offering = factories.OfferingFactory(
+            customer=self.fixture.customer,
+            type='Support.OfferingTemplate',
+            name='First',
+        )
+
+        resource = factories.ResourceFactory(
+            offering=offering, state=models.Resource.States.OK, name='My resource'
+        )
+        resource.project.add_user(self.fixture.user, ProjectRole.ADMIN)
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {'user_uuid': self.fixture.user.uuid.hex})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)

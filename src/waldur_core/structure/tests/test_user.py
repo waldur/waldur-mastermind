@@ -467,8 +467,8 @@ class CustomUsersFilterTest(test.APITransactionTestCase):
         response = self.client.get(self.url, {'customer_uuid': self.customer1.uuid.hex})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        actual = [user['uuid'] for user in response.data]
-        expected = [self.owner1.uuid.hex, self.manager1.uuid.hex]
+        actual = {user['uuid'] for user in response.data}
+        expected = {self.owner1.uuid.hex, self.manager1.uuid.hex}
         self.assertEqual(actual, expected)
 
     def test_filter_user_by_project(self):
