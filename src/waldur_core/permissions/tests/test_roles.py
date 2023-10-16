@@ -3,11 +3,16 @@ from rest_framework import status, test
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests.factories import UserFactory
+from waldur_mastermind.marketplace.tests import fixtures
 
 ROLE_ENDPOINT = '/api/roles/'
 
 
 class RoleTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.project = self.fixture.project
+
     def test_get_role(self):
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING)
         response = self.client.get(ROLE_ENDPOINT)
@@ -90,3 +95,19 @@ class RoleTest(test.APITransactionTestCase):
         role_uuid = response.data[0]['uuid']
         response = self.client.delete(f'{ROLE_ENDPOINT}{role_uuid}/')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_list_users_project_has_user(self):
+        self.user = self.fixture.admin
+        self.client.force_authenticate(self.user)
+        url = f'http://testserver/api/projects/{self.project.uuid}/list_users/'
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+    def test_list_users_with_no_user(self):
+        self.user = self.fixture.staff
+        self.client.force_authenticate(self.user)
+        url = f'http://testserver/api/projects/{self.project.uuid}/list_users/'
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)

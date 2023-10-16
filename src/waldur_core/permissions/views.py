@@ -1,3 +1,4 @@
+from django.db.models import Q
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -53,6 +54,12 @@ class UserRoleMixin:
         scope = self.get_object()
         queryset = get_permissions(scope)
         role = request.query_params.get('role')
+        user_full_name = request.query_params.get('user_full_name')
+        if user_full_name:
+            queryset = queryset.filter(
+                Q(user__first_name__icontains=user_full_name)
+                | Q(user__last_name__icontains=user_full_name)
+            ).distinct()
         if role:
             if is_uuid_like(role):
                 queryset = queryset.filter(role__uuid=role)
