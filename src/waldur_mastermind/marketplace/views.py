@@ -257,11 +257,13 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
         service_provider = self.get_object()
         user_uuid = request.query_params.get('user_uuid')
         if not user_uuid or not is_uuid_like(user_uuid):
+            self.paginate_queryset(structure_models.Customer.objects.none())
             return self.get_paginated_response([])
 
         try:
             user = User.objects.get(uuid=user_uuid)
         except User.DoesNotExist:
+            self.paginate_queryset(structure_models.Customer.objects.none())
             return self.get_paginated_response([])
 
         resources = utils.get_service_provider_resources(service_provider)

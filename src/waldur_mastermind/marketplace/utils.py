@@ -859,8 +859,8 @@ def get_service_provider_project_ids(service_provider):
 def get_service_provider_user_ids(user, service_provider, customer=None):
     project_ids = get_service_provider_project_ids(service_provider)
     if customer:
-        customer_projects = customer.project.all().values_list('id', flat=True)
-        project_ids = project_ids.intersection(customer_projects)
+        customer_projects = customer.projects.all().values_list('id', flat=True)
+        project_ids = set(project_ids) & set(customer_projects)
     content_type = ContentType.objects.get_for_model(structure_models.Project)
     qs = UserRole.objects.filter(
         content_type=content_type, object_id__in=project_ids, is_active=True
