@@ -14,9 +14,14 @@ class LexisLinkSerializer(serializers.HyperlinkedModelSerializer):
             'created',
             'modified',
             'robot_account',
+            'robot_account_username',
+            'robot_account_type',
             'state',
             'resource_uuid',
             'resource_name',
+            'resource_type',
+            'resource_backend_id',
+            'resource_end_date',
             'project_uuid',
             'project_name',
             'customer_uuid',
@@ -34,6 +39,13 @@ class LexisLinkSerializer(serializers.HyperlinkedModelSerializer):
 
     resource_uuid = serializers.ReadOnlyField(source='robot_account.resource.uuid')
     resource_name = serializers.ReadOnlyField(source='robot_account.resource.name')
+    resource_type = serializers.ReadOnlyField(source='robot_account.resource.type')
+    resource_backend_id = serializers.ReadOnlyField(
+        source='robot_account.resource.backend_id'
+    )
+    resource_end_date = serializers.ReadOnlyField(
+        source='robot_account.resource.end_date'
+    )
     project_uuid = serializers.ReadOnlyField(
         source='robot_account.resource.project.uuid'
     )
@@ -46,6 +58,9 @@ class LexisLinkSerializer(serializers.HyperlinkedModelSerializer):
     customer_name = serializers.ReadOnlyField(
         source='robot_account.resource.project.customer.name'
     )
+    robot_account_username = serializers.ReadOnlyField(source='robot_account.username')
+    robot_account_type = serializers.ReadOnlyField(source='robot_account.type')
+    state = serializers.ReadOnlyField(source='human_readable_state')
 
 
 class LexisLinkCreateSerializer(serializers.HyperlinkedModelSerializer):
