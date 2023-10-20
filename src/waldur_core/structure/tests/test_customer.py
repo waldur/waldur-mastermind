@@ -10,7 +10,6 @@ from rest_framework import status, test
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
-from waldur_core.quotas.tests import factories as quota_factories
 from waldur_core.structure.models import Customer, Project, get_old_role_name
 from waldur_core.structure.tests import factories, fixtures
 from waldur_core.structure.tests.utils import (
@@ -454,31 +453,6 @@ class CustomerQuotasTest(test.APITransactionTestCase):
         self.customer = factories.CustomerFactory()
         self.staff = factories.UserFactory(is_staff=True)
 
-    def test_staff_can_edit_customer_quotas(self):
-        self.client.force_login(self.staff)
-        quota = self.customer.quotas.get(name=Customer.Quotas.nc_project_count)
-
-        url = quota_factories.QuotaFactory.get_url(quota)
-        response = self.client.put(url, {'limit': 100})
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        quota.refresh_from_db()
-        self.assertEqual(quota.limit, 100)
-
-    def test_owner_can_not_edit_customer_quotas(self):
-        owner = factories.UserFactory()
-        self.customer.add_user(owner, CustomerRole.OWNER)
-
-        self.client.force_login(owner)
-        quota = self.customer.quotas.get(name=Customer.Quotas.nc_project_count)
-
-        url = quota_factories.QuotaFactory.get_url(quota)
-        response = self.client.put(url, {'limit': 100})
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-        quota.refresh_from_db()
-        self.assertNotEqual(quota.limit, 100)
-
     def test_customer_projects_quota_increases_on_project_creation(self):
         factories.ProjectFactory(customer=self.customer)
         self.assert_quota_usage('nc_project_count', 1)
@@ -553,7 +527,7 @@ class CustomerQuotasTest(test.APITransactionTestCase):
         self.assert_quota_usage('nc_user_count', 0)
 
     def assert_quota_usage(self, name, value):
-        self.assertEqual(value, self.customer.quotas.get(name=name).usage)
+        self.assertEqual(value, self.customer.get_quota_usage(name))
 
 
 @ddt

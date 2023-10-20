@@ -147,6 +147,12 @@ class QuotaModelMixin(models.Model):
             quota.usage = usage
             quota.save(update_fields=['usage'])
 
+    def get_quota_usage(self, quota_name):
+        return self.quotas.get(name=quota_name).usage
+
+    def get_quota_limit(self, quota_name):
+        return self.quotas.get(name=quota_name).limit
+
     @transaction.atomic
     def add_quota_usage(self, quota_name, usage_delta, validate=False):
         if usage_delta < 0:

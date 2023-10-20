@@ -1777,7 +1777,7 @@ class OfferingAttributesTest(test.APITransactionTestCase):
 
 class OfferingQuotaTest(test.APITransactionTestCase):
     def get_usage(self, category):
-        return category.quotas.get(name='offering_count').usage
+        return category.get_quota_usage('offering_count')
 
     def test_empty_category(self):
         self.assertEqual(0, self.get_usage(factories.CategoryFactory()))

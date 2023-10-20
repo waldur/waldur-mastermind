@@ -2,7 +2,7 @@ from waldur_core.logging.loggers import EventLogger, event_logger
 
 
 class TenantQuotaLogger(EventLogger):
-    quota = 'quotas.Quota'
+    quota_name = str
     tenant = 'openstack.Tenant'
     limit = float
     old_limit = float

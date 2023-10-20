@@ -64,11 +64,9 @@ class SecurityGroupCreateTest(BaseSecurityGroupTest):
         response = self.client.post(self.url, self.valid_data)
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(self.fixture.tenant.get_quota_usage('security_group_count'), 1)
         self.assertEqual(
-            self.fixture.tenant.quotas.get(name='security_group_count').usage, 1
-        )
-        self.assertEqual(
-            self.fixture.tenant.quotas.get(name='security_group_rule_count').usage, 1
+            self.fixture.tenant.get_quota_usage('security_group_rule_count'), 1
         )
 
     def test_security_group_can_not_be_created_if_rules_quota_is_over_limit(self):

@@ -24,12 +24,8 @@ class VolumeTypeTest(test.APITransactionTestCase):
 
     def test_quota_for_volume_type_is_propagated_from_tenant_to_private_settings(self):
         self.fixture.tenant.set_quota_limit('gigabytes_ssd', 100)
-        self.assertEqual(
-            self.fixture.openstack_tenant_service_settings.quotas.get(
-                name='gigabytes_ssd'
-            ).limit,
-            100,
-        )
+        scope = self.fixture.openstack_tenant_service_settings
+        self.assertEqual(scope.get_quota_limit('gigabytes_ssd'), 100)
 
     def test_quota_for_volume_type_is_deleted_from_private_settings(self):
         self.fixture.tenant.set_quota_limit('gigabytes_ssd', 100)

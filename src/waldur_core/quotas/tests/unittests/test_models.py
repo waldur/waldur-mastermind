@@ -9,13 +9,11 @@ from waldur_core.quotas.tests.models import GrandparentModel
 class QuotaModelMixinTest(TestCase):
     def test_default_quota_is_unlimited(self):
         instance = GrandparentModel.objects.create()
-        self.assertEqual(instance.quotas.get(name='regular_quota').limit, -1)
+        self.assertEqual(instance.get_quota_limit('regular_quota'), -1)
 
     def test_quota_with_default_limit(self):
         instance = GrandparentModel.objects.create()
-        self.assertEqual(
-            instance.quotas.get(name='quota_with_default_limit').limit, 100
-        )
+        self.assertEqual(instance.get_quota_limit('quota_with_default_limit'), 100)
 
     def test_add_usage_validates_with_unlimited_quota(self):
         instance = GrandparentModel.objects.create()
@@ -60,10 +58,10 @@ class QuotaModelMixinTest(TestCase):
         expected_sum_of_quotas = {}
         for quota_name in GrandparentModel.get_quotas_names():
             expected_sum_of_quotas[quota_name] = sum(
-                owner.quotas.get(name=quota_name).limit for owner in owners
+                owner.get_quota_limit(quota_name) for owner in owners
             )
             expected_sum_of_quotas[quota_name + '_usage'] = sum(
-                owner.quotas.get(name=quota_name).usage for owner in owners
+                owner.get_quota_usage(quota_name) for owner in owners
             )
 
         self.assertEqual(expected_sum_of_quotas, sum_of_quotas)

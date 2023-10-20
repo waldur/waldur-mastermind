@@ -1092,7 +1092,7 @@ class OfferingDetailsSerializer(
 
     def get_order_item_count(self, offering):
         try:
-            return offering.quotas.get(name='order_item_count').usage
+            return offering.get_quota_usage('order_item_count')
         except ObjectDoesNotExist:
             return 0
 

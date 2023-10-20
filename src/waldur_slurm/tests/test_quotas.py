@@ -29,32 +29,28 @@ class QuotasTest(TestCase):
         self.expected_ram_usage = allocation1.ram_usage + allocation2.ram_usage
 
     def test_project_quotas_are_updated(self):
-        actual_cpu_usage = self.fixture.project.quotas.get(name='nc_cpu_usage').usage
+        actual_cpu_usage = self.fixture.project.get_quota_usage('nc_cpu_usage')
         self.assertEqual(self.expected_cpu_usage, actual_cpu_usage)
 
-        actual_gpu_usage = self.fixture.project.quotas.get(name='nc_gpu_usage').usage
+        actual_gpu_usage = self.fixture.project.get_quota_usage('nc_gpu_usage')
         self.assertEqual(self.expected_gpu_usage, actual_gpu_usage)
 
-        actual_ram_usage = self.fixture.project.quotas.get(name='nc_ram_usage').usage
+        actual_ram_usage = self.fixture.project.get_quota_usage('nc_ram_usage')
         self.assertEqual(self.expected_ram_usage, actual_ram_usage)
 
     def test_customer_quotas_are_updated(self):
-        actual_cpu_usage = self.fixture.customer.quotas.get(name='nc_cpu_usage').usage
+        actual_cpu_usage = self.fixture.customer.get_quota_usage('nc_cpu_usage')
         self.assertEqual(self.expected_cpu_usage, actual_cpu_usage)
 
-        actual_gpu_usage = self.fixture.customer.quotas.get(name='nc_gpu_usage').usage
+        actual_gpu_usage = self.fixture.customer.get_quota_usage('nc_gpu_usage')
         self.assertEqual(self.expected_gpu_usage, actual_gpu_usage)
 
-        actual_ram_usage = self.fixture.customer.quotas.get(name='nc_ram_usage').usage
+        actual_ram_usage = self.fixture.customer.get_quota_usage('nc_ram_usage')
         self.assertEqual(self.expected_ram_usage, actual_ram_usage)
 
     def test_allocation_count_is_updated_for_project(self):
+        self.assertEqual(self.fixture.project.get_quota_usage('nc_allocation_count'), 2)
         self.assertEqual(
-            self.fixture.project.quotas.get(name='nc_allocation_count').usage, 2
-        )
-        self.assertEqual(
-            fixtures.SlurmFixture()
-            .project.quotas.get(name='nc_allocation_count')
-            .usage,
+            fixtures.SlurmFixture().project.get_quota_usage('nc_allocation_count'),
             0,
         )

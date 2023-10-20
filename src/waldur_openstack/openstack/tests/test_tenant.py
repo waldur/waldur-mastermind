@@ -676,7 +676,7 @@ class TenantCreateNetworkTest(BaseTenantActionsTest):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(self.tenant.networks.count(), 1)
-        self.assertEqual(self.tenant.quotas.get(name=self.quota_name).usage, 1)
+        self.assertEqual(self.tenant.get_quota_usage(self.quota_name), 1)
         self.assertTrue(mocked_task.called)
 
     def test_that_network_is_not_created_when_quota_exceeds_set_limit(
@@ -687,7 +687,7 @@ class TenantCreateNetworkTest(BaseTenantActionsTest):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(self.tenant.networks.count(), 0)
-        self.assertEqual(self.tenant.quotas.get(name=self.quota_name).usage, 0)
+        self.assertEqual(self.tenant.get_quota_usage(self.quota_name), 0)
         self.assertFalse(mocked_task.called)
 
 

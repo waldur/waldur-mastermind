@@ -107,60 +107,48 @@ class InstanceCreateTest(test.APITransactionTestCase):
         instance = models.Instance.objects.get(uuid=response.data['uuid'])
         Quotas = self.openstack_settings.Quotas
         self.assertEqual(
-            self.openstack_settings.quotas.get(name=Quotas.ram).usage, instance.ram
+            self.openstack_settings.get_quota_usage(Quotas.ram), instance.ram
         )
         self.assertEqual(
-            self.openstack_settings.quotas.get(name=Quotas.storage).usage, instance.disk
+            self.openstack_settings.get_quota_usage(Quotas.storage), instance.disk
         )
         self.assertEqual(
-            self.openstack_settings.quotas.get(name=Quotas.vcpu).usage, instance.cores
+            self.openstack_settings.get_quota_usage(Quotas.vcpu), instance.cores
         )
-        self.assertEqual(
-            self.openstack_settings.quotas.get(name=Quotas.instances).usage, 1
-        )
+        self.assertEqual(self.openstack_settings.get_quota_usage(Quotas.instances), 1)
 
         self.assertEqual(
-            self.openstack_settings.scope.quotas.get(name=Quotas.ram).usage,
+            self.openstack_settings.scope.get_quota_usage(Quotas.ram),
             instance.ram,
         )
         self.assertEqual(
-            self.openstack_settings.scope.quotas.get(name=Quotas.storage).usage,
+            self.openstack_settings.scope.get_quota_usage(Quotas.storage),
             instance.disk,
         )
         self.assertEqual(
-            self.openstack_settings.scope.quotas.get(name=Quotas.vcpu).usage,
+            self.openstack_settings.scope.get_quota_usage(Quotas.vcpu),
             instance.cores,
         )
         self.assertEqual(
-            self.openstack_settings.scope.quotas.get(name=Quotas.instances).usage, 1
+            self.openstack_settings.scope.get_quota_usage(Quotas.instances), 1
         )
 
     def test_project_quotas_updated_when_instance_is_created(self):
         response = self.create_instance(self.get_valid_data())
         instance = models.Instance.objects.get(uuid=response.data['uuid'])
 
-        self.assertEqual(
-            self.project.quotas.get(name='os_cpu_count').usage, instance.cores
-        )
-        self.assertEqual(
-            self.project.quotas.get(name='os_ram_size').usage, instance.ram
-        )
-        self.assertEqual(
-            self.project.quotas.get(name='os_storage_size').usage, instance.disk
-        )
+        self.assertEqual(self.project.get_quota_usage('os_cpu_count'), instance.cores)
+        self.assertEqual(self.project.get_quota_usage('os_ram_size'), instance.ram)
+        self.assertEqual(self.project.get_quota_usage('os_storage_size'), instance.disk)
 
     def test_customer_quotas_updated_when_instance_is_created(self):
         response = self.create_instance(self.get_valid_data())
         instance = models.Instance.objects.get(uuid=response.data['uuid'])
 
+        self.assertEqual(self.customer.get_quota_usage('os_cpu_count'), instance.cores)
+        self.assertEqual(self.customer.get_quota_usage('os_ram_size'), instance.ram)
         self.assertEqual(
-            self.customer.quotas.get(name='os_cpu_count').usage, instance.cores
-        )
-        self.assertEqual(
-            self.customer.quotas.get(name='os_ram_size').usage, instance.ram
-        )
-        self.assertEqual(
-            self.customer.quotas.get(name='os_storage_size').usage, instance.disk
+            self.customer.get_quota_usage('os_storage_size'), instance.disk
         )
 
     def test_project_quotas_updated_when_instance_is_deleted(self):
@@ -168,18 +156,18 @@ class InstanceCreateTest(test.APITransactionTestCase):
         instance = models.Instance.objects.get(uuid=response.data['uuid'])
         instance.delete()
 
-        self.assertEqual(self.project.quotas.get(name='os_cpu_count').usage, 0)
-        self.assertEqual(self.project.quotas.get(name='os_ram_size').usage, 0)
-        self.assertEqual(self.project.quotas.get(name='os_storage_size').usage, 0)
+        self.assertEqual(self.project.get_quota_usage('os_cpu_count'), 0)
+        self.assertEqual(self.project.get_quota_usage('os_ram_size'), 0)
+        self.assertEqual(self.project.get_quota_usage('os_storage_size'), 0)
 
     def test_customer_quotas_updated_when_instance_is_deleted(self):
         response = self.create_instance(self.get_valid_data())
         instance = models.Instance.objects.get(uuid=response.data['uuid'])
         instance.delete()
 
-        self.assertEqual(self.customer.quotas.get(name='os_cpu_count').usage, 0)
-        self.assertEqual(self.customer.quotas.get(name='os_ram_size').usage, 0)
-        self.assertEqual(self.customer.quotas.get(name='os_storage_size').usage, 0)
+        self.assertEqual(self.customer.get_quota_usage('os_cpu_count'), 0)
+        self.assertEqual(self.customer.get_quota_usage('os_ram_size'), 0)
+        self.assertEqual(self.customer.get_quota_usage('os_storage_size'), 0)
 
     @data('instances')
     def test_quota_validation(self, quota_name):
@@ -542,8 +530,8 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
 
             return response
 
-    def assert_quota_usage(self, quotas, name, value):
-        self.assertEqual(quotas.get(name=name).usage, value)
+    def assert_quota_usage(self, scope, name, value):
+        self.assertEqual(scope.get_quota_usage(name), value)
 
     def test_nova_methods_are_called_if_instance_is_deleted_with_volumes(self):
         self.mock_volumes(True)
@@ -566,10 +554,11 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
         self.delete_instance()
 
         self.instance.service_settings.refresh_from_db()
-        quotas = self.instance.service_settings.quotas
-        tenant_quotas = self.instance.service_settings.scope.quotas
 
-        for scope in (quotas, tenant_quotas):
+        for scope in (
+            self.instance.service_settings,
+            self.instance.service_settings.scope,
+        ):
             self.assert_quota_usage(scope, 'instances', 0)
             self.assert_quota_usage(scope, 'vcpu', 0)
             self.assert_quota_usage(scope, 'ram', 0)
@@ -606,12 +595,12 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
         settings = self.instance.service_settings
         settings.refresh_from_db()
 
-        self.assert_quota_usage(settings.quotas, 'instances', 0)
-        self.assert_quota_usage(settings.quotas, 'vcpu', 0)
-        self.assert_quota_usage(settings.quotas, 'ram', 0)
+        self.assert_quota_usage(settings, 'instances', 0)
+        self.assert_quota_usage(settings, 'vcpu', 0)
+        self.assert_quota_usage(settings, 'ram', 0)
 
-        self.assert_quota_usage(settings.quotas, 'volumes', 1)
-        self.assert_quota_usage(settings.quotas, 'storage', self.data_volume.size)
+        self.assert_quota_usage(settings, 'volumes', 1)
+        self.assert_quota_usage(settings, 'storage', self.data_volume.size)
 
     def test_instance_cannot_be_deleted_if_it_has_backups(self):
         self.instance = factories.InstanceFactory(

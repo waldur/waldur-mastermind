@@ -615,15 +615,11 @@ class ChangeProjectCustomerTest(test.APITransactionTestCase):
         )
 
     def test_recalculate_quotas(self):
-        self.assertEqual(
-            self.old_customer.quotas.get(name='nc_project_count').usage, 1.0
-        )
-        self.assertEqual(self.new_customer.quotas.get(name='nc_project_count').usage, 0)
+        self.assertEqual(self.old_customer.get_quota_usage('nc_project_count'), 1.0)
+        self.assertEqual(self.new_customer.get_quota_usage('nc_project_count'), 0)
         self.change_customer()
-        self.assertEqual(self.old_customer.quotas.get(name='nc_project_count').usage, 0)
-        self.assertEqual(
-            self.new_customer.quotas.get(name='nc_project_count').usage, 1.0
-        )
+        self.assertEqual(self.old_customer.get_quota_usage('nc_project_count'), 0)
+        self.assertEqual(self.new_customer.get_quota_usage('nc_project_count'), 1.0)
 
 
 @ddt

@@ -120,8 +120,8 @@ class VolumeExtendTestCase(test.APITransactionTestCase):
         self.extend_disk(self.staff, new_size)
 
         # Assert
-        self.assertEqual(new_size / 1024, private_settings.quotas.get(name=key).usage)
-        self.assertEqual(new_size / 1024, shared_tenant.quotas.get(name=key).usage)
+        self.assertEqual(new_size / 1024, private_settings.get_quota_usage(key))
+        self.assertEqual(new_size / 1024, shared_tenant.get_quota_usage(key))
 
 
 class VolumeAttachTestCase(test.APITransactionTestCase):
@@ -279,9 +279,9 @@ class VolumeSnapshotTestCase(test.APITransactionTestCase):
     def test_when_snapshot_is_created_volume_storage_quota_is_not_updated(self):
         key = 'storage'
         scope = self.fixture.openstack_tenant_service_settings
-        old_usage = scope.quotas.get(name=key).usage
+        old_usage = scope.get_quota_usage(key)
         self.create_snapshot()
-        new_usage = scope.quotas.get(name=key).usage
+        new_usage = scope.get_quota_usage(key)
         self.assertEqual(old_usage, new_usage)
 
 
@@ -494,7 +494,7 @@ class VolumeTypeCreateTest(BaseVolumeCreateTest):
         self.create_volume(type=self.type_url, size=1024 * 10)
 
         key = 'gigabytes_' + self.type.name
-        usage = self.settings.quotas.get(name=key).usage
+        usage = self.settings.get_quota_usage(key)
         self.assertEqual(usage, 10)
 
     def test_user_can_not_create_volume_if_resulting_quota_usage_is_greater_than_limit(
@@ -602,10 +602,8 @@ class VolumeRetypeTestCase(test.APITransactionTestCase):
         self.retype_volume(self.admin, self.new_type)
 
         # Assert
-        self.assertEqual(0, scope.quotas.get(name=old_type_key).usage)
-        self.assertEqual(
-            self.volume.size / 1024, scope.quotas.get(name=new_type_key).usage
-        )
+        self.assertEqual(0, scope.get_quota_usage(old_type_key))
+        self.assertEqual(self.volume.size / 1024, scope.get_quota_usage(new_type_key))
 
     @unittest.skip('Not stable in GitLab CI')
     def test_when_volume_is_retyped_volume_type_quota_for_shared_tenant_is_updated(
@@ -621,10 +619,8 @@ class VolumeRetypeTestCase(test.APITransactionTestCase):
         self.retype_volume(self.admin, self.new_type)
 
         # Assert
-        self.assertEqual(0, scope.quotas.get(name=old_type_key).usage)
-        self.assertEqual(
-            self.volume.size / 1024, scope.quotas.get(name=new_type_key).usage
-        )
+        self.assertEqual(0, scope.get_quota_usage(old_type_key))
+        self.assertEqual(self.volume.size / 1024, scope.get_quota_usage(new_type_key))
 
 
 class VolumeFilterTest(test.APITransactionTestCase):

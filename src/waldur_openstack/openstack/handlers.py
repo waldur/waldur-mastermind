@@ -96,7 +96,7 @@ def log_tenant_quota_update(sender, instance, created=False, **kwargs):
         % (old_value_representation, new_value_representation),
         event_type='openstack_tenant_quota_limit_updated',
         event_context={
-            'quota': quota,
+            'quota_name': quota.name,
             'tenant': tenant,
             'limit': float(quota.limit),
             'old_limit': float(quota.tracker.previous('limit')),

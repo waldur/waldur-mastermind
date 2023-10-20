@@ -13,7 +13,7 @@ from .models import Allocation, AllocationUserUsage, Association
 
 
 def get_allocation_count(self, scope):
-    return scope.quotas.get(name='nc_allocation_count').usage
+    return scope.get_quota_usage('nc_allocation_count')
 
 
 get_allocation_count.short_description = _('Allocation count')
