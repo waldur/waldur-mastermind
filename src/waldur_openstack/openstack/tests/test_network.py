@@ -61,7 +61,7 @@ class NetworkCreateSubnetActionTest(BaseNetworkTest):
     def test_create_subnet_increases_quota_usage(self, executor_action_mock):
         response = self.client.post(self.url, self.request_data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(self.fixture.tenant.quotas.get(name=self.quota_name).usage, 1)
+        self.assertEqual(self.fixture.tenant.get_quota_usage(self.quota_name), 1)
         executor_action_mock.assert_called_once()
 
     @mock.patch('waldur_openstack.openstack.executors.SubNetCreateExecutor.execute')
@@ -71,7 +71,7 @@ class NetworkCreateSubnetActionTest(BaseNetworkTest):
         self.fixture.tenant.set_quota_limit(self.quota_name, 0)
         response = self.client.post(self.url, self.request_data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(self.fixture.tenant.quotas.get(name=self.quota_name).usage, 0)
+        self.assertEqual(self.fixture.tenant.get_quota_usage(self.quota_name), 0)
         executor_action_mock.assert_not_called()
 
     @mock.patch('waldur_openstack.openstack.executors.SubNetCreateExecutor.execute')
@@ -140,7 +140,7 @@ class NetworkDeleteActionTest(BaseNetworkTest):
     def test_delete_action_decreases_quota_usage(self, executor_action_mock):
         url = factories.NetworkFactory.get_url(network=self.fixture.network)
         self.fixture.network.increase_backend_quotas_usage()
-        self.assertEqual(self.fixture.tenant.quotas.get(name='network_count').usage, 1)
+        self.assertEqual(self.fixture.tenant.get_quota_usage('network_count'), 1)
 
         response = self.client.delete(url, self.request_data)
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)

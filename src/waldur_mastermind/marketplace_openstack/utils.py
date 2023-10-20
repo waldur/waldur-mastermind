@@ -252,7 +252,9 @@ def import_limits_when_storage_mode_is_switched(resource):
     )
 
     raw_limits = {quota.name: quota.limit for quota in tenant.quotas.all()}
-    raw_usages = {quota.name: quota.usage for quota in tenant.quotas.all()}
+    raw_usages = {
+        quota.name: tenant.get_quota_usage(quota.name) for quota in tenant.quotas.all()
+    }
 
     limits = {
         CORES_TYPE: raw_limits.get(TenantQuotas.vcpu.name, 0),

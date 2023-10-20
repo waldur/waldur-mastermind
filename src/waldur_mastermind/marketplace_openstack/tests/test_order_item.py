@@ -268,7 +268,7 @@ class TenantCreateTest(BaseOpenStackTest):
         process_order(order, self.fixture.staff)
 
         tenant = order.items.get().resource.scope
-        self.assertEqual(tenant.quotas.get(name='gigabytes_llvm').limit, 10)
+        self.assertEqual(tenant.get_quota_limit('gigabytes_llvm'), 10)
 
     def test_volume_type_limits_are_initialized_with_zero_by_default(self):
         create_offering_components(self.offering)
@@ -286,9 +286,9 @@ class TenantCreateTest(BaseOpenStackTest):
         process_order(order, self.fixture.staff)
 
         tenant = order.items.get().resource.scope
-        self.assertEqual(tenant.quotas.get(name='gigabytes_llvm').limit, 10)
-        self.assertEqual(tenant.quotas.get(name='gigabytes_ssd').limit, 0)
-        self.assertEqual(tenant.quotas.get(name='gigabytes_rbd').limit, 0)
+        self.assertEqual(tenant.get_quota_limit('gigabytes_llvm'), 10)
+        self.assertEqual(tenant.get_quota_limit('gigabytes_ssd'), 0)
+        self.assertEqual(tenant.get_quota_limit('gigabytes_rbd'), 0)
 
 
 class TenantMutateTest(test.APITransactionTestCase):

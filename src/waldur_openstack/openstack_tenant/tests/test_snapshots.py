@@ -116,11 +116,9 @@ class SnapshotRestoreTest(test.APITransactionTestCase):
 
     def test_restore_cannot_be_made_if_volume_exceeds_quota(self):
         self.client.force_authenticate(self.fixture.owner)
-        quota = self.fixture.openstack_tenant_service_settings.quotas.get(
-            name='volumes'
-        )
-        quota.limit = quota.usage
-        quota.save()
+        scope = self.fixture.openstack_tenant_service_settings
+        usage = scope.get_quota_usage('volumes')
+        scope.set_quota_limit('volumes', usage)
         snapshot = self.fixture.snapshot
         expected_volumes_amount = models.Volume.objects.count()
 
