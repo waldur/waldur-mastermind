@@ -29,10 +29,6 @@ from waldur_core.permissions.utils import get_permissions
 from waldur_core.structure import models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import utils
-from waldur_core.structure.exceptions import (
-    ServiceBackendError,
-    ServiceBackendNotImplemented,
-)
 from waldur_core.structure.filters import filter_visible_users
 from waldur_core.structure.managers import (
     count_customer_users,
@@ -1261,8 +1257,7 @@ class ServiceSettingsSerializer(
             'scope',
             'options',
         )
-        protected_fields = ('type', 'customer')
-        read_only_fields = ('shared', 'state', 'error_message')
+        read_only_fields = ('state', 'error_message')
         related_paths = ('customer',)
         extra_kwargs = {
             'url': {'lookup_field': 'uuid'},
@@ -1305,29 +1300,6 @@ class ServiceSettingsSerializer(
         options_serializer_class = get_options_serializer_class(service.type)
         secret_fields = options_serializer_class.Meta.secret_fields
         return {k: v for (k, v) in options.items() if k not in secret_fields}
-
-    def validate(self, attrs):
-        if 'options' not in attrs:
-            return attrs
-        service_type = self.instance and self.instance.type or attrs['type']
-        options_serializer_class = get_options_serializer_class(service_type)
-        options_serializer = options_serializer_class(
-            instance=self.instance, data=attrs['options'], context=self.context
-        )
-        options_serializer.is_valid(raise_exception=True)
-        service_options = options_serializer.validated_data
-        attrs.update(service_options)
-        self._validate_settings(models.ServiceSettings(**attrs))
-        return attrs
-
-    def _validate_settings(self, service_settings):
-        try:
-            backend = service_settings.get_backend()
-            backend.validate_settings()
-        except ServiceBackendError as e:
-            raise serializers.ValidationError(_('Wrong settings: %s.') % e)
-        except ServiceBackendNotImplemented:
-            pass
 
 
 class BasicResourceSerializer(serializers.Serializer):

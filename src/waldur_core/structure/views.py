@@ -718,7 +718,9 @@ class SshKeyViewSet(
         serializer.save(user=user)
 
 
-class ServiceSettingsViewSet(core_mixins.EagerLoadMixin, core_views.ActionsViewSet):
+class ServiceSettingsViewSet(
+    core_mixins.EagerLoadMixin, core_views.ReadOnlyActionsViewSet
+):
     queryset = models.ServiceSettings.objects.filter().order_by('pk')
     serializer_class = serializers.ServiceSettingsSerializer
     filter_backends = (
