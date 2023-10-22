@@ -196,7 +196,7 @@ class UpdateCampaignTest(test.APITransactionTestCase):
     def test_user_can_update_campaign(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.put(self.url, self._get_payload(months=5))
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.fixture.campaign.refresh_from_db()
         self.assertEqual(self.fixture.campaign.months, 5)
 

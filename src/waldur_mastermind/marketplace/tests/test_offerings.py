@@ -2,8 +2,6 @@ import base64
 import json
 import os
 import tempfile
-import uuid
-from unittest import mock
 
 import pkg_resources
 from ddt import data, ddt
@@ -692,43 +690,6 @@ class OfferingCreateTest(test.APITransactionTestCase):
         }
         response = self.client.post(url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    @mock.patch('waldur_azure.backend.AzureClient')
-    def test_create_offering_with_shared_service_settings(self, mocked_backend):
-        plans_request = {
-            'type': 'Azure.VirtualMachine',
-            'service_attributes': {
-                'tenant_id': uuid.uuid4(),
-                'client_id': uuid.uuid4(),
-                'client_secret': uuid.uuid4(),
-                'subscription_id': uuid.uuid4(),
-            },
-            'shared': True,
-        }
-        response = self.create_offering('owner', add_payload=plans_request)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
-
-        offering = models.Offering.objects.get(uuid=response.data['uuid'])
-        self.assertIsNotNone(response.data['scope'])
-        self.assertEqual(offering.scope.type, 'Azure')
-        self.assertTrue(offering.scope.shared)
-
-    @mock.patch('waldur_azure.backend.AzureClient')
-    def test_create_offering_with_private_service_settings(self, mocked_backend):
-        plans_request = {
-            'type': 'Azure.VirtualMachine',
-            'service_attributes': {
-                'tenant_id': uuid.uuid4(),
-                'client_id': uuid.uuid4(),
-                'client_secret': uuid.uuid4(),
-                'subscription_id': uuid.uuid4(),
-            },
-        }
-        response = self.create_offering('owner', add_payload=plans_request)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
-
-        offering = models.Offering.objects.get(uuid=response.data['uuid'])
-        self.assertFalse(offering.scope.shared)
 
     def test_create_offering_with_plans(self):
         plans_request = {

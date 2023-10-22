@@ -41,9 +41,8 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure import utils as structure_utils
-from waldur_core.structure.executors import ServiceSettingsCreateExecutor
 from waldur_core.structure.managers import filter_queryset_for_user
-from waldur_core.structure.serializers import ServiceSettingsSerializer
+from waldur_core.structure.serializers import get_options_serializer_class
 from waldur_mastermind.billing.serializers import get_payment_profiles
 from waldur_mastermind.common import exceptions
 from waldur_mastermind.common import mixins as common_mixins
@@ -929,6 +928,7 @@ class OfferingDetailsSerializer(
         required=False, default={'options': {}, 'order': []}
     )
     secret_options = serializers.JSONField(required=False)
+    service_attributes = serializers.SerializerMethodField()
     components = OfferingComponentSerializer(required=False, many=True)
     order_item_count = serializers.SerializerMethodField()
     plans = BaseProviderPlanSerializer(many=True, required=False)
@@ -969,6 +969,7 @@ class OfferingDetailsSerializer(
             'components',
             'plugin_options',
             'secret_options',
+            'service_attributes',
             'state',
             'native_name',
             'native_description',
@@ -1030,12 +1031,11 @@ class OfferingDetailsSerializer(
 
     def get_fields(self):
         fields = super().get_fields()
-        if (
-            self.instance
-            and not self.can_see_secret_options()
-            and 'secret_options' in fields
-        ):
-            del fields['secret_options']
+        if self.instance and not self.can_see_secret_options():
+            if 'secret_options' in fields:
+                fields.pop('secret_options')
+            if 'service_attributes' in fields:
+                fields.pop('service_attributes')
         method = self.context['view'].request.method
         if method == 'GET':
             if 'components' in fields:
@@ -1124,6 +1124,19 @@ class OfferingDetailsSerializer(
             return func(offering.attributes)
 
         return offering.attributes
+
+    def get_service_attributes(self, offering):
+        service = offering.scope
+        if not service:
+            return {}
+        return {
+            'backend_url': service.backend_url,
+            'username': service.username,
+            'password': service.password,
+            'domain': service.domain,
+            'token': service.token,
+            **service.options,
+        }
 
 
 class ProviderOfferingDetailsSerializer(OfferingDetailsSerializer):
@@ -1336,11 +1349,6 @@ class OfferingModifySerializer(ProviderOfferingDetailsSerializer):
 
 
 class OfferingCreateSerializer(OfferingModifySerializer):
-    class Meta(OfferingModifySerializer.Meta):
-        fields = OfferingModifySerializer.Meta.fields + ('service_attributes',)
-
-    service_attributes = serializers.JSONField(required=False, write_only=True)
-
     def validate_plans(self, plans):
         if len(plans) < 1:
             raise serializers.ValidationError(
@@ -1369,8 +1377,6 @@ class OfferingCreateSerializer(OfferingModifySerializer):
         else:
             custom_components = validated_data.pop('components', [])
 
-        validated_data = self._create_service(validated_data)
-
         offering = super().create(validated_data)
         utils.create_offering_components(offering, custom_components)
         if limits:
@@ -1378,55 +1384,6 @@ class OfferingCreateSerializer(OfferingModifySerializer):
         self._create_plans(offering, plans)
 
         return offering
-
-    def _create_service(self, validated_data):
-        """
-        Marketplace offering model does not accept service_attributes field as is,
-        therefore we should remove it from validated_data and create service settings object.
-        Then we need to specify created object and offering's scope.
-        """
-        offering_type = validated_data.get('type')
-        service_type = plugins.manager.get_service_type(offering_type)
-        is_draft = validated_data.get(
-            'state'
-        ) == models.Offering.States.DRAFT or not validated_data.get('state')
-
-        name = validated_data['name']
-        service_attributes = validated_data.pop('service_attributes', {})
-
-        if not service_type:
-            return validated_data
-
-        if not service_attributes:
-            if is_draft:
-                return validated_data
-
-            raise ValidationError({'service_attributes': _('This field is required.')})
-
-        payload = dict(
-            name=name,
-            # It is expected that customer URL is passed to the service settings serializer
-            customer=self.initial_data['customer'],
-            type=service_type,
-            options=service_attributes,
-        )
-        serializer = ServiceSettingsSerializer(data=payload, context=self.context)
-        serializer.is_valid(raise_exception=True)
-        service_settings = serializer.save()
-        # Usually we don't allow users to create new shared service settings via REST API.
-        # That's shared flag is marked as read-only in service settings serializer.
-        # But shared offering should be created with shared service settings.
-        # That's why we set it to shared only after service settings object is created.
-        if validated_data.get('shared'):
-            service_settings.shared = True
-            service_settings.save()
-
-        # XXX: dirty hack to trigger pulling of services after saving
-        transaction.on_commit(
-            lambda: ServiceSettingsCreateExecutor.execute(service_settings)
-        )
-        validated_data['scope'] = service_settings
-        return validated_data
 
 
 class OfferingPauseSerializer(serializers.ModelSerializer):
@@ -1499,6 +1456,10 @@ def update_plan(plan, data):
 
 
 class OfferingUpdateSerializer(OfferingModifySerializer):
+    class Meta(OfferingModifySerializer.Meta):
+        fields = OfferingModifySerializer.Meta.fields + ('service_attributes',)
+
+    service_attributes = serializers.JSONField(required=False, write_only=True)
     plans = PlanUpdateSerializer(many=True, required=False, write_only=True)
 
     def _update_components(self, instance, components):
@@ -1604,6 +1565,38 @@ class OfferingUpdateSerializer(OfferingModifySerializer):
                 plan.archived = True
                 plan.save()
 
+    def _update_service_attributes(self, instance, validated_data):
+        service_attributes = validated_data.pop('service_attributes', {})
+        if not service_attributes:
+            return
+        service_type = plugins.manager.get_service_type(instance.type)
+        if not service_type:
+            return
+
+        if not instance.scope:
+            instance.scope = structure_models.ServiceSettings.objects.create(
+                name=instance.name,
+                customer=instance.customer,
+                type=service_type,
+                shared=validated_data.get('shared', False),
+            )
+            instance.save()
+
+        options_serializer_class = get_options_serializer_class(service_type)
+        options_serializer = options_serializer_class(
+            instance=instance.scope, data=service_attributes, context=self.context
+        )
+        options_serializer.is_valid(raise_exception=True)
+        instance.scope.backend_url = options_serializer.validated_data.get(
+            'backend_url'
+        )
+        instance.scope.username = options_serializer.validated_data.get('username')
+        instance.scope.password = options_serializer.validated_data.get('password')
+        instance.scope.domain = options_serializer.validated_data.get('domain')
+        instance.scope.token = options_serializer.validated_data.get('token')
+        instance.scope.options = options_serializer.validated_data.get('options')
+        instance.scope.save()
+
     @transaction.atomic
     def update(self, instance, validated_data):
         """
@@ -1628,6 +1621,7 @@ class OfferingUpdateSerializer(OfferingModifySerializer):
         limits = validated_data.pop('limits', {})
         if limits:
             self._update_limits(instance, limits)
+        self._update_service_attributes(instance, validated_data)
         offering = super().update(instance, validated_data)
         return offering
 
