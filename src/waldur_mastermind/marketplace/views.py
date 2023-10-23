@@ -445,8 +445,7 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
 
         data = (
             invoice_models.InvoiceItem.objects.filter(
-                invoice__year__gte=start.year,
-                invoice__month__gte=start.month,
+                invoice__created__gte=start,
                 resource__offering__customer=customer,
             )
             .values('invoice__year', 'invoice__month')
