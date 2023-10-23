@@ -38,7 +38,6 @@ from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.utils import count_users
 from waldur_core.permissions.views import UserRoleMixin
 from waldur_core.structure import filters, models, permissions, serializers, utils
-from waldur_core.structure.executors import ServiceSettingsCreateExecutor
 from waldur_core.structure.managers import (
     count_customer_users,
     filter_customer_permissions,
@@ -736,71 +735,6 @@ class ServiceSettingsViewSet(
         'name',
         'state',
     )
-
-    def perform_create(self, serializer):
-        service_settings = serializer.save()
-
-        transaction.on_commit(
-            lambda: ServiceSettingsCreateExecutor.execute(service_settings)
-        )
-
-    def list(self, request, *args, **kwargs):
-        """
-        To get a list of service settings, run **GET** against */api/service-settings/* as an authenticated user.
-        Only settings owned by this user or shared settings will be listed.
-
-        Supported filters are:
-
-        - ?name=<text> - partial matching used for searching
-        - ?type=<type> - choices: OpenStack, DigitalOcean, Amazon, JIRA
-        - ?state=<state> - choices: New, Creation Scheduled, Creating, Sync Scheduled, Syncing, In Sync, Erred
-        - ?shared=<bool> - allows to filter shared service settings
-        """
-        return super().list(request, *args, **kwargs)
-
-    def can_user_update_settings(request, view, obj=None):
-        """Only staff can update shared settings, otherwise user has to be an owner of the settings."""
-        if obj is None:
-            return
-
-        # TODO [TM:3/21/17] clean it up after WAL-634. Clean up service settings update tests as well.
-        if obj.customer and not obj.shared:
-            return permissions.is_owner(request, view, obj)
-        else:
-            return permissions.is_staff(request, view, obj)
-
-    def update(self, request, *args, **kwargs):
-        """
-        To update service settings, issue a **PUT** or **PATCH** to */api/service-settings/<uuid>/* as a customer owner.
-        You are allowed to change name and credentials only.
-
-        Example of a request:
-
-        .. code-block:: http
-
-            PATCH /api/service-settings/9079705c17d64e6aa0af2e619b0e0702/ HTTP/1.1
-            Content-Type: application/json
-            Accept: application/json
-            Authorization: Token c84d653b9ec92c6cbac41c706593e66f567a7fa4
-            Host: example.com
-
-            {
-                "username": "admin",
-                "password": "new_secret"
-            }
-        """
-        return super().update(request, *args, **kwargs)
-
-    update_permissions = partial_update_permissions = [
-        can_user_update_settings,
-        permissions.check_access_to_services_management,
-    ]
-
-    update_validators = partial_update_validators = [
-        utils.check_customer_blocked_or_archived
-    ]
-
-    destroy_permissions = [can_user_update_settings]
 
 
 class BaseCounterView(viewsets.GenericViewSet):
