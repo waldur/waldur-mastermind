@@ -1579,7 +1579,7 @@ class OfferingUpdateSerializer(OfferingModifySerializer):
                 name=instance.name,
                 customer=instance.customer,
                 type=service_type,
-                shared=validated_data.get('shared', False),
+                shared=instance.shared,
             )
             instance.save()
 
