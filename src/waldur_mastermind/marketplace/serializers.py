@@ -937,6 +937,7 @@ class OfferingDetailsSerializer(
     state = serializers.ReadOnlyField(source='get_state_display')
     scope = GenericRelatedField(read_only=True)
     scope_uuid = serializers.ReadOnlyField(source='scope.uuid')
+    scope_state = serializers.ReadOnlyField(source='scope.get_state_display')
     files = NestedOfferingFileSerializer(many=True, read_only=True)
     quotas = serializers.SerializerMethodField()
     divisions = structure_serializers.DivisionSerializer(many=True, read_only=True)
@@ -985,6 +986,7 @@ class OfferingDetailsSerializer(
             'billable',
             'scope',
             'scope_uuid',
+            'scope_state',
             'files',
             'quotas',
             'paused_reason',
