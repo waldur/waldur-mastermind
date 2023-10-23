@@ -41,6 +41,7 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure import utils as structure_utils
+from waldur_core.structure.executors import ServiceSettingsCreateExecutor
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.serializers import get_options_serializer_class
 from waldur_mastermind.billing.serializers import get_payment_profiles
@@ -1596,6 +1597,14 @@ class OfferingUpdateSerializer(OfferingModifySerializer):
         instance.scope.token = options_serializer.validated_data.get('token')
         instance.scope.options = options_serializer.validated_data.get('options')
         instance.scope.save()
+
+        if (
+            instance.scope.state
+            == structure_models.ServiceSettings.States.CREATION_SCHEDULED
+        ):
+            transaction.on_commit(
+                lambda: ServiceSettingsCreateExecutor.execute(instance.scope)
+            )
 
     @transaction.atomic
     def update(self, instance, validated_data):

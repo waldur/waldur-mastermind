@@ -1386,6 +1386,11 @@ class ProviderOfferingViewSet(
                 status=status.HTTP_400_BAD_REQUEST,
                 data="Offering does not have service settings.",
             )
+        if offering.scope.state != structure_models.ServiceSettings.States.OK:
+            return Response(
+                status=status.HTTP_400_BAD_REQUEST,
+                data="Offering service should be in OK state.",
+            )
         transaction.on_commit(
             lambda: ServiceSettingsPullExecutor.execute(offering.scope)
         )
