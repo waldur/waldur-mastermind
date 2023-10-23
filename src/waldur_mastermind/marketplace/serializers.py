@@ -2499,48 +2499,40 @@ class ResourceSerializer(BaseItemSerializer):
 
         limit_usage = {}
 
-        for plan_component in resource.plan.components.all():
-            if (
-                plan_component.component.billing_type
-                == models.OfferingComponent.BillingTypes.LIMIT
-            ):
-                if (
-                    plan_component.component.limit_period
-                    == models.OfferingComponent.LimitPeriods.TOTAL
-                ):
-                    limit_usage[
-                        plan_component.component.type
-                    ] = models.ComponentUsage.objects.filter(
-                        resource=resource,
-                        component=plan_component.component,
-                    ).aggregate(
-                        total=Sum('usage')
-                    )[
-                        'total'
-                    ]
-
-                if (
-                    plan_component.component.limit_period
-                    == models.OfferingComponent.LimitPeriods.ANNUAL
-                ):
-                    year_start = datetime.date(
-                        year=datetime.date.today().year, month=1, day=1
-                    )
-                    limit_usage[
-                        plan_component.component.type
-                    ] = models.ComponentUsage.objects.filter(
-                        resource=resource,
-                        component=plan_component.component,
-                        date__gte=year_start,
-                    ).aggregate(
-                        total=Sum('usage')
-                    )[
-                        'total'
-                    ]
-                if plan_component.component.limit_period is None:
-                    limit_usage[
-                        plan_component.component.type
-                    ] = resource.current_usages.get(plan_component.component.type)
+        for plan_component in resource.plan.components.filter(
+            component__billing_type=models.OfferingComponent.BillingTypes.LIMIT
+        ):
+            limit_period = plan_component.component.limit_period
+            if limit_period == models.OfferingComponent.LimitPeriods.TOTAL:
+                limit_usage[
+                    plan_component.component.type
+                ] = models.ComponentUsage.objects.filter(
+                    resource=resource,
+                    component=plan_component.component,
+                ).aggregate(
+                    total=Sum('usage')
+                )[
+                    'total'
+                ]
+            elif limit_period == models.OfferingComponent.LimitPeriods.ANNUAL:
+                year_start = datetime.date(
+                    year=datetime.date.today().year, month=1, day=1
+                )
+                limit_usage[
+                    plan_component.component.type
+                ] = models.ComponentUsage.objects.filter(
+                    resource=resource,
+                    component=plan_component.component,
+                    date__gte=year_start,
+                ).aggregate(
+                    total=Sum('usage')
+                )[
+                    'total'
+                ]
+            else:
+                limit_usage[
+                    plan_component.component.type
+                ] = resource.current_usages.get(plan_component.component.type)
 
         return limit_usage
 
