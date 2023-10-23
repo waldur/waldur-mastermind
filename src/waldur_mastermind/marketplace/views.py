@@ -63,6 +63,7 @@ from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure import utils as structure_utils
 from waldur_core.structure import views as structure_views
 from waldur_core.structure.exceptions import ServiceBackendError
+from waldur_core.structure.executors import ServiceSettingsPullExecutor
 from waldur_core.structure.managers import (
     filter_queryset_for_user,
     get_connected_customers,
@@ -1369,6 +1370,30 @@ class ProviderOfferingViewSet(
 
     create_offering_component_serializer_class = serializers.OfferingComponentSerializer
     create_offering_component_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING_COMPONENTS,
+            ['*', 'customer'],
+        )
+    ]
+
+    @action(detail=True, methods=['post'])
+    def sync(self, request, uuid=None):
+        offering = self.get_object()
+        if not offering.scope or not isinstance(
+            offering.scope, structure_models.ServiceSettings
+        ):
+            return Response(
+                status=status.HTTP_400_BAD_REQUEST,
+                data="Offering does not have service settings.",
+            )
+        transaction.on_commit(
+            lambda: ServiceSettingsPullExecutor.execute(offering.scope)
+        )
+        return Response(
+            status=status.HTTP_202_ACCEPTED, data="Offering sync has been scheduled."
+        )
+
+    sync_permissions = [
         permission_factory(
             PermissionEnum.UPDATE_OFFERING_COMPONENTS,
             ['*', 'customer'],
