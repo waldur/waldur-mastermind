@@ -125,6 +125,11 @@ def register_in(router):
         views.SectionViewSet,
         basename='marketplace-section',
     )
+    router.register(
+        r'marketplace-category-help-articles',
+        views.CategoryHelpArticleViewSet,
+        basename='marketplace-category-help-articles',
+    )
 
 
 urlpatterns = [
