@@ -616,6 +616,33 @@ class CustomerUsersListTest(test.APITransactionTestCase):
         response = self.client.get(self.url, {'email': 'gmail.com'})
         self.assertEqual(len(response.data), 2)
 
+    def test_filter_by_full_name_or_email(self):
+        walter = factories.UserFactory(
+            full_name='walter casey', username='walter', email='walter@gmail.com'
+        )
+        admin = factories.UserFactory(
+            full_name='admin', username='zzz', email='admin@waldur.com'
+        )
+        alice = factories.UserFactory(
+            full_name='alice keymer', username='alice', email='alice@gmail.com'
+        )
+        hans = factories.UserFactory(
+            full_name='Hans Zimmer', username='hans', email='aliceandhans@gmail.com'
+        )
+
+        for user in [admin, alice, walter, hans]:
+            self.fixture.customer.add_user(user, CustomerRole.OWNER)
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.get(self.url, {'full_name_and_email': 'alice'})
+        self.assertEqual(len(response.data), 2)
+
+        response = self.client.get(self.url, {'full_name_and_email': 'walter'})
+        self.assertEqual(len(response.data), 1)
+
+        response = self.client.get(self.url, {'full_name_and_email': 'vettel'})
+        self.assertEqual(len(response.data), 0)
+
     def test_filter_by_roles(self):
         walter = factories.UserFactory(
             full_name='', username='walter', email='walter@gmail.com'
