@@ -2399,6 +2399,7 @@ class ResourceSerializer(BaseItemSerializer):
             'endpoints',
             'error_message',
             'error_traceback',
+            'offering_customer_uuid',
         )
         read_only_fields = (
             'backend_metadata',
@@ -2453,6 +2454,7 @@ class ResourceSerializer(BaseItemSerializer):
     username = serializers.SerializerMethodField()
     limit_usage = serializers.SerializerMethodField()
     endpoints = NestedEndpointSerializer(many=True, read_only=True)
+    offering_customer_uuid = serializers.ReadOnlyField(source='offering.customer.uuid')
 
     def get_can_terminate(self, resource):
         view = self.context['view']
