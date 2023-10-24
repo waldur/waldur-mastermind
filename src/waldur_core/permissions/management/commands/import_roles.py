@@ -22,7 +22,9 @@ class Command(BaseCommand):
             for row in data:
                 role = Role.objects.get(name=row['role'])
                 current_permissions = set(
-                    RolePermission.objects.filter(role=role).values_list('permission')
+                    RolePermission.objects.filter(role=role).values_list(
+                        'permission', flat=True
+                    )
                 )
                 if 'permissions' not in row:
                     self.stdout.write(
