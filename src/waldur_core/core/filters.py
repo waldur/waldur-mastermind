@@ -2,6 +2,7 @@ from urllib.parse import urlparse
 
 import django_filters
 from django.contrib.contenttypes.models import ContentType
+from django.db.models import Q
 from django.forms.fields import MultipleChoiceField
 from django.urls import resolve
 from django_filters.constants import EMPTY_VALUES
@@ -360,6 +361,13 @@ def filter_by_full_name(queryset, value, field=''):
     return queryset.filter(
         **{field + 'query_field__icontains': core_utils.normalize_unicode(value)}
     )
+
+
+def filter_by_full_name_and_email(queryset, value):
+    return queryset.filter(
+        Q(**{'query_field__icontains': core_utils.normalize_unicode(value)})
+        | Q(email__icontains=value)
+    ).distinct()
 
 
 class ReviewStateFilter(MappedMultipleChoiceFilter):

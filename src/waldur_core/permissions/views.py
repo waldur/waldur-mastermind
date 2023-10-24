@@ -54,11 +54,12 @@ class UserRoleMixin:
         scope = self.get_object()
         queryset = get_permissions(scope)
         role = request.query_params.get('role')
-        user_full_name = request.query_params.get('user_full_name')
-        if user_full_name:
+        search_string = request.query_params.get('search_string')
+        if search_string:
             queryset = queryset.filter(
-                Q(user__first_name__icontains=user_full_name)
-                | Q(user__last_name__icontains=user_full_name)
+                Q(user__first_name__icontains=search_string)
+                | Q(user__last_name__icontains=search_string)
+                | Q(user__email__icontains=search_string)
             ).distinct()
         if role:
             if is_uuid_like(role):

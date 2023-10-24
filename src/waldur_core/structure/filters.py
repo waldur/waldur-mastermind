@@ -321,6 +321,9 @@ class BaseUserFilter(django_filters.FilterSet):
     full_name = django_filters.CharFilter(
         method='filter_by_full_name', label='Full name'
     )
+    full_name_and_email = django_filters.CharFilter(
+        method='filter_by_full_name_and_email', label='Full name and email'
+    )
     username = django_filters.CharFilter()
     native_name = django_filters.CharFilter(lookup_expr='icontains')
     organization = django_filters.CharFilter(lookup_expr='icontains')
@@ -331,10 +334,14 @@ class BaseUserFilter(django_filters.FilterSet):
     def filter_by_full_name(self, queryset, name, value):
         return core_filters.filter_by_full_name(queryset, value)
 
+    def filter_by_full_name_and_email(self, queryset, name, value):
+        return core_filters.filter_by_full_name_and_email(queryset, value)
+
     class Meta:
         model = User
         fields = [
             'full_name',
+            'full_name_and_email',
             'native_name',
             'organization',
             'email',
