@@ -11,8 +11,16 @@ from waldur_core.logging.loggers import expand_event_groups
 
 class BaseHookFilter(django_filters.FilterSet):
     author_uuid = django_filters.UUIDFilter(field_name='user__uuid')
+    author_fullname = django_filters.CharFilter(
+        method='filter_by_full_name', label='User full name contains'
+    )
+    author_username = django_filters.CharFilter(field_name='user__username')
+    author_email = django_filters.CharFilter(field_name='user__email')
     is_active = django_filters.BooleanFilter(widget=BooleanWidget)
     last_published = django_filters.DateTimeFilter()
+
+    def filter_by_full_name(self, queryset, name, value):
+        return core_filters.filter_by_full_name(queryset, value, 'user')
 
 
 class WebHookFilter(BaseHookFilter):
