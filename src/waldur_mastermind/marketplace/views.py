@@ -3341,3 +3341,10 @@ class SectionViewSet(rf_viewsets.ModelViewSet):
     serializer_class = serializers.SectionSerializer
     filter_backends = (DjangoFilterBackend,)
     permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
+
+
+class CategoryHelpArticleViewSet(rf_viewsets.ModelViewSet):
+    queryset = models.CategoryHelpArticle.objects.all().order_by('title')
+    serializer_class = serializers.CategoryHelpArticlesSerializer
+    filter_backends = (DjangoFilterBackend,)
+    permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]

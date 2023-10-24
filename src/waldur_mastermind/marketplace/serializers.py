@@ -179,6 +179,26 @@ class CategoryHelpArticleSerializer(serializers.ModelSerializer):
         fields = ('title', 'url')
 
 
+class CategorySerializerForHelpArticles(serializers.HyperlinkedModelSerializer):
+    class Meta:
+        model = models.Category
+        fields = ('url', 'uuid', 'title')
+        extra_kwargs = {
+            'url': {
+                'lookup_field': 'uuid',
+                'view_name': 'marketplace-category-detail',
+            },
+        }
+
+
+class CategoryHelpArticlesSerializer(serializers.ModelSerializer):
+    categories = CategorySerializerForHelpArticles(many=True)
+
+    class Meta:
+        model = models.CategoryHelpArticle
+        fields = ('id', 'title', 'url', 'categories')
+
+
 class CategoryGroupSerializer(
     MarketplaceProtectedMediaSerializerMixin,
     core_serializers.AugmentedSerializerMixin,
