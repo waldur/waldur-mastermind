@@ -16,6 +16,9 @@ class EventSerializer(RestrictedSerializerMixin, serializers.ModelSerializer):
 
 class BaseHookSerializer(serializers.HyperlinkedModelSerializer):
     author_uuid = serializers.ReadOnlyField(source='user.uuid')
+    author_fullname = serializers.ReadOnlyField(source='user.full_name')
+    author_username = serializers.ReadOnlyField(source='user.username')
+    author_email = serializers.ReadOnlyField(source='user.email')
     hook_type = serializers.SerializerMethodField()
 
     class Meta:
@@ -31,6 +34,9 @@ class BaseHookSerializer(serializers.HyperlinkedModelSerializer):
             'created',
             'modified',
             'hook_type',
+            'author_fullname',
+            'author_username',
+            'author_email',
         )
 
         extra_kwargs = {
