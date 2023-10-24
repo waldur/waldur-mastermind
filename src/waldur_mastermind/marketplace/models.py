@@ -1121,6 +1121,7 @@ class Resource(
 
     class Meta:
         ordering = ['created']
+        unique_together = ('content_type', 'object_id')
 
     state = FSMIntegerField(default=States.CREATING, choices=States.CHOICES)
     project = models.ForeignKey(structure_models.Project, on_delete=models.CASCADE)
