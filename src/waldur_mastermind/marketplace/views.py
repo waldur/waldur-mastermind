@@ -72,7 +72,7 @@ from waldur_core.structure.managers import (
     get_project_users,
     get_visible_users,
 )
-from waldur_core.structure.registry import get_resource_type
+from waldur_core.structure.registry import SupportedServices, get_resource_type
 from waldur_core.structure.serializers import (
     ProjectUserSerializer,
     get_resource_serializer_class,
@@ -1384,6 +1384,11 @@ class ProviderOfferingViewSet(
             return Response(
                 status=status.HTTP_400_BAD_REQUEST,
                 data="Offering does not have service settings.",
+            )
+        if not SupportedServices.has_service_type(offering.scope.type):
+            return Response(
+                status=status.HTTP_400_BAD_REQUEST,
+                data="Plugin does not support this operation.",
             )
         if offering.scope.state not in (
             structure_models.ServiceSettings.States.OK,
