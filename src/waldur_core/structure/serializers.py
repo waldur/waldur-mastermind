@@ -1443,7 +1443,7 @@ class BaseResourceSerializer(
         data = {key: value for key, value in data.items() if key in fields}
 
         resource = super().create(data)
-        resource.increase_backend_quotas_usage()
+        resource.increase_backend_quotas_usage(validate=True)
         return resource
 
     @classmethod

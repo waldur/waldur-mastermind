@@ -64,11 +64,11 @@ class OpenStackConfig(AppConfig):
             dispatch_uid='openstack.handlers.remove_ssh_key_from_all_tenants_on_it_deletion',
         )
 
-        from waldur_core.quotas.models import Quota
+        from waldur_core.quotas.models import QuotaLimit
 
         signals.post_save.connect(
             handlers.log_tenant_quota_update,
-            sender=Quota,
+            sender=QuotaLimit,
             dispatch_uid='openstack.handlers.log_tenant_quota_update',
         )
 

@@ -2,12 +2,10 @@ import unittest
 from unittest.mock import patch
 
 import ddt
-from django.contrib.contenttypes.models import ContentType
 from rest_framework import status, test
 
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
-from waldur_core.quotas import models as quotas_models
 from waldur_core.quotas.fields import TotalQuotaField
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
@@ -484,12 +482,7 @@ class QuotasValidateTest(test.APITransactionTestCase):
             ),
         )
 
-        quotas_models.Quota.objects.update_or_create(
-            name='test_cpu_count',
-            content_type=ContentType.objects.get_for_model(self.fixture.project),
-            object_id=self.fixture.project.id,
-            defaults={'limit': 1},
-        )
+        self.fixture.project.set_quota_limit('test_cpu_count', 1)
 
     def test_cart_item_created_if_quotas_is_valid(self):
         self.client.force_authenticate(self.fixture.staff)

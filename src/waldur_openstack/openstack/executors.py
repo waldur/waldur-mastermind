@@ -156,13 +156,9 @@ class TenantCreateExecutor(core_executors.CreateExecutor):
                 serialized_subnet, 'create_subnet', state_transition='begin_creating'
             ),
         ]
-        quotas = tenant.quotas.all()
-        quotas = {
-            q.name: int(q.limit) if q.limit.is_integer() else q.limit for q in quotas
-        }
         creation_tasks.append(
             core_tasks.BackendMethodTask().si(
-                serialized_tenant, 'push_tenant_quotas', quotas
+                serialized_tenant, 'push_tenant_quotas', tenant.quota_limits
             )
         )
         # handle security groups

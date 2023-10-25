@@ -26,7 +26,6 @@ from requests import ConnectionError
 from waldur_core.core.utils import QuietSession
 from waldur_core.structure.backend import ServiceBackend
 from waldur_core.structure.exceptions import SerializableBackendError
-from waldur_openstack.openstack.models import Tenant
 
 logger = logging.getLogger(__name__)
 
@@ -310,20 +309,18 @@ class BaseOpenStackBackend(ServiceBackend):
             raise OpenStackBackendError(e)
 
         quotas = {
-            Tenant.Quotas.ram: nova_quotas.ram,
-            Tenant.Quotas.vcpu: nova_quotas.cores,
-            Tenant.Quotas.storage: self.gb2mb(cinder_quotas.gigabytes),
-            Tenant.Quotas.snapshots: cinder_quotas.snapshots,
-            Tenant.Quotas.volumes: cinder_quotas.volumes,
-            Tenant.Quotas.instances: nova_quotas.instances,
-            Tenant.Quotas.security_group_count: neutron_quotas['security_group'],
-            Tenant.Quotas.security_group_rule_count: neutron_quotas[
-                'security_group_rule'
-            ],
-            Tenant.Quotas.floating_ip_count: neutron_quotas['floatingip'],
-            Tenant.Quotas.port_count: neutron_quotas['port'],
-            Tenant.Quotas.network_count: neutron_quotas['network'],
-            Tenant.Quotas.subnet_count: neutron_quotas['subnet'],
+            'ram': nova_quotas.ram,
+            'vcpu': nova_quotas.cores,
+            'storage': self.gb2mb(cinder_quotas.gigabytes),
+            'snapshots': cinder_quotas.snapshots,
+            'volumes': cinder_quotas.volumes,
+            'instances': nova_quotas.instances,
+            'security_group_count': neutron_quotas['security_group'],
+            'security_group_rule_count': neutron_quotas['security_group_rule'],
+            'floating_ip_count': neutron_quotas['floatingip'],
+            'port_count': neutron_quotas['port'],
+            'network_count': neutron_quotas['network'],
+            'subnet_count': neutron_quotas['subnet'],
         }
 
         for name, value in cinder_quotas._info.items():
@@ -365,26 +362,22 @@ class BaseOpenStackBackend(ServiceBackend):
 
         quotas = {
             # Nova quotas
-            Tenant.Quotas.ram: nova_quotas['ram']['in_use'],
-            Tenant.Quotas.vcpu: nova_quotas['cores']['in_use'],
-            Tenant.Quotas.instances: nova_quotas['instances']['in_use'],
+            'ram': nova_quotas['ram']['in_use'],
+            'vcpu': nova_quotas['cores']['in_use'],
+            'instances': nova_quotas['instances']['in_use'],
             # Neutron quotas
-            Tenant.Quotas.security_group_count: neutron_quotas['security_group'][
-                'used'
-            ],
-            Tenant.Quotas.security_group_rule_count: neutron_quotas[
-                'security_group_rule'
-            ]['used'],
-            Tenant.Quotas.floating_ip_count: neutron_quotas['floatingip']['used'],
-            Tenant.Quotas.port_count: neutron_quotas['port']['used'],
-            Tenant.Quotas.network_count: neutron_quotas['network']['used'],
-            Tenant.Quotas.subnet_count: neutron_quotas['subnet']['used'],
+            'security_group_count': neutron_quotas['security_group']['used'],
+            'security_group_rule_count': neutron_quotas['security_group_rule']['used'],
+            'floating_ip_count': neutron_quotas['floatingip']['used'],
+            'port_count': neutron_quotas['port']['used'],
+            'network_count': neutron_quotas['network']['used'],
+            'subnet_count': neutron_quotas['subnet']['used'],
             # Cinder quotas
-            Tenant.Quotas.storage: self.gb2mb(cinder_quotas['gigabytes']['in_use']),
-            Tenant.Quotas.volumes: len(volumes),
-            Tenant.Quotas.volumes_size: volumes_size,
-            Tenant.Quotas.snapshots: len(snapshots),
-            Tenant.Quotas.snapshots_size: snapshots_size,
+            'storage': self.gb2mb(cinder_quotas['gigabytes']['in_use']),
+            'volumes': len(volumes),
+            'volumes_size': volumes_size,
+            'snapshots': len(snapshots),
+            'snapshots_size': snapshots_size,
         }
 
         for name, value in cinder_quotas.items():

@@ -1,5 +1,4 @@
 import datetime
-import itertools
 from functools import lru_cache, reduce
 
 import pyvat
@@ -425,8 +424,6 @@ class Customer(
         verbose_name = _('organization')
         ordering = ('name',)
 
-    GLOBAL_COUNT_QUOTA_NAME = 'nc_global_customer_count'
-
     class Quotas(quotas_models.QuotaModelMixin.Quotas):
         enable_fields_caching = False
         nc_project_count = quotas_fields.CounterQuotaField(
@@ -473,14 +470,6 @@ class Customer(
             .objects.filter(id__in=get_nested_customer_users(self))
             .distinct()
             .order_by('username')
-        )
-
-    def can_user_update_quotas(self, user):
-        return user.is_staff
-
-    def get_children(self):
-        return itertools.chain.from_iterable(
-            m.objects.filter(customer=self) for m in [Project]
         )
 
     def is_billable(self):
@@ -698,8 +687,6 @@ class Project(
         customer_path = 'customer'
         project_path = 'self'
 
-    GLOBAL_COUNT_QUOTA_NAME = 'nc_global_project_count'
-
     class Quotas(quotas_models.QuotaModelMixin.Quotas):
         enable_fields_caching = False
         nc_resource_count = quotas_fields.CounterQuotaField(
@@ -758,9 +745,6 @@ class Project(
             name=self.name,
             customer=self.customer.name,
         )
-
-    def can_user_update_quotas(self, user):
-        return user.is_staff or self.customer.has_user(user, CustomerRole.OWNER)
 
     def get_log_fields(self):
         return ('uuid', 'customer', 'name')
@@ -1038,12 +1022,8 @@ class BaseResource(
     def __str__(self):
         return self.name
 
-    def increase_backend_quotas_usage(self, validate=True):
-        """Increase usage of quotas that were consumed by resource on creation.
-
-        If validate is True - method should raise QuotaValidationError if
-        at least one of increased quotas if over limit.
-        """
+    def increase_backend_quotas_usage(self, validate=False):
+        """Increase usage of quotas that were consumed by resource on creation."""
         pass
 
     def decrease_backend_quotas_usage(self):

@@ -7,7 +7,7 @@ from django.db import IntegrityError, transaction
 from django.db.models import Q
 
 from waldur_core.core.models import StateMixin
-from waldur_core.quotas.models import Quota
+from waldur_core.quotas.models import QuotaLimit, QuotaUsage
 from waldur_core.structure import models as structure_models
 from waldur_openstack.openstack_base.backend import get_cached_session_key
 
@@ -575,47 +575,19 @@ def mark_private_settings_as_erred_if_tenant_creation_failed(
 def sync_private_settings_quotas_with_tenant_quotas(
     sender, instance, created=False, **kwargs
 ):
-    if created:
-        return
-
     quota = instance
     if not isinstance(quota.scope, openstack_models.Tenant):
         return
 
-    tenant = quota.scope
-    private_settings = structure_models.ServiceSettings.objects.filter(scope=tenant)
+    usage = quota.scope.get_quota_usage(quota.name)
 
-    Quota.objects.filter(scope__in=private_settings, name=quota.name).update(
-        limit=quota.limit, usage=quota.usage
-    )
-
-
-def propagate_volume_type_quotas_from_tenant_to_private_service_settings(
-    sender, instance, created=False, **kwargs
-):
-    quota = instance
-
-    if not created:
-        return
-
-    if not quota.name.startswith('gigabytes_'):
-        return
-
-    if not isinstance(quota.scope, openstack_models.Tenant):
-        return
-
-    tenant = quota.scope
-    private_settings = structure_models.ServiceSettings.objects.filter(scope=tenant)
-    for service_settings in private_settings:
-        Quota.objects.update_or_create(
-            content_type=ContentType.objects.get_for_model(service_settings),
-            object_id=service_settings.id,
-            name=quota.name,
-            defaults=dict(
-                limit=quota.limit,
-                usage=quota.usage,
-            ),
-        )
+    for private_settings in structure_models.ServiceSettings.objects.filter(
+        scope=quota.scope
+    ):
+        if isinstance(quota, QuotaLimit):
+            private_settings.set_quota_limit(quota.name, quota.value)
+        if isinstance(quota, QuotaUsage):
+            private_settings.set_quota_usage(quota.name, usage)
 
 
 def delete_volume_type_quotas_from_private_service_settings(sender, instance, **kwargs):
@@ -629,7 +601,7 @@ def delete_volume_type_quotas_from_private_service_settings(sender, instance, **
 
     tenant = quota.scope
     private_settings = structure_models.ServiceSettings.objects.filter(scope=tenant)
-    Quota.objects.filter(scope__in=private_settings, name=quota.name).delete()
+    QuotaLimit.objects.filter(scope__in=private_settings, name=quota.name).delete()
 
 
 def sync_security_group_rule_property_when_resource_is_updated_or_created(

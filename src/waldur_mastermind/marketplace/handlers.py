@@ -125,12 +125,12 @@ def update_category_quota_when_offering_is_created(
 
     delta = get_delta()
     if delta:
-        instance.category.add_quota_usage(models.Category.Quotas.offering_count, delta)
+        instance.category.add_quota_usage('offering_count', delta)
 
 
 def update_category_quota_when_offering_is_deleted(sender, instance, **kwargs):
     if instance.state == models.Offering.States.ACTIVE:
-        instance.category.add_quota_usage(models.Category.Quotas.offering_count, -1)
+        instance.category.add_quota_usage('offering_count', -1)
 
 
 def update_category_offerings_count(sender, **kwargs):
@@ -138,7 +138,7 @@ def update_category_offerings_count(sender, **kwargs):
         value = models.Offering.objects.filter(
             category=category, state=models.Offering.States.ACTIVE
         ).count()
-        category.set_quota_usage(models.Category.Quotas.offering_count, value)
+        category.set_quota_usage('offering_count', value)
 
 
 def update_aggregate_resources_count_when_resource_is_updated(

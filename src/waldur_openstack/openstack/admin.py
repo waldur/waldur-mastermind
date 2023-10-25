@@ -5,7 +5,6 @@ from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
 from waldur_core.core.admin import ExecutorAdminAction, PasswordWidget
-from waldur_core.quotas.admin import QuotaInline
 from waldur_core.structure import admin as structure_admin
 
 from . import executors, models
@@ -39,7 +38,6 @@ class TenantAdmin(structure_admin.ResourceAdmin):
         'pull_floating_ips',
         'pull_quotas',
     )
-    inlines = [QuotaInline]
     form = TenantAdminForm
 
     class OKTenantAction(ExecutorAdminAction):

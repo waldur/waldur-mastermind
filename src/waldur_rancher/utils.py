@@ -219,16 +219,17 @@ def validate_quotas(nodes, tenant_settings, project):
 
         for source in quota_sources:
             try:
-                quota = source.quotas.get(name=quota_name)
-                if quota.limit != -1 and (quota.usage + requested > quota.limit):
+                limit = source.get_quota_limit(quota_name)
+                usage = source.get_quota_usage(quota_name)
+                if limit != -1 and (usage + requested > limit):
                     raise quotas_exceptions.QuotaValidationError(
                         _(
                             '"%(name)s" quota is over limit. Required: %(usage)s, limit: %(limit)s.'
                         )
                         % dict(
                             name=quota_name,
-                            usage=quota.usage + requested,
-                            limit=quota.limit,
+                            usage=usage + requested,
+                            limit=limit,
                         )
                     )
             except ObjectDoesNotExist:

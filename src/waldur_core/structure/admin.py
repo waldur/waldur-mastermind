@@ -34,7 +34,6 @@ from waldur_core.core.models import Notification, NotificationTemplate, User
 from waldur_core.core.utils import get_fake_context
 from waldur_core.core.validators import BackendURLValidator
 from waldur_core.permissions.enums import RoleEnum
-from waldur_core.quotas.admin import QuotaInline
 from waldur_core.structure import executors, models
 from waldur_core.structure.registry import SupportedServices, get_service_type
 from waldur_core.structure.serializers import (
@@ -607,7 +606,6 @@ class PrivateServiceSettingsAdmin(ChangeReadonlyMixin, admin.ModelAdmin):
         'error_message',
         'terms_of_services',
     )
-    inlines = [QuotaInline]
     common_fields = (
         'type',
         'name',

@@ -55,7 +55,7 @@ from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import has_permission, permission_factory
 from waldur_core.permissions.views import UserRoleMixin
-from waldur_core.quotas.models import Quota
+from waldur_core.quotas.models import QuotaUsage
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
@@ -2751,11 +2751,17 @@ class StatsViewSet(rf_viewsets.ViewSet):
             project__customer_id=OuterRef('pk'),
         )
 
-        users_count = Quota.objects.filter(
-            object_id=OuterRef('pk'),
-            content_type=ContentType.objects.get_for_model(structure_models.Customer),
-            name='nc_user_count',
-        ).values('usage')[:1]
+        users_count = (
+            QuotaUsage.objects.filter(
+                object_id=OuterRef('pk'),
+                content_type=ContentType.objects.get_for_model(
+                    structure_models.Customer
+                ),
+                name='nc_user_count',
+            )
+            .annotate(usage=Sum('delta'))
+            .values('usage')
+        )
 
         customers = structure_models.Customer.objects.annotate(
             count=Subquery(users_count),

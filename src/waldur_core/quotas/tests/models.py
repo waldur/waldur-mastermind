@@ -14,11 +14,6 @@ class GrandparentModel(
         usage_aggregator_quota = fields.UsageAggregatorQuotaField(
             get_children=lambda scope: ChildModel.objects.filter(parent__parent=scope),
         )
-        limit_aggregator_quota = fields.LimitAggregatorQuotaField(
-            get_children=lambda scope: ChildModel.objects.filter(parent__parent=scope),
-        )
-
-    regular_quota = fields.QuotaLimitField(quota_field=Quotas.regular_quota)
 
 
 class ParentModel(
@@ -40,14 +35,10 @@ class ParentModel(
         delta_quota = fields.CounterQuotaField(
             target_models=lambda: [ChildModel],
             path_to_scope='parent',
-            get_delta=lambda scope: 10,
+            get_delta=lambda _: 10,
         )
         usage_aggregator_quota = fields.UsageAggregatorQuotaField(
             get_children=lambda scope: scope.children.all(),
-        )
-        limit_aggregator_quota = fields.LimitAggregatorQuotaField(
-            get_children=lambda scope: scope.children.all(),
-            default_limit=0,
         )
         second_usage_aggregator_quota = fields.UsageAggregatorQuotaField(
             get_children=lambda scope: scope.children.all(),
@@ -87,9 +78,6 @@ class ChildModel(
         regular_quota = fields.QuotaField()
         usage_aggregator_quota = (
             fields.QuotaField()
-        )  # this quota is aggregated by parent and grandparent
-        limit_aggregator_quota = fields.QuotaField(
-            default_limit=0
         )  # this quota is aggregated by parent and grandparent
 
     def get_parents(self):

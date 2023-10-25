@@ -123,8 +123,7 @@ def get_offering(offering_type, service_settings):
         )
 
 
-def import_quotas(offering, quotas, field):
-    source_values = {row['name']: row[field] for row in quotas.values('name', field)}
+def import_quotas(offering, source_values):
     storage_mode = offering.plugin_options.get('storage_mode') or STORAGE_MODE_FIXED
 
     result_values = {
@@ -154,7 +153,7 @@ def import_usage(resource):
     if not tenant:
         return
 
-    resource.current_usages = import_quotas(resource.offering, tenant.quotas, 'usage')
+    resource.current_usages = import_quotas(resource.offering, tenant.quota_usages)
     resource.save(update_fields=['current_usages'])
     import_current_usages(resource)
 
@@ -169,7 +168,7 @@ def import_limits(resource):
     if not tenant:
         return
 
-    resource.limits = import_quotas(resource.offering, tenant.quotas, 'limit')
+    resource.limits = import_quotas(resource.offering, tenant.quota_limits)
     resource.save(update_fields=['limits'])
 
 
@@ -251,10 +250,8 @@ def import_limits_when_storage_mode_is_switched(resource):
         resource.offering.plugin_options.get('storage_mode') or STORAGE_MODE_FIXED
     )
 
-    raw_limits = {quota.name: quota.limit for quota in tenant.quotas.all()}
-    raw_usages = {
-        quota.name: tenant.get_quota_usage(quota.name) for quota in tenant.quotas.all()
-    }
+    raw_limits = tenant.quota_limits
+    raw_usages = tenant.quota_usages
 
     limits = {
         CORES_TYPE: raw_limits.get(TenantQuotas.vcpu.name, 0),

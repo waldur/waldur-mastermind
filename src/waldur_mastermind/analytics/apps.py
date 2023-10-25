@@ -7,12 +7,12 @@ class AnalyticsConfig(AppConfig):
     verbose_name = 'Analytics'
 
     def ready(self):
-        from waldur_core.quotas.models import Quota
+        from waldur_core.quotas.models import QuotaUsage
 
         from . import handlers
 
         signals.post_save.connect(
             handlers.update_daily_quotas,
-            sender=Quota,
+            sender=QuotaUsage,
             dispatch_uid='waldur_mastermind.analytics.handlers.update_daily_quotas',
         )

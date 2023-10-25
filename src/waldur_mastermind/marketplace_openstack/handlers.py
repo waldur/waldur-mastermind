@@ -318,7 +318,7 @@ def import_resource_metadata_when_resource_is_created(
 
 
 def update_openstack_tenant_usages(sender, instance, created=False, **kwargs):
-    if created:
+    if not created:
         return
 
     if not isinstance(instance.scope, openstack_models.Tenant):

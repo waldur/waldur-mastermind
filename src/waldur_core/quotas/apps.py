@@ -16,40 +16,12 @@ class QuotasConfig(AppConfig):
         from waldur_core.structure import models as structure_models
         from waldur_core.structure import signals as structure_signals
 
-        Quota = self.get_model('Quota')
-
-        for index, model in enumerate(utils.get_models_with_quotas()):
-            signals.post_save.connect(
-                handlers.increase_global_quota,
-                sender=model,
-                dispatch_uid='waldur_core.quotas.handlers.increase_global_quota_%s_%s'
-                % (model.__name__, index),
-            )
-
-            signals.post_delete.connect(
-                handlers.decrease_global_quota,
-                sender=model,
-                dispatch_uid='waldur_core.quotas.handlers.decrease_global_quota_%s_%s'
-                % (model.__name__, index),
-            )
-
-        signals.post_migrate.connect(
-            handlers.create_global_quotas,
-            dispatch_uid="waldur_core.quotas.handlers.create_global_quotas",
-        )
+        QuotaUsage = self.get_model('QuotaUsage')
 
         # new quotas
         from waldur_core.quotas import fields
 
-        for model_index, model in enumerate(utils.get_models_with_quotas()):
-            # quota initialization
-            signals.post_save.connect(
-                handlers.init_quotas,
-                sender=model,
-                dispatch_uid='waldur_core.quotas.init_quotas_%s_%s'
-                % (model.__name__, model_index),
-            )
-
+        for _, model in enumerate(utils.get_models_with_quotas()):
             # Counter quota signals
             # How it works:
             # Each counter quota field has list of target models. Change of target model should increase or decrease
@@ -59,16 +31,22 @@ class QuotasConfig(AppConfig):
             ):
                 self.register_counter_field_signals(model, counter_field)
 
+            signals.pre_delete.connect(
+                handlers.delete_quotas_when_model_is_deleted,
+                sender=model,
+                dispatch_uid='waldur_core.quotas.delete_quotas_when_model_is_deleted',
+            )
+
         # Aggregator quotas signals
         signals.post_save.connect(
             handlers.handle_aggregated_quotas,
-            sender=Quota,
+            sender=QuotaUsage,
             dispatch_uid='waldur_core.quotas.handle_aggregated_quotas_post_save',
         )
 
         signals.pre_delete.connect(
             handlers.handle_aggregated_quotas,
-            sender=Quota,
+            sender=QuotaUsage,
             dispatch_uid='waldur_core.quotas.handle_aggregated_quotas_pre_delete',
         )
 

@@ -1301,8 +1301,8 @@ class OpenStackBackend(BaseOpenStackBackend):
             except neutron_exceptions.NeutronClientException as e:
                 raise OpenStackBackendError(e)
 
-        tenant.set_quota_usage(tenant.Quotas.network_count, 0)
-        tenant.set_quota_usage(tenant.Quotas.subnet_count, 0)
+        tenant.set_quota_usage('network_count', 0)
+        tenant.set_quota_usage('subnet_count', 0)
 
     @log_backend_action()
     def delete_tenant_security_groups(self, tenant):
@@ -2384,21 +2384,13 @@ class OpenStackBackend(BaseOpenStackBackend):
         except nova_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
 
-        self.settings.set_quota_limit(self.settings.Quotas.openstack_vcpu, stats.vcpus)
-        self.settings.set_quota_usage(
-            self.settings.Quotas.openstack_vcpu, stats.vcpus_used
-        )
+        self.settings.set_quota_limit('openstack_vcpu', stats.vcpus)
+        self.settings.set_quota_usage('openstack_vcpu', stats.vcpus_used)
 
-        self.settings.set_quota_limit(
-            self.settings.Quotas.openstack_ram, stats.memory_mb
-        )
-        self.settings.set_quota_usage(
-            self.settings.Quotas.openstack_ram, stats.memory_mb_used
-        )
+        self.settings.set_quota_limit('openstack_ram', stats.memory_mb)
+        self.settings.set_quota_usage('openstack_ram', stats.memory_mb_used)
 
-        self.settings.set_quota_usage(
-            self.settings.Quotas.openstack_storage, self.get_storage_usage()
-        )
+        self.settings.set_quota_usage('openstack_storage', self.get_storage_usage())
 
     def get_storage_usage(self):
         cinder = self.cinder_admin_client

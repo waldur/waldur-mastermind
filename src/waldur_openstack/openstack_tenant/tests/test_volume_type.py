@@ -1,6 +1,7 @@
 from ddt import data, ddt
 from rest_framework import status, test
 
+from waldur_core.quotas.models import QuotaLimit
 from waldur_openstack.openstack_tenant.tests import factories, fixtures
 
 
@@ -29,9 +30,10 @@ class VolumeTypeTest(test.APITransactionTestCase):
 
     def test_quota_for_volume_type_is_deleted_from_private_settings(self):
         self.fixture.tenant.set_quota_limit('gigabytes_ssd', 100)
-        self.fixture.tenant.quotas.get(name='gigabytes_ssd').delete()
+        QuotaLimit.objects.get(scope=self.fixture.tenant, name='gigabytes_ssd').delete()
         self.assertFalse(
-            self.fixture.openstack_tenant_service_settings.quotas.filter(
-                name='gigabytes_ssd'
+            QuotaLimit.objects.filter(
+                scope=self.fixture.openstack_tenant_service_settings,
+                name='gigabytes_ssd',
             ).exists()
         )

@@ -266,7 +266,7 @@ def notify_about_user_profile_changes(sender, instance, created=False, **kwargs)
 def update_customer_users_count(sender, **kwargs):
     for customer in Customer.objects.all():
         usage = count_customer_users(customer)
-        customer.set_quota_usage(Customer.Quotas.nc_user_count, usage)
+        customer.set_quota_usage('nc_user_count', usage)
 
 
 def change_email_has_been_requested(sender, instance, created=False, **kwargs):

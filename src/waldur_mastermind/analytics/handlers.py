@@ -11,12 +11,12 @@ def update_daily_quotas(sender, instance, created=False, **kwargs):
     ):
         return
 
-    if not created and not instance.tracker.has_changed('usage'):
+    if not created:
         return
 
     models.DailyQuotaHistory.objects.update_or_create_quota(
         scope=instance.scope,
         name=instance.name,
         date=timezone.now().date(),
-        usage=instance.usage,
+        usage=instance.scope.get_quota_usage(instance.name),
     )
