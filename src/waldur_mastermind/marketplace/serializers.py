@@ -36,7 +36,6 @@ from waldur_core.media.serializers import (
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import count_users, has_permission
-from waldur_core.quotas.serializers import BasicQuotaSerializer
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
@@ -959,7 +958,7 @@ class OfferingDetailsSerializer(
     scope_uuid = serializers.ReadOnlyField(source='scope.uuid')
     scope_state = serializers.ReadOnlyField(source='scope.get_state_display')
     files = NestedOfferingFileSerializer(many=True, read_only=True)
-    quotas = serializers.SerializerMethodField()
+    quotas = serializers.ReadOnlyField(source='scope.quotas')
     divisions = structure_serializers.DivisionSerializer(many=True, read_only=True)
     total_customers = serializers.ReadOnlyField()
     total_cost = serializers.ReadOnlyField()
@@ -1118,12 +1117,6 @@ class OfferingDetailsSerializer(
             return offering.get_quota_usage('order_item_count')
         except ObjectDoesNotExist:
             return 0
-
-    def get_quotas(self, offering):
-        if getattr(offering, 'scope', None) and hasattr(offering.scope, 'quotas'):
-            return BasicQuotaSerializer(
-                offering.scope.quotas, many=True, context=self.context
-            ).data
 
     def get_components(self, offering):
         qs = (offering.parent or offering).components

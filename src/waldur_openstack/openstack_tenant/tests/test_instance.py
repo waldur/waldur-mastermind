@@ -171,7 +171,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
 
     @data('instances')
     def test_quota_validation(self, quota_name):
-        self.openstack_settings.quotas.filter(name=quota_name).update(limit=0)
+        self.openstack_settings.set_quota_limit(quota_name, 0)
         response = self.create_instance(self.get_valid_data())
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -318,9 +318,9 @@ class InstanceCreateTest(test.APITransactionTestCase):
         self.assertEqual(instance.floating_ips.count(), 1)
 
     def test_user_cannot_allocate_floating_ip_if_quota_limit_is_reached(self):
-        self.openstack_settings.quotas.filter(
-            name=self.openstack_settings.Quotas.floating_ip_count
-        ).update(limit=0)
+        self.openstack_settings.set_quota_limit(
+            self.openstack_settings.Quotas.floating_ip_count, 0
+        )
         subnet_url = factories.SubNetFactory.get_url(self.subnet)
         self.openstack_tenant_fixture.floating_ip.status = 'ACTIVE'
         self.openstack_tenant_fixture.floating_ip.save()

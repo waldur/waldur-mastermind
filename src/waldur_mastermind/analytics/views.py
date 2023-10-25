@@ -2,11 +2,11 @@ import collections
 from datetime import timedelta
 
 from django.contrib.contenttypes.models import ContentType
-from django.db.models.expressions import OuterRef, Subquery
+from django.db.models import OuterRef, Subquery, Sum
 from rest_framework import status, viewsets
 from rest_framework.response import Response
 
-from waldur_core.quotas.models import Quota
+from waldur_core.quotas.models import QuotaUsage
 from waldur_core.structure.models import Project
 from waldur_mastermind.billing.models import PriceEstimate
 from waldur_mastermind.invoices.models import InvoiceItem
@@ -90,12 +90,16 @@ class ProjectQuotasViewSet(viewsets.GenericViewSet):
         )
 
     def annotate_quotas(self, quota_name, content_type):
-        quotas = Quota.objects.filter(
-            object_id=OuterRef('pk'),
-            content_type=content_type,
-            name=quota_name,
+        quotas = (
+            QuotaUsage.objects.filter(
+                object_id=OuterRef('pk'),
+                content_type=content_type,
+                name=quota_name,
+            )
+            .annotate(usage=Sum('usage'))
+            .values('usage')
         )
-        subquery = Subquery(quotas.values('usage')[:1])
+        subquery = Subquery(quotas)
         return Project.available_objects.annotate(value=subquery)
 
     def annotate_estimated_price(self, content_type):

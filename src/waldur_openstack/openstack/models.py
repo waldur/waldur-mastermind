@@ -85,28 +85,24 @@ class SecurityGroup(structure_models.SubResource):
     def get_url_name(cls):
         return 'openstack-sgp'
 
-    def increase_backend_quotas_usage(self, validate=True):
+    def increase_backend_quotas_usage(self, validate=False):
+        self.tenant.add_quota_usage('security_group_count', 1, validate=validate)
         self.tenant.add_quota_usage(
-            self.tenant.Quotas.security_group_count, 1, validate=validate
-        )
-        self.tenant.add_quota_usage(
-            self.tenant.Quotas.security_group_rule_count,
+            'security_group_rule_count',
             self.rules.count(),
             validate=validate,
         )
 
     def decrease_backend_quotas_usage(self):
-        self.tenant.add_quota_usage(self.tenant.Quotas.security_group_count, -1)
-        self.tenant.add_quota_usage(
-            self.tenant.Quotas.security_group_rule_count, -self.rules.count()
-        )
+        self.tenant.add_quota_usage('security_group_count', -1)
+        self.tenant.add_quota_usage('security_group_rule_count', -self.rules.count())
 
     def change_backend_quotas_usage_on_rules_update(
-        self, old_rules_count, validate=True
+        self, old_rules_count, validate=False
     ):
         count = self.rules.count() - old_rules_count
         self.tenant.add_quota_usage(
-            self.tenant.Quotas.security_group_rule_count, count, validate=validate
+            'security_group_rule_count', count, validate=validate
         )
 
     @classmethod
@@ -190,13 +186,11 @@ class FloatingIP(core_models.RuntimeStateMixin, structure_models.SubResource):
             'port',
         )
 
-    def increase_backend_quotas_usage(self, validate=True):
-        self.tenant.add_quota_usage(
-            self.tenant.Quotas.floating_ip_count, 1, validate=validate
-        )
+    def increase_backend_quotas_usage(self, validate=False):
+        self.tenant.add_quota_usage('floating_ip_count', 1, validate=validate)
 
     def decrease_backend_quotas_usage(self):
-        self.tenant.add_quota_usage(self.tenant.Quotas.floating_ip_count, -1)
+        self.tenant.add_quota_usage('floating_ip_count', -1)
 
 
 class Tenant(structure_models.PrivateCloud):
@@ -331,13 +325,11 @@ class Network(core_models.RuntimeStateMixin, structure_models.SubResource):
     def get_url_name(cls):
         return 'openstack-network'
 
-    def increase_backend_quotas_usage(self, validate=True):
-        self.tenant.add_quota_usage(
-            self.tenant.Quotas.network_count, 1, validate=validate
-        )
+    def increase_backend_quotas_usage(self, validate=False):
+        self.tenant.add_quota_usage('network_count', 1, validate=validate)
 
     def decrease_backend_quotas_usage(self):
-        self.tenant.add_quota_usage(self.tenant.Quotas.network_count, -1)
+        self.tenant.add_quota_usage('network_count', -1)
 
     @classmethod
     def get_backend_fields(cls):
@@ -373,13 +365,11 @@ class SubNet(openstack_base_models.BaseSubNet, structure_models.SubResource):
     def get_url_name(cls):
         return 'openstack-subnet'
 
-    def increase_backend_quotas_usage(self, validate=True):
-        self.network.tenant.add_quota_usage(
-            self.network.tenant.Quotas.subnet_count, 1, validate=validate
-        )
+    def increase_backend_quotas_usage(self, validate=False):
+        self.network.tenant.add_quota_usage('subnet_count', 1, validate=validate)
 
     def decrease_backend_quotas_usage(self):
-        self.network.tenant.add_quota_usage(self.network.tenant.Quotas.subnet_count, -1)
+        self.network.tenant.add_quota_usage('subnet_count', -1)
 
     @classmethod
     def get_backend_fields(cls):

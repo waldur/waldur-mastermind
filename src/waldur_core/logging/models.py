@@ -6,7 +6,6 @@ from django.apps import apps
 from django.conf import settings
 from django.contrib.contenttypes import fields as ct_fields
 from django.contrib.contenttypes import models as ct_models
-from django.core import validators
 from django.db import models
 from django.template.loader import render_to_string
 from django.utils import timezone
@@ -31,39 +30,6 @@ class UuidMixin(models.Model):
         abstract = True
 
     uuid = UUIDField()
-
-
-class AlertThresholdMixin(models.Model):
-    """
-    It is expected that model has scope field.
-    """
-
-    class Meta:
-        abstract = True
-
-    threshold = models.FloatField(
-        default=0, validators=[validators.MinValueValidator(0)]
-    )
-
-    def is_over_threshold(self):
-        """
-        If returned value is True, alert is generated.
-        """
-        raise NotImplementedError
-
-    @classmethod
-    @lru_cache(maxsize=1)
-    def get_all_models(cls):
-        from django.apps import apps
-
-        return [model for model in apps.get_models() if issubclass(model, cls)]
-
-    @classmethod
-    def get_checkable_objects(cls):
-        """
-        It should return queryset of objects that should be checked.
-        """
-        return cls.objects.all()
 
 
 class EventTypesMixin(models.Model):

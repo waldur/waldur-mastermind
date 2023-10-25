@@ -108,10 +108,10 @@ class GroupSynchronizer:
 
     def get_limits(self, model):
         ctype = ContentType.objects.get_for_model(model)
-        customer_quotas = quota_models.Quota.objects.filter(
+        customer_quotas = quota_models.QuotaLimit.objects.filter(
             content_type=ctype, name=utils.QUOTA_NAME
-        ).only('object_id', 'limit')
-        return {quota.object_id: quota.limit for quota in customer_quotas}
+        ).only('object_id', 'value')
+        return {quota.object_id: quota.value for quota in customer_quotas}
 
     def collect_waldur_customers(self):
         limits = self.get_limits(structure_models.Customer)

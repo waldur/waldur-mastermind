@@ -83,13 +83,13 @@ def log_tenant_quota_update(sender, instance, created=False, **kwargs):
     if created or not isinstance(quota.scope, Tenant):
         return
 
-    if not quota.tracker.has_changed('limit'):
+    if not quota.tracker.has_changed('value'):
         return
 
     tenant = quota.scope
-    new_value_representation = quota.scope.format_quota(quota.name, quota.limit)
+    new_value_representation = quota.scope.format_quota(quota.name, quota.value)
     old_value_representation = quota.scope.format_quota(
-        quota.name, quota.tracker.previous('limit')
+        quota.name, quota.tracker.previous('value')
     )
     event_logger.openstack_tenant_quota.info(
         '{quota_name} quota limit has been changed from %s to %s for tenant {tenant_name}.'
@@ -98,8 +98,8 @@ def log_tenant_quota_update(sender, instance, created=False, **kwargs):
         event_context={
             'quota_name': quota.name,
             'tenant': tenant,
-            'limit': float(quota.limit),
-            'old_limit': float(quota.tracker.previous('limit')),
+            'limit': quota.value,
+            'old_limit': quota.tracker.previous('value'),
         },
     )
 

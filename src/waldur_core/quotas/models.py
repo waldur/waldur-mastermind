@@ -1,37 +1,45 @@
+"""
+Quota limit is not updated concurrently.
+Quota usage is updated concurrently.
+In order to avoid shared write deadlock we use INSERT instead of UPDATE statement.
+That's why for usage we store delta instead of aggregated SUM value.
+And we use SUM function when we read quota usage.
+"""
 import inspect
 import logging
 
 from django.contrib.contenttypes import fields as ct_fields
 from django.contrib.contenttypes import models as ct_models
-from django.core.exceptions import ObjectDoesNotExist
 from django.db import models, transaction
 from django.db.models import Sum
 from django.utils.translation import gettext_lazy as _
 from model_utils import FieldTracker
 
-from waldur_core.core.models import DescendantMixin, UuidMixin
-from waldur_core.logging.loggers import LoggableMixin
-from waldur_core.logging.models import AlertThresholdMixin
 from waldur_core.quotas import exceptions, fields, managers
 
 logger = logging.getLogger(__name__)
 
 
-class Quota(UuidMixin, AlertThresholdMixin, LoggableMixin, models.Model):
-    """
-    Abstract quota for any resource.
+class QuotaLimit(models.Model):
+    name = models.CharField(max_length=150, db_index=True)
+    value = models.IntegerField(default=-1)
 
-    Quota can exist without scope: for example, a quota for all projects or all
-    customers on site.
-    If quota limit is set to -1 quota will never be exceeded.
-    """
+    content_type = models.ForeignKey(
+        on_delete=models.CASCADE, to=ct_models.ContentType, null=True
+    )
+    object_id = models.PositiveIntegerField(null=True)
+    scope = ct_fields.GenericForeignKey('content_type', 'object_id')
+
+    tracker = FieldTracker(fields=['value'])
+    objects = managers.QuotaManager('scope')
 
     class Meta:
         unique_together = (('name', 'content_type', 'object_id'),)
 
-    limit = models.FloatField(default=-1)
-    usage = models.FloatField(default=0)
+
+class QuotaUsage(models.Model):
     name = models.CharField(max_length=150, db_index=True)
+    delta = models.IntegerField(default=0)
 
     content_type = models.ForeignKey(
         on_delete=models.CASCADE, to=ct_models.ContentType, null=True
@@ -40,47 +48,6 @@ class Quota(UuidMixin, AlertThresholdMixin, LoggableMixin, models.Model):
     scope = ct_fields.GenericForeignKey('content_type', 'object_id')
 
     objects = managers.QuotaManager('scope')
-    tracker = FieldTracker()
-
-    def __str__(self):
-        return f'{self.name} quota for {self.scope}'
-
-    def is_exceeded(self, delta=None, threshold=None):
-        """
-        Check is quota exceeded
-
-        If delta is not None then checks if quota exceeds with additional delta usage
-        If threshold is not None then checks if quota usage over threshold * limit
-        """
-        if self.limit == -1:
-            return False
-
-        # Allow to decrease quota usage
-        if delta < 0:
-            return False
-
-        usage = self.usage
-        limit = self.limit
-
-        if delta is not None:
-            usage += delta
-        if threshold is not None:
-            limit = threshold * limit
-
-        return usage > limit
-
-    def get_log_fields(self):
-        return ('uuid', 'name', 'limit', 'usage', 'scope')
-
-    def get_field(self):
-        fields = self.scope.get_quotas_fields()
-        try:
-            return next(f for f in fields if f.name == self.name)
-        except StopIteration:
-            return
-
-    def is_over_threshold(self):
-        return self.usage >= self.threshold
 
 
 class QuotaModelMixin(models.Model):
@@ -90,9 +57,6 @@ class QuotaModelMixin(models.Model):
     Model with quotas have inherit this mixin.
     For quotas implementation such methods and fields have to be defined:
       - class Quota(QuotaModelMixin) - class with quotas fields as attributes.
-      - can_user_update_quotas(self, user) - Return True if user has permission to update quotas of this object.
-      - GLOBAL_COUNT_QUOTA_NAME - Name of global count quota. It presents - global quota will be automatically created
-                                  for model. Optional attribute.
 
     Example:
         Customer(models.Model):
@@ -100,18 +64,8 @@ class QuotaModelMixin(models.Model):
             Quotas(quotas_models.QuotaModelMixin.Quotas):
                 nc_user_count = quotas_fields.QuotaField()  # define user count quota for customers
 
-            # optional descriptor to direct access to quota
-            nc_user_count = quotas_fields.QuotaLimitField(quota_field=Quotas.nc_user_count)
-
-            def can_user_update_quotas(self, user):
-                # only staff user can edit Customer quotas
-                return user.is_staff
-
     Use such methods to change objects quotas:
       set_quota_limit, set_quota_usage, add_quota_usage.
-
-    Helper methods validate_quota_change and get_sum_of_quotas_as_dict provide common operations with objects quotas.
-    Check methods docstrings for more details.
     """
 
     class Quotas(metaclass=fields.FieldsContainerMeta):
@@ -121,89 +75,49 @@ class QuotaModelMixin(models.Model):
     class Meta:
         abstract = True
 
-    quotas = ct_fields.GenericRelation('quotas.Quota', related_query_name='quotas')
+    def get_quota_limit(self, quota_name):
+        try:
+            return QuotaLimit.objects.get(scope=self, name=quota_name).value
+        except QuotaLimit.DoesNotExist:
+            field = getattr(self.Quotas, quota_name, None)
+            if field:
+                return field.default_limit
+            return -1
 
-    def get_or_create_quota(self, quota_name_or_field):
-        if isinstance(quota_name_or_field, str):
-            try:
-                quota_name_or_field = getattr(self.Quotas, quota_name_or_field)
-            except AttributeError:
-                quota, _ = self.quotas.get_or_create(name=quota_name_or_field)
-                return quota
-        quota, _ = quota_name_or_field.get_or_create_quota(self)
-        return quota
-
-    @transaction.atomic
     def set_quota_limit(self, quota_name, limit):
-        quota = self.get_or_create_quota(quota_name)
-        if quota.limit != limit:
-            quota.limit = limit
-            quota.save(update_fields=['limit'])
+        QuotaLimit.objects.update_or_create(
+            object_id=self.id,
+            content_type=ct_models.ContentType.objects.get_for_model(self),
+            name=quota_name,
+            defaults={'value': limit},
+        )
+
+    def get_quota_usage(self, quota_name):
+        qs = QuotaUsage.objects.filter(scope=self, name=quota_name)
+        return max(
+            0,
+            qs.aggregate(sum=Sum('delta'))['sum'] or 0,
+        )
 
     @transaction.atomic
     def set_quota_usage(self, quota_name, usage):
-        quota = self.get_or_create_quota(quota_name)
-        if quota.usage != usage:
-            quota.usage = usage
-            quota.save(update_fields=['usage'])
+        current = self.get_quota_usage(quota_name)
+        self.add_quota_usage(quota_name, usage - current)
 
-    def get_quota_usage(self, quota_name):
-        return self.quotas.get(name=quota_name).usage
+    def add_quota_usage(self, quota_name, delta, validate=False):
+        if validate:
+            self.validate_quota_change({quota_name: delta})
+        QuotaUsage.objects.create(scope=self, name=quota_name, delta=delta)
 
-    def get_quota_limit(self, quota_name):
-        return self.quotas.get(name=quota_name).limit
+    def apply_quota_usage(self, quota_deltas):
+        for name, delta in quota_deltas.items():
+            QuotaUsage.objects.create(scope=self, name=name, delta=delta)
 
-    @transaction.atomic
-    def add_quota_usage(self, quota_name, usage_delta, validate=False):
-        if usage_delta < 0:
-            # Skip update if it would result in negative value.
-            # We need to use save so that pre_save/post_save signals are emitted.
-            for quota in self.quotas.filter(name=quota_name, usage__gte=-usage_delta):
-                quota.usage += usage_delta
-                quota.save(update_fields=['usage'])
-                return
-        quota = self.get_or_create_quota(quota_name)
-        if validate and quota.is_exceeded(usage_delta):
-            raise exceptions.QuotaValidationError(
-                _(
-                    '%(quota)s "%(name)s" quota is over limit. Required: %(usage)s, limit: %(limit)s.'
-                )
-                % dict(
-                    quota=self,
-                    name=quota_name,
-                    usage=quota.usage + usage_delta,
-                    limit=quota.limit,
-                )
-            )
-        quota.usage += usage_delta
-        if quota.usage < 0:
-            logger.error(
-                '%(quota)s "%(name)s" quota usage should not be negative. '
-                'Current usage: %(usage)s, delta: %(usage_delta)s',
-                dict(
-                    quota=self,
-                    name=quota_name,
-                    usage=quota.usage,
-                    usage_delta=usage_delta,
-                ),
-            )
-            quota.usage = 0
-        quota.save(update_fields=['usage'])
-
-    def get_quota_ancestors(self):
-        if isinstance(self, DescendantMixin):
-            # We need to use set in order to eliminate duplicates.
-            # Consider, for example, two ways of traversing from resource to customer:
-            # resource -> project -> customer
-            # resource -> service -> customer
-            return {a for a in self.get_ancestors() if isinstance(a, QuotaModelMixin)}
-        return {}
-
-    def validate_quota_change(self, quota_deltas, raise_exception=False):
+    def validate_quota_change(self, quota_deltas):
         """
         Get error messages about object and his ancestor quotas that will be exceeded if quota_delta will be added.
 
-        raise_exception - if True QuotaExceededException will be raised if validation fails
+        raise_exception - if True QuotaValidationError will be raised if validation fails
         quota_deltas - dictionary of quotas deltas, example:
         {
             'ram': 1024,
@@ -216,89 +130,18 @@ class QuotaModelMixin(models.Model):
         """
         errors = []
         for name, delta in quota_deltas.items():
-            try:
-                quota = self.quotas.get(name=name)
-            except ObjectDoesNotExist:
+            if not delta:
                 continue
-            if quota.is_exceeded(delta):
-                errors.append(
-                    '%s quota limit: %s, requires %s (%s)\n'
-                    % (quota.name, quota.limit, quota.usage + delta, quota.scope)
-                )
-        if not raise_exception:
-            return errors
-        else:
-            if errors:
-                raise exceptions.QuotaExceededException(
-                    _('One or more quotas were exceeded: %s') % ';'.join(errors)
-                )
-
-    def can_user_update_quotas(self, user):
-        """
-        Return True if user has permission to update quota
-        """
-        return user.is_staff
-
-    @classmethod
-    def get_sum_of_quotas_as_dict(
-        cls, scopes, quota_names=None, fields=['usage', 'limit']
-    ):
-        """
-        Return dictionary with sum of all scopes' quotas.
-
-        Dictionary format:
-        {
-            'quota_name1': 'sum of limits for quotas with such quota_name1',
-            'quota_name1_usage': 'sum of usages for quotas with such quota_name1',
-            ...
-        }
-        All `scopes` have to be instances of the same model.
-        `fields` keyword argument defines sum of which fields of quotas will present in result.
-        """
-        if not scopes:
-            return {}
-
-        if quota_names is None:
-            quota_names = cls.get_quotas_names()
-
-        scope_models = set([scope._meta.model for scope in scopes])
-        if len(scope_models) > 1:
-            raise exceptions.QuotaError(
-                _('All scopes have to be instances of the same model.')
+            usage = self.get_quota_usage(name)
+            limit = self.get_quota_limit(name)
+            if limit == -1:
+                continue
+            if usage + delta > limit:
+                errors.append(f'{name} quota limit: {limit}, requires {usage + delta}')
+        if errors:
+            raise exceptions.QuotaValidationError(
+                _('One or more quotas were exceeded: %s') % ';'.join(errors)
             )
-
-        filter_kwargs = {
-            'content_type': ct_models.ContentType.objects.get_for_model(scopes[0]),
-            'object_id__in': [scope.id for scope in scopes],
-            'name__in': quota_names,
-        }
-
-        result = {}
-        if 'usage' in fields:
-            items = (
-                Quota.objects.filter(**filter_kwargs)
-                .values('name')
-                .annotate(usage=Sum('usage'))
-            )
-            for item in items:
-                result[item['name'] + '_usage'] = item['usage']
-
-        if 'limit' in fields:
-            unlimited_quotas = Quota.objects.filter(limit=-1, **filter_kwargs)
-            unlimited_quotas = list(unlimited_quotas.values_list('name', flat=True))
-            for quota_name in unlimited_quotas:
-                result[quota_name] = -1
-
-            items = (
-                Quota.objects.filter(**filter_kwargs)
-                .exclude(name__in=unlimited_quotas)
-                .values('name')
-                .annotate(limit=Sum('limit'))
-            )
-            for item in items:
-                result[item['name']] = item['limit']
-
-        return result
 
     @classmethod
     def get_quotas_fields(cls, field_class=None):
@@ -315,6 +158,35 @@ class QuotaModelMixin(models.Model):
     @classmethod
     def get_quotas_names(cls):
         return [f.name for f in cls.get_quotas_fields()]
+
+    @property
+    def quota_usages(self):
+        return {
+            row['name']: row['value'] or 0
+            for row in QuotaUsage.objects.filter(scope=self)
+            .values('name')
+            .annotate(value=Sum('delta'))
+        }
+
+    @property
+    def quota_limits(self):
+        return {
+            row['name']: row['value'] or -1
+            for row in QuotaLimit.objects.filter(scope=self).values('name', 'value')
+        }
+
+    @property
+    def quotas(self):
+        usages = self.quota_usages
+        limits = self.quota_limits
+        return [
+            {
+                'name': name,
+                'usage': usages.get(name) or 0,
+                'limit': limits.get(name) or -1,
+            }
+            for name in self.get_quotas_names()
+        ]
 
 
 class ExtendableQuotaModelMixin(QuotaModelMixin):
@@ -373,7 +245,7 @@ class SharedQuotaMixin:
         """
         raise NotImplementedError()
 
-    def apply_quota_changes(self, validate=False, mult=1):
+    def apply_quota_changes(self, mult=1, validate=False):
         scopes = self.get_quota_scopes()
         deltas = self.get_quota_deltas()
         for name, delta in deltas.items():
@@ -381,7 +253,7 @@ class SharedQuotaMixin:
                 if scope:
                     scope.add_quota_usage(name, delta * mult, validate=validate)
 
-    def increase_backend_quotas_usage(self, validate=True):
+    def increase_backend_quotas_usage(self, validate=False):
         self.apply_quota_changes(validate=validate)
 
     def decrease_backend_quotas_usage(self):

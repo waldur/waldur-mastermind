@@ -17,7 +17,6 @@ from rest_framework.reverse import reverse
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
 from waldur_core.core import utils as core_utils
-from waldur_core.quotas import serializers as quotas_serializers
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.permissions import _has_admin_access
@@ -56,9 +55,7 @@ class OpenStackTenantServiceSerializer(BaseOpenStackServiceSerializer):
 
     # Expose service settings quotas as service quotas as a temporary workaround.
     # It is needed in order to render quotas table in service provider details dialog.
-    quotas = quotas_serializers.BasicQuotaSerializer(
-        many=True, read_only=True, source='settings.quotas'
-    )
+    quotas = serializers.ReadOnlyField(source='settings.quotas')
 
 
 class BaseAvailabilityZoneSerializer(structure_serializers.BasePropertySerializer):
@@ -390,13 +387,13 @@ class VolumeExtendSerializer(serializers.Serializer):
 
     @transaction.atomic
     def update(self, instance: models.Volume, validated_data):
-        new_size = validated_data.get('disk_size')
+        new_size = validated_data['disk_size']
 
         for quota_holder in instance.get_quota_scopes():
             if not quota_holder:
                 continue
             quota_holder.add_quota_usage(
-                quota_holder.Quotas.storage, new_size - instance.size, validate=True
+                'storage', new_size - instance.size, validate=True
             )
             if instance.type:
                 key = 'gigabytes_' + instance.type.name
@@ -493,9 +490,7 @@ class VolumeRetypeSerializer(serializers.HyperlinkedModelSerializer):
             if not quota_holder:
                 continue
             quota_holder.add_quota_usage(
-                'gigabytes_' + old_type.name,
-                -1 * instance.size / 1024,
-                validate=True,
+                'gigabytes_' + old_type.name, -1 * instance.size / 1024, validate=True
             )
             quota_holder.add_quota_usage(
                 'gigabytes_' + new_type.name, instance.size / 1024, validate=True
@@ -560,7 +555,7 @@ class SnapshotRestorationSerializer(
             volume.type = snapshot.source_volume.type
 
         volume.save()
-        volume.increase_backend_quotas_usage()
+        volume.increase_backend_quotas_usage(validate=True)
         validated_data['volume'] = volume
 
         return super().create(validated_data)
@@ -979,7 +974,7 @@ def _connect_floating_ip_to_instance(floating_ip, subnet, instance):
         )
         if not floating_ip:
             floating_ip = models.FloatingIP(**kwargs)
-            floating_ip.increase_backend_quotas_usage()
+            floating_ip.increase_backend_quotas_usage(validate=True)
     floating_ip.is_booked = True
     floating_ip.internal_ip = models.InternalIP.objects.filter(
         instance=instance, subnet=subnet
@@ -1371,7 +1366,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
             volumes.append(data_volume)
 
         for volume in volumes:
-            volume.increase_backend_quotas_usage()
+            volume.increase_backend_quotas_usage(validate=True)
 
         instance.volumes.add(*volumes)
         return instance
@@ -1414,10 +1409,10 @@ class InstanceFlavorChangeSerializer(serializers.Serializer):
 
         for quota_holder in quota_holders:
             quota_holder.add_quota_usage(
-                quota_holder.Quotas.ram, flavor.ram - instance.ram, validate=True
+                'ram', flavor.ram - instance.ram, validate=True
             )
             quota_holder.add_quota_usage(
-                quota_holder.Quotas.vcpu, flavor.cores - instance.cores, validate=True
+                'vcpu', flavor.cores - instance.cores, validate=True
             )
 
         instance.ram = flavor.ram
@@ -1701,7 +1696,7 @@ class BackupRestorationSerializer(serializers.HyperlinkedModelSerializer):
         for floating_ip, subnet in validated_data.pop('floating_ips', []):
             _connect_floating_ip_to_instance(floating_ip, subnet, instance)
 
-        instance.increase_backend_quotas_usage()
+        instance.increase_backend_quotas_usage(validate=True)
         validated_data['instance'] = instance
         backup_restoration = super().create(validated_data)
         # restoration for each instance volume from snapshot.
@@ -1715,7 +1710,7 @@ class BackupRestorationSerializer(serializers.HyperlinkedModelSerializer):
                 size=snapshot.size,
             )
             volume.save()
-            volume.increase_backend_quotas_usage()
+            volume.increase_backend_quotas_usage(validate=True)
             instance.volumes.add(volume)
         return backup_restoration
 
@@ -1816,7 +1811,7 @@ class BackupSerializer(structure_serializers.BaseResourceActionSerializer):
                 description='Part of backup %s (UUID: %s)'
                 % (backup.name, backup.uuid.hex),
             )
-            snapshot.increase_backend_quotas_usage()
+            snapshot.increase_backend_quotas_usage(validate=True)
             backup.snapshots.add(snapshot)
 
 

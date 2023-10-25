@@ -344,7 +344,7 @@ class ScheduleSnapshots(BaseScheduleTask):
             size=schedule.source_volume.size,
             kept_until=kept_until,
         )
-        snapshot.increase_backend_quotas_usage()
+        snapshot.increase_backend_quotas_usage(validate=True)
         return snapshot
 
     def _get_create_executor(self):

@@ -14,13 +14,9 @@ from waldur_core.quotas import models as quotas_models
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import utils as structure_utils
 from waldur_geo_ip.utils import get_coordinates_by_ip
-from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack_base import models as openstack_base_models
 
 logger = logging.getLogger(__name__)
-
-
-TenantQuotas = openstack_models.Tenant.Quotas
 
 
 class Flavor(core_models.StateMixin, LoggableMixin, structure_models.ServiceProperty):
@@ -130,13 +126,11 @@ class FloatingIP(core_models.LoggableMixin, structure_models.ServiceProperty):
     def get_backend(self):
         return self.settings.get_backend()
 
-    def increase_backend_quotas_usage(self, validate=True):
-        self.settings.add_quota_usage(
-            self.settings.Quotas.floating_ip_count, 1, validate=validate
-        )
+    def increase_backend_quotas_usage(self, validate=False):
+        self.settings.add_quota_usage('floating_ip_count', 1, validate=validate)
 
     def decrease_backend_quotas_usage(self):
-        self.settings.add_quota_usage(self.settings.Quotas.floating_ip_count, -1)
+        self.settings.add_quota_usage('floating_ip_count', -1)
 
     @classmethod
     def get_backend_fields(cls):
@@ -202,9 +196,9 @@ class Volume(TenantQuotaMixin, structure_models.Volume):
 
     def get_quota_deltas(self):
         deltas = {
-            TenantQuotas.volumes: 1,
-            TenantQuotas.volumes_size: self.size,
-            TenantQuotas.storage: self.size,
+            'volumes': 1,
+            'volumes_size': self.size,
+            'storage': self.size,
         }
         if self.type:
             deltas['gigabytes_' + self.type.name] = self.size / 1024
@@ -270,8 +264,8 @@ class Snapshot(TenantQuotaMixin, structure_models.Snapshot):
 
     def get_quota_deltas(self):
         deltas = {
-            TenantQuotas.snapshots: 1,
-            TenantQuotas.snapshots_size: self.size,
+            'snapshots': 1,
+            'snapshots_size': self.size,
         }
         return deltas
 
@@ -423,9 +417,9 @@ class Instance(TenantQuotaMixin, structure_models.VirtualMachine):
 
     def get_quota_deltas(self):
         return {
-            TenantQuotas.instances: 1,
-            TenantQuotas.ram: self.ram,
-            TenantQuotas.vcpu: self.cores,
+            'instances': 1,
+            'ram': self.ram,
+            'vcpu': self.cores,
         }
 
     @property

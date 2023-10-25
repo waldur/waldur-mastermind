@@ -75,23 +75,23 @@ class SshKeysHandlersTest(TestCase):
 
 
 class LogTenantQuotaUpdateTest(TestCase):
-    @patch('waldur_openstack.openstack.handlers.event_logger')
-    def test_logger_called_on_quota_limit_update(self, logger_mock):
+    def test_logger_called_on_quota_limit_update(self):
         tenant = factories.TenantFactory()
-        old_limit = tenant.get_quota_limit('vcpu')
+        tenant.set_quota_limit('vcpu', 10)
 
-        tenant.set_quota_limit('vcpu', old_limit + 1)
+        with patch('waldur_openstack.openstack.handlers.event_logger') as logger_mock:
+            tenant.set_quota_limit('vcpu', 20)
 
-        logger_mock.openstack_tenant_quota.info.assert_called_once_with(
-            mock.ANY,
-            event_type='openstack_tenant_quota_limit_updated',
-            event_context={
-                'quota_name': 'vcpu',
-                'tenant': tenant,
-                'limit': float(old_limit + 1),
-                'old_limit': float(old_limit),
-            },
-        )
+            logger_mock.openstack_tenant_quota.info.assert_called_once_with(
+                mock.ANY,
+                event_type='openstack_tenant_quota_limit_updated',
+                event_context={
+                    'quota_name': 'vcpu',
+                    'tenant': tenant,
+                    'limit': 20,
+                    'old_limit': 10,
+                },
+            )
 
 
 class UpdateServiceSettingsNameHandlerTest(TestCase):

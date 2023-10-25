@@ -265,7 +265,7 @@ class MarketplaceOpenStackConfig(AppConfig):
 
         signals.post_save.connect(
             handlers.update_openstack_tenant_usages,
-            sender=quota_models.Quota,
+            sender=quota_models.QuotaUsage,
             dispatch_uid='waldur_mastermind.marketplace_openstack.'
             'update_openstack_tenant_usages',
         )

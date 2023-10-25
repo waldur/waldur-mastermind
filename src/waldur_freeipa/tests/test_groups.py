@@ -2,11 +2,11 @@ from unittest import mock
 
 from django.test import TestCase
 
-from waldur_core.quotas import models as quota_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_freeipa import models
 from waldur_freeipa.backend import FreeIPABackend
+from waldur_freeipa.utils import QUOTA_NAME
 
 
 @mock.patch('python_freeipa.Client')
@@ -22,7 +22,7 @@ class GroupTest(TestCase):
 
     def test_customer_quota_is_serialized_as_group_description(self, mock_client):
         customer = structure_factories.CustomerFactory(name='customer')
-        quota_models.Quota.objects.create(scope=customer, limit=100)
+        customer.set_quota_limit(QUOTA_NAME, 100)
         mock_client().group_find.return_value = {'result': []}
         FreeIPABackend().synchronize_groups()
         mock_client().group_add.has_calls(
@@ -49,7 +49,7 @@ class GroupTest(TestCase):
 
     def test_project_quota_is_serialized_as_group_description(self, mock_client):
         project = structure_factories.ProjectFactory(name='project')
-        quota_models.Quota.objects.create(scope=project, limit=100)
+        project.set_quota_limit(QUOTA_NAME, 100)
         mock_client().group_find.return_value = {'result': []}
         FreeIPABackend().synchronize_groups()
         mock_client().group_add.has_calls(

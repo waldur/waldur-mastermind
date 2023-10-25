@@ -100,8 +100,8 @@ class BackupScheduleTaskTest(TestCase):
         scope = self.instance.service_settings
 
         # Usage is equal to limit
-        scope.set_quota_limit(TenantQuotas.snapshots, 2)
-        scope.set_quota_usage(TenantQuotas.snapshots, 2)
+        scope.set_quota_limit('snapshots', 2)
+        scope.set_quota_usage('snapshots', 2)
 
         # Trigger task
         tasks.ScheduleBackups().run()
@@ -319,8 +319,8 @@ class SnapshotScheduleTaskTest(TestCase):
         scope = schedule.source_volume.service_settings
 
         # Usage is equal to limit
-        scope.set_quota_limit(TenantQuotas.snapshots, 2)
-        scope.set_quota_usage(TenantQuotas.snapshots, 2)
+        scope.set_quota_limit('snapshots', 2)
+        scope.set_quota_usage('snapshots', 2)
 
         # Trigger task
         tasks.ScheduleSnapshots().run()

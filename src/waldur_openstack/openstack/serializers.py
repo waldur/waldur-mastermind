@@ -16,7 +16,6 @@ from netaddr import IPNetwork, all_matching_cidrs
 from rest_framework import serializers
 
 from waldur_core.core import utils as core_utils
-from waldur_core.quotas import serializers as quotas_serializers
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
@@ -412,7 +411,9 @@ class SecurityGroupRuleListUpdateSerializer(serializers.ListSerializer):
         for rule in rules:
             rule.save()
         validate_duplicate_security_group_rules(security_group.rules)
-        security_group.change_backend_quotas_usage_on_rules_update(old_rules_count)
+        security_group.change_backend_quotas_usage_on_rules_update(
+            old_rules_count, validate=True
+        )
         return rules
 
 
@@ -487,7 +488,7 @@ class SecurityGroupSerializer(structure_serializers.BaseResourceActionSerializer
             for rule in rules:
                 security_group.rules.add(rule, bulk=False)
             validate_duplicate_security_group_rules(security_group.rules)
-            security_group.increase_backend_quotas_usage()
+            security_group.increase_backend_quotas_usage(validate=True)
         return security_group
 
 
@@ -604,7 +605,7 @@ def validate_private_subnet_cidr(value):
 
 
 class TenantSerializer(structure_serializers.BaseResourceSerializer):
-    quotas = quotas_serializers.QuotaSerializer(many=True, read_only=True)
+    quotas = serializers.ReadOnlyField()
     subnet_cidr = serializers.CharField(
         default='192.168.42.0/24',
         initial='192.168.42.0/24',

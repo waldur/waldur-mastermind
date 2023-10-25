@@ -4,8 +4,8 @@ from waldur_core.logging.loggers import EventLogger, event_logger
 class TenantQuotaLogger(EventLogger):
     quota_name = str
     tenant = 'openstack.Tenant'
-    limit = float
-    old_limit = float
+    limit = int
+    old_limit = int
 
     class Meta:
         event_types = ('openstack_tenant_quota_limit_updated',)

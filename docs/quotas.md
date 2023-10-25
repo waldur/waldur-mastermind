@@ -59,19 +59,6 @@ To check is any of object or his ancestors quotas exceeded - use ``validate_quot
 This method receive dictionary of quotas usage deltas and returns errors if one or more quotas of object or his
 quota-ancestors exceeded.
 
-## Get sum of quotas
-
-``QuotasModelMixin`` provides ``get_sum_of_quotas_as_dict`` methods which calculates sum of each quotas for given
-scopes.
-
-## Allow user to edit quotas
-
-Will be implemented soon.
-
-## Add quotas to quota scope serializer
-
-``QuotaSerializer`` can be used as quotas serializer in quotas scope controller.
-
 ## Sort objects by quotas with django_filters.FilterSet
 
 Inherit your ``FilterSet`` from ``QuotaFilterMixin`` and follow next steps to enable ordering by quotas.
@@ -84,17 +71,6 @@ Usage:
 2. Add `quotas__<limit or usage>__<quota_name>` to meta `order_by` attribute if you want to allow user to order `<quota_name>`. For example, `quotas__limit__ram` will enable ordering by `ram` quota.
 
 Ordering can be done only by one quota at a time.
-
-## QuotaInline for admin models
-
-``quotas.admin`` contains generic inline model``QuotaInline``, which can be used as inline model for any quota
-scope.
-
-## Global count quotas for models
-
-Global count quota - quota without scope that stores information about count of all model instances.
-To create new global quota - add field `GLOBAL_COUNT_QUOTA_NAME = '<quota name>'` to model.
-(Please use prefix `nc_global` for global quotas names)
 
 ## Workflow for quota allocation
 

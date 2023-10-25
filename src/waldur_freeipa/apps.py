@@ -44,7 +44,7 @@ class FreeIPAConfig(AppConfig):
 
         signals.post_save.connect(
             handlers.schedule_sync_on_quota_change,
-            sender=quota_models.Quota,
+            sender=quota_models.QuotaLimit,
             dispatch_uid='waldur_freeipa.handlers.schedule_sync_on_quota_save',
         )
 
