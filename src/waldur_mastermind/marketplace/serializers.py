@@ -178,7 +178,7 @@ class CategoryHelpArticleSerializer(serializers.ModelSerializer):
         fields = ('title', 'url')
 
 
-class CategorySerializerForHelpArticles(serializers.HyperlinkedModelSerializer):
+class CategorySerializerForForNestedFields(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = models.Category
         fields = ('url', 'uuid', 'title')
@@ -191,7 +191,7 @@ class CategorySerializerForHelpArticles(serializers.HyperlinkedModelSerializer):
 
 
 class CategoryHelpArticlesSerializer(serializers.ModelSerializer):
-    categories = CategorySerializerForHelpArticles(many=True)
+    categories = CategorySerializerForForNestedFields(many=True)
 
     class Meta:
         model = models.CategoryHelpArticle
@@ -213,6 +213,26 @@ class CategoryHelpArticlesSerializer(serializers.ModelSerializer):
             category = models.Category.objects.get(**category)
             instance.categories.add(category)
         return article
+
+
+class CategoryComponentsSerializer(serializers.ModelSerializer):
+    category = CategorySerializerForForNestedFields()
+
+    class Meta:
+        model = models.CategoryComponent
+        fields = ('uuid', 'type', 'name', 'description', 'measured_unit', 'category')
+
+    def create(self, validated_data):
+        category = validated_data.pop('category')
+        category = models.Category.objects.get(**category)
+        validated_data['category'] = category
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        category = validated_data.pop('category')
+        category = models.Category.objects.get(**category)
+        validated_data['category'] = category
+        return super().update(instance, validated_data)
 
 
 class CategoryGroupSerializer(

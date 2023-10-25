@@ -3354,3 +3354,10 @@ class CategoryHelpArticleViewSet(rf_viewsets.ModelViewSet):
     serializer_class = serializers.CategoryHelpArticlesSerializer
     filter_backends = (DjangoFilterBackend,)
     permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
+
+
+class CategoryComponentViewSet(rf_viewsets.ModelViewSet):
+    queryset = models.CategoryComponent.objects.all().order_by('name')
+    serializer_class = serializers.CategoryComponentsSerializer
+    filter_backends = (DjangoFilterBackend,)
+    permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
