@@ -195,7 +195,24 @@ class CategoryHelpArticlesSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = models.CategoryHelpArticle
-        fields = ('id', 'title', 'url', 'categories')
+        fields = ('title', 'url', 'categories')
+
+    def create(self, validated_data):
+        categories = validated_data.pop('categories')
+        article = models.CategoryHelpArticle.objects.create(**validated_data)
+        for category in categories:
+            category = models.Category.objects.get(**category)
+            article.categories.add(category)
+        return article
+
+    def update(self, instance, validated_data):
+        categories = validated_data.pop('categories')
+        article = super().update(instance, validated_data)
+        instance.categories.clear()
+        for category in categories:
+            category = models.Category.objects.get(**category)
+            instance.categories.add(category)
+        return article
 
 
 class CategoryGroupSerializer(
