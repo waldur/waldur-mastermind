@@ -310,7 +310,7 @@ class BaseComponent(core_models.DescribableMixin):
     )
 
 
-class CategoryComponent(BaseComponent):
+class CategoryComponent(BaseComponent, core_models.UuidMixin):
     class Meta:
         unique_together = ('type', 'category')
 
