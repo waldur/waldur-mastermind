@@ -733,6 +733,7 @@ class ResourceAdmin(BackendModelAdmin):
         'error_message',
         'get_settings_shared',
     )
+
     list_filter = BackendModelAdmin.list_filter + (
         'state',
         ('project', RelatedOnlyDropdownFilter),
