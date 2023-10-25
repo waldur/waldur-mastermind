@@ -233,20 +233,23 @@ def get_remote_eduteams_user_info(username):
 
 def get_remote_eduteams_ssh_keys():
     ssh_api_url = settings.WALDUR_AUTH_SOCIAL.get('REMOTE_EDUTEAMS_SSH_API_URL')
-    if ssh_api_url is None:
-        raise Exception('REMOTE_EDUTEAMS_SSH_API_URL is empty')
+    if not ssh_api_url:
+        logger.warning('REMOTE_EDUTEAMS_SSH_API_URL is empty')
+        return
 
     ssh_api_username = settings.WALDUR_AUTH_SOCIAL.get(
         "REMOTE_EDUTEAMS_SSH_API_USERNAME"
     )
-    if ssh_api_username is None:
-        raise Exception('REMOTE_EDUTEAMS_SSH_API_USERNAME is empty')
+    if not ssh_api_username:
+        logger.warning('REMOTE_EDUTEAMS_SSH_API_USERNAME is empty')
+        return
 
     ssh_api_password = settings.WALDUR_AUTH_SOCIAL.get(
         "REMOTE_EDUTEAMS_SSH_API_PASSWORD"
     )
-    if ssh_api_password is None:
-        raise Exception('REMOTE_EDUTEAMS_SSH_API_PASSWORD is empty')
+    if not ssh_api_password:
+        logger.warning('REMOTE_EDUTEAMS_SSH_API_PASSWORD is empty')
+        return
 
     ssh_api_endpoint = f"{ssh_api_url}/api/vo/puhuri/ssh_keys"
 

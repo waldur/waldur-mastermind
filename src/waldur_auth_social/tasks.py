@@ -36,7 +36,11 @@ def pull_remote_eduteams_users():
 def pull_remote_eduteams_ssh_keys():
     if not settings.WALDUR_AUTH_SOCIAL['REMOTE_EDUTEAMS_ENABLED']:
         return
+
     user_ssh_keys = utils.get_remote_eduteams_ssh_keys()
+    if not user_ssh_keys:
+        return
+
     for cuid, ssh_keys_map in user_ssh_keys.items():
         user = User.objects.filter(username=cuid).first()
         if user is None:
