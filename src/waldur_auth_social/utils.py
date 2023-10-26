@@ -120,6 +120,38 @@ def create_or_update_keycloak_user(backend_user):
     return user, created
 
 
+def sync_user_ssh_keys(user, eduteams_keys, username):
+    existing_keys_map = {
+        key.public_key: key
+        for key in SshPublicKey.objects.filter(user=user, name__startswith='eduteams_')
+    }
+
+    new_keys = set(eduteams_keys) - set(existing_keys_map.keys())
+    stale_keys = set(existing_keys_map.keys()) - set(eduteams_keys)
+
+    for key in new_keys:
+        try:
+            validate_ssh_public_key(key)
+        except ValidationError:
+            logger.debug(
+                'Skipping invalid SSH key synchronization for remote eduTEAMS user %s',
+                username,
+            )
+            continue
+        name = f'eduteams_key_{uuid.uuid4().hex[:10]}'
+        new_key = SshPublicKey(user=user, name=name, public_key=key)
+        new_key.save()
+        logger.info('%s key is added to user %s', new_key)
+
+    for key in stale_keys:
+        logger.info(
+            'Deleting stale keys for user %s. Keys: ',
+            username,
+            ', '.join([key for key in stale_keys]),
+        )
+        existing_keys_map[key].delete()
+
+
 def create_or_update_eduteams_user(backend_user):
     username = backend_user.get('sub') or backend_user.get('voperson_id')
     email = backend_user.get('email')
@@ -160,31 +192,9 @@ def create_or_update_eduteams_user(backend_user):
         )
         user.set_unusable_password()
         user.save()
-
-    existing_keys_map = {
-        key.public_key: key
-        for key in SshPublicKey.objects.filter(user=user, name__startswith='eduteams_')
-    }
     eduteams_keys = backend_user.get('ssh_public_key', [])
 
-    new_keys = set(eduteams_keys) - set(existing_keys_map.keys())
-    stale_keys = set(existing_keys_map.keys()) - set(eduteams_keys)
-
-    for key in new_keys:
-        try:
-            validate_ssh_public_key(key)
-        except ValidationError:
-            logger.debug(
-                'Skipping invalid SSH key synchronization for remote eduTEAMS user %s',
-                username,
-            )
-            continue
-        name = f'eduteams_key_{uuid.uuid4().hex[:10]}'
-        new_key = SshPublicKey(user=user, name=name, public_key=key)
-        new_key.save()
-
-    for key in stale_keys:
-        existing_keys_map[key].delete()
+    sync_user_ssh_keys(user, eduteams_keys, username)
 
     return user, created
 

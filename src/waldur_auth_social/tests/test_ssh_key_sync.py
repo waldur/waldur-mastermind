@@ -10,8 +10,8 @@ from waldur_core.structure.tests import factories
 class SSHKeySyncTest(test.APITransactionTestCase):
     def setUp(self) -> None:
         self.user = factories.UserFactory()
-        self.key1 = factories.SshPublicKeyFactory(user=self.user)
-        self.key2 = factories.SshPublicKeyFactory(user=self.user)
+        self.key1 = factories.SshPublicKeyFactory(user=self.user, name='eduteams_key_1')
+        self.key2 = factories.SshPublicKeyFactory(user=self.user, name='eduteams_key_2')
         self.new_ssh_key = factories.SshPublicKeyFactory()
         responses.add(
             responses.GET,
@@ -34,7 +34,7 @@ class SSHKeySyncTest(test.APITransactionTestCase):
             'REMOTE_EDUTEAMS_ENABLED': True,
         }
     )
-    def test_user_ssk_keys_sync(self):
+    def test_user_ssh_keys_sync(self):
         tasks.pull_remote_eduteams_ssh_keys()
         self.user.refresh_from_db()
 
