@@ -6,8 +6,7 @@ from django.contrib.auth import get_user_model
 
 from waldur_auth_social.exceptions import OAuthException
 from waldur_auth_social.models import ProviderChoices
-from waldur_auth_social.utils import pull_remote_eduteams_user
-from waldur_core.core import models as core_models
+from waldur_auth_social.utils import pull_remote_eduteams_user, sync_user_ssh_keys
 
 from . import utils
 
@@ -48,23 +47,4 @@ def pull_remote_eduteams_ssh_keys():
             continue
 
         keys = ssh_keys_map['ssh_keys']
-        for key in keys:
-            existing_ssh_key = core_models.SshPublicKey.objects.filter(
-                user=user, public_key=key
-            ).first()
-            if existing_ssh_key is None:
-                new_key = core_models.SshPublicKey.objects.create(
-                    user=user, public_key=key
-                )
-                logger.info('%s key is added to user %s', new_key.fingerprint)
-
-        stale_keys = core_models.SshPublicKey.objects.filter(user=user).exclude(
-            public_key__in=keys
-        )
-        if stale_keys:
-            logger.info(
-                'Deleting stale keys for user %s. Keys: ',
-                cuid,
-                ', '.join([key.fingerprint for key in stale_keys]),
-            )
-            stale_keys.delete()
+        sync_user_ssh_keys(user, keys, cuid)

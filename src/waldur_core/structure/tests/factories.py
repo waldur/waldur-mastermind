@@ -72,7 +72,7 @@ class SshPublicKeyFactory(factory.DjangoModelFactory):
         model = core_models.SshPublicKey
 
     user = factory.SubFactory(UserFactory)
-    name = factory.Sequence(lambda n: 'ssh_public_key%s' % n)
+    name = factory.Sequence(lambda n: 'eduteams_%s' % n)
     public_key = factory.Sequence(
         lambda n: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDDURXDP5YhOQUYoDuTxJ84DuzqMJYJqJ8+SZT28"
         "TtLm5yBDRLKAERqtlbH2gkrQ3US58gd2r8H9jAmQOydfvgwauxuJUE4eDpaMWupqquMYsYLB5f+vVGhdZbbzfc6DTQ2rY"
