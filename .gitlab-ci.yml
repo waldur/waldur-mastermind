@@ -168,6 +168,11 @@ Upload configuration guide:
   image: registry.hpc.ut.ee/mirror/$WALDUR_MASTERMIND_TEST_IMAGE
   variables:
     CONF_GUIDE_PATH: docs/admin-guide/mastermind-configuration/configuration-guide.md
+    CLI_GUIDE_PATH: docs/admin-guide/mastermind-configuration/cli-guide.md
+    FEATURES_GUIDE_PATH: docs/admin-guide/mastermind-configuration/features.md
+    NOTIFICATIONS_GUIDE_PATH: docs/admin-guide/mastermind-configuration/notifications.md
+    TEMPLATES_LIST_PATH: docs/admin-guide/mastermind-configuration/templates.md
+    DEVELOPER_DOCS_PATH: docs/developer-guide
     DJANGO_SETTINGS_MODULE: waldur_core.server.test_settings
   script:
     - poetry install
