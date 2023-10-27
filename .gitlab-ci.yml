@@ -210,6 +210,7 @@ Upload HomePort enums:
     - git config --global user.name "$GITLAB_USER_NAME"
     - git config --global user.email "$GITLAB_USER_EMAIL"
     - cd waldur-homeport
+    - git checkout next
     - waldur print_permission_enums > $PERMISSIONS_ENUM_PATH
     - git add $PERMISSIONS_ENUM_PATH
     - git commit -m "Update permissions enums" || exit 0
