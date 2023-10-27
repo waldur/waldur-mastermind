@@ -10,6 +10,12 @@ from waldur_mastermind.marketplace import serializers as marketplace_serializers
 from waldur_mastermind.promotions import models
 
 
+class CampaignOfferingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = marketplace_models.Offering
+        fields = ('uuid', 'name')
+
+
 class CampaignSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
@@ -18,6 +24,7 @@ class CampaignSerializer(
         queryset=marketplace_models.Offering.objects.all(),
         many=True,
         required=True,
+        write_only=True,
     )
 
     required_offerings = serializers.SlugRelatedField(
@@ -50,6 +57,9 @@ class CampaignSerializer(
 
             for field in protected_fields:
                 fields[field].read_only = True
+
+        if method not in ('PUT', 'PATCH', 'POST'):
+            fields['offerings'] = CampaignOfferingSerializer(read_only=True, many=True)
 
         return fields
 
