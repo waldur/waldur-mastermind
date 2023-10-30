@@ -35,7 +35,7 @@ User = get_user_model()
 
 user = User.objects.last()
 customer = Customer.objects.last()
-customer.add_user(CustomerRole.OWNER)
+customer.add_user(user, CustomerRole.OWNER)
 ```
 
 Finally, we can check whether user is allowed to create offering in particular organization.
