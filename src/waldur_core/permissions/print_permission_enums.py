@@ -18,6 +18,5 @@ export const RoleEnum = {{
 
 export const PermissionEnum = {{
 {format_enum(enums.PermissionEnum)}
-}};
-"""
+}};"""
 )
