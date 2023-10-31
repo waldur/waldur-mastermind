@@ -3,7 +3,7 @@ import enums
 
 def format_enum(enum):
     return '\n'.join(
-        f'  {key}: "{value.value}",' for key, value in enum._member_map_.items()
+        f"  {key}: '{value.value}'," for key, value in enum._member_map_.items()
     )
 
 
