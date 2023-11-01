@@ -7,8 +7,6 @@ Quotas is Django application that provides generic implementation of quotas trac
 1. Store and query resource limits and usages for project, customer or any other model.
 2. Aggregate quota usage in object hierarchies.
 3. Aggregate historical data for charting and analysis.
-4. Prevent user from consuming an entire system's resources by
-  raising alerts when quota threshold has been reached.
 
 ## Define quota fields
 
@@ -41,36 +39,18 @@ To edit objects quotas use:
 
 Do not edit quotas manually, because this will break quotas in objects ancestors.
 
-## Parents for object with quotas
+Please note that aggregated usage is not stored in the database. Instead usage deltas are saved. The main reason behind it is to avoid deadlocks when multiple requests are trying to update the same quota for customer or project simultaneously.
 
-Object with quotas can have quota-parents. If usage in child was increased - it will be increased in parent too.
-Method ``get_quota_parents`` have to be overridden to return list of quota-parents if object has any of them.
-Only first level of ancestors has be added as parents, for example if membership is child of project and project
-is child if customer - memberships ``get_quota_parents`` has to return only project, not customer.
-It is not necessary for parents to have the same quotas as children, but logically they should have at least one
-common quota.
+## Check if quota exceeded
 
-## Check is quota exceeded
-
-To check is one separate quota exceeded - use ``is_exceeded`` method of quota. It can receive usage delta or
-threshold and check is quota exceeds considering delta and/or threshold.
-
-To check is any of object or his ancestors quotas exceeded - use ``validate_quota_change`` method of object with quotas.
-This method receive dictionary of quotas usage deltas and returns errors if one or more quotas of object or his
-quota-ancestors exceeded.
+To check if any of object quotas exceeded, use ``validate_quota_change`` method of object with quotas.
+This method receive dictionary of quotas usage deltas and returns errors if one or more quotas of object exceeded.
 
 ## Sort objects by quotas with django_filters.FilterSet
 
 Inherit your ``FilterSet`` from ``QuotaFilterMixin`` and follow next steps to enable ordering by quotas.
 
-Usage:
-
-1. Add ``quotas__limit`` and ``-quotas__limit`` to filter meta ``order_by`` attribute
-  if you want order by quotas limits and ``quotas__usage``, ``-quota__usage`` if you want to order by quota usage.
-
-2. Add `quotas__<limit or usage>__<quota_name>` to meta `order_by` attribute if you want to allow user to order `<quota_name>`. For example, `quotas__limit__ram` will enable ordering by `ram` quota.
-
-Ordering can be done only by one quota at a time.
+Add ``quotas__limit`` and ``-quotas__limit`` to filter meta ``order_by`` attribute if you want to order by quotas limits. Ordering can be done only by one quota at a time.
 
 ## Workflow for quota allocation
 
@@ -79,10 +59,10 @@ In order to prevent bugs when multiple simultaneous requests are performed, the 
 1) As soon as we know what quota will be used we increase its usage.
   It is performed in serializers' save or update method.
   If quota usage becomes over limit, validation error is raised.
-  Consider for example InstanceFlavorChangeSerializer in OpenStack plugin.
+  Consider for example `InstanceFlavorChangeSerializer` in OpenStack plugin.
 
 2) If backend API call for resource provision fails, frontend quota usage is not modified.
   Instead it is assumed that quota pulling is triggered either by user or by cron.
 
 3) Quota usage is decreased only when backend API call for resource deletion succeeds.
-  Consider for example delete_volume backend method in OpenStack plugin.
+  Consider for example `delete_volume` backend method in OpenStack plugin.
