@@ -4,7 +4,7 @@ from rest_framework.response import Response
 
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import validators as core_validators
-from waldur_core.core.views import ActionsViewSet, ReadOnlyActionsViewSet
+from waldur_core.core.views import ActionsViewSet
 
 from . import filters, models, serializers, tasks, utils
 
@@ -40,7 +40,7 @@ class BroadcastMessageViewSet(ActionsViewSet):
         return self.get_paginated_response(paginated_result)
 
 
-class MessageTemplateViewSet(ReadOnlyActionsViewSet):
+class MessageTemplateViewSet(ActionsViewSet):
     queryset = models.MessageTemplate.objects.all().order_by('name')
     serializer_class = serializers.MessageTemplateSerializer
     permission_classes = [permissions.IsAuthenticated, core_permissions.IsSupport]
