@@ -425,6 +425,7 @@ def create_offerings_for_volume_and_instance(tenant):
             'thumbnail',
             'vendor_details',
             'getting_started',
+            'integration_guide',
             'latitude',
             'longitude',
         )
