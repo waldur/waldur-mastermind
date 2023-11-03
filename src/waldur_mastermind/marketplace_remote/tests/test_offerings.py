@@ -68,6 +68,7 @@ class OfferingDetailsPullTest(test.APITransactionTestCase):
             'privacy_policy_link': self.offering.privacy_policy_link,
             'country': self.offering.country,
             'getting_started': self.offering.getting_started,
+            'integration_guide': self.offering.integration_guide,
             'options': self.offering.options,
             'thumbnail': None,
             'components': [
