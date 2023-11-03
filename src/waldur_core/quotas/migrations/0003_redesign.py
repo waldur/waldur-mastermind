@@ -24,7 +24,7 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 ('name', models.CharField(db_index=True, max_length=150)),
-                ('delta', models.IntegerField(default=0)),
+                ('delta', models.BigIntegerField(default=0)),
                 ('object_id', models.PositiveIntegerField(null=True)),
                 (
                     'content_type',
@@ -49,7 +49,7 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 ('name', models.CharField(db_index=True, max_length=150)),
-                ('value', models.IntegerField(default=-1)),
+                ('value', models.BigIntegerField(default=-1)),
                 ('object_id', models.PositiveIntegerField(null=True)),
                 (
                     'content_type',
