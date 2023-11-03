@@ -1,11 +1,11 @@
 import logging
 
 from django.db import transaction
-from rest_framework import exceptions
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.utils import get_system_robot
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.exceptions import PolicyException
 from waldur_mastermind.marketplace_openstack import INSTANCE_TYPE
 from waldur_mastermind.policy import tasks
 
@@ -68,7 +68,7 @@ terminate_resources.one_time_action = True
 
 def block_creation_of_new_resources(policy, created):
     if created:
-        raise exceptions.ValidationError(
+        raise PolicyException(
             'Creation of new resources in this project is not available due to a policy.'
         )
 
@@ -78,7 +78,7 @@ block_creation_of_new_resources.one_time_action = False
 
 def block_modification_of_existing_resources(policy, created):
     if not created:
-        raise exceptions.ValidationError(
+        raise PolicyException(
             'Modification of new resources in this project is not available due to a policy.'
         )
 
