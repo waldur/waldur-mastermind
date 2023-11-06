@@ -1,9 +1,11 @@
 from ddt import data, ddt
+from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
+from waldur_core.quotas.tests import factories as quotas_factories
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
@@ -404,6 +406,26 @@ class CustomerStatsTest(test.APITransactionTestCase):
         self.client.force_authenticate(user)
         response = self.client.get('/api/marketplace-stats/customer_member_count/')
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_field_of_count_if_several_quotas_exist(self):
+        customer = self.fixture.customer
+        quota_1 = quotas_factories.QuotaFactory(
+            object_id=customer.id,
+            content_type=ContentType.objects.get_for_model(customer.__class__),
+            name='nc_user_count',
+            delta=10,
+        )
+        quota_2 = quotas_factories.QuotaFactory(
+            object_id=customer.id,
+            content_type=ContentType.objects.get_for_model(customer.__class__),
+            name='nc_user_count',
+            delta=5,
+        )
+        user = getattr(self.fixture, 'staff')
+        self.client.force_authenticate(user)
+        response = self.client.get('/api/marketplace-stats/customer_member_count/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data[0]['count'], quota_1.delta + quota_2.delta)
 
 
 @ddt
