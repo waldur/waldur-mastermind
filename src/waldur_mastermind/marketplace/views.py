@@ -2751,20 +2751,14 @@ class StatsViewSet(rf_viewsets.ViewSet):
             project__customer_id=OuterRef('pk'),
         )
 
-        users_count = (
-            QuotaUsage.objects.filter(
-                object_id=OuterRef('pk'),
-                content_type=ContentType.objects.get_for_model(
-                    structure_models.Customer
-                ),
-                name='nc_user_count',
-            )
-            .annotate(usage=Sum('delta'))
-            .values('usage')
+        users_count = QuotaUsage.objects.filter(
+            object_id=OuterRef('pk'),
+            content_type=ContentType.objects.get_for_model(structure_models.Customer),
+            name='nc_user_count',
         )
 
         customers = structure_models.Customer.objects.annotate(
-            count=Subquery(users_count),
+            count=core_utils.SubquerySum(users_count, 'delta'),
             has_resources=Exists(has_resources),
         ).values('uuid', 'name', 'abbreviation', 'count', 'has_resources')
 
