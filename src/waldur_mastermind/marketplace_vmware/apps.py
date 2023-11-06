@@ -25,6 +25,7 @@ class MarketplaceVMwareConfig(AppConfig):
             offering_type=VIRTUAL_MACHINE_TYPE,
             create_resource_processor=processors.VirtualMachineCreateProcessor,
             service_type=VMwareConfig.service_name,
+            can_update_limits=True,
             components=(
                 Component(
                     type='cpu', name='CPU', measured_unit='vCPU', billing_type=USAGE
