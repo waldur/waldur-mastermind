@@ -20,7 +20,7 @@ class MarketplaceVMwareConfig(AppConfig):
         marketplace_handlers.connect_resource_handlers(*resource_models)
         marketplace_handlers.connect_resource_metadata_handlers(*resource_models)
 
-        USAGE = marketplace_models.OfferingComponent.BillingTypes.USAGE
+        LIMIT = marketplace_models.OfferingComponent.BillingTypes.LIMIT
         manager.register(
             offering_type=VIRTUAL_MACHINE_TYPE,
             create_resource_processor=processors.VirtualMachineCreateProcessor,
@@ -28,7 +28,7 @@ class MarketplaceVMwareConfig(AppConfig):
             can_update_limits=True,
             components=(
                 Component(
-                    type='cpu', name='CPU', measured_unit='vCPU', billing_type=USAGE
+                    type='cpu', name='CPU', measured_unit='vCPU', billing_type=LIMIT
                 ),
                 # Price is stored per GiB but size is stored per MiB
                 # therefore we need to divide size by factor when price estimate is calculated.
@@ -36,14 +36,14 @@ class MarketplaceVMwareConfig(AppConfig):
                     type='ram',
                     name='RAM',
                     measured_unit='GB',
-                    billing_type=USAGE,
+                    billing_type=LIMIT,
                     factor=1024,
                 ),
                 Component(
                     type='disk',
                     name='Disk',
                     measured_unit='GB',
-                    billing_type=USAGE,
+                    billing_type=LIMIT,
                     factor=1024,
                 ),
             ),
