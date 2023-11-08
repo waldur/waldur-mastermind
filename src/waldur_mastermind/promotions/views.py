@@ -8,6 +8,8 @@ from waldur_core.core import views as core_views
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import permission_factory
 from waldur_core.structure import filters as structure_filters
+from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace import serializers as marketplace_serializers
 from waldur_mastermind.promotions import filters, models, serializers, validators
 
 
@@ -54,3 +56,17 @@ class CampaignViewSet(core_views.ActionsViewSet):
             models.Campaign.States.ACTIVE, models.Campaign.States.DRAFT
         )
     ]
+
+    @action(detail=True, methods=['get'])
+    def order_items(self, request, uuid=None):
+        campaign = self.get_object()
+        resources = models.DiscountedResource.objects.filter(
+            campaign=campaign
+        ).values_list('resource', flat=True)
+        order_items = marketplace_models.OrderItem.objects.filter(
+            resource__in=resources
+        )
+        serializer = marketplace_serializers.OrderItemDetailsSerializer(
+            instance=order_items, many=True, context={'view': self, 'request': request}
+        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
