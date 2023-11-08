@@ -12,9 +12,11 @@ from rest_framework import status, test
 from waldur_core.core.utils import serialize_instance
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common import utils as common_utils
+from waldur_openstack.openstack.tests.helpers import override_openstack_settings
 from waldur_openstack.openstack.tests.unittests import test_backend
 from waldur_openstack.openstack_base.backend import OpenStackBackendError
 from waldur_openstack.openstack_tenant import executors, models, views
+from waldur_openstack.openstack_tenant.tasks import LimitedPerTypeThrottleMixin
 from waldur_openstack.openstack_tenant.tests import factories, fixtures, helpers
 from waldur_openstack.openstack_tenant.tests.helpers import (
     override_openstack_tenant_settings,
@@ -1159,3 +1161,25 @@ class InstanceRetrieveTest(test.APITransactionTestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertFalse('hypervisor_hostname' in response.json())
+
+
+class MaxConcurrentProvisionTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.OpenStackTenantFixture()
+
+    def test_settings_limit_is_used_if_it_is_available(self):
+        private_setting = self.fixture.openstack_tenant_service_settings
+        shared_settings = private_setting.scope.service_settings
+        shared_settings.options['max_concurrent_provision_instance'] = 10
+        shared_settings.save()
+        self.assertEqual(
+            10, LimitedPerTypeThrottleMixin().get_limit(self.fixture.instance)
+        )
+
+    @override_openstack_settings(
+        MAX_CONCURRENT_PROVISION={'OpenStackTenant.Instance': 5}
+    )
+    def test_plugin_settings_limit_is_used_if_it_is_available(self):
+        self.assertEqual(
+            5, LimitedPerTypeThrottleMixin().get_limit(self.fixture.instance)
+        )
