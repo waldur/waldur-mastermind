@@ -1647,6 +1647,25 @@ class OfferingDeleteTest(test.APITransactionTestCase):
         response = self.delete_offering('owner')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_customer_owner_can_not_delete_offering_if_it_is_not_in_draft_state(self):
+        self.offering.state = models.Offering.States.ACTIVE
+        self.offering.save()
+        response = self.delete_offering('owner')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(
+            response.data['detail'],
+            'Offering was not deleted since offering is not in draft state.',
+        )
+
+    def test_customer_owner_can_not_delete_offering_if_it_has_resources(self):
+        self.offering.state = models.Offering.States.DRAFT
+        factories.ResourceFactory(offering=self.offering)
+        response = self.delete_offering('owner')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(
+            response.data['detail'], 'Offering was not deleted since it has resources.'
+        )
+
     def delete_offering(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
