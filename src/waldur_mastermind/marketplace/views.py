@@ -676,6 +676,33 @@ class ProviderOfferingViewSet(
         )
     ]
 
+    def destroy(self, request, *args, **kwargs):
+        offering = self.get_object()
+        serializer = serializers.ProviderOfferingSerializer(
+            offering, many=False, context=self.get_serializer_context()
+        )
+        if self.request.user.is_staff is not True:
+            if serializer.data['resources_count'] != 0:
+                return Response(
+                    {'detail': _('Offering was not deleted since it has resources.')},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            elif offering.state != models.Offering.States.DRAFT:
+                return Response(
+                    {
+                        'detail': _(
+                            'Offering was not deleted since offering is not in draft state.'
+                        )
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            else:
+                offering.delete()
+                return Response(
+                    status=status.HTTP_204_NO_CONTENT,
+                )
+        return super().destroy(request, *args, **kwargs)
+
     @action(detail=True, methods=['post'])
     def activate(self, request, uuid=None):
         return self._update_state('activate')
