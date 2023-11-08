@@ -102,6 +102,30 @@ class OpenStackServiceSerializer(BaseOpenStackServiceSerializer):
         required=False,
     )
 
+    max_concurrent_provision_instance = serializers.IntegerField(
+        source='options.max_concurrent_provision_instance',
+        help_text=_(
+            'Maximum parallel executions of provisioning operations for instances.'
+        ),
+        required=False,
+    )
+
+    max_concurrent_provision_volume = serializers.IntegerField(
+        source='options.max_concurrent_provision_volume',
+        help_text=_(
+            'Maximum parallel executions of provisioning operations for volumes.'
+        ),
+        required=False,
+    )
+
+    max_concurrent_provision_snapshot = serializers.IntegerField(
+        source='options.max_concurrent_provision_snapshot',
+        help_text=_(
+            'Maximum parallel executions of provisioning operations for snapshots.'
+        ),
+        required=False,
+    )
+
 
 class FlavorSerializer(BaseFlavorSerializer):
     display_name = serializers.SerializerMethodField()
