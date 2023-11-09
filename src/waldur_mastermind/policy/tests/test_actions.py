@@ -52,6 +52,7 @@ class ActionsTest(test.APITransactionTestCase):
         tasks.notify_about_limit_cost(serialized_scope, serialized_policy)
 
         mock_send_mail.assert_called_once()
+        self.assertEqual(mock_send_mail.call_args.kwargs['to'][0], self.owner.email)
 
     def _create_new_order_item(self):
         order = marketplace_factories.OrderFactory(project=self.project)
