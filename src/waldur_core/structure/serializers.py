@@ -1590,46 +1590,6 @@ class UserAgreementSerializer(serializers.HyperlinkedModelSerializer):
         }
 
 
-class NotificationTemplateSerializer(serializers.HyperlinkedModelSerializer):
-    class Meta:
-        model = core_models.NotificationTemplate
-        fields = (
-            'uuid',
-            'url',
-            'path',
-            'name',
-        )
-        extra_kwargs = {
-            'url': {
-                'view_name': 'notification-messages-templates-detail',
-                'lookup_field': 'uuid',
-            },
-        }
-
-
-class NotificationSerializer(serializers.HyperlinkedModelSerializer):
-    templates = NotificationTemplateSerializer(many=True, read_only=True)
-
-    class Meta:
-        model = core_models.Notification
-        fields = (
-            'uuid',
-            'url',
-            'key',
-            'description',
-            'enabled',
-            'created',
-            'templates',
-        )
-        read_only_fields = ('created', 'enabled')
-        extra_kwargs = {
-            'url': {
-                'view_name': 'notification-messages-detail',
-                'lookup_field': 'uuid',
-            },
-        }
-
-
 class NotificationTemplateDetailSerializers(serializers.ModelSerializer):
     content = serializers.SerializerMethodField()
 
@@ -1651,6 +1611,29 @@ class NotificationTemplateDetailSerializers(serializers.ModelSerializer):
 
     def get_content(self, obj):
         return get_template(obj.path).template.source
+
+
+class NotificationSerializer(serializers.HyperlinkedModelSerializer):
+    templates = NotificationTemplateDetailSerializers(many=True, read_only=True)
+
+    class Meta:
+        model = core_models.Notification
+        fields = (
+            'uuid',
+            'url',
+            'key',
+            'description',
+            'enabled',
+            'created',
+            'templates',
+        )
+        read_only_fields = ('created', 'enabled')
+        extra_kwargs = {
+            'url': {
+                'view_name': 'notification-messages-detail',
+                'lookup_field': 'uuid',
+            },
+        }
 
 
 class NotificationTemplateUpdateSerializers(serializers.Serializer):

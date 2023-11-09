@@ -13,6 +13,12 @@ class NotificationList(test.APITransactionTestCase):
         self.notification_1 = factories.NotificationFactory(key='app_name.event_name')
         self.notification_2 = factories.NotificationFactory(key='app_name.event_name2')
         self.url = factories.NotificationFactory.get_list_url()
+        Template.objects.create(name='app_name/event_name_message.html')
+        Template.objects.create(name='app_name/event_name_message.txt')
+        Template.objects.create(name='app_name/event_name_subject.txt')
+        Template.objects.create(name='app_name/event_name2_message.html')
+        Template.objects.create(name='app_name/event_name2_message.txt')
+        Template.objects.create(name='app_name/event_name2_subject.txt')
 
     @data('staff')
     def test_admin_user_can_list_notifications(self, user):
@@ -49,6 +55,9 @@ class NotificationChangeTest(test.APITransactionTestCase):
         self.enable_url = factories.NotificationFactory.get_url(
             self.notification_1, action="enable"
         )
+        Template.objects.create(name='app_name/event_name_message.html')
+        Template.objects.create(name='app_name/event_name_message.txt')
+        Template.objects.create(name='app_name/event_name_subject.txt')
 
     @data('staff')
     def test_staff_can_change_notifications(self, user):
