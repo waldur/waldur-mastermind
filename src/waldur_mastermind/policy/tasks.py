@@ -3,6 +3,7 @@ from celery import shared_task
 from waldur_core.core import utils as core_utils
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.structure import models as structure_models
+from waldur_mastermind.policy import log
 
 
 @shared_task(name='waldur_mastermind.policy.notify_about_limit_cost')
@@ -30,3 +31,13 @@ def notify_about_limit_cost(serialized_scope, serialized_policy):
             context,
             emails,
         )
+
+    log.event_logger.policy_notification.info(
+        'Cost policy has been triggered and emails have been sent.',
+        event_type='policy_notification',
+        event_context={
+            'policy_uuid': policy.uuid.hex,
+            'scope': serialized_scope,
+            'emails': str(emails),
+        },
+    )
