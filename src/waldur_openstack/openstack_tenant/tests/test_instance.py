@@ -12,7 +12,6 @@ from rest_framework import status, test
 from waldur_core.core.utils import serialize_instance
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common import utils as common_utils
-from waldur_openstack.openstack.tests.helpers import override_openstack_settings
 from waldur_openstack.openstack.tests.unittests import test_backend
 from waldur_openstack.openstack_base.backend import OpenStackBackendError
 from waldur_openstack.openstack_tenant import executors, models, views
@@ -1176,7 +1175,7 @@ class MaxConcurrentProvisionTest(test.APITransactionTestCase):
             10, LimitedPerTypeThrottleMixin().get_limit(self.fixture.instance)
         )
 
-    @override_openstack_settings(
+    @override_openstack_tenant_settings(
         MAX_CONCURRENT_PROVISION={'OpenStackTenant.Instance': 5}
     )
     def test_plugin_settings_limit_is_used_if_it_is_available(self):
