@@ -398,6 +398,7 @@ LANGUAGES = (
     ('fr', 'Français'),
     ('nb', 'Norsk'),
     ('ar', 'العربية'),
+    ('cs', 'Čeština'),
 )
 
-LANGUAGE_CHOICES = ['en', 'et', 'lt', 'lv', 'ru', 'it', 'de', 'da', 'sv', 'es', 'fr', 'nb', 'ar']
+LANGUAGE_CHOICES = ['en', 'et', 'lt', 'lv', 'ru', 'it', 'de', 'da', 'sv', 'es', 'fr', 'nb', 'ar', 'cs']
