@@ -16,7 +16,7 @@ class OpenStackTenantConfig(AppConfig):
 
     def ready(self):
         from waldur_core.quotas.fields import QuotaField, TotalQuotaField
-        from waldur_core.quotas.models import QuotaLimit
+        from waldur_core.quotas.models import QuotaLimit, QuotaUsage
         from waldur_core.structure.models import (
             Customer,
             Project,
@@ -54,9 +54,15 @@ class OpenStackTenantConfig(AppConfig):
             )
 
         signals.post_save.connect(
-            handlers.sync_private_settings_quotas_with_tenant_quotas,
+            handlers.sync_private_settings_quota_limit_with_tenant_quotas,
             sender=QuotaLimit,
-            dispatch_uid='openstack_tenant.handlers.sync_private_settings_quotas_with_tenant_quotas',
+            dispatch_uid='openstack_tenant.handlers.sync_private_settings_quota_limit_with_tenant_quotas',
+        )
+
+        signals.post_save.connect(
+            handlers.sync_private_settings_quota_usage_with_tenant_quotas,
+            sender=QuotaUsage,
+            dispatch_uid='openstack_tenant.handlers.sync_private_settings_quota_usage_with_tenant_quotas',
         )
 
         signals.post_delete.connect(
