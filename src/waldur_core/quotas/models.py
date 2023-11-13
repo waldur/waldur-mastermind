@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 class QuotaLimit(models.Model):
     name = models.CharField(max_length=150, db_index=True)
-    value = models.IntegerField(default=-1)
+    value = models.BigIntegerField(default=-1)
 
     content_type = models.ForeignKey(
         on_delete=models.CASCADE, to=ct_models.ContentType, null=True
@@ -39,7 +39,7 @@ class QuotaLimit(models.Model):
 
 class QuotaUsage(models.Model):
     name = models.CharField(max_length=150, db_index=True)
-    delta = models.IntegerField(default=0)
+    delta = models.BigIntegerField(default=0)
 
     content_type = models.ForeignKey(
         on_delete=models.CASCADE, to=ct_models.ContentType, null=True

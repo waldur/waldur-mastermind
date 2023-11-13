@@ -7,7 +7,7 @@ from django.db import IntegrityError, transaction
 from django.db.models import Q
 
 from waldur_core.core.models import StateMixin
-from waldur_core.quotas.models import QuotaLimit, QuotaUsage
+from waldur_core.quotas.models import QuotaLimit
 from waldur_core.structure import models as structure_models
 from waldur_openstack.openstack_base.backend import get_cached_session_key
 
@@ -572,7 +572,20 @@ def mark_private_settings_as_erred_if_tenant_creation_failed(
             service_settings.save(update_fields=['state', 'error_message'])
 
 
-def sync_private_settings_quotas_with_tenant_quotas(
+def sync_private_settings_quota_limit_with_tenant_quotas(
+    sender, instance, created=False, **kwargs
+):
+    quota = instance
+    if not isinstance(quota.scope, openstack_models.Tenant):
+        return
+
+    for private_settings in structure_models.ServiceSettings.objects.filter(
+        scope=quota.scope
+    ):
+        private_settings.set_quota_limit(quota.name, quota.value)
+
+
+def sync_private_settings_quota_usage_with_tenant_quotas(
     sender, instance, created=False, **kwargs
 ):
     quota = instance
@@ -584,10 +597,7 @@ def sync_private_settings_quotas_with_tenant_quotas(
     for private_settings in structure_models.ServiceSettings.objects.filter(
         scope=quota.scope
     ):
-        if isinstance(quota, QuotaLimit):
-            private_settings.set_quota_limit(quota.name, quota.value)
-        if isinstance(quota, QuotaUsage):
-            private_settings.set_quota_usage(quota.name, usage)
+        private_settings.set_quota_usage(quota.name, usage)
 
 
 def delete_volume_type_quotas_from_private_service_settings(sender, instance, **kwargs):

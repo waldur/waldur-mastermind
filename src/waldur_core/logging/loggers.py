@@ -171,22 +171,21 @@ class EventLogger(BaseLogger):
         class QuotaEventLogger(EventLogger):
             tenant = Tenant
             project = 'structure.Project'
-            threshold = float
             quota_type = str
 
             class Meta:
-                event_types = 'quota_threshold_reached',
+                event_types = 'quota_reached',
 
 
         quota_logger = QuotaEventLogger(__name__)
         quota_logger.warning(
-            '{quota_type} quota threshold has been reached for {project_name}.',
-            event_type='quota_threshold_reached',
+            '{quota_type} quota has been reached for {project_name}.',
+            event_type='quota_reached',
             event_context=dict(
                 quota_type=quota.name,
                 project=membership.project,
                 tenant=tenant,
-                threshold=threshold * quota.limit)
+            )
         )
     """
 

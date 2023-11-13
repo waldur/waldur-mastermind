@@ -25,10 +25,13 @@ class CampaignFactory(factory.DjangoModelFactory):
         return url if action is None else url + action + '/'
 
     @classmethod
-    def get_url(cls, campaign=None):
+    def get_url(cls, campaign=None, action=None):
         if campaign is None:
             campaign = CampaignFactory()
-        return reverse('promotions-campaign-detail', kwargs={'uuid': campaign.uuid.hex})
+        url = 'http://testserver' + reverse(
+            'promotions-campaign-detail', kwargs={'uuid': campaign.uuid.hex}
+        )
+        return url if action is None else url + action + '/'
 
 
 class DiscountedResourceFactory(factory.DjangoModelFactory):

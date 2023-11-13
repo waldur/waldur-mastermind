@@ -120,6 +120,38 @@ def create_or_update_keycloak_user(backend_user):
     return user, created
 
 
+def sync_user_ssh_keys(user, eduteams_keys, username):
+    existing_keys_map = {
+        key.public_key: key
+        for key in SshPublicKey.objects.filter(user=user, name__startswith='eduteams_')
+    }
+
+    new_keys = set(eduteams_keys) - set(existing_keys_map.keys())
+    stale_keys = set(existing_keys_map.keys()) - set(eduteams_keys)
+
+    for key in new_keys:
+        try:
+            validate_ssh_public_key(key)
+        except ValidationError:
+            logger.debug(
+                'Skipping invalid SSH key synchronization for remote eduTEAMS user %s',
+                username,
+            )
+            continue
+        name = f'eduteams_key_{uuid.uuid4().hex[:10]}'
+        new_key = SshPublicKey(user=user, name=name, public_key=key)
+        new_key.save()
+        logger.info('%s key is added to user %s', new_key)
+
+    for key in stale_keys:
+        logger.info(
+            'Deleting stale keys for user %s. Keys: ',
+            username,
+            ', '.join([key for key in stale_keys]),
+        )
+        existing_keys_map[key].delete()
+
+
 def create_or_update_eduteams_user(backend_user):
     username = backend_user.get('sub') or backend_user.get('voperson_id')
     email = backend_user.get('email')
@@ -160,31 +192,9 @@ def create_or_update_eduteams_user(backend_user):
         )
         user.set_unusable_password()
         user.save()
-
-    existing_keys_map = {
-        key.public_key: key
-        for key in SshPublicKey.objects.filter(user=user, name__startswith='eduteams_')
-    }
     eduteams_keys = backend_user.get('ssh_public_key', [])
 
-    new_keys = set(eduteams_keys) - set(existing_keys_map.keys())
-    stale_keys = set(existing_keys_map.keys()) - set(eduteams_keys)
-
-    for key in new_keys:
-        try:
-            validate_ssh_public_key(key)
-        except ValidationError:
-            logger.debug(
-                'Skipping invalid SSH key synchronization for remote eduTEAMS user %s',
-                username,
-            )
-            continue
-        name = f'eduteams_key_{uuid.uuid4().hex[:10]}'
-        new_key = SshPublicKey(user=user, name=name, public_key=key)
-        new_key.save()
-
-    for key in stale_keys:
-        existing_keys_map[key].delete()
+    sync_user_ssh_keys(user, eduteams_keys, username)
 
     return user, created
 
@@ -233,20 +243,23 @@ def get_remote_eduteams_user_info(username):
 
 def get_remote_eduteams_ssh_keys():
     ssh_api_url = settings.WALDUR_AUTH_SOCIAL.get('REMOTE_EDUTEAMS_SSH_API_URL')
-    if ssh_api_url is None:
-        raise Exception('REMOTE_EDUTEAMS_SSH_API_URL is empty')
+    if not ssh_api_url:
+        logger.warning('REMOTE_EDUTEAMS_SSH_API_URL is empty')
+        return
 
     ssh_api_username = settings.WALDUR_AUTH_SOCIAL.get(
         "REMOTE_EDUTEAMS_SSH_API_USERNAME"
     )
-    if ssh_api_username is None:
-        raise Exception('REMOTE_EDUTEAMS_SSH_API_USERNAME is empty')
+    if not ssh_api_username:
+        logger.warning('REMOTE_EDUTEAMS_SSH_API_USERNAME is empty')
+        return
 
     ssh_api_password = settings.WALDUR_AUTH_SOCIAL.get(
         "REMOTE_EDUTEAMS_SSH_API_PASSWORD"
     )
-    if ssh_api_password is None:
-        raise Exception('REMOTE_EDUTEAMS_SSH_API_PASSWORD is empty')
+    if not ssh_api_password:
+        logger.warning('REMOTE_EDUTEAMS_SSH_API_PASSWORD is empty')
+        return
 
     ssh_api_endpoint = f"{ssh_api_url}/api/vo/puhuri/ssh_keys"
 

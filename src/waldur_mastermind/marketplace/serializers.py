@@ -178,7 +178,7 @@ class CategoryHelpArticleSerializer(serializers.ModelSerializer):
         fields = ('title', 'url')
 
 
-class CategorySerializerForHelpArticles(serializers.HyperlinkedModelSerializer):
+class CategorySerializerForForNestedFields(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = models.Category
         fields = ('url', 'uuid', 'title')
@@ -191,11 +191,48 @@ class CategorySerializerForHelpArticles(serializers.HyperlinkedModelSerializer):
 
 
 class CategoryHelpArticlesSerializer(serializers.ModelSerializer):
-    categories = CategorySerializerForHelpArticles(many=True)
+    categories = CategorySerializerForForNestedFields(many=True)
 
     class Meta:
         model = models.CategoryHelpArticle
-        fields = ('id', 'title', 'url', 'categories')
+        fields = ('title', 'url', 'categories')
+
+    def create(self, validated_data):
+        categories = validated_data.pop('categories')
+        article = models.CategoryHelpArticle.objects.create(**validated_data)
+        for category in categories:
+            category = models.Category.objects.get(**category)
+            article.categories.add(category)
+        return article
+
+    def update(self, instance, validated_data):
+        categories = validated_data.pop('categories')
+        article = super().update(instance, validated_data)
+        instance.categories.clear()
+        for category in categories:
+            category = models.Category.objects.get(**category)
+            instance.categories.add(category)
+        return article
+
+
+class CategoryComponentsSerializer(serializers.ModelSerializer):
+    category = CategorySerializerForForNestedFields()
+
+    class Meta:
+        model = models.CategoryComponent
+        fields = ('uuid', 'type', 'name', 'description', 'measured_unit', 'category')
+
+    def create(self, validated_data):
+        category = validated_data.pop('category')
+        category = models.Category.objects.get(**category)
+        validated_data['category'] = category
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        category = validated_data.pop('category')
+        category = models.Category.objects.get(**category)
+        validated_data['category'] = category
+        return super().update(instance, validated_data)
 
 
 class CategoryGroupSerializer(
@@ -836,6 +873,7 @@ class ExportImportOfferingSerializer(serializers.ModelSerializer):
             'native_description',
             'vendor_details',
             'getting_started',
+            'integration_guide',
             'type',
             'shared',
             'billable',
@@ -996,6 +1034,7 @@ class OfferingDetailsSerializer(
             'native_description',
             'vendor_details',
             'getting_started',
+            'integration_guide',
             'thumbnail',
             'order_item_count',
             'plans',
@@ -1706,6 +1745,7 @@ class OfferingOverviewUpdateSerializer(
             'terms_of_service_link',
             'privacy_policy_link',
             'getting_started',
+            'integration_guide',
         )
 
 

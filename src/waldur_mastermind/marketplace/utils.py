@@ -44,6 +44,7 @@ from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import registrators
 from waldur_mastermind.invoices.utils import get_full_days
 from waldur_mastermind.marketplace import attribute_types
+from waldur_mastermind.marketplace.exceptions import PolicyException
 
 from . import PLUGIN_NAME as BASIC_PLUGIN_NAME
 from . import models, plugins
@@ -95,6 +96,7 @@ def process_order_item(order_item: models.OrderItem, user):
     except Exception as e:
         # Here it is necessary to catch all exceptions.
         # If this is not done, then the order will remain in the executed status.
+        order_item.refresh_from_db()
         order_item.error_message = str(e)
         order_item.error_traceback = traceback.format_exc()
         order_item.set_state_erred()
@@ -103,7 +105,21 @@ def process_order_item(order_item: models.OrderItem, user):
             f'Order item ID: { order_item.id }. '
             f'Exception: { order_item.error_message }.'
         )
-        order_item.save(update_fields=['state', 'error_message', 'error_traceback'])
+
+        if not order_item.resource and not isinstance(e, PolicyException):
+            resource = create_local_resource(order_item, None)
+            resource.state = models.Resource.States.ERRED
+            resource.save()
+            order_item.resource = resource
+
+        order_item.save(
+            update_fields=[
+                'state',
+                'error_message',
+                'error_traceback',
+                'resource',
+            ]
+        )
 
 
 def validate_order_item(order_item, request):

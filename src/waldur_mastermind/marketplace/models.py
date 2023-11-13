@@ -310,7 +310,7 @@ class BaseComponent(core_models.DescribableMixin):
     )
 
 
-class CategoryComponent(BaseComponent):
+class CategoryComponent(BaseComponent, core_models.UuidMixin):
     class Meta:
         unique_together = ('type', 'category')
 
@@ -374,6 +374,7 @@ class Offering(
     full_description = models.TextField(blank=True)
     vendor_details = models.TextField(blank=True)
     getting_started = models.TextField(blank=True)
+    integration_guide = models.TextField(blank=True)
     rating = models.IntegerField(
         null=True,
         validators=[MaxValueValidator(5), MinValueValidator(1)],

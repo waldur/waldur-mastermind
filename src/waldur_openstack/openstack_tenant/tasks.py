@@ -385,10 +385,17 @@ class DeleteExpiredSnapshots(BaseDeleteExpiredResourcesTask):
 
 class LimitedPerTypeThrottleMixin:
     def get_limit(self, resource):
-        nc_settings = getattr(settings, 'WALDUR_OPENSTACK', {})
+        nc_settings = getattr(settings, 'WALDUR_OPENSTACK_TENANT', {})
         limit_per_type = nc_settings.get('MAX_CONCURRENT_PROVISION', {})
         model_name = get_resource_type(resource)
-        return limit_per_type.get(model_name, super().get_limit(resource))
+        default_limit = limit_per_type.get(model_name)
+        tenant = resource.service_settings.scope
+        if tenant:
+            key = f'max_concurrent_provision_{resource._meta.object_name.lower()}'
+            settings_limit = tenant.service_settings.options.get(key)
+            if settings_limit:
+                return settings_limit
+        return default_limit
 
 
 class ThrottleProvisionTask(

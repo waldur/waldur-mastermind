@@ -130,6 +130,11 @@ def register_in(router):
         views.CategoryHelpArticleViewSet,
         basename='marketplace-category-help-articles',
     )
+    router.register(
+        r'marketplace-category-components',
+        views.CategoryComponentViewSet,
+        basename='marketplace-category-component',
+    )
 
 
 urlpatterns = [

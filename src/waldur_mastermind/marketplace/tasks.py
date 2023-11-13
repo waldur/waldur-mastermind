@@ -554,7 +554,7 @@ def send_metrics():
 
     if response.status_code != 200:
         logger.warning(
-            'An error of metrics sending, status code: %s, text: %s',
+            'Error when sending telemetry metrics, status code: %s, text: %s',
             response.status_code,
             response.text,
         )

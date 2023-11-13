@@ -3,6 +3,7 @@ from unittest import mock
 from rest_framework import test
 
 from waldur_core.core import utils as core_utils
+from waldur_core.logging import models as logging_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.billing import models as billing_models
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -42,6 +43,10 @@ class ActionsTest(test.APITransactionTestCase):
 
         mock_send_mail.assert_called_once()
 
+        self.assertTrue(
+            logging_models.Event.objects.filter(event_type='policy_notification')
+        )
+
     @mock.patch('waldur_core.core.utils.send_mail')
     def test_notify_organization_owners(self, mock_send_mail):
         self.policy.actions = 'notify_organization_owners'
@@ -52,6 +57,24 @@ class ActionsTest(test.APITransactionTestCase):
         tasks.notify_about_limit_cost(serialized_scope, serialized_policy)
 
         mock_send_mail.assert_called_once()
+        self.assertEqual(mock_send_mail.call_args.kwargs['to'][0], self.owner.email)
+
+        self.assertTrue(
+            logging_models.Event.objects.filter(event_type='policy_notification')
+        )
+
+    @mock.patch('waldur_mastermind.policy.policy_actions.tasks')
+    def test_create_event_log(self, mock_tasks):
+        self.policy.actions = 'notify_organization_owners'
+        self.policy.save()
+
+        self.estimate.total = self.policy.limit_cost + 1
+        self.estimate.save()
+
+        mock_tasks.notify_about_limit_cost.delay.assert_called_once()
+        self.assertTrue(
+            logging_models.Event.objects.filter(event_type='notify_organization_owners')
+        )
 
     def _create_new_order_item(self):
         order = marketplace_factories.OrderFactory(project=self.project)

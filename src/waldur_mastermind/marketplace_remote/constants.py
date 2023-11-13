@@ -6,6 +6,7 @@ OFFERING_FIELDS = (
     'terms_of_service_link',
     'privacy_policy_link',
     'getting_started',
+    'integration_guide',
     'country',
     'options',
 )

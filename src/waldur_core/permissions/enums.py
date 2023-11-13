@@ -1,7 +1,7 @@
 from enum import Enum
 
 
-class RoleEnum:
+class RoleEnum(str, Enum):
     CUSTOMER_OWNER = 'CUSTOMER.OWNER'
     CUSTOMER_SUPPORT = 'CUSTOMER.SUPPORT'
     CUSTOMER_MANAGER = 'CUSTOMER.MANAGER'

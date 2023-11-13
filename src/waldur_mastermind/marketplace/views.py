@@ -676,6 +676,33 @@ class ProviderOfferingViewSet(
         )
     ]
 
+    def destroy(self, request, *args, **kwargs):
+        offering = self.get_object()
+        serializer = serializers.ProviderOfferingSerializer(
+            offering, many=False, context=self.get_serializer_context()
+        )
+        if self.request.user.is_staff is not True:
+            if serializer.data['resources_count'] != 0:
+                return Response(
+                    {'detail': _('Offering was not deleted since it has resources.')},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            elif offering.state != models.Offering.States.DRAFT:
+                return Response(
+                    {
+                        'detail': _(
+                            'Offering was not deleted since offering is not in draft state.'
+                        )
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            else:
+                offering.delete()
+                return Response(
+                    status=status.HTTP_204_NO_CONTENT,
+                )
+        return super().destroy(request, *args, **kwargs)
+
     @action(detail=True, methods=['post'])
     def activate(self, request, uuid=None):
         return self._update_state('activate')
@@ -2751,20 +2778,14 @@ class StatsViewSet(rf_viewsets.ViewSet):
             project__customer_id=OuterRef('pk'),
         )
 
-        users_count = (
-            QuotaUsage.objects.filter(
-                object_id=OuterRef('pk'),
-                content_type=ContentType.objects.get_for_model(
-                    structure_models.Customer
-                ),
-                name='nc_user_count',
-            )
-            .annotate(usage=Sum('delta'))
-            .values('usage')
+        users_count = QuotaUsage.objects.filter(
+            object_id=OuterRef('pk'),
+            content_type=ContentType.objects.get_for_model(structure_models.Customer),
+            name='nc_user_count',
         )
 
         customers = structure_models.Customer.objects.annotate(
-            count=Subquery(users_count),
+            count=core_utils.SubquerySum(users_count, 'delta'),
             has_resources=Exists(has_resources),
         ).values('uuid', 'name', 'abbreviation', 'count', 'has_resources')
 
@@ -3352,5 +3373,12 @@ class SectionViewSet(rf_viewsets.ModelViewSet):
 class CategoryHelpArticleViewSet(rf_viewsets.ModelViewSet):
     queryset = models.CategoryHelpArticle.objects.all().order_by('title')
     serializer_class = serializers.CategoryHelpArticlesSerializer
+    filter_backends = (DjangoFilterBackend,)
+    permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
+
+
+class CategoryComponentViewSet(rf_viewsets.ModelViewSet):
+    queryset = models.CategoryComponent.objects.all().order_by('name')
+    serializer_class = serializers.CategoryComponentsSerializer
     filter_backends = (DjangoFilterBackend,)
     permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
