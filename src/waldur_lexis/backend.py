@@ -178,13 +178,14 @@ class HeappeBackend:
                 )
                 return
         heappe_session_code = self.get_heappe_session_code()
+        local_base_path = f"{self.heappe_config.heappe_local_base_path}/{lexis_link.robot_account.resource.backend_id}"
         response = requests.post(
             url=f"{self.heappe_config.heappe_url}/heappe/Management/ProjectAssignmentToCluster",
             json={
                 "SessionCode": heappe_session_code,
                 "ProjectId": heappe_project_id,
                 "ClusterId": self.heappe_config.heappe_cluster_id,
-                "LocalBasepath": self.heappe_config.heappe_local_base_path,
+                "LocalBasepath": local_base_path,
             },
         )
 
