@@ -1592,16 +1592,11 @@ class UserAgreementSerializer(serializers.HyperlinkedModelSerializer):
 
 class NotificationTemplateDetailSerializers(serializers.ModelSerializer):
     content = serializers.SerializerMethodField()
+    original_content = serializers.SerializerMethodField()
 
     class Meta:
         model = core_models.NotificationTemplate
-        fields = (
-            'uuid',
-            'url',
-            'path',
-            'name',
-            'content',
-        )
+        fields = ('uuid', 'url', 'path', 'name', 'content', 'original_content')
         extra_kwargs = {
             'url': {
                 'view_name': 'notification-messages-templates-detail',
@@ -1611,6 +1606,19 @@ class NotificationTemplateDetailSerializers(serializers.ModelSerializer):
 
     def get_content(self, obj):
         return get_template(obj.path).template.source
+
+    def get_original_content(self, obj):
+        from django.template.engine import Engine
+        from django.template.loaders.app_directories import Loader
+
+        loader = Loader(Engine())
+        for origin in loader.get_template_sources(obj.path):
+            try:
+                source = loader.get_contents(origin)
+            except Exception:
+                continue
+            if source:
+                return source
 
 
 class NotificationSerializer(serializers.HyperlinkedModelSerializer):
