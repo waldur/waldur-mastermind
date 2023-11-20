@@ -950,6 +950,7 @@ class NotificationViewSet(ActionsViewSet):
     queryset = core_models.Notification.objects.all().order_by('id')
     serializer_class = serializers.NotificationSerializer
     permission_classes = (rf_permissions.IsAdminUser,)
+    filterset_class = filters.NotificationFilter
     lookup_field = 'uuid'
 
     @action(detail=True, methods=['post'])

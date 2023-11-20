@@ -750,3 +750,17 @@ class NotificationTemplateFilter(NameFilterSet):
             'name',
             'path',
         ]
+
+
+class NotificationFilter(NameFilterSet):
+    query = django_filters.CharFilter(method='filter_query')
+
+    class Meta:
+        model = core_models.Notification
+        fields = ['key', 'description']
+
+    def filter_query(self, queryset, name, value):
+        query = queryset.filter(
+            Q(key__icontains=value) | Q(description__icontains=value)
+        )
+        return query
