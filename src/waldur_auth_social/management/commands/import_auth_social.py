@@ -7,7 +7,17 @@ from waldur_auth_social.serializers import IdentityProviderSerializer
 
 
 class Command(BaseCommand):
-    help = "Import OIDC auth configuration in YAML format"
+    help = """Import OIDC auth configuration in YAML format. The example of auth.yaml:
+        -  provider: "keycloak"     # OIDC identity provider in string format. Valid values are: "tara","eduteams","keycloak".
+            label: "Keycloak"       # Human-readable identity provider name
+            client_id: "waldur"     # String used in OIDC requests and keycloak database for client identification.
+            client_secret: K3YCLOAK_SCRT   # Keycloak secret code for client configuration.
+            discovery_url: "http://localhost/auth/realms/YOUR_KEYCLOAK_REALM/.well-known/openid-configuration" # Keycloak OIDC discovery endpoint.
+            management_url: ""      # The endpoint for user details management.
+            protected_fields:       # Validated json fields
+                - "full_name"
+                - "email"
+            """
 
     def add_arguments(self, parser):
         super().add_arguments(parser)
