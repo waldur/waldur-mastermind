@@ -1,6 +1,7 @@
 import logging
 
 from django.db import models
+from django.utils.translation import gettext_lazy as _
 from django_fsm import FSMIntegerField
 from model_utils.models import TimeStampedModel
 
@@ -139,3 +140,26 @@ class ResourceAllocator(
 ):
     call = models.ForeignKey(Call, on_delete=models.CASCADE)
     project = models.ForeignKey(structure_models.Project, on_delete=models.CASCADE)
+
+
+class CallManager(
+    core_models.UuidMixin,
+    core_models.DescribableMixin,
+    structure_models.ImageModelMixin,
+    structure_models.StructureModel,
+    TimeStampedModel,
+):
+    customer = models.OneToOneField(structure_models.Customer, on_delete=models.CASCADE)
+
+    class Permissions:
+        customer_path = 'customer'
+
+    class Meta:
+        verbose_name = _('Call manager')
+
+    def __str__(self):
+        return str(self.customer)
+
+    @classmethod
+    def get_url_name(cls):
+        return 'proposal-call-manager'
