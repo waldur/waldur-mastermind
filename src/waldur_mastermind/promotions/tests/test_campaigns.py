@@ -1,6 +1,7 @@
 import datetime
 
 from ddt import data, ddt
+from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.permissions.enums import PermissionEnum
@@ -200,6 +201,7 @@ class UpdateCampaignTest(test.APITransactionTestCase):
         payload.update(kwargs)
         return payload
 
+    @freeze_time('2023-11-01')
     @data('staff', 'offering_owner', 'service_manager')
     def test_user_can_update_campaign(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
