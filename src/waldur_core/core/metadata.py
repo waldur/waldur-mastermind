@@ -676,24 +676,6 @@ class WaldurOpenstack(BaseModel):
     DEFAULT_SECURITY_GROUPS = Field(
         (
             {
-                'name': 'allow-all',
-                'description': 'Security group for any access',
-                'rules': (
-                    {
-                        'protocol': 'icmp',
-                        'cidr': '0.0.0.0/0',
-                        'icmp_type': -1,
-                        'icmp_code': -1,
-                    },
-                    {
-                        'protocol': 'tcp',
-                        'cidr': '0.0.0.0/0',
-                        'from_port': 1,
-                        'to_port': 65535,
-                    },
-                ),
-            },
-            {
                 'name': 'ssh',
                 'description': 'Security group for secure shell access',
                 'rules': (
