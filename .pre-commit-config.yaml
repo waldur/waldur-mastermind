@@ -36,9 +36,3 @@ repos:
         entry: migrations must not be with auto-generated names
         language: fail
         files: '^.*/migrations/\d{4}_auto_\d{8}_\d{4}.py$'
-
-  - repo: https://github.com/igorshubovych/markdownlint-cli
-    rev: v0.37.0
-    hooks:
-    - id: markdownlint-fix
-      files: ^docs/
