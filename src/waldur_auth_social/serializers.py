@@ -73,9 +73,9 @@ class IdentityProviderSerializer(serializers.ModelSerializer):
 
         return fields
 
-    def discover_urls(self, discovery_url):
+    def discover_urls(self, discovery_url, verify_ssl=True):
         try:
-            response = requests.get(discovery_url)
+            response = requests.get(discovery_url, verify=verify_ssl)
         except requests.exceptions.RequestException:
             raise ValidationError('Unable to discover endpoints.')
 
@@ -92,7 +92,10 @@ class IdentityProviderSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         if instance.discovery_url != validated_data['discovery_url']:
-            validated_data |= self.discover_urls(validated_data['discovery_url'])
+            verify_ssl = validated_data.get('verify_ssl', True)
+            validated_data |= self.discover_urls(
+                validated_data['discovery_url'], verify_ssl
+            )
         return super().update(instance, validated_data)
 
     def create(self, validated_data):
@@ -101,5 +104,8 @@ class IdentityProviderSerializer(serializers.ModelSerializer):
         ).exists():
             raise ValidationError('Identity provider already exists.')
 
-        validated_data |= self.discover_urls(validated_data['discovery_url'])
+        verify_ssl = validated_data.get('verify_ssl', True)
+        validated_data |= self.discover_urls(
+            validated_data['discovery_url'], verify_ssl
+        )
         return super().create(validated_data)
