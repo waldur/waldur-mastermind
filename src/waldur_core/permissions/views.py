@@ -1,3 +1,4 @@
+from django.contrib.auth import get_user_model
 from django.db.models import Q
 from rest_framework import status
 from rest_framework.decorators import action
@@ -15,6 +16,8 @@ from waldur_core.permissions.utils import (
 )
 
 from . import models, serializers
+
+User = get_user_model()
 
 
 def can_destroy_role(role):
@@ -52,7 +55,14 @@ class UserRoleMixin:
     @action(detail=True, methods=['GET'])
     def list_users(self, request, uuid=None):
         scope = self.get_object()
-        queryset = get_permissions(scope)
+        user_uuid = request.query_params.get('user')
+        user = None
+        if user_uuid and is_uuid_like(user_uuid):
+            try:
+                user = User.objects.get(uuid=user_uuid)
+            except User.DoesNotExist:
+                pass
+        queryset = get_permissions(scope, user)
         role = request.query_params.get('role')
         search_string = request.query_params.get('search_string')
         if search_string:
