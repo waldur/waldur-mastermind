@@ -28,9 +28,6 @@ gosu waldur sh -c "waldur override_templates /etc/waldur/notifications-templates
 echo "INFO: Load Terms Of Service and Privacy Policy"
 gosu waldur sh -c "waldur load_user_agreements --tos /etc/waldur/terms-of-service.html --pp /etc/waldur/privacy-policy.html"
 
-echo "INFO: Loading whitelabeling settings"
-/usr/local/bin/set_whitelabeling.sh
-
 echo "INFO: Loading OIDC configuration"
 gosu waldur sh -c "waldur import_auth_social /etc/waldur/auth.yaml"
 
