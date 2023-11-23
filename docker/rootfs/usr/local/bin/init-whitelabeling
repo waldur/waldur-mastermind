@@ -1,74 +1,120 @@
 #!/bin/bash
+set -e
+
+yaml() {
+    python3 -c "import yaml;print(yaml.safe_load(open('$1')).get('$2') or \"\")"
+}
+
+VALUE=$(yaml ~/my_yaml_file.yaml "['a_key']")
+
+WHITELABELING_PATH="/etc/waldur/whitelabeling.yaml"
+
+echo "Whitelabeling config path is $WHITELABELING_PATH"
+
+if [ ! -f "$WHITELABELING_PATH" ]; then
+  echo "$WHITELABELING_PATH file does not exist"
+  exit 1
+fi
+
+SITE_NAME=$(yaml $WHITELABELING_PATH "site_name")
 
 if [ -n "$SITE_NAME" ]; then
   waldur constance set SITE_NAME "$SITE_NAME"
   echo "[+] SITE_NAME has been set to: $SITE_NAME"
 fi
 
+SITE_ADDRESS=$(yaml $WHITELABELING_PATH "site_address")
+
 if [ -n "$SITE_ADDRESS" ]; then
   waldur constance set SITE_ADDRESS "$SITE_ADDRESS"
   echo "[+] SITE_ADDRESS has been set to: $SITE_ADDRESS"
 fi
+
+SITE_EMAIL=$(yaml $WHITELABELING_PATH "site_email")
 
 if [ -n "$SITE_EMAIL" ]; then
   waldur constance set SITE_EMAIL "$SITE_EMAIL"
   echo "[+] SITE_EMAIL has been set to: $SITE_EMAIL"
 fi
 
+SITE_PHONE=$(yaml $WHITELABELING_PATH "site_phone")
+
 if [ -n "$SITE_PHONE" ]; then
   waldur constance set SITE_PHONE "$SITE_PHONE"
   echo "[+] SITE_PHONE has been set to: $SITE_PHONE"
 fi
+
+SHORT_PAGE_TITLE=$(yaml $WHITELABELING_PATH "short_page_title")
 
 if [ -n "$SHORT_PAGE_TITLE" ]; then
   waldur constance set SHORT_PAGE_TITLE "$SHORT_PAGE_TITLE"
   echo "[+] SHORT_PAGE_TITLE has been set to: $SHORT_PAGE_TITLE"
 fi
 
+FULL_PAGE_TITLE=$(yaml $WHITELABELING_PATH "full_page_title")
+
 if [ -n "$FULL_PAGE_TITLE" ]; then
   waldur constance set FULL_PAGE_TITLE "$FULL_PAGE_TITLE"
   echo "[+] FULL_PAGE_TITLE has been set to: $FULL_PAGE_TITLE"
 fi
+
+BRAND_COLOR=$(yaml $WHITELABELING_PATH "brand_color")
 
 if [ -n "$BRAND_COLOR" ]; then
   waldur constance set BRAND_COLOR "$BRAND_COLOR"
   echo "[+] BRAND_COLOR has been set to: $BRAND_COLOR"
 fi
 
+BRAND_LABEL_COLOR=$(yaml $WHITELABELING_PATH "brand_label_color")
+
 if [ -n "$BRAND_LABEL_COLOR" ]; then
   waldur constance set BRAND_LABEL_COLOR "$BRAND_LABEL_COLOR"
   echo "[+] BRAND_LABEL_COLOR has been set to: $BRAND_LABEL_COLOR"
 fi
+
+HERO_LINK_LABEL=$(yaml $WHITELABELING_PATH "hero_link_label")
 
 if [ -n "$HERO_LINK_LABEL" ]; then
   waldur constance set HERO_LINK_LABEL "$HERO_LINK_LABEL"
   echo "[+] HERO_LINK_LABEL has been set to: $HERO_LINK_LABEL"
 fi
 
+HERO_LINK_URL=$(yaml $WHITELABELING_PATH "hero_link_url")
+
 if [ -n "$HERO_LINK_URL" ]; then
   waldur constance set HERO_LINK_URL "$HERO_LINK_URL"
   echo "[+] HERO_LINK_URL has been set to: $HERO_LINK_URL"
 fi
+
+SITE_DESCRIPTION=$(yaml $WHITELABELING_PATH "site_description")
 
 if [ -n "$SITE_DESCRIPTION" ]; then
   waldur constance set SITE_DESCRIPTION "$SITE_DESCRIPTION"
   echo "[+] SITE_DESCRIPTION has been set to: $SITE_DESCRIPTION"
 fi
 
+CURRENCY_NAME=$(yaml $WHITELABELING_PATH "currency_name")
+
 if [ -n "$CURRENCY_NAME" ]; then
   waldur constance set CURRENCY_NAME "$CURRENCY_NAME"
   echo "[+] CURRENCY_NAME has been set to: $CURRENCY_NAME"
 fi
+
+DOCS_URL=$(yaml $WHITELABELING_PATH "docs_url")
 
 if [ -n "$DOCS_URL" ]; then
   waldur constance set DOCS_URL "$DOCS_URL"
   echo "[+] DOCS_URL has been set to: $DOCS_URL"
 fi
 
+SUPPORT_PORTAL_URL=$(yaml $WHITELABELING_PATH "support_portal_url")
+
 if [ -n "$SUPPORT_PORTAL_URL" ]; then
   waldur constance set SUPPORT_PORTAL_URL "$SUPPORT_PORTAL_URL"
   echo "[+] SUPPORT_PORTAL_URL has been set to: $SUPPORT_PORTAL_URL"
 fi
+
+POWERED_BY_LOGO=$(yaml $WHITELABELING_PATH "powered_by_logo")
 
 if [ -n "$POWERED_BY_LOGO" ]; then
   if [ -f "$POWERED_BY_LOGO" ]; then
@@ -79,6 +125,8 @@ if [ -n "$POWERED_BY_LOGO" ]; then
   fi
 fi
 
+HERO_IMAGE=$(yaml $WHITELABELING_PATH "hero_image")
+
 if [ -n "$HERO_IMAGE" ]; then
   if [ -f "$HERO_IMAGE" ]; then
     waldur set_constance_image HERO_IMAGE "$HERO_IMAGE"
@@ -87,6 +135,8 @@ if [ -n "$HERO_IMAGE" ]; then
     echo "[-] ERROR: $HERO_IMAGE file does not exist"
   fi
 fi
+
+SIDEBAR_LOGO=$(yaml $WHITELABELING_PATH "sidebar_logo")
 
 if [ -n "$SIDEBAR_LOGO" ]; then
   if [ -f "$SIDEBAR_LOGO" ]; then
@@ -97,6 +147,8 @@ if [ -n "$SIDEBAR_LOGO" ]; then
   fi
 fi
 
+SIDEBAR_LOGO_MOBILE=$(yaml $WHITELABELING_PATH "sidebar_logo_mobile")
+
 if [ -n "$SIDEBAR_LOGO_MOBILE" ]; then
   if [ -f "$SIDEBAR_LOGO_MOBILE" ]; then
     waldur set_constance_image SIDEBAR_LOGO_MOBILE "$SIDEBAR_LOGO_MOBILE"
@@ -105,6 +157,8 @@ if [ -n "$SIDEBAR_LOGO_MOBILE" ]; then
     echo "[-] ERROR: $SIDEBAR_LOGO_MOBILE file does not exist"
   fi
 fi
+
+SITE_LOGO=$(yaml $WHITELABELING_PATH "site_logo")
 
 if [ -n "$SITE_LOGO" ]; then
   if [ -f "$SITE_LOGO" ]; then
@@ -115,6 +169,8 @@ if [ -n "$SITE_LOGO" ]; then
   fi
 fi
 
+LOGIN_LOGO=$(yaml $WHITELABELING_PATH "login_logo")
+
 if [ -n "$LOGIN_LOGO" ]; then
   if [ -f "$LOGIN_LOGO" ]; then
     waldur set_constance_image LOGIN_LOGO "$LOGIN_LOGO"
@@ -123,6 +179,8 @@ if [ -n "$LOGIN_LOGO" ]; then
     echo "[-] ERROR: $LOGIN_LOGO file does not exist"
   fi
 fi
+
+FAVICON=$(yaml $WHITELABELING_PATH "favicon")
 
 if [ -n "$FAVICON" ]; then
   if [ -f "$FAVICON" ]; then
@@ -134,3 +192,5 @@ if [ -n "$FAVICON" ]; then
 fi
 
 echo "[+] Whitelabeling settings have been set"
+
+exit 0
