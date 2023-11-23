@@ -1,11 +1,11 @@
 #!/bin/bash
 set -e
 
+echo "INFO: Loading whitelabeling settings"
+
 yaml() {
     python3 -c "import yaml;print(yaml.safe_load(open('$1')).get('$2') or \"\")"
 }
-
-VALUE=$(yaml ~/my_yaml_file.yaml "['a_key']")
 
 WHITELABELING_PATH="/etc/waldur/whitelabeling.yaml"
 
