@@ -130,6 +130,10 @@ class MarketplaceSection(FeatureSection):
         'Enabled display of experimental or mocked components in marketplace.'
     )
 
+    show_call_management_functionality = Feature(
+        'Enabled display of call management functionality.'
+    )
+
 
 class SupportSection(FeatureSection):
     class Meta:
