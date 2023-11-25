@@ -199,21 +199,26 @@ Upload HomePort enums:
   interruptible: true
   rules:
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
-  image: registry.hpc.ut.ee/mirror/python:latest
+  image: registry.hpc.ut.ee/mirror/$WALDUR_MASTERMIND_TEST_IMAGE
   variables:
     PERMISSIONS_ENUM_PATH: src/permissions/enums.ts
+    EVENTS_ENUM_PATH: src/resource/enums.ts
+    DJANGO_SETTINGS_MODULE: waldur_core.server.test_settings
   script:
+    - poetry install
     - cd src/waldur_core/permissions
-    - python print_permission_enums.py > /tmp/enums.ts
+    - python print_permission_enums.py > /tmp/permission_enums.ts
+    - waldur print_events_enums > /tmp/events_enums.ts
     - cd /tmp/
     - git clone "https://UpdateEnums:$HOMEPORT_ACCESS_TOKEN@$CI_SERVER_HOST/waldur/waldur-homeport.git"
     - git config --global user.name "$GITLAB_USER_NAME"
     - git config --global user.email "$GITLAB_USER_EMAIL"
     - cd waldur-homeport
     - git checkout next
-    - mv /tmp/enums.ts $PERMISSIONS_ENUM_PATH
-    - git add $PERMISSIONS_ENUM_PATH
-    - git commit -m "Update permissions enums" || exit 0
+    - mv /tmp/permission_enums.ts $PERMISSIONS_ENUM_PATH
+    - mv /tmp/events_enums.ts $EVENTS_ENUM_PATH
+    - git add $PERMISSIONS_ENUM_PATH $EVENTS_ENUM_PATH
+    - git commit -m "Update permissions and events enums" || exit 0
     - git branch new-enums
     - git push --set-upstream origin new-enums:next
   before_script: []
