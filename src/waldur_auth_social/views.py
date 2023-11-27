@@ -153,7 +153,10 @@ class OAuthView(RefreshTokenMixin, views.APIView):
             }
         try:
             token_response = requests.post(
-                self.config.token_url, data=data, headers=headers
+                self.config.token_url,
+                data=data,
+                headers=headers,
+                verify=self.config.verify_ssl,
             )
         except requests.exceptions.RequestException as e:
             logger.warning('Unable to send authentication request. Error is %s', e)
