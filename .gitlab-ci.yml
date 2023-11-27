@@ -202,7 +202,7 @@ Upload HomePort enums:
   image: registry.hpc.ut.ee/mirror/$WALDUR_MASTERMIND_TEST_IMAGE
   variables:
     PERMISSIONS_ENUM_PATH: src/permissions/enums.ts
-    EVENTS_ENUM_PATH: src/resource/enums.ts
+    EVENTS_ENUM_PATH: src/EventsEnums.ts
     DJANGO_SETTINGS_MODULE: waldur_core.server.test_settings
   script:
     - poetry install
