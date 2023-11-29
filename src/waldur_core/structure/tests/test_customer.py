@@ -900,6 +900,7 @@ class CustomerBlockedTest(CustomerBaseTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_project_creating_is_not_available_for_blocked_organization(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT)
         self.client.force_authenticate(user=self.user)
         url = factories.ProjectFactory.get_list_url()
         data = {
@@ -910,6 +911,7 @@ class CustomerBlockedTest(CustomerBaseTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_project_deleting_is_not_available_for_blocked_organization(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.DELETE_PROJECT)
         self.client.force_authenticate(user=self.user)
         project = factories.ProjectFactory(customer=self.customer)
         url = factories.ProjectFactory.get_url(project=project)
@@ -917,6 +919,7 @@ class CustomerBlockedTest(CustomerBaseTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_project_updating_is_not_available_for_blocked_organization(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_PROJECT)
         self.client.force_authenticate(user=self.user)
         project = factories.ProjectFactory(customer=self.customer)
         url = factories.ProjectFactory.get_url(project=project)

@@ -22,13 +22,11 @@ from waldur_core.core.clean_html import clean_html
 from waldur_core.core.fields import MappedChoiceField
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.media.serializers import ProtectedMediaSerializerMixin
-from waldur_core.permissions.enums import SYSTEM_CUSTOMER_ROLES
+from waldur_core.permissions.enums import SYSTEM_CUSTOMER_ROLES, PermissionEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.serializers import PermissionSerializer
-from waldur_core.permissions.utils import get_permissions
-from waldur_core.structure import models
-from waldur_core.structure import permissions as structure_permissions
-from waldur_core.structure import utils
+from waldur_core.permissions.utils import get_permissions, has_permission
+from waldur_core.structure import models, utils
 from waldur_core.structure.filters import filter_visible_users
 from waldur_core.structure.managers import (
     count_customer_users,
@@ -304,18 +302,13 @@ class ProjectSerializer(
             attrs.get('customer') if not self.instance else self.instance.customer
         )
         end_date = attrs.get('end_date')
-        image = attrs.get('image')
 
         if end_date:
-            structure_permissions.is_owner(self.context['request'], None, customer)
+            if not has_permission(
+                self.context['request'], PermissionEnum.DELETE_PROJECT, customer
+            ):
+                raise exceptions.PermissionDenied()
             attrs['end_date_requested_by'] = self.context['request'].user
-
-        if image and self.instance:
-            structure_permissions.is_manager(
-                self.context['request'], None, self.context['view'].get_object()
-            )
-        elif image and not self.instance:
-            structure_permissions.is_owner(self.context['request'], None, customer)
 
         if settings.WALDUR_CORE.get('OECD_FOS_2007_CODE_MANDATORY'):
             if (not self.instance and not attrs.get('oecd_fos_2007_code')) or (

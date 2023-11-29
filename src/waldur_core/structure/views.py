@@ -34,8 +34,12 @@ from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.core.views import ActionsViewSet
-from waldur_core.permissions.enums import RoleEnum
-from waldur_core.permissions.utils import count_users
+from waldur_core.permissions.enums import PermissionEnum, RoleEnum
+from waldur_core.permissions.utils import (
+    count_users,
+    has_permission,
+    permission_factory,
+)
 from waldur_core.permissions.views import UserRoleMixin
 from waldur_core.structure import filters, models, permissions, serializers, utils
 from waldur_core.structure.managers import (
@@ -270,6 +274,14 @@ class ProjectViewSet(
         utils.project_is_empty,
     ]
 
+    destroy_permissions = [
+        permission_factory(PermissionEnum.DELETE_PROJECT, ['customer'])
+    ]
+
+    update_permissions = partial_update_permissions = [
+        permission_factory(PermissionEnum.UPDATE_PROJECT, ['*', 'customer'])
+    ]
+
     def get_serializer_context(self):
         context = super().get_serializer_context()
         if self.action == 'users':
@@ -342,17 +354,6 @@ class ProjectViewSet(
         """
         return super().destroy(request, *args, **kwargs)
 
-    def can_create_project_with(self, customer):
-        user = self.request.user
-
-        if user.is_staff:
-            return True
-
-        if customer.has_user(user, models.CustomerRole.OWNER):
-            return True
-
-        return False
-
     def get_queryset(self):
         user = self.request.user
         queryset = super().get_queryset()
@@ -376,10 +377,10 @@ class ProjectViewSet(
     def perform_create(self, serializer):
         customer = serializer.validated_data['customer']
 
-        if not self.can_create_project_with(customer):
-            raise PermissionDenied()
-
         utils.check_customer_blocked_or_archived(customer)
+
+        if not has_permission(self.request, PermissionEnum.CREATE_PROJECT, customer):
+            raise PermissionDenied()
 
         super().perform_create(serializer)
 

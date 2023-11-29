@@ -7,6 +7,7 @@ from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.core import middleware
+from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests.factories import ProjectFactory
 from waldur_mastermind.marketplace.models import Resource
@@ -37,6 +38,7 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
             "waldur_mastermind.marketplace_remote.utils.WaldurClient"
         )
         self.client_mock = self.patcher.start()
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_PROJECT)
 
     def tearDown(self):
         super().tearDown()
@@ -71,7 +73,6 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
             ProjectFactory.get_url(self.project), {'name': 'First project'}
         )
 
-        self.client.force_login(self.fixture.admin)
         self.client.patch(
             ProjectFactory.get_url(self.project), {'name': 'Second project'}
         )
