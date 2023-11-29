@@ -10,6 +10,7 @@ from rest_framework import status, test
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.media.utils import dummy_image
+from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure import executors, models, permissions
 from waldur_core.structure.models import Project
@@ -35,6 +36,8 @@ class ProjectPermissionGrantTest(TransactionTestCase):
 class ProjectUpdateDeleteTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ServiceFixture()
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_PROJECT)
+        CustomerRole.OWNER.add_permission(PermissionEnum.DELETE_PROJECT)
 
     # Update tests:
     def test_user_can_change_single_project_field(self):
@@ -118,6 +121,8 @@ class ProjectUpdateDeleteTest(test.APITransactionTestCase):
 class ProjectCreateTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ServiceFixture()
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT)
+        CustomerRole.OWNER.add_permission(PermissionEnum.DELETE_PROJECT)
 
     def test_staff_can_create_any_project(self):
         self.client.force_authenticate(self.fixture.owner)
@@ -281,6 +286,7 @@ class ProjectApiPermissionTest(test.APITransactionTestCase):
         self.projects['owner'].customer.add_user(
             self.users['owner'], CustomerRole.OWNER
         )
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT)
 
     # TODO: Test for customer owners
     # Creation tests
@@ -628,6 +634,8 @@ class ChangeProjectImageTest(test.APITransactionTestCase):
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
         self.url = factories.ProjectFactory.get_url(self.project)
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_PROJECT)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.UPDATE_PROJECT)
 
     @data('staff', 'owner', 'manager')
     def test_user_can_update_image(self, user):
