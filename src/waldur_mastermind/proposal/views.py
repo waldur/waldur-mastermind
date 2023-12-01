@@ -10,11 +10,11 @@ from waldur_mastermind.marketplace.views import BaseMarketplaceView, PublicViews
 from waldur_mastermind.proposal import filters, models, serializers
 
 
-class ManagerViewSet(PublicViewsetMixin, BaseMarketplaceView):
+class CallManagingOrganisationViewSet(PublicViewsetMixin, BaseMarketplaceView):
     lookup_field = 'uuid'
-    queryset = models.Manager.objects.all().order_by('customer__name')
-    serializer_class = serializers.ManagerSerializer
-    filterset_class = filters.CallManagerFilter
+    queryset = models.CallManagingOrganisation.objects.all().order_by('customer__name')
+    serializer_class = serializers.CallManagingOrganisationSerializer
+    filterset_class = filters.CallManagingOrganisationFilter
 
 
 class PublicCallViewSet(viewsets.ReadOnlyModelViewSet):

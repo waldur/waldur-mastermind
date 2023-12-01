@@ -8,25 +8,25 @@ from waldur_mastermind.marketplace.tests import factories as marketplace_factori
 from waldur_mastermind.proposal import models
 
 
-class ManagerFactory(factory.DjangoModelFactory):
+class CallManagingOrganisationFactory(factory.DjangoModelFactory):
     class Meta:
-        model = models.Manager
+        model = models.CallManagingOrganisation
 
     customer = factory.SubFactory(structure_factories.CustomerFactory)
 
     @classmethod
     def get_url(cls, manager=None, action=None):
         if manager is None:
-            manager = ManagerFactory()
+            manager = CallManagingOrganisationFactory()
         url = 'http://testserver' + reverse(
-            'proposal-manager-detail',
+            'call-managing-organisation-detail',
             kwargs={'uuid': manager.uuid.hex},
         )
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls, action=None):
-        url = 'http://testserver' + reverse('proposal-manager-list')
+        url = 'http://testserver' + reverse('call-managing-organisation-list')
         return url if action is None else url + action + '/'
 
 
@@ -35,7 +35,7 @@ class CallFactory(factory.DjangoModelFactory):
         model = models.Call
 
     name = factory.Sequence(lambda n: 'name-%s' % n)
-    manager = factory.SubFactory(ManagerFactory)
+    manager = factory.SubFactory(CallManagingOrganisationFactory)
     created_by = factory.SubFactory(structure_factories.UserFactory)
     start_time = datetime.date.today()
     end_time = datetime.date.today() + datetime.timedelta(days=30)

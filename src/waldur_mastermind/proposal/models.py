@@ -13,7 +13,7 @@ from waldur_mastermind.marketplace.models import SafeAttributesMixin
 logger = logging.getLogger(__name__)
 
 
-class Manager(
+class CallManagingOrganisation(
     core_models.UuidMixin,
     core_models.DescribableMixin,
     structure_models.ImageModelMixin,
@@ -26,14 +26,14 @@ class Manager(
         customer_path = 'customer'
 
     class Meta:
-        verbose_name = _('Manager')
+        verbose_name = _('Call managing organisation')
 
     def __str__(self):
         return str(self.customer)
 
     @classmethod
     def get_url_name(cls):
-        return 'proposal-manager'
+        return 'call-managing-organisation'
 
 
 class Call(
@@ -80,7 +80,7 @@ class Call(
             (ARCHIVED, 'Archived'),
         )
 
-    manager = models.ForeignKey(Manager, on_delete=models.PROTECT)
+    manager = models.ForeignKey(CallManagingOrganisation, on_delete=models.PROTECT)
     created_by = models.ForeignKey(
         core_models.User, on_delete=models.PROTECT, null=True
     )

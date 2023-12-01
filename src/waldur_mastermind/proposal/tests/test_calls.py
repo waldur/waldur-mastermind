@@ -94,7 +94,7 @@ class CallCreateTest(test.APITransactionTestCase):
             'name': 'new call',
             'start_time': '2023-11-01T00:00:00',
             'end_time': '2024-11-01T00:00:00',
-            'manager': factories.ManagerFactory.get_url(self.manager),
+            'manager': factories.CallManagingOrganisationFactory.get_url(self.manager),
             'round_strategy': models.Call.RoundStrategies.REGULAR,
             'review_strategy': models.Call.ReviewStrategies.AFTER_APPLICATION,
             'allocation_strategy': models.Call.AllocationStrategies.BY_CALL_MANAGER,

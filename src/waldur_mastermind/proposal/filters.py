@@ -9,7 +9,7 @@ from . import models
 User = get_user_model()
 
 
-class CallManagerFilter(django_filters.FilterSet):
+class CallManagingOrganisationFilter(django_filters.FilterSet):
     customer = core_filters.URLFilter(
         view_name='customer-detail', field_name='customer__uuid'
     )
@@ -18,7 +18,7 @@ class CallManagerFilter(django_filters.FilterSet):
     o = django_filters.OrderingFilter(fields=(('customer__name', 'customer_name'),))
 
     class Meta:
-        model = models.Manager
+        model = models.CallManagingOrganisation
         fields = []
 
     def filter_customer_keyword(self, queryset, name, value):
