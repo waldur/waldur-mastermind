@@ -115,6 +115,9 @@ def create_or_update_keycloak_user(backend_user):
         if user.last_name != last_name:
             user.last_name = last_name
             update_fields.add('last_name')
+        if user.email != email:
+            user.last_name = last_name
+            update_fields.add('email')
         if update_fields:
             user.save(update_fields=update_fields)
     return user, created
