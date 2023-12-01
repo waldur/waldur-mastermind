@@ -13,5 +13,5 @@ class CallAdmin(admin.ModelAdmin):
     list_display = ('name', 'start_time', 'end_time')
 
 
-admin.site.register(models.Manager)
+admin.site.register(models.CallManagingOrganisation)
 admin.site.register(models.Call, CallAdmin)

@@ -5,9 +5,9 @@ from waldur_mastermind.proposal import views
 
 def register_in(router):
     router.register(
-        r'proposal-managers',
-        views.ManagerViewSet,
-        basename='proposal-manager',
+        r'call-managing-organisations',
+        views.CallManagingOrganisationViewSet,
+        basename='call-managing-organisation',
     )
     router.register(
         r'proposal-public-calls',

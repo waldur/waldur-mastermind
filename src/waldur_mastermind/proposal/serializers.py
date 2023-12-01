@@ -18,13 +18,13 @@ from . import models
 logger = logging.getLogger(__name__)
 
 
-class ManagerSerializer(
+class CallManagingOrganisationSerializer(
     MarketplaceProtectedMediaSerializerMixin,
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
     class Meta:
-        model = models.Manager
+        model = models.CallManagingOrganisation
         fields = (
             'url',
             'uuid',
@@ -152,7 +152,7 @@ class PublicCallSerializer(
             },
             'manager': {
                 'lookup_field': 'uuid',
-                'view_name': 'proposal-manager-detail',
+                'view_name': 'call-managing-organisation-detail',
             },
             'created_by': {
                 'lookup_field': 'uuid',
