@@ -17,7 +17,7 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.CreateModel(
-            name='Manager',
+            name='CallManager',
             fields=[
                 (
                     'id',
@@ -68,14 +68,7 @@ class Migration(migrations.Migration):
                 ),
             ],
             options={
-                'verbose_name': 'Manager',
+                'verbose_name': 'Call manager',
             },
-        ),
-        migrations.AddField(
-            model_name='call',
-            name='manager',
-            field=models.ForeignKey(
-                on_delete=django.db.models.deletion.PROTECT, to='proposal.manager'
-            ),
         ),
     ]

@@ -4,7 +4,6 @@ import django.db.models.deletion
 import django.utils.timezone
 import django_fsm
 import model_utils.fields
-from django.conf import settings
 from django.db import migrations, models
 
 import waldur_core.core.fields
@@ -15,7 +14,6 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        migrations.swappable_dependency(settings.AUTH_USER_MODEL),
         ('marketplace', '0104_translations'),
         ('structure', '0040_useragreement_uuid'),
     ]
@@ -99,14 +97,7 @@ class Migration(migrations.Migration):
                         default=1,
                     ),
                 ),
-                (
-                    'created_by',
-                    models.ForeignKey(
-                        null=True,
-                        on_delete=django.db.models.deletion.PROTECT,
-                        to=settings.AUTH_USER_MODEL,
-                    ),
-                ),
+                ('offerings', models.ManyToManyField(to='marketplace.Offering')),
             ],
             options={
                 'abstract': False,
