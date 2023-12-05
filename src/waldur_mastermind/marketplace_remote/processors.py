@@ -4,6 +4,7 @@ from django.conf import settings
 from django.db import transaction
 from django.urls import reverse
 from django.utils.functional import cached_property
+from rest_framework import serializers
 
 from waldur_core.core.utils import serialize_instance
 from waldur_mastermind.marketplace import models, processors
@@ -88,6 +89,10 @@ class RemoteUpdateResourceProcessor(
 class RemoteDeleteResourceProcessor(
     RemoteClientMixin, processors.BasicDeleteResourceProcessor
 ):
+    def validate_order_item(self, request):
+        if not self.order_item.resource.backend_id:
+            raise serializers.ValidationError('Resource does not have backend ID.')
+
     def send_request(self, user, resource):
         # If terminate order already exists in the remote side,
         # it should be imported and local order item is switched to erred.
