@@ -1,100 +1,52 @@
 from unittest import mock
 
-from django.core import mail
 from django.test import override_settings
 from rest_framework import test
 
-import waldur_core.structure.tests.factories as structure_factories
+from waldur_core.core.utils import serialize_instance
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, OfferingRole
+from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.tasks import approve_order
+from waldur_mastermind.marketplace.models import Order, Resource
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
+from waldur_mastermind.marketplace.tests.factories import (
+    OfferingFactory,
+    OrderFactory,
+    ResourceFactory,
+)
+from waldur_mastermind.marketplace.utils import order_should_not_be_reviewed_by_provider
 from waldur_mastermind.marketplace_remote import PLUGIN_NAME
+from waldur_mastermind.marketplace_remote.tasks import OrderPullTask
 
 
-class OrderCreateTest(test.APITransactionTestCase):
+class OrderReviewByProviderTest(test.APITransactionTestCase):
     def setUp(self) -> None:
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
         self.offering.type = PLUGIN_NAME
         self.offering.save()
-        self.order_item = self.fixture.order_item
-        self.order_item.state = marketplace_models.OrderItem.States.PENDING
-        self.order_item.save()
-
-        self.order = self.order_item.order
+        self.order = self.fixture.order
+        self.order.state = marketplace_models.Order.States.PENDING
+        self.order.save()
 
         self.fixture.offering_owner
 
-        event_type = 'notification_service_provider_approval'
-        structure_factories.NotificationFactory(key=f"marketplace.{event_type}")
-
-    @override_settings(
-        task_always_eager=True,
-    )
-    @mock.patch('waldur_mastermind.marketplace.utils.process_order_item')
-    def test_order_is_processed_when_plugin_option_is_enabled(self, process_order_item):
+    def test_option_is_enabled(self):
         self.offering.plugin_options = {'auto_approve_remote_orders': True}
         self.offering.save()
 
-        approve_order(self.order, self.fixture.service_manager)
+        self.assertTrue(order_should_not_be_reviewed_by_provider(self.order))
 
-        self.order.refresh_from_db()
-        self.assertEqual(marketplace_models.Order.States.EXECUTING, self.order.state)
-
-        self.order_item.refresh_from_db()
-        self.assertEqual(
-            marketplace_models.OrderItem.States.EXECUTING, self.order_item.state
-        )
-
-        process_order_item.assert_called_once()
-
-        self.assertEqual(len(mail.outbox), 0)
-
-    @override_settings(
-        task_always_eager=True,
-    )
-    @mock.patch('waldur_mastermind.marketplace.utils.process_order_item')
-    def test_order_is_processed_when_plugin_option_is_disabled(
-        self, process_order_item
-    ):
+    def test_option_is_disabled(self):
         self.offering.plugin_options = {'auto_approve_remote_orders': False}
         self.offering.save()
 
-        approve_order(self.order, self.fixture.service_manager)
+        self.assertFalse(order_should_not_be_reviewed_by_provider(self.order))
 
-        self.order.refresh_from_db()
-        self.assertEqual(marketplace_models.Order.States.EXECUTING, self.order.state)
-
-        self.order_item.refresh_from_db()
-        self.assertEqual(
-            marketplace_models.OrderItem.States.PENDING, self.order_item.state
-        )
-
-        process_order_item.assert_not_called()
-
-        self.assertEqual(len(mail.outbox), 1)
-
-    @override_settings(
-        task_always_eager=True,
-    )
-    @mock.patch('waldur_mastermind.marketplace.utils.process_order_item')
-    def test_order_is_processed_when_plugin_option_is_absent(self, process_order_item):
-        approve_order(self.order, self.fixture.service_manager)
-
-        self.order.refresh_from_db()
-        self.assertEqual(marketplace_models.Order.States.EXECUTING, self.order.state)
-
-        self.order_item.refresh_from_db()
-        self.assertEqual(
-            marketplace_models.OrderItem.States.PENDING, self.order_item.state
-        )
-
-        process_order_item.assert_not_called()
-
-        self.assertEqual(len(mail.outbox), 1)
+    def test_option_is_absent(self):
+        self.assertFalse(order_should_not_be_reviewed_by_provider(self.order))
 
 
 class LimitsUpdateTest(test.APITransactionTestCase):
@@ -131,8 +83,8 @@ class LimitsUpdateTest(test.APITransactionTestCase):
         return self.client.post(url, payload)
 
     @override_settings(task_always_eager=True)
-    @mock.patch('waldur_mastermind.marketplace.utils.process_order_item')
-    def test_order_item_is_approved_implicitly_for_SP_owner(self, process_order_item):
+    @mock.patch('waldur_mastermind.marketplace.utils.process_order')
+    def test_order_is_approved_implicitly_for_SP_owner(self, process_order):
         # Act
         user = self.fixture.offering_owner
         response = self.update_limits(user, self.resource)
@@ -141,18 +93,12 @@ class LimitsUpdateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, 200, response.data)
         order = marketplace_models.Order.objects.get(uuid=response.data['order_uuid'])
         self.assertEqual(order.state, marketplace_models.Order.States.EXECUTING)
-        self.assertEqual(order.approved_by, user)
-        process_order_item.assert_called_once()
-        order_item = order.items.first()
-        self.assertEqual(
-            order_item.state, marketplace_models.OrderItem.States.EXECUTING
-        )
+        self.assertEqual(order.created_by, user)
+        process_order.assert_called_once()
 
     @override_settings(task_always_eager=True)
-    @mock.patch('waldur_mastermind.marketplace.utils.process_order_item')
-    def test_order_item_is_approved_implicitly_for_SP_service_manager(
-        self, process_order_item
-    ):
+    @mock.patch('waldur_mastermind.marketplace.utils.process_order')
+    def test_order_is_approved_implicitly_for_SP_service_manager(self, process_order):
         # Act
         user = self.fixture.service_manager
         self.offering.add_user(user, OfferingRole.MANAGER)
@@ -162,17 +108,13 @@ class LimitsUpdateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, 200, response.data)
         order = marketplace_models.Order.objects.get(uuid=response.data['order_uuid'])
         self.assertEqual(order.state, marketplace_models.Order.States.EXECUTING)
-        self.assertEqual(order.approved_by, user)
-        process_order_item.assert_called_once()
-        order_item = order.items.first()
-        self.assertEqual(
-            order_item.state, marketplace_models.OrderItem.States.EXECUTING
-        )
+        self.assertEqual(order.created_by, user)
+        process_order.assert_called_once()
 
     @override_settings(task_always_eager=True)
-    @mock.patch('waldur_mastermind.marketplace.utils.process_order_item')
-    def test_order_item_is_not_approved_for_SP_service_manager_of_another_offering(
-        self, process_order_item
+    @mock.patch('waldur_mastermind.marketplace.utils.process_order')
+    def test_order_is_not_approved_for_SP_service_manager_of_another_offering(
+        self, process_order
     ):
         # Act
         user = self.fixture.service_manager
@@ -181,7 +123,103 @@ class LimitsUpdateTest(test.APITransactionTestCase):
         # Assert
         self.assertEqual(response.status_code, 200, response.data)
         order = marketplace_models.Order.objects.get(uuid=response.data['order_uuid'])
-        self.assertEqual(order.state, marketplace_models.Order.States.EXECUTING)
-        process_order_item.assert_not_called()
-        order_item = order.items.first()
-        self.assertEqual(order_item.state, marketplace_models.OrderItem.States.PENDING)
+        self.assertEqual(order.state, marketplace_models.Order.States.PENDING)
+        process_order.assert_not_called()
+
+
+class OrderPullTest(test.APITransactionTestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        patcher = mock.patch('waldur_mastermind.marketplace_remote.utils.WaldurClient')
+        self.client_mock = patcher.start()
+        fixture = ProjectFixture()
+        offering = OfferingFactory(
+            type=PLUGIN_NAME,
+            secret_options={
+                'api_url': 'https://remote-waldur.com/',
+                'token': 'valid_token',
+            },
+        )
+        self.resource = ResourceFactory(project=fixture.project, offering=offering)
+        self.order = OrderFactory(
+            project=fixture.project,
+            offering=offering,
+            resource=self.resource,
+            state=Order.States.EXECUTING,
+            backend_id='BACKEND_ID',
+        )
+
+    def tearDown(self):
+        super().tearDown()
+        mock.patch.stopall()
+
+    def test_when_order_succeeds_resource_is_updated(self):
+        # Arrange
+        self.client_mock().get_order.return_value = {
+            'state': 'done',
+            'error_message': '',
+        }
+
+        # Act
+        OrderPullTask().run(serialize_instance(self.order))
+
+        # Assert
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.state, Order.States.DONE)
+
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.state, Resource.States.OK)
+
+    def test_when_order_fails_resource_is_updated(self):
+        # Arrange
+        self.client_mock().get_order.return_value = {
+            'state': 'erred',
+            'error_message': 'Invalid credentials',
+        }
+
+        # Act
+        OrderPullTask().run(serialize_instance(self.order))
+
+        # Assert
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.state, Order.States.ERRED)
+        self.assertEqual(self.order.error_message, 'Invalid credentials')
+
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.state, Resource.States.ERRED)
+
+    def test_when_creation_order_succeeds_resource_is_created(self):
+        # Arrange
+        self.client_mock().get_order.return_value = {
+            'state': 'done',
+            'marketplace_resource_uuid': 'marketplace_resource_uuid',
+            'error_message': '',
+        }
+        self.order.resource = None
+        self.order.save()
+
+        # Act
+        OrderPullTask().run(serialize_instance(self.order))
+
+        # Assert
+        self.order.refresh_from_db()
+        self.assertIsNotNone(self.order.resource)
+        self.assertEqual(Resource.States.OK, self.order.resource.state)
+
+    def test_remote_resource_backend_id_is_saved_as_local_resource_effective_id(self):
+        # Arrange
+        self.client_mock().get_order.return_value = {
+            'state': 'done',
+            'marketplace_resource_uuid': 'marketplace_resource_uuid',
+            'resource_uuid': 'effective_id',
+            'error_message': '',
+        }
+        self.order.resource = None
+        self.order.save()
+
+        # Act
+        OrderPullTask().run(serialize_instance(self.order))
+
+        # Assert
+        self.order.refresh_from_db()
+        self.assertEqual('effective_id', self.order.resource.effective_id)

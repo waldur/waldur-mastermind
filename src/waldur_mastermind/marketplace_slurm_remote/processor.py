@@ -9,10 +9,10 @@ from .apps import MarketplaceSlurmConfig
 
 
 class CreateAllocationProcessor(processors.BasicCreateResourceProcessor):
-    def process_order_item(self, user):
+    def process_order(self, user):
         with transaction.atomic():
             marketplace_resource = marketplace_utils.create_local_resource(
-                self.order_item, None
+                self.order, None
             )
 
             service_settings, _ = ServiceSettings.objects.update_or_create(
@@ -26,18 +26,18 @@ class CreateAllocationProcessor(processors.BasicCreateResourceProcessor):
             )
 
             allocation = slurm_models.Allocation.objects.create(
-                name=self.order_item.attributes['name'],
+                name=self.order.attributes['name'],
                 service_settings=service_settings,
-                project=self.order_item.order.project,
+                project=self.order.project,
             )
             marketplace_resource.scope = allocation
             marketplace_resource.save()
 
 
 class DeleteAllocationProcessor(processors.BasicDeleteResourceProcessor):
-    def process_order_item(self, user):
+    def process_order(self, user):
         with transaction.atomic():
-            marketplace_resource = self.order_item.resource
+            marketplace_resource = self.order.resource
             marketplace_resource.set_state_terminating()
             marketplace_resource.save(update_fields=['state'])
 
@@ -48,7 +48,7 @@ class DeleteAllocationProcessor(processors.BasicDeleteResourceProcessor):
 
 class UpdateAllocationLimitsProcessor(processors.BasicUpdateResourceProcessor):
     def update_limits_process(self, user):
-        allocation: slurm_models.Allocation = self.order_item.resource.scope
+        allocation: slurm_models.Allocation = self.order.resource.scope
         allocation.schedule_updating()
         allocation.save(update_fields=['state'])
 

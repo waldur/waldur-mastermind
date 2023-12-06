@@ -18,8 +18,9 @@ class MoveResourceCommandTest(test.APITransactionTestCase):
         resource_offering = self.resource.offering
         resource_offering.scope = self.fixture.service_settings
         resource_offering.save()
-        self.order = marketplace_factories.OrderFactory(project=self.project)
-        marketplace_factories.OrderItemFactory(resource=self.resource, order=self.order)
+        self.order = marketplace_factories.OrderFactory(
+            resource=self.resource, project=self.project
+        )
         self.new_project = structure_factories.ProjectFactory()
 
         self.start_invoice = invoices_factories.InvoiceFactory(
@@ -61,14 +62,6 @@ class MoveResourceCommandTest(test.APITransactionTestCase):
     ):
         self.target_invoice.state = invoices_models.Invoice.States.CREATED
         self.target_invoice.save()
-        self.assertRaises(
-            MoveResourceException, move_resource, self.resource, self.new_project
-        )
-
-    def test_resource_moving_is_not_possible_if_related_orders_are_related_to_other_resources(
-        self,
-    ):
-        marketplace_factories.OrderItemFactory(order=self.order)
         self.assertRaises(
             MoveResourceException, move_resource, self.resource, self.new_project
         )

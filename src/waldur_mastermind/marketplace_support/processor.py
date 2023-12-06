@@ -12,11 +12,11 @@ class CreateRequestProcessor(processors.BaseCreateResourceProcessor):
     viewset = IssueViewSet
 
     def get_post_data(self):
-        return {'uuid': str(self.order_item.uuid)}
+        return {'uuid': str(self.order.uuid)}
 
-    def process_order_item(self, user):
+    def process_order(self, user):
         with transaction.atomic():
-            resource = create_local_resource(self.order_item, None)
+            resource = create_local_resource(self.order, None)
             issue = self.send_request(user)
 
             if issue:
@@ -33,7 +33,7 @@ class DeleteRequestProcessor(processors.DeleteScopedResourceProcessor):
     viewset = IssueViewSet
 
     def get_resource(self):
-        return self.order_item
+        return self.order
 
 
 class UpdateRequestProcessor(processors.UpdateScopedResourceProcessor):
@@ -41,15 +41,15 @@ class UpdateRequestProcessor(processors.UpdateScopedResourceProcessor):
         return IssueViewSet.as_view({'post': 'update'})
 
     def get_post_data(self):
-        return {'uuid': str(self.order_item.uuid)}
+        return {'uuid': str(self.order.uuid)}
 
     def get_resource(self):
-        return self.order_item.resource
+        return self.order.resource
 
     def update_limits_process(self, user):
         utils.create_issue(
-            self.order_item,
-            description=utils.format_update_limits_description(self.order_item),
-            summary='Request to update limits for %s' % self.order_item.resource.name,
+            self.order,
+            description=utils.format_update_limits_description(self.order),
+            summary='Request to update limits for %s' % self.order.resource.name,
         )
         return False

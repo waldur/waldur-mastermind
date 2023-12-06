@@ -8,14 +8,11 @@ from waldur_core.core.utils import is_uuid_like
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.models import Customer, Project
 from waldur_core.structure.utils import move_project
-from waldur_mastermind.marketplace.models import (
-    Offering,
-    Order,
-    OrderItem,
-    Plan,
-    Resource,
+from waldur_mastermind.marketplace.models import Offering, Order, Plan, Resource
+from waldur_mastermind.marketplace.tasks import (
+    notify_consumer_about_pending_order,
+    process_order_on_commit,
 )
-from waldur_mastermind.marketplace.tasks import approve_order, notify_order_approvers
 from waldur_slurm.utils import sanitize_allocation_name
 
 logger = logging.getLogger(__name__)
@@ -113,59 +110,40 @@ def get_or_create_project(customer, user, wrong_customer):
 def get_or_create_order(project: Project, user, offering, plan, limits=None):
     limits = limits or {}
 
-    order_ids = OrderItem.objects.filter(offering=offering).values_list(
-        'order_id', flat=True
-    )
+    order_ids = Order.objects.filter(offering=offering).values_list('id', flat=True)
 
-    order, order_created = (
+    order = (
         Order.objects.filter(
             project=project,
             created_by=user,
             state__in=(
                 Order.States.DONE,
-                Order.States.REQUESTED_FOR_APPROVAL,
+                Order.States.PENDING,
                 Order.States.EXECUTING,
             ),
             id__in=order_ids,
         )
         .order_by('created')
-        .last(),
-        False,
+        .last()
     )
-
-    if not order:
-        order, order_created = (
-            Order.objects.create(project=project, created_by=user),
-            True,
-        )
-
-    if not order_created:
-        if order.state in [Order.States.REQUESTED_FOR_APPROVAL, Order.States.EXECUTING]:
+    if order:
+        if order.state in [Order.States.PENDING, Order.States.EXECUTING]:
             return order, False
         if order.state == Order.States.DONE:
-            order_item = order.items.first()
-            if (
-                order_item
-                and order_item.state == OrderItem.States.DONE
-                and order_item.resource
-                and order_item.resource.state != Resource.States.ERRED
-            ):
+            if order.resource and order.resource.state != Resource.States.ERRED:
                 return order, False
 
-        order = Order.objects.create(project=project, created_by=user)
-
-    order_item = OrderItem.objects.create(
-        order=order,
+    order = Order.objects.create(
+        project=project,
+        created_by=user,
         offering=offering,
         plan=plan,
         limits=limits,
         attributes={'name': sanitize_allocation_name(user.username)},
+        state=Order.States.EXECUTING,
     )
 
-    order_item.init_cost()
-    order_item.save()
-
-    order.init_total_cost()
+    order.init_cost()
     order.save()
 
     return order, True
@@ -173,7 +151,8 @@ def get_or_create_order(project: Project, user, offering, plan, limits=None):
 
 def check_user(user, affiliations, email_patterns):
     logger.info(
-        "Checking user %s for internal/external belonging. User's affiliations: %s, affiliations: %s, email patterns: %s",
+        "Checking user %s for internal/external belonging. "
+        "User's affiliations: %s, affiliations: %s, email patterns: %s",
         user,
         user.affiliations,
         affiliations,
@@ -258,8 +237,7 @@ def handle_new_user(sender, instance, created=False, **kwargs):
 
         if not order or not order_created:
             return
-
-        approve_order(order, user)
+        process_order_on_commit(order, user)
         return
 
     if is_external_user(user):
@@ -282,4 +260,6 @@ def handle_new_user(sender, instance, created=False, **kwargs):
         if not order or not order_created:
             return
 
-        transaction.on_commit(lambda: notify_order_approvers.delay(order.uuid))
+        transaction.on_commit(
+            lambda: notify_consumer_about_pending_order.delay(order.uuid)
+        )

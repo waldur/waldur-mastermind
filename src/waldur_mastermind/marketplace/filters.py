@@ -15,12 +15,13 @@ from waldur_core.core.filters import LooseMultipleChoiceFilter
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.models import UserRole
-from waldur_core.permissions.utils import role_has_permission
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.managers import (
     get_connected_customers,
+    get_connected_customers_by_permission,
     get_connected_projects,
+    get_connected_projects_by_permission,
     get_project_users,
 )
 from waldur_mastermind.invoices import models as invoices_models
@@ -273,148 +274,90 @@ class CartItemFilter(django_filters.FilterSet):
         fields = []
 
 
-class OrderFilter(django_filters.FilterSet):
-    customer = core_filters.URLFilter(
-        view_name='customer-detail', field_name='project__customer__uuid'
-    )
-    customer_uuid = django_filters.UUIDFilter(field_name='project__customer__uuid')
-    project = core_filters.URLFilter(
-        view_name='project-detail', field_name='project__uuid'
-    )
+class OrderFilter(OfferingFilterMixin, django_filters.FilterSet):
     project_uuid = django_filters.UUIDFilter(field_name='project__uuid')
-    state = core_filters.MappedMultipleChoiceFilter(
-        choices=[
-            (representation, representation)
-            for db_value, representation in models.Order.States.CHOICES
-        ],
-        choice_mappings={
-            representation: db_value
-            for db_value, representation in models.Order.States.CHOICES
-        },
-    )
-    type = django_filters.MultipleChoiceFilter(
-        choices=[
-            (representation, representation)
-            for db_value, representation in models.RequestTypeMixin.Types.CHOICES
-        ],
-        method='filter_items_type',
-        label='Items type',
-    )
-    can_approve_as_consumer = django_filters.BooleanFilter(
-        method='filter_can_approve_as_consumer',
-    )
-    o = django_filters.OrderingFilter(
-        fields=('created', 'approved_at', 'total_cost', 'state')
-    )
-
-    class Meta:
-        model = models.Order
-        fields = []
-
-    def filter_items_type(self, queryset, name, value):
-        type_ids = []
-
-        for v in value:
-            for type_id, type_name in models.RequestTypeMixin.Types.CHOICES:
-                if type_name == v:
-                    type_ids.append(type_id)
-
-        order_ids = models.OrderItem.objects.filter(type__in=type_ids).values_list(
-            'order_id', flat=True
-        )
-        return queryset.filter(id__in=order_ids)
-
-    def filter_can_approve_as_consumer(self, queryset, name, value):
-        user = self.request.user
-
-        if value and not user.is_staff:
-            query_access = Q(
-                project__customer__in=get_connected_customers(
-                    user, RoleEnum.CUSTOMER_OWNER
-                )
-            )
-
-            for project_role in (RoleEnum.PROJECT_MANAGER, RoleEnum.PROJECT_ADMIN):
-                if role_has_permission(project_role, PermissionEnum.APPROVE_ORDER):
-                    query_access |= Q(
-                        project__in=get_connected_projects(user, project_role)
-                    )
-
-            query_pending = query_access & Q(
-                state=models.Order.States.REQUESTED_FOR_APPROVAL,
-            )
-            return queryset.filter(query_pending)
-
-        return queryset
-
-
-class OrderItemFilter(OfferingFilterMixin, django_filters.FilterSet):
-    project_uuid = django_filters.UUIDFilter(field_name='order__project__uuid')
+    offering_uuid = django_filters.UUIDFilter(field_name='offering__uuid')
     offering_type = core_filters.LooseMultipleChoiceFilter(
         field_name='offering__type', lookup_expr='exact'
     )
     category_uuid = django_filters.UUIDFilter(field_name='offering__category__uuid')
     provider_uuid = django_filters.UUIDFilter(field_name='offering__customer__uuid')
-    customer_uuid = django_filters.UUIDFilter(
-        field_name='order__project__customer__uuid'
-    )
+    customer_uuid = django_filters.UUIDFilter(field_name='project__customer__uuid')
     service_manager_uuid = django_filters.UUIDFilter(method='filter_service_manager')
     state = core_filters.MappedMultipleChoiceFilter(
         choices=[
             (representation, representation)
-            for db_value, representation in models.OrderItem.States.CHOICES
+            for db_value, representation in models.Order.States.CHOICES
         ],
         choice_mappings={
             representation: db_value
-            for db_value, representation in models.OrderItem.States.CHOICES
+            for db_value, representation in models.Order.States.CHOICES
         },
     )
     type = core_filters.MappedMultipleChoiceFilter(
         choices=[
             (representation, representation)
-            for db_value, representation in models.OrderItem.Types.CHOICES
+            for db_value, representation in models.Order.Types.CHOICES
         ],
         choice_mappings={
             representation: db_value
-            for db_value, representation in models.OrderItem.Types.CHOICES
+            for db_value, representation in models.Order.Types.CHOICES
         },
     )
-    order = core_filters.URLFilter(
-        view_name='marketplace-order-detail', field_name='order__uuid'
-    )
-    order_uuid = django_filters.UUIDFilter(field_name='order__uuid')
-
     resource = core_filters.URLFilter(
         view_name='marketplace-resource-detail', field_name='resource__uuid'
     )
     resource_uuid = django_filters.UUIDFilter(field_name='resource__uuid')
     created = django_filters.DateTimeFilter(lookup_expr='gte', label='Created after')
     modified = django_filters.DateTimeFilter(lookup_expr='gte', label='Modified after')
-    can_approve_as_service_provider = django_filters.BooleanFilter(
-        method='filter_can_approve_as_service_provider',
-        label='Can approve as service provider',
+    can_approve_as_consumer = django_filters.BooleanFilter(
+        method='filter_can_approve_as_consumer',
+    )
+    can_approve_as_provider = django_filters.BooleanFilter(
+        method='filter_can_approve_as_provider',
     )
 
-    o = django_filters.OrderingFilter(fields=('created',))
+    o = django_filters.OrderingFilter(
+        fields=('created', 'consumer_reviewed_at', 'cost', 'state')
+    )
 
     class Meta:
-        model = models.OrderItem
+        model = models.Order
         fields = []
 
-    def filter_can_approve_as_service_provider(self, queryset, name, value):
+    def filter_can_approve_as_consumer(self, queryset, name, value):
         user = self.request.user
 
+        queryset = queryset.filter(
+            state=models.Order.States.PENDING, consumer_reviewed_by__isnull=True
+        )
+
         if value and not user.is_staff:
-            connected_customers = get_connected_customers(user, RoleEnum.CUSTOMER_OWNER)
-            query_owner = Q(offering__customer__in=connected_customers)
-            query_pending = query_owner & Q(
-                state=models.OrderItem.States.PENDING,
+            connected_customers = get_connected_customers_by_permission(
+                user, PermissionEnum.APPROVE_ORDER
             )
-            query_executing = query_owner & Q(
-                state=models.OrderItem.States.EXECUTING,
-                resource__isnull=False,
+            connected_projects = get_connected_projects_by_permission(
+                user, PermissionEnum.APPROVE_ORDER
             )
-            return queryset.filter(query_pending | query_executing)
+            queryset = queryset.filter(
+                Q(project__customer__in=connected_customers)
+                | Q(project__in=connected_projects)
+            )
+
+        return queryset
+
+    def filter_can_approve_as_provider(self, queryset, name, value):
+        user = self.request.user
+
+        queryset = queryset.filter(
+            state=models.Order.States.PENDING, provider_reviewed_by__isnull=True
+        )
+
+        if value and not user.is_staff:
+            connected_customers = get_connected_customers_by_permission(
+                user, PermissionEnum.APPROVE_ORDER
+            )
+            queryset = queryset.filter(offering__customer__in=connected_customers)
 
         return queryset
 

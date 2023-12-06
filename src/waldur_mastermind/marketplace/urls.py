@@ -42,13 +42,6 @@ def register_in(router):
         views.PlanComponentViewSet,
         basename='marketplace-plan-component',
     )
-
-    # TODO: Remove after migration of clients to a new endpoint
-    router.register(
-        r'marketplace-public-plans',
-        views.PublicPlanViewSet,
-        basename='marketplace-public-plan',
-    )
     router.register(
         r'marketplace-screenshots',
         views.ScreenshotViewSet,
@@ -60,12 +53,9 @@ def register_in(router):
         basename='marketplace-cart-item',
     )
     router.register(
-        r'marketplace-orders', views.OrderViewSet, basename='marketplace-order'
-    )
-    router.register(
-        r'marketplace-order-items',
-        views.OrderItemViewSet,
-        basename='marketplace-order-item',
+        r'marketplace-orders',
+        views.OrderViewSet,
+        basename='marketplace-order',
     )
     router.register(
         r'marketplace-resources', views.ResourceViewSet, basename='marketplace-resource'

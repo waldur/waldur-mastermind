@@ -229,10 +229,10 @@ def map_limits_to_quotas(limits, offering):
     return quotas
 
 
-def update_limits(order_item):
-    tenant = order_item.resource.scope
+def update_limits(order):
+    tenant = order.resource.scope
     backend = tenant.get_backend()
-    quotas = map_limits_to_quotas(order_item.limits, order_item.offering)
+    quotas = map_limits_to_quotas(order.limits, order.offering)
     backend.push_tenant_quotas(tenant, quotas)
     with transaction.atomic():
         _apply_quotas(tenant, quotas)
@@ -282,25 +282,25 @@ def push_tenant_limits(resource):
 
 
 def restore_limits(resource):
-    order_item = (
-        marketplace_models.OrderItem.objects.filter(
+    order = (
+        marketplace_models.Order.objects.filter(
             resource=resource,
             type__in=[
-                marketplace_models.OrderItem.Types.CREATE,
-                marketplace_models.OrderItem.Types.UPDATE,
+                marketplace_models.Order.Types.CREATE,
+                marketplace_models.Order.Types.UPDATE,
             ],
         )
         .order_by('-created')
         .first()
     )
 
-    if not order_item:
+    if not order:
         return
 
-    if not isinstance(order_item.resource.scope, openstack_models.Tenant):
+    if not isinstance(order.resource.scope, openstack_models.Tenant):
         return
 
-    update_limits(order_item)
+    update_limits(order)
 
 
 def get_tenant_backend_of_tenant(tenant):

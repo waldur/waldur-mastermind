@@ -1,7 +1,7 @@
 from django.utils.translation import gettext_lazy as _
 
 from waldur_mastermind.marketplace import processors, signals
-from waldur_mastermind.marketplace.processors import get_order_item_post_data
+from waldur_mastermind.marketplace.processors import get_order_post_data
 from waldur_mastermind.marketplace_openstack import views
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack import views as openstack_views
@@ -23,9 +23,9 @@ class TenantCreateProcessor(processors.BaseCreateResourceProcessor):
     )
 
     def get_post_data(self):
-        order_item = self.order_item
-        payload = get_order_item_post_data(order_item, self.get_fields())
-        quotas = utils.map_limits_to_quotas(order_item.limits, order_item.offering)
+        order = self.order
+        payload = get_order_post_data(order, self.get_fields())
+        quotas = utils.map_limits_to_quotas(order.limits, order.offering)
 
         return dict(quotas=quotas, **payload)
 
@@ -39,13 +39,13 @@ class TenantUpdateProcessor(processors.UpdateScopedResourceProcessor):
         scope = self.get_resource()
         if not scope or not isinstance(scope, openstack_models.Tenant):
             signals.resource_limit_update_failed.send(
-                sender=self.order_item.resource.__class__,
-                order_item=self.order_item,
+                sender=self.order.resource.__class__,
+                order=self.order,
                 message=_('Limit updating is available only for tenants.'),
             )
             return
 
-        utils.update_limits(self.order_item)
+        utils.update_limits(self.order)
         return True
 
     def send_request(self, user):

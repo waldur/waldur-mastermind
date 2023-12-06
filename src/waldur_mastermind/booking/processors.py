@@ -15,32 +15,32 @@ from waldur_mastermind.marketplace import processors
 from .utils import TimePeriod, is_interval_in_schedules
 
 
-class BookingCreateProcessor(processors.BaseOrderItemProcessor):
-    def process_order_item(self, user):
+class BookingCreateProcessor(processors.BaseOrderProcessor):
+    def process_order(self, user):
         with transaction.atomic():
             resource = marketplace_models.Resource(
-                project=self.order_item.order.project,
-                offering=self.order_item.offering,
-                plan=self.order_item.plan,
-                limits=self.order_item.limits,
-                attributes=self.order_item.attributes,
-                name=self.order_item.attributes.get('name') or '',
+                project=self.order.project,
+                offering=self.order.offering,
+                plan=self.order.plan,
+                limits=self.order.limits,
+                attributes=self.order.attributes,
+                name=self.order.attributes.get('name') or '',
                 state=marketplace_models.Resource.States.CREATING,
             )
             resource.init_cost()
             resource.save()
-            self.order_item.resource = resource
-            self.order_item.save(update_fields=['resource'])
+            self.order.resource = resource
+            self.order.save(update_fields=['resource'])
 
-            for slot in self.order_item.attributes.get('schedules'):
+            for slot in self.order.attributes.get('schedules'):
                 BookingSlot.objects.create(
                     resource=resource,
                     start=slot['start'],
                     end=slot['end'],
                 )
 
-    def validate_order_item(self, request):
-        schedules = self.order_item.attributes.get('schedules')
+    def validate_order(self, request):
+        schedules = self.order.attributes.get('schedules')
 
         # We check that the schedule is set.
         if not schedules:
@@ -83,7 +83,7 @@ class BookingCreateProcessor(processors.BaseOrderItemProcessor):
                 raise ValidationError(_('Past slots are not available for selection.'))
 
         # Check that the schedule is available for the offering.
-        offering = self.order_item.offering
+        offering = self.order.offering
         offering_schedules = offering.attributes.get('schedules', [])
 
         for period in schedules:
@@ -110,7 +110,7 @@ class BookingCreateProcessor(processors.BaseOrderItemProcessor):
                 )
 
         # Check that there are no other booking requests.
-        booking_requests = get_other_offering_booking_requests(self.order_item)
+        booking_requests = get_other_offering_booking_requests(self.order)
         for period in schedules:
             if is_interval_in_schedules(
                 TimePeriod(period['start'], period['end']), booking_requests

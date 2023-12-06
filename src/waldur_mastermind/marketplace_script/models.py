@@ -31,14 +31,12 @@ class DryRun(
         to=marketplace_models.Order,
         null=True,
     )
-    order_item_attributes = models.JSONField(blank=True, default=dict)
-    order_item_plan = models.ForeignKey(
-        on_delete=models.CASCADE, to=marketplace_models.Plan
-    )
-    order_item_offering = models.ForeignKey(
+    order_attributes = models.JSONField(blank=True, default=dict)
+    order_plan = models.ForeignKey(on_delete=models.CASCADE, to=marketplace_models.Plan)
+    order_offering = models.ForeignKey(
         on_delete=models.SET_NULL, null=True, to=marketplace_models.Offering
     )
-    order_item_type = models.CharField(max_length=255)
+    order_type = models.CharField(max_length=255)
     state = FSMIntegerField(default=States.PENDING, choices=States.CHOICES)
     output = models.TextField(blank=True)
 
@@ -47,7 +45,7 @@ class DryRun(
         ordering = ('created',)
 
     class Permissions:
-        customer_path = 'order_item_offering__customer'
+        customer_path = 'order_offering__customer'
 
     @property
     def human_readable_state(self):

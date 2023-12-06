@@ -1,9 +1,9 @@
 from django.dispatch import Signal
 
-# providing_args=['order_item']
+# providing_args=['order']
 resource_limit_update_succeeded = Signal()
 
-# providing_args=['order_item', 'error_message']
+# providing_args=['order', 'error_message']
 resource_limit_update_failed = Signal()
 
 # providing_args=['instance']

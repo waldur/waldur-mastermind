@@ -1,3 +1,3 @@
-{% load waldur_marketplace %}[Terminate resource {{order_item.resource.scope.name}}|{{request_url}}].
-{% plan_details order_item.resource.plan %}
-Marketplace resource UUID: {{order_item.resource.uuid.hex}}
+{% load waldur_marketplace %}[Terminate resource {{order.resource.scope.name}}|{{request_url}}].
+{% plan_details order.resource.plan %}
+Marketplace resource UUID: {{order.resource.uuid.hex}}

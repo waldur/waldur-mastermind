@@ -19,9 +19,9 @@ class MarketplaceSupportConfig(AppConfig):
         registrators.SupportRegistrator.connect()
 
         signals.post_save.connect(
-            handlers.update_order_item_if_issue_was_complete,
+            handlers.update_order_if_issue_was_complete,
             sender=support_models.Issue,
-            dispatch_uid='waldur_mastermind.marketplace_support.update_order_item_if_issue_was_complete',
+            dispatch_uid='waldur_mastermind.marketplace_support.update_order_if_issue_was_complete',
         )
 
         signals.post_save.connect(
@@ -35,13 +35,13 @@ class MarketplaceSupportConfig(AppConfig):
             create_resource_processor=processor.CreateRequestProcessor,
             update_resource_processor=processor.UpdateRequestProcessor,
             delete_resource_processor=processor.DeleteRequestProcessor,
-            can_terminate_order_item=True,
+            can_terminate_order=True,
             enable_usage_notifications=True,
             enable_remote_support=True,
             can_update_limits=True,
         )
 
         core_signals.pre_serializer_fields.connect(
-            sender=marketplace_serializers.OrderItemDetailsSerializer,
+            sender=marketplace_serializers.OrderDetailsSerializer,
             receiver=add_issue,
         )

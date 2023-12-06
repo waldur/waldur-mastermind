@@ -13,8 +13,8 @@ class CallbacksTest(test.APITransactionTestCase):
         start = parse_datetime('2018-11-01')
         plan = factories.PlanFactory()
         resource = factories.ResourceFactory(plan=plan)
-        order_item = factories.OrderItemFactory(
-            state=models.OrderItem.States.EXECUTING,
+        order = factories.OrderFactory(
+            state=models.Order.States.EXECUTING,
             resource=resource,
         )
 
@@ -28,8 +28,8 @@ class CallbacksTest(test.APITransactionTestCase):
             ).exists()
         )
 
-        order_item.refresh_from_db()
-        self.assertEqual(order_item.state, models.OrderItem.States.DONE)
+        order.refresh_from_db()
+        self.assertEqual(order.state, models.Order.States.DONE)
 
     def test_when_plan_is_changed_old_period_is_closed_new_is_opened(self):
         # Arrange
@@ -43,9 +43,9 @@ class CallbacksTest(test.APITransactionTestCase):
         old_period = models.ResourcePlanPeriod.objects.create(
             resource=resource, plan=old_plan, start=old_start, end=None
         )
-        order_item = factories.OrderItemFactory(
-            state=models.OrderItem.States.EXECUTING,
-            type=models.OrderItem.Types.UPDATE,
+        order = factories.OrderFactory(
+            state=models.Order.States.EXECUTING,
+            type=models.Order.Types.UPDATE,
             resource=resource,
             plan=new_plan,
         )
@@ -54,8 +54,8 @@ class CallbacksTest(test.APITransactionTestCase):
         callbacks.resource_update_succeeded(resource)
 
         # Assert
-        order_item.refresh_from_db()
-        self.assertEqual(order_item.state, models.OrderItem.States.DONE)
+        order.refresh_from_db()
+        self.assertEqual(order.state, models.Order.States.DONE)
 
         old_period.refresh_from_db()
         self.assertEqual(old_period.end, new_start)
@@ -77,9 +77,9 @@ class CallbacksTest(test.APITransactionTestCase):
         period = models.ResourcePlanPeriod.objects.create(
             resource=resource, plan=plan, start=start, end=None
         )
-        order_item = factories.OrderItemFactory(
-            state=models.OrderItem.States.EXECUTING,
-            type=models.OrderItem.Types.TERMINATE,
+        order = factories.OrderFactory(
+            state=models.Order.States.EXECUTING,
+            type=models.Order.Types.TERMINATE,
             resource=resource,
             plan=plan,
         )
@@ -88,8 +88,8 @@ class CallbacksTest(test.APITransactionTestCase):
         callbacks.resource_deletion_succeeded(resource)
 
         # Assert
-        order_item.refresh_from_db()
-        self.assertEqual(order_item.state, models.OrderItem.States.DONE)
+        order.refresh_from_db()
+        self.assertEqual(order.state, models.Order.States.DONE)
 
         period.refresh_from_db()
         self.assertEqual(period.end, end)

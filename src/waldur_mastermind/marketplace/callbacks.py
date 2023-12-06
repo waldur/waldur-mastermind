@@ -50,10 +50,10 @@ def close_resource_plan_period(resource: models.Resource):
 
 
 def resource_creation_succeeded(resource: models.Resource, validate=False):
-    order_item = set_order_item_state(
+    order = set_order_state(
         resource,
         models.RequestTypeMixin.Types.CREATE,
-        models.OrderItem.States.DONE,
+        models.Order.States.DONE,
         validate,
     )
 
@@ -66,28 +66,28 @@ def resource_creation_succeeded(resource: models.Resource, validate=False):
 
     signals.resource_creation_succeeded.send(sender=models.Resource, instance=resource)
     log.log_resource_creation_succeeded(resource)
-    return order_item
+    return order
 
 
 def resource_creation_failed(resource: models.Resource, validate=False):
-    order_item = set_order_item_state(
+    order = set_order_state(
         resource,
         models.RequestTypeMixin.Types.CREATE,
-        models.OrderItem.States.ERRED,
+        models.Order.States.ERRED,
         validate,
     )
     resource.set_state_erred()
     resource.save(update_fields=['state'])
 
     log.log_resource_creation_failed(resource)
-    return order_item
+    return order
 
 
 def resource_creation_canceled(resource: models.Resource, validate=False):
-    order_item = set_order_item_state(
+    order = set_order_state(
         resource,
         models.RequestTypeMixin.Types.CREATE,
-        models.OrderItem.States.TERMINATED,
+        models.Order.States.CANCELED,
         validate,
     )
 
@@ -96,14 +96,14 @@ def resource_creation_canceled(resource: models.Resource, validate=False):
         resource.save(update_fields=['state'])
 
     log.log_resource_creation_canceled(resource)
-    return order_item
+    return order
 
 
 def resource_update_succeeded(resource: models.Resource, validate=False):
-    order_item = set_order_item_state(
+    order = set_order_state(
         resource,
         models.RequestTypeMixin.Types.UPDATE,
-        models.OrderItem.States.DONE,
+        models.Order.States.DONE,
         validate,
     )
 
@@ -117,25 +117,25 @@ def resource_update_succeeded(resource: models.Resource, validate=False):
         resource.set_state_ok()
         resource.save(update_fields=['state'])
 
-    if order_item:
+    if order:
         email_context.update(
             {
-                'order_item_user': order_item.order.created_by.get_full_name(),
+                'order_user': order.created_by.get_full_name(),
             }
         )
 
-    if order_item and order_item.plan:
-        if resource.plan != order_item.plan:
+    if order and order.plan:
+        if resource.plan != order.plan:
             email_context.update(
                 {
                     'resource_old_plan': resource.plan.name,
-                    'resource_plan': order_item.plan.name,
+                    'resource_plan': order.plan.name,
                 }
             )
 
         close_resource_plan_period(resource)
 
-        resource.plan = order_item.plan
+        resource.plan = order.plan
         resource.init_cost()
         resource.save(update_fields=['plan', 'cost'])
 
@@ -145,19 +145,19 @@ def resource_update_succeeded(resource: models.Resource, validate=False):
                 'marketplace_resource_update_succeeded', email_context, resource.uuid
             )
         )
-    if order_item and order_item.limits:
-        components_map = order_item.offering.get_limit_components()
+    if order and order.limits:
+        components_map = order.offering.get_limit_components()
         email_context.update(
             {
                 'resource_old_limits': utils.format_limits_list(
                     components_map, resource.limits
                 ),
                 'resource_limits': utils.format_limits_list(
-                    components_map, order_item.limits
+                    components_map, order.limits
                 ),
             }
         )
-        resource.limits = order_item.limits
+        resource.limits = order.limits
         resource.init_cost()
         resource.save(update_fields=['limits', 'cost'])
         log.log_resource_limit_update_succeeded(resource)
@@ -170,28 +170,44 @@ def resource_update_succeeded(resource: models.Resource, validate=False):
         )
 
     log.log_resource_update_succeeded(resource)
-    return order_item
+    return order
 
 
 def resource_update_failed(resource: models.Resource, validate=False):
-    order_item = set_order_item_state(
+    order = set_order_state(
         resource,
         models.RequestTypeMixin.Types.UPDATE,
-        models.OrderItem.States.ERRED,
+        models.Order.States.ERRED,
         validate,
     )
     resource.set_state_erred()
     resource.save(update_fields=['state'])
 
     log.log_resource_update_failed(resource)
-    return order_item
+    return order
+
+
+def resource_update_canceled(resource: models.Resource, validate=False):
+    order = set_order_state(
+        resource,
+        models.RequestTypeMixin.Types.UPDATE,
+        models.Order.States.CANCELED,
+        validate,
+    )
+
+    if resource.state != resource.States.OK:
+        resource.set_state_ok()
+        resource.save(update_fields=['state'])
+
+    log.log_resource_update_canceled(resource)
+    return order
 
 
 def resource_deletion_succeeded(resource: models.Resource, validate=False):
-    order_item = set_order_item_state(
+    order = set_order_state(
         resource,
         models.RequestTypeMixin.Types.TERMINATE,
-        models.OrderItem.States.DONE,
+        models.Order.States.DONE,
         validate,
     )
     resource.set_state_terminated()
@@ -202,59 +218,73 @@ def resource_deletion_succeeded(resource: models.Resource, validate=False):
 
     signals.resource_deletion_succeeded.send(models.Resource, instance=resource)
     log.log_resource_terminate_succeeded(resource)
-    return order_item
+    return order
 
 
 def resource_deletion_failed(resource: models.Resource, validate=False):
-    order_item = set_order_item_state(
+    order = set_order_state(
         resource,
         models.RequestTypeMixin.Types.TERMINATE,
-        models.OrderItem.States.ERRED,
+        models.Order.States.ERRED,
         validate,
     )
     resource.set_state_ok()
     resource.save(update_fields=['state'])
 
     log.log_resource_terminate_failed(resource)
-    return order_item
+    return order
 
 
-def set_order_item_state(
-    resource: models.Resource, order_item_type, new_state, validate=False
-):
+def resource_deletion_canceled(resource: models.Resource, validate=False):
+    order = set_order_state(
+        resource,
+        models.RequestTypeMixin.Types.TERMINATE,
+        models.Order.States.CANCELED,
+        validate,
+    )
+
+    if resource.state != resource.States.OK:
+        resource.set_state_ok()
+        resource.save(update_fields=['state'])
+
+    log.log_resource_terminate_canceled(resource)
+    return order
+
+
+def set_order_state(resource: models.Resource, order_type, new_state, validate=False):
     try:
-        order_item = models.OrderItem.objects.get(
+        order = models.Order.objects.get(
             resource=resource,
-            type=order_item_type,
-            state=models.OrderItem.States.EXECUTING,
+            type=order_type,
+            state=models.Order.States.EXECUTING,
         )
     except django_exceptions.ObjectDoesNotExist:
         if validate:
             raise ValidationError(
-                _('Unable to complete action because related order item is not found.')
+                _('Unable to complete action because related order is not found.')
             )
         logger.debug(
-            'Skipping order item synchronization for marketplace resource '
-            'because order item is not found. Resource ID: %s',
+            'Skipping order synchronization for marketplace resource '
+            'because order is not found. Resource ID: %s',
             resource.id,
         )
     except django_exceptions.MultipleObjectsReturned:
         if validate:
             raise ValidationError(
                 _(
-                    'Unable to complete action because multiple related order items are found.'
+                    'Unable to complete action because multiple related orders are found.'
                 )
             )
         logger.debug(
-            'Skipping order item synchronization for marketplace resource '
-            'because there are multiple active order items are found. '
+            'Skipping order synchronization for marketplace resource '
+            'because there are multiple active orders are found. '
             'Resource ID: %s',
             resource.id,
         )
     else:
-        getattr(order_item, OrderItemStateRouter[new_state])()
-        order_item.save(update_fields=['state'])
-        return order_item
+        getattr(order, OrderStateRouter[new_state])()
+        order.save(update_fields=['state'])
+        return order
 
 
 States = StateMixin.States
@@ -269,52 +299,51 @@ StateRouter = {
 }
 
 
-OrderItemStateRouter = {
-    models.OrderItem.States.EXECUTING: 'set_state_executing',
-    models.OrderItem.States.DONE: 'set_state_done',
-    models.OrderItem.States.ERRED: 'set_state_erred',
-    models.OrderItem.States.TERMINATED: 'set_state_terminated',
-    models.OrderItem.States.TERMINATING: 'set_state_terminating',
+OrderStateRouter = {
+    models.Order.States.EXECUTING: 'set_state_executing',
+    models.Order.States.DONE: 'complete',
+    models.Order.States.ERRED: 'set_state_erred',
+    models.Order.States.CANCELED: 'cancel',
 }
 
 
-OrderItemHandlers = {
+OrderHandlers = {
     (
-        models.OrderItem.Types.CREATE,
-        models.OrderItem.States.DONE,
+        models.Order.Types.CREATE,
+        models.Order.States.DONE,
     ): resource_creation_succeeded,
     (
-        models.OrderItem.Types.CREATE,
-        models.OrderItem.States.ERRED,
+        models.Order.Types.CREATE,
+        models.Order.States.ERRED,
     ): resource_creation_failed,
     (
-        models.OrderItem.Types.CREATE,
-        models.OrderItem.States.TERMINATED,
+        models.Order.Types.CREATE,
+        models.Order.States.CANCELED,
     ): resource_creation_canceled,
     (
-        models.OrderItem.Types.UPDATE,
-        models.OrderItem.States.DONE,
+        models.Order.Types.UPDATE,
+        models.Order.States.DONE,
     ): resource_update_succeeded,
     (
-        models.OrderItem.Types.UPDATE,
-        models.OrderItem.States.ERRED,
+        models.Order.Types.UPDATE,
+        models.Order.States.ERRED,
     ): resource_update_failed,
     (
-        models.OrderItem.Types.UPDATE,
-        models.OrderItem.States.TERMINATED,
-    ): resource_update_failed,
+        models.Order.Types.UPDATE,
+        models.Order.States.CANCELED,
+    ): resource_update_canceled,
     (
-        models.OrderItem.Types.TERMINATE,
-        models.OrderItem.States.DONE,
+        models.Order.Types.TERMINATE,
+        models.Order.States.DONE,
     ): resource_deletion_succeeded,
     (
-        models.OrderItem.Types.TERMINATE,
-        models.OrderItem.States.ERRED,
+        models.Order.Types.TERMINATE,
+        models.Order.States.ERRED,
     ): resource_deletion_failed,
     (
-        models.OrderItem.Types.TERMINATE,
-        models.OrderItem.States.TERMINATED,
-    ): resource_deletion_failed,
+        models.Order.Types.TERMINATE,
+        models.Order.States.CANCELED,
+    ): resource_deletion_canceled,
 }
 
 
@@ -325,8 +354,8 @@ def sync_resource_state(instance, resource):
         func(resource)
 
 
-def sync_order_item_state(order_item, new_state):
-    key = (order_item.type, new_state)
-    func = OrderItemHandlers.get(key)
+def sync_order_state(order, new_state):
+    key = (order.type, new_state)
+    func = OrderHandlers.get(key)
     if func:
-        func(order_item.resource)
+        func(order.resource)

@@ -137,13 +137,13 @@ class TerminateResource(test.APITransactionTestCase):
         self.user = fixture.staff
         offering = factories.OfferingFactory()
         self.resource = factories.ResourceFactory(offering=offering)
-        factories.OrderItemFactory(
+        factories.OrderFactory(
             resource=self.resource,
-            type=models.OrderItem.Types.TERMINATE,
-            state=models.OrderItem.States.EXECUTING,
+            type=models.Order.Types.TERMINATE,
+            state=models.Order.States.EXECUTING,
         )
 
-    def test_raise_exception_if_order_item_has_not_been_created(self):
+    def test_raise_exception_if_order_has_not_been_created(self):
         self.assertRaises(
             exceptions.ResourceTerminateException,
             tasks.terminate_resource,
@@ -169,15 +169,15 @@ class ProjectEndDate(test.APITransactionTestCase):
         with freeze_time('2020-01-02'):
             tasks.terminate_resources_if_project_end_date_has_been_reached()
             self.assertTrue(
-                models.OrderItem.objects.filter(
+                models.Order.objects.filter(
                     resource=self.fixture.resource,
-                    type=models.OrderItem.Types.TERMINATE,
+                    type=models.Order.Types.TERMINATE,
                 ).count()
             )
-            order_item = models.OrderItem.objects.get(
-                resource=self.fixture.resource, type=models.OrderItem.Types.TERMINATE
+            order = models.Order.objects.get(
+                resource=self.fixture.resource, type=models.Order.Types.TERMINATE
             )
-            self.assertTrue(order_item.order.state, models.Order.States.EXECUTING)
+            self.assertTrue(order.state, models.Order.States.EXECUTING)
 
     def test_notification_about_project_ending(self):
         with freeze_time('2019-12-25'):
@@ -321,16 +321,16 @@ class ResourceEndDate(test.APITransactionTestCase):
             self.resource.refresh_from_db()
 
             self.assertTrue(
-                models.OrderItem.objects.filter(
+                models.Order.objects.filter(
                     resource=self.fixtures.resource,
-                    type=models.OrderItem.Types.TERMINATE,
+                    type=models.Order.Types.TERMINATE,
                 ).count()
             )
-            order_item = models.OrderItem.objects.get(
-                resource=self.fixtures.resource, type=models.OrderItem.Types.TERMINATE
+            order = models.Order.objects.get(
+                resource=self.fixtures.resource, type=models.Order.Types.TERMINATE
             )
-            self.assertTrue(order_item.order.state, models.Order.States.EXECUTING)
-            self.assertEqual(order_item.order.created_by, self.system_robot)
+            self.assertTrue(order.state, models.Order.States.EXECUTING)
+            self.assertEqual(order.created_by, self.system_robot)
 
     def test_terminate_resource_if_end_date_requested_by_is_passed(self):
         with freeze_time('2020-01-01'):
@@ -343,13 +343,13 @@ class ResourceEndDate(test.APITransactionTestCase):
             self.resource.refresh_from_db()
 
             self.assertTrue(
-                models.OrderItem.objects.filter(
+                models.Order.objects.filter(
                     resource=self.fixtures.resource,
-                    type=models.OrderItem.Types.TERMINATE,
+                    type=models.Order.Types.TERMINATE,
                 ).count()
             )
-            order_item = models.OrderItem.objects.get(
-                resource=self.fixtures.resource, type=models.OrderItem.Types.TERMINATE
+            order = models.Order.objects.get(
+                resource=self.fixtures.resource, type=models.Order.Types.TERMINATE
             )
-            self.assertTrue(order_item.order.state, models.Order.States.EXECUTING)
-            self.assertEqual(order_item.order.created_by, user)
+            self.assertTrue(order.state, models.Order.States.EXECUTING)
+            self.assertEqual(order.created_by, user)

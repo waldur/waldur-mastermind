@@ -18,22 +18,17 @@ from rest_framework import status
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.logging import models as logging_models
-from waldur_core.permissions.enums import PermissionEnum, RoleEnum
-from waldur_core.permissions.utils import get_users, role_has_permission
 from waldur_core.structure import models as structure_models
-from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure.log import event_logger
 from waldur_mastermind import __version__ as mastermind_version
 from waldur_mastermind.common.utils import create_request
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import utils as invoice_utils
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace_slurm_remote import (
-    PLUGIN_NAME as SLURM_REMOTE_PLUGIN_NAME,
-)
+from waldur_mastermind.marketplace.utils import get_consumer_approvers
 from waldur_mastermind.support.backend import get_active_backend
 
-from . import PLUGIN_NAME, exceptions, models, utils, views
+from . import exceptions, models, utils, views
 
 logger = logging.getLogger(__name__)
 
@@ -41,79 +36,19 @@ logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
-def approve_order(order, user):
-    order.approve()
-    order.approved_by = user
-    order.approved_at = timezone.now()
-    order.save()
-
+def process_order_on_commit(order: models.Order, user):
     serialized_order = core_utils.serialize_instance(order)
     serialized_user = core_utils.serialize_instance(user)
     transaction.on_commit(
         lambda: process_order.delay(serialized_order, serialized_user)
     )
 
-    # Send emails to service provider users in case if order item is Markeplace.Basic ot Marketplace.Remote
-    from waldur_mastermind.marketplace_remote import PLUGIN_NAME as REMOTE_PLUGIN_NAME
-
-    for order_item in order.items.filter(
-        offering__type__in=[PLUGIN_NAME, REMOTE_PLUGIN_NAME]
-    ).exclude(
-        offering__plugin_options__has_key='auto_approve_remote_orders',
-        offering__plugin_options__auto_approve_remote_orders=True,
-    ):
-        transaction.on_commit(
-            lambda: notify_provider_about_order_item_pending_approval.delay(
-                order_item.uuid
-            )
-        )
-
 
 @shared_task
 def process_order(serialized_order, serialized_user):
     order = core_utils.deserialize_instance(serialized_order)
     user = core_utils.deserialize_instance(serialized_user)
-
-    # Skip remote plugin because it is going to processed
-    # only after it gets approved by service provider
-    from waldur_mastermind.marketplace_remote import PLUGIN_NAME as REMOTE_PLUGIN_NAME
-
-    for item in order.items.exclude(offering__type=SLURM_REMOTE_PLUGIN_NAME):
-        if item.offering.type == REMOTE_PLUGIN_NAME:
-            # If an offering has auto_approve_remote_orders flag set to True, an item can be processed without approval
-            auto_approve_remote_orders = item.offering.plugin_options.get(
-                'auto_approve_remote_orders', False
-            )
-            # A service provider owner or a service manager is not required to approve an order item manually
-            user_is_service_provider_owner = structure_permissions._has_owner_access(
-                user, item.offering.customer
-            )
-            user_is_service_provider_offering_manger = (
-                structure_permissions._has_service_manager_access(
-                    user, item.offering.customer
-                )
-                and item.offering.has_user(user)
-            )
-            # If any condition is not met, the order item is requested for manual approval
-            if (
-                auto_approve_remote_orders
-                or user_is_service_provider_owner
-                or user_is_service_provider_offering_manger
-            ):
-                pass
-            else:
-                continue
-
-        item.set_state_executing()
-        item.save(update_fields=['state'])
-        utils.process_order_item(item, user)
-
-
-@shared_task
-def process_order_item(serialized_order_item, serialized_user):
-    order_item = core_utils.deserialize_instance(serialized_order_item)
-    user = core_utils.deserialize_instance(serialized_user)
-    utils.process_order_item(order_item, user)
+    utils.process_order(order, user)
 
 
 @shared_task
@@ -123,40 +58,21 @@ def create_screenshot_thumbnail(uuid):
 
 
 @shared_task
-def notify_order_approvers(uuid):
+def notify_consumer_about_pending_order(uuid):
     order = models.Order.objects.get(uuid=uuid)
-    users = User.objects.none()
-
-    if settings.WALDUR_MARKETPLACE['NOTIFY_STAFF_ABOUT_APPROVALS']:
-        users |= User.objects.filter(is_staff=True, is_active=True)
-
-    if role_has_permission(RoleEnum.CUSTOMER_OWNER, PermissionEnum.APPROVE_ORDER):
-        users |= get_users(order.project.customer, RoleEnum.CUSTOMER_OWNER)
-
-    if role_has_permission(RoleEnum.PROJECT_MANAGER, PermissionEnum.APPROVE_ORDER):
-        users |= get_users(order.project, RoleEnum.PROJECT_MANAGER)
-
-    if role_has_permission(RoleEnum.PROJECT_ADMIN, PermissionEnum.APPROVE_ORDER):
-        users |= get_users(order.project, RoleEnum.PROJECT_ADMIN)
-
-    approvers = (
-        users.distinct()
-        .exclude(email='')
-        .exclude(notifications_enabled=False)
-        .values_list('email', flat=True)
-    )
+    approvers = get_consumer_approvers(order)
 
     if not approvers:
         return
 
-    link = core_utils.format_homeport_link(
+    order_link = core_utils.format_homeport_link(
         'projects/{project_uuid}/marketplace-order-details/{order_uuid}/',
         project_uuid=order.project.uuid,
         order_uuid=order.uuid,
     )
 
     context = {
-        'order_url': link,
+        'order_link': order_link,
         'order': order,
         'site_name': config.SITE_NAME,
     }
@@ -166,49 +82,42 @@ def notify_order_approvers(uuid):
     )
 
     core_utils.broadcast_mail(
-        'marketplace', 'notification_approval', context, approvers
+        'marketplace', 'notify_consumer_about_pending_order', context, approvers
     )
 
 
 @shared_task
-def notify_provider_about_order_item_pending_approval(order_item_uuid):
-    order_item: models.OrderItem = models.OrderItem.objects.get(uuid=order_item_uuid)
-    # EXECUTING is for Marketplace.Basic
-    # PENDING is for Marketplace.Remote
-    if order_item.state not in [
-        models.OrderItem.States.EXECUTING,
-        models.OrderItem.States.PENDING,
-    ]:
-        return
+def notify_provider_about_pending_order(order_uuid):
+    order: models.Order = models.Order.objects.get(uuid=order_uuid)
 
-    service_provider_org = order_item.offering.customer
+    service_provider_org = order.offering.customer
     approvers = service_provider_org.get_owner_mails()
     approvers |= (
-        order_item.offering.get_users()
+        order.offering.get_users()
         .exclude(email='')
         .exclude(notifications_enabled=False)
         .values_list('email', flat=True)
     )
 
     link = core_utils.format_homeport_link(
-        'providers/{organization_uuid}/marketplace-order-items/',
+        'providers/{organization_uuid}/marketplace-orders/',
         organization_uuid=service_provider_org.uuid,
     )
 
     context = {
-        'order_item_url': link,
-        'order': order_item.order,
+        'order_url': link,
+        'order': order,
         'site_name': config.SITE_NAME,
     }
 
     logger.info(
-        'About to send email regarding order item %s to approvers: %s',
-        order_item,
+        'About to send email regarding order %s to approvers: %s',
+        order,
         approvers,
     )
 
     core_utils.broadcast_mail(
-        'marketplace', 'notification_service_provider_approval', context, approvers
+        'marketplace', 'notify_provider_about_pending_order', context, approvers
     )
 
 

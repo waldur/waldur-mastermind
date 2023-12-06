@@ -25,7 +25,7 @@ from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices.registrators import RegistrationManager
 from waldur_mastermind.invoices.utils import get_previous_month
 from waldur_mastermind.marketplace import models
-from waldur_mastermind.marketplace.callbacks import sync_order_item_state
+from waldur_mastermind.marketplace.callbacks import sync_order_state
 from waldur_mastermind.marketplace.utils import create_local_resource
 from waldur_mastermind.marketplace_remote import models as remote_models
 from waldur_mastermind.marketplace_remote.constants import (
@@ -44,7 +44,7 @@ from . import PLUGIN_NAME, utils
 
 logger = logging.getLogger(__name__)
 
-OrderItemInvertStates = {key: val for val, key in models.OrderItem.States.CHOICES}
+OrderInvertStates = {key: val for val, key in models.Order.States.CHOICES}
 
 
 class OfferingPullTask(BackgroundPullTask):
@@ -332,8 +332,8 @@ class ResourcePullTask(BackgroundPullTask):
         if local_resource.effective_id != remote_resource['backend_id']:
             local_resource.effective_id = remote_resource['backend_id']
             local_resource.save(update_fields=['effective_id'])
-        # When pulling resource, if remote state is different from local, import remote order items.
-        utils.import_resource_order_items(local_resource)
+        # When pulling resource, if remote state is different from local, import remote orders.
+        utils.import_resource_orders(local_resource)
         if utils.parse_resource_state(remote_resource['state']) != local_resource.state:
             utils.pull_resource_state(local_resource)
 
@@ -356,58 +356,57 @@ def pull_offering_resources(serialized_offering):
         ResourcePullTask().delay(serialize_instance(resource))
 
 
-class OrderItemPullTask(BackgroundPullTask):
-    def pull(self, local_order_item):
-        if not local_order_item.backend_id:
+class OrderPullTask(BackgroundPullTask):
+    def pull(self, local_order):
+        if not local_order.backend_id:
             return
-        client = get_client_for_offering(local_order_item.offering)
-        remote_order = client.get_order(local_order_item.backend_id)
-        remote_order_item = remote_order['items'][0]
+        client = get_client_for_offering(local_order.offering)
+        remote_order = client.get_order(local_order.backend_id)
 
-        if remote_order_item['state'] != local_order_item.get_state_display():
-            new_state = OrderItemInvertStates[remote_order_item['state']]
+        if remote_order['state'] != local_order.get_state_display():
+            new_state = OrderInvertStates[remote_order['state']]
             if (
-                not local_order_item.resource
-                and local_order_item.type == models.OrderItem.Types.CREATE
+                not local_order.resource
+                and local_order.type == models.Order.Types.CREATE
             ):
-                resource_uuid = remote_order_item.get('marketplace_resource_uuid')
-                effective_id = remote_order_item.get('resource_uuid') or ''
+                resource_uuid = remote_order.get('marketplace_resource_uuid')
+                effective_id = remote_order.get('resource_uuid') or ''
                 if resource_uuid:
-                    create_local_resource(local_order_item, resource_uuid, effective_id)
-            sync_order_item_state(local_order_item, new_state)
-        pull_fields(('error_message',), local_order_item, remote_order_item)
+                    create_local_resource(local_order, resource_uuid, effective_id)
+            sync_order_state(local_order, new_state)
+        pull_fields(('error_message',), local_order, remote_order)
 
 
-class OrderItemStatePullTask(OrderItemPullTask):
-    def pull(self, local_order_item):
-        super().pull(local_order_item)
-        local_order_item.refresh_from_db()
-        if local_order_item.state not in models.OrderItem.States.TERMINAL_STATES:
+class OrderStatePullTask(OrderPullTask):
+    def pull(self, local_order):
+        super().pull(local_order)
+        local_order.refresh_from_db()
+        if local_order.state not in models.Order.States.TERMINAL_STATES:
             self.retry()
 
 
-class OrderItemListPullTask(BackgroundListPullTask):
-    name = 'waldur_mastermind.marketplace_remote.pull_order_items'
-    pull_task = OrderItemPullTask
+class OrderListPullTask(BackgroundListPullTask):
+    name = 'waldur_mastermind.marketplace_remote.pull_orders'
+    pull_task = OrderPullTask
 
     def get_pulled_objects(self):
         return (
-            models.OrderItem.objects.filter(offering__type=PLUGIN_NAME)
-            .exclude(state__in=models.OrderItem.States.TERMINAL_STATES)
+            models.Order.objects.filter(offering__type=PLUGIN_NAME)
+            .exclude(state__in=models.Order.States.TERMINAL_STATES)
             .exclude(backend_id='')
         )
 
 
 @shared_task
-def pull_offering_order_items(serialized_offering):
+def pull_offering_orders(serialized_offering):
     offering = deserialize_instance(serialized_offering)
-    order_items = (
-        models.OrderItem.objects.filter(offering=offering)
-        .exclude(state__in=models.OrderItem.States.TERMINAL_STATES)
+    orders = (
+        models.Order.objects.filter(offering=offering)
+        .exclude(state__in=models.Order.States.TERMINAL_STATES)
         .exclude(backend_id='')
     )
-    for order_item in order_items:
-        OrderItemPullTask().delay(serialize_instance(order_item))
+    for order in orders:
+        OrderPullTask().delay(serialize_instance(order))
 
 
 class UsagePullTask(BackgroundPullTask):
@@ -942,9 +941,9 @@ def clean_remote_projects():
 
 
 @shared_task
-def trigger_order_item_callback(serialized_order_item):
-    order_item = deserialize_instance(serialized_order_item)
-    requests.post(order_item.callback_url)
+def trigger_order_callback(serialized_order):
+    order = deserialize_instance(serialized_order)
+    requests.post(order.callback_url)
 
 
 @shared_task(

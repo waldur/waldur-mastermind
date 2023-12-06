@@ -111,10 +111,10 @@ def dry_run_executor(dry_run_id):
     dry_run = marketplace_script_models.DryRun.objects.get(id=dry_run_id)
     dry_run.set_state_executing()
     dry_run.save()
-    order_item = dry_run.order.items.first()
+    order = dry_run.order
     executor = utils.ContainerExecutorMixin()
-    executor.order_item = order_item
-    executor.hook_type = dry_run.order_item_type
+    executor.order = order
+    executor.hook_type = dry_run.order_type
     dry_run.output = executor.send_request(dry_run.order.created_by, dry_run=True)
     dry_run.save()
     structure_models.Project.objects.filter(id=dry_run.order.project.id).delete()

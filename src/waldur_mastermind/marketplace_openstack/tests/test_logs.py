@@ -2,12 +2,10 @@ from unittest import mock
 
 from rest_framework import test
 
-from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace import tasks as marketplace_tasks
+from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.marketplace.utils import process_order_item
 from waldur_openstack.openstack_tenant.tests import (
     factories as openstack_tenant_factories,
 )
@@ -16,12 +14,6 @@ from waldur_openstack.openstack_tenant.tests import (
 )
 
 from .. import INSTANCE_TYPE, VOLUME_TYPE
-
-
-def process_order(order, user):
-    serialized_order = core_utils.serialize_instance(order)
-    serialized_user = core_utils.serialize_instance(user)
-    marketplace_tasks.process_order(serialized_order, serialized_user)
 
 
 class InstanceCreateLogTest(test.APITransactionTestCase):
@@ -64,13 +56,10 @@ class InstanceCreateLogTest(test.APITransactionTestCase):
             type=VOLUME_TYPE, scope=self.service_settings
         )
         order = marketplace_factories.OrderFactory(
+            offering=offering,
+            attributes=attributes,
             project=self.fixture.project,
             state=marketplace_models.Order.States.EXECUTING,
         )
-        order_item = marketplace_factories.OrderItemFactory(
-            offering=offering,
-            attributes=attributes,
-            order=order,
-        )
 
-        process_order_item(order_item, self.fixture.owner)
+        marketplace_utils.process_order(order, self.fixture.owner)

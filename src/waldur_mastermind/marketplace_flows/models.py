@@ -15,12 +15,7 @@ from waldur_core.structure.models import (
     ProjectDetailsMixin,
     ProjectRole,
 )
-from waldur_mastermind.marketplace.models import (
-    Offering,
-    Order,
-    OrderItem,
-    ResourceDetailsMixin,
-)
+from waldur_mastermind.marketplace.models import Offering, Order, ResourceDetailsMixin
 from waldur_mastermind.support import models as support_models
 
 User = get_user_model()
@@ -63,7 +58,7 @@ class FlowTracker(ReviewStateMixin, TimeStampedModel, UuidMixin):
     """
     This model allows to track consecutive creation of customer, project and resource.
     Customer field is filled either initially or when customer creation request is fulfilled.
-    Order item is created when service provider approves resource creation request.
+    Order is created when service provider approves resource creation request.
     """
 
     requested_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='+')
@@ -89,8 +84,8 @@ class FlowTracker(ReviewStateMixin, TimeStampedModel, UuidMixin):
     customer = models.ForeignKey(
         Customer, null=True, blank=True, on_delete=models.CASCADE, related_name='+'
     )
-    order_item = models.ForeignKey(
-        OrderItem, null=True, blank=True, on_delete=models.CASCADE, related_name='+'
+    order = models.ForeignKey(
+        Order, null=True, blank=True, on_delete=models.CASCADE, related_name='+'
     )
     tracker = FieldTracker()
 
@@ -142,23 +137,19 @@ class FlowTracker(ReviewStateMixin, TimeStampedModel, UuidMixin):
                 end_date=self.project_create_request.end_date,
             )
             project.add_user(self.requested_by, ProjectRole.MANAGER)
-            order = Order.objects.create(
+            self.order = Order.objects.create(
                 project=project,
                 created_by=self.requested_by,
-                state=Order.States.EXECUTING,
-            )
-            self.order_item = OrderItem.objects.create(
-                order=order,
                 offering=self.resource_create_request.offering,
                 plan=self.resource_create_request.plan,
                 attributes=self.resource_create_request.attributes,
                 limits=self.resource_create_request.limits,
-                state=OrderItem.States.EXECUTING,
+                state=Order.States.EXECUTING,
             )
-            self.order_item.init_cost()
-            self.order_item.save()
+            self.order.init_cost()
+            self.order.save()
             self.state = self.States.APPROVED
-            self.save(update_fields=['customer', 'order_item', 'state'])
+            self.save(update_fields=['customer', 'order', 'state'])
 
 
 class OfferingStateRequest(CoreReviewMixin, UuidMixin):

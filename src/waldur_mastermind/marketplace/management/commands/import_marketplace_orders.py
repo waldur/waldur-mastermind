@@ -6,7 +6,7 @@ from rest_framework import status
 from waldur_core.core.models import User
 from waldur_core.logging.views import EventViewSet
 from waldur_mastermind.common.utils import get_request
-from waldur_mastermind.marketplace.models import Order, OrderItem, Resource
+from waldur_mastermind.marketplace.models import Order, Resource
 
 logger = logging.getLogger(__name__)
 
@@ -50,30 +50,26 @@ def get_resource_user(default_user, resource):
 def import_orders(find_user=True):
     default_user = User.objects.filter(is_staff=True).first()
     existing_resources = (
-        OrderItem.objects.exclude(resource_id=None)
+        Order.objects.exclude(resource_id=None)
         .values_list('resource_id', flat=True)
         .distinct()
     )
     missing_resources = Resource.objects.exclude(id__in=existing_resources)
     for resource in missing_resources:
         user = find_user and get_resource_user(default_user, resource) or default_user
-        order = Order.objects.create(
-            created=resource.created,
-            modified=resource.modified,
-            created_by=user,
-            approved_by=user,
-            approved_at=resource.created,
-            project=resource.project,
-            state=Order.States.DONE,
-        )
-        OrderItem.objects.create(
-            order=order,
+        Order.objects.create(
             resource=resource,
             offering=resource.offering,
             attributes=resource.attributes,
             limits=resource.limits,
             plan=resource.plan,
-            state=OrderItem.States.DONE,
+            created=resource.created,
+            modified=resource.modified,
+            created_by=user,
+            consumer_reviewed_by=user,
+            consumer_reviewed_at=resource.created,
+            project=resource.project,
+            state=Order.States.DONE,
         )
     return missing_resources.count()
 

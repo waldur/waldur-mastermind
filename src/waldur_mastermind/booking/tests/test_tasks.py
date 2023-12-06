@@ -11,8 +11,8 @@ from . import fixtures
 class TaskTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.BookingFixture()
-        self.fixture.order_item.state = marketplace_models.OrderItem.States.EXECUTING
-        self.fixture.order_item.save()
+        self.fixture.order.state = marketplace_models.Order.States.EXECUTING
+        self.fixture.order.save()
 
     def test_reject_past_booking(self):
         self.fixture.resource.attributes['schedules'] = [

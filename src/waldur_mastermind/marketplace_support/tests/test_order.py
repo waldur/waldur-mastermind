@@ -35,9 +35,9 @@ class RequestCreateTest(test.APITransactionTestCase):
 
         payload = {
             'project': project_url,
-            'items': [
-                {'offering': offering_url, 'plan': plan_url, 'attributes': attributes},
-            ],
+            'offering': offering_url,
+            'plan': plan_url,
+            'attributes': attributes,
         }
 
         self.client.force_login(getattr(self.fixture, user))

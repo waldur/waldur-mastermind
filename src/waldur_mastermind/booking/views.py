@@ -39,22 +39,18 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
         resource = self.get_object()
 
         with transaction.atomic():
-            order_item = resource_creation_canceled(resource, validate=True)
+            order = resource_creation_canceled(resource, validate=True)
 
-        return Response(
-            {'order_item_uuid': order_item.uuid.hex}, status=status.HTTP_200_OK
-        )
+        return Response({'order_uuid': order.uuid.hex}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'])
     def accept(self, request, uuid=None):
         resource = self.get_object()
 
         with transaction.atomic():
-            order_item = resource_creation_succeeded(resource, validate=True)
+            order = resource_creation_succeeded(resource, validate=True)
 
-        return Response(
-            {'order_item_uuid': order_item.uuid.hex}, status=status.HTTP_200_OK
-        )
+        return Response({'order_uuid': order.uuid.hex}, status=status.HTTP_200_OK)
 
     reject_validators = accept_validators = [
         core_validators.StateValidator(models.Resource.States.CREATING)

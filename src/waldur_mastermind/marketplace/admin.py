@@ -1,6 +1,5 @@
 from django.contrib import admin
 from django.core.exceptions import ValidationError
-from django.db.models import Q
 from django.forms.models import ModelForm
 from django.shortcuts import redirect
 from django.urls import resolve, reverse
@@ -517,53 +516,45 @@ class OfferingUserAdmin(admin.ModelAdmin):
     )
 
 
-class OrderItemInline(admin.TabularInline):
-    model = models.OrderItem
-    fields = ('offering', 'state', 'attributes', 'cost', 'plan', 'resource')
-    readonly_fields = ('offering', 'attributes', 'cost', 'plan', 'resource')
-
-
 class OrderAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
-    list_display = ('uuid', 'project', 'created', 'created_by', 'state', 'total_cost')
-    search_fields = ('query',)
-    fields = [
-        'created_by',
-        'approved_by',
-        'approved_at',
-        'created',
-        'project',
+    list_display = ('uuid', 'project', 'created', 'created_by', 'state', 'cost')
+    search_fields = ('query', 'project__name', 'resource__name', 'uuid')
+    fields = (
+        'offering',
         'state',
-        'total_cost',
+        'attributes',
+        'cost',
+        'plan',
+        'resource',
+        'created_by',
+        'consumer_reviewed_by',
+        'consumer_reviewed_at',
+        'provider_reviewed_by',
+        'provider_reviewed_at',
+        'project',
         'modified',
-    ]
+    )
     readonly_fields = (
+        'offering',
+        'attributes',
+        'cost',
+        'plan',
+        'resource',
         'created',
         'modified',
         'created_by',
-        'approved_by',
-        'approved_at',
+        'consumer_reviewed_by',
+        'consumer_reviewed_at',
+        'provider_reviewed_by',
+        'provider_reviewed_at',
         'project',
-        'approved_by',
-        'total_cost',
     )
 
     list_filter = ('state', 'created')
     ordering = ('-created',)
-    inlines = [OrderItemInline]
 
     def get_extra_actions(self):
         return []
-
-    def get_search_results(self, request, queryset, search_term):
-        ids = models.OrderItem.objects.filter(
-            Q(uuid=search_term) | Q(resource__name__icontains=search_term)
-        ).values_list('order_id', flat=True)
-        result = queryset.filter(
-            Q(uuid=search_term)
-            | Q(project__name__icontains=search_term)
-            | Q(id__in=ids)
-        ).distinct()
-        return result, False
 
 
 class ResourceForm(ModelForm):
@@ -630,7 +621,7 @@ class ResourceAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
         'project_link',
         'offering_link',
         'plan_link',
-        'order_item_link',
+        'order_link',
         'formatted_attributes',
         'formatted_limits',
     )
@@ -666,16 +657,16 @@ class ResourceAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
 
     plan_link.short_description = 'Plan'
 
-    def order_item_link(self, obj):
-        order_item = obj.orderitem_set.filter(
-            type=models.OrderItem.Types.CREATE
-        ).first()
-        if order_item:
-            return get_admin_link_for_scope(order_item.order)
+    def order_link(self, obj: models.Resource):
+        if not obj.id:
+            return ''
+        order = obj.creation_order
+        if order:
+            return get_admin_link_for_scope(order)
         else:
             return ''
 
-    order_item_link.short_description = 'Creation order item'
+    order_link.short_description = 'Creation order'
 
     def formatted_attributes(self, obj):
         return format_json_field(obj.attributes)

@@ -17,7 +17,7 @@ class VirtualMachineCreateProcessor(processors.BaseCreateResourceProcessor):
     def get_post_data(self):
         payload = super().get_post_data()
 
-        limits = self.order_item.limits
+        limits = self.order.limits
         if limits:
             if 'cpu' in limits:
                 payload['cores'] = limits['cpu']

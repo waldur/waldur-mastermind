@@ -88,7 +88,7 @@ class CartSubmitTest(test.APITransactionTestCase):
             'attributes': {'name': 'test'},
         }
 
-    def test_cart_item_limits_are_propagated_to_order_item(self):
+    def test_cart_item_limits_are_propagated_to_order(self):
         self.client.force_authenticate(self.fixture.owner)
 
         url = factories.CartItemFactory.get_list_url()
@@ -99,8 +99,8 @@ class CartSubmitTest(test.APITransactionTestCase):
         response = self.submit(self.fixture.project)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
-        order_item = models.OrderItem.objects.last()
-        self.assertEqual(order_item.limits['cpu_count'], 5)
+        order = models.Order.objects.last()
+        self.assertEqual(order.limits['cpu_count'], 5)
 
     def test_plan_validate(self):
         self.client.force_authenticate(self.fixture.owner)
@@ -208,7 +208,7 @@ class CartSubmitTest(test.APITransactionTestCase):
 
 
 @ddt.ddt
-@patch('waldur_mastermind.marketplace.tasks.notify_order_approvers')
+@patch('waldur_mastermind.marketplace.tasks.notify_consumer_about_pending_order')
 class AutoapproveTest(test.APITransactionTestCase):
     def setUp(self):
         manager.register(
@@ -229,18 +229,9 @@ class AutoapproveTest(test.APITransactionTestCase):
             {'project': structure_factories.ProjectFactory.get_url(project)},
         )
 
-    def submit_public_and_private(self, role):
+    def submit_public(self, role):
         provider_fixture = fixtures.ProjectFixture()
         consumer_fixture = fixtures.ProjectFixture()
-        private_offering = factories.OfferingFactory(
-            state=models.Offering.States.ACTIVE,
-            shared=False,
-            billable=False,
-            customer=provider_fixture.customer,
-            type='TEST_TYPE',
-            scope=self.service_settings,
-            project=consumer_fixture.project,
-        )
         public_offering = factories.OfferingFactory(
             state=models.Offering.States.ACTIVE,
             shared=True,
@@ -251,20 +242,6 @@ class AutoapproveTest(test.APITransactionTestCase):
         )
 
         self.client.force_authenticate(getattr(consumer_fixture, role))
-
-        self.client.post(
-            factories.CartItemFactory.get_list_url(),
-            {
-                'offering': factories.OfferingFactory.get_public_url(private_offering),
-                'project': structure_factories.ProjectFactory.get_url(
-                    consumer_fixture.project
-                ),
-                'attributes': {'name': 'test'},
-                'plan': factories.PlanFactory.get_public_url(
-                    factories.PlanFactory(offering=private_offering)
-                ),
-            },
-        )
 
         self.client.post(
             factories.CartItemFactory.get_list_url(),
@@ -283,7 +260,7 @@ class AutoapproveTest(test.APITransactionTestCase):
         return self.submit(consumer_fixture.project)
 
     @ddt.data('staff', 'owner', 'manager', 'admin')
-    def test_order_gets_approved_if_all_offerings_are_private(self, role, mocked_task):
+    def test_order_gets_approved_if_offering_is_private(self, role, mocked_task):
         fixture = fixtures.ProjectFixture()
         offering = factories.OfferingFactory(
             state=models.Offering.States.ACTIVE,
@@ -316,7 +293,7 @@ class AutoapproveTest(test.APITransactionTestCase):
     def test_public_offering_is_autoapproved_if_user_is_owner_or_staff(
         self, role, mocked_task
     ):
-        response = self.submit_public_and_private(role)
+        response = self.submit_public(role)
         self.assertEqual(response.data['state'], 'executing')
         mocked_task.delay.assert_not_called()
 
@@ -324,15 +301,15 @@ class AutoapproveTest(test.APITransactionTestCase):
     def test_public_offering_is_not_autoapproved_if_user_is_manager_or_admin(
         self, role, mocked_task
     ):
-        response = self.submit_public_and_private(role)
-        self.assertEqual(response.data['state'], 'requested for approval')
+        response = self.submit_public(role)
+        self.assertEqual(response.data['state'], 'pending')
         mocked_task.delay.assert_called()
 
     def test_public_offering_is_autoapproved_if_feature_is_enabled_for_manager(
         self, mocked_task
     ):
         ProjectRole.MANAGER.add_permission(PermissionEnum.APPROVE_ORDER)
-        response = self.submit_public_and_private('manager')
+        response = self.submit_public('manager')
         self.assertEqual(response.data['state'], 'executing')
         mocked_task.delay.assert_not_called()
 
@@ -340,7 +317,7 @@ class AutoapproveTest(test.APITransactionTestCase):
         self, mocked_task
     ):
         ProjectRole.ADMIN.add_permission(PermissionEnum.APPROVE_ORDER)
-        response = self.submit_public_and_private('admin')
+        response = self.submit_public('admin')
         self.assertEqual(response.data['state'], 'executing')
         mocked_task.delay.assert_not_called()
 
@@ -380,9 +357,7 @@ class AutoapproveTest(test.APITransactionTestCase):
         response = self.submit(consumer_fixture.project)
         self.assertEqual(
             response.data['state'],
-            auto_approve_in_service_provider_projects
-            and 'executing'
-            or 'requested for approval',
+            auto_approve_in_service_provider_projects and 'executing' or 'pending',
         )
         if auto_approve_in_service_provider_projects:
             mocked_task.delay.assert_not_called()

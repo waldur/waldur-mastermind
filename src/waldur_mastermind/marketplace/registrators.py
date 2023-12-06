@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 BillingTypes = marketplace_models.OfferingComponent.BillingTypes
 LimitPeriods = marketplace_models.OfferingComponent.LimitPeriods
-OrderTypes = marketplace_models.OrderItem.Types
+OrderTypes = marketplace_models.Order.Types
 ResourceStates = marketplace_models.Resource.States
 
 

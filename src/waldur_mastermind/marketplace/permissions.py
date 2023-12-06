@@ -25,59 +25,43 @@ def has_project_permission(request, permission, project):
     )
 
 
-def check_availability_of_auto_approving(items, request, project):
-    if request.user.is_staff:
+def order_should_not_be_reviewed_by_consumer(order: models.Order):
+    user = order.created_by
+    if user.is_staff:
         return True
 
     # Skip approval of private offering for project users
-    if all(item.offering.is_private for item in items):
+    if order.offering.is_private:
         return has_project_permission(
-            request, PermissionEnum.APPROVE_PRIVATE_ORDER, project
+            user, PermissionEnum.APPROVE_PRIVATE_ORDER, order.project
         )
 
     # Skip approval of public offering belonging to the same organization under which the request is done
-    if all(
-        item.offering.shared
-        and item.offering.customer == project.customer
-        and item.offering.plugin_options.get(
+    if (
+        order.offering.shared
+        and order.offering.customer == order.project.customer
+        and order.offering.plugin_options.get(
             'auto_approve_in_service_provider_projects'
         )
         is True
-        for item in items
     ):
         return True
 
     # Service provider is not required to approve termination order
     if (
-        len(items) == 1
-        and items[0].type == models.OrderItem.Types.TERMINATE
-        and structure_permissions._has_owner_access(
-            request.user, items[0].offering.customer
-        )
+        order.type == models.Order.Types.TERMINATE
+        and structure_permissions._has_owner_access(user, order.offering.customer)
     ):
         return True
 
-    return has_project_permission(request, PermissionEnum.APPROVE_ORDER, project)
+    return has_project_permission(user, PermissionEnum.APPROVE_ORDER, order.project)
 
 
-def user_can_approve_order_permission(request, view, order=None):
-    if not order:
-        return
-
-    if has_project_permission(request, PermissionEnum.APPROVE_ORDER, order.project):
-        return
-
-    raise exceptions.PermissionDenied()
-
-
-def user_can_reject_order(request, view, order=None):
+def user_can_reject_order_as_consumer(request, view, order=None):
     if not order:
         return
 
     user = request.user
-
-    if user.is_staff:
-        return
 
     if user == order.created_by:
         return

@@ -34,22 +34,22 @@ class MarketplaceFixture(fixtures.BookingFixture):
         )
 
     @cached_property
-    def order_item(self) -> marketplace_models.OrderItem:
-        return marketplace_factories.OrderItemFactory(
+    def order(self) -> marketplace_models.Order:
+        return marketplace_factories.OrderFactory(
             resource=self.resource,
             offering=self.offering,
-            state=marketplace_models.OrderItem.States.EXECUTING,
+            state=marketplace_models.Order.States.EXECUTING,
         )
 
 
-class OrderItemGetTest(test.APITransactionTestCase):
+class OrderGetTest(test.APITransactionTestCase):
     def setUp(self) -> None:
         super().setUp()
         self.fixture = MarketplaceFixture()
 
     def test_get_resource_list(self):
         url = reverse('booking-resource-list')
-        self.fixture.order_item
+        self.fixture.order
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.get(url)
         self.assertEqual(len(response.data), 1)
@@ -61,8 +61,8 @@ class OrderItemGetTest(test.APITransactionTestCase):
         )
 
     def test_get_specific_fields(self):
-        self.fixture.order_item.order.approved_by = self.fixture.staff
-        self.fixture.order_item.order.save()
+        self.fixture.order.consumer_reviewed_by = self.fixture.staff
+        self.fixture.order.save()
         self.fixture.resource.attributes['description'] = 'Description'
         self.fixture.resource.save()
         self.client.force_authenticate(self.fixture.owner)
@@ -72,22 +72,21 @@ class OrderItemGetTest(test.APITransactionTestCase):
         )
         response = self.client.get(url)
         self.assertTrue(
-            self.fixture.order_item.order.created_by.uuid.hex
-            in response.data['created_by']
+            self.fixture.order.created_by.uuid.hex in response.data['created_by']
         )
         self.assertTrue(
-            self.fixture.order_item.order.approved_by.uuid.hex
-            in response.data['approved_by']
+            self.fixture.order.consumer_reviewed_by.uuid.hex
+            in response.data['consumer_reviewed_by']
         )
         self.assertEqual('Description', response.data['description'])
 
 
 @ddt
-class OrderItemAcceptTest(test.APITransactionTestCase):
+class OrderAcceptTest(test.APITransactionTestCase):
     def setUp(self) -> None:
         super().setUp()
         self.fixture = MarketplaceFixture()
-        self.fixture.order_item
+        self.fixture.order
 
         CustomerRole.OWNER.add_permission(PermissionEnum.ACCEPT_BOOKING_REQUEST)
         CustomerRole.MANAGER.add_permission(PermissionEnum.ACCEPT_BOOKING_REQUEST)
@@ -111,22 +110,18 @@ class OrderItemAcceptTest(test.APITransactionTestCase):
             self.fixture.resource.state, marketplace_models.Resource.States.OK
         )
 
-        self.fixture.order_item.refresh_from_db()
-        self.assertEqual(
-            self.fixture.order_item.state, marketplace_models.OrderItem.States.DONE
-        )
+        self.fixture.order.refresh_from_db()
+        self.assertEqual(self.fixture.order.state, marketplace_models.Order.States.DONE)
 
     def test_owner_cannot_accept_other_owners_resources(self):
         response = self.accept(MarketplaceFixture().resource)
         self.assertEqual(status.HTTP_404_NOT_FOUND, response.status_code)
 
     def test_creator_cannot_accept_his_resource(self):
-        response = self.accept(
-            self.fixture.resource, self.fixture.order_item.order.created_by
-        )
+        response = self.accept(self.fixture.resource, self.fixture.order.created_by)
         self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
 
-    def test_when_order_item_is_accepted_resource_plan_period_is_created(self):
+    def test_when_order_is_accepted_resource_plan_period_is_created(self):
         self.accept(self.fixture.resource)
         self.assertTrue(
             marketplace_models.ResourcePlanPeriod.objects.filter(
@@ -135,11 +130,11 @@ class OrderItemAcceptTest(test.APITransactionTestCase):
         )
 
 
-class OrderItemRejectTest(test.APITransactionTestCase):
+class OrderRejectTest(test.APITransactionTestCase):
     def setUp(self) -> None:
         super().setUp()
         self.fixture = MarketplaceFixture()
-        self.fixture.order_item
+        self.fixture.order
         CustomerRole.OWNER.add_permission(PermissionEnum.REJECT_BOOKING_REQUEST)
 
     def reject(self, resource, user=None):
@@ -160,10 +155,10 @@ class OrderItemRejectTest(test.APITransactionTestCase):
             self.fixture.resource.state, marketplace_models.Resource.States.TERMINATED
         )
 
-        self.fixture.order_item.refresh_from_db()
+        self.fixture.order.refresh_from_db()
         self.assertEqual(
-            self.fixture.order_item.state,
-            marketplace_models.OrderItem.States.TERMINATED,
+            self.fixture.order.state,
+            marketplace_models.Order.States.CANCELED,
         )
 
     def test_owner_cannot_reject_other_owners_resources(self):
@@ -171,9 +166,7 @@ class OrderItemRejectTest(test.APITransactionTestCase):
         self.assertEqual(status.HTTP_404_NOT_FOUND, response.status_code)
 
     def test_creator_can_reject_his_resource(self):
-        response = self.reject(
-            self.fixture.resource, self.fixture.order_item.order.created_by
-        )
+        response = self.reject(self.fixture.resource, self.fixture.order.created_by)
         self.assertEqual(status.HTTP_200_OK, response.status_code)
 
         self.fixture.resource.refresh_from_db()
@@ -181,10 +174,10 @@ class OrderItemRejectTest(test.APITransactionTestCase):
             self.fixture.resource.state, marketplace_models.Resource.States.TERMINATED
         )
 
-        self.fixture.order_item.refresh_from_db()
+        self.fixture.order.refresh_from_db()
         self.assertEqual(
-            self.fixture.order_item.state,
-            marketplace_models.OrderItem.States.TERMINATED,
+            self.fixture.order.state,
+            marketplace_models.Order.States.CANCELED,
         )
 
 

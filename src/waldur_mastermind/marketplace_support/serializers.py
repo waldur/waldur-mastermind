@@ -18,7 +18,7 @@ def get_issue(serializer, scope):
         return
     if connected_issue_count > 1:
         logger.error(
-            'Order item has %s instead of 1 issues connected. Unable to select. Order item UUID: %s',
+            'Order has %s instead of 1 issues connected. Unable to select. Order UUID: %s',
             connected_issue_count,
             scope.uuid.hex,
         )

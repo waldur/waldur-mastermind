@@ -29,6 +29,7 @@ from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests.factories import OFFERING_OPTIONS
 from waldur_mastermind.marketplace.tests.helpers import override_marketplace_settings
+from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_mastermind.marketplace_vmware import VIRTUAL_MACHINE_TYPE
 
 from . import fixtures as marketplace_fixtures
@@ -943,7 +944,7 @@ class OfferingCreateTest(test.APITransactionTestCase):
             'name': 'offering',
             'category': factories.CategoryFactory.get_url(category),
             'customer': structure_factories.CustomerFactory.get_url(self.customer),
-            'type': 'Support.OfferingTemplate',
+            'type': PLUGIN_NAME,
             'attributes': {'vendorType': 'reseller'},
         }
 
@@ -1001,7 +1002,7 @@ class OfferingCreateTest(test.APITransactionTestCase):
             'name': 'offering',
             'category': factories.CategoryFactory.get_url(),
             'customer': structure_factories.CustomerFactory.get_url(self.customer),
-            'type': 'Support.OfferingTemplate',  # This is used only for testing
+            'type': PLUGIN_NAME,
             'plans': [
                 {
                     'name': 'Small',
@@ -1068,7 +1069,10 @@ class OfferingUpdateTest(test.APITransactionTestCase):
 
         factories.ServiceProviderFactory(customer=self.customer)
         self.offering = factories.OfferingFactory(
-            customer=self.customer, project=self.fixture.project, shared=True
+            customer=self.customer,
+            project=self.fixture.project,
+            shared=True,
+            state=models.Offering.States.DRAFT,
         )
         self.url = factories.OfferingFactory.get_url(self.offering)
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING)
@@ -1621,7 +1625,10 @@ class OfferingDeleteTest(test.APITransactionTestCase):
         self.customer = self.fixture.customer
         self.provider = factories.ServiceProviderFactory(customer=self.customer)
         self.offering = factories.OfferingFactory(
-            customer=self.customer, project=self.fixture.project, shared=True
+            customer=self.customer,
+            project=self.fixture.project,
+            shared=True,
+            state=models.Offering.States.DRAFT,
         )
         CustomerRole.OWNER.add_permission(PermissionEnum.DELETE_OFFERING)
 
@@ -1792,7 +1799,10 @@ class OfferingStateTest(test.APITransactionTestCase):
         self.customer = self.fixture.customer
         factories.ServiceProviderFactory(customer=self.customer)
         self.offering = factories.OfferingFactory(
-            customer=self.customer, project=self.fixture.project, shared=True
+            customer=self.customer,
+            project=self.fixture.project,
+            shared=True,
+            state=models.Offering.States.DRAFT,
         )
         self.plan = factories.PlanFactory(offering=self.offering)
         self.fixture.service_manager = UserFactory()

@@ -85,25 +85,23 @@ def get_projects_with_remote_offerings():
         offering = marketplace_models.Offering.objects.get(pk=pair['offering'])
         projects_with_offerings[project].add(offering)
 
-    order_item_pairs = (
-        marketplace_models.OrderItem.objects.filter(
+    order_pairs = (
+        marketplace_models.Order.objects.filter(
             offering__type=PLUGIN_NAME,
             state__in=(
-                marketplace_models.OrderItem.States.PENDING,
-                marketplace_models.OrderItem.States.EXECUTING,
+                marketplace_models.Order.States.PENDING,
+                marketplace_models.Order.States.EXECUTING,
             ),
         )
-        .values('offering', 'order__project')
+        .values('offering', 'project')
         .distinct()
     )
-    for pair in order_item_pairs:
+    for pair in order_pairs:
         try:
-            project = structure_models.Project.available_objects.get(
-                pk=pair['order__project']
-            )
+            project = structure_models.Project.available_objects.get(pk=pair['project'])
         except structure_models.Project.DoesNotExist:
             logger.debug(
-                f'Skipping order item from a removed project with PK {pair["order__project"]}'
+                f'Skipping order from a removed project with PK {pair["project"]}'
             )
             continue
         offering = marketplace_models.Offering.objects.get(pk=pair['offering'])
@@ -325,77 +323,60 @@ def parse_order_state(serialized_state):
     ]
 
 
-def parse_order_item_state(serialized_state):
-    return {v: k for (k, v) in marketplace_models.OrderItem.States.CHOICES}[
-        serialized_state
-    ]
+def parse_order_type(serialized_state):
+    return {v: k for (k, v) in marketplace_models.Order.Types.CHOICES}[serialized_state]
 
 
-def parse_order_item_type(serialized_state):
-    return {v: k for (k, v) in marketplace_models.OrderItem.Types.CHOICES}[
-        serialized_state
-    ]
-
-
-def import_order(remote_order, project):
-    approved_at = None
-    if 'approved_at' in remote_order and remote_order['approved_at'] is not None:
-        approved_at = remote_order['approved_at']
+def import_order(remote_order, project, resource, remote_order_uuid):
+    consumer_reviewed_at = None
+    if (
+        'consumer_reviewed_at' in remote_order
+        and remote_order['consumer_reviewed_at'] is not None
+    ):
+        consumer_reviewed_at = remote_order['consumer_reviewed_at']
     return marketplace_models.Order.objects.create(
         project=project,
-        state=parse_order_state(remote_order['state']),
         created_by=get_system_robot(),
         created=parse_datetime(remote_order['created']),
-        approved_by=get_system_robot(),
-        approved_at=approved_at,
-    )
-
-
-def import_order_item(remote_order_item, local_order, resource, remote_order_uuid):
-    return marketplace_models.OrderItem.objects.create(
-        order=local_order,
+        consumer_reviewed_by=get_system_robot(),
+        consumer_reviewed_at=consumer_reviewed_at,
         resource=resource,
-        type=parse_order_item_type(remote_order_item['type']),
+        type=parse_order_type(remote_order['type']),
         offering=resource.offering,
-        # NB: As a backend_id of local OrderItem, uuid of a remote Order is used
+        # NB: As a backend_id of local Order, uuid of a remote Order is used
         backend_id=remote_order_uuid,
-        attributes=remote_order_item.get('attributes', {}),
-        error_message=remote_order_item.get('error_message', ''),
-        error_traceback=remote_order_item.get('error_traceback', ''),
-        state=parse_order_item_state(remote_order_item['state']),
-        created=parse_datetime(remote_order_item['created']),
-        reviewed_by=get_system_robot(),
+        attributes=remote_order.get('attributes', {}),
+        error_message=remote_order.get('error_message', ''),
+        error_traceback=remote_order.get('error_traceback', ''),
+        state=parse_order_state(remote_order['state']),
+        provider_reviewed_by=get_system_robot(),
     )
 
 
 def get_new_order_ids(client, backend_id):
-    remote_order_items = client.list_order_items(
+    remote_orders = client.list_orders(
         {'resource_uuid': backend_id, 'field': ['order_uuid']}
     )
     local_order_ids = set(
-        marketplace_models.OrderItem.objects.filter(
+        marketplace_models.Order.objects.filter(
             resource__backend_id=backend_id
         ).values_list('backend_id', flat=True)
     )
-    remote_order_ids = {order_item['order_uuid'] for order_item in remote_order_items}
+    remote_order_ids = {order['order_uuid'] for order in remote_orders}
     return remote_order_ids - local_order_ids
 
 
-def import_resource_order_items(resource):
+def import_resource_orders(resource):
     if not resource.backend_id:
         return []
     client = get_client_for_offering(resource.offering)
     new_order_ids = get_new_order_ids(client, resource.backend_id)
-    imported_order_items = []
+    imported_orders = []
     for order_id in new_order_ids:
         remote_order = client.get_order(order_id)
-        local_order = import_order(remote_order, resource.project)
-        for remote_order_item in remote_order['items']:
-            local_order_item = import_order_item(
-                remote_order_item, local_order, resource, order_id
-            )
-            imported_order_items.append(local_order_item)
-    return imported_order_items
+        local_order = import_order(remote_order, resource.project, resource, order_id)
+        imported_orders.append(local_order)
+    return imported_orders
 
 
 def pull_resource_state(local_resource):

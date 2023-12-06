@@ -1,6 +1,6 @@
 Hello!
 
-Following request from {{ order_item_user }}, resource {{ resource_name }} limits have been updated from:
+Following request from {{ order_user }}, resource {{ resource_name }} limits have been updated from:
     {{ resource_old_limits }}
 to:
     {{ resource_limits }}.

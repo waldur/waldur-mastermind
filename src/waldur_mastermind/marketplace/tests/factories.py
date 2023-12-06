@@ -129,6 +129,7 @@ class OfferingFactory(
     category = factory.SubFactory(CategoryFactory)
     customer = factory.SubFactory(structure_factories.CustomerFactory)
     type = PLUGIN_NAME
+    state = models.Offering.States.ACTIVE
 
     @classmethod
     def get_url(cls, offering=None, action=None):
@@ -249,28 +250,6 @@ class ScreenshotFactory(factory.DjangoModelFactory):
         return url if action is None else url + action + '/'
 
 
-class OrderFactory(factory.DjangoModelFactory):
-    class Meta:
-        model = models.Order
-
-    created_by = factory.SubFactory(structure_factories.UserFactory)
-    project = factory.SubFactory(structure_factories.ProjectFactory)
-
-    @classmethod
-    def get_url(cls, order=None, action=None):
-        if order is None:
-            order = OrderFactory()
-        url = 'http://testserver' + reverse(
-            'marketplace-order-detail', kwargs={'uuid': order.uuid.hex}
-        )
-        return url if action is None else url + action + '/'
-
-    @classmethod
-    def get_list_url(cls, action=None):
-        url = 'http://testserver' + reverse('marketplace-order-list')
-        return url if action is None else url + action + '/'
-
-
 class PlanFactory(factory.DjangoModelFactory):
     class Meta:
         model = models.Plan
@@ -329,26 +308,27 @@ class PlanComponentFactory(factory.DjangoModelFactory):
         return url if action is None else url + action + '/'
 
 
-class OrderItemFactory(factory.DjangoModelFactory):
+class OrderFactory(factory.DjangoModelFactory):
     class Meta:
-        model = models.OrderItem
+        model = models.Order
 
-    order = factory.SubFactory(OrderFactory)
+    project = factory.SubFactory(structure_factories.ProjectFactory)
+    created_by = factory.SubFactory(structure_factories.UserFactory)
     offering = factory.SubFactory(OfferingFactory)
     plan = factory.SubFactory(PlanFactory)
 
     @classmethod
-    def get_url(cls, order_item=None, action=None):
-        if order_item is None:
-            order_item = OrderItemFactory()
+    def get_url(cls, order=None, action=None):
+        if order is None:
+            order = OrderFactory()
         url = 'http://testserver' + reverse(
-            'marketplace-order-item-detail', kwargs={'uuid': order_item.uuid.hex}
+            'marketplace-order-detail', kwargs={'uuid': order.uuid.hex}
         )
         return url if action is None else url + action + '/'
 
     @classmethod
     def get_list_url(cls, action=None):
-        url = 'http://testserver' + reverse('marketplace-order-item-list')
+        url = 'http://testserver' + reverse('marketplace-order-list')
         return url if action is None else url + action + '/'
 
 

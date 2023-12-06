@@ -12,7 +12,7 @@ class MarketplaceFixture(structure_fixtures.ProjectFixture):
     def __init__(self):
         self.plan_component
         self.service_provider
-        self.order_item
+        self.order
 
     @cached_property
     def offering(self):
@@ -52,17 +52,13 @@ class MarketplaceFixture(structure_fixtures.ProjectFixture):
 
     @cached_property
     def order(self):
-        return marketplace_factories.OrderFactory(project=self.project)
-
-    @cached_property
-    def order_item(self):
-        return marketplace_factories.OrderItemFactory(
-            order=self.order,
+        return marketplace_factories.OrderFactory(
+            project=self.project,
             offering=self.offering,
             attributes={'name': 'item_name', 'description': 'Description'},
             plan=self.plan,
             resource=self.resource,
-            state=marketplace_models.OrderItem.States.DONE,
+            state=marketplace_models.Order.States.DONE,
         )
 
     @cached_property

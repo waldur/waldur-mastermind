@@ -23,7 +23,7 @@ class Component:
 
     def _asdict(self):
         # Note that factor is not serialized to dict because it is not stored in the database.
-        # Currently, it is used only for cost estimation when order item is created.
+        # Currently, it is used only for cost estimation when order is created.
         return {
             'type': self.type,
             'name': self.name,
@@ -45,13 +45,13 @@ class PluginManager:
 
         :param offering_type: string which consists of application name and model name,
                               for example Support.OfferingTemplate
-        :key create_resource_processor: class which receives order item
-        :key update_resource_processor: class which receives order item
-        :key delete_resource_processor: class which receives order item
+        :key create_resource_processor: class which receives order
+        :key update_resource_processor: class which receives order
+        :key delete_resource_processor: class which receives order
         :key components: tuple available plan components, for example
                            Component(type='storage', name='Storage', measured_unit='GB')
         :key service_type: optional string indicates service type to be used
-        :key can_terminate_order_item: optional boolean indicates whether order item can be terminated
+        :key can_terminate_order: optional boolean indicates whether order can be terminated
         :key secret_attributes: optional list of strings each of which corresponds to secret attribute key,
         for example, VPC username and password.
         :key available_limits: optional list of strings each of which corresponds to offering component type,
@@ -101,14 +101,11 @@ class PluginManager:
         """
         return {component.type for component in self.get_components(offering_type)}
 
-    def can_terminate_order_item(self, offering_type):
+    def can_cancel_order(self, offering_type):
         """
-        Returns true if order item can be terminated.
+        Returns true if order can be terminated.
         """
-        return (
-            self.backends.get(offering_type, {}).get('can_terminate_order_item')
-            or False
-        )
+        return self.backends.get(offering_type, {}).get('can_terminate_order') or False
 
     def get_secret_attributes(self, offering_type):
         """
@@ -177,7 +174,7 @@ class PluginManager:
 
     def get_processor(self, offering_type, processor_type):
         """
-        Return a processor class for given offering type and order item type.
+        Return a processor class for given offering type and order type.
         """
         return self.backends.get(offering_type, {}).get(processor_type)
 

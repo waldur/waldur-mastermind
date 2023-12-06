@@ -23,10 +23,10 @@ class ResourceOwnerOrCreatorFilterBackend(BaseFilterBackend):
                 user, (RoleEnum.CUSTOMER_OWNER, RoleEnum.CUSTOMER_MANAGER)
             )
             try:
-                resource_ids = marketplace_models.OrderItem.objects.filter(
+                resource_ids = marketplace_models.Order.objects.filter(
                     type=marketplace_models.RequestTypeMixin.Types.CREATE,
                     offering__type=PLUGIN_NAME,
-                    order__created_by=user,
+                    created_by=user,
                 ).values_list('resource_id', flat=True)
             except (
                 django_exceptions.ObjectDoesNotExist,

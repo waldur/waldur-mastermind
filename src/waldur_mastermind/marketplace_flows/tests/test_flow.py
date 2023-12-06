@@ -395,14 +395,10 @@ class FlowApproveTest(FlowOperationsTest):
         self.flow.refresh_from_db()
         self.assertEqual(self.flow.state, FlowTracker.States.APPROVED)
         self.assertEqual(
-            self.flow.order_item.offering, self.flow.resource_create_request.offering
+            self.flow.order.offering, self.flow.resource_create_request.offering
         )
-        self.assertEqual(
-            self.flow.order_item.order.project.customer, self.flow.customer
-        )
-        self.assertTrue(
-            self.flow.order_item.order.project.has_user(self.flow.requested_by)
-        )
+        self.assertEqual(self.flow.order.project.customer, self.flow.customer)
+        self.assertTrue(self.flow.order.project.has_user(self.flow.requested_by))
 
 
 class CreateOfferingStateRequestTest(test.APITransactionTestCase):

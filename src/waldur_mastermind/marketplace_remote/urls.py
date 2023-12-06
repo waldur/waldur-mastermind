@@ -16,9 +16,13 @@ urlpatterns = [
         views.OfferingCreateView.as_view(),
     ),
     re_path(
-        r'^api/remote-waldur-api/pull_order_item/(?P<uuid>[a-f0-9]+)$',
-        views.PullOrderItemView.as_view(),
-        name='pull_remote_order_item',
+        r'^api/remote-waldur-api/pull_order/(?P<uuid>[a-f0-9]+)$',
+        views.PullOrderView.as_view(),
+        name='pull_remote_order',
+    ),
+    re_path(
+        r'^api/remote-waldur-api/cancel_termination/(?P<uuid>[a-f0-9]+)$',
+        views.CancelTerminationOrderView.as_view(),
     ),
     re_path(
         r'^api/remote-waldur-api/pull_offering_details/(?P<uuid>[a-f0-9]+)/$',
@@ -33,8 +37,8 @@ urlpatterns = [
         views.PullOfferingResources.as_view(),
     ),
     re_path(
-        r'^api/remote-waldur-api/pull_offering_order_items/(?P<uuid>[a-f0-9]+)/$',
-        views.PullOfferingOrderItems.as_view(),
+        r'^api/remote-waldur-api/pull_offering_orders/(?P<uuid>[a-f0-9]+)/$',
+        views.PullOfferingOrders.as_view(),
     ),
     re_path(
         r'^api/remote-waldur-api/pull_offering_usage/(?P<uuid>[a-f0-9]+)/$',

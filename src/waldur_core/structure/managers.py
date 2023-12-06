@@ -3,7 +3,7 @@ from django.db import models
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.managers import GenericKeyMixin
-from waldur_core.permissions.models import UserRole
+from waldur_core.permissions.models import Role, UserRole
 from waldur_core.permissions.utils import get_scope_ids, get_user_ids
 from waldur_core.structure import models as structure_models
 
@@ -184,6 +184,30 @@ def get_connected_customers(user, role=None):
 def get_connected_projects(user, role=None):
     ctype = ContentType.objects.get_for_model(structure_models.Project)
     return get_scope_ids(user, ctype, role)
+
+
+def get_connected_customers_by_permission(user, permission):
+    ctype = ContentType.objects.get_for_model(structure_models.Customer)
+    roles = list(
+        Role.objects.filter(
+            content_type=ctype, is_active=True, permissions__permission=permission
+        ).values_list('name', flat=True)
+    )
+    if not roles:
+        return structure_models.Customer.objects.none()
+    return get_connected_customers(user, roles)
+
+
+def get_connected_projects_by_permission(user, permission):
+    ctype = ContentType.objects.get_for_model(structure_models.Project)
+    roles = list(
+        Role.objects.filter(
+            content_type=ctype, is_active=True, permissions__permission=permission
+        ).values_list('name', flat=True)
+    )
+    if not roles:
+        return structure_models.Project.objects.none()
+    return get_connected_projects(user, roles)
 
 
 def get_customer_users(scope_ids, role=None):

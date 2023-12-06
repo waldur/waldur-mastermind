@@ -16,70 +16,68 @@ from waldur_mastermind.marketplace.utils import (
 logger = logging.getLogger(__name__)
 
 
-def get_order_item_post_data(order_item, fields):
-    if not order_item.offering.scope:
+def get_order_post_data(order, fields):
+    if not order.offering.scope:
         raise serializers.ValidationError(
             'Offering is invalid: it does not have a scope.'
         )
-    project_url = reverse(
-        'project-detail', kwargs={'uuid': order_item.order.project.uuid}
-    )
+    project_url = reverse('project-detail', kwargs={'uuid': order.project.uuid})
     service_settings_url = reverse(
-        'servicesettings-detail', kwargs={'uuid': order_item.offering.scope.uuid}
+        'servicesettings-detail', kwargs={'uuid': order.offering.scope.uuid}
     )
     return dict(
         service_settings=service_settings_url,
         project=project_url,
-        **copy_attributes(fields, order_item),
+        **copy_attributes(fields, order),
     )
 
 
-def copy_attributes(fields, order_item):
+def copy_attributes(fields, order):
     """
-    Copy valid attributes from order item.
+    Copy valid attributes from order.
     """
     payload = dict()
     for field in fields:
-        if field in order_item.attributes:
-            payload[field] = order_item.attributes.get(field)
+        if field in order.attributes:
+            payload[field] = order.attributes.get(field)
     return payload
 
 
-class BaseOrderItemProcessor:
-    def __init__(self, order_item):
-        self.order_item = order_item
+class BaseOrderProcessor:
+    def __init__(self, order):
+        self.order: models.Order = order
 
-    def process_order_item(self, user):
+    def process_order(self, user):
         """
         This method receives user object and creates plugin's resource corresponding
-        to provided order item. It is called after order has been approved.
+        to provided order. It is called after order has been approved.
         """
         raise NotImplementedError()
 
-    def validate_order_item(self, request):
+    def validate_order(self, request):
         """
         This method receives request object, and raises
-        validation error if provided order item is invalid.
+        validation error if provided order is invalid.
         It is called after order has been created but before it is submitted.
         """
         raise NotImplementedError()
 
 
-class AbstractCreateResourceProcessor(BaseOrderItemProcessor):
-    def process_order_item(self, user):
+class AbstractCreateResourceProcessor(BaseOrderProcessor):
+    def process_order(self, user):
         # scope can be a reference to a different object or a string representing
         # unique key of a scoped object, e.g. remote UUID
         scope = self.send_request(user)
         backend_metadata = {}
         endpoints = {}
-        if type(scope) == dict and scope['response_type'] == 'metadata':
+        if isinstance(scope, dict) and scope['response_type'] == 'metadata':
             backend_metadata = scope['backend_metadata']
             endpoints = scope['endpoints']
             scope = scope['backend_id']
 
         with transaction.atomic():
             resource = create_local_resource(
-                self.order_item,
+                self.order,
                 scope,
                 backend_metadata=backend_metadata,
                 endpoints=endpoints,
@@ -87,7 +85,7 @@ class AbstractCreateResourceProcessor(BaseOrderItemProcessor):
 
             link_parent_resource(resource)
 
-            if not scope or type(scope) == str:
+            if not scope or isinstance(scope, str):
                 resource_creation_succeeded(resource)
 
     def send_request(self, user):
@@ -101,21 +99,21 @@ class CreateResourceProcessor(AbstractCreateResourceProcessor):
     """
     This class implements order processing using internal API requests.
 
-    Order item validation flow looks as following:
-    1) Convert order item to HTTP POST request data expected by DRF serializer.
+    Order validation flow looks as following:
+    1) Convert order to HTTP POST request data expected by DRF serializer.
     2) Pass request data to serializer and check if data is valid.
 
-    Order item processing flow looks as following:
-    1) Convert order item to HTTP POST request data expected by DRF serializer.
+    Order processing flow looks as following:
+    1) Convert order to HTTP POST request data expected by DRF serializer.
     2) Issue internal API request to DRF viewset.
     3) Extract Django model for created resource from HTTP response.
-    4) Create marketplace resource object from order item and plugin resource.
-    5) Store link from order item to the resource.
+    4) Create marketplace resource object from order and plugin resource.
+    5) Store link from order to the resource.
 
     Therefore this class implements template method design pattern.
     """
 
-    def validate_order_item(self, request):
+    def validate_order(self, request):
         post_data = self.get_post_data()
         serializer_class = self.get_serializer_class()
         if serializer_class:
@@ -149,7 +147,7 @@ class CreateResourceProcessor(AbstractCreateResourceProcessor):
 
     def get_post_data(self):
         """
-        This method converts order item to request data expected by DRF serializer.
+        This method converts order to request data expected by DRF serializer.
         """
         raise NotImplementedError
 
@@ -160,17 +158,17 @@ class CreateResourceProcessor(AbstractCreateResourceProcessor):
         raise NotImplementedError
 
 
-class AbstractUpdateResourceProcessor(BaseOrderItemProcessor):
-    def is_update_limit_order_item(self):
-        if 'old_limits' in self.order_item.attributes.keys():
+class AbstractUpdateResourceProcessor(BaseOrderProcessor):
+    def is_update_limit_order(self):
+        if 'old_limits' in self.order.attributes.keys():
             return True
 
-    def validate_order_item(self, request):
-        if self.is_update_limit_order_item():
+    def validate_order(self, request):
+        if self.is_update_limit_order():
             validate_limits(
-                self.order_item.limits,
-                self.order_item.offering,
-                self.order_item.resource,
+                self.order.limits,
+                self.order.offering,
+                self.order.resource,
             )
             return
 
@@ -184,30 +182,30 @@ class AbstractUpdateResourceProcessor(BaseOrderItemProcessor):
             serializer = serializer_class(data=post_data, context=context)
             serializer.is_valid(raise_exception=True)
 
-    def process_order_item(self, user):
-        """We need to overwrite process order item because two cases exist:
+    def process_order(self, user):
+        """We need to overwrite process order because two cases exist:
         a switch of a plan and a change of limits."""
-        if self.is_update_limit_order_item():
+        if self.is_update_limit_order():
             try:
                 # self.update_limits_process method can execute not is_async
-                # because in this case an order has got only one order item.
+                # because in this case an order has got only one order.
                 done = self.update_limits_process(user)
             except Exception as e:
                 signals.resource_limit_update_failed.send(
-                    sender=self.order_item.resource.__class__,
-                    order_item=self.order_item,
+                    sender=self.order.resource.__class__,
+                    order=self.order,
                     error_message=str(e) or str(type(e)),
                 )
                 return
             if done:
                 signals.resource_limit_update_succeeded.send(
-                    sender=self.order_item.resource.__class__,
-                    order_item=self.order_item,
+                    sender=self.order.resource.__class__,
+                    order=self.order,
                 )
             else:
                 with transaction.atomic():
-                    self.order_item.resource.set_state_updating()
-                    self.order_item.resource.save(update_fields=['state'])
+                    self.order.resource.set_state_updating()
+                    self.order.resource.save(update_fields=['state'])
             return
 
         resource = self.get_resource()
@@ -218,19 +216,21 @@ class AbstractUpdateResourceProcessor(BaseOrderItemProcessor):
         if done:
             with transaction.atomic():
                 # check if a new plan has been requested
-                if self.order_item.resource.plan != self.order_item.plan:
+                if self.order.resource.plan != self.order.plan:
                     logger.info(
-                        f'Changing plan of a resource {self.order_item.resource.name} from {self.order_item.resource.plan} to {self.order_item.plan}. Order item ID: {self.order_item.id}'
+                        f'Changing plan of a resource {self.order.resource.name} '
+                        'from {self.order.resource.plan} to {self.order.plan}. '
+                        'Order ID: {self.order.id}'
                     )
-                    self.order_item.resource.plan = self.order_item.plan
-                    self.order_item.resource.save(update_fields=['plan'])
+                    self.order.resource.plan = self.order.plan
+                    self.order.resource.save(update_fields=['plan'])
 
-                self.order_item.state = models.OrderItem.States.DONE
-                self.order_item.save(update_fields=['state'])
+                self.order.state = models.Order.States.DONE
+                self.order.save(update_fields=['state'])
         else:
             with transaction.atomic():
-                self.order_item.resource.set_state_updating()
-                self.order_item.resource.save(update_fields=['state'])
+                self.order.resource.set_state_updating()
+                self.order.resource.save(update_fields=['state'])
 
     def send_request(self, user, resource):
         """
@@ -240,9 +240,9 @@ class AbstractUpdateResourceProcessor(BaseOrderItemProcessor):
 
     def get_resource(self):
         """
-        This method should return related resource of order item.
+        This method should return related resource of order.
         """
-        return self.order_item.resource
+        return self.order.resource
 
     def update_limits_process(self, user):
         """
@@ -255,7 +255,7 @@ class AbstractUpdateResourceProcessor(BaseOrderItemProcessor):
 
 class UpdateScopedResourceProcessor(AbstractUpdateResourceProcessor):
     def get_resource(self):
-        return self.order_item.resource.scope
+        return self.order.resource.scope
 
     def send_request(self, user):
         view = self.get_view()
@@ -283,20 +283,20 @@ class UpdateScopedResourceProcessor(AbstractUpdateResourceProcessor):
 
     def get_post_data(self):
         """
-        This method converts order item to request data expected by DRF serializer.
+        This method converts order to request data expected by DRF serializer.
         """
         raise NotImplementedError
 
 
-class AbstractDeleteResourceProcessor(BaseOrderItemProcessor):
-    def validate_order_item(self, request):
+class AbstractDeleteResourceProcessor(BaseOrderProcessor):
+    def validate_order(self, request):
         pass
 
     def get_resource(self):
         """
-        This method should return related resource of order item.
+        This method should return related resource of order.
         """
-        return self.order_item.resource
+        return self.order.resource
 
     def send_request(self, user, resource):
         """
@@ -304,7 +304,7 @@ class AbstractDeleteResourceProcessor(BaseOrderItemProcessor):
         """
         raise NotImplementedError
 
-    def process_order_item(self, user):
+    def process_order(self, user):
         resource = self.get_resource()
         if not resource:
             raise serializers.ValidationError('Resource is not found.')
@@ -313,24 +313,24 @@ class AbstractDeleteResourceProcessor(BaseOrderItemProcessor):
 
         if done:
             with transaction.atomic():
-                self.order_item.resource.set_state_terminated()
-                self.order_item.resource.save(update_fields=['state'])
+                self.order.resource.set_state_terminated()
+                self.order.resource.save(update_fields=['state'])
 
-                self.order_item.state = models.OrderItem.States.DONE
-                self.order_item.save(update_fields=['state'])
+                self.order.state = models.Order.States.DONE
+                self.order.save(update_fields=['state'])
         else:
             with transaction.atomic():
-                self.order_item.resource.set_state_terminating()
-                self.order_item.resource.save(update_fields=['state'])
+                self.order.resource.set_state_terminating()
+                self.order.resource.save(update_fields=['state'])
 
 
 class DeleteScopedResourceProcessor(AbstractDeleteResourceProcessor):
     viewset = NotImplementedError
 
     def get_resource(self):
-        return self.order_item.resource.scope
+        return self.order.resource.scope
 
-    def validate_order_item(self, request):
+    def validate_order(self, request):
         action = self._get_action()
         resource = self.get_resource()
         if not resource:
@@ -338,7 +338,7 @@ class DeleteScopedResourceProcessor(AbstractDeleteResourceProcessor):
         self.get_viewset()().validate_object_action(action, resource)
 
     def send_request(self, user, resource):
-        delete_attributes = self.order_item.attributes
+        delete_attributes = self.order.attributes
         action = self._get_action()
         view = self.get_viewset().as_view({'delete': action})
         # Delete resource processor operates with scoped resources
@@ -361,7 +361,7 @@ class DeleteScopedResourceProcessor(AbstractDeleteResourceProcessor):
         return self.viewset
 
     def _get_action(self):
-        delete_attributes = self.order_item.attributes
+        delete_attributes = self.order.attributes
         action = delete_attributes.get('action', 'destroy')
         return action if hasattr(self.get_viewset(), action) else 'destroy'
 
@@ -380,7 +380,7 @@ class BaseCreateResourceProcessor(CreateResourceProcessor):
 
     def get_fields(self):
         """
-        Get list of valid attribute names to be copied from order item to
+        Get list of valid attribute names to be copied from order to
         resource provisioning request.
         """
         return self.fields
@@ -402,35 +402,31 @@ class BaseCreateResourceProcessor(CreateResourceProcessor):
         )
 
     def get_post_data(self):
-        return get_order_item_post_data(self.order_item, self.get_fields())
+        return get_order_post_data(self.order, self.get_fields())
 
     def get_scope_from_response(self, response):
         return self.get_resource_model().objects.get(uuid=response.data['uuid'])
 
 
 class BasicCreateResourceProcessor(AbstractCreateResourceProcessor):
-    def process_order_item(self, user):
-        with transaction.atomic():
-            create_local_resource(self.order_item, None)
-
     def send_request(self, user):
         pass
 
-    def validate_order_item(self, request):
+    def validate_order(self, request):
         pass
 
 
 class BasicDeleteResourceProcessor(AbstractDeleteResourceProcessor):
     def send_request(self, user, resource):
-        return False
+        return True
 
 
 class BasicUpdateResourceProcessor(AbstractUpdateResourceProcessor):
     def send_request(self, user):
-        return False
+        return True
 
     def validate_request(self, request):
         pass
 
     def update_limits_process(self, user):
-        return False
+        return True

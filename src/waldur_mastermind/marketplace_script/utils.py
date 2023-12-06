@@ -184,9 +184,9 @@ def execute_script_in_k8s(image, command, src, dry_run=False, **kwargs):
     from settings.WALDUR_MARKETPLACE_SCRIPT['K8S_CONFIG_PATH'] value
     """
     env = kwargs['environment']
-    job_name = 'job-%s' % env['ORDER_ITEM_UUID']
-    config_map_name = 'script-%s' % env['ORDER_ITEM_UUID']
-    volume_name = 'volume-%s' % env['ORDER_ITEM_UUID']
+    job_name = 'job-%s' % env['ORDER_UUID']
+    config_map_name = 'script-%s' % env['ORDER_UUID']
+    volume_name = 'volume-%s' % env['ORDER_UUID']
 
     k8s.config.load_kube_config(
         config_file=settings.WALDUR_MARKETPLACE_SCRIPT['K8S_CONFIG_PATH']
@@ -231,9 +231,9 @@ class ContainerExecutorMixin:
     hook_type = NotImplemented
 
     def send_request(self, user, resource=None, dry_run=False):
-        options = self.order_item.offering.secret_options
+        options = self.order.offering.secret_options
 
-        serializer = serializers.OrderItemSerializer(instance=self.order_item)
+        serializer = serializers.OrderSerializer(instance=self.order)
         input_parameters = dict(
             serializer.data
         )  # drop the self-reference to serializer by converting to dict
@@ -255,9 +255,9 @@ class ContainerExecutorMixin:
 
         logger.debug(
             'About to execute marketplace script via Docker. '
-            'Hook type is %s. Order item ID is %s.',
+            'Hook type is %s. Order ID is %s.',
             self.hook_type,
-            self.order_item.id,
+            self.order.id,
         )
 
         try:
@@ -276,48 +276,48 @@ class ContainerExecutorMixin:
             )
             if dry_run:
                 return output
-            self.order_item.output = output
-            self.order_item.save(update_fields=['output'])
+            self.order.output = output
+            self.order.save(update_fields=['output'])
 
         except ContainerError as exc:
-            self.order_item.output = str(exc)
-            self.order_item.save(update_fields=['output'])
+            self.order.output = str(exc)
+            self.order.save(update_fields=['output'])
             logger.exception(
                 'Unable to execute marketplace script via Docker. '
-                'Hook type is %s. Order item ID is %s.',
+                'Hook type is %s. Order ID is %s.',
                 self.hook_type,
-                self.order_item.id,
+                self.order.id,
             )
             raise rf_serializers.ValidationError(str(exc))
 
         except DockerException as exc:
             logger.exception(
                 'Unable to execute marketplace script via Docker. '
-                'Hook type is %s. Order item ID is %s.',
+                'Hook type is %s. Order ID is %s.',
                 self.hook_type,
-                self.order_item.id,
+                self.order.id,
             )
             raise rf_serializers.ValidationError(str(exc))
 
         except ApiException as exc:
             logger.exception(
                 'Unable to execute marketplace script via Kubernetes. '
-                'Hook type is %s. Order item ID is %s.',
+                'Hook type is %s. Order ID is %s.',
                 self.hook_type,
-                self.order_item.id,
+                self.order.id,
             )
             raise rf_serializers.ValidationError(str(exc))
 
         logger.debug(
             'Successfully executed marketplace script via Docker.'
-            'Hook type is %s. Order item ID is %s.',
+            'Hook type is %s. Order ID is %s.',
             self.hook_type,
-            self.order_item.id,
+            self.order.id,
         )
-        return self.order_item.output
+        return self.order.output
 
-    def validate_order_item(self, request):
-        options = self.order_item.offering.secret_options
+    def validate_order(self, request):
+        options = self.order.offering.secret_options
 
         if self.hook_type not in options:
             raise rf_serializers.ValidationError('Script is not defined.')
@@ -328,7 +328,7 @@ class ContainerExecutorMixin:
         if not command:
             raise rf_serializers.ValidationError('Docker image is not allowed.')
 
-        src = self.order_item.offering.secret_options[self.hook_type]
+        src = self.order.offering.secret_options[self.hook_type]
         if len(src.encode('utf-8')) > 1024 * 1024:
             raise rf_serializers.ValidationError(
                 'The length of script is more than 1 MB.'

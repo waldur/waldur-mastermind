@@ -76,9 +76,11 @@ class MarketplaceResourceLogger(EventLogger):
             'marketplace_resource_update_requested',
             'marketplace_resource_update_succeeded',
             'marketplace_resource_update_failed',
+            'marketplace_resource_update_canceled',
             'marketplace_resource_terminate_requested',
             'marketplace_resource_terminate_succeeded',
             'marketplace_resource_terminate_failed',
+            'marketplace_resource_terminate_canceled',
             'marketplace_resource_update_limits_succeeded',
             'marketplace_resource_update_limits_failed',
             'marketplace_resource_renamed',
@@ -192,7 +194,7 @@ def log_order_completed(order):
     )
 
 
-def log_order_terminated(order):
+def log_order_canceled(order):
     event_logger.marketplace_order.info(
         'Marketplace order has been terminated.',
         event_type='marketplace_order_terminated',
@@ -264,6 +266,14 @@ def log_resource_update_failed(instance):
     )
 
 
+def log_resource_update_canceled(instance):
+    event_logger.marketplace_resource.error(
+        'Resource {resource_name} update has canceled.',
+        event_type='marketplace_resource_update_canceled',
+        event_context={'resource': instance},
+    )
+
+
 def log_resource_terminate_requested(resource):
     event_logger.marketplace_resource.info(
         'Resource {resource_name} deletion has been requested.',
@@ -284,6 +294,14 @@ def log_resource_terminate_failed(instance):
     event_logger.marketplace_resource.error(
         'Resource {resource_name} deletion has failed.',
         event_type='marketplace_resource_terminate_failed',
+        event_context={'resource': instance},
+    )
+
+
+def log_resource_terminate_canceled(instance):
+    event_logger.marketplace_resource.error(
+        'Resource {resource_name} terminate has canceled.',
+        event_type='marketplace_resource_terminate_canceled',
         event_context={'resource': instance},
     )
 

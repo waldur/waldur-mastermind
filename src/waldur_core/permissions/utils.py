@@ -6,13 +6,20 @@ from rest_framework import exceptions
 
 from . import models, signals
 
+User = get_user_model()
+
 
 def has_permission(request, permission, scope):
-    if request.user.is_staff:
+    if isinstance(request, User):
+        user = request
+    else:
+        user = request.user
+
+    if user.is_staff:
         return True
 
     roles = models.UserRole.objects.filter(
-        user=request.user, is_active=True, scope=scope
+        user=user, is_active=True, scope=scope
     ).values_list('role', flat=True)
     if not roles:
         return False
@@ -53,7 +60,14 @@ def get_users(scope, role):
     user_ids = models.UserRole.objects.filter(
         is_active=True, scope=scope, role__name=role
     ).values_list('user_id', flat=True)
-    return get_user_model().objects.filter(id__in=user_ids)
+    return User.objects.filter(id__in=user_ids)
+
+
+def get_users_with_permission(scope, permission):
+    user_ids = models.UserRole.objects.filter(
+        is_active=True, scope=scope, role__permissions__permission=permission
+    ).values_list('user_id', flat=True)
+    return User.objects.filter(id__in=user_ids)
 
 
 def get_scope_ids(user, content_type, role=None):

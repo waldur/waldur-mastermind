@@ -58,15 +58,13 @@ class CampaignViewSet(core_views.ActionsViewSet):
     ]
 
     @action(detail=True, methods=['get'])
-    def order_items(self, request, uuid=None):
+    def orders(self, request, uuid=None):
         campaign = self.get_object()
         resources = models.DiscountedResource.objects.filter(
             campaign=campaign
         ).values_list('resource', flat=True)
-        order_items = marketplace_models.OrderItem.objects.filter(
-            resource__in=resources
-        )
-        serializer = marketplace_serializers.OrderItemDetailsSerializer(
-            instance=order_items, many=True, context={'view': self, 'request': request}
+        orders = marketplace_models.Order.objects.filter(resource__in=resources)
+        serializer = marketplace_serializers.OrderDetailsSerializer(
+            instance=orders, many=True, context={'view': self, 'request': request}
         )
         return Response(serializer.data, status=status.HTTP_200_OK)
