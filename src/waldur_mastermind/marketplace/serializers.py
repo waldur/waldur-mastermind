@@ -60,6 +60,7 @@ from waldur_mastermind.marketplace.utils import (
     get_service_provider_user_ids,
     validate_attributes,
 )
+from waldur_mastermind.proposal import models as proposal_models
 from waldur_pid import models as pid_models
 
 from . import log, models, permissions, plugins, tasks, utils
@@ -3147,6 +3148,22 @@ def add_service_provider(sender, fields, **kwargs):
     setattr(sender, 'get_is_service_provider', get_is_service_provider)
 
 
+def get_is_call_managing_organization(serializer, scope):
+    customer = structure_permissions._get_customer(scope)
+    return proposal_models.CallManagingOrganisation.objects.filter(
+        customer=customer
+    ).exists()
+
+
+def add_is_call_managing_organization(sender, fields, **kwargs):
+    fields['is_call_managing_organization'] = serializers.SerializerMethodField()
+    setattr(
+        sender,
+        'get_is_call_managing_organization',
+        get_is_call_managing_organization,
+    )
+
+
 class ResourceTerminateSerializer(serializers.Serializer):
     attributes = serializers.JSONField(
         label=_('Termination attributes'), required=False
@@ -3164,6 +3181,12 @@ class MoveResourceSerializer(serializers.Serializer):
 core_signals.pre_serializer_fields.connect(
     sender=structure_serializers.CustomerSerializer,
     receiver=add_service_provider,
+)
+
+
+core_signals.pre_serializer_fields.connect(
+    sender=structure_serializers.CustomerSerializer,
+    receiver=add_is_call_managing_organization,
 )
 
 
