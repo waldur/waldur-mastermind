@@ -26,6 +26,7 @@ from waldur_core.structure.managers import (
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import plugins
 from waldur_mastermind.marketplace.managers import get_connected_offerings
+from waldur_mastermind.proposal import models as proposal_models
 from waldur_pid import models as pid_models
 
 from . import models
@@ -647,6 +648,19 @@ class CustomerServiceProviderFilter(core_filters.BaseFilterBackend):
         return queryset
 
 
+class CustomerCallManagingOrganisationFilter(core_filters.BaseFilterBackend):
+    def filter_queryset(self, request, queryset, view):
+        is_call_managing_organization = request.query_params.get(
+            'is_call_managing_organization'
+        )
+        if is_call_managing_organization in ['true', 'True']:
+            customers = proposal_models.CallManagingOrganisation.objects.values_list(
+                'customer_id', flat=True
+            )
+            return queryset.filter(pk__in=customers)
+        return queryset
+
+
 class OfferingUserFilter(OfferingFilterMixin, core_filters.CreatedModifiedFilter):
     user_uuid = django_filters.UUIDFilter(field_name='user__uuid')
     user_username = django_filters.CharFilter(
@@ -847,4 +861,8 @@ structure_filters.ExternalCustomerFilterBackend.register(
 structure_filters.ExternalCustomerFilterBackend.register(
     CustomerServiceProviderFilter()
 )
+structure_filters.ExternalCustomerFilterBackend.register(
+    CustomerCallManagingOrganisationFilter()
+)
+
 structure_filters.UserFilterBackend.register_extra_query(user_extra_query)
