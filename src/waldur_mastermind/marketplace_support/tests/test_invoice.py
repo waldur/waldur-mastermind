@@ -15,7 +15,7 @@ from waldur_mastermind.invoices import registrators
 from waldur_mastermind.invoices.tasks import create_monthly_invoices
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace import tasks as marketplace_tasks
+from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.support import models as support_models
 from waldur_mastermind.support.tests import factories as support_factories
@@ -30,7 +30,9 @@ class InvoicesBaseTest(test.APITransactionTestCase):
     def setUp(self):
         super().setUp()
         self.fixture = fixtures.SupportFixture()
-        self.order_item = self.fixture.order_item
+        self.order = self.fixture.order
+        self.order.set_state_executing()
+        self.order.save()
         support_factories.IssueStatusFactory(
             name='done', type=support_models.IssueStatus.Types.RESOLVED
         )
@@ -38,15 +40,13 @@ class InvoicesBaseTest(test.APITransactionTestCase):
             name='canceled', type=support_models.IssueStatus.Types.CANCELED
         )
 
-    def order_item_process(self, order_item):
-        serialized_order = core_utils.serialize_instance(order_item.order)
-        serialized_user = core_utils.serialize_instance(self.fixture.staff)
-        marketplace_tasks.process_order(serialized_order, serialized_user)
+    def order_process(self, order: marketplace_models.Order):
+        marketplace_utils.process_order(order, self.fixture.staff)
 
-        order_item.refresh_from_db()
-        order_item.order.approve()
-        order_item.order.save()
-        self.issue = order_item.resource.scope
+        order.refresh_from_db()
+        order.review_by_consumer()
+        order.save()
+        self.issue = order.resource.scope
         self.issue.set_resolved()
 
     def get_invoice(self):
@@ -60,7 +60,7 @@ class InvoicesBaseTest(test.APITransactionTestCase):
 
 class InvoicesTest(InvoicesBaseTest):
     def test_create_invoice(self):
-        self.order_item_process(self.order_item)
+        self.order_process(self.order)
         invoice = self.get_invoice()
         self.assertEqual(invoice.total, self.fixture.plan.unit_price)
         self.assertEqual(invoice.items.count(), 2)
@@ -84,35 +84,35 @@ class InvoicesTest(InvoicesBaseTest):
         self.fixture.plan_component_ram.save()
 
         # Act
-        self.order_item_process(self.order_item)
+        self.order_process(self.order)
 
         invoice = self.get_invoice()
         self.assertEqual(invoice.total, 0)
 
     def test_update_invoice_if_added_new_offering(self):
-        self.order_item_process(self.order_item)
-        self.order_item_process(self.fixture.new_order_item)
+        self.order_process(self.order)
+        self.order_process(self.fixture.new_order)
 
         invoice = self.get_invoice()
         self.assertEqual(invoice.total, self.fixture.plan.unit_price * 2)
 
     def test_terminate_offering(self):
-        self.order_item_process(self.order_item)
-        self.order_item.resource.set_state_terminating()
-        self.order_item.resource.save()
-        self.order_item.resource.set_state_terminated()
-        self.order_item.resource.save()
+        self.order_process(self.order)
+        self.order.resource.set_state_terminating()
+        self.order.resource.save()
+        self.order.resource.set_state_terminated()
+        self.order.resource.save()
 
         for item in invoices_models.InvoiceItem.objects.filter(
-            resource=self.order_item.resource
+            resource=self.order.resource
         ):
             self.assertEqual(item.end, timezone.now())
 
     def test_switch_plan_resource(self):
-        self.order_item_process(self.order_item)
+        self.order_process(self.order)
 
         with freeze_time('2018-01-15'):
-            resource = self.order_item.resource
+            resource = self.order.resource
             resource.plan = self.fixture.new_plan
             resource.save()
 
@@ -149,12 +149,12 @@ class InvoicesTest(InvoicesBaseTest):
             self.assertEqual(unit_price, self.fixture.new_plan.unit_price)
 
     def test_invoice_item_should_include_service_provider_info(self):
-        self.order_item_process(self.order_item)
+        self.order_process(self.order)
         invoice = self.get_invoice()
         details = invoice.items.first().details
         self.assertTrue('service_provider_name' in details.keys())
         self.assertEqual(
-            details['service_provider_name'], self.order_item.offering.customer.name
+            details['service_provider_name'], self.order.offering.customer.name
         )
         self.assertTrue('service_provider_uuid' in details.keys())
         self.assertEqual(
@@ -172,11 +172,11 @@ class UsagesTest(InvoicesBaseTest):
         self.fixture.offering_component_cpu.save()
         self.fixture.update_plan_prices()
 
-        self.order_item_process(self.order_item)
+        self.order_process(self.order)
 
-        # We get new resource because self.order_item.resource.refresh_from_db() updates tracker.changed()
+        # We get new resource because self.order.resource.refresh_from_db() updates tracker.changed()
         self.resource = marketplace_models.Resource.objects.get(
-            pk=self.order_item.resource.pk
+            pk=self.order.resource.pk
         )
         self.invoice = self.get_invoice()
 
@@ -295,10 +295,10 @@ class UsagesTest(InvoicesBaseTest):
         self.assertTrue(self.resource.name in invoice_item_name)
 
     def _switch_plan(self):
-        marketplace_factories.OrderItemFactory(
+        marketplace_factories.OrderFactory(
             resource=self.resource,
             type=marketplace_models.RequestTypeMixin.Types.UPDATE,
-            state=marketplace_models.OrderItem.States.EXECUTING,
+            state=marketplace_models.Order.States.EXECUTING,
             plan=self.fixture.new_plan,
         )
         callbacks.resource_update_succeeded(self.resource)
@@ -334,8 +334,8 @@ class OneTimeTest(InvoicesBaseTest):
         self.fixture.offering_component_cpu.save()
         self.fixture.update_plan_prices()
 
-        self.order_item_process(self.order_item)
-        self.resource = self.order_item.resource
+        self.order_process(self.order)
+        self.resource = self.order.resource
         self.invoice = self.get_invoice()
 
     @freeze_time('2018-01-01')
@@ -371,8 +371,8 @@ class OnPlanSwitchTest(InvoicesBaseTest):
         self.fixture.offering_component_cpu.save()
         self.fixture.update_plan_prices()
 
-        self.order_item_process(self.order_item)
-        self.resource = self.order_item.resource
+        self.order_process(self.order)
+        self.resource = self.order.resource
         self.invoice = self.get_invoice()
 
     @freeze_time('2018-02-01')
@@ -391,18 +391,18 @@ class OnPlanSwitchTest(InvoicesBaseTest):
     def test_calculate_on_plan_switch_component_if_plan_has_been_switched_in_current_period(
         self,
     ):
-        order_item = marketplace_factories.OrderItemFactory(
-            type=marketplace_models.OrderItem.Types.UPDATE,
+        order: marketplace_models.Order = marketplace_factories.OrderFactory(
+            type=marketplace_models.Order.Types.UPDATE,
             resource=self.resource,
             plan=self.fixture.plan,
         )
-        order_item.set_state_executing()
-        order_item.set_state_done()
-        order_item.save()
+        order.set_state_executing()
+        order.complete()
+        order.save()
         registrators.RegistrationManager.register(
             self.resource,
             timezone.now(),
-            order_type=marketplace_models.OrderItem.Types.UPDATE,
+            order_type=marketplace_models.Order.Types.UPDATE,
         )
         self.invoice = self.get_invoice()
         expected = (
@@ -422,12 +422,12 @@ class LimitInvoiceTest(InvoicesBaseTest):
         )
         self.fixture.offering_component_cpu.save()
         self.fixture.update_plan_prices()
-        self.order_item.limits = {self.fixture.offering_component_cpu.type: 16}
-        self.order_item.save()
+        self.order.limits = {self.fixture.offering_component_cpu.type: 16}
+        self.order.save()
 
     def test_charge_is_based_on_limit(self):
-        self.order_item_process(self.order_item)
-        self.resource = self.order_item.resource
+        self.order_process(self.order)
+        self.resource = self.order.resource
         self.invoice = self.get_invoice()
         expected = (
             self.fixture.plan_component_cpu.price * 16

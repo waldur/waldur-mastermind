@@ -5,7 +5,6 @@ from ddt import data, ddt
 from freezegun import freeze_time
 from rest_framework import status, test
 
-from waldur_core.core import utils as core_utils
 from waldur_core.logging import models as logging_models
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, OfferingRole, ProjectRole
@@ -14,11 +13,13 @@ from waldur_core.structure.tests.factories import ProjectFactory, UserFactory
 from waldur_mastermind.common.utils import parse_date
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tests import factories as invoices_factories
-from waldur_mastermind.marketplace import callbacks, log, models, plugins, tasks
+from waldur_mastermind.marketplace import callbacks, log, models, plugins
+from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests import helpers as test_helpers
 from waldur_mastermind.marketplace.tests import utils as test_utils
 from waldur_mastermind.marketplace.tests.fixtures import MarketplaceFixture
+from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_mastermind.support.tests.base import override_support_settings
 from waldur_openstack.openstack.tests import factories as openstack_factories
 
@@ -196,20 +197,6 @@ class ResourceSwitchPlanTest(test.APITransactionTestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
-    def test_order_item_is_created(self):
-        # Act
-        response = self.switch_plan(self.fixture.owner, self.resource1, self.plan2)
-
-        # Assert
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertTrue(
-            models.OrderItem.objects.filter(
-                type=models.OrderItem.Types.UPDATE,
-                plan=self.plan2,
-                resource=self.resource1,
-            ).exists()
-        )
-
     def test_order_is_created(self):
         # Act
         response = self.switch_plan(self.fixture.owner, self.resource1, self.plan2)
@@ -218,7 +205,9 @@ class ResourceSwitchPlanTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertTrue(
             models.Order.objects.filter(
-                project=self.project, created_by=self.fixture.owner
+                type=models.Order.Types.UPDATE,
+                plan=self.plan2,
+                resource=self.resource1,
             ).exists()
         )
 
@@ -229,14 +218,14 @@ class ResourceSwitchPlanTest(test.APITransactionTestCase):
         # Assert
         order = models.Order.objects.get(uuid=response.data['order_uuid'])
         self.assertEqual(order.state, models.Order.States.EXECUTING)
-        self.assertEqual(order.approved_by, self.fixture.staff)
+        self.assertEqual(order.created_by, self.fixture.staff)
 
-    def test_plan_switch_is_not_allowed_if_pending_order_item_for_resource_already_exists(
+    def test_plan_switch_is_not_allowed_if_pending_order_for_resource_already_exists(
         self,
     ):
         # Arrange
-        factories.OrderItemFactory(
-            resource=self.resource1, state=models.OrderItem.States.PENDING
+        factories.OrderFactory(
+            resource=self.resource1, state=models.Order.States.PENDING
         )
 
         # Act
@@ -308,7 +297,9 @@ class ResourceTerminateTest(test.APITransactionTestCase):
         else:
             return self.client.post(url)
 
-    @mock.patch('waldur_mastermind.marketplace.tasks.notify_order_approvers.delay')
+    @mock.patch(
+        'waldur_mastermind.marketplace.tasks.notify_consumer_about_pending_order.delay'
+    )
     def test_service_provider_can_terminate_resource(self, mocked_approve):
         # Arrange
         owner = UserFactory()
@@ -321,7 +312,7 @@ class ResourceTerminateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         mocked_approve.assert_not_called()
 
-    def test_order_item_is_created_when_user_submits_termination_request(self):
+    def test_order_is_created_when_user_submits_termination_request(self):
         # Act
         response = self.terminate(self.fixture.owner)
 
@@ -367,14 +358,14 @@ class ResourceTerminateTest(test.APITransactionTestCase):
         # Assert
         order = models.Order.objects.get(uuid=response.data['order_uuid'])
         self.assertEqual(order.state, models.Order.States.EXECUTING)
-        self.assertEqual(order.approved_by, self.fixture.staff)
+        self.assertEqual(order.created_by, self.fixture.staff)
 
-    def test_plan_switch_is_not_allowed_if_pending_order_item_for_resource_already_exists(
+    def test_plan_switch_is_not_allowed_if_pending_order_for_resource_already_exists(
         self,
     ):
         # Arrange
-        factories.OrderItemFactory(
-            resource=self.resource, state=models.OrderItem.States.PENDING
+        factories.OrderFactory(
+            resource=self.resource, state=models.Order.States.PENDING
         )
 
         # Act
@@ -397,8 +388,7 @@ class ResourceTerminateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         order = models.Order.objects.get(uuid=response.data['order_uuid'])
         self.assertEqual(order.project, self.project)
-        item = order.items.first()
-        self.assertTrue(item.attributes.get('param'))
+        self.assertTrue(order.attributes.get('param'))
 
     def test_user_can_terminate_resource_if_project_has_been_soft_deleted(self):
         self.project.is_removed = True
@@ -526,30 +516,29 @@ class ResourceCostEstimateTest(test.APITransactionTestCase):
         ENABLED=True,
         ACTIVE_BACKEND_TYPE='basic',
     )
-    def test_when_order_item_is_processed_cost_estimate_is_initialized(self):
+    def test_when_order_is_processed_cost_estimate_is_initialized(self):
         # Arrange
         fixture = fixtures.ProjectFixture()
-        offering = factories.OfferingFactory(type='Support.OfferingTemplate')
+        offering = factories.OfferingFactory(type=PLUGIN_NAME)
         plan = factories.PlanFactory(unit_price=10)
 
-        order_item = factories.OrderItemFactory(
+        order = factories.OrderFactory(
             offering=offering,
             plan=plan,
             attributes={'name': 'item_name', 'description': 'Description'},
+            state=models.Order.States.EXECUTING,
         )
 
         # Act
-        serialized_order = core_utils.serialize_instance(order_item.order)
-        serialized_user = core_utils.serialize_instance(fixture.staff)
-        tasks.process_order(serialized_order, serialized_user)
+        marketplace_utils.process_order(order, fixture.staff)
 
         # Assert
-        order_item.refresh_from_db()
-        self.assertEqual(order_item.resource.cost, plan.unit_price)
+        order.refresh_from_db()
+        self.assertEqual(order.resource.cost, plan.unit_price)
 
     def test_initialization_cost_is_added_to_cost_estimate_for_creation_request(self):
         # Arrange
-        offering = factories.OfferingFactory(type='Support.OfferingTemplate')
+        offering = factories.OfferingFactory(type=PLUGIN_NAME)
         one_time_offering_component = factories.OfferingComponentFactory(
             offering=offering,
             billing_type=models.OfferingComponent.BillingTypes.ONE_TIME,
@@ -569,12 +558,12 @@ class ResourceCostEstimateTest(test.APITransactionTestCase):
             plan=plan, component=usage_offering_component, price=10
         )
 
-        order_item = factories.OrderItemFactory(
+        order = factories.OrderFactory(
             offering=offering,
             plan=plan,
         )
-        order_item.init_cost()
-        self.assertEqual(order_item.cost, 100)
+        order.init_cost()
+        self.assertEqual(order.cost, 100)
 
     def test_when_plan_is_switched_cost_estimate_is_updated(self):
         # Arrange
@@ -582,9 +571,9 @@ class ResourceCostEstimateTest(test.APITransactionTestCase):
         new_plan = factories.PlanFactory(unit_price=100)
         resource = factories.ResourceFactory(plan=old_plan)
 
-        factories.OrderItemFactory(
-            state=models.OrderItem.States.EXECUTING,
-            type=models.OrderItem.Types.UPDATE,
+        factories.OrderFactory(
+            state=models.Order.States.EXECUTING,
+            type=models.Order.Types.UPDATE,
             resource=resource,
             plan=new_plan,
         )
@@ -596,9 +585,9 @@ class ResourceCostEstimateTest(test.APITransactionTestCase):
         # Assert
         self.assertEqual(resource.cost, new_plan.unit_price)
 
-    def test_plan_switch_cost_is_added_to_cost_estimate_for_order_item(self):
+    def test_plan_switch_cost_is_added_to_cost_estimate_for_order(self):
         # Arrange
-        offering = factories.OfferingFactory(type='Support.OfferingTemplate')
+        offering = factories.OfferingFactory(type=PLUGIN_NAME)
         switch_offering_component = factories.OfferingComponentFactory(
             offering=offering,
             billing_type=models.OfferingComponent.BillingTypes.ON_PLAN_SWITCH,
@@ -618,13 +607,13 @@ class ResourceCostEstimateTest(test.APITransactionTestCase):
             plan=plan, component=usage_offering_component, price=10
         )
 
-        order_item = factories.OrderItemFactory(
+        order = factories.OrderFactory(
             offering=offering,
             plan=plan,
-            type=models.OrderItem.Types.UPDATE,
+            type=models.Order.Types.UPDATE,
         )
-        order_item.init_cost()
-        self.assertEqual(order_item.cost, 50)
+        order.init_cost()
+        self.assertEqual(order.cost, 50)
 
 
 @ddt
@@ -925,19 +914,6 @@ class ResourceUpdateLimitsTest(test.APITransactionTestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
-    def test_order_item_is_created(self):
-        # Act
-        response = self.update_limits(self.fixture.owner, self.resource)
-
-        # Assert
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertTrue(
-            models.OrderItem.objects.filter(
-                type=models.OrderItem.Types.UPDATE,
-                resource=self.resource,
-            ).exists()
-        )
-
     def test_order_is_created(self):
         # Act
         response = self.update_limits(self.fixture.owner, self.resource)
@@ -946,7 +922,8 @@ class ResourceUpdateLimitsTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertTrue(
             models.Order.objects.filter(
-                project=self.resource.project, created_by=self.fixture.owner
+                type=models.Order.Types.UPDATE,
+                resource=self.resource,
             ).exists()
         )
 
@@ -957,14 +934,14 @@ class ResourceUpdateLimitsTest(test.APITransactionTestCase):
         # Assert
         order = models.Order.objects.get(uuid=response.data['order_uuid'])
         self.assertEqual(order.state, models.Order.States.EXECUTING)
-        self.assertEqual(order.approved_by, self.fixture.staff)
+        self.assertEqual(order.created_by, self.fixture.staff)
 
-    def test_update_limits_is_not_allowed_if_pending_order_item_for_resource_already_exists(
+    def test_update_limits_is_not_allowed_if_pending_order_for_resource_already_exists(
         self,
     ):
         # Arrange
-        factories.OrderItemFactory(
-            resource=self.resource, state=models.OrderItem.States.PENDING
+        factories.OrderFactory(
+            resource=self.resource, state=models.Order.States.PENDING
         )
 
         # Act
@@ -1006,11 +983,12 @@ class ResourceUpdateLimitsTest(test.APITransactionTestCase):
     def test_update_limit_process(self):
         response = self.update_limits(self.fixture.staff, self.resource)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        order_item = models.OrderItem.objects.get(
-            type=models.OrderItem.Types.UPDATE,
+        order = models.Order.objects.get(
+            type=models.Order.Types.UPDATE,
+            state=models.Order.States.EXECUTING,
             resource=self.resource,
         )
-        test_utils.process_order_item(order_item, self.fixture.staff)
+        marketplace_utils.process_order(order, self.fixture.staff)
         self.resource.refresh_from_db()
         self.assertEqual(self.resource.limits['vcpu'], 10)
 

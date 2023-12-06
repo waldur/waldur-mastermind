@@ -51,21 +51,15 @@ class SupportFixture:
 
     @cached_property
     def issue(self):
-        return support_factories.IssueFactory(resource=self.order_item)
+        return support_factories.IssueFactory(resource=self.order)
 
     @cached_property
     def order(self):
         return marketplace_factories.OrderFactory(
-            state=marketplace_models.Order.States.EXECUTING, project=self.project
-        )
-
-    @cached_property
-    def order_item(self):
-        return marketplace_factories.OrderItemFactory(
-            state=marketplace_models.OrderItem.States.EXECUTING,
+            project=self.project,
+            state=marketplace_models.Order.States.EXECUTING,
             offering=self.offering,
             resource=self.resource,
-            order=self.order,
         )
 
 
@@ -74,31 +68,26 @@ class IssueStatusHandlerTest(BaseTest):
         super().setUp()
         self.fixture = SupportFixture()
 
-    def test_order_item_is_done_when_resource_creation_issue_is_resolved(self):
+    def test_order_is_done_when_resource_creation_issue_is_resolved(self):
         self.fixture.issue.status = self.fixture.success_issue_status.name
         self.fixture.issue.save()
 
-        self.fixture.order_item.refresh_from_db()
-        self.assertEqual(
-            self.fixture.order_item.state, self.fixture.order_item.States.DONE
-        )
+        self.fixture.order.refresh_from_db()
+        self.assertEqual(self.fixture.order.state, marketplace_models.Order.States.DONE)
 
         self.fixture.resource.refresh_from_db()
         self.assertEqual(
             self.fixture.resource.state, marketplace_models.Resource.States.OK
         )
 
-        self.fixture.order.refresh_from_db()
-        self.assertEqual(self.fixture.order.state, marketplace_models.Order.States.DONE)
-
-    def test_order_item_is_terminated_when_resource_creation_issue_is_canceled(self):
+    def test_order_is_terminated_when_resource_creation_issue_is_canceled(self):
         self.fixture.issue.status = self.fixture.fail_issue_status.name
         self.fixture.issue.save()
 
-        self.fixture.order_item.refresh_from_db()
+        self.fixture.order.refresh_from_db()
         self.assertEqual(
-            self.fixture.order_item.state,
-            marketplace_models.OrderItem.States.TERMINATED,
+            self.fixture.order.state,
+            marketplace_models.Order.States.CANCELED,
         )
 
         self.fixture.resource.refresh_from_db()
@@ -106,17 +95,12 @@ class IssueStatusHandlerTest(BaseTest):
             self.fixture.resource.state, marketplace_models.Resource.States.TERMINATED
         )
 
-        self.fixture.order.refresh_from_db()
-        self.assertEqual(self.fixture.order.state, marketplace_models.Order.States.DONE)
-
     def test_use_second_resolve_state(self):
         self.fixture.issue.status = self.fixture.success_issue_status.name
         self.fixture.issue.save()
 
-        self.fixture.order_item.refresh_from_db()
-        self.assertEqual(
-            self.fixture.order_item.state, self.fixture.order_item.States.DONE
-        )
+        self.fixture.order.refresh_from_db()
+        self.assertEqual(self.fixture.order.state, marketplace_models.Order.States.DONE)
 
         self.fixture.issue.status = self.fixture.second_success_issue_status.name
         self.fixture.issue.save()

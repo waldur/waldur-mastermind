@@ -123,13 +123,14 @@ class MarketplaceSection(NotificationSection):
     class Meta:
         key = 'marketplace'
 
-    notification_approval = Notification(
-        'notification_approval', 'A notification of order approval'
+    notify_consumer_about_pending_order = Notification(
+        'notify_consumer_about_pending_order',
+        'A notification for consumer about pending order',
     )
 
-    notification_service_provider_approval = Notification(
-        'notification_service_provider_approval',
-        'A notification to provider about pending order item approval',
+    notify_provider_about_pending_order = Notification(
+        'notify_provider_about_pending_order',
+        'A notification for provider about pending order',
     )
 
     notification_usages = Notification(

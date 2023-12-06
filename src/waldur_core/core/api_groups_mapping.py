@@ -23,7 +23,7 @@ API_GROUPS = {
         '/api/marketplace-component-usages/',
         '/api/marketplace-offering-files/',
         '/api/marketplace-provider-offerings/',
-        '/api/marketplace-order-items/',
+        '/api/marketplace-orders/',
         '/api/marketplace-orders/',
         '/api/marketplace-plans/',
         '/api/marketplace-plugins/',

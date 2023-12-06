@@ -90,10 +90,10 @@ class SubmitUsageTest(test.APITransactionTestCase):
             project=self.fixture.project,
         )
 
-        factories.OrderItemFactory(
+        factories.OrderFactory(
             resource=self.resource,
             type=models.RequestTypeMixin.Types.CREATE,
-            state=models.OrderItem.States.EXECUTING,
+            state=models.Order.States.EXECUTING,
             plan=self.plan,
         )
         callbacks.resource_creation_succeeded(self.resource)

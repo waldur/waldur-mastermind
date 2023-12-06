@@ -76,60 +76,61 @@ class ActionsTest(test.APITransactionTestCase):
             logging_models.Event.objects.filter(event_type='notify_organization_owners')
         )
 
-    def _create_new_order_item(self):
-        order = marketplace_factories.OrderFactory(project=self.project)
-        order_item = marketplace_factories.OrderItemFactory(
-            order=order,
+    def _create_new_order(self):
+        order = marketplace_factories.OrderFactory(
+            project=self.project,
             offering=self.fixture.offering,
             attributes={'name': 'item_name', 'description': 'Description'},
             plan=self.fixture.plan,
+            state=marketplace_models.Order.States.EXECUTING,
         )
 
-        marketplace_utils.process_order_item(order_item, self.fixture.staff)
-        order_item.refresh_from_db()
-        return order_item
+        marketplace_utils.process_order(order, self.fixture.staff)
+        order.refresh_from_db()
+        return order
 
     def test_block_creation_of_new_resources(self):
         self.policy.actions = 'block_creation_of_new_resources'
         self.policy.save()
 
-        order_item = self._create_new_order_item()
-        self.assertTrue(order_item.resource)
-        self.assertFalse(order_item.error_message)
+        order = self._create_new_order()
+        self.assertTrue(order.resource)
+        self.assertFalse(order.error_message)
 
         self.estimate.total = self.policy.limit_cost + 1
         self.estimate.save()
 
-        order_item = self._create_new_order_item()
-        self.assertFalse(order_item.resource)
-        self.assertTrue(order_item.error_message)
+        order = self._create_new_order()
+        self.assertFalse(order.resource)
+        self.assertTrue(order.error_message)
 
     def test_block_modification_of_existing_resources(self):
         self.policy.actions = 'block_modification_of_existing_resources'
         self.policy.save()
 
-        order_item = self._create_new_order_item()
-        self.assertTrue(order_item.resource)
-        self.assertFalse(order_item.error_message)
+        order = self._create_new_order()
+        self.assertTrue(order.resource)
+        self.assertFalse(order.error_message)
 
         self.estimate.total = self.policy.limit_cost + 1
         self.estimate.save()
 
-        order = marketplace_factories.OrderFactory(project=self.project)
-        order_item = marketplace_factories.OrderItemFactory(
-            order=order,
+        order = marketplace_factories.OrderFactory(
+            project=self.project,
             offering=self.fixture.offering,
-            attributes={'name': 'item_name', 'description': 'Description'},
+            attributes={'old_limits': {'cpu': 1}},
+            limits={'cpu': 2},
             plan=self.fixture.plan,
             type=marketplace_models.RequestTypeMixin.Types.UPDATE,
-            resource=order_item.resource,
+            resource=order.resource,
+            state=marketplace_models.Order.States.EXECUTING,
         )
 
-        marketplace_utils.process_order_item(order_item, self.fixture.staff)
-        order_item.refresh_from_db()
+        marketplace_utils.process_order(order, self.fixture.staff)
+        order.refresh_from_db()
 
-        self.assertEqual(order_item.state, marketplace_models.OrderItem.States.ERRED)
-        self.assertTrue(order_item.error_message)
+        self.assertEqual(order.state, marketplace_models.Order.States.ERRED)
+        self.assertTrue(order.error_message)
 
     def test_terminate_resources(self):
         self.policy.actions = 'terminate_resources'
@@ -146,16 +147,16 @@ class ActionsTest(test.APITransactionTestCase):
         self.estimate.save()
 
         self.assertTrue(
-            marketplace_models.OrderItem.objects.filter(
+            marketplace_models.Order.objects.filter(
                 resource=resource,
-                type=marketplace_models.OrderItem.Types.TERMINATE,
+                type=marketplace_models.Order.Types.TERMINATE,
             ).exists()
         )
-        order_item = marketplace_models.OrderItem.objects.filter(
+        order = marketplace_models.Order.objects.filter(
             resource=resource,
-            type=marketplace_models.OrderItem.Types.TERMINATE,
+            type=marketplace_models.Order.Types.TERMINATE,
         ).get()
-        self.assertEqual(order_item.attributes, {'action': 'force_destroy'})
+        self.assertEqual(order.attributes, {'action': 'force_destroy'})
 
     def test_request_downscaling(self):
         self.policy.actions = 'request_downscaling'

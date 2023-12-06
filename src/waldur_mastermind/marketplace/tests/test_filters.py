@@ -163,16 +163,16 @@ class OrderFilterTest(test.APITransactionTestCase):
         self.fixture = fixtures.MarketplaceFixture()
         self.url = factories.OrderFactory.get_list_url()
 
-    def test_order_items_type_filter_positive(self):
+    def test_type_filter_positive(self):
         user = self.fixture.staff
         self.client.force_authenticate(user)
         response = self.client.get(self.url, {'type': 'Create'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 1)
 
-    def test_order_items_type_filter_negative(self):
-        self.fixture.order_item.type = models.RequestTypeMixin.Types.UPDATE
-        self.fixture.order_item.save()
+    def test_type_filter_negative(self):
+        self.fixture.order.type = models.RequestTypeMixin.Types.UPDATE
+        self.fixture.order.save()
         user = self.fixture.staff
         self.client.force_authenticate(user)
         response = self.client.get(self.url, {'type': 'Create'})

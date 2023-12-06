@@ -629,33 +629,26 @@ class CountCustomersTest(test.APITransactionTestCase):
         self.fixture.resource.save()
 
     def _create_resource(self, project=None):
-        if project:
-            order = factories.OrderFactory(
-                state=models.Order.States.DONE,
-                project=project,
-            )
-        else:
-            order = factories.OrderFactory(
-                state=models.Order.States.DONE,
-            )
+        project = project or structure_factories.ProjectFactory()
         resource = factories.ResourceFactory(
-            offering=self.fixture.offering, project=order.project
-        )
-        factories.OrderItemFactory(
             offering=self.fixture.offering,
-            order=order,
+            project=project,
+        )
+        factories.OrderFactory(
+            offering=self.fixture.offering,
+            project=project,
             resource=resource,
-            type=models.OrderItem.Types.CREATE,
+            type=models.Order.Types.CREATE,
+            state=models.Order.States.DONE,
         )
         return resource
 
     def _terminate_resource(self, resource):
-        order = factories.OrderFactory(state=models.Order.States.DONE)
-        factories.OrderItemFactory(
+        factories.OrderFactory(
             offering=self.fixture.offering,
-            order=order,
+            state=models.Order.States.DONE,
             resource=resource,
-            type=models.OrderItem.Types.TERMINATE,
+            type=models.Order.Types.TERMINATE,
         )
         resource.state = models.Resource.States.TERMINATED
         return resource.save()

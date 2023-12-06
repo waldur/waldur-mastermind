@@ -33,27 +33,21 @@ class MarketplaceConfig(AppConfig):
         )
 
         signals.post_save.connect(
-            handlers.log_order_item_events,
-            sender=models.OrderItem,
-            dispatch_uid='waldur_mastermind.marketplace.log_order_item_events',
+            handlers.notify_approvers_when_order_is_created,
+            sender=models.Order,
+            dispatch_uid='waldur_mastermind.marketplace.notify_approvers_when_order_is_created',
+        )
+
+        signals.post_save.connect(
+            handlers.update_resource_when_order_is_rejected,
+            sender=models.Order,
+            dispatch_uid='waldur_mastermind.marketplace.update_resource_when_order_is_rejected',
         )
 
         signals.post_save.connect(
             handlers.log_resource_events,
             sender=models.Resource,
             dispatch_uid='waldur_mastermind.marketplace.log_resource_events',
-        )
-
-        signals.post_save.connect(
-            handlers.reject_order,
-            sender=models.Order,
-            dispatch_uid='waldur_mastermind.marketplace.reject_order',
-        )
-
-        signals.post_save.connect(
-            handlers.complete_order_when_all_items_are_done,
-            sender=models.OrderItem,
-            dispatch_uid='waldur_mastermind.marketplace.complete_order_when_all_items_are_done',
         )
 
         signals.post_save.connect(
@@ -148,7 +142,7 @@ class MarketplaceConfig(AppConfig):
             enable_usage_notifications=True,
             enable_remote_support=True,
             can_update_limits=True,
-            can_terminate_order_item=True,
+            can_terminate_order=True,
         )
 
         marketplace_registrators.MarketplaceRegistrator.connect()

@@ -5,6 +5,7 @@ from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.billing import models as billing_models
+from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
@@ -84,14 +85,14 @@ class ActionsFunctionsTest(test.APITransactionTestCase):
             self.notify_project_team_mock.reset_mock()
             self.block_creation_of_new_resources_mock.reset_mock()
 
-            order = marketplace_factories.OrderFactory(project=self.project)
-            order_item = marketplace_factories.OrderItemFactory(
-                order=order,
+            order = marketplace_factories.OrderFactory(
+                project=self.project,
                 offering=self.fixture.offering,
                 attributes={'name': 'item_name', 'description': 'Description'},
                 plan=self.fixture.plan,
+                state=marketplace_models.Order.States.EXECUTING,
             )
-            marketplace_utils.process_order_item(order_item, self.fixture.staff)
+            marketplace_utils.process_order(order, self.fixture.staff)
 
             self.notify_project_team_mock.assert_not_called()
             self.block_creation_of_new_resources_mock.assert_called_once()

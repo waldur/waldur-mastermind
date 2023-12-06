@@ -12,7 +12,7 @@ from . import tasks
 logger = logging.getLogger(__name__)
 
 
-ItemTypes = marketplace_models.OrderItem.Types
+ItemTypes = marketplace_models.Order.Types
 
 
 RESOURCE_CALLBACKS = {
@@ -25,7 +25,7 @@ RESOURCE_CALLBACKS = {
 }
 
 
-def update_order_item_if_issue_was_complete(sender, instance, created=False, **kwargs):
+def update_order_if_issue_was_complete(sender, instance, created=False, **kwargs):
     if created:
         return
 
@@ -36,7 +36,7 @@ def update_order_item_if_issue_was_complete(sender, instance, created=False, **k
 
     if not (
         issue.resource
-        and isinstance(issue.resource, marketplace_models.OrderItem)
+        and isinstance(issue.resource, marketplace_models.Order)
         and issue.resource.offering.type == PLUGIN_NAME
         and issue.resolved is not None
     ):
@@ -57,14 +57,14 @@ def notify_about_request_based_item_creation(sender, instance, created=False, **
 
     if not (
         issue.resource
-        and isinstance(issue.resource, marketplace_models.OrderItem)
+        and isinstance(issue.resource, marketplace_models.Order)
         and issue.resource.offering.type == PLUGIN_NAME
         and issue.resource.type == ItemTypes.CREATE
     ):
         return
 
-    order_item = issue.resource
-    service_provider = getattr(order_item.offering.customer, 'serviceprovider', None)
+    order = issue.resource
+    service_provider = getattr(order.offering.customer, 'serviceprovider', None)
 
     if not service_provider:
         logger.warning(
@@ -77,19 +77,17 @@ def notify_about_request_based_item_creation(sender, instance, created=False, **
 
     attributes_with_display_names = {}
 
-    for attribute_key, attribute_value in order_item.attributes.items():
-        if attribute_key in order_item.offering.options['options'].keys():
-            display_name = order_item.offering.options['options'][attribute_key][
-                'label'
-            ]
+    for attribute_key, attribute_value in order.attributes.items():
+        if attribute_key in order.offering.options['options'].keys():
+            display_name = order.offering.options['options'][attribute_key]['label']
             attributes_with_display_names[display_name] = attribute_value
             continue
 
         attributes_with_display_names[attribute_key] = attribute_value
 
-    setattr(order_item, 'attributes_with_display_names', attributes_with_display_names)
+    setattr(order, 'attributes_with_display_names', attributes_with_display_names)
 
-    context = Context({'order_item': order_item, 'issue': issue}, autoescape=False)
+    context = Context({'order': order, 'issue': issue}, autoescape=False)
     template = Template(service_provider.lead_body)
     message = template.render(context).strip()
     template = Template(service_provider.lead_subject)

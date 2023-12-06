@@ -15,17 +15,17 @@ def user_can_reject_order(request, view, resource=None):
         return
 
     try:
-        order_item = models.OrderItem.objects.get(
+        order = models.Order.objects.get(
             resource=resource,
             type=models.RequestTypeMixin.Types.CREATE,
-            state=models.OrderItem.States.EXECUTING,
+            state=models.Order.States.EXECUTING,
         )
-    except models.OrderItem.DoesNotExist:
+    except models.Order.DoesNotExist:
         return
-    except models.OrderItem.MultipleObjectsReturned:
+    except models.Order.MultipleObjectsReturned:
         return
 
-    if user == order_item.order.created_by:
+    if user == order.created_by:
         return
 
     if has_project_permission(

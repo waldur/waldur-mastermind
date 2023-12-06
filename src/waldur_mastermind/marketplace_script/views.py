@@ -1,7 +1,6 @@
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from django.utils.translation import gettext_lazy as _
-from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -16,7 +15,6 @@ from waldur_mastermind.marketplace import serializers as marketplace_serializers
 from waldur_mastermind.marketplace_script import (
     executors as marketplace_script_executors,
 )
-from waldur_mastermind.marketplace_script import filters as marketplace_script_filters
 from waldur_mastermind.marketplace_script import models as marketplace_script_models
 from waldur_mastermind.marketplace_script import (
     serializers as marketplace_script_serializers,
@@ -61,10 +59,10 @@ class DryRunView(ActionsViewSet):
         serializer = DryRunSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         offering = self.get_object()
-        order_item = marketplace_models.OrderItem(**serializer.validated_data)
-        order_item.offering = offering
-        order_item_type = DryRunTypes.get_type_display(order_item.type)
-        script_language = order_item.offering.secret_options.get('language')
+        order = marketplace_models.Order(**serializer.validated_data)
+        order.offering = offering
+        order_type = DryRunTypes.get_type_display(order.type)
+        script_language = order.offering.secret_options.get('language')
         if not script_language:
             return Response(
                 {
@@ -72,19 +70,16 @@ class DryRunView(ActionsViewSet):
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        project = structure_models.Project(
+        project = structure_models.Project.objects.create(
             name='Dry-run project', customer=offering.customer
         )
-        order = marketplace_models.Order(
-            created_by=request.user,
-            project=project,
-        )
-
-        order_item.order = order
+        order.created_by = request.user
+        order.project = project
+        order.save()
 
         executor = ContainerExecutorMixin()
-        executor.order_item = order_item
-        executor.hook_type = order_item_type
+        executor.order = order
+        executor.hook_type = order_type
         output = executor.send_request(request.user, dry_run=True)
         return Response({'output': output})
 
@@ -93,28 +88,21 @@ class DryRunView(ActionsViewSet):
         serializer = DryRunSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         offering = self.get_object()
-        order_item = marketplace_models.OrderItem(**serializer.validated_data)
-        order_item.offering = offering
-        order_item_type = DryRunTypes.get_type_display(order_item.type)
-
-        project = structure_models.Project(
+        project = structure_models.Project.objects.create(
             name='Dry-run project', customer=offering.customer
         )
-        order = marketplace_models.Order(
-            created_by=request.user,
-            project=project,
-        )
-
-        order_item.order = order
-        project.save()
+        order = marketplace_models.Order(**serializer.validated_data)
+        order.offering = offering
+        order_type = DryRunTypes.get_type_display(order.type)
+        order.created_by = request.user
+        order.project = project
         order.save()
-        order_item.save()
         dry_run = marketplace_script_models.DryRun.objects.create(
             order=order,
-            order_item_type=order_item_type,
-            order_item_offering=order_item.offering,
-            order_item_attributes=order_item.attributes,
-            order_item_plan=order_item.plan,
+            order_type=order_type,
+            order_offering=order.offering,
+            order_attributes=order.attributes,
+            order_plan=order.plan,
         )
         transaction.on_commit(
             lambda: marketplace_script_executors.DryRunExecutor.execute(dry_run)
@@ -129,9 +117,8 @@ class DryRunView(ActionsViewSet):
 class AsyncDryRunView(ReadOnlyActionsViewSet):
     queryset = marketplace_script_models.DryRun.objects.filter().order_by('-created')
     lookup_field = 'uuid'
-    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    filter_backends = (structure_filters.GenericRoleFilter,)
     serializer_class = DryRunSerializer
-    filterset_class = marketplace_script_filters.DryRunFilter
 
 
 class PullMarketplaceScriptResourceView(APIView):

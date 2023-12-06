@@ -69,22 +69,18 @@ class BaseTenantInvoiceTest(test.APITransactionTestCase):
         callbacks.resource_creation_succeeded(resource)
         return resource
 
-    def update_resource_limits(self, resource, new_limits):
+    def update_resource_limits(self, resource: marketplace_models.Resource, new_limits):
         order = marketplace_factories.OrderFactory(
             project=resource.project,
-            state=marketplace_models.Order.States.EXECUTING,
-        )
-        order_item = marketplace_factories.OrderItemFactory(
-            order=order,
             offering=self.offering,
             resource=resource,
-            type=marketplace_models.OrderItem.Types.UPDATE,
-            state=marketplace_models.OrderItem.States.EXECUTING,
+            type=marketplace_models.Order.Types.UPDATE,
+            state=marketplace_models.Order.States.EXECUTING,
             limits=new_limits,
         )
-        resource_limit_update_succeeded.send(
-            sender=resource.__class__, order_item=order_item
-        )
+        resource.set_state_updating()
+        resource.save()
+        resource_limit_update_succeeded.send(sender=resource.__class__, order=order)
 
     def delete_resource(self, resource):
         callbacks.resource_deletion_succeeded(resource)

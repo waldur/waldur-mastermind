@@ -6,13 +6,12 @@ from . import models
 
 
 class DryRunAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
-    list_display = ('order_item_offering', 'order_item_type', 'state')
+    list_display = ('order_offering', 'order_type', 'state')
     readonly_fields = (
-        'order',
-        'order_item_offering',
-        'order_item_plan',
-        'order_item_attributes',
-        'order_item_type',
+        'order_offering',
+        'order_plan',
+        'order_attributes',
+        'order_type',
         'state',
         'output',
         'error_message',

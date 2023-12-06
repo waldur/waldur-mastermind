@@ -77,7 +77,7 @@ class MarketplaceRemoteConfig(AppConfig):
         )
 
         signals.post_save.connect(
-            handlers.trigger_order_item_callback,
-            sender=models.OrderItem,
-            dispatch_uid='marketplace_remote.trigger_order_item_notification',
+            handlers.trigger_order_callback,
+            sender=models.Order,
+            dispatch_uid='marketplace_remote.trigger_order_notification',
         )

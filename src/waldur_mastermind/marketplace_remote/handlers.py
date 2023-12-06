@@ -175,7 +175,7 @@ def log_request_events(sender, instance, created=False, **kwargs):
         )
 
 
-def trigger_order_item_callback(sender, instance, created=False, **kwargs):
+def trigger_order_callback(sender, instance, created=False, **kwargs):
     if not instance.callback_url:
         return
 
@@ -183,7 +183,7 @@ def trigger_order_item_callback(sender, instance, created=False, **kwargs):
         return
 
     transaction.on_commit(
-        lambda: tasks.trigger_order_item_callback.delay(serialize_instance(instance))
+        lambda: tasks.trigger_order_callback.delay(serialize_instance(instance))
     )
 
 

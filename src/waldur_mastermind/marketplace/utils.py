@@ -12,6 +12,7 @@ from io import BytesIO
 from typing import Union
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.core.files.base import ContentFile
@@ -29,9 +30,12 @@ from rest_framework import serializers, status
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import utils as core_utils
+from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.models import UserRole
+from waldur_core.permissions.utils import get_users_with_permission
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
+from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure.managers import (
     get_connected_projects,
     get_customer_users,
@@ -45,10 +49,15 @@ from waldur_mastermind.invoices import registrators
 from waldur_mastermind.invoices.utils import get_full_days
 from waldur_mastermind.marketplace import attribute_types
 from waldur_mastermind.marketplace.exceptions import PolicyException
+from waldur_mastermind.marketplace_remote import PLUGIN_NAME as REMOTE_PLUGIN_NAME
+from waldur_mastermind.marketplace_slurm_remote import (
+    PLUGIN_NAME as SLURM_REMOTE_PLUGIN_NAME,
+)
 
 from . import PLUGIN_NAME as BASIC_PLUGIN_NAME
 from . import models, plugins
 
+User = get_user_model()
 logger = logging.getLogger(__name__)
 USERNAME_ANONYMIZED_POSTFIX_LENGTH = 5
 USERNAME_POSTFIX_LENGTH = 2
@@ -65,54 +74,54 @@ class UsernameGenerationPolicy(Enum):
     FREEIPA = 'freeipa'  # Using username field of waldur_freeipa.Profile model
 
 
-def get_order_item_processor(order_item):
-    if order_item.resource:
-        offering = order_item.resource.offering
+def get_order_processor(order):
+    if order.resource:
+        offering = order.resource.offering
     else:
-        offering = order_item.offering
+        offering = order.offering
 
-    if order_item.type == models.RequestTypeMixin.Types.CREATE:
+    if order.type == models.RequestTypeMixin.Types.CREATE:
         return plugins.manager.get_processor(offering.type, 'create_resource_processor')
 
-    elif order_item.type == models.RequestTypeMixin.Types.UPDATE:
+    elif order.type == models.RequestTypeMixin.Types.UPDATE:
         return plugins.manager.get_processor(offering.type, 'update_resource_processor')
 
-    elif order_item.type == models.RequestTypeMixin.Types.TERMINATE:
+    elif order.type == models.RequestTypeMixin.Types.TERMINATE:
         return plugins.manager.get_processor(offering.type, 'delete_resource_processor')
 
 
-def process_order_item(order_item: models.OrderItem, user):
-    processor = get_order_item_processor(order_item)
+def process_order(order: models.Order, user):
+    processor = get_order_processor(order)
     if not processor:
-        order_item.error_message = (
-            'Skipping order item processing because processor is not found.'
+        order.error_message = (
+            'Skipping order processing because processor is not found.'
         )
-        order_item.set_state_erred()
-        order_item.save(update_fields=['state', 'error_message'])
+        order.set_state_erred()
+        order.save(update_fields=['state', 'error_message'])
         return
 
     try:
-        processor(order_item).process_order_item(user)
+        processor(order).process_order(user)
     except Exception as e:
         # Here it is necessary to catch all exceptions.
         # If this is not done, then the order will remain in the executed status.
-        order_item.refresh_from_db()
-        order_item.error_message = str(e)
-        order_item.error_traceback = traceback.format_exc()
-        order_item.set_state_erred()
+        order.refresh_from_db()
+        order.error_message = str(e)
+        order.error_traceback = traceback.format_exc()
+        order.set_state_erred()
         logger.error(
-            f'Error processing order item { order_item }. '
-            f'Order item ID: { order_item.id }. '
-            f'Exception: { order_item.error_message }.'
+            f'Error processing order { order }. '
+            f'Order ID: { order.id }. '
+            f'Exception: { order.error_message }.'
         )
 
-        if not order_item.resource and not isinstance(e, PolicyException):
-            resource = create_local_resource(order_item, None)
+        if not order.resource and not isinstance(e, PolicyException):
+            resource = create_local_resource(order, None)
             resource.state = models.Resource.States.ERRED
             resource.save()
-            order_item.resource = resource
+            order.resource = resource
 
-        order_item.save(
+        order.save(
             update_fields=[
                 'state',
                 'error_message',
@@ -122,11 +131,11 @@ def process_order_item(order_item: models.OrderItem, user):
         )
 
 
-def validate_order_item(order_item, request):
-    processor = get_order_item_processor(order_item)
+def validate_order(order, request):
+    processor = get_order_processor(order)
     if processor:
         try:
-            processor(order_item).validate_order_item(request)
+            processor(order).validate_order(request)
         except NotImplementedError:
             # It is okay if validation is not implemented yet
             pass
@@ -215,11 +224,11 @@ def format_list(resources):
     return ', '.join(map(str, sorted(resources.values_list('id', flat=True))))
 
 
-def get_order_item_url(order_item):
+def get_order_url(order):
     return core_utils.format_homeport_link(
-        'projects/{project_uuid}/marketplace-order-item-details/{order_item_uuid}/',
-        order_item_uuid=order_item.uuid.hex,
-        project_uuid=order_item.order.project.uuid,
+        'projects/{project_uuid}/marketplace-order-details/{order_uuid}/',
+        order_uuid=order.uuid.hex,
+        project_uuid=order.project.uuid,
     )
 
 
@@ -689,14 +698,7 @@ def move_resource(resource: models.Resource, project):
                 project=project
             )
 
-    order_ids = resource.orderitem_set.values_list('order_id', flat=True)
-    for order in models.Order.objects.filter(pk__in=order_ids):
-        if order.items.exclude(resource=resource).exists():
-            raise MoveResourceException(
-                'Resource moving is not possible, '
-                'because related orders are related to other resources.'
-            )
-
+    for order in resource.order_set.exclude(project=project):
         order.project = project
         order.save(update_fields=['project'])
 
@@ -772,24 +774,6 @@ def serialize_resource_limit_period(period):
     }
 
 
-def check_customer_blocked_for_terminating(resource):
-    if resource.project.customer.blocked:
-        raise rf_exceptions.ValidationError(_('Blocked organization is not available.'))
-
-
-def check_pending_order_item_exists(resource):
-    if models.OrderItem.objects.filter(
-        resource=resource,
-        state__in=(
-            models.OrderItem.States.PENDING,
-            models.OrderItem.States.EXECUTING,
-        ),
-    ).exists():
-        raise rf_exceptions.ValidationError(
-            _('Pending order item for resource already exists.')
-        )
-
-
 def schedule_resources_termination(resources, termination_comment=None):
     from waldur_mastermind.marketplace import views
 
@@ -807,47 +791,44 @@ def schedule_resources_termination(resources, termination_comment=None):
 
         if not user:
             logger.error(
-                'User for terminating resources '
-                'of project with due date does not exist.'
+                'User for terminating resources of project with due date does not exist.'
             )
             return
 
-        # Terminate pending order items if they exist
-        for order_item in models.OrderItem.objects.filter(
-            resource=resource, state=models.OrderItem.States.PENDING
+        # Terminate pending orders if they exist
+        for order in models.Order.objects.filter(
+            resource=resource, state=models.Order.States.PENDING
         ):
-            order_item.set_state_terminated(termination_comment)
-            order_item.save()
-            if order_item.order.items.count() == 1:
-                order_item.order.terminate()
-                order_item.order.save()
+            order.cancel(termination_comment)
+            order.save()
 
         response = create_request(view, user, {}, uuid=resource.uuid.hex)
 
         if response.status_code != status.HTTP_200_OK:
             logger.error(
-                'Terminating resource %s has failed. %s'
-                % (resource.uuid.hex, response.rendered_content)
+                'Terminating resource %s has failed. %s',
+                resource.uuid.hex,
+                response.rendered_content,
             )
 
 
 def create_local_resource(
-    order_item, scope, effective_id='', backend_metadata=None, endpoints=None
+    order, scope, effective_id='', backend_metadata=None, endpoints=None
 ):
     if not backend_metadata:
         backend_metadata = {}
     if not endpoints:
         endpoints = {}
     resource = models.Resource(
-        project=order_item.order.project,
-        offering=order_item.offering,
-        plan=order_item.plan,
-        limits=order_item.limits,
-        attributes=order_item.attributes,
+        project=order.project,
+        offering=order.offering,
+        plan=order.plan,
+        limits=order.limits,
+        attributes=order.attributes,
         backend_metadata=backend_metadata,
-        name=order_item.attributes.get('name') or '',
-        scope=scope if scope and type(scope) != str else None,
-        backend_id=scope if scope and type(scope) == str else '',
+        name=order.attributes.get('name') or '',
+        scope=scope if scope and not isinstance(scope, str) else None,
+        backend_id=scope if scope and isinstance(scope, str) else '',
         effective_id=effective_id,
     )
     resource.init_cost()
@@ -859,8 +840,8 @@ def create_local_resource(
             models.ResourceAccessEndpoint.objects.create(
                 name=name, url=url, resource=resource
             )
-    order_item.resource = resource
-    order_item.save(update_fields=['resource'])
+    order.resource = resource
+    order.save(update_fields=['resource'])
     return resource
 
 
@@ -1022,14 +1003,14 @@ def count_customers_number_change(service_provider):
     lost_customers = []
 
     for customer_id in (
-        models.OrderItem.objects.filter(
+        models.Order.objects.filter(
             offering__customer=service_provider.customer,
-            type=models.OrderItem.Types.CREATE,
-            order__state=models.Order.States.DONE,
+            type=models.Order.Types.CREATE,
+            state=models.Order.States.DONE,
             created__gte=core_utils.month_start(to_day),
         )
         .order_by()
-        .values_list('order__project__customer_id', flat=True)
+        .values_list('project__customer_id', flat=True)
         .distinct()
     ):
         if (
@@ -1044,14 +1025,14 @@ def count_customers_number_change(service_provider):
             new_customers.append(customer_id)
 
     for customer_id in (
-        models.OrderItem.objects.filter(
+        models.Order.objects.filter(
             offering__customer=service_provider.customer,
-            type=models.OrderItem.Types.TERMINATE,
-            order__state=models.Order.States.DONE,
+            type=models.Order.Types.TERMINATE,
+            state=models.Order.States.DONE,
             created__gte=core_utils.month_start(to_day),
         )
         .order_by()
-        .values_list('order__project__customer_id', flat=True)
+        .values_list('project__customer_id', flat=True)
         .distinct()
     ):
         if (
@@ -1071,10 +1052,10 @@ def count_resources_number_change(service_provider):
     to_day = timezone.datetime.today().date()
 
     created = (
-        models.OrderItem.objects.filter(
+        models.Order.objects.filter(
             offering__customer=service_provider.customer,
-            type=models.OrderItem.Types.CREATE,
-            order__state=models.Order.States.DONE,
+            type=models.Order.Types.CREATE,
+            state=models.Order.States.DONE,
             created__gte=core_utils.month_start(to_day),
         )
         .order_by()
@@ -1084,10 +1065,10 @@ def count_resources_number_change(service_provider):
     )
 
     terminated = (
-        models.OrderItem.objects.filter(
+        models.Order.objects.filter(
             offering__customer=service_provider.customer,
-            type=models.OrderItem.Types.TERMINATE,
-            order__state=models.Order.States.DONE,
+            type=models.Order.Types.TERMINATE,
+            state=models.Order.States.DONE,
             created__gte=core_utils.month_start(to_day),
         )
         .order_by()
@@ -1358,3 +1339,58 @@ def user_offerings_mapping(offerings):
             offering_user.set_propagation_date()
             offering_user.save()
             logger.info('Offering user %s has been created.')
+
+
+def order_should_not_be_reviewed_by_provider(order: models.Order):
+    offering = order.offering
+    user = order.consumer_reviewed_by or order.created_by
+
+    if offering.type == SLURM_REMOTE_PLUGIN_NAME:
+        return False
+
+    if offering.type == BASIC_PLUGIN_NAME:
+        return False
+
+    if offering.type == REMOTE_PLUGIN_NAME:
+        # If an offering has auto_approve_remote_orders flag set to True, an order can be processed without approval
+        auto_approve_remote_orders = offering.plugin_options.get(
+            'auto_approve_remote_orders', False
+        )
+        # A service provider owner or a service manager is not required to approve an order manually
+        user_is_service_provider_owner = structure_permissions._has_owner_access(
+            user, offering.customer
+        )
+        user_is_service_provider_offering_manger = (
+            structure_permissions._has_service_manager_access(user, offering.customer)
+            and offering.has_user(user)
+        )
+        # If any condition is not met, the order is requested for manual approval
+        return (
+            auto_approve_remote_orders
+            or user_is_service_provider_owner
+            or user_is_service_provider_offering_manger
+        )
+
+    return True
+
+
+def get_consumer_approvers(order):
+    users = User.objects.none()
+
+    if settings.WALDUR_MARKETPLACE['NOTIFY_STAFF_ABOUT_APPROVALS']:
+        users |= User.objects.filter(is_staff=True, is_active=True)
+
+    users |= get_users_with_permission(
+        order.project.customer, PermissionEnum.APPROVE_ORDER
+    )
+
+    users |= get_users_with_permission(order.project, PermissionEnum.APPROVE_ORDER)
+
+    approvers = (
+        users.distinct()
+        .exclude(email='')
+        .exclude(notifications_enabled=False)
+        .values_list('email', flat=True)
+    )
+
+    return approvers

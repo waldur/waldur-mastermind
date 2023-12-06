@@ -5,11 +5,10 @@ from unittest import mock
 from freezegun import freeze_time
 from rest_framework import test
 
-from waldur_core.core import utils as core_utils
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import tasks as invoices_tasks
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace import tasks as marketplace_tasks
+from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_rancher import PLUGIN_NAME
 from waldur_openstack.openstack_tenant.tests import (
@@ -80,10 +79,8 @@ class InvoiceTest(test.APITransactionTestCase):
 
     def _create_usage(self, mock_executors):
         order = marketplace_factories.OrderFactory(
-            project=self.fixture.project, created_by=self.fixture.owner
-        )
-        order_item = marketplace_factories.OrderItemFactory(
-            order=order,
+            project=self.fixture.project,
+            created_by=self.fixture.owner,
             offering=self.offering,
             attributes={
                 'name': 'name',
@@ -102,10 +99,9 @@ class InvoiceTest(test.APITransactionTestCase):
                     }
                 ],
             },
+            state=marketplace_models.Order.States.EXECUTING,
         )
-        serialized_order = core_utils.serialize_instance(order_item.order)
-        serialized_user = core_utils.serialize_instance(self.fixture.staff)
-        marketplace_tasks.process_order(serialized_order, serialized_user)
+        marketplace_utils.process_order(order, self.fixture.staff)
         self.assertTrue(
             marketplace_models.Resource.objects.filter(name='name').exists()
         )

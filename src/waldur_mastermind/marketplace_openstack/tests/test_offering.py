@@ -179,7 +179,7 @@ class OpenStackResourceOfferingTest(BaseOpenStackTest):
             state=openstack_models.Tenant.States.CREATING,
         )
         resource = marketplace_factories.ResourceFactory(scope=tenant)
-        marketplace_factories.OrderItemFactory(resource=resource)
+        marketplace_factories.OrderFactory(resource=resource)
 
         tenant.set_ok()
         tenant.save()

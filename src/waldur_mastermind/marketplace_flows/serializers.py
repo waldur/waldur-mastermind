@@ -104,7 +104,7 @@ class FlowSerializer(serializers.HyperlinkedModelSerializer):
             'url',
             'customer',
             'customer_name',
-            'order_item',
+            'order',
             'customer_create_request',
             'project_create_request',
             'resource_create_request',
@@ -116,12 +116,12 @@ class FlowSerializer(serializers.HyperlinkedModelSerializer):
                 'view_name': 'marketplace-resource-creation-flow-detail',
             },
             'customer': {'lookup_field': 'uuid', 'view_name': 'customer-detail'},
-            'order_item': {
+            'order': {
                 'lookup_field': 'uuid',
-                'view_name': 'marketplace-order-item-detail',
+                'view_name': 'marketplace-order-detail',
             },
         }
-        read_only_fields = ('requested_by', 'order_item')
+        read_only_fields = ('requested_by', 'order')
 
     def create(self, validated_data):
         request = self.context['request']

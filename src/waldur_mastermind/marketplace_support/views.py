@@ -12,31 +12,31 @@ logger = logging.getLogger(__name__)
 
 class IssueViewSet(core_views.ActionsViewSet):
     def create(self, request, *args, **kwargs):
-        order_item = marketplace_models.OrderItem.objects.get(uuid=request.data['uuid'])
+        order = marketplace_models.Order.objects.get(uuid=request.data['uuid'])
         issue = utils.create_issue(
-            order_item,
-            summary=f'Request for {order_item.offering.name}',
-            description=utils.format_create_description(order_item),
-            confirmation_comment=order_item.offering.secret_options.get(
+            order,
+            summary=f'Request for {order.offering.name}',
+            description=utils.format_create_description(order),
+            confirmation_comment=order.offering.secret_options.get(
                 'template_confirmation_comment'
             ),
         )
         return Response(status=status.HTTP_201_CREATED, data={'uuid': issue.uuid.hex})
 
     def update(self, request, *args, **kwargs):
-        order_item = marketplace_models.OrderItem.objects.get(uuid=request.data['uuid'])
+        order = marketplace_models.Order.objects.get(uuid=request.data['uuid'])
         utils.create_issue(
-            order_item,
-            description=utils.format_update_description(order_item),
-            summary='Request to switch plan for %s' % order_item.resource.name,
+            order,
+            description=utils.format_update_description(order),
+            summary='Request to switch plan for %s' % order.resource.name,
         )
         return Response(status=status.HTTP_202_ACCEPTED)
 
     def destroy(self, request, uuid, *args, **kwargs):
-        order_item = marketplace_models.OrderItem.objects.get(uuid=uuid)
+        order = marketplace_models.Order.objects.get(uuid=uuid)
         utils.create_issue(
-            order_item,
-            description=utils.format_delete_description(order_item),
-            summary='Request to terminate resource %s' % order_item.resource.name,
+            order,
+            description=utils.format_delete_description(order),
+            summary='Request to terminate resource %s' % order.resource.name,
         )
         return Response(status=status.HTTP_202_ACCEPTED)

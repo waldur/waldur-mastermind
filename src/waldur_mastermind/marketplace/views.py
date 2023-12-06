@@ -41,7 +41,6 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.generics import ListAPIView
 from rest_framework.response import Response
-from waldur_client import WaldurClientException
 
 from waldur_core.core import models as core_models
 from waldur_core.core import permissions as core_permissions
@@ -80,12 +79,14 @@ from waldur_core.structure.serializers import (
 from waldur_core.structure.signals import resource_imported
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import serializers as invoice_serializers
+from waldur_mastermind.marketplace import PLUGIN_NAME as BASIC_PLUGIN_NAME
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace.managers import filter_offering_permissions
 from waldur_mastermind.marketplace.utils import validate_attributes
 from waldur_mastermind.marketplace_slurm_remote import (
     PLUGIN_NAME as SLURM_REMOTE_PLUGIN_NAME,
 )
+from waldur_mastermind.marketplace_support import PLUGIN_NAME as SUPPORT_PLUGIN_NAME
 from waldur_mastermind.promotions import models as promotions_models
 from waldur_mastermind.support import models as support_models
 from waldur_pid import models as pid_models
@@ -402,10 +403,10 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
             ]
         )
 
-        pended_orders = (
-            models.OrderItem.objects.filter(
+        pending_orders = (
+            models.Order.objects.filter(
                 offering__customer=service_provider.customer,
-                order__state=models.Order.States.REQUESTED_FOR_APPROVAL,
+                state=models.Order.States.PENDING,
             )
             .order_by()
             .values_list('order', flat=True)
@@ -431,7 +432,7 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
                 ),
                 'active_and_paused_offerings': active_and_paused_offerings,
                 'unresolved_tickets': unresolved_tickets,
-                'pended_orders': pended_orders,
+                'pended_orders': pending_orders,
                 'erred_resources': erred_resources,
             },
             status=status.HTTP_200_OK,
@@ -1680,19 +1681,6 @@ class PlanComponentViewSet(PublicViewsetMixin, rf_viewsets.ReadOnlyModelViewSet)
             )
 
 
-# TODO: Remove after migration of clients to a new endpoint
-class PublicPlanViewSet(rf_viewsets.ReadOnlyModelViewSet):
-    queryset = models.Plan.objects.filter()
-    serializer_class = serializers.PublicPlanDetailsSerializer
-    filterset_class = filters.PlanFilter
-    permission_classes = []
-    lookup_field = 'uuid'
-
-    def get_queryset(self):
-        user = self.request.user
-        return self.queryset.filter_by_plan_availability_for_user(user)
-
-
 class ScreenshotViewSet(
     core_views.CreateReversionMixin,
     core_views.UpdateReversionMixin,
@@ -1710,70 +1698,6 @@ class ScreenshotViewSet(
             ['offering.customer'],
         )
     ]
-
-
-class OrderViewSet(BaseMarketplaceView):
-    queryset = models.Order.objects.all()
-    serializer_class = serializers.OrderSerializer
-    filter_backends = (DjangoFilterBackend,)
-    filterset_class = filters.OrderFilter
-    destroy_validators = partial_update_validators = [
-        structure_utils.check_customer_blocked_or_archived
-    ]
-
-    def get_queryset(self):
-        """
-        Orders are available to both service provider and service consumer.
-        """
-        user = self.request.user
-        if user.is_staff or user.is_support:
-            return self.queryset
-
-        connected_projects = get_connected_projects(user)
-        connected_customers = get_connected_customers(user)
-
-        return self.queryset.filter(
-            Q(project__in=connected_projects)
-            | Q(project__customer__in=connected_customers)
-            | Q(items__offering__customer__in=connected_customers)
-        ).distinct()
-
-    @action(detail=True, methods=['post'])
-    def approve(self, request, uuid=None):
-        tasks.approve_order(self.get_object(), request.user)
-
-        return Response(
-            {'detail': _('Order has been approved.')}, status=status.HTTP_200_OK
-        )
-
-    approve_validators = [
-        core_validators.StateValidator(models.Order.States.REQUESTED_FOR_APPROVAL),
-        structure_utils.check_customer_blocked_or_archived,
-        structure_utils.check_project_end_date,
-    ]
-    approve_permissions = [permissions.user_can_approve_order_permission]
-
-    @action(detail=True, methods=['post'])
-    def reject(self, request, uuid=None):
-        order = self.get_object()
-        order.reject()
-        order.save(update_fields=['state'])
-        return Response(
-            {'detail': _('Order has been rejected.')}, status=status.HTTP_200_OK
-        )
-
-    reject_validators = [
-        core_validators.StateValidator(models.Order.States.REQUESTED_FOR_APPROVAL),
-        structure_utils.check_customer_blocked_or_archived,
-    ]
-    reject_permissions = [permissions.user_can_reject_order]
-
-    def perform_create(self, serializer):
-        project = serializer.validated_data['project']
-        structure_utils.check_customer_blocked_or_archived(project)
-        structure_utils.check_project_end_date(project)
-
-        super().perform_create(serializer)
 
 
 class PluginViewSet(views.APIView):
@@ -1802,36 +1726,31 @@ class PluginViewSet(views.APIView):
         return Response(payload, status=status.HTTP_200_OK)
 
 
-class OrderItemViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
-    queryset = models.OrderItem.objects.all()
+class OfferingTypeValidator:
+    def __init__(self, *valid_types):
+        self.valid_types = valid_types
+
+    def __call__(self, order: models.Order):
+        if order.offering.type not in self.valid_types:
+            raise rf_exceptions.MethodNotAllowed(
+                _(
+                    "The order's offering with %s type does not support this action"
+                    % order.offering.type
+                )
+            )
+
+
+class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
+    queryset = models.Order.objects.all()
     filter_backends = (DjangoFilterBackend,)
-    serializer_class = serializers.OrderItemDetailsSerializer
-    filterset_class = filters.OrderItemFilter
-
-    def order_items_destroy_validator(order_item):
-        if not order_item:
-            return
-        if order_item.order.state != models.Order.States.REQUESTED_FOR_APPROVAL:
-            raise rf_exceptions.PermissionDenied()
-
-    destroy_validators = [order_items_destroy_validator]
-    destroy_permissions = [
-        permission_factory(
-            PermissionEnum.DESTROY_ORDER_ITEM,
-            ['order.project', 'order.project.customer'],
-        )
-    ]
-
-    terminate_permissions = [
-        permission_factory(
-            PermissionEnum.TERMINATE_ORDER_ITEM,
-            ['order.project', 'order.project.customer'],
-        )
-    ]
+    serializer_class = serializers.OrderDetailsSerializer
+    create_serializer_class = serializers.OrderCreateSerializer
+    filterset_class = filters.OrderFilter
+    disabled_actions = ['update', 'partial_update']
 
     def get_queryset(self):
         """
-        OrderItems are available to both service provider and service consumer.
+        Orders are available to both service provider and service consumer.
         """
         user = self.request.user
         if user.is_staff or user.is_support:
@@ -1841,217 +1760,224 @@ class OrderItemViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
         connected_customers = get_connected_customers(user)
 
         return self.queryset.filter(
-            Q(order__project__in=connected_projects)
-            | Q(order__project__customer__in=connected_customers)
+            Q(project__in=connected_projects)
+            | Q(project__customer__in=connected_customers)
             | Q(offering__customer__in=connected_customers)
         ).distinct()
 
-    approve_permissions = (
-        set_state_executing_permissions
-    ) = (
-        set_state_done_permissions
-    ) = set_state_erred_permissions = cancel_termination_permissions = [
-        permission_factory(PermissionEnum.APPROVE_ORDER_ITEM, ['offering.customer'])
+    approve_by_consumer_validators = [
+        structure_utils.check_customer_blocked_or_archived,
+        structure_utils.check_project_end_date,
+        core_validators.StateValidator(models.Order.States.PENDING),
     ]
 
-    reject_permissions = [
+    approve_by_consumer_permissions = [
         permission_factory(
-            PermissionEnum.REJECT_ORDER_ITEM,
-            ['order.project.customer', 'offering.customer'],
+            PermissionEnum.APPROVE_ORDER,
+            ['project', 'project.customer'],
         )
     ]
 
-    # Approve action is enabled for service provider, and
-    # reject action is enabled for both provider and consumer.
-    # Pending order item for remote offering is executed after it is approved by service provider.
-
     @action(detail=True, methods=['post'])
-    def reject(self, request, uuid=None):
-        order_item = self.get_object()
-
-        if order_item.state == models.OrderItem.States.EXECUTING:
-            if not order_item.resource:
-                raise ValidationError('Order item does not have a resource.')
-            callbacks.sync_order_item_state(
-                order_item, models.OrderItem.States.TERMINATED
+    def approve_by_consumer(self, request, uuid=None):
+        order: models.Order = self.get_object()
+        if order.consumer_reviewed_by:
+            raise rf_exceptions.ValidationError(
+                'Order is already reviewed by consumer.'
             )
-        elif order_item.state == models.OrderItem.States.PENDING:
-            order_item.reviewed_at = timezone.now()
-            order_item.reviewed_by = request.user
-            order_item.set_state_terminated(termination_comment="Order item rejected")
-            order_item.save()
-            if (
-                order_item.order.state == models.Order.States.REQUESTED_FOR_APPROVAL
-                and order_item.order.items.filter(
-                    state=models.OrderItem.States.PENDING
-                ).count()
-                == 0
-            ):
-                order_item.order.reject()
-                order_item.order.save()
+        order.review_by_consumer(request.user)
+        if utils.order_should_not_be_reviewed_by_provider(order):
+            order.set_state_executing()
+            order.save(update_fields=['state'])
+            tasks.process_order_on_commit(order, request.user)
         else:
-            raise ValidationError('Order item is not in executing or pending state.')
-        return Response(status=status.HTTP_200_OK)
-
-    @action(detail=True, methods=['post'])
-    def approve(self, request, uuid=None):
-        order_item = self.get_object()
-
-        if order_item.state == models.OrderItem.States.EXECUTING:
-            # Basic marketplace resource case
-            if not order_item.resource:
-                raise ValidationError('Order item does not have a resource.')
-            callbacks.sync_order_item_state(order_item, models.OrderItem.States.DONE)
-        elif order_item.state == models.OrderItem.States.PENDING:
-            # Marketplace remote or SLURM remote resource
-            order_item.reviewed_at = timezone.now()
-            order_item.reviewed_by = request.user
-            order_item.set_state_executing()
-            order_item.save()
-            if (
-                order_item.order.state == models.Order.States.REQUESTED_FOR_APPROVAL
-                and order_item.order.items.filter(
-                    state=models.OrderItem.States.PENDING
-                ).count()
-                == 0
-            ):
-                order_item.order.approve()
-                order_item.order.save()
             transaction.on_commit(
-                lambda: tasks.process_order_item.delay(
-                    core_utils.serialize_instance(order_item),
-                    core_utils.serialize_instance(request.user),
-                )
+                lambda: tasks.notify_provider_about_pending_order.delay(order.uuid)
             )
-        else:
-            raise ValidationError('Order item is not in executing or pending state.')
         return Response(status=status.HTTP_200_OK)
 
-    @action(detail=True, methods=['post'])
-    def terminate(self, request, uuid=None):
-        order_item = self.get_object()
-        if not plugins.manager.can_terminate_order_item(order_item.offering.type):
-            return Response(
-                {
-                    'details': 'Order item could not be terminated because it is not supported by plugin.'
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+    approve_by_provider_validators = [
+        structure_utils.check_customer_blocked_or_archived,
+        structure_utils.check_project_end_date,
+        core_validators.StateValidator(models.Order.States.PENDING),
+    ]
 
-        try:
-            # It is expected that plugin schedules Celery task to call backend
-            # and then switches order item to terminated state.
-            order_item.set_state_terminating()
-            order_item.save(update_fields=['state'])
-        except TransitionNotAllowed:
-            return Response(
-                {
-                    'details': 'Order item could not be terminated because it has been already processed.'
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        return Response(
-            {'details': 'Order item termination has been scheduled.'},
-            status=status.HTTP_202_ACCEPTED,
+    approve_by_provider_permissions = [
+        permission_factory(
+            PermissionEnum.APPROVE_ORDER,
+            ['offering.customer'],
         )
+    ]
 
     @action(detail=True, methods=['post'])
-    def cancel_termination(self, request, uuid=None):
-        from waldur_mastermind.marketplace_remote import PLUGIN_NAME, utils
-
-        order_item = self.get_object()
-
-        if order_item.type != models.OrderItem.Types.TERMINATE:
-            raise ValidationError('This is not a termination order item.')
-
-        if order_item.state != models.OrderItem.States.EXECUTING:
-            raise ValidationError('This is not an executing order item.')
-
-        if order_item.resource.offering.type != PLUGIN_NAME:
-            raise ValidationError('This is not a remote order item.')
-
-        client = utils.get_client_for_offering(order_item.resource.offering)
-
-        try:
-            remote_order = client.get_order(order_item.backend_id)
-            remote_item = remote_order['items'][0]
-            remote_item_uuid = remote_item['uuid']
-            client.marketplace_order_item_reject(remote_item_uuid)
-        except WaldurClientException as exc:
-            raise ValidationError(exc)
-        callbacks.sync_order_item_state(order_item, models.OrderItem.States.TERMINATED)
-
+    def approve_by_provider(self, request, uuid=None):
+        order: models.Order = self.get_object()
+        if order.provider_reviewed_by:
+            raise serializers.ValidationError('Order is already reviewed by provider.')
+        order.review_by_provider(request.user)
+        order.set_state_executing()
+        order.save(update_fields=['state'])
+        tasks.process_order_on_commit(order, request.user)
         return Response(status=status.HTTP_200_OK)
+
+    reject_by_consumer_validators = [
+        structure_utils.check_customer_blocked_or_archived,
+        structure_utils.check_project_end_date,
+        core_validators.StateValidator(models.Order.States.PENDING),
+    ]
+
+    reject_by_consumer_permissions = [permissions.user_can_reject_order_as_consumer]
+
+    @action(detail=True, methods=['post'])
+    def reject_by_consumer(self, request, uuid=None):
+        order: models.Order = self.get_object()
+        if permissions.order_should_not_be_reviewed_by_consumer(order):
+            raise rf_exceptions.ValidationError(
+                'Review of order by consumer is not required.'
+            )
+        if order.consumer_reviewed_by:
+            raise rf_exceptions.ValidationError(
+                'Order is already reviewed by consumer.'
+            )
+        order.review_by_consumer(request.user)
+        order.reject()
+        order.save()
+        return Response(status=status.HTTP_200_OK)
+
+    reject_by_provider_validators = [
+        structure_utils.check_customer_blocked_or_archived,
+        structure_utils.check_project_end_date,
+        core_validators.StateValidator(models.Order.States.PENDING),
+    ]
+
+    reject_by_provider_permissions = [
+        permission_factory(
+            PermissionEnum.REJECT_ORDER,
+            ['offering.customer'],
+        )
+    ]
+
+    @action(detail=True, methods=['post'])
+    def reject_by_provider(self, request, uuid=None):
+        order: models.Order = self.get_object()
+        if utils.order_should_not_be_reviewed_by_provider(order):
+            raise serializers.ValidationError(
+                'Review of order by provider is not required.'
+            )
+        if order.provider_reviewed_by:
+            raise serializers.ValidationError('Order is already reviewed by provider.')
+        order.review_by_provider(request.user)
+        order.reject()
+        order.save()
+        return Response(status=status.HTTP_200_OK)
+
+    cancel_permissions = [
+        permission_factory(
+            PermissionEnum.CANCEL_ORDER,
+            ['project', 'project.customer'],
+        )
+    ]
+
+    cancel_validators = [
+        core_validators.StateValidator(
+            models.Order.States.PENDING,
+            models.Order.States.EXECUTING,
+        ),
+        OfferingTypeValidator(BASIC_PLUGIN_NAME, SUPPORT_PLUGIN_NAME),
+    ]
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, uuid=None):
+        order: models.Order = self.get_object()
+        order.cancel()
+        order.save(update_fields=['state'])
+        return Response(status=status.HTTP_202_ACCEPTED)
+
+    set_state_executing_validators = [
+        core_validators.StateValidator(
+            models.Order.States.PENDING,
+            models.Order.States.ERRED,
+        ),
+        OfferingTypeValidator(SLURM_REMOTE_PLUGIN_NAME),
+    ]
+
+    set_state_executing_permissions = [
+        permission_factory(
+            PermissionEnum.APPROVE_ORDER,
+            ['offering.customer'],
+        )
+    ]
 
     @action(detail=True, methods=['post'])
     def set_state_executing(self, request, uuid=None):
-        order_item = self.get_object()
-        if order_item.offering.type not in [SLURM_REMOTE_PLUGIN_NAME]:
-            raise rf_exceptions.MethodNotAllowed(
-                _(
-                    "The order item's offering with %s type does not support this action"
-                    % order_item.offering.type
-                )
-            )
-
-        if order_item.state not in [
-            models.OrderItem.States.PENDING,
-            models.OrderItem.States.ERRED,
-        ]:
-            raise rf_exceptions.ValidationError(
-                _(
-                    'Order item has incorrect state. Expected pending or erred, got %s'
-                    % order_item.get_state_display()
-                )
-            )
-        order_item.set_state_executing()
-        order_item.save(update_fields=['state'])
+        order: models.Order = self.get_object()
+        order.set_state_executing()
+        order.save(update_fields=['state'])
         return Response(status=status.HTTP_200_OK)
+
+    set_state_done_validators = [
+        core_validators.StateValidator(
+            models.Order.States.EXECUTING,
+        ),
+        OfferingTypeValidator(
+            SLURM_REMOTE_PLUGIN_NAME, BASIC_PLUGIN_NAME, SUPPORT_PLUGIN_NAME
+        ),
+    ]
+
+    set_state_done_permissions = [
+        permission_factory(
+            PermissionEnum.APPROVE_ORDER,
+            ['offering.customer'],
+        )
+    ]
 
     @action(detail=True, methods=['post'])
     def set_state_done(self, request, uuid=None):
-        order_item = self.get_object()
-        if order_item.offering.type not in [SLURM_REMOTE_PLUGIN_NAME]:
-            raise rf_exceptions.MethodNotAllowed(
-                _(
-                    "The order item's offering with %s type does not support this action"
-                    % order_item.offering.type
-                )
-            )
-
-        if order_item.state != models.OrderItem.States.EXECUTING:
-            raise rf_exceptions.ValidationError(
-                _(
-                    'Order item has incorrect state. Expected executing, got %s'
-                    % order_item.get_state_display()
-                )
-            )
-        callbacks.sync_order_item_state(order_item, models.OrderItem.States.DONE)
+        order: models.Order = self.get_object()
+        callbacks.sync_order_state(order, models.Order.States.DONE)
         return Response(status=status.HTTP_200_OK)
+
+    set_state_erred_validators = [
+        OfferingTypeValidator(SLURM_REMOTE_PLUGIN_NAME),
+    ]
+
+    set_state_erred_permissions = [
+        permission_factory(
+            PermissionEnum.APPROVE_ORDER,
+            ['offering.customer'],
+        )
+    ]
 
     @action(detail=True, methods=['post'])
     def set_state_erred(self, request, uuid=None):
-        order_item = self.get_object()
-        if order_item.offering.type not in [SLURM_REMOTE_PLUGIN_NAME]:
-            raise rf_exceptions.MethodNotAllowed(
-                _(
-                    "The order item's offering with %s type does not support this action"
-                    % order_item.offering.type
-                )
-            )
+        order: models.Order = self.get_object()
 
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         error_message = serializer.validated_data['error_message']
         error_traceback = serializer.validated_data['error_traceback']
 
-        callbacks.sync_order_item_state(order_item, models.OrderItem.States.ERRED)
-        order_item.error_message = error_message
-        order_item.error_traceback = error_traceback
-        order_item.save(update_fields=['error_message', 'error_traceback'])
+        callbacks.sync_order_state(order, models.Order.States.ERRED)
+        order.error_message = error_message
+        order.error_traceback = error_traceback
+        order.save(update_fields=['error_message', 'error_traceback'])
         return Response(status=status.HTTP_200_OK)
 
-    set_state_erred_serializer_class = serializers.OrderItemSetStateErredSerializer
+    set_state_erred_serializer_class = serializers.OrderSetStateErredSerializer
+
+    destroy_permissions = [
+        permission_factory(
+            PermissionEnum.DESTROY_ORDER,
+            ['project', 'project.customer'],
+        )
+    ]
+
+    destroy_validators = [
+        core_validators.StateValidator(
+            models.Order.States.PENDING,
+        ),
+        structure_utils.check_customer_blocked_or_archived,
+    ]
 
 
 class CartItemViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
@@ -2069,7 +1995,7 @@ class CartItemViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         order = serializer.save()
-        order_serializer = serializers.OrderSerializer(
+        order_serializer = serializers.OrderCreateSerializer(
             instance=order, context=self.get_serializer_context()
         )
         return Response(order_serializer.data, status=status.HTTP_201_CREATED)
@@ -2105,28 +2031,35 @@ class ResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
         )
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    def create_resource_order(self, request, resource, **kwargs):
+        with transaction.atomic():
+            order = models.Order(
+                project=resource.project,
+                created_by=request.user,
+                resource=resource,
+                offering=resource.offering,
+                **kwargs,
+            )
+            serializers.validate_order(order, request)
+            order.init_cost()
+            order.save()
+
+        return Response({'order_uuid': order.uuid.hex}, status=status.HTTP_200_OK)
+
     @action(detail=True, methods=['post'])
     def terminate(self, request, uuid=None):
-        resource = self.get_object()
+        resource: models.Resource = self.get_object()
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         attributes = serializer.validated_data.get('attributes', {})
 
-        with transaction.atomic():
-            order_item = models.OrderItem(
-                resource=resource,
-                offering=resource.offering,
-                type=models.OrderItem.Types.TERMINATE,
-                attributes=attributes,
-            )
-            utils.validate_order_item(order_item, request)
-            order = serializers.create_order(
-                project=resource.project,
-                items=[order_item],
-                request=request,
-            )
-
-        return Response({'order_uuid': order.uuid.hex}, status=status.HTTP_200_OK)
+        return self.create_resource_order(
+            request=request,
+            resource=resource,
+            type=models.Order.Types.TERMINATE,
+            attributes=attributes,
+        )
 
     terminate_serializer_class = serializers.ResourceTerminateSerializer
 
@@ -2136,64 +2069,48 @@ class ResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
         core_validators.StateValidator(
             models.Resource.States.OK, models.Resource.States.ERRED
         ),
-        utils.check_customer_blocked_for_terminating,
-        utils.check_pending_order_item_exists,
     ]
 
     @action(detail=True, methods=['post'])
     def switch_plan(self, request, uuid=None):
         resource = self.get_object()
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         plan = serializer.validated_data['plan']
 
-        with transaction.atomic():
-            order_item = models.OrderItem(
-                resource=resource,
-                offering=resource.offering,
-                old_plan=resource.plan,
-                plan=plan,
-                type=models.OrderItem.Types.UPDATE,
-                limits=resource.limits or {},
-            )
-            order = serializers.create_order(
-                project=resource.project,
-                items=[order_item],
-                request=request,
-            )
-
-        return Response({'order_uuid': order.uuid.hex}, status=status.HTTP_200_OK)
+        return self.create_resource_order(
+            request=request,
+            resource=resource,
+            old_plan=resource.plan,
+            plan=plan,
+            type=models.Order.Types.UPDATE,
+            limits=resource.limits or {},
+        )
 
     switch_plan_serializer_class = serializers.ResourceSwitchPlanSerializer
 
     @action(detail=True, methods=['post'])
     def update_limits(self, request, uuid=None):
         resource = self.get_object()
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         limits = serializer.validated_data['limits']
 
         if resource.limits == limits:
             raise ValidationError(
-                'Impossible to create update order items with limits set to exactly the same.'
+                'Impossible to create update orders with limits set to exactly the same.'
             )
 
-        with transaction.atomic():
-            order_item = models.OrderItem(
-                resource=resource,
-                offering=resource.offering,
-                plan=resource.plan,
-                type=models.OrderItem.Types.UPDATE,
-                limits=limits,
-                attributes={'old_limits': resource.limits},
-            )
-            order = serializers.create_order(
-                project=resource.project,
-                items=[order_item],
-                request=request,
-            )
-
-        return Response({'order_uuid': order.uuid.hex}, status=status.HTTP_200_OK)
+        return self.create_resource_order(
+            request=request,
+            resource=resource,
+            plan=resource.plan,
+            type=models.Order.Types.UPDATE,
+            limits=limits,
+            attributes={'old_limits': resource.limits},
+        )
 
     update_limits_serializer_class = serializers.ResourceUpdateLimitsSerializer
 
@@ -2213,8 +2130,6 @@ class ResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
 
     switch_plan_validators = update_limits_validators = [
         core_validators.StateValidator(models.Resource.States.OK),
-        structure_utils.check_customer_blocked_or_archived,
-        utils.check_pending_order_item_exists,
     ]
 
     @action(detail=True, methods=['get'])

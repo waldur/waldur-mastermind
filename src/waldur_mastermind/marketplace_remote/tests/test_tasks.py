@@ -374,7 +374,7 @@ class OfferingUserPullTest(test.APITransactionTestCase):
         self.assertEqual(offering_user.username, 'alice')
 
 
-class ResourceOrderItemImportTest(test.APITransactionTestCase):
+class ResourceOrderImportTest(test.APITransactionTestCase):
     def setUp(self):
         self.patcher = mock.patch(
             "waldur_mastermind.marketplace_remote.utils.WaldurClient"
@@ -397,59 +397,45 @@ class ResourceOrderItemImportTest(test.APITransactionTestCase):
         super().tearDown()
         mock.patch.stopall()
 
-    def test_when_there_are_no_order_items(self):
-        self.client.list_order_items.return_value = []
-        actual = utils.import_resource_order_items(self.resource)
+    def test_when_there_are_no_orders(self):
+        self.client.list_orders.return_value = []
+        actual = utils.import_resource_orders(self.resource)
         self.assertEqual([], actual)
 
-    def test_there_is_one_order_item(self):
-        remote_order_item_uuid = uuid.uuid4().hex
+    def test_there_is_one_order(self):
         remote_order_uuid = uuid.uuid4().hex
-        self.client.list_order_items.return_value = [
-            {'uuid': remote_order_item_uuid, 'order_uuid': remote_order_uuid}
+        remote_order_uuid = uuid.uuid4().hex
+        self.client.list_orders.return_value = [
+            {'uuid': remote_order_uuid, 'order_uuid': remote_order_uuid}
         ]
         self.client.get_order.return_value = {
-            'uuid': remote_order_item_uuid,
+            'uuid': remote_order_uuid,
             'state': 'done',
             'created': '2021-12-12T01:01:01',
             'created_by_username': 'alice',
-            'items': [
-                {
-                    'uuid': remote_order_item_uuid,
-                    'type': 'Terminate',
-                    'created': '2021-12-12T01:01:01',
-                    'state': 'done',
-                },
-            ],
+            'type': 'Terminate',
         }
-        actual = utils.import_resource_order_items(self.resource)
+        actual = utils.import_resource_orders(self.resource)
         self.assertEqual(1, len(actual))
         self.assertEqual(actual[0].backend_id, remote_order_uuid)
 
-    def test_existing_order_item_is_skipped(self):
-        remote_order_item_uuid = uuid.uuid4().hex
+    def test_existing_order_is_skipped(self):
         remote_order_uuid = uuid.uuid4().hex
-        factories.OrderItemFactory(
+        remote_order_uuid = uuid.uuid4().hex
+        factories.OrderFactory(
             backend_id=remote_order_uuid, resource=self.fixture.resource
         )
-        self.client.list_order_items.return_value = [
-            {'uuid': remote_order_item_uuid, 'order_uuid': remote_order_uuid}
+        self.client.list_orders.return_value = [
+            {'uuid': remote_order_uuid, 'order_uuid': remote_order_uuid}
         ]
         self.client.get_order.return_value = {
-            'uuid': remote_order_item_uuid,
+            'uuid': remote_order_uuid,
             'state': 'done',
             'created': '2021-12-12T01:01:01',
             'created_by_username': 'alice',
-            'items': [
-                {
-                    'uuid': remote_order_item_uuid,
-                    'type': 'Terminate',
-                    'created': '2021-12-12T01:01:01',
-                    'state': 'done',
-                },
-            ],
+            'type': 'Terminate',
         }
-        actual = utils.import_resource_order_items(self.resource)
+        actual = utils.import_resource_orders(self.resource)
         self.assertEqual(0, len(actual))
 
     def test_resource_state(self):

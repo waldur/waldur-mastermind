@@ -182,6 +182,8 @@ class OfferingUpdateTest(BaseOfferingPermissionTest):
     def setUp(self):
         super().setUp()
         self.url = factories.OfferingFactory.get_url(self.offering)
+        self.offering.state = models.Offering.States.DRAFT
+        self.offering.save()
         self.offering.add_user(self.fixture.user, OfferingRole.MANAGER)
         OfferingRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING)
 

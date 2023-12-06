@@ -64,17 +64,17 @@ def terminate_resources(policy):
                 if resource.offering.type == INSTANCE_TYPE
                 else {}
             )
-            order_item = marketplace_models.OrderItem(
+            order = marketplace_models.Order(
                 resource=resource,
                 offering=resource.offering,
-                type=marketplace_models.OrderItem.Types.TERMINATE,
+                type=marketplace_models.Order.Types.TERMINATE,
+                state=marketplace_models.Order.States.EXECUTING,
                 attributes=attributes,
+                project=policy.project,
+                created_by=user,
+                consumer_reviewed_by=user,
             )
-            order = marketplace_models.Order.objects.create(
-                project=policy.project, created_by=user
-            )
-            order_item.order = order
-            order_item.save()
+            order.save()
 
             logger.info(
                 'Policy created termination order. Policy UUID: %s. Resource: %s',
@@ -89,7 +89,7 @@ def terminate_resources(policy):
                 event_context={'policy_uuid': policy.uuid.hex},
             )
 
-            marketplace_tasks.approve_order(order, user)
+            marketplace_tasks.process_order_on_commit(order, user)
 
 
 terminate_resources.one_time_action = True

@@ -1,14 +1,11 @@
 import copy
-from functools import lru_cache
 
 from rest_framework import serializers
-from rest_framework.reverse import reverse
 
 from waldur_core.core import signals as core_signals
 from waldur_core.structure.managers import get_connected_customers
 from waldur_mastermind.booking import models as booking_models
 from waldur_mastermind.google import serializers as google_serializers
-from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
 
 from . import PLUGIN_NAME
@@ -21,12 +18,30 @@ class BookingSlotSerializer(serializers.ModelSerializer):
 
 
 class BookingResourceSerializer(marketplace_serializers.ResourceSerializer):
-    created_by = serializers.SerializerMethodField()
-    created_by_username = serializers.SerializerMethodField()
-    created_by_full_name = serializers.SerializerMethodField()
-    approved_by = serializers.SerializerMethodField()
-    approved_by_username = serializers.SerializerMethodField()
-    approved_by_full_name = serializers.SerializerMethodField()
+    created_by = serializers.HyperlinkedRelatedField(
+        view_name='user-detail',
+        source='creation_order.created_by',
+        lookup_field='uuid',
+        read_only=True,
+    )
+    created_by_username = serializers.ReadOnlyField(
+        source='creation_order.created_by.username'
+    )
+    created_by_full_name = serializers.ReadOnlyField(
+        source='creation_order.created_by.full_name'
+    )
+    consumer_reviewed_by = serializers.HyperlinkedRelatedField(
+        view_name='user-detail',
+        source='creation_order.consumer_reviewed_by',
+        lookup_field='uuid',
+        read_only=True,
+    )
+    consumer_reviewed_by_username = serializers.ReadOnlyField(
+        source='creation_order.consumer_reviewed_by.username'
+    )
+    consumer_reviewed_by_full_name = serializers.ReadOnlyField(
+        source='creation_order.consumer_reviewed_by.full_name'
+    )
     description = serializers.SerializerMethodField()
     slots = serializers.SerializerMethodField()
 
@@ -37,9 +52,9 @@ class BookingResourceSerializer(marketplace_serializers.ResourceSerializer):
             'created_by',
             'created_by_username',
             'created_by_full_name',
-            'approved_by',
-            'approved_by_username',
-            'approved_by_full_name',
+            'consumer_reviewed_by',
+            'consumer_reviewed_by_username',
+            'consumer_reviewed_by_full_name',
             'description',
             'slots',
         )
@@ -47,48 +62,6 @@ class BookingResourceSerializer(marketplace_serializers.ResourceSerializer):
             marketplace_serializers.ResourceSerializer.Meta.extra_kwargs
         )
         extra_kwargs['url'] = {'lookup_field': 'uuid', 'read_only': True}
-
-    @lru_cache(maxsize=1)
-    def _get_order_item(self, resource):
-        return marketplace_models.OrderItem.objects.get(
-            resource=resource,
-            type__in=[marketplace_models.OrderItem.Types.CREATE],
-        )
-
-    def get_created_by(self, resource):
-        order_item = self._get_order_item(resource)
-        uuid = order_item.order.created_by.uuid.hex
-        return reverse(
-            'user-detail',
-            kwargs={'uuid': uuid},
-        )
-
-    def get_created_by_username(self, resource):
-        order_item = self._get_order_item(resource)
-        return order_item.order.created_by.username
-
-    def get_created_by_full_name(self, resource):
-        order_item = self._get_order_item(resource)
-        return order_item.order.created_by.full_name
-
-    def get_approved_by(self, resource):
-        order_item = self._get_order_item(resource)
-        if order_item.order.approved_by:
-            uuid = order_item.order.approved_by.uuid.hex
-            return reverse(
-                'user-detail',
-                kwargs={'uuid': uuid},
-            )
-
-    def get_approved_by_username(self, resource):
-        order_item = self._get_order_item(resource)
-        if order_item.order.approved_by:
-            return order_item.order.approved_by.username
-
-    def get_approved_by_full_name(self, resource):
-        order_item = self._get_order_item(resource)
-        if order_item.order.approved_by:
-            return order_item.order.approved_by.full_name
 
     def get_description(self, resource):
         return resource.attributes.get('description', '')
@@ -106,16 +79,16 @@ class BookingSerializer(serializers.Serializer):
     end = serializers.DateTimeField()
 
     def get_created_by_full_name(self, booking):
-        order_item = booking.order_item
+        order = booking.order
 
-        if not order_item:
+        if not order:
             return 'google calendar'
 
         user_customers = get_connected_customers(self.context['request'].user)
-        creator_customers = get_connected_customers(order_item.order.created_by)
+        creator_customers = get_connected_customers(order.created_by)
 
         if user_customers.intersection(creator_customers):
-            return order_item.order.created_by.full_name
+            return order.created_by.full_name
 
 
 class OfferingSerializer(marketplace_serializers.PublicOfferingDetailsSerializer):

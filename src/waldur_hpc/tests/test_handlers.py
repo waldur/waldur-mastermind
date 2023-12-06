@@ -55,7 +55,7 @@ class TestHandlers(TestCase):
             marketplace_models.Order.objects.filter(
                 project=project,
                 created_by=user,
-                state=marketplace_models.Order.States.REQUESTED_FOR_APPROVAL,
+                state=marketplace_models.Order.States.EXECUTING,
             ).exists()
         )
 
@@ -92,7 +92,7 @@ class TestHandlers(TestCase):
         # first login
         user = structure_factories.UserFactory(email='user@internal')
 
-        # order_item processing
+        # order processing
         project = structure_models.Project.objects.get(
             name=user.username, customer=self.internal_customer
         )
@@ -102,14 +102,11 @@ class TestHandlers(TestCase):
         )
         order.complete()
         order.save()
-        order_item = order.items.first()
-        order_item.set_state_executing()
-        order_item.set_state_done()
         resource = marketplace_factories.ResourceFactory(
-            offering=order_item.offering, project=project
+            offering=order.offering, project=project
         )
-        order_item.resource = resource
-        order_item.save()
+        order.resource = resource
+        order.save()
 
         # second login
         user.last_login = datetime.datetime.now() + datetime.timedelta(days=1)
@@ -141,7 +138,7 @@ class TestHandlers(TestCase):
         # first login
         user = structure_factories.UserFactory(email='user@internal')
 
-        # order_item processing
+        # order processing
         project = structure_models.Project.objects.get(
             name=user.username, customer=self.internal_customer
         )
@@ -190,10 +187,7 @@ class TestHandlers(TestCase):
             1,
         )
 
-        other_order = marketplace_factories.OrderFactory(
-            project=project, created_by=user
-        )
-        marketplace_factories.OrderItemFactory(order=other_order)
+        marketplace_factories.OrderFactory(project=project, created_by=user)
         self.assertEqual(
             marketplace_models.Order.objects.filter(
                 project=project,

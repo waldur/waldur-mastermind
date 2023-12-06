@@ -15,7 +15,7 @@ class MarketplaceSupportApprovedFixture(SupportFixture):
             provider_customer or structure_factories.CustomerFactory()
         )
         self.plan_component
-        self.order_item
+        self.order
 
     @cached_property
     def provider(self):
@@ -58,15 +58,11 @@ class MarketplaceSupportApprovedFixture(SupportFixture):
 
     @cached_property
     def order(self):
-        return marketplace_factories.OrderFactory(project=self.project)
-
-    @cached_property
-    def order_item(self):
-        return marketplace_factories.OrderItemFactory(
-            order=self.order,
+        return marketplace_factories.OrderFactory(
+            project=self.project,
             offering=self.marketplace_offering,
             plan=self.plan,
-            state=marketplace_models.OrderItem.States.DONE,
+            state=marketplace_models.Order.States.DONE,
             resource=self.resource,
         )
 
@@ -115,13 +111,9 @@ class SupportFixture(structure_fixtures.ProjectFixture):
         )
 
     @cached_property
-    def order(self):
-        return marketplace_factories.OrderFactory(project=self.project)
-
-    @cached_property
-    def order_item(self):
-        return marketplace_factories.OrderItemFactory(
-            order=self.order,
+    def order(self) -> marketplace_models.Order:
+        return marketplace_factories.OrderFactory(
+            project=self.project,
             offering=self.offering,
             attributes={'name': 'item_name', 'description': 'Description'},
             plan=self.plan,
@@ -166,21 +158,17 @@ class SupportFixture(structure_fixtures.ProjectFixture):
 
     @cached_property
     def new_order(self):
-        return marketplace_factories.OrderFactory(project=self.project)
-
-    @cached_property
-    def new_order_item(self):
-        return marketplace_factories.OrderItemFactory(
+        return marketplace_factories.OrderFactory(
             offering=self.offering,
+            project=self.project,
             attributes={'name': 'item_name_2', 'description': 'Description_2'},
             plan=self.plan,
-            order=self.new_order,
         )
 
     @cached_property
     def service_provider(self):
         return marketplace_factories.ServiceProviderFactory(
-            customer=self.order_item.offering.customer,
+            customer=self.order.offering.customer,
             description='ServiceProvider\'s description',
         )
 

@@ -9,11 +9,13 @@ from waldur_client import WaldurClient, WaldurClientException
 
 from waldur_core.core.utils import is_uuid_like, serialize_instance
 from waldur_core.core.views import ReviewViewSet
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.utils import has_permission
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure.filters import GenericRoleFilter
 from waldur_core.structure.models import Customer
-from waldur_mastermind.marketplace import models, permissions, plugins
+from waldur_mastermind.marketplace import callbacks, models, permissions, plugins
 from waldur_mastermind.marketplace_remote import PLUGIN_NAME
 from waldur_mastermind.marketplace_remote.constants import OFFERING_FIELDS
 from waldur_mastermind.marketplace_remote.models import ProjectUpdateRequest
@@ -148,21 +150,51 @@ class ProjectUpdateRequestViewSet(ReviewViewSet):
     filterset_class = filters.ProjectUpdateRequestFilter
 
 
-class PullOrderItemView(APIView):
+class PullOrderView(APIView):
     permission_classes = []
 
-    def get_order_item(self):
+    def get_order(self):
         item_uuid = self.kwargs['uuid']
         if not is_uuid_like(item_uuid):
             return Response(status=status.HTTP_400_BAD_REQUEST, data='UUID is invalid.')
-        qs = models.OrderItem.objects.filter(offering__type=PLUGIN_NAME).exclude(
-            state__in=models.OrderItem.States.TERMINAL_STATES
+        qs = models.Order.objects.filter(offering__type=PLUGIN_NAME).exclude(
+            state__in=models.Order.States.TERMINAL_STATES
         )
         return get_object_or_404(qs, uuid=item_uuid)
 
     def post(self, *args, **kwargs):
-        order_item = self.get_order_item()
-        tasks.OrderItemPullTask.apply_async(args=[serialize_instance(order_item)])
+        order = self.get_order()
+        tasks.OrderPullTask.apply_async(args=[serialize_instance(order)])
+        return Response(status=status.HTTP_200_OK)
+
+
+class CancelTerminationOrderView(APIView):
+    def get_order(self):
+        item_uuid = self.kwargs['uuid']
+        if not is_uuid_like(item_uuid):
+            return Response(status=status.HTTP_400_BAD_REQUEST, data='UUID is invalid.')
+        qs = models.Order.objects.filter(
+            offering__type=PLUGIN_NAME,
+            state=models.Order.States.EXECUTING,
+            type=models.Order.Types.TERMINATE,
+        )
+        return get_object_or_404(qs, uuid=item_uuid)
+
+    def post(self, request, *args, **kwargs):
+        order = self.get_order()
+        if not has_permission(
+            request, PermissionEnum.APPROVE_ORDER, order.offering.customer
+        ):
+            raise PermissionDenied()
+
+        client = utils.get_client_for_offering(order.resource.offering)
+
+        try:
+            client.marketplace_order_reject_by_consumer(order.backend_id)
+        except WaldurClientException as exc:
+            raise ValidationError(exc)
+        callbacks.sync_order_state(order, models.Order.States.CANCELED)
+
         return Response(status=status.HTTP_200_OK)
 
 
@@ -192,8 +224,8 @@ class PullOfferingResources(OfferingActionView):
     task = tasks.pull_offering_resources
 
 
-class PullOfferingOrderItems(OfferingActionView):
-    task = tasks.pull_offering_order_items
+class PullOfferingOrders(OfferingActionView):
+    task = tasks.pull_offering_orders
 
 
 class PullOfferingUsage(OfferingActionView):

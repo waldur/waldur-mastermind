@@ -375,7 +375,7 @@ class OfferingRemoteVersionTest(test.APITransactionTestCase):
 
         self.post_request_mock.side_effect = post_request_mock
 
-    def test_creating_remote_order_item(self):
+    def test_creating_remote_order(self):
         self.client.force_authenticate(user=self.fixture.staff)
 
         remote_offering = OfferingFactory(
@@ -390,15 +390,15 @@ class OfferingRemoteVersionTest(test.APITransactionTestCase):
         self.offering.backend_id = remote_offering.uuid.hex
         self.offering.save()
 
-        order_item = marketplace_factories.OrderItemFactory(
-            order=marketplace_factories.OrderFactory(project=self.fixture.project),
+        order = marketplace_factories.OrderFactory(
+            project=self.fixture.project,
             offering=self.offering,
             attributes={'name': 'item_name', 'description': 'Description'},
             plan=self.fixture.plan,
         )
 
-        processor = RemoteCreateResourceProcessor(order_item)
-        processor.process_order_item(self.fixture.staff)
+        processor = RemoteCreateResourceProcessor(order)
+        processor.process_order(self.fixture.staff)
 
-        order_item.refresh_from_db()
-        self.assertTrue(order_item.backend_id)
+        order.refresh_from_db()
+        self.assertTrue(order.backend_id)

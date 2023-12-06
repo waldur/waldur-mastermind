@@ -14,6 +14,9 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure.log import event_logger
 from waldur_core.structure.models import Customer, Project
 from waldur_mastermind.marketplace.managers import get_connected_offerings
+from waldur_mastermind.marketplace.permissions import (
+    order_should_not_be_reviewed_by_consumer,
+)
 from waldur_mastermind.marketplace_script import PLUGIN_NAME as SCRIPT_PLUGIN_NAME
 from waldur_mastermind.marketplace_slurm_remote import (
     PLUGIN_NAME as SLURM_REMOTE_PLUGIN_NAME,
@@ -40,38 +43,30 @@ def create_screenshot_thumbnail(sender, instance, created=False, **kwargs):
 
 
 def log_order_events(sender, instance, created=False, **kwargs):
-    order = instance
+    order: models.Order = instance
     if created:
-        # Skip logging for imported orders
-        if order.state != models.Order.States.DONE:
-            log.log_order_created(order)
-    elif not order.tracker.has_changed('state'):
-        return
-    elif order.state == models.Order.States.EXECUTING:
-        log.log_order_approved(order)
-    elif order.state == models.Order.States.REJECTED:
-        log.log_order_rejected(order)
-    elif order.state == models.Order.States.DONE:
-        log.log_order_completed(order)
-    elif order.state == models.Order.States.TERMINATED:
-        log.log_order_terminated(order)
-    elif order.state == models.Order.States.ERRED:
-        log.log_order_failed(order)
-
-
-def log_order_item_events(sender, instance, created=False, **kwargs):
-    order_item = instance
-    if not created:
-        return
-    if order_item.state != models.OrderItem.States.PENDING:
-        # Skip logging for imported order item
-        return
-    elif not order_item.resource:
-        return
-    elif order_item.type == models.OrderItem.Types.TERMINATE:
-        log.log_resource_terminate_requested(order_item.resource)
-    elif order_item.type == models.OrderItem.Types.UPDATE:
-        log.log_resource_update_requested(order_item.resource)
+        if order.state != models.Order.States.PENDING:
+            # Skip logging for imported order
+            return
+        if not order.resource:
+            return
+        if order.type == models.Order.Types.TERMINATE:
+            log.log_resource_terminate_requested(order.resource)
+        elif order.type == models.Order.Types.UPDATE:
+            log.log_resource_update_requested(order.resource)
+    else:
+        if not order.tracker.has_changed('state'):
+            return
+        if order.state == models.Order.States.EXECUTING:
+            log.log_order_approved(order)
+        elif order.state == models.Order.States.REJECTED:
+            log.log_order_rejected(order)
+        elif order.state == models.Order.States.DONE:
+            log.log_order_completed(order)
+        elif order.state == models.Order.States.CANCELED:
+            log.log_order_canceled(order)
+        elif order.state == models.Order.States.ERRED:
+            log.log_order_failed(order)
 
 
 def log_resource_events(sender, instance, created=False, **kwargs):
@@ -81,30 +76,41 @@ def log_resource_events(sender, instance, created=False, **kwargs):
         log.log_resource_creation_requested(resource)
 
 
-def complete_order_when_all_items_are_done(sender, instance, created=False, **kwargs):
-    if created:
-        return
+def notify_approvers_when_order_is_created(sender, instance, created=False, **kwargs):
+    order: models.Order = instance
+    if created and order.state == models.Order.States.PENDING and order.created_by:
+        if order_should_not_be_reviewed_by_consumer(order):
+            if utils.order_should_not_be_reviewed_by_provider(order):
+                order.set_state_executing()
+                order.save()
+                tasks.process_order_on_commit(order, order.created_by)
+            else:
+                transaction.on_commit(
+                    lambda: tasks.notify_provider_about_pending_order.delay(order.uuid)
+                )
+        else:
+            transaction.on_commit(
+                lambda: tasks.notify_consumer_about_pending_order.delay(order.uuid)
+            )
 
-    if not instance.tracker.has_changed('state'):
-        return
 
-    if instance.state not in models.OrderItem.States.TERMINAL_STATES:
+def update_resource_when_order_is_rejected(sender, instance, created=False, **kwargs):
+    order: models.Order = instance
+    if not order.tracker.has_changed('state'):
         return
-
-    if instance.order.state != models.Order.States.EXECUTING:
+    if order.state != models.Order.States.REJECTED:
         return
-
-    order = instance.order
-    # check if there are any non-finished OrderItems left and finish order if none is found
-    if (
-        models.OrderItem.objects.filter(order=order)
-        .exclude(state__in=models.OrderItem.States.TERMINAL_STATES)
-        .exists()
-    ):
+    if not order.resource:
         return
-
-    order.complete()
-    order.save(update_fields=['state'])
+    if order.type == models.Order.Types.CREATE:
+        order.resource.set_state_terminated()
+        order.resource.save(update_fields=['state'])
+    elif order.type == models.Order.Types.TERMINATE:
+        order.resource.set_state_ok()
+        order.resource.save(update_fields=['state'])
+    elif order.type == models.Order.Types.UPDATE:
+        order.resource.set_state_ok()
+        order.resource.save(update_fields=['state'])
 
 
 def update_category_quota_when_offering_is_created(
@@ -223,25 +229,7 @@ def close_resource_plan_period_when_resource_is_terminated(
     ).update(end=now())
 
 
-def reject_order(sender, instance, created=False, **kwargs):
-    if created:
-        return
-
-    order = instance
-
-    if not order.tracker.has_changed('state'):
-        return
-
-    if (
-        instance.tracker.previous('state') == models.Order.States.REQUESTED_FOR_APPROVAL
-        and order.state == models.Order.States.REJECTED
-    ):
-        for item in order.items.all():
-            item.set_state_terminated(termination_comment="Order rejected")
-            item.save(update_fields=['state'])
-
-
-def change_order_item_state(sender, instance, created=False, **kwargs):
+def change_order_state(sender, instance, created=False, **kwargs):
     if created or not instance.tracker.has_changed('state'):
         return
 
@@ -277,10 +265,9 @@ def connect_resource_handlers(*resources):
         suffix = f'{index}_{model.__class__}'
 
         signals.post_save.connect(
-            change_order_item_state,
+            change_order_state,
             sender=model,
-            dispatch_uid='waldur_mastermind.marketplace.change_order_item_state_%s'
-            % suffix,
+            dispatch_uid='waldur_mastermind.marketplace.change_order_state_%s' % suffix,
         )
 
         signals.pre_delete.connect(
@@ -343,34 +330,36 @@ def sync_limits(sender, instance, created=False, **kwargs):
 
 
 @transaction.atomic()
-def limit_update_succeeded(sender, order_item, **kwargs):
-    resource = order_item.resource
+def limit_update_succeeded(sender, order: models.Order, **kwargs):
+    resource = order.resource
     old_limits = resource.limits
-    resource.limits = order_item.limits
+    resource.limits = order.limits
+    if resource.state != models.Resource.States.OK:
+        resource.set_state_ok()
     resource.save()
-    order_item.set_state_done()
-    order_item.save(update_fields=['state'])
+    order.complete()
+    order.save(update_fields=['state'])
     logger.info(
         'Resource limits have been updated. Resource: %s, old limits: %s, new limits: %s, created by: %s',
         core_utils.serialize_instance(resource),
         old_limits,
         resource.limits,
-        order_item.order.created_by,
+        order.created_by,
     )
     log.log_resource_limit_update_succeeded(resource)
 
 
-def limit_update_failed(sender, order_item, error_message, **kwargs):
-    order_item.set_state_erred()
-    order_item.error_message = error_message
-    order_item.save()
-    resource = order_item.resource
+def limit_update_failed(sender, order, error_message, **kwargs):
+    order.set_state_erred()
+    order.error_message = error_message
+    order.save()
+    resource = order.resource
     logger.info(
         'Resource limit update failed. Resource: %s, requested limits: %s, created by: %s, '
         'error message: %s',
         core_utils.serialize_instance(resource),
         resource.limits,
-        order_item.order.created_by,
+        order.created_by,
         error_message,
     )
     log.log_resource_limit_update_failed(resource)

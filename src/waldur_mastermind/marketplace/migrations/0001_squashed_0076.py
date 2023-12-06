@@ -1446,7 +1446,7 @@ class Migration(migrations.Migration):
                     'lead_email',
                     models.EmailField(
                         blank=True,
-                        help_text='Email for notification about new request based order items. If this field is set, notifications will be sent.',
+                        help_text='Email for notification about new request based orders. If this field is set, notifications will be sent.',
                         max_length=254,
                         null=True,
                     ),
@@ -1751,7 +1751,7 @@ class Migration(migrations.Migration):
             ],
             options={
                 'ordering': ('created',),
-                'verbose_name': 'Order item',
+                'verbose_name': 'Order',
             },
             bases=(waldur_core.structure.models.StructureLoggableMixin, models.Model),
         ),

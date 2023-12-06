@@ -18,12 +18,12 @@ def create_discounted_resource(sender, instance, created=False, **kwargs):
         return
 
     resource = instance
-    order_item = resource.orderitem_set.first()
+    order = resource.order_set.first()
 
-    if not order_item:
+    if not order:
         return
 
-    coupon = order_item.attributes.get('coupon', '')
+    coupon = order.attributes.get('coupon', '')
 
     for campaign in models.Campaign.objects.filter(
         state=models.Campaign.States.ACTIVE,

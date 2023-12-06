@@ -10,7 +10,7 @@ from rest_framework import exceptions as rf_exceptions
 from waldur_core.core.utils import format_homeport_link
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.utils import format_limits_list, get_order_item_url
+from waldur_mastermind.marketplace.utils import format_limits_list, get_order_url
 from waldur_mastermind.support import backend as support_backend
 from waldur_mastermind.support import exceptions as support_exceptions
 from waldur_mastermind.support import models as support_models
@@ -19,11 +19,11 @@ from waldur_mastermind.support import serializers as support_serializers
 logger = logging.getLogger(__name__)
 
 
-def get_order_item_issue(order_item):
-    order_item_content_type = ContentType.objects.get_for_model(order_item)
+def get_order_issue(order):
+    order_content_type = ContentType.objects.get_for_model(order)
     return support_models.Issue.objects.get(
-        resource_object_id=order_item.id,
-        resource_content_type=order_item_content_type,
+        resource_object_id=order.id,
+        resource_content_type=order_content_type,
     )
 
 
@@ -40,39 +40,38 @@ def format_description(template_name, context):
     return template.template.render(Context(context, autoescape=False))
 
 
-def format_create_description(order_item):
+def format_create_description(order):
     result = []
 
-    for key in order_item.offering.options.get('order') or []:
-        if key not in order_item.attributes:
+    for key in order.offering.options.get('order') or []:
+        if key not in order.attributes:
             continue
 
-        label = order_item.offering.options['options'].get(key, {})
+        label = order.offering.options['options'].get(key, {})
         label_value = label.get('label', key)
-        result.append(f'{label_value}: \'{order_item.attributes[key]}\'')
+        result.append(f'{label_value}: \'{order.attributes[key]}\'')
 
-    if 'description' in order_item.attributes:
-        result.append('\n %s' % order_item.attributes['description'])
+    if 'description' in order.attributes:
+        result.append('\n %s' % order.attributes['description'])
 
     result.append(
         format_description(
             'create_resource_template',
             {
-                'order_item': order_item,
-                'order_item_url': get_order_item_url(order_item),
-                'resource': order_item.resource,
+                'order': order,
+                'order_url': get_order_url(order),
+                'resource': order.resource,
             },
         )
     )
 
-    if order_item.limits:
-        components_map = order_item.offering.get_limit_components()
-        for key, value in order_item.limits.items():
+    if order.limits:
+        components_map = order.offering.get_limit_components()
+        for key, value in order.limits.items():
             component = components_map.get(key)
             if component:
                 result.append(
-                    "\n%s (%s): %s %s"
-                    % (
+                    "\n{} ({}): {} {}".format(
                         component.name,
                         component.type,
                         value,
@@ -85,16 +84,16 @@ def format_create_description(order_item):
     return description
 
 
-def create_issue(order_item, description, summary, confirmation_comment=None):
-    order_item_content_type = ContentType.objects.get_for_model(order_item)
+def create_issue(order, description, summary, confirmation_comment=None):
+    order_content_type = ContentType.objects.get_for_model(order)
     active_backend = support_backend.get_active_backend()
 
     if support_models.Issue.objects.filter(
-        resource_object_id=order_item.id, resource_content_type=order_item_content_type
+        resource_object_id=order.id, resource_content_type=order_content_type
     ).exists():
         logger.warning(
-            'An issue creating is skipped because an issue for order item %s exists already.'
-            % order_item.uuid
+            'An issue creating is skipped because an issue for order %s exists already.',
+            order.uuid,
         )
         return
 
@@ -102,12 +101,12 @@ def create_issue(order_item, description, summary, confirmation_comment=None):
 
     issue_details.update(
         dict(
-            caller=order_item.order.created_by,
-            project=order_item.order.project,
-            customer=order_item.order.project.customer,
+            caller=order.created_by,
+            project=order.project,
+            customer=order.project.customer,
             description=description,
             summary=summary,
-            resource=order_item,
+            resource=order,
         )
     )
     issue_details['summary'] = support_serializers.render_issue_template(
@@ -121,8 +120,8 @@ def create_issue(order_item, description, summary, confirmation_comment=None):
         active_backend.create_issue(issue)
     except support_exceptions.SupportUserInactive:
         issue.delete()
-        order_item.resource.set_state_erred()
-        order_item.resource.save(update_fields=['state'])
+        order.resource.set_state_erred()
+        order.resource.save(update_fields=['state'])
         raise rf_exceptions.ValidationError(
             _(
                 'Delete resource process is cancelled and issue not created '
@@ -131,17 +130,17 @@ def create_issue(order_item, description, summary, confirmation_comment=None):
         )
     except ServiceBackendError as e:
         issue.delete()
-        order_item.resource.set_state_erred()
-        order_item.resource.save(update_fields=['state'])
+        order.resource.set_state_erred()
+        order.resource.save(update_fields=['state'])
         raise rf_exceptions.ValidationError(e)
 
-    if order_item.resource:
-        ids = marketplace_models.OrderItem.objects.filter(
-            resource=order_item.resource
+    if order.resource:
+        ids = marketplace_models.Order.objects.filter(
+            resource=order.resource
         ).values_list('id', flat=True)
         linked_issues = support_models.Issue.objects.filter(
             resource_object_id__in=ids,
-            resource_content_type=order_item_content_type,
+            resource_content_type=order_content_type,
         ).exclude(id=issue.id)
         try:
             active_backend.create_issue_links(issue, list(linked_issues))
@@ -157,22 +156,22 @@ def create_issue(order_item, description, summary, confirmation_comment=None):
     return issue
 
 
-def format_update_description(order_item):
-    request_url = get_request_link(order_item.resource)
+def format_update_description(order):
+    request_url = get_request_link(order.resource)
     return format_description(
         'update_resource_template',
-        {'order_item': order_item, 'request_url': request_url},
+        {'order': order, 'request_url': request_url},
     )
 
 
-def format_update_limits_description(order_item):
-    offering = order_item.resource.offering
-    request_url = get_request_link(order_item.resource)
+def format_update_limits_description(order):
+    offering = order.resource.offering
+    request_url = get_request_link(order.resource)
     components_map = offering.get_limit_components()
-    old_limits = format_limits_list(components_map, order_item.resource.limits)
-    new_limits = format_limits_list(components_map, order_item.limits)
+    old_limits = format_limits_list(components_map, order.resource.limits)
+    new_limits = format_limits_list(components_map, order.limits)
     context = {
-        'order_item': order_item,
+        'order': order,
         'request_url': request_url,
         'old_limits': old_limits,
         'new_limits': new_limits,
@@ -183,9 +182,9 @@ def format_update_limits_description(order_item):
     )
 
 
-def format_delete_description(order_item):
-    request_url = get_request_link(order_item.resource)
+def format_delete_description(order):
+    request_url = get_request_link(order.resource)
     return format_description(
         'terminate_resource_template',
-        {'order_item': order_item, 'request_url': request_url},
+        {'order': order, 'request_url': request_url},
     )

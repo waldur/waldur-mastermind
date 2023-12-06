@@ -2,6 +2,7 @@ import factory
 from rest_framework.reverse import reverse
 
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_flows import models
 
@@ -10,7 +11,10 @@ class OfferingStateRequestFactory(factory.DjangoModelFactory):
     class Meta:
         model = models.OfferingStateRequest
 
-    offering = factory.SubFactory(marketplace_factories.OfferingFactory)
+    offering = factory.SubFactory(
+        marketplace_factories.OfferingFactory,
+        state=marketplace_models.Offering.States.DRAFT,
+    )
     requested_by = factory.SubFactory(structure_factories.UserFactory)
 
     @classmethod

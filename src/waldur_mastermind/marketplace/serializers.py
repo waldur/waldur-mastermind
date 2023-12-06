@@ -1,6 +1,5 @@
 import datetime
 import logging
-from functools import lru_cache
 from typing import Dict
 
 import jwt
@@ -50,9 +49,6 @@ from waldur_mastermind.common.serializers import validate_options
 from waldur_mastermind.invoices.models import InvoiceItem
 from waldur_mastermind.invoices.utils import get_billing_price_estimate_for_resources
 from waldur_mastermind.marketplace.fields import PublicPlanField
-from waldur_mastermind.marketplace.permissions import (
-    check_availability_of_auto_approving,
-)
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.processors import CreateResourceProcessor
 from waldur_mastermind.marketplace.utils import (
@@ -63,7 +59,7 @@ from waldur_mastermind.marketplace.utils import (
 from waldur_mastermind.proposal import models as proposal_models
 from waldur_pid import models as pid_models
 
-from . import log, models, permissions, plugins, tasks, utils
+from . import log, models, permissions, plugins, utils
 
 logger = logging.getLogger(__name__)
 BillingTypes = models.OfferingComponent.BillingTypes
@@ -534,24 +530,6 @@ class ProviderPlanDetailsSerializer(BaseProviderPlanSerializer):
         return instance
 
 
-# TODO: Remove after migration of clients to a new endpoint
-class PublicPlanDetailsSerializer(BasePlanSerializer):
-    """Serializer to display the public plan in the REST API."""
-
-    class Meta(BasePlanSerializer.Meta):
-        view_name = 'marketplace-public-plan-detail'
-        fields = BasePlanSerializer.Meta.fields + ('offering',)
-        extra_kwargs = {
-            'url': {
-                'lookup_field': 'uuid',
-            },
-            'offering': {
-                'lookup_field': 'uuid',
-                'view_name': 'marketplace-public-offering-detail',
-            },
-        }
-
-
 class PlanUsageRequestSerializer(serializers.Serializer):
     offering_uuid = serializers.UUIDField(required=False)
     customer_provider_uuid = serializers.UUIDField(required=False)
@@ -989,7 +967,7 @@ class OfferingDetailsSerializer(
     secret_options = serializers.JSONField(required=False)
     service_attributes = serializers.SerializerMethodField()
     components = OfferingComponentSerializer(required=False, many=True)
-    order_item_count = serializers.SerializerMethodField()
+    order_count = serializers.SerializerMethodField()
     plans = BaseProviderPlanSerializer(many=True, required=False)
     screenshots = NestedScreenshotSerializer(many=True, read_only=True)
     state = serializers.ReadOnlyField(source='get_state_display')
@@ -1037,7 +1015,7 @@ class OfferingDetailsSerializer(
             'getting_started',
             'integration_guide',
             'thumbnail',
-            'order_item_count',
+            'order_count',
             'plans',
             'screenshots',
             'type',
@@ -1152,9 +1130,9 @@ class OfferingDetailsSerializer(
             )
         )
 
-    def get_order_item_count(self, offering):
+    def get_order_count(self, offering):
         try:
-            return offering.get_quota_usage('order_item_count')
+            return offering.get_quota_usage('order_count')
         except ObjectDoesNotExist:
             return 0
 
@@ -1827,19 +1805,6 @@ class ComponentQuotaSerializer(serializers.ModelSerializer):
         fields = ('type', 'limit', 'usage')
 
 
-class TestItemSerializer(serializers.HyperlinkedModelSerializer):
-    class Meta:
-        model = models.OrderItem
-        fields = ('plan',)
-        extra_kwargs = {
-            'plan': {
-                'lookup_field': 'uuid',
-                'lookup_url_kwarg': 'plan_uuid',
-                'view_name': 'marketplace-public-offering-plan-detail',
-            },
-        }
-
-
 class BaseItemSerializer(
     MarketplaceProtectedMediaSerializerMixin,
     core_serializers.RestrictedSerializerMixin,
@@ -1968,9 +1933,9 @@ class BaseRequestSerializer(BaseItemSerializer):
         fields = BaseItemSerializer.Meta.fields + ('type',)
 
 
-class NestedOrderItemSerializer(BaseRequestSerializer):
+class NestedOrderSerializer(BaseRequestSerializer):
     class Meta(BaseRequestSerializer.Meta):
-        model = models.OrderItem
+        model = models.Order
         fields = BaseRequestSerializer.Meta.fields + (
             'resource_uuid',
             'resource_type',
@@ -2013,12 +1978,13 @@ class NestedOrderItemSerializer(BaseRequestSerializer):
         return fields
 
 
-class OrderItemDetailsSerializer(NestedOrderItemSerializer):
-    class Meta(NestedOrderItemSerializer.Meta):
-        fields = NestedOrderItemSerializer.Meta.fields + (
-            'order_uuid',
-            'order_approved_at',
-            'order_approved_by',
+class OrderDetailsSerializer(NestedOrderSerializer):
+    class Meta(NestedOrderSerializer.Meta):
+        fields = NestedOrderSerializer.Meta.fields + (
+            'consumer_reviewed_by',
+            'consumer_reviewed_at',
+            'provider_reviewed_by',
+            'provider_reviewed_at',
             'created_by_full_name',
             'created_by_civil_number',
             'customer_name',
@@ -2035,30 +2001,29 @@ class OrderItemDetailsSerializer(NestedOrderItemSerializer):
             'can_terminate',
             'fixed_price',
             'activation_price',
-            'reviewed_by',
-            'reviewed_at',
             'termination_comment',
         )
 
-    order_uuid = serializers.ReadOnlyField(source='order.uuid')
-    order_approved_at = serializers.ReadOnlyField(source='order.approved_at')
-    order_approved_by = serializers.ReadOnlyField(source='order.approved_by.full_name')
-
-    reviewed_by = serializers.ReadOnlyField(source='reviewed_by.username')
-
-    created_by_full_name = serializers.ReadOnlyField(
-        source='order.created_by.full_name'
+    consumer_reviewed_by = serializers.ReadOnlyField(
+        source='consumer_reviewed_by.username'
     )
+    consumer_reviewed_at = serializers.ReadOnlyField()
+    provider_reviewed_by = serializers.ReadOnlyField(
+        source='provider_reviewed_by.username'
+    )
+    provider_reviewed_at = serializers.ReadOnlyField()
+
+    created_by_full_name = serializers.ReadOnlyField(source='created_by.full_name')
     created_by_civil_number = serializers.ReadOnlyField(
-        source='order.created_by.civil_number'
+        source='created_by.civil_number'
     )
 
-    customer_name = serializers.SerializerMethodField()
-    customer_uuid = serializers.SerializerMethodField()
+    customer_name = serializers.ReadOnlyField(source='project.customer.name')
+    customer_uuid = serializers.ReadOnlyField(source='project.customer.uuid')
 
-    project_name = serializers.SerializerMethodField()
-    project_uuid = serializers.SerializerMethodField()
-    project_description = serializers.SerializerMethodField()
+    project_name = serializers.ReadOnlyField(source='project.name')
+    project_uuid = serializers.ReadOnlyField(source='project.uuid')
+    project_description = serializers.ReadOnlyField(source='project.description')
 
     old_plan_name = serializers.ReadOnlyField(source='old_plan.name')
     new_plan_name = serializers.ReadOnlyField(source='plan.name')
@@ -2072,48 +2037,24 @@ class OrderItemDetailsSerializer(NestedOrderItemSerializer):
     can_terminate = serializers.SerializerMethodField()
     termination_comment = serializers.ReadOnlyField()
 
-    def get_can_terminate(self, order_item):
-        if not plugins.manager.can_terminate_order_item(order_item.offering.type):
+    def get_can_terminate(self, order):
+        if not plugins.manager.can_cancel_order(order.offering.type):
             return False
 
-        if order_item.state not in (
-            models.OrderItem.States.PENDING,
-            models.OrderItem.States.EXECUTING,
+        if order.state not in (
+            models.Order.States.PENDING,
+            models.Order.States.EXECUTING,
         ):
             return False
 
         return True
 
-    @lru_cache(maxsize=1)
-    def _get_project(self, order_item: models.OrderItem):
-        return order_item.order.project
 
-    def get_customer_uuid(self, order_item: models.OrderItem):
-        project = self._get_project(order_item)
-        return project.customer.uuid
-
-    def get_customer_name(self, order_item: models.OrderItem):
-        project = self._get_project(order_item)
-        return project.customer.name
-
-    def get_project_uuid(self, order_item: models.OrderItem):
-        project = self._get_project(order_item)
-        return project.uuid
-
-    def get_project_name(self, order_item: models.OrderItem):
-        project = self._get_project(order_item)
-        return project.name
-
-    def get_project_description(self, order_item: models.OrderItem):
-        project = self._get_project(order_item)
-        return project.description
-
-
-class OrderItemSetStateErredSerializer(
+class OrderSetStateErredSerializer(
     serializers.ModelSerializer, core_serializers.AugmentedSerializerMixin
 ):
     class Meta:
-        model = models.OrderItem
+        model = models.Order
         fields = ('error_message', 'error_traceback')
         protected_fields = ('error_message', 'error_traceback')
 
@@ -2155,15 +2096,18 @@ class CartItemSerializer(BaseRequestSerializer):
                 processor_class = manager.get_processor(
                     item.offering.type, 'create_resource_processor'
                 )
-                order_params = dict(
-                    project=project, created_by=self.context['request'].user
+                order = models.Order(
+                    project=project,
+                    created_by=self.context['request'].user,
+                    offering=item.offering,
+                    attributes=item.attributes,
+                    plan=item.plan,
+                    limits=item.limits,
+                    type=item.type,
                 )
-                order = models.Order(**order_params)
-                item_params = get_item_params(item)
-                order_item = models.OrderItem(order=order, **item_params)
 
                 if issubclass(processor_class, CreateResourceProcessor):
-                    processor = processor_class(order_item)
+                    processor = processor_class(order)
                     post_data = processor.get_post_data()
                     serializer_class = processor.get_serializer_class()
                     if serializer_class:
@@ -2244,65 +2188,99 @@ class CartSubmitSerializer(serializers.Serializer):
         request = self.context['request']
         project = validated_data['project']
 
-        items = models.CartItem.objects.filter(user=request.user, project=project)
-        if items.count() == 0:
+        item = models.CartItem.objects.filter(
+            user=request.user, project=project
+        ).first()
+        if not item:
             raise serializers.ValidationError(_('Shopping cart is empty'))
 
-        order = create_order(project, items, request)
-        items.delete()
+        order = models.Order(
+            project=project,
+            created_by=request.user,
+            offering=item.offering,
+            attributes=item.attributes,
+            plan=item.plan,
+            limits=item.limits,
+            type=item.type,
+        )
+        validate_order(order, request)
+        order.init_cost()
+        order.save()
+        item.delete()
         return order
 
 
-def get_item_params(item):
-    return dict(
-        offering=item.offering,
-        attributes=item.attributes,
-        resource=getattr(item, 'resource', None),  # cart item does not have resource
-        plan=item.plan,
-        old_plan=getattr(item, 'old_plan', None),  # cart item does not have old plan
-        limits=item.limits,
-        type=item.type,
+def validate_public_offering(order: models.Order):
+    # Order is ok if divisions are not defined for offering
+    if not order.offering.divisions.count():
+        return
+
+    # Order is ok if consumer and provider divisions match
+    if (
+        order.project.customer.division_id
+        and order.offering.divisions.filter(
+            id=order.project.customer.division_id
+        ).exists()
+    ):
+        return
+    raise serializers.ValidationError(_('This offering is not available for ordering.'))
+
+
+def validate_private_offering(order: models.Order):
+    # Order is ok if consumer and provider organization is the same
+    if order.offering.customer == order.project.customer:
+        return
+
+    # Order is ok if consumer and provider project is the same
+    if order.offering.project == order.project:
+        return
+
+    raise serializers.ValidationError(
+        _('Offering "%s" is not allowed in organization "%s".')
+        % (order.offering.name, order.project.customer.name)
     )
 
 
-def create_order(project, items, request):
-    for item in items:
-        if (
-            item.type
-            in (models.OrderItem.Types.UPDATE, models.OrderItem.Types.TERMINATE)
-            and item.resource
-        ):
-            utils.check_pending_order_item_exists(item.resource)
+def check_pending_order_exists(resource):
+    if models.Order.objects.filter(
+        resource=resource,
+        state__in=(
+            models.Order.States.PENDING,
+            models.Order.States.EXECUTING,
+        ),
+    ).exists():
+        raise serializers.ValidationError(
+            _('Pending order for resource already exists.')
+        )
 
-    order_params = dict(project=project, created_by=request.user)
-    order = models.Order.objects.create(**order_params)
 
-    for item in items:
-        try:
-            params = get_item_params(item)
-            order_item = order.add_item(**params)
-        except ValidationError as e:
-            raise rf_exceptions.ValidationError(e)
-        utils.validate_order_item(order_item, request)
+def validate_order(order: models.Order, request):
+    structure_utils.check_customer_blocked_or_archived(order.project.customer)
 
-    order.init_total_cost()
-    order.save()
+    if order.type != models.Order.Types.TERMINATE:
+        structure_utils.check_project_end_date(order.project)
 
-    if check_availability_of_auto_approving(items, request, project):
-        tasks.approve_order(order, request.user)
+    if not order.offering.state == models.Offering.States.ACTIVE:
+        raise serializers.ValidationError(_('Offering is not available.'))
+
+    if order.offering.shared:
+        validate_public_offering(order)
     else:
-        transaction.on_commit(lambda: tasks.notify_order_approvers.delay(order.uuid))
+        validate_private_offering(order)
 
-    return order
+    if order.resource:
+        check_pending_order_exists(order.resource)
+
+    utils.validate_order(order, request)
 
 
-class OrderSerializer(
+class OrderCreateSerializer(
+    NestedOrderSerializer,
     structure_serializers.PermissionFieldFilteringMixin,
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
     state = serializers.ReadOnlyField(source='get_state_display')
-    items = NestedOrderItemSerializer(many=True)
     customer_uuid = serializers.ReadOnlyField(source='project.customer.uuid')
     project_name = serializers.ReadOnlyField(source='project.name')
     project_description = serializers.ReadOnlyField(source='project.description')
@@ -2310,17 +2288,17 @@ class OrderSerializer(
 
     class Meta:
         model = models.Order
-        fields = (
+        fields = NestedOrderSerializer.Meta.fields + (
             'url',
             'uuid',
             'created',
             'created_by',
             'created_by_username',
             'created_by_full_name',
-            'approved_by',
-            'approved_at',
-            'approved_by_username',
-            'approved_by_full_name',
+            'consumer_reviewed_by',
+            'consumer_reviewed_at',
+            'consumer_reviewed_by_username',
+            'consumer_reviewed_by_full_name',
             'project',
             'project_uuid',
             'project_name',
@@ -2328,88 +2306,71 @@ class OrderSerializer(
             'customer_name',
             'customer_uuid',
             'state',
-            'items',
-            'total_cost',
+            'cost',
             'type',
             'error_message',
         )
         read_only_fields = (
             'created_by',
-            'approved_by',
-            'approved_at',
+            'consumer_reviewed_by',
+            'consumer_reviewed_at',
             'state',
-            'total_cost',
+            'cost',
         )
-        protected_fields = ('project', 'items')
+        protected_fields = ('project',)
         related_paths = {
+            **NestedOrderSerializer.Meta.related_paths,
             'created_by': ('username', 'full_name'),
-            'approved_by': ('username', 'full_name'),
+            'consumer_reviewed_by': ('username', 'full_name'),
             'project': ('uuid',),
         }
         extra_kwargs = {
+            **NestedOrderSerializer.Meta.extra_kwargs,
             'url': {'lookup_field': 'uuid'},
             'created_by': {'lookup_field': 'uuid', 'view_name': 'user-detail'},
-            'approved_by': {'lookup_field': 'uuid', 'view_name': 'user-detail'},
+            'consumer_reviewed_by': {
+                'lookup_field': 'uuid',
+                'view_name': 'user-detail',
+            },
             'project': {'lookup_field': 'uuid', 'view_name': 'project-detail'},
         }
 
-    error_message = serializers.SerializerMethodField()
-
-    def get_error_message(self, obj: models.Order):
-        return '\n'.join(
-            [f'{item.uuid}: {item.error_message}' for item in obj.items.all()]
-        )
+    error_message = serializers.ReadOnlyField()
 
     @transaction.atomic
     def create(self, validated_data):
         request = self.context['request']
         project = validated_data['project']
-        items = [
-            models.OrderItem(
-                offering=item['offering'],
-                plan=item.get('plan'),
-                attributes=item.get('attributes', {}),
-                limits=item.get('limits', {}),
-                type=item.get('type'),
-            )
-            for item in validated_data['items']
-        ]
-        return create_order(project, items, request)
+        order = models.Order(
+            project=project,
+            created_by=request.user,
+            offering=validated_data['offering'],
+            plan=validated_data.get('plan'),
+            attributes=validated_data.get('attributes', {}),
+            limits=validated_data.get('limits', {}),
+            type=validated_data.get('type'),
+        )
+        validate_order(order, request)
+        order.init_cost()
+        order.save()
+        return order
 
     def get_filtered_field_names(self):
         return ('project',)
 
-    def validate_items(self, items):
-        for item in items:
-            offering = item['offering']
-
-            if (
-                offering.shared
-                and offering.terms_of_service
-                and not item.get('accepting_terms_of_service')
-            ):
-                raise ValidationError(
-                    _('Terms of service for offering \'%s\' have not been accepted.')
-                    % offering
-                )
-        return items
-
     def validate(self, attrs):
-        project = attrs['project']
+        attrs = super().validate(attrs)
+        offering = attrs['offering']
 
-        for item in attrs['items']:
-            offering = item['offering']
-
-            if offering.shared and offering.divisions.count():
-                if (
-                    not project.customer.division_id
-                    or not offering.divisions.filter(
-                        id=project.customer.division_id
-                    ).exists()
-                ):
-                    raise ValidationError(
-                        _('This offering is not available for ordering.')
-                    )
+        if (
+            offering.shared
+            and offering.terms_of_service
+            and not attrs.get('accepting_terms_of_service')
+        ):
+            raise ValidationError(
+                _('Terms of service for offering \'%s\' have not been accepted.')
+                % offering
+            )
 
         return attrs
 
@@ -2531,11 +2492,11 @@ class ResourceSerializer(BaseItemSerializer):
         except ValidationError:
             return False
 
-        if models.OrderItem.objects.filter(
+        if models.Order.objects.filter(
             resource=resource,
             state__in=(
-                models.OrderItem.States.PENDING,
-                models.OrderItem.States.EXECUTING,
+                models.Order.States.PENDING,
+                models.Order.States.EXECUTING,
             ),
         ).exists():
             return False

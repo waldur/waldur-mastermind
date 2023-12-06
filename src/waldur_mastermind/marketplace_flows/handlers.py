@@ -1,7 +1,6 @@
 from django.db import transaction
 
-from waldur_core.core import utils as core_utils
-from waldur_mastermind.marketplace.tasks import process_order
+from waldur_mastermind.marketplace.tasks import process_order_on_commit
 
 from . import models, tasks
 
@@ -10,7 +9,7 @@ def process_flow_state_change(sender, instance, created=False, **kwargs):
     if created:
         return
 
-    flow = instance
+    flow: models.FlowTracker = instance
 
     if not flow.tracker.has_changed('state'):
         return
@@ -18,11 +17,9 @@ def process_flow_state_change(sender, instance, created=False, **kwargs):
     if flow.state != models.FlowTracker.States.PENDING:
         transaction.on_commit(lambda: tasks.send_mail_for_submitted_flow.delay(flow.id))
     elif flow.state == models.FlowTracker.States.APPROVED:
-        serialized_order = core_utils.serialize_instance(flow.order_item.order)
-        serialized_user = core_utils.serialize_instance(flow.requested_by)
-        transaction.on_commit(
-            lambda: process_order.delay(serialized_order, serialized_user)
-        )
+        flow.order.set_state_executing()
+        flow.order.save()
+        process_order_on_commit(flow.order, flow.requested_by)
     elif flow.state == models.FlowTracker.States.REJECTED:
         transaction.on_commit(lambda: tasks.send_mail_for_rejected_flow.delay(flow.id))
 

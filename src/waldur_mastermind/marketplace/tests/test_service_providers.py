@@ -14,6 +14,7 @@ from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models, tasks, utils
 from waldur_mastermind.marketplace.tests import fixtures
 from waldur_mastermind.marketplace.tests.helpers import override_marketplace_settings
+from waldur_mastermind.marketplace_support import PLUGIN_NAME
 
 from . import factories
 
@@ -286,7 +287,7 @@ class ServiceProviderNotificationTest(test.APITransactionTestCase):
         )
         offering = factories.OfferingFactory(
             customer=self.fixture.customer,
-            type='Support.OfferingTemplate',
+            type=PLUGIN_NAME,
             name='First',
         )
         self.component = factories.OfferingComponentFactory(
@@ -313,7 +314,7 @@ class ServiceProviderNotificationTest(test.APITransactionTestCase):
     def test_usages_notification_message(self):
         other_offering = factories.OfferingFactory(
             customer=self.fixture.customer,
-            type='Support.OfferingTemplate',
+            type=PLUGIN_NAME,
             name='Second',
         )
         factories.OfferingComponentFactory(
@@ -539,7 +540,7 @@ class ServiceProviderUserCustomersTest(test.APITransactionTestCase):
     def test_user_uuid(self):
         offering = factories.OfferingFactory(
             customer=self.fixture.customer,
-            type='Support.OfferingTemplate',
+            type=PLUGIN_NAME,
             name='First',
         )
 

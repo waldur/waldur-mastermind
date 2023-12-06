@@ -448,7 +448,7 @@ class Migration(migrations.Migration):
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
                         related_name='+',
-                        to='marketplace.OrderItem',
+                        to='marketplace.Order',
                     ),
                 ),
                 (

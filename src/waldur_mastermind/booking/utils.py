@@ -2,6 +2,7 @@ import copy
 import datetime
 import logging
 import re
+from collections.abc import Sequence
 
 from dateutil.parser import parse as parse_datetime
 from django.utils import timezone
@@ -10,13 +11,6 @@ from waldur_mastermind.booking import models as models
 from waldur_mastermind.marketplace import models as marketplace_models
 
 from . import PLUGIN_NAME
-
-try:
-    # using Python 3.10+
-    from collections.abc import Sequence
-except ImportError:
-    # using Python 3.10-
-    from collections.abc import Sequence
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +23,7 @@ class TimePeriod:
         period_id=None,
         location=None,
         attendees=None,
-        order_item=None,
+        order=None,
         time_zone=None,
         name=None,
     ):
@@ -52,7 +46,7 @@ class TimePeriod:
         self.id = period_id and re.sub(reg_exp, '', period_id)
         self.location = location
         self.attendees = attendees or []
-        self.order_item = order_item
+        self.order = order
         self.name = name
 
         if not isinstance(self.attendees, Sequence):
@@ -91,16 +85,12 @@ def get_offering_bookings(offering):
         location = None
 
     for resource in resources:
-        order_item = (
-            resources.first()
-            .orderitem_set.filter(type=marketplace_models.OrderItem.Types.CREATE)
-            .first()
-        )
+        order = resources.first().creation_order
         attendees = []
 
-        if order_item:
-            email = order_item.order.created_by.email or None
-            full_name = order_item.order.created_by.full_name or None
+        if order:
+            email = order.created_by.email or None
+            full_name = order.created_by.full_name or None
             if email:
                 attendees = [{'displayName': full_name, 'email': email}]
 
@@ -118,7 +108,7 @@ def get_offering_bookings(offering):
                             period.backend_id,
                             attendees=attendees,
                             location=location,
-                            order_item=order_item,
+                            order=order,
                             name=period.resource.name,
                         )
                     )
@@ -141,14 +131,14 @@ def get_offering_bookings_and_busy_slots(offering):
     return slots
 
 
-def get_other_offering_booking_requests(order_item):
-    States = marketplace_models.OrderItem.States
+def get_other_offering_booking_requests(order):
+    States = marketplace_models.Order.States
     schedules = (
-        marketplace_models.OrderItem.objects.filter(
-            offering=order_item.offering,
+        marketplace_models.Order.objects.filter(
+            offering=order.offering,
             state__in=(States.PENDING, States.EXECUTING, States.DONE),
         )
-        .exclude(id=order_item.id)
+        .exclude(id=order.id)
         .values_list('attributes__schedules', flat=True)
     )
     return [
@@ -172,26 +162,8 @@ def get_info_about_upcoming_bookings():
     result = []
 
     for resource in upcoming_bookings:
-        try:
-            order_item = marketplace_models.OrderItem.objects.get(
-                resource=resource, type=marketplace_models.OrderItem.Types.CREATE
-            )
-            user = order_item.order.created_by
-        except marketplace_models.OrderItem.DoesNotExist:
-            logger.warning(
-                'Skipping notification because '
-                'marketplace resource hasn\'t got a order item. '
-                'Resource ID: %s',
-                resource.id,
-            )
-        except marketplace_models.OrderItem.MultipleObjectsReturned:
-            logger.warning(
-                'Skipping notification because '
-                'marketplace resource has got few order items. '
-                'Resource ID: %s',
-                resource.id,
-            )
-        else:
+        order = resource.creation_order
+        if order:
             rows = list(
                 filter(lambda x: x['user'] == resource.project.customer, result)
             )
@@ -200,10 +172,16 @@ def get_info_about_upcoming_bookings():
             else:
                 result.append(
                     {
-                        'user': user,
+                        'user': order.created_by,
                         'resources': [resource],
                     }
                 )
+        else:
+            logger.warning(
+                'Skipping notification because marketplace resource hasn\'t got a order. '
+                'Resource ID: %s',
+                resource.id,
+            )
 
     return result
 

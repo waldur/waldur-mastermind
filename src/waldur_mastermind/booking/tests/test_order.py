@@ -1,23 +1,22 @@
 from freezegun import freeze_time
 from rest_framework import status, test
 
-from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_mastermind.booking import PLUGIN_NAME
 from waldur_mastermind.booking import models as booking_models
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace import tasks as marketplace_tasks
+from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 
-class OrderItemProcessedTest(test.APITransactionTestCase):
+class OrderProcessedTest(test.APITransactionTestCase):
     def setUp(self) -> None:
         self.fixture = fixtures.ProjectFixture()
         self.offering = marketplace_factories.OfferingFactory(type=PLUGIN_NAME)
 
-    def test_resource_is_created_when_order_item_is_processed(self):
-        order_item = marketplace_factories.OrderItemFactory(
+    def test_resource_is_created_when_order_is_processed(self):
+        order = marketplace_factories.OrderFactory(
             offering=self.offering,
             attributes={
                 'name': 'item_name',
@@ -29,11 +28,10 @@ class OrderItemProcessedTest(test.APITransactionTestCase):
                     }
                 ],
             },
+            state=marketplace_models.Order.States.EXECUTING,
         )
 
-        serialized_order = core_utils.serialize_instance(order_item.order)
-        serialized_user = core_utils.serialize_instance(self.fixture.staff)
-        marketplace_tasks.process_order(serialized_order, serialized_user)
+        marketplace_utils.process_order(order, self.fixture.staff)
 
         self.assertTrue(
             marketplace_models.Resource.objects.filter(name='item_name').exists()
@@ -41,24 +39,23 @@ class OrderItemProcessedTest(test.APITransactionTestCase):
         resource = marketplace_models.Resource.objects.get(name='item_name')
         self.assertEqual(resource.state, marketplace_models.Resource.States.CREATING)
 
-    def test_resource_is_terminating_when_order_item_is_processed(self):
+    def test_resource_is_terminated_when_order_is_processed(self):
         resource = marketplace_factories.ResourceFactory(
             offering=self.offering,
             state=marketplace_models.Resource.States.OK,
         )
 
-        order_item = marketplace_factories.OrderItemFactory(
+        order = marketplace_factories.OrderFactory(
             offering=self.offering,
-            type=marketplace_models.OrderItem.Types.TERMINATE,
+            type=marketplace_models.Order.Types.TERMINATE,
             resource=resource,
+            state=marketplace_models.Order.States.EXECUTING,
         )
 
-        serialized_order = core_utils.serialize_instance(order_item.order)
-        serialized_user = core_utils.serialize_instance(self.fixture.staff)
-        marketplace_tasks.process_order(serialized_order, serialized_user)
+        marketplace_utils.process_order(order, self.fixture.staff)
 
         resource.refresh_from_db()
-        self.assertEqual(marketplace_models.Resource.States.TERMINATING, resource.state)
+        self.assertEqual(marketplace_models.Resource.States.TERMINATED, resource.state)
 
 
 @freeze_time('2018-12-01')
@@ -94,21 +91,17 @@ class OrderCreateTest(test.APITransactionTestCase):
 
     def test_create_order_if_schedule_is_valid(self):
         add_payload = {
-            'items': [
-                {
-                    'offering': marketplace_factories.OfferingFactory.get_public_url(
-                        self.offering
-                    ),
-                    'attributes': {
-                        'schedules': [
-                            {
-                                'start': '2019-01-02T00:00:00.000000Z',
-                                'end': '2019-01-02T23:59:59.000000Z',
-                            },
-                        ]
+            'offering': marketplace_factories.OfferingFactory.get_public_url(
+                self.offering
+            ),
+            'attributes': {
+                'schedules': [
+                    {
+                        'start': '2019-01-02T00:00:00.000000Z',
+                        'end': '2019-01-02T23:59:59.000000Z',
                     },
-                },
-            ]
+                ]
+            },
         }
         response = self.create_order(
             self.user, offering=self.offering, add_payload=add_payload
@@ -117,25 +110,20 @@ class OrderCreateTest(test.APITransactionTestCase):
         self.assertTrue(
             marketplace_models.Order.objects.filter(created_by=self.user).exists()
         )
-        self.assertEqual(1, len(response.data['items']))
 
     def test_do_not_create_order_if_schedule_is_not_valid_for_selected_offering(self):
         add_payload = {
-            'items': [
-                {
-                    'offering': marketplace_factories.OfferingFactory.get_public_url(
-                        self.offering
-                    ),
-                    'attributes': {
-                        'schedules': [
-                            {
-                                'start': '2019-01-05T00:00:00.000000Z',
-                                'end': '2019-01-05T23:59:59.000000Z',
-                            },
-                        ]
+            'offering': marketplace_factories.OfferingFactory.get_public_url(
+                self.offering
+            ),
+            'attributes': {
+                'schedules': [
+                    {
+                        'start': '2019-01-05T00:00:00.000000Z',
+                        'end': '2019-01-05T23:59:59.000000Z',
                     },
-                },
-            ]
+                ]
+            },
         }
         response = self.create_order(
             self.user, offering=self.offering, add_payload=add_payload
@@ -149,14 +137,10 @@ class OrderCreateTest(test.APITransactionTestCase):
 
     def test_do_not_create_order_if_schedule_is_empty(self):
         add_payload = {
-            'items': [
-                {
-                    'offering': marketplace_factories.OfferingFactory.get_public_url(
-                        self.offering
-                    ),
-                    'attributes': {'schedules': []},
-                },
-            ]
+            'offering': marketplace_factories.OfferingFactory.get_public_url(
+                self.offering
+            ),
+            'attributes': {'schedules': []},
         }
         response = self.create_order(
             self.user, offering=self.offering, add_payload=add_payload
@@ -166,18 +150,14 @@ class OrderCreateTest(test.APITransactionTestCase):
 
     def test_do_not_create_order_if_schedule_item_has_not_got_key_start(self):
         add_payload = {
-            'items': [
-                {
-                    'offering': marketplace_factories.OfferingFactory.get_public_url(
-                        self.offering
-                    ),
-                    'attributes': {
-                        'schedules': [
-                            {'end': '2019-01-05T23:59:59.000000Z'},
-                        ]
-                    },
-                },
-            ]
+            'offering': marketplace_factories.OfferingFactory.get_public_url(
+                self.offering
+            ),
+            'attributes': {
+                'schedules': [
+                    {'end': '2019-01-05T23:59:59.000000Z'},
+                ]
+            },
         }
         response = self.create_order(
             self.user, offering=self.offering, add_payload=add_payload
@@ -190,18 +170,14 @@ class OrderCreateTest(test.APITransactionTestCase):
 
     def test_do_not_create_order_if_end_is_none(self):
         add_payload = {
-            'items': [
-                {
-                    'offering': marketplace_factories.OfferingFactory.get_public_url(
-                        self.offering
-                    ),
-                    'attributes': {
-                        'schedules': [
-                            {'start': '2019-01-05T23:59:59.000000Z', 'end': None},
-                        ]
-                    },
-                },
-            ]
+            'offering': marketplace_factories.OfferingFactory.get_public_url(
+                self.offering
+            ),
+            'attributes': {
+                'schedules': [
+                    {'start': '2019-01-05T23:59:59.000000Z', 'end': None},
+                ]
+            },
         }
         response = self.create_order(
             self.user, offering=self.offering, add_payload=add_payload
@@ -214,21 +190,17 @@ class OrderCreateTest(test.APITransactionTestCase):
 
     def test_do_not_create_order_if_schedule_item_does_not_match_format(self):
         add_payload = {
-            'items': [
-                {
-                    'offering': marketplace_factories.OfferingFactory.get_public_url(
-                        self.offering
-                    ),
-                    'attributes': {
-                        'schedules': [
-                            {
-                                'start': '2019-01-05T00:00:00',
-                                'end': '2019-01-05T23:59:59.000000Z',
-                            },
-                        ]
+            'offering': marketplace_factories.OfferingFactory.get_public_url(
+                self.offering
+            ),
+            'attributes': {
+                'schedules': [
+                    {
+                        'start': '2019-01-05T00:00:00',
+                        'end': '2019-01-05T23:59:59.000000Z',
                     },
-                },
-            ]
+                ]
+            },
         }
         response = self.create_order(
             self.user, offering=self.offering, add_payload=add_payload
@@ -260,21 +232,17 @@ class OrderCreateTest(test.APITransactionTestCase):
         )
 
         add_payload = {
-            'items': [
-                {
-                    'offering': marketplace_factories.OfferingFactory.get_public_url(
-                        self.offering
-                    ),
-                    'attributes': {
-                        'schedules': [
-                            {
-                                'start': '2019-01-02T00:00:00.000000Z',
-                                'end': '2019-01-02T23:59:59.000000Z',
-                            },
-                        ]
+            'offering': marketplace_factories.OfferingFactory.get_public_url(
+                self.offering
+            ),
+            'attributes': {
+                'schedules': [
+                    {
+                        'start': '2019-01-02T00:00:00.000000Z',
+                        'end': '2019-01-02T23:59:59.000000Z',
                     },
-                },
-            ]
+                ]
+            },
         }
         response = self.create_order(
             self.user, offering=self.offering, add_payload=add_payload
@@ -288,21 +256,17 @@ class OrderCreateTest(test.APITransactionTestCase):
 
     def test_past_slots_are_not_available(self):
         add_payload = {
-            'items': [
-                {
-                    'offering': marketplace_factories.OfferingFactory.get_public_url(
-                        self.offering
-                    ),
-                    'attributes': {
-                        'schedules': [
-                            {
-                                'start': '2018-11-01T00:00:00.000000Z',
-                                'end': '2018-11-01T23:59:59.000000Z',
-                            },
-                        ]
+            'offering': marketplace_factories.OfferingFactory.get_public_url(
+                self.offering
+            ),
+            'attributes': {
+                'schedules': [
+                    {
+                        'start': '2018-11-01T00:00:00.000000Z',
+                        'end': '2018-11-01T23:59:59.000000Z',
                     },
-                },
-            ]
+                ]
+            },
         }
         response = self.create_order(
             self.user, offering=self.offering, add_payload=add_payload
@@ -315,21 +279,17 @@ class OrderCreateTest(test.APITransactionTestCase):
 
     def test_do_not_create_order_if_other_booking_request_exists(self):
         add_payload = {
-            'items': [
-                {
-                    'offering': marketplace_factories.OfferingFactory.get_public_url(
-                        self.offering
-                    ),
-                    'attributes': {
-                        'schedules': [
-                            {
-                                'start': '2019-01-02T00:00:00.000000Z',
-                                'end': '2019-01-02T23:59:59.000000Z',
-                            },
-                        ]
+            'offering': marketplace_factories.OfferingFactory.get_public_url(
+                self.offering
+            ),
+            'attributes': {
+                'schedules': [
+                    {
+                        'start': '2019-01-02T00:00:00.000000Z',
+                        'end': '2019-01-02T23:59:59.000000Z',
                     },
-                },
-            ]
+                ]
+            },
         }
         response = self.create_order(
             self.user, offering=self.offering, add_payload=add_payload
@@ -338,7 +298,6 @@ class OrderCreateTest(test.APITransactionTestCase):
         self.assertTrue(
             marketplace_models.Order.objects.filter(created_by=self.user).exists()
         )
-        self.assertEqual(1, len(response.data['items']))
 
         # We try to create another order.
         response = self.create_order(
@@ -363,14 +322,8 @@ class OrderCreateTest(test.APITransactionTestCase):
         url = marketplace_factories.OrderFactory.get_list_url()
         payload = {
             'project': structure_factories.ProjectFactory.get_url(self.project),
-            'items': [
-                {
-                    'offering': marketplace_factories.OfferingFactory.get_public_url(
-                        offering
-                    ),
-                    'attributes': {},
-                },
-            ],
+            'offering': marketplace_factories.OfferingFactory.get_public_url(offering),
+            'attributes': {},
         }
 
         if add_payload:

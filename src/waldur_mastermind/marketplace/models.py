@@ -1,7 +1,8 @@
 from decimal import Decimal
+from functools import lru_cache
 
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ObjectDoesNotExist, ValidationError
+from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
 from django.db import models
 from django.db.models import Q
@@ -49,7 +50,7 @@ class ServiceProvider(
         null=True,
         blank=True,
         help_text=_(
-            'Email for notification about new request based order items. '
+            'Email for notification about new request based orders. '
             'If this field is set, notifications will be sent.'
         ),
     )
@@ -465,8 +466,8 @@ class Offering(
         ordering = ['name']
 
     class Quotas(quotas_models.QuotaModelMixin.Quotas):
-        order_item_count = quotas_fields.CounterQuotaField(
-            target_models=lambda: [OrderItem],
+        order_count = quotas_fields.CounterQuotaField(
+            target_models=lambda: [Order],
             path_to_scope='offering',
         )
 
@@ -930,126 +931,6 @@ class CartItem(
         return f'user: {self.user.username}, offering: {self.offering.name}'
 
 
-class Order(core_models.UuidMixin, TimeStampedModel, LoggableMixin):
-    class States:
-        REQUESTED_FOR_APPROVAL = 1
-        EXECUTING = 2
-        DONE = 3
-        TERMINATED = 4
-        ERRED = 5
-        REJECTED = 6
-
-        CHOICES = (
-            (REQUESTED_FOR_APPROVAL, 'requested for approval'),
-            (EXECUTING, 'executing'),
-            (DONE, 'done'),
-            (TERMINATED, 'terminated'),
-            (ERRED, 'erred'),
-            (REJECTED, 'rejected'),
-        )
-
-    created_by = models.ForeignKey(
-        on_delete=models.CASCADE, to=core_models.User, related_name='orders'
-    )
-    approved_by = models.ForeignKey(
-        on_delete=models.CASCADE,
-        to=core_models.User,
-        blank=True,
-        null=True,
-        related_name='+',
-    )
-    approved_at = models.DateTimeField(editable=False, null=True, blank=True)
-    project = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.Project)
-    state = FSMIntegerField(
-        default=States.REQUESTED_FOR_APPROVAL, choices=States.CHOICES
-    )
-    total_cost = models.DecimalField(
-        max_digits=22, decimal_places=10, null=True, blank=True
-    )
-    tracker = FieldTracker()
-
-    class Permissions:
-        customer_path = 'project__customer'
-        project_path = 'project'
-
-    class Meta:
-        verbose_name = _('Order')
-        ordering = ('created',)
-
-    @classmethod
-    def get_url_name(cls):
-        return 'marketplace-order'
-
-    @transition(
-        field=state, source=States.REQUESTED_FOR_APPROVAL, target=States.EXECUTING
-    )
-    def approve(self):
-        pass
-
-    @transition(field=state, source=States.EXECUTING, target=States.DONE)
-    def complete(self):
-        pass
-
-    @transition(field=state, source='*', target=States.TERMINATED)
-    def terminate(self):
-        pass
-
-    @transition(
-        field=state, source=States.REQUESTED_FOR_APPROVAL, target=States.REJECTED
-    )
-    def reject(self):
-        pass
-
-    @transition(field=state, source='*', target=States.ERRED)
-    def fail(self):
-        pass
-
-    def add_item(self, **kwargs):
-        order_item = OrderItem(order=self, **kwargs)
-        order_item.clean()
-        order_item.init_cost()
-        order_item.save()
-        return order_item
-
-    def init_total_cost(self):
-        self.total_cost = sum(item.cost or 0 for item in self.items.all())
-
-    def get_log_fields(self):
-        return (
-            'uuid',
-            'name',
-            'created',
-            'modified',
-            'created_by',
-            'approved_by',
-            'approved_at',
-            'project',
-            'get_state_display',
-            'total_cost',
-        )
-
-    @property
-    def type(self):
-        if self.items.count():
-            return self.items.first().get_type_display()
-
-    def _get_log_context(self, entity_name):
-        context = super()._get_log_context(entity_name)
-        context['order_items'] = [
-            item._get_log_context('') for item in self.items.all()
-        ]
-        return context
-
-    def __str__(self):
-        try:
-            return 'project: {}, created by: {}'.format(
-                self.project.name,
-                self.created_by.username,
-            )
-        except (KeyError, ObjectDoesNotExist):
-            return f'<Order {self.pk}>'
-
-
 class ResourceDetailsMixin(
     SafeAttributesMixin,
     CostEstimateMixin,
@@ -1222,6 +1103,11 @@ class Resource(
 
         return f'{self.uuid} ({self.offering.name})'
 
+    @property
+    @lru_cache(maxsize=1)
+    def creation_order(self):
+        return Order.objects.filter(resource=self, type=Order.Types.CREATE).first()
+
 
 class ResourcePlanPeriod(TimeStampedModel, TimeFramedModel, core_models.UuidMixin):
     """
@@ -1242,7 +1128,7 @@ class ResourcePlanPeriod(TimeStampedModel, TimeFramedModel, core_models.UuidMixi
         return self.components.filter(billing_period=core_utils.month_start(now))
 
 
-class OrderItem(
+class Order(
     core_models.UuidMixin,
     core_models.BackendMixin,
     core_models.ErrorMessageMixin,
@@ -1256,24 +1142,24 @@ class OrderItem(
         EXECUTING = 2
         DONE = 3
         ERRED = 4
-        TERMINATED = 5
-        TERMINATING = 6
+        CANCELED = 5
+        REJECTED = 6
 
         CHOICES = (
             (PENDING, 'pending'),
             (EXECUTING, 'executing'),
             (DONE, 'done'),
             (ERRED, 'erred'),
-            (TERMINATED, 'terminated'),
-            (TERMINATING, 'terminating'),
+            (CANCELED, 'canceled'),
+            (REJECTED, 'rejected'),
         )
 
-        TERMINAL_STATES = {DONE, ERRED, TERMINATED}
+        TERMINAL_STATES = {DONE, ERRED, CANCELED, REJECTED}
 
-    order = models.ForeignKey(on_delete=models.CASCADE, to=Order, related_name='items')
     old_plan = models.ForeignKey(
         on_delete=models.CASCADE, to=Plan, related_name='+', null=True, blank=True
     )
+    project = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.Project)
     resource = models.ForeignKey(
         on_delete=models.CASCADE, to=Resource, null=True, blank=True
     )
@@ -1282,28 +1168,71 @@ class OrderItem(
     output = models.TextField(blank=True)
     tracker = FieldTracker()
 
-    reviewed_by = models.ForeignKey(
+    created_by = models.ForeignKey(
+        on_delete=models.CASCADE,
+        to=core_models.User,
+        related_name='+',
+    )
+    consumer_reviewed_by = models.ForeignKey(
         on_delete=models.CASCADE,
         to=core_models.User,
         blank=True,
         null=True,
         related_name='+',
     )
-    reviewed_at = models.DateTimeField(editable=False, null=True, blank=True)
+    consumer_reviewed_at = models.DateTimeField(editable=False, null=True, blank=True)
+    provider_reviewed_by = models.ForeignKey(
+        on_delete=models.CASCADE,
+        to=core_models.User,
+        blank=True,
+        null=True,
+        related_name='+',
+    )
+    provider_reviewed_at = models.DateTimeField(editable=False, null=True, blank=True)
     callback_url = models.URLField(null=True, blank=True)
     termination_comment = models.CharField(blank=True, null=True, max_length=255)
 
     class Permissions:
-        customer_path = 'order__project__customer'
-        project_path = 'order__project'
+        customer_path = 'project__customer'
+        project_path = 'project'
 
     class Meta:
-        verbose_name = _('Order item')
+        verbose_name = _('Order')
         ordering = ('created',)
 
     @classmethod
     def get_url_name(cls):
-        return 'marketplace-order-item'
+        return 'marketplace-order'
+
+    def review_by_consumer(self, user=None):
+        self.consumer_reviewed_by = user
+        self.consumer_reviewed_at = timezone.now()
+        self.save()
+
+    def review_by_provider(self, user=None):
+        self.provider_reviewed_by = user
+        self.provider_reviewed_at = timezone.now()
+        self.save()
+
+    @transition(field=state, source=States.EXECUTING, target=States.DONE)
+    def complete(self):
+        self.activated = timezone.now()
+        self.save()
+
+    @transition(field=state, source='*', target=States.CANCELED)
+    def cancel(self, termination_comment=None):
+        if termination_comment:
+            self.termination_comment = termination_comment
+            self.save()
+        pass
+
+    @transition(field=state, source=States.PENDING, target=States.REJECTED)
+    def reject(self):
+        pass
+
+    @transition(field=state, source='*', target=States.ERRED)
+    def fail(self):
+        pass
 
     @transition(
         field=state, source=[States.PENDING, States.ERRED], target=States.EXECUTING
@@ -1311,51 +1240,9 @@ class OrderItem(
     def set_state_executing(self):
         pass
 
-    @transition(field=state, source=States.EXECUTING, target=States.DONE)
-    def set_state_done(self):
-        self.activated = timezone.now()
-        self.save()
-
     @transition(field=state, source='*', target=States.ERRED)
     def set_state_erred(self):
         pass
-
-    @transition(field=state, source='*', target=States.TERMINATED)
-    def set_state_terminated(self, termination_comment=None):
-        if termination_comment:
-            self.termination_comment = termination_comment
-            self.save()
-        pass
-
-    @transition(
-        field=state,
-        source=[States.PENDING, States.EXECUTING],
-        target=States.TERMINATING,
-    )
-    def set_state_terminating(self):
-        pass
-
-    def clean(self):
-        if self.order.items.count() and self.order.items.first().type != self.type:
-            raise ValidationError(_('Types of items in one order must be the same'))
-
-        offering = self.offering
-        project = self.order.project
-        customer = project.customer
-
-        if offering.shared:
-            return
-
-        if offering.customer == customer:
-            return
-
-        if offering.project == project:
-            return
-
-        raise ValidationError(
-            _('Offering "%s" is not allowed in organization "%s".')
-            % (offering.name, customer.name)
-        )
 
     def get_log_fields(self):
         return (
@@ -1367,16 +1254,22 @@ class OrderItem(
             'attributes',
             'offering',
             'resource',
+            'project',
             'plan',
             'get_state_display',
             'get_type_display',
+            'created_by',
+            'consumer_reviewed_by',
+            'consumer_reviewed_at',
+            'provider_reviewed_by',
+            'provider_reviewed_at',
         )
 
     def __str__(self):
         return 'type: {}, offering: {}, created_by: {}'.format(
             self.get_type_display(),
             self.offering,
-            self.order.created_by,
+            self.created_by,
         )
 
 

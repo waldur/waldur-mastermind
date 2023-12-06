@@ -5,20 +5,23 @@ from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace_script import models as marketplace_script_models
 
 
-class OrderItemSerializer(serializers.Serializer):
-    order_item_uuid = serializers.ReadOnlyField(source='uuid')
+class CommonSerializer(serializers.Serializer):
     attributes = serializers.ReadOnlyField()
     limits = serializers.ReadOnlyField()
-    creator_email = serializers.ReadOnlyField(source='order.created_by.email')
-    creator_username = serializers.ReadOnlyField(source='order.created_by.username')
-    project_uuid = serializers.SerializerMethodField()
-    project_name = serializers.SerializerMethodField()
-    customer_uuid = serializers.SerializerMethodField()
-    customer_name = serializers.SerializerMethodField()
+    customer_uuid = serializers.ReadOnlyField(source='project.customer.uuid')
+    customer_name = serializers.ReadOnlyField(source='project.customer.name')
+    project_uuid = serializers.ReadOnlyField(source='project.uuid')
+    project_name = serializers.ReadOnlyField(source='project.name')
     offering_uuid = serializers.ReadOnlyField(source='offering.uuid')
     offering_name = serializers.ReadOnlyField(source='offering.name')
     plan_uuid = serializers.ReadOnlyField(source='plan.uuid')
     plan_name = serializers.ReadOnlyField(source='plan.name')
+
+
+class OrderSerializer(CommonSerializer):
+    order_uuid = serializers.ReadOnlyField(source='uuid')
+    creator_email = serializers.ReadOnlyField(source='created_by.email')
+    creator_username = serializers.ReadOnlyField(source='created_by.username')
     resource_uuid = serializers.ReadOnlyField(source='resource.uuid')
     resource_name = serializers.ReadOnlyField(source='resource.name')
     resource_backend_id = serializers.ReadOnlyField(source='resource.backend_id')
@@ -26,37 +29,8 @@ class OrderItemSerializer(serializers.Serializer):
         source='resource.backend_metadata'
     )
 
-    def _get_project(self, order_item):
-        return order_item.order.project
 
-    def get_customer_uuid(self, order_item):
-        project = self._get_project(order_item)
-        return project.customer.uuid
-
-    def get_customer_name(self, order_item):
-        project = self._get_project(order_item)
-        return project.customer.name
-
-    def get_project_uuid(self, order_item):
-        project = self._get_project(order_item)
-        return project.uuid
-
-    def get_project_name(self, order_item):
-        project = self._get_project(order_item)
-        return project.name
-
-
-class ResourceSerializer(serializers.Serializer):
-    attributes = serializers.ReadOnlyField()
-    limits = serializers.ReadOnlyField()
-    project_uuid = serializers.ReadOnlyField(source='project.uuid')
-    project_name = serializers.ReadOnlyField(source='project.name')
-    customer_uuid = serializers.ReadOnlyField(source='project.customer.uuid')
-    customer_name = serializers.ReadOnlyField(source='project.customer.name')
-    offering_uuid = serializers.ReadOnlyField(source='offering.uuid')
-    offering_name = serializers.ReadOnlyField(source='offering.name')
-    plan_uuid = serializers.ReadOnlyField(source='plan.uuid')
-    plan_name = serializers.ReadOnlyField(source='plan.name')
+class ResourceSerializer(CommonSerializer):
     resource_uuid = serializers.ReadOnlyField(source='uuid')
     resource_name = serializers.ReadOnlyField(source='name')
     resource_backend_metadata = serializers.ReadOnlyField(source='backend_metadata')
@@ -100,9 +74,9 @@ class DryRunSerializer(
             'plan',
             'type',
             'attributes',
-            'order_item_attributes',
-            'order_item_type',
-            'order_item_offering',
+            'order_attributes',
+            'order_type',
+            'order_offering',
             'state',
             'get_state_display',
             'output',
@@ -110,8 +84,8 @@ class DryRunSerializer(
         )
 
         read_only_fields = (
-            'order_item_attributes',
-            'order_item_type',
+            'order_attributes',
+            'order_type',
             'state',
             'output',
             'uuid',
@@ -123,7 +97,7 @@ class DryRunSerializer(
                 'lookup_field': 'uuid',
                 'view_name': 'marketplace-script-async-dry-run-detail',
             },
-            'order_item_offering': {
+            'order_offering': {
                 'lookup_field': 'uuid',
                 'view_name': 'marketplace-provider-offering-detail',
             },
