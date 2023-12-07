@@ -6,7 +6,8 @@ def fill_data(apps, schema_editor):
     for order_item in OrderItem.objects.all():
         order = order_item.order
         # because remote plugin assumes so
-        order_item.uuid = order.uuid
+        if OrderItem.objects.filter(order=order).count() == 1:
+            order_item.uuid = order.uuid
         order_item.project = order.project
         order_item.created_by = order.created_by
         order_item.approved_by = order.approved_by
