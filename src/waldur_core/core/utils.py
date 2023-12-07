@@ -22,7 +22,6 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.mail import EmailMultiAlternatives
-from django.core.management import call_command
 from django.core.management.base import BaseCommand
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db.models import F, Subquery
@@ -199,10 +198,6 @@ def get_fake_context(user=None):
 def camel_case_to_underscore(name):
     s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
     return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
-
-
-def silent_call(name, *args, **options):
-    call_command(name, stdout=open(os.devnull, 'w'), *args, **options)
 
 
 def format_text(template_name, context):
