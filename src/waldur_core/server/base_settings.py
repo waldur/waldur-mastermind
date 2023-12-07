@@ -275,6 +275,11 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': timedelta(hours=1),
         'args': (),
     },
+    'update-standard-quotas': {
+        'task': 'waldur_core.quotas.update_standard_quotas',
+        'schedule': timedelta(hours=24),
+        'args': (),
+    },
 }
 
 globals().update(WaldurConfiguration().dict())

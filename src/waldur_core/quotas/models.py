@@ -144,7 +144,7 @@ class QuotaModelMixin(models.Model):
             )
 
     @classmethod
-    def get_quotas_fields(cls, field_class=None):
+    def get_quotas_fields(cls, field_class=None) -> list[fields.QuotaField]:
         if not hasattr(cls, '_quota_fields') or not cls.Quotas.enable_fields_caching:
             cls._quota_fields = dict(
                 inspect.getmembers(

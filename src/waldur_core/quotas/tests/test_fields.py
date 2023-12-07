@@ -1,6 +1,6 @@
 from django.test import TransactionTestCase
 
-from waldur_core.core.utils import silent_call
+from waldur_core.quotas.tasks import update_standard_quotas
 from waldur_core.quotas.tests import models as test_models
 
 
@@ -21,7 +21,7 @@ class TestCounterQuotaField(TransactionTestCase):
     def test_counter_quota_usage_is_right_after_recalculation(self):
         self.parent.set_quota_usage(self.quota_field, 3)
 
-        silent_call('recalculatequotas')
+        update_standard_quotas()
 
         usage = self.parent.get_quota_usage(self.quota_field)
         self.assertEqual(usage, 1)
@@ -65,7 +65,7 @@ class TestTotalQuotaField(TransactionTestCase):
     def test_counter_quota_usage_is_right_after_recalculation(self):
         self.parent.set_quota_usage(self.quota_field, 0)
 
-        silent_call('recalculatequotas')
+        update_standard_quotas()
 
         usage = self.parent.get_quota_usage(self.quota_field)
         self.assertEqual(usage, 100)
@@ -120,7 +120,7 @@ class TestUsageAggregatorField(TransactionTestCase):
             parent.set_quota_usage('usage_aggregator_quota', 666)
         self.grandparent.set_quota_usage('usage_aggregator_quota', 1232)
 
-        silent_call('recalculatequotas')
+        update_standard_quotas()
 
         for parent in self.parents:
             actual_usage = parent.get_quota_usage('usage_aggregator_quota')
