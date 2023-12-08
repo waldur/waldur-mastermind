@@ -4,8 +4,6 @@
   "user.notifications": true,
   "project.estimated_cost": true,
   "support.users": true,
-  "support.legacy_branch": true,
-  "support.next_branch": true,
   "support.resources_treemap": false,
   "support.pricelist": true,
   "support.customers_list": true,

@@ -184,10 +184,6 @@ class SupportSection(FeatureSection):
         'Conceal "Change request" from a selection of issue types for non-staff/non-support users.'
     )
 
-    next_branch = Feature('Render "Try out new version" link in toolbar.')
-
-    legacy_branch = Feature('Render "Go to old interface" link in toolbar for new UI')
-
 
 class InvitationsSection(FeatureSection):
     class Meta:

@@ -214,11 +214,11 @@ Upload HomePort enums:
     - git config --global user.name "$GITLAB_USER_NAME"
     - git config --global user.email "$GITLAB_USER_EMAIL"
     - cd waldur-homeport
-    - git checkout next
+    - git checkout develop
     - mv /tmp/permission_enums.ts $PERMISSIONS_ENUM_PATH
     - mv /tmp/events_enums.ts $EVENTS_ENUM_PATH
     - git add $PERMISSIONS_ENUM_PATH $EVENTS_ENUM_PATH
     - git commit -m "Update permissions and events enums" || exit 0
     - git branch new-enums
-    - git push --set-upstream origin new-enums:next
+    - git push --set-upstream origin new-enums:develop
   before_script: []
