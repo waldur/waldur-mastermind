@@ -89,7 +89,8 @@ def get_projects_with_remote_offerings():
         marketplace_models.Order.objects.filter(
             offering__type=PLUGIN_NAME,
             state__in=(
-                marketplace_models.Order.States.PENDING,
+                marketplace_models.Order.States.PENDING_CONSUMER,
+                marketplace_models.Order.States.PENDING_PROVIDER,
                 marketplace_models.Order.States.EXECUTING,
             ),
         )

@@ -45,7 +45,10 @@ def create_screenshot_thumbnail(sender, instance, created=False, **kwargs):
 def log_order_events(sender, instance, created=False, **kwargs):
     order: models.Order = instance
     if created:
-        if order.state != models.Order.States.PENDING:
+        if order.state not in (
+            models.Order.States.PENDING_CONSUMER,
+            models.Order.States.PENDING_PROVIDER,
+        ):
             # Skip logging for imported order
             return
         if not order.resource:
@@ -78,13 +81,18 @@ def log_resource_events(sender, instance, created=False, **kwargs):
 
 def notify_approvers_when_order_is_created(sender, instance, created=False, **kwargs):
     order: models.Order = instance
-    if created and order.state == models.Order.States.PENDING and order.created_by:
+    if created and order.state in (
+        models.Order.States.PENDING_CONSUMER,
+        models.Order.States.PENDING_PROVIDER,
+    ):
         if order_should_not_be_reviewed_by_consumer(order):
             if utils.order_should_not_be_reviewed_by_provider(order):
                 order.set_state_executing()
                 order.save()
                 tasks.process_order_on_commit(order, order.created_by)
             else:
+                order.state = models.Order.States.PENDING_PROVIDER
+                order.save(update_fields=['state'])
                 transaction.on_commit(
                     lambda: tasks.notify_provider_about_pending_order.delay(order.uuid)
                 )

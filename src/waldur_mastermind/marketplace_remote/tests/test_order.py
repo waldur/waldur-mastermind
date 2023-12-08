@@ -28,7 +28,7 @@ class OrderReviewByProviderTest(test.APITransactionTestCase):
         self.offering.type = PLUGIN_NAME
         self.offering.save()
         self.order = self.fixture.order
-        self.order.state = marketplace_models.Order.States.PENDING
+        self.order.state = marketplace_models.Order.States.PENDING_PROVIDER
         self.order.save()
 
         self.fixture.offering_owner
@@ -123,7 +123,7 @@ class LimitsUpdateTest(test.APITransactionTestCase):
         # Assert
         self.assertEqual(response.status_code, 200, response.data)
         order = marketplace_models.Order.objects.get(uuid=response.data['order_uuid'])
-        self.assertEqual(order.state, marketplace_models.Order.States.PENDING)
+        self.assertEqual(order.state, marketplace_models.Order.States.PENDING_PROVIDER)
         process_order.assert_not_called()
 
 
