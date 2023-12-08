@@ -403,16 +403,10 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
             ]
         )
 
-        pending_orders = (
-            models.Order.objects.filter(
-                offering__customer=service_provider.customer,
-                state=models.Order.States.PENDING,
-            )
-            .order_by()
-            .values_list('order', flat=True)
-            .distinct()
-            .count()
-        )
+        pending_orders = models.Order.objects.filter(
+            offering__customer=service_provider.customer,
+            state=models.Order.States.PENDING,
+        ).count()
 
         erred_resources = models.Resource.objects.filter(
             offering__customer=service_provider.customer,
@@ -432,7 +426,7 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
                 ),
                 'active_and_paused_offerings': active_and_paused_offerings,
                 'unresolved_tickets': unresolved_tickets,
-                'pended_orders': pending_orders,
+                'pending_orders': pending_orders,
                 'erred_resources': erred_resources,
             },
             status=status.HTTP_200_OK,
