@@ -136,7 +136,12 @@ def get_other_offering_booking_requests(order):
     schedules = (
         marketplace_models.Order.objects.filter(
             offering=order.offering,
-            state__in=(States.PENDING, States.EXECUTING, States.DONE),
+            state__in=(
+                States.PENDING_CONSUMER,
+                States.PENDING_PROVIDER,
+                States.EXECUTING,
+                States.DONE,
+            ),
         )
         .exclude(id=order.id)
         .values_list('attributes__schedules', flat=True)

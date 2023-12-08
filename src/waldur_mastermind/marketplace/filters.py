@@ -328,9 +328,7 @@ class OrderFilter(OfferingFilterMixin, django_filters.FilterSet):
     def filter_can_approve_as_consumer(self, queryset, name, value):
         user = self.request.user
 
-        queryset = queryset.filter(
-            state=models.Order.States.PENDING, consumer_reviewed_by__isnull=True
-        )
+        queryset = queryset.filter(state=models.Order.States.PENDING_CONSUMER)
 
         if value and not user.is_staff:
             connected_customers = get_connected_customers_by_permission(
@@ -349,9 +347,7 @@ class OrderFilter(OfferingFilterMixin, django_filters.FilterSet):
     def filter_can_approve_as_provider(self, queryset, name, value):
         user = self.request.user
 
-        queryset = queryset.filter(
-            state=models.Order.States.PENDING, provider_reviewed_by__isnull=True
-        )
+        queryset = queryset.filter(state=models.Order.States.PENDING_PROVIDER)
 
         if value and not user.is_staff:
             connected_customers = get_connected_customers_by_permission(

@@ -225,7 +225,7 @@ class ResourceSwitchPlanTest(test.APITransactionTestCase):
     ):
         # Arrange
         factories.OrderFactory(
-            resource=self.resource1, state=models.Order.States.PENDING
+            resource=self.resource1, state=models.Order.States.PENDING_CONSUMER
         )
 
         # Act
@@ -365,7 +365,7 @@ class ResourceTerminateTest(test.APITransactionTestCase):
     ):
         # Arrange
         factories.OrderFactory(
-            resource=self.resource, state=models.Order.States.PENDING
+            resource=self.resource, state=models.Order.States.PENDING_CONSUMER
         )
 
         # Act
@@ -941,7 +941,7 @@ class ResourceUpdateLimitsTest(test.APITransactionTestCase):
     ):
         # Arrange
         factories.OrderFactory(
-            resource=self.resource, state=models.Order.States.PENDING
+            resource=self.resource, state=models.Order.States.PENDING_CONSUMER
         )
 
         # Act

@@ -30,9 +30,9 @@ class BaseOrderSetStateTest(test.APITransactionTestCase):
 @ddt
 class OrderSetStateExecutingTest(BaseOrderSetStateTest):
     @data(
-        ('staff', models.Order.States.PENDING),
+        ('staff', models.Order.States.PENDING_CONSUMER),
         ('staff', models.Order.States.ERRED),
-        ('offering_owner', models.Order.States.PENDING),
+        ('offering_owner', models.Order.States.PENDING_CONSUMER),
         ('offering_owner', models.Order.States.ERRED),
     )
     def test_authorized_user_can_set_executing_state(self, user_and_state):

@@ -797,7 +797,11 @@ def schedule_resources_termination(resources, termination_comment=None):
 
         # Terminate pending orders if they exist
         for order in models.Order.objects.filter(
-            resource=resource, state=models.Order.States.PENDING
+            resource=resource,
+            state__in=(
+                models.Order.States.PENDING_CONSUMER,
+                models.Order.States.PENDING_PROVIDER,
+            ),
         ):
             order.cancel(termination_comment)
             order.save()

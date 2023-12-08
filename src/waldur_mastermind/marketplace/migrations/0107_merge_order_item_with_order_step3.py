@@ -40,7 +40,8 @@ class Migration(migrations.Migration):
             name='state',
             field=django_fsm.FSMIntegerField(
                 choices=[
-                    (1, 'pending'),
+                    (1, 'pending-consumer'),
+                    (7, 'pending-provider'),
                     (2, 'executing'),
                     (3, 'done'),
                     (4, 'erred'),

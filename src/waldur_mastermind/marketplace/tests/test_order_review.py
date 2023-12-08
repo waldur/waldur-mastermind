@@ -74,7 +74,7 @@ class OrderApproveByConsumerTest(test.APITransactionTestCase):
         )
         self.approve_order(self.fixture.owner, order)
         order.refresh_from_db()
-        self.assertEqual(order.state, models.Order.States.PENDING)
+        self.assertEqual(order.state, models.Order.States.PENDING_PROVIDER)
 
     def test_user_cannot_approve_order_if_project_is_expired(self):
         self.project.end_date = datetime.datetime(year=2020, month=1, day=1).date()
@@ -110,9 +110,6 @@ class OrderApproveByProviderTest(test.APITransactionTestCase):
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
         self.manager = self.fixture.manager
-        self.order = factories.OrderFactory(
-            project=self.project, created_by=self.manager
-        )
         CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_ORDER)
 
     def test_when_update_order_with_basic_offering_is_approved_resource_is_marked_as_ok(
@@ -147,6 +144,7 @@ class OrderApproveByProviderTest(test.APITransactionTestCase):
             project=self.project,
             created_by=self.manager,
             type=models.Order.Types.UPDATE,
+            state=models.Order.States.PENDING_PROVIDER,
             resource=resource,
             attributes=dict(old_limits=old_limits),
             limits=new_limits,
@@ -173,6 +171,7 @@ class OrderApproveByProviderTest(test.APITransactionTestCase):
             created_by=self.manager,
             type=models.Order.Types.TERMINATE,
             resource=resource,
+            state=models.Order.States.PENDING_PROVIDER,
         )
         self.approve_order(self.fixture.owner, order)
         order.refresh_from_db()
@@ -183,14 +182,16 @@ class OrderApproveByProviderTest(test.APITransactionTestCase):
             customer=self.fixture.customer, type=PLUGIN_NAME
         )
         order = factories.OrderFactory(
-            offering=offering, project=self.project, created_by=self.manager
+            offering=offering,
+            project=self.project,
+            created_by=self.manager,
+            state=models.Order.States.PENDING_PROVIDER,
         )
         self.approve_order(self.fixture.owner, order)
         order.refresh_from_db()
         self.assertEqual(order.resource.state, models.Resource.States.OK)
 
-    def approve_order(self, user, order=None):
-        order = order or self.order
+    def approve_order(self, user, order):
         self.client.force_authenticate(user)
         url = factories.OrderFactory.get_url(order, 'approve_by_provider')
         response = self.client.post(url)
@@ -258,7 +259,7 @@ class OrderRejectByProviderTest(test.APITransactionTestCase):
             created_by=self.manager,
             resource=resource,
             offering=self.offering,
-            state=models.Order.States.PENDING,
+            state=models.Order.States.PENDING_PROVIDER,
         )
         CustomerRole.OWNER.add_permission(PermissionEnum.REJECT_ORDER)
 
@@ -354,7 +355,7 @@ class ApproveOrderAsProviderFilterTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.order = self.fixture.order
-        self.order.state = models.Order.States.PENDING
+        self.order.state = models.Order.States.PENDING_PROVIDER
         self.order.save()
 
     def test_provider_owner_can_approve(self):
@@ -384,7 +385,7 @@ class ApproveOrderAsProviderFilterTest(test.APITransactionTestCase):
 class ApproveOrderAsConsumerFilterTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
-        self.fixture.order.state = models.Order.States.PENDING
+        self.fixture.order.state = models.Order.States.PENDING_CONSUMER
         self.fixture.order.save()
         self.url = factories.OrderFactory.get_list_url()
 
@@ -453,7 +454,7 @@ class OrderApprovalByProviderNotificationTest(test.APITransactionTestCase):
     def setUp(self) -> None:
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.order = self.fixture.order
-        self.order.state = models.Order.States.PENDING
+        self.order.state = models.Order.States.PENDING_PROVIDER
         self.order.save()
 
     def test_owner_case(self):

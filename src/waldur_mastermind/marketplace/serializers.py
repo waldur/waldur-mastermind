@@ -2045,7 +2045,8 @@ class OrderDetailsSerializer(NestedOrderSerializer):
             return False
 
         if order.state not in (
-            models.Order.States.PENDING,
+            models.Order.States.PENDING_CONSUMER,
+            models.Order.States.PENDING_PROVIDER,
             models.Order.States.EXECUTING,
         ):
             return False
@@ -2248,7 +2249,8 @@ def check_pending_order_exists(resource):
     if models.Order.objects.filter(
         resource=resource,
         state__in=(
-            models.Order.States.PENDING,
+            models.Order.States.PENDING_CONSUMER,
+            models.Order.States.PENDING_PROVIDER,
             models.Order.States.EXECUTING,
         ),
     ).exists():
@@ -2495,15 +2497,7 @@ class ResourceSerializer(BaseItemSerializer):
         except ValidationError:
             return False
 
-        if models.Order.objects.filter(
-            resource=resource,
-            state__in=(
-                models.Order.States.PENDING,
-                models.Order.States.EXECUTING,
-            ),
-        ).exists():
-            return False
-        return True
+        return not check_pending_order_exists(resource)
 
     def get_username(self, resource):
         user = self.context['request'].user

@@ -302,7 +302,7 @@ class AutoapproveTest(test.APITransactionTestCase):
         self, role, mocked_task
     ):
         response = self.submit_public(role)
-        self.assertEqual(response.data['state'], 'pending')
+        self.assertEqual(response.data['state'], 'pending-consumer')
         mocked_task.delay.assert_called()
 
     def test_public_offering_is_autoapproved_if_feature_is_enabled_for_manager(
@@ -357,7 +357,9 @@ class AutoapproveTest(test.APITransactionTestCase):
         response = self.submit(consumer_fixture.project)
         self.assertEqual(
             response.data['state'],
-            auto_approve_in_service_provider_projects and 'executing' or 'pending',
+            auto_approve_in_service_provider_projects
+            and 'executing'
+            or 'pending-consumer',
         )
         if auto_approve_in_service_provider_projects:
             mocked_task.delay.assert_not_called()

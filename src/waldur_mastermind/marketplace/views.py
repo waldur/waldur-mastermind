@@ -1762,7 +1762,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     approve_by_consumer_validators = [
         structure_utils.check_customer_blocked_or_archived,
         structure_utils.check_project_end_date,
-        core_validators.StateValidator(models.Order.States.PENDING),
+        core_validators.StateValidator(models.Order.States.PENDING_CONSUMER),
     ]
 
     approve_by_consumer_permissions = [
@@ -1775,16 +1775,14 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     @action(detail=True, methods=['post'])
     def approve_by_consumer(self, request, uuid=None):
         order: models.Order = self.get_object()
-        if order.consumer_reviewed_by:
-            raise rf_exceptions.ValidationError(
-                'Order is already reviewed by consumer.'
-            )
         order.review_by_consumer(request.user)
         if utils.order_should_not_be_reviewed_by_provider(order):
             order.set_state_executing()
             order.save(update_fields=['state'])
             tasks.process_order_on_commit(order, request.user)
         else:
+            order.state = models.Order.States.PENDING_PROVIDER
+            order.save(update_fields=['state'])
             transaction.on_commit(
                 lambda: tasks.notify_provider_about_pending_order.delay(order.uuid)
             )
@@ -1793,7 +1791,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     approve_by_provider_validators = [
         structure_utils.check_customer_blocked_or_archived,
         structure_utils.check_project_end_date,
-        core_validators.StateValidator(models.Order.States.PENDING),
+        core_validators.StateValidator(models.Order.States.PENDING_PROVIDER),
     ]
 
     approve_by_provider_permissions = [
@@ -1806,8 +1804,6 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     @action(detail=True, methods=['post'])
     def approve_by_provider(self, request, uuid=None):
         order: models.Order = self.get_object()
-        if order.provider_reviewed_by:
-            raise serializers.ValidationError('Order is already reviewed by provider.')
         order.review_by_provider(request.user)
         order.set_state_executing()
         order.save(update_fields=['state'])
@@ -1817,7 +1813,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     reject_by_consumer_validators = [
         structure_utils.check_customer_blocked_or_archived,
         structure_utils.check_project_end_date,
-        core_validators.StateValidator(models.Order.States.PENDING),
+        core_validators.StateValidator(models.Order.States.PENDING_CONSUMER),
     ]
 
     reject_by_consumer_permissions = [permissions.user_can_reject_order_as_consumer]
@@ -1841,7 +1837,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     reject_by_provider_validators = [
         structure_utils.check_customer_blocked_or_archived,
         structure_utils.check_project_end_date,
-        core_validators.StateValidator(models.Order.States.PENDING),
+        core_validators.StateValidator(models.Order.States.PENDING_PROVIDER),
     ]
 
     reject_by_provider_permissions = [
@@ -1854,12 +1850,6 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     @action(detail=True, methods=['post'])
     def reject_by_provider(self, request, uuid=None):
         order: models.Order = self.get_object()
-        if utils.order_should_not_be_reviewed_by_provider(order):
-            raise serializers.ValidationError(
-                'Review of order by provider is not required.'
-            )
-        if order.provider_reviewed_by:
-            raise serializers.ValidationError('Order is already reviewed by provider.')
         order.review_by_provider(request.user)
         order.reject()
         order.save()
@@ -1874,7 +1864,8 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
 
     cancel_validators = [
         core_validators.StateValidator(
-            models.Order.States.PENDING,
+            models.Order.States.PENDING_CONSUMER,
+            models.Order.States.PENDING_PROVIDER,
             models.Order.States.EXECUTING,
         ),
         OfferingTypeValidator(BASIC_PLUGIN_NAME, SUPPORT_PLUGIN_NAME),
@@ -1889,7 +1880,8 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
 
     set_state_executing_validators = [
         core_validators.StateValidator(
-            models.Order.States.PENDING,
+            models.Order.States.PENDING_CONSUMER,
+            models.Order.States.PENDING_PROVIDER,
             models.Order.States.ERRED,
         ),
         OfferingTypeValidator(SLURM_REMOTE_PLUGIN_NAME),
@@ -1968,7 +1960,8 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
 
     destroy_validators = [
         core_validators.StateValidator(
-            models.Order.States.PENDING,
+            models.Order.States.PENDING_CONSUMER,
+            models.Order.States.PENDING_PROVIDER,
         ),
         structure_utils.check_customer_blocked_or_archived,
     ]

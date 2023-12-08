@@ -1138,7 +1138,8 @@ class Order(
     TimeStampedModel,
 ):
     class States:
-        PENDING = 1
+        PENDING_CONSUMER = 1
+        PENDING_PROVIDER = 7
         EXECUTING = 2
         DONE = 3
         ERRED = 4
@@ -1146,7 +1147,8 @@ class Order(
         REJECTED = 6
 
         CHOICES = (
-            (PENDING, 'pending'),
+            (PENDING_CONSUMER, 'pending-consumer'),
+            (PENDING_PROVIDER, 'pending-provider'),
             (EXECUTING, 'executing'),
             (DONE, 'done'),
             (ERRED, 'erred'),
@@ -1163,7 +1165,7 @@ class Order(
     resource = models.ForeignKey(
         on_delete=models.CASCADE, to=Resource, null=True, blank=True
     )
-    state = FSMIntegerField(default=States.PENDING, choices=States.CHOICES)
+    state = FSMIntegerField(default=States.PENDING_CONSUMER, choices=States.CHOICES)
     activated = models.DateTimeField(_('activation date'), null=True, blank=True)
     output = models.TextField(blank=True)
     tracker = FieldTracker()
@@ -1226,7 +1228,11 @@ class Order(
             self.save()
         pass
 
-    @transition(field=state, source=States.PENDING, target=States.REJECTED)
+    @transition(
+        field=state,
+        source=(States.PENDING_CONSUMER, States.PENDING_PROVIDER),
+        target=States.REJECTED,
+    )
     def reject(self):
         pass
 
@@ -1235,7 +1241,9 @@ class Order(
         pass
 
     @transition(
-        field=state, source=[States.PENDING, States.ERRED], target=States.EXECUTING
+        field=state,
+        source=[States.PENDING_CONSUMER, States.PENDING_PROVIDER, States.ERRED],
+        target=States.EXECUTING,
     )
     def set_state_executing(self):
         pass

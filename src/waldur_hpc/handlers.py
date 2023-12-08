@@ -118,7 +118,8 @@ def get_or_create_order(project: Project, user, offering, plan, limits=None):
             created_by=user,
             state__in=(
                 Order.States.DONE,
-                Order.States.PENDING,
+                Order.States.PENDING_CONSUMER,
+                Order.States.PENDING_PROVIDER,
                 Order.States.EXECUTING,
             ),
             id__in=order_ids,
@@ -127,7 +128,11 @@ def get_or_create_order(project: Project, user, offering, plan, limits=None):
         .last()
     )
     if order:
-        if order.state in [Order.States.PENDING, Order.States.EXECUTING]:
+        if order.state in [
+            Order.States.PENDING_CONSUMER,
+            Order.States.PENDING_PROVIDER,
+            Order.States.EXECUTING,
+        ]:
             return order, False
         if order.state == Order.States.DONE:
             if order.resource and order.resource.state != Resource.States.ERRED:
