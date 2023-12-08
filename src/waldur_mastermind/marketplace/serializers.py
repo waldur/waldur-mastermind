@@ -1160,7 +1160,10 @@ class OfferingDetailsSerializer(
         return offering.attributes
 
     def get_service_attributes(self, offering):
-        service = offering.scope
+        try:
+            service = offering.scope
+        except AttributeError:
+            return {}
         if not service:
             return {}
         return {
