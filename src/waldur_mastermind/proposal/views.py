@@ -1,10 +1,13 @@
+from django.db.models import Q
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import decorators
+from rest_framework import decorators, exceptions
 from rest_framework import permissions as rf_permissions
 from rest_framework import response, status, viewsets
 
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
+from waldur_core.permissions import models as permissions_models
+from waldur_core.permissions.enums import SYSTEM_CUSTOMER_ROLES
 from waldur_core.structure import filters as structure_filters
 from waldur_mastermind.marketplace.views import BaseMarketplaceView, PublicViewsetMixin
 from waldur_mastermind.proposal import filters, models, serializers
@@ -128,3 +131,117 @@ class ProtectedCallViewSet(core_views.ActionsViewSet):
             models.Call.States.DRAFT, models.Call.States.ACTIVE
         )
     ]
+
+    @decorators.action(detail=True, methods=['get', 'post'])
+    def rounds(self, request, uuid=None):
+        call = self.get_object()
+        method = self.request.method
+
+        if method == 'POST':
+            serializer = self.get_serializer(
+                context=self.get_serializer_context(),
+                data=self.request.data,
+            )
+            serializer.is_valid(raise_exception=True)
+            serializer.validate_dates(call)
+            serializer.save(call=call)
+            return response.Response(
+                serializer.data,
+                status=status.HTTP_201_CREATED,
+            )
+
+        return response.Response(
+            self.get_serializer(
+                call.round_set,
+                context=self.get_serializer_context(),
+                many=True,
+            ).data,
+            status=status.HTTP_200_OK,
+        )
+
+    rounds_serializer_class = serializers.RoundSerializer
+
+    def round_detail(self, request, uuid=None, round_uuid=None):
+        call = self.get_object()
+        method = self.request.method
+
+        try:
+            call_round = call.round_set.get(uuid=round_uuid)
+
+            if call_round.call.state == models.Call.States.ARCHIVED:
+                return response.Response(status=status.HTTP_409_CONFLICT)
+
+            if method == 'DELETE':
+                if call_round.proposal_set.exclude(
+                    state__in=[
+                        models.Proposal.States.CANCELED,
+                        models.Proposal.States.REJECTED,
+                    ]
+                ).exists():
+                    return response.Response(status=status.HTTP_409_CONFLICT)
+
+                call_round.delete()
+                return response.Response(status=status.HTTP_204_NO_CONTENT)
+
+            if method in ['PUT', 'PATCH']:
+                serializer = self.get_serializer(
+                    call_round,
+                    context=self.get_serializer_context(),
+                    data=self.request.data,
+                )
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
+                return response.Response(serializer.data, status=status.HTTP_200_OK)
+
+            serializer = self.get_serializer(
+                call_round, context=self.get_serializer_context()
+            )
+            return response.Response(serializer.data, status=status.HTTP_200_OK)
+        except models.Round.DoesNotExist:
+            return response.Response(status=status.HTTP_404_NOT_FOUND)
+
+    round_detail_serializer_class = serializers.RoundSerializer
+
+
+class ProposalViewSet(core_views.ActionsViewSet):
+    lookup_field = 'uuid'
+    serializer_class = serializers.ProposalSerializer
+    filterset_class = filters.ProposalFilter
+
+    def get_queryset(self):
+        user = self.request.user
+
+        if user.is_staff:
+            return models.Proposal.objects.all().order_by('round__start_time')
+
+        customer_ids = permissions_models.UserRole.objects.filter(
+            user=user, is_active=True, role__name__in=SYSTEM_CUSTOMER_ROLES
+        ).values_list('object_id', flat=True)
+        return models.Proposal.objects.filter(
+            Q(round__call__manager__customer__in=customer_ids) | Q(created_by=user)
+        )
+
+    def is_creator(request, view, obj=None):
+        if not obj:
+            return
+        user = request.user
+        if obj.created_by == user or user.is_staff:
+            return
+        raise exceptions.PermissionDenied()
+
+    update_permissions = partial_update_permissions = destroy_permissions = [is_creator]
+    destroy_validators = [core_validators.StateValidator(models.Proposal.States.DRAFT)]
+
+    @decorators.action(detail=True, methods=['post'])
+    def submit(self, request, uuid=None):
+        proposal = self.get_object()
+        proposal.state = models.Proposal.States.SUBMITTED
+        proposal.save()
+        return response.Response(
+            'Proposal has been submitted.',
+            status=status.HTTP_200_OK,
+        )
+
+    submit_validators = [core_validators.StateValidator(models.Proposal.States.DRAFT)]
+
+    submit_permissions = [is_creator]

@@ -1,3 +1,5 @@
+import datetime
+
 from django.utils.functional import cached_property
 
 from waldur_core.structure.tests import fixtures as structure_fixtures
@@ -10,6 +12,7 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
     def __init__(self):
         self.requested_offering
         self.new_call
+        self.proposal
 
     @cached_property
     def manager(self):
@@ -52,3 +55,27 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
     @cached_property
     def offering_owner(self):
         return self.offering_fixture.offering_owner
+
+    @cached_property
+    def round(self):
+        return proposal_factories.RoundFactory(
+            call=self.call,
+            start_time=self.call.start_time + datetime.timedelta(days=5),
+            end_time=self.call.start_time + datetime.timedelta(days=10),
+        )
+
+    @cached_property
+    def new_round(self):
+        return proposal_factories.RoundFactory(
+            call=self.call,
+            start_time=self.call.start_time + datetime.timedelta(days=1),
+            end_time=self.call.start_time + datetime.timedelta(days=2),
+        )
+
+    @cached_property
+    def proposal(self):
+        return proposal_factories.ProposalFactory(round=self.round)
+
+    @cached_property
+    def proposal_creator(self):
+        return self.proposal.created_by

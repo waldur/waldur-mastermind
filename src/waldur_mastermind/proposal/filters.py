@@ -49,3 +49,17 @@ class CallFilter(django_filters.FilterSet):
             | Q(manager__customer__abbreviation__icontains=value)
             | Q(manager__customer__native_name__icontains=value)
         )
+
+
+class ProposalFilter(django_filters.FilterSet):
+    call = core_filters.URLFilter(
+        view_name='proposal-public-call-detail', field_name='round__call__uuid'
+    )
+    customer_uuid = django_filters.UUIDFilter(field_name='round__call__uuid')
+    o = django_filters.OrderingFilter(
+        fields=('round__call__name', 'start_time', 'end_time', 'state')
+    )
+
+    class Meta:
+        model = models.Proposal
+        fields = []
