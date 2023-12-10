@@ -19,6 +19,11 @@ def register_in(router):
         views.ProtectedCallViewSet,
         basename='proposal-protected-call',
     )
+    router.register(
+        r'proposal-proposals',
+        views.ProposalViewSet,
+        basename='proposal-proposal',
+    )
 
 
 urlpatterns = [
@@ -33,5 +38,17 @@ urlpatterns = [
             }
         ),
         name='proposal-call-offering-detail',
+    ),
+    re_path(
+        r'^api/proposal-protected-calls/(?P<uuid>[a-f0-9]+)/rounds/(?P<round_uuid>[a-f0-9]+)/$',
+        views.ProtectedCallViewSet.as_view(
+            {
+                'get': 'round_detail',
+                'delete': 'round_detail',
+                'patch': 'round_detail',
+                'put': 'round_detail',
+            }
+        ),
+        name='proposal-call-round-detail',
     ),
 ]

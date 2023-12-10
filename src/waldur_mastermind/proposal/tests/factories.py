@@ -92,3 +92,50 @@ class RequestedOfferingFactory(factory.DjangoModelFactory):
     @classmethod
     def get_list_url(cls, call):
         return CallFactory.get_protected_url(call, action='offerings')
+
+
+class RoundFactory(factory.DjangoModelFactory):
+    class Meta:
+        model = models.Round
+
+    call = factory.SubFactory(CallFactory)
+    start_time = datetime.date.today() + datetime.timedelta(days=5)
+    end_time = datetime.date.today() + datetime.timedelta(days=10)
+
+    @classmethod
+    def get_url(cls, call=None, call_round=None):
+        if call_round is None:
+            call_round = RoundFactory()
+        return (
+            CallFactory.get_protected_url(call, action='rounds')
+            + call_round.uuid.hex
+            + '/'
+        )
+
+    @classmethod
+    def get_list_url(cls, call):
+        return CallFactory.get_protected_url(call, action='rounds')
+
+
+class ProposalFactory(factory.DjangoModelFactory):
+    class Meta:
+        model = models.Proposal
+
+    round = factory.SubFactory(RoundFactory)
+    duration_in_days = 10
+    created_by = factory.SubFactory(structure_factories.UserFactory)
+
+    @classmethod
+    def get_url(cls, proposal=None, action=None):
+        if proposal is None:
+            proposal = ProposalFactory()
+        url = 'http://testserver' + reverse(
+            'proposal-proposal-detail',
+            kwargs={'uuid': proposal.uuid.hex},
+        )
+        return url if action is None else url + action + '/'
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = 'http://testserver' + reverse('proposal-proposal-list')
+        return url if action is None else url + action + '/'

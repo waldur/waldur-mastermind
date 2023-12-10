@@ -109,6 +109,16 @@ class NestedRequestedOfferingSerializer(serializers.HyperlinkedModelSerializer):
         )
 
 
+class NestedRoundSerializer(serializers.HyperlinkedModelSerializer):
+    class Meta:
+        model = models.Round
+        fields = [
+            'uuid',
+            'start_time',
+            'end_time',
+        ]
+
+
 class PublicCallSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
@@ -123,6 +133,7 @@ class PublicCallSerializer(
     offerings = NestedRequestedOfferingSerializer(
         many=True, read_only=True, source='requestedoffering_set'
     )
+    rounds = NestedRoundSerializer(many=True, read_only=True, source='round_set')
 
     class Meta:
         model = models.Call
@@ -143,6 +154,7 @@ class PublicCallSerializer(
             'customer_name',
             'created_by',
             'offerings',
+            'rounds',
         )
         view_name = 'proposal-public-call-detail'
         read_only_fields = ('created_by',)
@@ -246,6 +258,98 @@ class ProtectedCallSerializer(PublicCallSerializer):
                 }
             )
 
+        return attrs
+
+    def create(self, validated_data):
+        validated_data['created_by'] = self.context['request'].user
+        return super().create(validated_data)
+
+
+class RoundSerializer(core_serializers.AugmentedSerializerMixin, NestedRoundSerializer):
+    url = serializers.SerializerMethodField()
+
+    class Meta(NestedRoundSerializer.Meta):
+        fields = NestedRoundSerializer.Meta.fields + ['url']
+
+    def get_url(self, call_round):
+        return self.context['request'].build_absolute_uri(
+            reverse(
+                'proposal-call-round-detail',
+                kwargs={
+                    'uuid': call_round.call.uuid.hex,
+                    'round_uuid': call_round.uuid.hex,
+                },
+            )
+        )
+
+    def validate(self, attrs):
+        start_time = attrs.get('start_time')
+        end_time = attrs.get('end_time')
+
+        if start_time and end_time and end_time <= start_time:
+            raise serializers.ValidationError(
+                {'start_time': _('Start time must be grow then end time.')}
+            )
+
+        return attrs
+
+    def validate_dates(self, call):
+        if self.validated_data['start_time'] < call.start_time:
+            raise serializers.ValidationError(
+                {
+                    'start_time': _('Start time cannot go outside the call limits.')
+                    + f'[{call.start_time} - {call.end_time}]'
+                }
+            )
+
+        if self.validated_data['end_time'] > call.end_time:
+            raise serializers.ValidationError(
+                {'start_time': _('End time cannot go outside the call limits.')}
+            )
+
+
+class ProposalSerializer(
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
+):
+    state = serializers.ReadOnlyField(source='get_state_display')
+    round = NestedRoundSerializer(read_only=True)
+    round_uuid = serializers.UUIDField(write_only=True, required=True)
+
+    class Meta:
+        model = models.Proposal
+        fields = [
+            'uuid',
+            'url',
+            'name',
+            'state',
+            'approved_by',
+            'created_by',
+            'duration_in_days',
+            'project',
+            'round',
+            'round_uuid',
+        ]
+        read_only_fields = ('created_by', 'approved_by', 'project')
+        protected_fields = ('round_uuid',)
+        extra_kwargs = {
+            'url': {'lookup_field': 'uuid'},
+            'created_by': {'lookup_field': 'uuid', 'view_name': 'user-detail'},
+            'approved_by': {'lookup_field': 'uuid', 'view_name': 'user-detail'},
+            'project': {'lookup_field': 'uuid', 'view_name': 'project-detail'},
+        }
+
+    def validate(self, attrs):
+        if self.instance:
+            return attrs
+
+        round_uuid = attrs.pop('round_uuid')
+
+        try:
+            call_round = models.Round.objects.get(uuid=round_uuid)
+        except models.Round.DoesNotExist:
+            raise serializers.ValidationError({'round_uuid': _('Round not found.')})
+        attrs['round'] = call_round
         return attrs
 
     def create(self, validated_data):

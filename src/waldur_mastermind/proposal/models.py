@@ -104,6 +104,9 @@ class Call(
     class Permissions:
         customer_path = 'manager__customer'
 
+    def __str__(self):
+        return f'{self.name} | {self.manager.customer}'
+
 
 class RequestedOffering(SafeAttributesMixin, core_models.UuidMixin, TimeStampedModel):
     class States:
@@ -142,6 +145,12 @@ class Round(
     end_time = models.DateTimeField()
     call = models.ForeignKey(Call, on_delete=models.PROTECT)
 
+    class Permissions:
+        customer_path = 'call__manager__customer'
+
+    def __str__(self):
+        return f'{self.call.name} | {self.start_time} - {self.end_time}'
+
 
 class Proposal(
     TimeStampedModel,
@@ -150,20 +159,56 @@ class Proposal(
 ):
     class States:
         DRAFT = 1
-        ACTIVE = 2
-        CANCELLED = 3
+        SUBMITTED = 2
+        IN_REVIEW = 3
+        REVISING = 4
+        ACCEPTED = 5
+        REJECTED = 6
+        CANCELED = 7
 
         CHOICES = (
             (DRAFT, 'Draft'),
-            (ACTIVE, 'Active'),
-            (CANCELLED, 'Cancelled'),
+            (SUBMITTED, 'Submitted'),
+            (IN_REVIEW, 'In review'),
+            (REVISING, 'Revising'),
+            (ACCEPTED, 'Accepted'),
+            (REJECTED, 'Rejected'),
+            (CANCELED, 'Canceled'),
         )
 
-    round = models.ForeignKey(Round, on_delete=models.PROTECT)
+    round = models.ForeignKey(Round, on_delete=models.CASCADE)
     state = FSMIntegerField(default=States.DRAFT, choices=States.CHOICES)
-    project = models.ForeignKey(structure_models.Project, on_delete=models.PROTECT)
-    duration_requested = models.DateTimeField()
-    resource_usage = models.JSONField()
+    project = models.ForeignKey(
+        structure_models.Project, on_delete=models.PROTECT, null=True, editable=False
+    )
+    duration_in_days = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text='Duration in days after provisioning of resources.',
+    )
+    approved_by = models.ForeignKey(
+        core_models.User,
+        on_delete=models.PROTECT,
+        null=True,
+        related_name='+',
+        blank=True,
+    )
+    created_by = models.ForeignKey(
+        core_models.User,
+        on_delete=models.PROTECT,
+        null=True,
+        related_name='+',
+    )
+
+    class Permissions:
+        customer_path = 'round__call__manager__customer'
+
+    def __str__(self):
+        return f'{self.name} | {self.round.start_time} - {self.round.end_time} | {self.round.call}'
+
+    @classmethod
+    def get_url_name(cls):
+        return 'proposal-proposal'
 
 
 class Review(
