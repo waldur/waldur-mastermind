@@ -1090,6 +1090,14 @@ class OfferingDetailsSerializer(
                 fields['attributes'] = serializers.SerializerMethodField(
                     'get_attributes'
                 )
+            if (
+                'plugin_options' in fields
+                and isinstance(self.instance, models.Offering)
+                and self.instance.parent
+            ):
+                fields['plugin_options'] = serializers.ReadOnlyField(
+                    source='parent.plugin_options'
+                )
 
         user = self.context['view'].request.user
         if not user.is_authenticated:
@@ -1099,36 +1107,8 @@ class OfferingDetailsSerializer(
         return fields
 
     def can_see_secret_options(self):
-        user = None
-        try:
-            request = self.context['request']
-            user = request.user
-            if user.is_anonymous:
-                return
-
-        except (KeyError, AttributeError):
-            pass
-
-        offering = None
-        if isinstance(self.instance, list):
-            if len(self.instance) == 1:
-                offering = self.instance[0]
-        else:
-            offering = self.instance
-
-        return (
-            offering
-            and user
-            and (
-                structure_permissions._has_owner_access(user, offering.customer)
-                or (
-                    structure_permissions._has_service_manager_access(
-                        user, offering.customer
-                    )
-                    and offering.customer.has_user(user)
-                )
-            )
-        )
+        request = self.context.get('request')
+        return request and permissions.can_see_secret_options(request, self.instance)
 
     def get_order_count(self, offering):
         try:
@@ -1200,6 +1180,14 @@ class PublicOfferingDetailsSerializer(OfferingDetailsSerializer):
             user=user, offering=offering, allowed_customer_uuid=customer_uuid
         )
         return BasePublicPlanSerializer(qs, many=True, context=self.context).data
+
+    def get_fields(self):
+        fields = super().get_fields()
+        if 'secret_options' in fields:
+            fields.pop('secret_options')
+        if 'service_attributes' in fields:
+            fields.pop('service_attributes')
+        return fields
 
 
 class OfferingComponentLimitSerializer(serializers.Serializer):
@@ -3550,34 +3538,8 @@ class ProviderOfferingSerializer(serializers.ModelSerializer):
         return fields
 
     def can_see_secret_options(self):
-        user = None
-        try:
-            request = self.context['request']
-            user = request.user
-            if user.is_anonymous:
-                return
-
-        except (KeyError, AttributeError):
-            pass
-
-        if isinstance(self.instance, list):
-            offering = self.instance[0]
-        else:
-            offering = self.instance
-
-        return (
-            offering
-            and user
-            and (
-                structure_permissions._has_owner_access(user, offering.customer)
-                or (
-                    structure_permissions._has_service_manager_access(
-                        user, offering.customer
-                    )
-                    and offering.customer.has_user(user)
-                )
-            )
-        )
+        request = self.context.get('request')
+        return request and permissions.can_see_secret_options(request, self.instance)
 
 
 class RobotAccountSerializer(

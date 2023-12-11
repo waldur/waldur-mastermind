@@ -159,3 +159,33 @@ def user_can_update_thumbnail(request, view, obj=None):
             return
 
     raise exceptions.PermissionDenied()
+
+
+def can_see_secret_options(request, instance):
+    user = None
+    try:
+        user = request.user
+        if user.is_anonymous:
+            return
+
+    except (KeyError, AttributeError):
+        pass
+
+    if isinstance(instance, list):
+        offering = instance[0]
+    else:
+        offering = instance
+
+    return (
+        offering
+        and user
+        and (
+            structure_permissions._has_owner_access(user, offering.customer)
+            or (
+                structure_permissions._has_service_manager_access(
+                    user, offering.customer
+                )
+                and offering.customer.has_user(user)
+            )
+        )
+    )
