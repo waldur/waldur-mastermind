@@ -26,7 +26,7 @@ class Migration(migrations.Migration):
                     (1, 'Draft'),
                     (2, 'Submitted'),
                     (3, 'In review'),
-                    (4, 'Revising'),
+                    (4, 'In revision'),
                     (5, 'Accepted'),
                     (6, 'Rejected'),
                     (7, 'Canceled'),
