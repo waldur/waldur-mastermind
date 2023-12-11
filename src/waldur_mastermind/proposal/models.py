@@ -161,7 +161,7 @@ class Proposal(
         DRAFT = 1
         SUBMITTED = 2
         IN_REVIEW = 3
-        REVISING = 4
+        IN_REVISION = 4
         ACCEPTED = 5
         REJECTED = 6
         CANCELED = 7
@@ -170,7 +170,7 @@ class Proposal(
             (DRAFT, 'Draft'),
             (SUBMITTED, 'Submitted'),
             (IN_REVIEW, 'In review'),
-            (REVISING, 'Revising'),
+            (IN_REVISION, 'In revision'),
             (ACCEPTED, 'Accepted'),
             (REJECTED, 'Rejected'),
             (CANCELED, 'Canceled'),
