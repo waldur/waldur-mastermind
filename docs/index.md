@@ -18,4 +18,5 @@
 - [Internationalization](i18n.md)
 - [Plugins](plugins/index.md)
 - [Events](events.md)
+- [Models](models.md)
 - [Templates](templates.md)
