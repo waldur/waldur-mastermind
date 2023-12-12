@@ -29,3 +29,10 @@ ALLOWED_HOSTS = ['localhost']
 
 CELERY_BROKER_URL = 'sqla+sqlite:///:memory:'
 CELERY_RESULT_BACKEND = 'db+sqlite:///:memory:'
+
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'APP_DIRS': True,
+    },
+]
