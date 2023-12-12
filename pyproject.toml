@@ -159,6 +159,12 @@ waldur_keycloak_rancher = "waldur_keycloak_rancher.extension:KeycloakRancherExte
 waldur_zammad = "waldur_zammad.extension:ZammadExtension"
 waldur_lexis = "waldur_lexis.extension:LexisExtension"
 
+
+[tool.poetry.group.docs.dependencies]
+pyparsing = "^3.1.1"
+pydot = "^1.4.2"
+django-extensions = "^3.2.3"
+
 [build-system]
 requires = ["poetry=1.2.1"]
 build-backend = "poetry.masonry.api"

@@ -10,6 +10,7 @@ RUN apt-get update    &&\
     ldap-utils          \
     xmlsec1             \
     lcov                \
+    graphviz            \
     python3-dev
 
 RUN python3 -m pip install --upgrade pip
