@@ -1,4 +1,6 @@
 # Django test settings for Waldur Core.
+from pathlib import Path
+
 from waldur_core.server.base_settings import *  # noqa
 
 SECRET_KEY = 'test-key'
@@ -33,6 +35,7 @@ CELERY_RESULT_BACKEND = 'db+sqlite:///:memory:'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [Path(__file__).resolve().parent / 'templates'],
         'OPTIONS': {
             'context_processors': CONTEXT_PROCESSORS,  # noqa: F405
             'loaders': (
