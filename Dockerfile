@@ -24,7 +24,6 @@ RUN apt-get update       && \
     libldap2-dev            \
     libsasl2-dev            \
     ldap-utils              \
-    lcov                    \
     locales                 \
     gettext                 \
     logrotate               \
