@@ -120,6 +120,14 @@ class GetCampaignTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]['uuid'], self.fixture.order.uuid.hex)
 
+    def test_resources(self):
+        url = factories.CampaignFactory.get_url(self.fixture.campaign, 'resources')
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['uuid'], self.fixture.resource.uuid.hex)
+
 
 @ddt
 class OfferingPublicEndpointTest(test.APITransactionTestCase):
