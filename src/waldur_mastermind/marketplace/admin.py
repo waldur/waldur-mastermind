@@ -289,17 +289,6 @@ def get_admin_link_for_scope(scope):
     return format_html('<a href="{}">{}</a>', get_admin_url_for_scope(scope), scope)
 
 
-class OfferingPermissionInline(admin.TabularInline):
-    model = models.OfferingPermission
-    fields = ('user', 'is_active', 'created_by')
-    readonly_fields = ('created_by',)
-    ordering = (
-        '-user__first_name',
-        '-user__last_name',
-    )
-    extra = 1
-
-
 class OfferingUserInline(admin.TabularInline):
     model = models.OfferingUser
     fields = ('user', 'username', 'created')
@@ -323,7 +312,6 @@ class OfferingUserGroupInline(admin.StackedInline):
 class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
     form = OfferingAdminForm
     inlines = [
-        OfferingPermissionInline,
         ScreenshotsInline,
         PlansInline,
         OfferingEndpointsDivisionsInline,

@@ -258,33 +258,6 @@ class CustomerRole(models.CharField):
         super().__init__(*args, **kwargs)
 
 
-class CustomerPermission(BasePermission):
-    class Meta:
-        unique_together = ('customer', 'role', 'user', 'is_active')
-
-    class Permissions:
-        customer_path = 'customer'
-
-    customer = models.ForeignKey(
-        on_delete=models.CASCADE,
-        to='structure.Customer',
-        verbose_name=_('organization'),
-        related_name='permissions',
-    )
-    role = CustomerRole(db_index=True)
-    tracker = FieldTracker(fields=['expiration_time'])
-
-    @classmethod
-    def get_url_name(cls):
-        return 'customer_permission'
-
-    def revoke(self):
-        self.customer.remove_user(self.user, self.role)
-
-    def __str__(self):
-        return f'{self.customer.name} | {self.get_role_display()}'
-
-
 class DivisionType(core_models.UuidMixin, core_models.NameMixin, models.Model):
     class Meta:
         verbose_name = _('division type')
@@ -522,32 +495,6 @@ class ProjectRole(models.CharField):
         kwargs['max_length'] = 30
         kwargs['choices'] = self.CHOICES
         super().__init__(*args, **kwargs)
-
-
-class ProjectPermission(core_models.UuidMixin, BasePermission):
-    class Meta:
-        unique_together = ('project', 'role', 'user', 'is_active')
-        ordering = ['-created']
-
-    class Permissions:
-        customer_path = 'project__customer'
-        project_path = 'project'
-
-    project = models.ForeignKey(
-        on_delete=models.CASCADE, to='structure.Project', related_name='permissions'
-    )
-    role = ProjectRole(db_index=True)
-    tracker = FieldTracker(fields=['expiration_time'])
-
-    @classmethod
-    def get_url_name(cls):
-        return 'project_permission'
-
-    def revoke(self):
-        self.project.remove_user(self.user, self.role)
-
-    def __str__(self):
-        return f'{self.project.name} | {self.get_role_display()}'
 
 
 class ProjectType(

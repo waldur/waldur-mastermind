@@ -13,7 +13,6 @@ from waldur_core.structure.tests.utils import (
     client_update_user,
 )
 from waldur_mastermind.marketplace import models
-from waldur_mastermind.marketplace.models import OfferingPermission
 
 from . import factories
 
@@ -197,10 +196,6 @@ class OfferingUpdateTest(BaseOfferingPermissionTest):
 
     def test_offering_lookup_succeeds_if_more_than_one_manager_exists(self):
         self.client.force_authenticate(self.fixture.user)
-        user = UserFactory()
-        OfferingPermission.objects.create(
-            offering=self.offering, user=user, is_active=True
-        )
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 

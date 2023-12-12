@@ -56,10 +56,11 @@ def role_has_permission(role, permission):
     ).exists()
 
 
-def get_users(scope, role):
-    user_ids = models.UserRole.objects.filter(
-        is_active=True, scope=scope, role__name=role
-    ).values_list('user_id', flat=True)
+def get_users(scope, role_name=None):
+    users = models.UserRole.objects.filter(is_active=True, scope=scope)
+    if role_name:
+        users = users.filter(role__name=role_name)
+    user_ids = users.values_list('user_id', flat=True)
     return User.objects.filter(id__in=user_ids)
 
 

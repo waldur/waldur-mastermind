@@ -5,7 +5,6 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
 from django.db import models
-from django.db.models import Q
 from django.utils import timezone
 from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy as _
@@ -23,6 +22,7 @@ from waldur_core.core import validators as core_validators
 from waldur_core.logging.loggers import LoggableMixin
 from waldur_core.media.models import get_upload_path
 from waldur_core.media.validators import ImageValidator
+from waldur_core.permissions.utils import get_users
 from waldur_core.quotas import fields as quotas_fields
 from waldur_core.quotas import models as quotas_models
 from waldur_core.structure import models as structure_models
@@ -558,8 +558,7 @@ class Offering(
         )
 
     def get_users(self, role=None):
-        query = Q(offeringpermission__offering=self, offeringpermission__is_active=True)
-        return User.objects.filter(query).order_by('username')
+        return get_users(self, role)
 
 
 class OfferingComponent(
@@ -1379,26 +1378,6 @@ class OfferingFile(
 
     def __str__(self):
         return 'offering: %s' % self.offering
-
-
-class OfferingPermission(core_models.UuidMixin, structure_models.BasePermission):
-    class Meta:
-        unique_together = ('offering', 'user', 'is_active')
-
-    class Permissions:
-        customer_path = 'offering__customer'
-
-    offering: Offering = models.ForeignKey(
-        on_delete=models.CASCADE, to=Offering, related_name='permissions'
-    )
-    tracker = FieldTracker(fields=['expiration_time'])
-
-    @classmethod
-    def get_url_name(cls):
-        return 'marketplace-offering-permission'
-
-    def revoke(self):
-        self.offering.remove_user(self.user)
 
 
 class OfferingUser(

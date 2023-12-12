@@ -25,7 +25,10 @@ from waldur_mastermind.common.utils import create_request
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import utils as invoice_utils
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.utils import get_consumer_approvers
+from waldur_mastermind.marketplace.utils import (
+    get_consumer_approvers,
+    get_provider_approvers,
+)
 from waldur_mastermind.support.backend import get_active_backend
 
 from . import exceptions, models, utils, views
@@ -90,18 +93,13 @@ def notify_consumer_about_pending_order(uuid):
 def notify_provider_about_pending_order(order_uuid):
     order: models.Order = models.Order.objects.get(uuid=order_uuid)
 
-    service_provider_org = order.offering.customer
-    approvers = service_provider_org.get_owner_mails()
-    approvers |= (
-        order.offering.get_users()
-        .exclude(email='')
-        .exclude(notifications_enabled=False)
-        .values_list('email', flat=True)
-    )
+    approvers = get_provider_approvers(order)
+    if not approvers:
+        return
 
     link = core_utils.format_homeport_link(
         'providers/{organization_uuid}/marketplace-orders/',
-        organization_uuid=service_provider_org.uuid,
+        organization_uuid=order.offering.customer.uuid,
     )
 
     context = {

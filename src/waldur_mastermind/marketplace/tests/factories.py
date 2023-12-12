@@ -417,28 +417,6 @@ class ResourcePlanPeriodFactory(factory.DjangoModelFactory):
     start = core_utils.month_start(timezone.now())
 
 
-class OfferingPermissionFactory(factory.DjangoModelFactory):
-    class Meta:
-        model = models.OfferingPermission
-
-    offering = factory.SubFactory(OfferingFactory)
-    user = factory.SubFactory(structure_factories.UserFactory)
-
-    @classmethod
-    def get_url(cls, permission=None, action=None):
-        if permission is None:
-            permission = OfferingPermissionFactory()
-        url = 'http://testserver' + reverse(
-            'marketplace-offering-permission-detail', kwargs={'pk': permission.id}
-        )
-        return url if action is None else url + action + '/'
-
-    @classmethod
-    def get_list_url(cls, action=None):
-        url = 'http://testserver' + reverse('marketplace-offering-permission-list')
-        return url if action is None else url + action + '/'
-
-
 class RobotAccountFactory(factory.DjangoModelFactory):
     class Meta:
         model = models.RobotAccount
