@@ -9,7 +9,6 @@ from rest_framework import status, test
 
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
-from waldur_core.permissions.models import Role
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests import fixtures as structure_fixtures
@@ -20,7 +19,6 @@ from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 from waldur_mastermind.marketplace.tests.helpers import override_marketplace_settings
 
 
-@ddt
 class OrderApproveByConsumerTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
@@ -103,7 +101,6 @@ class OrderApproveByConsumerTest(test.APITransactionTestCase):
         self.assertEqual(self.order.consumer_reviewed_by, None)
 
 
-@ddt
 @override_settings(task_always_eager=True)
 class OrderApproveByProviderTest(test.APITransactionTestCase):
     def setUp(self):
@@ -420,30 +417,27 @@ class OrderApprovalByConsumerNotificationTest(test.APITransactionTestCase):
 
     @override_marketplace_settings(NOTIFY_STAFF_ABOUT_APPROVALS=True)
     def test_staff(self):
-        user = self.fixture.staff
-        event_type = 'notify_consumer_about_pending_order'
-        structure_factories.NotificationFactory(key=f"marketplace.{event_type}")
-        tasks.notify_consumer_about_pending_order(self.fixture.order.uuid.hex)
-        self.assertEqual(len(mail.outbox), 1)
-        self.assertEqual(mail.outbox[0].to, [user.email])
+        self.check_notification(self.fixture.staff)
 
-    def check_notification(self, user, role: Role):
-        role.add_permission(PermissionEnum.APPROVE_ORDER)
-        role.add_permission(PermissionEnum.APPROVE_ORDER)
-        event_type = 'notify_consumer_about_pending_order'
-        structure_factories.NotificationFactory(key=f"marketplace.{event_type}")
+    def check_notification(self, user):
+        structure_factories.NotificationFactory(
+            key="marketplace.notify_consumer_about_pending_order"
+        )
         tasks.notify_consumer_about_pending_order(self.fixture.order.uuid.hex)
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, [user.email])
 
     def test_check_owner(self):
-        self.check_notification(self.fixture.owner, CustomerRole.OWNER)
+        CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_ORDER)
+        self.check_notification(self.fixture.owner)
 
     def test_check_manager(self):
-        self.check_notification(self.fixture.manager, ProjectRole.MANAGER)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.APPROVE_ORDER)
+        self.check_notification(self.fixture.manager)
 
     def test_check_admin(self):
-        self.check_notification(self.fixture.admin, ProjectRole.ADMIN)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.APPROVE_ORDER)
+        self.check_notification(self.fixture.admin)
 
     def test_notification_is_not_sent_when_there_are_no_approvers(self):
         tasks.notify_consumer_about_pending_order(self.fixture.order.uuid.hex)
@@ -457,19 +451,22 @@ class OrderApprovalByProviderNotificationTest(test.APITransactionTestCase):
         self.order.state = models.Order.States.PENDING_PROVIDER
         self.order.save()
 
-    def test_owner_case(self):
-        user = self.fixture.offering_owner
-        event_type = 'notify_provider_about_pending_order'
-        structure_factories.NotificationFactory(key=f"marketplace.{event_type}")
-        tasks.notify_provider_about_pending_order(self.order.uuid.hex)
+    def test_offering_owner(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_ORDER)
+        self.check_notification(self.fixture.offering_owner)
+
+    def test_service_manager(self):
+        CustomerRole.MANAGER.add_permission(PermissionEnum.APPROVE_ORDER)
+        self.check_notification(self.fixture.service_manager)
+
+    def check_notification(self, user):
+        structure_factories.NotificationFactory(
+            key="marketplace.notify_provider_about_pending_order"
+        )
+        tasks.notify_provider_about_pending_order(self.fixture.order.uuid.hex)
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, [user.email])
 
-    def test_service_manager_case(self):
-        event_type = 'notify_provider_about_pending_order'
-        structure_factories.NotificationFactory(key=f"marketplace.{event_type}")
-        permission = factories.OfferingPermissionFactory(offering=self.order.offering)
-        user = permission.user
-        tasks.notify_provider_about_pending_order(self.order.uuid.hex)
-        self.assertEqual(len(mail.outbox), 1)
-        self.assertEqual(mail.outbox[0].to, [user.email])
+    def test_notification_is_not_sent_when_there_are_no_approvers(self):
+        tasks.notify_provider_about_pending_order(self.fixture.order.uuid.hex)
+        self.assertEqual(len(mail.outbox), 0)

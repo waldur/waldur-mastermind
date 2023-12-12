@@ -1398,3 +1398,25 @@ def get_consumer_approvers(order):
     )
 
     return approvers
+
+
+def get_provider_approvers(order):
+    users = User.objects.none()
+
+    if settings.WALDUR_MARKETPLACE['NOTIFY_STAFF_ABOUT_APPROVALS']:
+        users |= User.objects.filter(is_staff=True, is_active=True)
+
+    users |= get_users_with_permission(
+        order.offering.customer, PermissionEnum.APPROVE_ORDER
+    )
+
+    users |= get_users_with_permission(order.offering, PermissionEnum.APPROVE_ORDER)
+
+    approvers = (
+        users.distinct()
+        .exclude(email='')
+        .exclude(notifications_enabled=False)
+        .values_list('email', flat=True)
+    )
+
+    return approvers
