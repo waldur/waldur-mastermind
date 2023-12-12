@@ -147,21 +147,23 @@ AUTH_PASSWORD_VALIDATORS = [
 
 ANONYMOUS_USER_ID = None
 
+CONTEXT_PROCESSORS = (
+    'django.template.context_processors.debug',
+    'django.template.context_processors.request',
+    'django.contrib.auth.context_processors.auth',
+    'django.contrib.messages.context_processors.messages',
+    'django.template.context_processors.i18n',
+    'django.template.context_processors.media',
+    'django.template.context_processors.static',
+    'django.template.context_processors.tz',
+)
+
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
         'DIRS': (os.path.join(BASE_DIR, 'src', 'waldur_core', 'templates'),),
         'OPTIONS': {
-            'context_processors': (
-                'django.template.context_processors.debug',
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
-                'django.template.context_processors.i18n',
-                'django.template.context_processors.media',
-                'django.template.context_processors.static',
-                'django.template.context_processors.tz',
-            ),
+            'context_processors': CONTEXT_PROCESSORS,
             'loaders': ADMIN_TEMPLATE_LOADERS + (
                 'dbtemplates.loader.Loader',
                 'django.template.loaders.filesystem.Loader',
