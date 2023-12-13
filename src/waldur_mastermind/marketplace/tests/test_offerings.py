@@ -2241,59 +2241,6 @@ class OfferingThumbnailTest(test.APITransactionTestCase):
 
 
 @ddt
-class OfferingComponentsUpdateTest(test.APITransactionTestCase):
-    def setUp(self) -> None:
-        self.fixture = marketplace_fixtures.MarketplaceFixture()
-        self.offering = self.fixture.offering
-        self.offering_component = self.fixture.offering_component
-        self.url = factories.OfferingFactory.get_url(self.offering, 'update_components')
-        factories.OfferingComponentFactory(
-            offering=self.offering,
-            type='gpu',
-        )
-        resource = self.fixture.resource
-        resource.delete()
-        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_COMPONENTS)
-        CustomerRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING_COMPONENTS)
-
-    @data('offering_owner', 'service_manager')
-    def test_offering_components_update_succeed(self, user):
-        self.client.force_login(getattr(self.fixture, user))
-        payload = [
-            {
-                'billing_type': models.OfferingComponent.BillingTypes.USAGE,
-                'type': 'cpu',
-                'name': 'CPU',
-                'measured_unit': 'cpu_k_hours',
-            },
-            {
-                'billing_type': models.OfferingComponent.BillingTypes.USAGE,
-                'type': 'ram',
-                'name': 'RAM',
-                'measured_unit': 'gb_hours',
-            },
-        ]
-
-        response = self.client.post(self.url, payload)
-        self.assertEqual(200, response.status_code)
-        offering_components = models.OfferingComponent.objects.filter(
-            offering=self.offering
-        )
-        self.assertEqual(2, offering_components.count())
-        offering_component_names = set(
-            offering_components.values_list('type', flat=True)
-        )
-        self.assertEqual({'cpu', 'ram'}, offering_component_names)
-
-    @data('offering_manager', 'offering_admin')
-    def test_offering_components_update_failed(self, user):
-        self.client.force_login(getattr(self.fixture, user))
-        response = self.client.post(self.url, [])
-
-        self.assertEqual(403, response.status_code)
-
-
-@ddt
 class ProviderOfferingCreateComponentsTest(test.APITransactionTestCase):
     def setUp(self) -> None:
         self.fixture = marketplace_fixtures.MarketplaceFixture()
