@@ -35,7 +35,7 @@ CELERY_RESULT_BACKEND = 'db+sqlite:///:memory:'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [Path(__file__).resolve().parent / 'templates'],
+        'DIRS': [Path(__file__).resolve().parent.parent / 'templates'],
         'OPTIONS': {
             'context_processors': CONTEXT_PROCESSORS,  # noqa: F405
             'loaders': (
