@@ -6,7 +6,6 @@ import pycountry
 from django.core.exceptions import ValidationError
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
-from django.utils.encoding import smart_str
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
@@ -176,7 +175,7 @@ class UUIDField(models.UUIDField):
         if not value:
             return None
         try:
-            return StringUUID(smart_str(value))
+            return StringUUID(str(value))
         except ValueError:
             return None
 

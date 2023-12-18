@@ -86,14 +86,14 @@ class Migration(migrations.Migration):
                 (
                     'offerings',
                     models.ManyToManyField(
-                        related_name='_promotions_campaign_offerings_+',
+                        related_name='+',
                         to='marketplace.Offering',
                     ),
                 ),
                 (
                     'required_offerings',
                     models.ManyToManyField(
-                        related_name='_promotions_campaign_required_offerings_+',
+                        related_name='+',
                         to='marketplace.Offering',
                     ),
                 ),

@@ -5,7 +5,7 @@ from django.shortcuts import redirect
 from django.urls import resolve, reverse
 from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
-from django.utils.translation import ungettext
+from django.utils.translation import ngettext
 from modeltranslation import admin as modeltranslation_admin
 from reversion.admin import VersionAdmin
 
@@ -408,7 +408,7 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
             offering.activate()
             offering.save()
 
-        message = ungettext(
+        message = ngettext(
             'One offering has been activated.',
             '%(count)d offerings have been activated.',
             count,
@@ -426,7 +426,7 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
             pid_utils.create_doi(offering)
 
         count = queryset.count()
-        message = ungettext(
+        message = ngettext(
             'One offering has been scheduled for datacite registration.',
             '%(count)d offerings have been scheduled for datacite registration.',
             count,
@@ -444,7 +444,7 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
             pid_utils.update_doi(offering)
 
         count = queryset.count()
-        message = ungettext(
+        message = ngettext(
             'One offering has been scheduled for updating Datacite registration data.',
             '%(count)d offerings have been scheduled for updating Datacite registration data.',
             count,
@@ -463,7 +463,7 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
             pid_tasks.link_doi_with_collection.delay(serialized_offering)
 
         count = queryset.count()
-        message = ungettext(
+        message = ngettext(
             'One offering has been scheduled for linking with collection.',
             '%(count)d offerings have been scheduled for linking with collection.',
             count,
@@ -483,7 +483,7 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
 
         count = queryset.count()
 
-        message = ungettext(
+        message = ngettext(
             'Offering has been scheduled for referrals pull.',
             '%(count)d offerings have been scheduled for referrals pull.',
             count,

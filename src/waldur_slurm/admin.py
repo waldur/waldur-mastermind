@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
-from django.utils.translation import ungettext
+from django.utils.translation import ngettext
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.admin import ExecutorAdminAction
@@ -42,7 +42,7 @@ class AllocationAdmin(structure_admin.ResourceAdmin):
             tasks.add_allocation_users.delay(serialized_allocation)
 
         count = valid_allocations.count()
-        message = ungettext(
+        message = ngettext(
             'One allocation users have been synchronized.',
             '%(count)d allocations users have been synchronized.',
             count,

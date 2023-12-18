@@ -266,9 +266,9 @@ class BackupScheduleTaskTest(TestCase):
 
         self.assertEqual(0, mocked_executor.call_count)
 
-    def _trigger_next_backup(self, base_dt):
+    def _trigger_next_backup(self, base_dt: datetime):
         tz = pytz.timezone(self.overdue_schedule.timezone)
-        dt = tz.normalize(base_dt)
+        dt = base_dt.astimezone(tz)
         next_trigger_at = croniter(self.overdue_schedule.schedule, dt).get_next(
             datetime
         )
