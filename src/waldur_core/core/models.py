@@ -11,7 +11,6 @@ from django.contrib.auth.models import PermissionsMixin, UserManager
 from django.core import validators
 from django.db import models, transaction
 from django.utils import timezone as django_timezone
-from django.utils.encoding import force_str
 from django.utils.translation import gettext_lazy as _
 from django_fsm import ConcurrentTransitionMixin, FSMIntegerField, transition
 from model_utils import FieldTracker
@@ -113,7 +112,7 @@ class ScheduleMixin(models.Model):
 
     def update_next_trigger_at(self):
         tz = pytz.timezone(self.timezone)
-        dt = tz.normalize(django_timezone.now())
+        dt = datetime.now(tz)
         self.next_trigger_at = croniter(self.schedule, dt).get_next(datetime)
 
     def save(self, *args, **kwargs):
@@ -502,7 +501,7 @@ class StateMixin(ErrorMessageMixin, ConcurrentTransitionMixin):
 
     @property
     def human_readable_state(self):
-        return force_str(dict(self.States.CHOICES)[self.state])
+        return str(dict(self.States.CHOICES)[self.state])
 
     @transition(field=state, source=States.CREATION_SCHEDULED, target=States.CREATING)
     def begin_creating(self):

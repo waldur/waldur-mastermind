@@ -1,5 +1,4 @@
 from django.db import models
-from django.utils.encoding import force_str
 from django.utils.translation import gettext_lazy as _
 from django_fsm import FSMIntegerField, transition
 from model_utils.models import TimeStampedModel
@@ -49,7 +48,7 @@ class DryRun(
 
     @property
     def human_readable_state(self):
-        return force_str(dict(self.States.CHOICES)[self.state])
+        return str(dict(self.States.CHOICES)[self.state])
 
     @transition(field=state, source=States.PENDING, target=States.EXECUTING)
     def set_state_executing(self):

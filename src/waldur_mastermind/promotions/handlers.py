@@ -1,40 +1,8 @@
 import logging
 
-from django.db.models import Q
-
 from waldur_mastermind.promotions import models
 
 logger = logging.getLogger(__name__)
-
-
-def create_discounted_resource(sender, instance, created=False, **kwargs):
-    if created:
-        return
-
-    if not instance.tracker.has_changed('state'):
-        return
-
-    if instance.state != instance.States.OK:
-        return
-
-    resource = instance
-    order = resource.order_set.first()
-
-    if not order:
-        return
-
-    coupon = order.attributes.get('coupon', '')
-
-    for campaign in models.Campaign.objects.filter(
-        state=models.Campaign.States.ACTIVE,
-        start_date__lte=resource.created,
-        end_date__gte=resource.created,
-    ).filter(Q(coupon='') | Q(coupon=coupon)):
-        if campaign.check_resource_on_conditions_of_campaign(resource):
-            models.DiscountedResource.objects.get_or_create(
-                campaign=campaign,
-                resource=resource,
-            )
 
 
 def apply_campaign_to_pending_invoices(sender, instance, created=False, **kwargs):

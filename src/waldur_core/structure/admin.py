@@ -17,7 +17,7 @@ from django.shortcuts import redirect
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
-from django.utils.translation import ungettext
+from django.utils.translation import ngettext
 from reversion.admin import VersionAdmin
 
 from waldur_core.core import utils as core_utils
@@ -445,7 +445,7 @@ class ProjectAdmin(
             [core_utils.serialize_instance(project) for project in queryset]
         )
         tasks_scheduled = queryset.count()
-        message = ungettext(
+        message = ngettext(
             'Remote project synchronization has been scheduled for one project .',
             'Remote project synchronization has been scheduled for %(tasks_scheduled)d projects.',
             tasks_scheduled,
@@ -762,7 +762,7 @@ class VirtualMachineAdmin(ResourceAdmin):
             [core_utils.serialize_instance(vm) for vm in queryset]
         )
         tasks_scheduled = queryset.count()
-        message = ungettext(
+        message = ngettext(
             'Coordinates detection has been scheduled for one virtual machine.',
             'Coordinates detection has been scheduled for %(tasks_scheduled)d virtual machines.',
             tasks_scheduled,

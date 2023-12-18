@@ -3,7 +3,7 @@ from datetime import timedelta
 
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
-from django.db.models import signals
+from django.db.models import Q, signals
 from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
@@ -290,6 +290,37 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             cls.create_component_item(source, plan_component, invoice, start, end)
 
     @classmethod
+    def create_discounted_resource(cls, sender, instance, created=False, **kwargs):
+        resource: marketplace_models.Resource = instance
+
+        if created:
+            return
+
+        if not instance.tracker.has_changed('state'):
+            return
+
+        if instance.state != instance.States.OK:
+            return
+
+        order = resource.creation_order
+
+        if not order:
+            return
+
+        coupon = order.attributes.get('coupon', '')
+
+        for campaign in promotions_models.Campaign.objects.filter(
+            state=promotions_models.Campaign.States.ACTIVE,
+            start_date__lte=resource.created,
+            end_date__gte=resource.created,
+        ).filter(Q(coupon='') | Q(coupon=coupon)):
+            if campaign.check_resource_on_conditions_of_campaign(resource):
+                promotions_models.DiscountedResource.objects.get_or_create(
+                    campaign=campaign,
+                    resource=resource,
+                )
+
+    @classmethod
     def on_resource_post_save(cls, sender, instance, created=False, **kwargs):
         resource = instance
         if resource.offering.type != cls.plugin_name:
@@ -302,6 +333,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             resource.state == ResourceStates.OK
             and resource.tracker.previous('state') == ResourceStates.CREATING
         ):
+            cls.create_discounted_resource(sender, instance, created)
             registrators.RegistrationManager.register(
                 resource, timezone.now(), order_type=OrderTypes.CREATE
             )

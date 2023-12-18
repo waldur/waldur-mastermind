@@ -33,7 +33,6 @@ from django.template.loader import get_template, render_to_string
 from django.urls import resolve
 from django.utils import timezone
 from django.utils.crypto import get_random_string
-from django.utils.encoding import force_str
 from geopy.geocoders import Nominatim
 from requests.packages.urllib3 import exceptions
 from rest_framework.settings import api_settings
@@ -113,7 +112,7 @@ def pwgen(pw_len=16):
 
 def serialize_instance(instance):
     """Serialize Django model instance"""
-    model_name = force_str(instance._meta)
+    model_name = str(instance._meta)
     return f'{model_name}:{instance.pk}'
 
 

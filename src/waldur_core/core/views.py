@@ -12,7 +12,6 @@ from django.core.files.storage import default_storage
 from django.db.models import ProtectedError
 from django.http import FileResponse, HttpResponse, HttpResponseRedirect, JsonResponse
 from django.utils import timezone
-from django.utils.encoding import force_str
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import TemplateView
 from rest_framework import exceptions
@@ -242,13 +241,13 @@ def exception_handler(exc, context):
                 # Fallback, when instance being deleted cannot be inferred
                 instance_name = 'object'
             else:
-                instance_name = force_str(instance_meta.verbose_name)
+                instance_name = str(instance_meta.verbose_name)
 
             detail = _(
                 'Cannot delete {instance_name} with existing {dependant_objects}'
             ).format(
                 instance_name=instance_name,
-                dependant_objects=force_str(dependent_meta.verbose_name_plural),
+                dependant_objects=str(dependent_meta.verbose_name_plural),
             )
 
             # We substitute exception here to get consistent representation
