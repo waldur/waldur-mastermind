@@ -1581,7 +1581,7 @@ class DivisionTypesSerializer(serializers.HyperlinkedModelSerializer):
 class UserAgreementSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = models.UserAgreement
-        fields = ('url', 'content', 'agreement_type', 'created')
+        fields = ('url', 'content', 'agreement_type', 'created', 'modified')
         extra_kwargs = {
             'url': {'lookup_field': 'uuid', 'view_name': 'user-agreements-detail'}
         }
