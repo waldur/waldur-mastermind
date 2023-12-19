@@ -25,12 +25,7 @@ from rest_framework.views import APIView
 from rest_framework.views import exception_handler as rf_exception_handler
 
 from waldur_core import __version__
-from waldur_core.core import (
-    WALDUR_DISABLED_EXTENSIONS,
-    WaldurExtension,
-    models,
-    permissions,
-)
+from waldur_core.core import WaldurExtension, models, permissions
 from waldur_core.core.exceptions import ExtensionDisabled, IncorrectStateException
 from waldur_core.core.features import FEATURES
 from waldur_core.core.logos import DEFAULT_LOGOS, LOGO_MAP
@@ -371,7 +366,6 @@ def get_public_settings(request=None):
         return cached_settings
     public_settings = {}
 
-    public_settings['WALDUR_DISABLED_EXTENSIONS'] = WALDUR_DISABLED_EXTENSIONS
     public_settings['FEATURES'] = get_feature_values()
 
     try:
