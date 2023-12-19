@@ -63,3 +63,14 @@ class ProposalFilter(django_filters.FilterSet):
     class Meta:
         model = models.Proposal
         fields = []
+
+
+class ReviewFilter(django_filters.FilterSet):
+    proposal = core_filters.URLFilter(
+        view_name='proposal-proposal-detail', field_name='proposal__uuid'
+    )
+    o = django_filters.OrderingFilter(fields=('created', 'state'))
+
+    class Meta:
+        model = models.Review
+        fields = ['state']

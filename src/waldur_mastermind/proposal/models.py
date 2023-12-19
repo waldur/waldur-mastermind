@@ -3,6 +3,7 @@ import logging
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django_fsm import FSMIntegerField
+from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
 
 from waldur_core.core import models as core_models
@@ -53,11 +54,11 @@ class Call(
 
     class ReviewStrategies:
         AFTER_ROUND = 1
-        AFTER_APPLICATION = 2
+        AFTER_PROPOSAL = 2
 
         CHOICES = (
             (AFTER_ROUND, 'After round is closed'),
-            (AFTER_APPLICATION, 'After application submission'),
+            (AFTER_PROPOSAL, 'After proposal submission'),
         )
 
     class AllocationStrategies:
@@ -82,7 +83,10 @@ class Call(
 
     manager = models.ForeignKey(CallManagingOrganisation, on_delete=models.PROTECT)
     created_by = models.ForeignKey(
-        core_models.User, on_delete=models.PROTECT, null=True
+        core_models.User,
+        on_delete=models.PROTECT,
+        null=True,
+        related_name='+',
     )
     start_time = models.DateTimeField()
     end_time = models.DateTimeField()
@@ -99,6 +103,9 @@ class Call(
     state = FSMIntegerField(default=States.DRAFT, choices=States.CHOICES)
     offerings = models.ManyToManyField(
         marketplace_models.Offering, through='RequestedOffering'
+    )
+    reviewers = models.ManyToManyField(
+        core_models.User, through='CallReviewer', through_fields=('call', 'user')
     )
 
     class Permissions:
@@ -135,6 +142,26 @@ class RequestedOffering(SafeAttributesMixin, core_models.UuidMixin, TimeStampedM
     )
     state = FSMIntegerField(default=States.REQUESTED, choices=States.CHOICES)
     call = models.ForeignKey(Call, on_delete=models.CASCADE)
+
+
+class CallReviewer(core_models.UuidMixin, TimeStampedModel):
+    created_by = models.ForeignKey(
+        core_models.User,
+        on_delete=models.CASCADE,
+        related_name='+',
+    )
+    user = models.ForeignKey(
+        core_models.User,
+        on_delete=models.CASCADE,
+        related_name='+',
+    )
+    call = models.ForeignKey(Call, on_delete=models.CASCADE)
+
+    class Meta:
+        unique_together = ('user', 'call')
+
+    def __str__(self):
+        return self.user.full_name
 
 
 class Round(
@@ -200,6 +227,8 @@ class Proposal(
         related_name='+',
     )
 
+    tracker = FieldTracker()
+
     class Permissions:
         customer_path = 'round__call__manager__customer'
 
@@ -216,21 +245,30 @@ class Review(
     core_models.UuidMixin,
 ):
     class States:
-        DRAFT = 1
-        ACTIVE = 2
-        CANCELLED = 3
+        CREATED = 1
+        IN_REVIEW = 2
+        SUBMITTED = 3
+        REJECTED = 4
 
         CHOICES = (
-            (DRAFT, 'Draft'),
-            (ACTIVE, 'Active'),
-            (CANCELLED, 'Cancelled'),
+            (CREATED, 'Created'),
+            (IN_REVIEW, 'In review'),
+            (SUBMITTED, 'Submitted'),
+            (REJECTED, 'Rejected'),
         )
 
     proposal = models.ForeignKey(Proposal, on_delete=models.PROTECT)
-    state = FSMIntegerField(default=States.DRAFT, choices=States.CHOICES)
-    points = models.CharField(max_length=255, blank=True)
-    type = models.CharField(max_length=255, blank=True)
-    version = models.CharField(max_length=255, blank=True)
+    state = FSMIntegerField(default=States.CREATED, choices=States.CHOICES)
+    summary_score = models.PositiveSmallIntegerField(blank=True, default=0)
+    summary_public_comment = models.TextField(blank=True)
+    summary_private_comment = models.TextField(blank=True)
+    reviewer = models.ForeignKey(CallReviewer, on_delete=models.CASCADE)
+
+    tracker = FieldTracker()
+
+    @classmethod
+    def get_url_name(cls):
+        return 'proposal-review'
 
 
 class ReviewComment(

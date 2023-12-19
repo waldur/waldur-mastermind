@@ -24,31 +24,26 @@ def register_in(router):
         views.ProposalViewSet,
         basename='proposal-proposal',
     )
+    router.register(
+        r'proposal-reviews',
+        views.ReviewViewSet,
+        basename='proposal-review',
+    )
 
 
 urlpatterns = [
     re_path(
-        r'^api/proposal-protected-calls/(?P<uuid>[a-f0-9]+)/offerings/(?P<requested_offering_uuid>[a-f0-9]+)/$',
+        r'^api/proposal-protected-calls/(?P<uuid>[a-f0-9]+)/%ss/(?P<obj_uuid>[a-f0-9]+)/$'
+        % action,
         views.ProtectedCallViewSet.as_view(
             {
-                'get': 'offering_detail',
-                'delete': 'offering_detail',
-                'patch': 'offering_detail',
-                'put': 'offering_detail',
+                'get': f'{action}_detail',
+                'delete': f'{action}_detail',
+                'patch': f'{action}_detail',
+                'put': f'{action}_detail',
             }
         ),
-        name='proposal-call-offering-detail',
-    ),
-    re_path(
-        r'^api/proposal-protected-calls/(?P<uuid>[a-f0-9]+)/rounds/(?P<round_uuid>[a-f0-9]+)/$',
-        views.ProtectedCallViewSet.as_view(
-            {
-                'get': 'round_detail',
-                'delete': 'round_detail',
-                'patch': 'round_detail',
-                'put': 'round_detail',
-            }
-        ),
-        name='proposal-call-round-detail',
-    ),
+        name=f'proposal-call-{action}-detail',
+    )
+    for action in ['offering', 'round', 'reviewer']
 ]

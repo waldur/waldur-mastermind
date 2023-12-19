@@ -75,7 +75,7 @@ class Migration(migrations.Migration):
                     django_fsm.FSMIntegerField(
                         choices=[
                             (1, 'After round is closed'),
-                            (2, 'After application submission'),
+                            (2, 'After proposal submission'),
                         ],
                         default=1,
                     ),
