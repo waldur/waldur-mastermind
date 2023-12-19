@@ -79,6 +79,30 @@ def log_resource_events(sender, instance, created=False, **kwargs):
         log.log_resource_creation_requested(resource)
 
 
+def init_resource_parent(sender, instance, created=False, **kwargs):
+    if not created or instance.tracker.has_changed('parent_id'):
+        return
+
+    resource: models.Resource = instance
+    service = resource.offering.scope
+
+    if not isinstance(service, structure_models.ServiceSettings):
+        return
+
+    base_resource = service.scope
+
+    if not isinstance(base_resource, structure_models.BaseResource):
+        return
+
+    try:
+        parent_resource = models.Resource.objects.get(scope=base_resource)
+    except models.Resource.DoesNotExist:
+        return
+
+    resource.parent = parent_resource
+    resource.save(update_fields=['parent'])
+
+
 def notify_approvers_when_order_is_created(sender, instance, created=False, **kwargs):
     order: models.Order = instance
     if created and order.state in (
@@ -119,6 +143,21 @@ def update_resource_when_order_is_rejected(sender, instance, created=False, **kw
     elif order.type == models.Order.Types.UPDATE:
         order.resource.set_state_ok()
         order.resource.save(update_fields=['state'])
+
+
+def sync_resource_limit_when_order(sender, instance, created=False, **kwargs):
+    order: models.Order = instance
+    if order.type != models.Order.Types.CREATE:
+        return
+    if order.resource.state != models.Resource.States.CREATING:
+        return
+    update_fields = set()
+    for prop in ('limits', 'attributes', 'plan_id'):
+        if order.tracker.has_changed(prop):
+            setattr(order.resource, prop, getattr(order, prop))
+            update_fields.add(prop)
+    if update_fields:
+        order.resource.save(update_fields=update_fields)
 
 
 def update_category_quota_when_offering_is_created(

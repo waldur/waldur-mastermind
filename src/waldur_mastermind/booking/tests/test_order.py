@@ -33,11 +33,9 @@ class OrderProcessedTest(test.APITransactionTestCase):
 
         marketplace_utils.process_order(order, self.fixture.staff)
 
-        self.assertTrue(
-            marketplace_models.Resource.objects.filter(name='item_name').exists()
+        self.assertEqual(
+            order.resource.state, marketplace_models.Resource.States.CREATING
         )
-        resource = marketplace_models.Resource.objects.get(name='item_name')
-        self.assertEqual(resource.state, marketplace_models.Resource.States.CREATING)
 
     def test_resource_is_terminated_when_order_is_processed(self):
         resource = marketplace_factories.ResourceFactory(

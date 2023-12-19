@@ -26,6 +26,7 @@ class ComponentUsageTest(test.APITransactionTestCase):
         plan = marketplace_factories.PlanFactory(offering=offering)
         self.allocation = slurm_factories.AllocationFactory()
         self.resource = marketplace_models.Resource.objects.create(
+            name='test-resource',
             scope=self.allocation,
             offering=offering,
             plan=plan,

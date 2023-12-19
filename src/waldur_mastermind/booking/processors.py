@@ -9,7 +9,6 @@ from waldur_mastermind.booking.utils import (
     get_offering_bookings_and_busy_slots,
     get_other_offering_booking_requests,
 )
-from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import processors
 
 from .utils import TimePeriod, is_interval_in_schedules
@@ -18,23 +17,9 @@ from .utils import TimePeriod, is_interval_in_schedules
 class BookingCreateProcessor(processors.BaseOrderProcessor):
     def process_order(self, user):
         with transaction.atomic():
-            resource = marketplace_models.Resource(
-                project=self.order.project,
-                offering=self.order.offering,
-                plan=self.order.plan,
-                limits=self.order.limits,
-                attributes=self.order.attributes,
-                name=self.order.attributes.get('name') or '',
-                state=marketplace_models.Resource.States.CREATING,
-            )
-            resource.init_cost()
-            resource.save()
-            self.order.resource = resource
-            self.order.save(update_fields=['resource'])
-
             for slot in self.order.attributes.get('schedules'):
                 BookingSlot.objects.create(
-                    resource=resource,
+                    resource=self.order.resource,
                     start=slot['start'],
                     end=slot['end'],
                 )

@@ -11,7 +11,7 @@ class RancherServiceSettingsFactory(structure_factories.ServiceSettingsFactory):
     customer = factory.SubFactory(structure_factories.CustomerFactory)
 
 
-class ClusterFactory(factory.DjangoModelFactory):
+class ClusterFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Cluster
 
@@ -35,7 +35,7 @@ class ClusterFactory(factory.DjangoModelFactory):
         return url if action is None else url + action + '/'
 
 
-class NodeFactory(factory.DjangoModelFactory):
+class NodeFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Node
 
@@ -56,7 +56,7 @@ class NodeFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('rancher-node-list')
 
 
-class RancherUserFactory(factory.DjangoModelFactory):
+class RancherUserFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.RancherUser
 
@@ -78,7 +78,7 @@ class RancherUserFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('rancher-user-list')
 
 
-class RancherUserClusterLinkFactory(factory.DjangoModelFactory):
+class RancherUserClusterLinkFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.RancherUserClusterLink
 
@@ -88,7 +88,7 @@ class RancherUserClusterLinkFactory(factory.DjangoModelFactory):
     backend_id = factory.Sequence(lambda n: 'rancher-user-cluster-link-%s' % n)
 
 
-class CatalogFactory(factory.DjangoModelFactory):
+class CatalogFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Catalog
 
@@ -108,7 +108,7 @@ class CatalogFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('rancher-catalog-list')
 
 
-class TemplateFactory(factory.DjangoModelFactory):
+class TemplateFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Template
 
@@ -129,7 +129,7 @@ class TemplateFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('rancher-template-list')
 
 
-class ProjectFactory(factory.DjangoModelFactory):
+class ProjectFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Project
 
@@ -149,7 +149,7 @@ class ProjectFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('rancher-project-list')
 
 
-class NamespaceFactory(factory.DjangoModelFactory):
+class NamespaceFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Namespace
 
@@ -169,7 +169,7 @@ class NamespaceFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('rancher-namespace-list')
 
 
-class RancherUserProjectLinkFactory(factory.DjangoModelFactory):
+class RancherUserProjectLinkFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.RancherUserProjectLink
 

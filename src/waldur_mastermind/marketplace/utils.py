@@ -9,7 +9,6 @@ import traceback
 import unicodedata
 from enum import Enum
 from io import BytesIO
-from typing import Union
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -48,7 +47,6 @@ from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import registrators
 from waldur_mastermind.invoices.utils import get_full_days
 from waldur_mastermind.marketplace import attribute_types
-from waldur_mastermind.marketplace.exceptions import PolicyException
 from waldur_mastermind.marketplace_remote import PLUGIN_NAME as REMOTE_PLUGIN_NAME
 from waldur_mastermind.marketplace_slurm_remote import (
     PLUGIN_NAME as SLURM_REMOTE_PLUGIN_NAME,
@@ -75,10 +73,7 @@ class UsernameGenerationPolicy(Enum):
 
 
 def get_order_processor(order):
-    if order.resource:
-        offering = order.resource.offering
-    else:
-        offering = order.offering
+    offering = order.resource.offering
 
     if order.type == models.RequestTypeMixin.Types.CREATE:
         return plugins.manager.get_processor(offering.type, 'create_resource_processor')
@@ -115,18 +110,11 @@ def process_order(order: models.Order, user):
             f'Exception: { order.error_message }.'
         )
 
-        if not order.resource and not isinstance(e, PolicyException):
-            resource = create_local_resource(order, None)
-            resource.state = models.Resource.States.ERRED
-            resource.save()
-            order.resource = resource
-
         order.save(
             update_fields=[
                 'state',
                 'error_message',
                 'error_traceback',
-                'resource',
             ]
         )
 
@@ -816,39 +804,6 @@ def schedule_resources_termination(resources, termination_comment=None):
             )
 
 
-def create_local_resource(
-    order, scope, effective_id='', backend_metadata=None, endpoints=None
-):
-    if not backend_metadata:
-        backend_metadata = {}
-    if not endpoints:
-        endpoints = {}
-    resource = models.Resource(
-        project=order.project,
-        offering=order.offering,
-        plan=order.plan,
-        limits=order.limits,
-        attributes=order.attributes,
-        backend_metadata=backend_metadata,
-        name=order.attributes.get('name') or '',
-        scope=scope if scope and not isinstance(scope, str) else None,
-        backend_id=scope if scope and isinstance(scope, str) else '',
-        effective_id=effective_id,
-    )
-    resource.init_cost()
-    resource.save()
-    for endpoint in endpoints:
-        name = endpoint.get('name')
-        url = endpoint.get('url')
-        if name is not None and url is not None:
-            models.ResourceAccessEndpoint.objects.create(
-                name=name, url=url, resource=resource
-            )
-    order.resource = resource
-    order.save(update_fields=['resource'])
-    return resource
-
-
 def get_service_provider_resources(service_provider):
     return models.Resource.objects.filter(
         offering__customer=service_provider.customer, offering__shared=True
@@ -946,20 +901,6 @@ def format_limits_list(components_map, limits):
         f'{components_map[key].name or components_map[key].type}: {value}'
         for key, value in limits.items()
     )
-
-
-def link_parent_resource(resource):
-    offering_scope = resource.offering.scope
-    if isinstance(offering_scope, structure_models.ServiceSettings) and isinstance(
-        offering_scope.scope, structure_models.BaseResource
-    ):
-        try:
-            parent_resource = models.Resource.objects.get(scope=offering_scope.scope)
-        except models.Resource.DoesNotExist:
-            pass
-        else:
-            resource.parent = parent_resource
-            resource.save()
 
 
 def get_resource_users(resource):
@@ -1095,7 +1036,7 @@ def generate_offering_password_hash(offering):
 
 
 def setup_linux_related_data(
-    instance: Union[models.OfferingUser, models.RobotAccount], offering
+    instance: models.OfferingUser | models.RobotAccount, offering
 ):
     uidnumber = instance.backend_metadata.get('uidnumber')
     primarygroup = instance.backend_metadata.get('primarygroup')

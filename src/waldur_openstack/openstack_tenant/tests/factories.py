@@ -30,7 +30,7 @@ class OpenStackTenantServiceSettingsFactory(structure_factories.ServiceSettingsF
     options = {'tenant_id': uuid.uuid4()}
 
 
-class FlavorFactory(factory.DjangoModelFactory):
+class FlavorFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Flavor
 
@@ -57,7 +57,7 @@ class FlavorFactory(factory.DjangoModelFactory):
         return url if action is None else url + action + '/'
 
 
-class ImageFactory(factory.DjangoModelFactory):
+class ImageFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Image
 
@@ -80,7 +80,7 @@ class ImageFactory(factory.DjangoModelFactory):
         return url if action is None else url + action + '/'
 
 
-class VolumeFactory(factory.DjangoModelFactory):
+class VolumeFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Volume
 
@@ -105,7 +105,7 @@ class VolumeFactory(factory.DjangoModelFactory):
         return url if action is None else url + action + '/'
 
 
-class InstanceAvailabilityZoneFactory(factory.DjangoModelFactory):
+class InstanceAvailabilityZoneFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.InstanceAvailabilityZone
 
@@ -128,7 +128,7 @@ class InstanceAvailabilityZoneFactory(factory.DjangoModelFactory):
         )
 
 
-class ServerGroupFactory(factory.DjangoModelFactory):
+class ServerGroupFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.ServerGroup
 
@@ -150,7 +150,7 @@ class ServerGroupFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('openstacktenant-server-group-list')
 
 
-class InstanceFactory(factory.DjangoModelFactory):
+class InstanceFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Instance
 
@@ -210,7 +210,7 @@ class InstanceFactory(factory.DjangoModelFactory):
                 self.security_groups.add(group)
 
 
-class FloatingIPFactory(factory.DjangoModelFactory):
+class FloatingIPFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.FloatingIP
 
@@ -235,7 +235,7 @@ class FloatingIPFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('openstacktenant-fip-list')
 
 
-class SecurityGroupFactory(factory.DjangoModelFactory):
+class SecurityGroupFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.SecurityGroup
 
@@ -256,7 +256,7 @@ class SecurityGroupFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('openstacktenant-sgp-list')
 
 
-class BackupScheduleFactory(factory.DjangoModelFactory):
+class BackupScheduleFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.BackupSchedule
 
@@ -283,7 +283,7 @@ class BackupScheduleFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('openstacktenant-backup-schedule-list')
 
 
-class BackupFactory(factory.DjangoModelFactory):
+class BackupFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Backup
 
@@ -308,7 +308,7 @@ class BackupFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('openstacktenant-backup-list')
 
 
-class SnapshotFactory(factory.DjangoModelFactory):
+class SnapshotFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Snapshot
 
@@ -334,7 +334,7 @@ class SnapshotFactory(factory.DjangoModelFactory):
         return url if action is None else url + action + '/'
 
 
-class SnapshotRestorationFactory(factory.DjangoModelFactory):
+class SnapshotRestorationFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.SnapshotRestoration
 
@@ -342,7 +342,7 @@ class SnapshotRestorationFactory(factory.DjangoModelFactory):
     volume = factory.SubFactory(VolumeFactory)
 
 
-class SnapshotScheduleFactory(factory.DjangoModelFactory):
+class SnapshotScheduleFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.SnapshotSchedule
 
@@ -370,7 +370,7 @@ class SnapshotScheduleFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('openstacktenant-snapshot-schedule-list')
 
 
-class NetworkFactory(factory.DjangoModelFactory):
+class NetworkFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Network
 
@@ -382,7 +382,7 @@ class NetworkFactory(factory.DjangoModelFactory):
     segmentation_id = 8
 
 
-class SubNetFactory(factory.DjangoModelFactory):
+class SubNetFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.SubNet
 
@@ -404,7 +404,7 @@ class SubNetFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('openstacktenant-subnet-list')
 
 
-class InternalIPFactory(factory.DjangoModelFactory):
+class InternalIPFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.InternalIP
 
@@ -414,7 +414,7 @@ class InternalIPFactory(factory.DjangoModelFactory):
     settings = factory.SelfAttribute('subnet.settings')
 
 
-class VolumeTypeFactory(factory.DjangoModelFactory):
+class VolumeTypeFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.VolumeType
 
@@ -435,7 +435,7 @@ class VolumeTypeFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('openstacktenant-volume-type-list')
 
 
-class VolumeAvailabilityZoneFactory(factory.DjangoModelFactory):
+class VolumeAvailabilityZoneFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.VolumeAvailabilityZone
 

@@ -64,7 +64,7 @@ def terminate_resources(policy):
                 if resource.offering.type == INSTANCE_TYPE
                 else {}
             )
-            order = marketplace_models.Order(
+            order = marketplace_models.Order.objects.create(
                 resource=resource,
                 offering=resource.offering,
                 type=marketplace_models.Order.Types.TERMINATE,
@@ -74,7 +74,6 @@ def terminate_resources(policy):
                 created_by=user,
                 consumer_reviewed_by=user,
             )
-            order.save()
 
             logger.info(
                 'Policy created termination order. Policy UUID: %s. Resource: %s',

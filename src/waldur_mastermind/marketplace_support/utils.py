@@ -134,18 +134,17 @@ def create_issue(order, description, summary, confirmation_comment=None):
         order.resource.save(update_fields=['state'])
         raise rf_exceptions.ValidationError(e)
 
-    if order.resource:
-        ids = marketplace_models.Order.objects.filter(
-            resource=order.resource
-        ).values_list('id', flat=True)
-        linked_issues = support_models.Issue.objects.filter(
-            resource_object_id__in=ids,
-            resource_content_type=order_content_type,
-        ).exclude(id=issue.id)
-        try:
-            active_backend.create_issue_links(issue, list(linked_issues))
-        except JIRAError as e:
-            logger.exception('Linked issues have not been added: %s', e)
+    ids = marketplace_models.Order.objects.filter(resource=order.resource).values_list(
+        'id', flat=True
+    )
+    linked_issues = support_models.Issue.objects.filter(
+        resource_object_id__in=ids,
+        resource_content_type=order_content_type,
+    ).exclude(id=issue.id)
+    try:
+        active_backend.create_issue_links(issue, list(linked_issues))
+    except JIRAError as e:
+        logger.exception('Linked issues have not been added: %s', e)
 
     if confirmation_comment:
         try:

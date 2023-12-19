@@ -6,7 +6,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from .. import models
 
 
-class BroadcastMessageFactory(factory.DjangoModelFactory):
+class BroadcastMessageFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.BroadcastMessage
 

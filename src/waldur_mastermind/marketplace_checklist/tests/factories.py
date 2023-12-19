@@ -4,14 +4,14 @@ from django.urls import reverse
 from .. import models
 
 
-class CategoryFactory(factory.DjangoModelFactory):
+class CategoryFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Category
 
     name = factory.Sequence(lambda n: 'category-%s' % n)
 
 
-class ChecklistFactory(factory.DjangoModelFactory):
+class ChecklistFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Checklist
 
@@ -27,7 +27,7 @@ class ChecklistFactory(factory.DjangoModelFactory):
         )
 
 
-class QuestionFactory(factory.DjangoModelFactory):
+class QuestionFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Question
 

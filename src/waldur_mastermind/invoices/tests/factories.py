@@ -6,7 +6,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.invoices import models
 
 
-class InvoiceFactory(factory.DjangoModelFactory):
+class InvoiceFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Invoice
 
@@ -27,7 +27,7 @@ class InvoiceFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('invoice-list')
 
 
-class InvoiceItemFactory(factory.DjangoModelFactory):
+class InvoiceItemFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.InvoiceItem
 
@@ -48,7 +48,7 @@ class InvoiceItemFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('invoice-item-list')
 
 
-class PaymentProfileFactory(factory.DjangoModelFactory):
+class PaymentProfileFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.PaymentProfile
 
@@ -69,7 +69,7 @@ class PaymentProfileFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('payment-profile-list')
 
 
-class PaymentFactory(factory.DjangoModelFactory):
+class PaymentFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Payment
 

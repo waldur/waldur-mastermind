@@ -6,7 +6,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_paypal import models
 
 
-class PaypalPaymentFactory(factory.DjangoModelFactory):
+class PaypalPaymentFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Payment
 
@@ -29,7 +29,7 @@ class PaypalPaymentFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('paypal-payment-list')
 
 
-class InvoiceFactory(factory.DjangoModelFactory):
+class InvoiceFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Invoice
 
@@ -53,7 +53,7 @@ class InvoiceFactory(factory.DjangoModelFactory):
     )
 
 
-class InvoiceItemFactory(factory.DjangoModelFactory):
+class InvoiceItemFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.InvoiceItem
 

@@ -6,7 +6,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from .. import models
 
 
-class ProjectEstimatedCostPolicyFactory(factory.DjangoModelFactory):
+class ProjectEstimatedCostPolicyFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.ProjectEstimatedCostPolicy
 

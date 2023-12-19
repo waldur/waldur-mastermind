@@ -44,10 +44,9 @@ class InvoicesBaseTest(test.APITransactionTestCase):
         marketplace_utils.process_order(order, self.fixture.staff)
 
         order.refresh_from_db()
-        order.review_by_consumer()
-        order.save()
         self.issue = order.resource.scope
         self.issue.set_resolved()
+        order.resource.refresh_from_db()
 
     def get_invoice(self):
         date = datetime.date.today()

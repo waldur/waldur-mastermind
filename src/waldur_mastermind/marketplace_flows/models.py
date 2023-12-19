@@ -15,7 +15,12 @@ from waldur_core.structure.models import (
     ProjectDetailsMixin,
     ProjectRole,
 )
-from waldur_mastermind.marketplace.models import Offering, Order, ResourceDetailsMixin
+from waldur_mastermind.marketplace.models import (
+    Offering,
+    Order,
+    Resource,
+    ResourceDetailsMixin,
+)
 from waldur_mastermind.support import models as support_models
 
 User = get_user_model()
@@ -137,7 +142,19 @@ class FlowTracker(ReviewStateMixin, TimeStampedModel, UuidMixin):
                 end_date=self.project_create_request.end_date,
             )
             project.add_user(self.requested_by, ProjectRole.MANAGER)
-            self.order = Order.objects.create(
+            resource = Resource(
+                project=project,
+                offering=self.resource_create_request.offering,
+                plan=self.resource_create_request.plan,
+                attributes=self.resource_create_request.attributes,
+                limits=self.resource_create_request.limits,
+                name=self.resource_create_request.name,
+                state=Resource.States.CREATING,
+            )
+            resource.init_cost()
+            resource.save()
+            self.order = Order(
+                resource=resource,
                 project=project,
                 created_by=self.requested_by,
                 offering=self.resource_create_request.offering,

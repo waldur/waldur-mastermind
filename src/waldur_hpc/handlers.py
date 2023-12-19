@@ -135,21 +135,37 @@ def get_or_create_order(project: Project, user, offering, plan, limits=None):
         ]:
             return order, False
         if order.state == Order.States.DONE:
-            if order.resource and order.resource.state != Resource.States.ERRED:
+            if order.resource.state != Resource.States.ERRED:
                 return order, False
 
-    order = Order.objects.create(
-        project=project,
-        created_by=user,
-        offering=offering,
-        plan=plan,
-        limits=limits,
-        attributes={'name': sanitize_allocation_name(user.username)},
-        state=Order.States.EXECUTING,
-    )
+    name = sanitize_allocation_name(user.username)
 
-    order.init_cost()
-    order.save()
+    with transaction.atomic():
+        resource = Resource(
+            project=project,
+            offering=offering,
+            plan=plan,
+            limits=limits,
+            attributes={'name': name},
+            name=name,
+            state=Resource.States.CREATING,
+        )
+        resource.init_cost()
+        resource.save()
+
+        order = Order(
+            resource=resource,
+            project=project,
+            created_by=user,
+            offering=offering,
+            plan=plan,
+            limits=limits,
+            attributes={'name': name},
+            state=Order.States.EXECUTING,
+        )
+
+        order.init_cost()
+        order.save()
 
     return order, True
 

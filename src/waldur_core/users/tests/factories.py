@@ -6,7 +6,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.users import models
 
 
-class InvitationBaseFactory(factory.DjangoModelFactory):
+class InvitationBaseFactory(factory.django.DjangoModelFactory):
     email = factory.Sequence(lambda n: 'test%s@invitation.com' % n)
 
     @classmethod
@@ -41,7 +41,7 @@ class CustomerInvitationFactory(InvitationBaseFactory):
     customer_role = structure_models.CustomerRole.OWNER
 
 
-class GroupInvitationBaseFactory(factory.DjangoModelFactory):
+class GroupInvitationBaseFactory(factory.django.DjangoModelFactory):
     @classmethod
     def get_list_url(cls, action=None):
         url = 'http://testserver' + reverse('user-group-invitation-list')
@@ -74,7 +74,7 @@ class CustomerGroupInvitationFactory(GroupInvitationBaseFactory):
     customer_role = structure_models.CustomerRole.OWNER
 
 
-class PermissionRequestFactory(factory.DjangoModelFactory):
+class PermissionRequestFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.PermissionRequest
 

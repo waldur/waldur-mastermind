@@ -75,6 +75,17 @@ class DryRunView(ActionsViewSet):
         )
         order.created_by = request.user
         order.project = project
+        resource = marketplace_models.Resource(
+            project=project,
+            offering=offering,
+            plan=serializer.validated_data.get('plan'),
+            attributes=serializer.validated_data['attributes'],
+            name=serializer.validated_data['attributes'].get('name', 'test-resource'),
+            state=marketplace_models.Resource.States.CREATING,
+        )
+        resource.init_cost()
+        resource.save()
+        order.resource = resource
         order.save()
 
         executor = ContainerExecutorMixin()
@@ -91,8 +102,19 @@ class DryRunView(ActionsViewSet):
         project = structure_models.Project.objects.create(
             name='Dry-run project', customer=offering.customer
         )
+        resource = marketplace_models.Resource(
+            project=project,
+            offering=offering,
+            plan=serializer.validated_data.get('plan'),
+            attributes=serializer.validated_data['attributes'],
+            name=serializer.validated_data['attributes'].get('name', 'test-resource'),
+            state=marketplace_models.Resource.States.CREATING,
+        )
+        resource.init_cost()
+        resource.save()
         order = marketplace_models.Order(**serializer.validated_data)
         order.offering = offering
+        order.resource = resource
         order_type = DryRunTypes.get_type_display(order.type)
         order.created_by = request.user
         order.project = project

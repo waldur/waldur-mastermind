@@ -7,7 +7,7 @@ from waldur_aws import models
 from waldur_core.structure.tests import factories as structure_factories
 
 
-class RegionFactory(factory.DjangoModelFactory):
+class RegionFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Region
 
@@ -27,7 +27,7 @@ class RegionFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('aws-region-list')
 
 
-class ImageFactory(factory.DjangoModelFactory):
+class ImageFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Image
 
@@ -48,7 +48,7 @@ class ImageFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('aws-image-list')
 
 
-class SizeFactory(factory.DjangoModelFactory):
+class SizeFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Size
 
@@ -73,7 +73,7 @@ class SizeFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('aws-size-list')
 
 
-class InstanceFactory(factory.DjangoModelFactory):
+class InstanceFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Instance
 

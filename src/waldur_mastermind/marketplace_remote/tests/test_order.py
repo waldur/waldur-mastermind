@@ -195,8 +195,6 @@ class OrderPullTest(test.APITransactionTestCase):
             'marketplace_resource_uuid': 'marketplace_resource_uuid',
             'error_message': '',
         }
-        self.order.resource = None
-        self.order.save()
 
         # Act
         OrderPullTask().run(serialize_instance(self.order))
@@ -214,8 +212,6 @@ class OrderPullTest(test.APITransactionTestCase):
             'resource_uuid': 'effective_id',
             'error_message': '',
         }
-        self.order.resource = None
-        self.order.save()
 
         # Act
         OrderPullTask().run(serialize_instance(self.order))

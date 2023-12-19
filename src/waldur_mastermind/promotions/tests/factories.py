@@ -8,7 +8,7 @@ from waldur_mastermind.marketplace.tests import factories as marketplace_factori
 from .. import models
 
 
-class CampaignFactory(factory.DjangoModelFactory):
+class CampaignFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Campaign
 
@@ -34,7 +34,7 @@ class CampaignFactory(factory.DjangoModelFactory):
         return url if action is None else url + action + '/'
 
 
-class DiscountedResourceFactory(factory.DjangoModelFactory):
+class DiscountedResourceFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.DiscountedResource
 

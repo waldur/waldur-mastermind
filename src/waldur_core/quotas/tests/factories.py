@@ -3,7 +3,7 @@ import factory
 from waldur_core.quotas.models import QuotaUsage
 
 
-class QuotaFactory(factory.DjangoModelFactory):
+class QuotaFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = QuotaUsage
 

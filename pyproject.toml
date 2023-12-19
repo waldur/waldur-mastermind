@@ -19,7 +19,7 @@ classifiers=[
 ]
 
 [tool.poetry.dependencies]
-python = "^3.8,<3.12"
+python = "^3.10,<3.12"
 apache-libcloud = "2.2.1"
 azure-mgmt-compute = "20.0.0"
 azure-mgmt-network = "19.0.0"
@@ -101,7 +101,7 @@ pytest-cov = "3.0.0"
 pytest-django = "^4.5.2"
 responses = "0.18.0"
 ddt = "1.6.0"
-factory-boy = "2.4.1"
+factory-boy = "3.3.0"
 freezegun = "1.2.2"
 mock-django = "0.6.10"
 django-cors-headers = "^3.2.1"

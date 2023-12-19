@@ -7,7 +7,7 @@ from waldur_mastermind.marketplace.tests import factories as marketplace_factori
 from waldur_mastermind.marketplace_flows import models
 
 
-class OfferingStateRequestFactory(factory.DjangoModelFactory):
+class OfferingStateRequestFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.OfferingStateRequest
 

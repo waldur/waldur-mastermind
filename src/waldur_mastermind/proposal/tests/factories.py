@@ -8,7 +8,7 @@ from waldur_mastermind.marketplace.tests import factories as marketplace_factori
 from waldur_mastermind.proposal import models
 
 
-class CallManagingOrganisationFactory(factory.DjangoModelFactory):
+class CallManagingOrganisationFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.CallManagingOrganisation
 
@@ -30,7 +30,7 @@ class CallManagingOrganisationFactory(factory.DjangoModelFactory):
         return url if action is None else url + action + '/'
 
 
-class CallFactory(factory.DjangoModelFactory):
+class CallFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Call
 
@@ -71,7 +71,7 @@ class CallFactory(factory.DjangoModelFactory):
         return url if action is None else url + action + '/'
 
 
-class RequestedOfferingFactory(factory.DjangoModelFactory):
+class RequestedOfferingFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.RequestedOffering
 
@@ -94,7 +94,7 @@ class RequestedOfferingFactory(factory.DjangoModelFactory):
         return CallFactory.get_protected_url(call, action='offerings')
 
 
-class RoundFactory(factory.DjangoModelFactory):
+class RoundFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Round
 
@@ -117,7 +117,7 @@ class RoundFactory(factory.DjangoModelFactory):
         return CallFactory.get_protected_url(call, action='rounds')
 
 
-class ProposalFactory(factory.DjangoModelFactory):
+class ProposalFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Proposal
 

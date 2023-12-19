@@ -146,7 +146,7 @@ class TestHandlers(TestCase):
             project=project,
             created_by=user,
         )
-        order.complete()
+        order.fail()
         order.save()
 
         # second login

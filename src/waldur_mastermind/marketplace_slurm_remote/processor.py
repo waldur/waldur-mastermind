@@ -2,7 +2,6 @@ from django.db import transaction
 
 from waldur_core.structure.models import ServiceSettings
 from waldur_mastermind.marketplace import processors
-from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_slurm import models as slurm_models
 
 from .apps import MarketplaceSlurmConfig
@@ -11,10 +10,6 @@ from .apps import MarketplaceSlurmConfig
 class CreateAllocationProcessor(processors.BasicCreateResourceProcessor):
     def process_order(self, user):
         with transaction.atomic():
-            marketplace_resource = marketplace_utils.create_local_resource(
-                self.order, None
-            )
-
             service_settings, _ = ServiceSettings.objects.update_or_create(
                 type=MarketplaceSlurmConfig.service_name,
                 state=ServiceSettings.States.OK,
@@ -30,8 +25,8 @@ class CreateAllocationProcessor(processors.BasicCreateResourceProcessor):
                 service_settings=service_settings,
                 project=self.order.project,
             )
-            marketplace_resource.scope = allocation
-            marketplace_resource.save()
+            self.order.resource.scope = allocation
+            self.order.resource.save()
 
 
 class DeleteAllocationProcessor(processors.BasicDeleteResourceProcessor):
