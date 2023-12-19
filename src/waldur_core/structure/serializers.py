@@ -523,10 +523,14 @@ class CustomerSerializer(
 
     def get_projects(self, customer):
         projects = models.Project.available_objects.filter(customer=customer)
-        query = self.context['request'].query_params.get('query')
+        show_all_projects = self.context['request'].query_params.get(
+            'show_all_projects'
+        )
+        if show_all_projects not in ['true', 'True']:
+            query = self.context['request'].query_params.get('query')
 
-        if query:
-            projects = projects.filter(name__icontains=query)
+            if query:
+                projects = projects.filter(name__icontains=query)
 
         return PermissionProjectSerializer(
             projects, many=True, context=self.context
