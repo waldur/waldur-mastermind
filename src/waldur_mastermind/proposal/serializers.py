@@ -103,7 +103,7 @@ class NestedRequestedOfferingSerializer(serializers.HyperlinkedModelSerializer):
                 'proposal-call-offering-detail',
                 kwargs={
                     'uuid': requested_offering.call.uuid.hex,
-                    'requested_offering_uuid': requested_offering.uuid.hex,
+                    'obj_uuid': requested_offering.uuid.hex,
                 },
             )
         )
@@ -192,7 +192,7 @@ class RequestedOfferingSerializer(
                 'proposal-call-offering-detail',
                 kwargs={
                     'uuid': requested_offering.call.uuid.hex,
-                    'requested_offering_uuid': requested_offering.uuid.hex,
+                    'obj_uuid': requested_offering.uuid.hex,
                 },
             )
         )
@@ -211,9 +211,67 @@ class RequestedOfferingSerializer(
 
         return offering
 
+    def create(self, validated_data):
+        validated_data['created_by'] = self.context['request'].user
+        return super().create(validated_data)
+
+
+class ReviewerSerializer(serializers.HyperlinkedModelSerializer):
+    url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = models.CallReviewer
+        fields = (
+            'url',
+            'uuid',
+            'user',
+            'created',
+            'created_by',
+        )
+        read_only_fields = ('created_by',)
+        extra_kwargs = {
+            'url': {
+                'lookup_field': 'uuid',
+            },
+            'user': {
+                'lookup_field': 'uuid',
+                'view_name': 'user-detail',
+            },
+            'created_by': {
+                'lookup_field': 'uuid',
+                'view_name': 'user-detail',
+            },
+        }
+
+    def get_url(self, reviewer):
+        return self.context['request'].build_absolute_uri(
+            reverse(
+                'proposal-call-reviewer-detail',
+                kwargs={
+                    'uuid': reviewer.call.uuid.hex,
+                    'obj_uuid': reviewer.uuid.hex,
+                },
+            )
+        )
+
+    def validate_unique_together(self, call):
+        user = self.validated_data['user']
+
+        if call.callreviewer_set.filter(user_id=user.id).exists():
+            raise serializers.ValidationError(
+                {'user': _('User must by unique for a call.')}
+            )
+
+    def create(self, validated_data):
+        validated_data['created_by'] = self.context['request'].user
+        return super().create(validated_data)
+
 
 class ProtectedCallSerializer(PublicCallSerializer):
+    reviewers = ReviewerSerializer(many=True, read_only=True, source='callreviewer_set')
+
     class Meta(PublicCallSerializer.Meta):
+        fields = PublicCallSerializer.Meta.fields + ('reviewers',)
         view_name = 'proposal-protected-call-detail'
         protected_fields = ('manager',)
 
@@ -277,7 +335,7 @@ class RoundSerializer(core_serializers.AugmentedSerializerMixin, NestedRoundSeri
                 'proposal-call-round-detail',
                 kwargs={
                     'uuid': call_round.call.uuid.hex,
-                    'round_uuid': call_round.uuid.hex,
+                    'obj_uuid': call_round.uuid.hex,
                 },
             )
         )
@@ -349,9 +407,83 @@ class ProposalSerializer(
             call_round = models.Round.objects.get(uuid=round_uuid)
         except models.Round.DoesNotExist:
             raise serializers.ValidationError({'round_uuid': _('Round not found.')})
+
+        if call_round.call.state != models.Call.States.ACTIVE:
+            raise serializers.ValidationError(_('Call is not active.'))
+
         attrs['round'] = call_round
         return attrs
 
     def create(self, validated_data):
         validated_data['created_by'] = self.context['request'].user
         return super().create(validated_data)
+
+
+class ReviewSerializer(
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
+):
+    state = serializers.ReadOnlyField(source='get_state_display')
+    reviewer = serializers.SerializerMethodField()
+
+    class Meta:
+        model = models.Review
+        fields = (
+            'url',
+            'uuid',
+            'proposal',
+            'reviewer',
+            'state',
+            'summary_score',
+            'summary_public_comment',
+            'summary_private_comment',
+        )
+        read_only_fields = ('proposal',)
+        extra_kwargs = {
+            'url': {
+                'lookup_field': 'uuid',
+            },
+            'proposal': {
+                'lookup_field': 'uuid',
+                'view_name': 'proposal-proposal-detail',
+            },
+        }
+
+    def get_reviewer(self, review):
+        return self.context['request'].build_absolute_uri(
+            reverse(
+                'proposal-call-reviewer-detail',
+                kwargs={
+                    'uuid': review.proposal.round.call.uuid.hex,
+                    'obj_uuid': review.uuid.hex,
+                },
+            )
+        )
+
+    def get_fields(self):
+        fields = super().get_fields()
+
+        if not self.instance:
+            return fields
+        elif isinstance(self.instance, list):
+            review = self.instance[0]
+        else:
+            review = self.instance
+
+        try:
+            request = self.context['view'].request
+            user = request.user
+        except (KeyError, AttributeError):
+            return fields
+
+        if (
+            user.is_staff
+            or review.reviewer.user == user
+            or user in review.proposal.round.call.manager.customer.get_users()
+        ):
+            return fields
+
+        del fields['summary_private_comment']
+        del fields['reviewer']
+
+        return fields

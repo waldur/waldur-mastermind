@@ -15,3 +15,8 @@ class RuntimeStateException(Exception):
 class ExtensionDisabled(APIException):
     status_code = status.HTTP_424_FAILED_DEPENDENCY
     default_detail = _('Extension is disabled.')
+
+
+class IncorrectMethodException(APIException):
+    status_code = status.HTTP_405_METHOD_NOT_ALLOWED
+    default_detail = _('Method not allowed.')

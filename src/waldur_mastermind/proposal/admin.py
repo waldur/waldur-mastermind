@@ -13,8 +13,13 @@ class RoundInline(admin.TabularInline):
     extra = 1
 
 
+class CallReviewersInline(admin.TabularInline):
+    model = models.CallReviewer
+    extra = 1
+
+
 class CallAdmin(admin.ModelAdmin):
-    inlines = [RequestedOfferingInline, RoundInline]
+    inlines = [RequestedOfferingInline, RoundInline, CallReviewersInline]
     list_display = ('name', 'start_time', 'end_time')
 
 
@@ -26,7 +31,12 @@ class ProposalAdmin(admin.ModelAdmin):
     list_display = ('__str__', 'get_state_display')
 
 
+class ReviewAdmin(admin.ModelAdmin):
+    list_display = ('reviewer', 'proposal')
+
+
 admin.site.register(models.CallManagingOrganisation)
 admin.site.register(models.Call, CallAdmin)
 admin.site.register(models.Round, RoundAdmin)
 admin.site.register(models.Proposal, ProposalAdmin)
+admin.site.register(models.Review, ReviewAdmin)
