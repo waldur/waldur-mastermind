@@ -13,7 +13,7 @@ from .apps import TestConfig
 
 
 class UserFactory(
-    factory.DjangoModelFactory, metaclass=BaseMetaFactory[core_models.User]
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[core_models.User]
 ):
     class Meta:
         model = django.contrib.auth.get_user_model()
@@ -67,7 +67,7 @@ class UserFactory(
         return url if action is None else url + action + '/'
 
 
-class SshPublicKeyFactory(factory.DjangoModelFactory):
+class SshPublicKeyFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = core_models.SshPublicKey
 
@@ -95,7 +95,7 @@ class SshPublicKeyFactory(factory.DjangoModelFactory):
 
 
 class CustomerFactory(
-    factory.DjangoModelFactory, metaclass=BaseMetaFactory[models.Customer]
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Customer]
 ):
     class Meta:
         model = models.Customer
@@ -119,7 +119,7 @@ class CustomerFactory(
 
 
 class ProjectFactory(
-    factory.DjangoModelFactory, metaclass=BaseMetaFactory[models.Project]
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Project]
 ):
     class Meta:
         model = models.Project
@@ -141,7 +141,7 @@ class ProjectFactory(
         return 'http://testserver' + reverse('project-list')
 
 
-class ServiceSettingsFactory(factory.DjangoModelFactory):
+class ServiceSettingsFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.ServiceSettings
 
@@ -164,7 +164,7 @@ class ServiceSettingsFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('servicesettings-list')
 
 
-class TestNewInstanceFactory(factory.DjangoModelFactory):
+class TestNewInstanceFactory(factory.django.DjangoModelFactory):
     __test__ = False
 
     class Meta:
@@ -188,12 +188,12 @@ class TestNewInstanceFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('test-new-instances-list')
 
 
-class TestSubResourceFactory(factory.DjangoModelFactory):
+class TestSubResourceFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = test_models.TestSubResource
 
 
-class TestVolumeFactory(factory.DjangoModelFactory):
+class TestVolumeFactory(factory.django.DjangoModelFactory):
     size = factory.fuzzy.FuzzyInteger(1024, 102400, step=1024)
     service_settings = factory.SubFactory(ServiceSettingsFactory)
     project = factory.SubFactory(ProjectFactory)
@@ -202,7 +202,7 @@ class TestVolumeFactory(factory.DjangoModelFactory):
         model = test_models.TestVolume
 
 
-class TestSnapshotFactory(factory.DjangoModelFactory):
+class TestSnapshotFactory(factory.django.DjangoModelFactory):
     size = factory.fuzzy.FuzzyInteger(1024, 102400, step=1024)
     service_settings = factory.SubFactory(ServiceSettingsFactory)
     project = factory.SubFactory(ProjectFactory)
@@ -211,7 +211,7 @@ class TestSnapshotFactory(factory.DjangoModelFactory):
         model = test_models.TestSnapshot
 
 
-class DivisionTypeFactory(factory.DjangoModelFactory):
+class DivisionTypeFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.DivisionType
 
@@ -231,7 +231,7 @@ class DivisionTypeFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('division-type-list')
 
 
-class DivisionFactory(factory.DjangoModelFactory):
+class DivisionFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Division
 
@@ -252,7 +252,7 @@ class DivisionFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('division-list')
 
 
-class NotificationTemplateFactory(factory.DjangoModelFactory):
+class NotificationTemplateFactory(factory.django.DjangoModelFactory):
     name = factory.Sequence(lambda n: 'NotificationTemplate_%s' % n)
     path = factory.Sequence(lambda n: 'NotificationTemplate_%s' % n)
 
@@ -274,7 +274,7 @@ class NotificationTemplateFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('notification-messages-templates-list')
 
 
-class NotificationFactory(factory.DjangoModelFactory):
+class NotificationFactory(factory.django.DjangoModelFactory):
     key = factory.Sequence(lambda n: 'Notification_%s' % n)
 
     class Meta:
@@ -304,7 +304,7 @@ class NotificationFactory(factory.DjangoModelFactory):
         self.templates.create(path=f"{module}/{event_type}_message.html")
 
 
-class AuthTokenFactory(factory.DjangoModelFactory):
+class AuthTokenFactory(factory.django.DjangoModelFactory):
     key = factory.Sequence(lambda n: 'key_%s' % n)
     user = factory.SubFactory(UserFactory)
 

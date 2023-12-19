@@ -137,7 +137,7 @@ def resource_update_succeeded(resource: models.Resource, validate=False):
 
         resource.plan = order.plan
         resource.init_cost()
-        resource.save(update_fields=['plan', 'cost'])
+        resource.save()
 
         create_resource_plan_period(resource)
         transaction.on_commit(
@@ -159,7 +159,7 @@ def resource_update_succeeded(resource: models.Resource, validate=False):
         )
         resource.limits = order.limits
         resource.init_cost()
-        resource.save(update_fields=['limits', 'cost'])
+        resource.save()
         log.log_resource_limit_update_succeeded(resource)
         transaction.on_commit(
             lambda: tasks.notify_about_resource_change.delay(

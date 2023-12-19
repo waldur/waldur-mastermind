@@ -11,20 +11,17 @@ class CallbacksTest(test.APITransactionTestCase):
     def test_when_resource_is_created_new_period_is_opened(self):
         # Arrange
         start = parse_datetime('2018-11-01')
-        plan = factories.PlanFactory()
-        resource = factories.ResourceFactory(plan=plan)
         order = factories.OrderFactory(
             state=models.Order.States.EXECUTING,
-            resource=resource,
         )
 
         # Act
-        callbacks.resource_creation_succeeded(resource)
+        callbacks.resource_creation_succeeded(order.resource)
 
         # Assert
         self.assertTrue(
             models.ResourcePlanPeriod.objects.filter(
-                resource=resource, plan=plan, start=start, end=None
+                resource=order.resource, plan=order.resource.plan, start=start, end=None
             ).exists()
         )
 

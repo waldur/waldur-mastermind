@@ -1,13 +1,12 @@
 from unittest import mock
 
-from rest_framework import test
+from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
 from waldur_core.logging import models as logging_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.billing import models as billing_models
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 from waldur_mastermind.marketplace.tests import utils as tests_utils
@@ -76,61 +75,56 @@ class ActionsTest(test.APITransactionTestCase):
             logging_models.Event.objects.filter(event_type='notify_organization_owners')
         )
 
-    def _create_new_order(self):
-        order = marketplace_factories.OrderFactory(
-            project=self.project,
-            offering=self.fixture.offering,
-            attributes={'name': 'item_name', 'description': 'Description'},
-            plan=self.fixture.plan,
-            state=marketplace_models.Order.States.EXECUTING,
+    def create_order(self):
+        project_url = structure_factories.ProjectFactory.get_url(self.fixture.project)
+        offering_url = marketplace_factories.OfferingFactory.get_public_url(
+            self.fixture.offering
         )
+        plan_url = marketplace_factories.PlanFactory.get_public_url(self.fixture.plan)
 
-        marketplace_utils.process_order(order, self.fixture.staff)
-        order.refresh_from_db()
-        return order
+        payload = {
+            'project': project_url,
+            'offering': offering_url,
+            'plan': plan_url,
+            'attributes': {'name': 'item_name', 'description': 'Description'},
+        }
+        self.client.force_login(self.fixture.staff)
+        url = marketplace_factories.OrderFactory.get_list_url()
+        return self.client.post(url, payload)
 
     def test_block_creation_of_new_resources(self):
         self.policy.actions = 'block_creation_of_new_resources'
         self.policy.save()
 
-        order = self._create_new_order()
-        self.assertTrue(order.resource)
-        self.assertFalse(order.error_message)
+        response = self.create_order()
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         self.estimate.total = self.policy.limit_cost + 1
         self.estimate.save()
 
-        order = self._create_new_order()
-        self.assertFalse(order.resource)
-        self.assertTrue(order.error_message)
+        response = self.create_order()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_block_modification_of_existing_resources(self):
         self.policy.actions = 'block_modification_of_existing_resources'
         self.policy.save()
 
-        order = self._create_new_order()
-        self.assertTrue(order.resource)
-        self.assertFalse(order.error_message)
+        response = self.create_order()
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        resource = marketplace_models.Resource.objects.get(
+            uuid=response.data['marketplace_resource_uuid']
+        )
 
         self.estimate.total = self.policy.limit_cost + 1
         self.estimate.save()
+        resource.set_state_ok()
+        resource.save()
 
-        order = marketplace_factories.OrderFactory(
-            project=self.project,
-            offering=self.fixture.offering,
-            attributes={'old_limits': {'cpu': 1}},
-            limits={'cpu': 2},
-            plan=self.fixture.plan,
-            type=marketplace_models.RequestTypeMixin.Types.UPDATE,
-            resource=order.resource,
-            state=marketplace_models.Order.States.EXECUTING,
-        )
-
-        marketplace_utils.process_order(order, self.fixture.staff)
-        order.refresh_from_db()
-
-        self.assertEqual(order.state, marketplace_models.Order.States.ERRED)
-        self.assertTrue(order.error_message)
+        self.client.force_authenticate(self.fixture.staff)
+        url = marketplace_factories.ResourceFactory.get_url(resource, 'update_limits')
+        payload = {'limits': {'cpu': 2}}
+        response = self.client.post(url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_terminate_resources(self):
         self.policy.actions = 'terminate_resources'

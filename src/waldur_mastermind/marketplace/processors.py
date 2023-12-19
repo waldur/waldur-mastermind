@@ -1,5 +1,6 @@
 import logging
 
+from django.db import models as django_models
 from django.db import transaction
 from rest_framework import serializers, status
 from rest_framework.reverse import reverse
@@ -7,11 +8,7 @@ from rest_framework.reverse import reverse
 from waldur_mastermind.common import utils as common_utils
 from waldur_mastermind.marketplace import models, signals
 from waldur_mastermind.marketplace.callbacks import resource_creation_succeeded
-from waldur_mastermind.marketplace.utils import (
-    create_local_resource,
-    link_parent_resource,
-    validate_limits,
-)
+from waldur_mastermind.marketplace.utils import validate_limits
 
 logger = logging.getLogger(__name__)
 
@@ -49,8 +46,7 @@ class BaseOrderProcessor:
 
     def process_order(self, user):
         """
-        This method receives user object and creates plugin's resource corresponding
-        to provided order. It is called after order has been approved.
+        This method is called after order has been approved.
         """
         raise NotImplementedError()
 
@@ -67,6 +63,7 @@ class AbstractCreateResourceProcessor(BaseOrderProcessor):
     def process_order(self, user):
         # scope can be a reference to a different object or a string representing
         # unique key of a scoped object, e.g. remote UUID
+        resource = self.order.resource
         scope = self.send_request(user)
         backend_metadata = {}
         endpoints = {}
@@ -76,14 +73,19 @@ class AbstractCreateResourceProcessor(BaseOrderProcessor):
             scope = scope['backend_id']
 
         with transaction.atomic():
-            resource = create_local_resource(
-                self.order,
-                scope,
-                backend_metadata=backend_metadata,
-                endpoints=endpoints,
-            )
-
-            link_parent_resource(resource)
+            resource.backend_metadata = backend_metadata
+            if isinstance(scope, str):
+                resource.backend_id = scope
+            elif isinstance(scope, django_models.Model):
+                resource.scope = scope
+            resource.save()
+            for endpoint in endpoints:
+                name = endpoint.get('name')
+                url = endpoint.get('url')
+                if name is not None and url is not None:
+                    models.ResourceAccessEndpoint.objects.create(
+                        name=name, url=url, resource=resource
+                    )
 
             if not scope or isinstance(scope, str):
                 resource_creation_succeeded(resource)

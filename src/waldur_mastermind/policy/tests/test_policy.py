@@ -95,7 +95,7 @@ class ActionsFunctionsTest(test.APITransactionTestCase):
             marketplace_utils.process_order(order, self.fixture.staff)
 
             self.notify_project_team_mock.assert_not_called()
-            self.block_creation_of_new_resources_mock.assert_called_once()
+            self.block_creation_of_new_resources_mock.assert_called()
 
     def test_has_fired(self):
         self.estimate.total = self.policy.limit_cost + 1

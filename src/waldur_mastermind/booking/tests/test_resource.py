@@ -122,10 +122,11 @@ class OrderAcceptTest(test.APITransactionTestCase):
         self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
 
     def test_when_order_is_accepted_resource_plan_period_is_created(self):
-        self.accept(self.fixture.resource)
+        response = self.accept(self.fixture.resource)
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.assertTrue(
             marketplace_models.ResourcePlanPeriod.objects.filter(
-                resource=self.fixture.resource, plan=self.fixture.plan
+                resource=self.fixture.resource, plan=self.fixture.resource.plan
             ).exists()
         )
 

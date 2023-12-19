@@ -1,7 +1,6 @@
 from django.db import transaction
 
 from waldur_mastermind.marketplace import processors
-from waldur_mastermind.marketplace.utils import create_local_resource
 from waldur_mastermind.marketplace_support import utils
 from waldur_mastermind.support import models as support_models
 
@@ -16,10 +15,10 @@ class CreateRequestProcessor(processors.BaseCreateResourceProcessor):
 
     def process_order(self, user):
         with transaction.atomic():
-            resource = create_local_resource(self.order, None)
             issue = self.send_request(user)
 
             if issue:
+                resource = self.order.resource
                 resource.scope = issue
                 resource.backend_id = issue.backend_id or ''
                 resource.save()

@@ -344,13 +344,19 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         ):
             registrators.RegistrationManager.terminate(resource, timezone.now())
 
-        if resource.tracker.has_changed('plan_id'):
+        if (
+            resource.state != marketplace_models.Resource.States.CREATING
+            and resource.tracker.has_changed('plan_id')
+        ):
             registrators.RegistrationManager.terminate(resource, timezone.now())
             registrators.RegistrationManager.register(
                 resource, timezone.now(), order_type=OrderTypes.UPDATE
             )
 
-        if resource.tracker.has_changed('limits'):
+        if (
+            resource.state != marketplace_models.Resource.States.CREATING
+            and resource.tracker.has_changed('limits')
+        ):
             today = timezone.now()
             invoice, _ = registrators.RegistrationManager.get_or_create_invoice(
                 resource.project.customer, core_utils.month_start(today)

@@ -32,7 +32,7 @@ class NotificationsTest(test.APITransactionTestCase):
 
         marketplace_utils.process_order(self.order, fixture.staff)
 
-        self.resource = marketplace_models.Resource.objects.get(name='booking')
+        self.resource = self.order.resource
         self.resource.state = marketplace_models.Resource.States.OK
         self.resource.save()
 

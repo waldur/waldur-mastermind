@@ -10,7 +10,7 @@ class SlurmServiceSettingsFactory(ServiceSettingsFactory):
     type = 'SLURM'
 
 
-class AllocationFactory(factory.DjangoModelFactory):
+class AllocationFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Allocation
 
@@ -38,7 +38,7 @@ class AllocationFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('slurm-allocation-list')
 
 
-class AssociationFactory(factory.DjangoModelFactory):
+class AssociationFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Association
 

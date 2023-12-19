@@ -256,13 +256,9 @@ def synchronize_floating_ips_on_delete(sender, instance, **kwargs):
 def create_resource_of_volume_if_instance_created(
     sender, instance, created=False, **kwargs
 ):
-    resource = instance
+    resource: marketplace_models.Resource = instance
 
-    if (
-        not created
-        or not resource.scope
-        or not getattr(resource.offering, 'scope', None)
-    ):
+    if not resource.scope or not getattr(resource.offering, 'scope', None):
         return
 
     if resource.offering.type != INSTANCE_TYPE:

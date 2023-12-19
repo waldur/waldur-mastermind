@@ -7,7 +7,7 @@ from waldur_mastermind.marketplace.tests import factories as marketplace_factori
 from .. import models
 
 
-class GoogleCredentialsFactory(factory.DjangoModelFactory):
+class GoogleCredentialsFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.GoogleCredentials
 
@@ -44,7 +44,7 @@ class GoogleCredentialsFactory(factory.DjangoModelFactory):
         return url if action is None else url + action + '/'
 
 
-class GoogleCalendarFactory(factory.DjangoModelFactory):
+class GoogleCalendarFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.GoogleCalendar
 

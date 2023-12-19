@@ -27,6 +27,7 @@ from waldur_core.quotas import fields as quotas_fields
 from waldur_core.quotas import models as quotas_models
 from waldur_core.structure import models as structure_models
 from waldur_geo_ip.mixins import CoordinatesMixin
+from waldur_mastermind.marketplace.exceptions import PolicyException
 from waldur_pid import mixins as pid_mixins
 
 from ..common import mixins as common_mixins
@@ -844,8 +845,13 @@ class CostEstimateMixin(models.Model):
     limits = models.JSONField(blank=True, default=dict)
 
     def init_cost(self):
-        if self.plan:
+        if not self.plan:
+            return
+        try:
             self.cost = self.plan.get_estimate(self.limits)
+        except PolicyException:
+            self.set_state_erred()
+            self.error_message = 'Policy is violated.'
 
 
 class RequestTypeMixin(CostEstimateMixin):
@@ -1161,9 +1167,7 @@ class Order(
         on_delete=models.CASCADE, to=Plan, related_name='+', null=True, blank=True
     )
     project = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.Project)
-    resource = models.ForeignKey(
-        on_delete=models.CASCADE, to=Resource, null=True, blank=True
-    )
+    resource = models.ForeignKey(on_delete=models.CASCADE, to=Resource)
     state = FSMIntegerField(default=States.PENDING_CONSUMER, choices=States.CHOICES)
     activated = models.DateTimeField(_('activation date'), null=True, blank=True)
     output = models.TextField(blank=True)

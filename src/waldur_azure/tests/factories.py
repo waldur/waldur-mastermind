@@ -18,7 +18,7 @@ class AzureServiceSettingsFactory(structure_factories.ServiceSettingsFactory):
     customer = factory.SubFactory(structure_factories.CustomerFactory)
 
 
-class LocationFactory(factory.DjangoModelFactory):
+class LocationFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Location
 
@@ -40,7 +40,7 @@ class LocationFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('azure-location-list')
 
 
-class SizeFactory(factory.DjangoModelFactory):
+class SizeFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Size
 
@@ -68,7 +68,7 @@ class SizeFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('azure-size-list')
 
 
-class ImageFactory(factory.DjangoModelFactory):
+class ImageFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Image
 
@@ -95,7 +95,7 @@ class ImageFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('azure-image-list')
 
 
-class ResourceGroupFactory(factory.DjangoModelFactory):
+class ResourceGroupFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.ResourceGroup
 
@@ -106,7 +106,7 @@ class ResourceGroupFactory(factory.DjangoModelFactory):
     location = factory.SubFactory(LocationFactory)
 
 
-class NetworkFactory(factory.DjangoModelFactory):
+class NetworkFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Network
 
@@ -118,7 +118,7 @@ class NetworkFactory(factory.DjangoModelFactory):
     cidr = '10.0.0.0/16'
 
 
-class SubNetFactory(factory.DjangoModelFactory):
+class SubNetFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.SubNet
 
@@ -131,7 +131,7 @@ class SubNetFactory(factory.DjangoModelFactory):
     network = factory.SubFactory(NetworkFactory)
 
 
-class NetworkInterfaceFactory(factory.DjangoModelFactory):
+class NetworkInterfaceFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.NetworkInterface
 
@@ -144,7 +144,7 @@ class NetworkInterfaceFactory(factory.DjangoModelFactory):
     config_name = factory.Sequence(lambda n: 'conf-%s' % n)
 
 
-class PublicIPFactory(factory.DjangoModelFactory):
+class PublicIPFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.PublicIP
 
@@ -159,7 +159,7 @@ class PublicIPFactory(factory.DjangoModelFactory):
     )
 
 
-class VirtualMachineFactory(factory.DjangoModelFactory):
+class VirtualMachineFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.VirtualMachine
 
@@ -192,7 +192,7 @@ class VirtualMachineFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('azure-virtualmachine-list')
 
 
-class SQLServerFactory(factory.DjangoModelFactory):
+class SQLServerFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.SQLServer
 

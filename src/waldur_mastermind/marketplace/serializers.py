@@ -2186,7 +2186,19 @@ class CartSubmitSerializer(serializers.Serializer):
         if not item:
             raise serializers.ValidationError(_('Shopping cart is empty'))
 
+        resource = models.Resource(
+            project=project,
+            offering=item.offering,
+            plan=item.plan,
+            limits=item.limits,
+            attributes=item.attributes,
+            name=item.attributes.get('name') or '',
+        )
+        resource.init_cost()
+        resource.save()
+
         order = models.Order(
+            resource=resource,
             project=project,
             created_by=request.user,
             offering=item.offering,
@@ -2261,8 +2273,7 @@ def validate_order(order: models.Order, request):
     else:
         validate_private_offering(order)
 
-    if order.resource:
-        check_pending_order_exists(order.resource)
+    check_pending_order_exists(order.resource)
 
     utils.validate_order(order, request)
 
@@ -2334,7 +2345,19 @@ class OrderCreateSerializer(
     def create(self, validated_data):
         request = self.context['request']
         project = validated_data['project']
+        resource = models.Resource(
+            project=project,
+            offering=validated_data['offering'],
+            plan=validated_data.get('plan'),
+            limits=validated_data.get('limits') or {},
+            attributes=validated_data.get('attributes') or {},
+            name=validated_data.get('attributes').get('name') or '',
+        )
+        resource.init_cost()
+        resource.save()
+
         order = models.Order(
+            resource=resource,
             project=project,
             created_by=request.user,
             offering=validated_data['offering'],
@@ -2630,7 +2653,7 @@ class ResourceEndDateByProviderSerializer(serializers.ModelSerializer):
         resource = super().save(**kwargs)
         user = self.context['request'].user
         resource.end_date_requested_by = user
-        resource.save()
+        resource.save(update_fields=['end_date_requested_by'])
 
 
 class ResourceUpdateLimitsSerializer(serializers.ModelSerializer):

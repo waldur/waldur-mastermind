@@ -6,7 +6,7 @@ from waldur_core.logging import models
 from waldur_core.logging.loggers import get_valid_events
 
 
-class EventFactory(factory.DjangoModelFactory):
+class EventFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Event
 
@@ -39,14 +39,14 @@ class EventFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('events-stats-list')
 
 
-class FeedFactory(factory.DjangoModelFactory):
+class FeedFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Feed
 
     event = factory.SubFactory(EventFactory)
 
 
-class WebHookFactory(factory.DjangoModelFactory):
+class WebHookFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.WebHook
 
@@ -66,7 +66,7 @@ class WebHookFactory(factory.DjangoModelFactory):
         )
 
 
-class SystemNotificationFactory(factory.DjangoModelFactory):
+class SystemNotificationFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.SystemNotification
 

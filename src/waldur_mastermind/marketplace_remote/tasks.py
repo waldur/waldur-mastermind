@@ -26,7 +26,6 @@ from waldur_mastermind.invoices.registrators import RegistrationManager
 from waldur_mastermind.invoices.utils import get_previous_month
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.callbacks import sync_order_state
-from waldur_mastermind.marketplace.utils import create_local_resource
 from waldur_mastermind.marketplace_remote import models as remote_models
 from waldur_mastermind.marketplace_remote.constants import (
     OFFERING_COMPONENT_FIELDS,
@@ -365,15 +364,14 @@ class OrderPullTask(BackgroundPullTask):
 
         if remote_order['state'] != local_order.get_state_display():
             new_state = OrderInvertStates[remote_order['state']]
-            if (
-                not local_order.resource
-                and local_order.type == models.Order.Types.CREATE
-            ):
-                resource_uuid = remote_order.get('marketplace_resource_uuid')
-                effective_id = remote_order.get('resource_uuid') or ''
-                if resource_uuid:
-                    create_local_resource(local_order, resource_uuid, effective_id)
             sync_order_state(local_order, new_state)
+
+        # resource_uuid is resource.backend_uuid
+        effective_id = remote_order.get('resource_uuid', '')
+        if local_order.resource.effective_id != effective_id:
+            local_order.resource.effective_id = effective_id
+            local_order.resource.save(update_fields=['effective_id'])
+
         pull_fields(('error_message',), local_order, remote_order)
 
 

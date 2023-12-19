@@ -19,7 +19,7 @@ class DigitalOceanServiceSettingsFactory(ServiceSettingsFactory):
     customer = factory.SubFactory(CustomerFactory)
 
 
-class RegionFactory(factory.DjangoModelFactory):
+class RegionFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Region
 
@@ -35,7 +35,7 @@ class RegionFactory(factory.DjangoModelFactory):
         )
 
 
-class ImageFactory(factory.DjangoModelFactory):
+class ImageFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Image
 
@@ -55,7 +55,7 @@ class ImageFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('digitalocean-image-list')
 
 
-class SizeFactory(factory.DjangoModelFactory):
+class SizeFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Size
 
@@ -77,7 +77,7 @@ class SizeFactory(factory.DjangoModelFactory):
         )
 
 
-class DropletFactory(factory.DjangoModelFactory):
+class DropletFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Droplet
 

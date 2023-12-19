@@ -45,9 +45,21 @@ class MarketplaceConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.sync_resource_limit_when_order,
+            sender=models.Order,
+            dispatch_uid='waldur_mastermind.marketplace.sync_resource_limit_when_order',
+        )
+
+        signals.post_save.connect(
             handlers.log_resource_events,
             sender=models.Resource,
             dispatch_uid='waldur_mastermind.marketplace.log_resource_events',
+        )
+
+        signals.post_save.connect(
+            handlers.init_resource_parent,
+            sender=models.Resource,
+            dispatch_uid='waldur_mastermind.marketplace.init_resource_parent',
         )
 
         signals.post_save.connect(

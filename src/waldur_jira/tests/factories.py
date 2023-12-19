@@ -12,7 +12,7 @@ class JiraServiceSettingsFactory(structure_factories.ServiceSettingsFactory):
     backend_url = 'http://jira/'
 
 
-class ProjectTemplateFactory(factory.DjangoModelFactory):
+class ProjectTemplateFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.ProjectTemplate
 
@@ -33,7 +33,7 @@ class ProjectTemplateFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('jira-project-templates-list')
 
 
-class ProjectFactory(factory.DjangoModelFactory):
+class ProjectFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Project
 
@@ -59,7 +59,7 @@ class ProjectFactory(factory.DjangoModelFactory):
         return url if action is None else url + action + '/'
 
 
-class IssueTypeFactory(factory.DjangoModelFactory):
+class IssueTypeFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.IssueType
 
@@ -82,7 +82,7 @@ class IssueTypeFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('jira-issue-types-list')
 
 
-class PriorityFactory(factory.DjangoModelFactory):
+class PriorityFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Priority
 
@@ -105,7 +105,7 @@ class PriorityFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('jira-priorities-list')
 
 
-class IssueFactory(factory.DjangoModelFactory):
+class IssueFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Issue
 
@@ -133,7 +133,7 @@ class IssueFactory(factory.DjangoModelFactory):
         return 'http://testserver' + reverse('jira-issues-list')
 
 
-class CommentFactory(factory.DjangoModelFactory):
+class CommentFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Comment
 
