@@ -31,4 +31,7 @@ gosu waldur sh -c "waldur import_auth_social /etc/waldur/auth.yaml"
 echo "INFO: Loading permissions configuration"
 gosu waldur sh -c "waldur import_roles /etc/waldur/permissions.yaml"
 
+echo "INFO: Customising permissions configuration"
+gosu waldur sh -c "waldur override_roles /etc/waldur/permissions-override.yaml"
+
 exit 0
