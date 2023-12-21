@@ -2246,17 +2246,14 @@ def validate_private_offering(order: models.Order):
 
 
 def check_pending_order_exists(resource):
-    if models.Order.objects.filter(
+    return models.Order.objects.filter(
         resource=resource,
         state__in=(
             models.Order.States.PENDING_CONSUMER,
             models.Order.States.PENDING_PROVIDER,
             models.Order.States.EXECUTING,
         ),
-    ).exists():
-        raise serializers.ValidationError(
-            _('Pending order for resource already exists.')
-        )
+    )
 
 
 def validate_order(order: models.Order, request):
@@ -2273,7 +2270,10 @@ def validate_order(order: models.Order, request):
     else:
         validate_private_offering(order)
 
-    check_pending_order_exists(order.resource)
+    if check_pending_order_exists(order.resource):
+        raise serializers.ValidationError(
+            _('Pending order for resource already exists.')
+        )
 
     utils.validate_order(order, request)
 
