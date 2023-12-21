@@ -37,7 +37,7 @@ class Role(DescribableMixin, UuidMixin):
         ordering = ['name']
 
     def add_permission(self, name):
-        RolePermission.objects.create(role=self, permission=name)
+        RolePermission.objects.get_or_create(role=self, permission=name)
 
     def __str__(self):
         return f'{self.name}'
@@ -90,3 +90,6 @@ class RolePermission(models.Model):
         on_delete=models.CASCADE, to=Role, db_index=True, related_name='permissions'
     )
     permission = models.CharField(max_length=100, db_index=True)
+
+    class Meta:
+        unique_together = ('role', 'permission')
