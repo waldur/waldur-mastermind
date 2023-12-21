@@ -367,7 +367,7 @@ class OrderPullTask(BackgroundPullTask):
             sync_order_state(local_order, new_state)
 
         # resource_uuid is resource.backend_uuid
-        effective_id = remote_order.get('resource_uuid', '')
+        effective_id = remote_order.get('resource_uuid') or ''
         if local_order.resource.effective_id != effective_id:
             local_order.resource.effective_id = effective_id
             local_order.resource.save(update_fields=['effective_id'])
