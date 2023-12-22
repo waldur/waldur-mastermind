@@ -363,7 +363,7 @@ def get_new_order_ids(client, backend_id):
             resource__backend_id=backend_id
         ).values_list('backend_id', flat=True)
     )
-    remote_order_ids = {order['order_uuid'] for order in remote_orders}
+    remote_order_ids = {order['uuid'] for order in remote_orders}
     return remote_order_ids - local_order_ids
 
 
