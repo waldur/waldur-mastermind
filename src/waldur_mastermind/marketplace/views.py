@@ -405,7 +405,7 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
 
         pending_orders = models.Order.objects.filter(
             offering__customer=service_provider.customer,
-            state=models.Order.States.PENDING,
+            state=models.Order.States.PENDING_PROVIDER,
         ).count()
 
         erred_resources = models.Resource.objects.filter(
