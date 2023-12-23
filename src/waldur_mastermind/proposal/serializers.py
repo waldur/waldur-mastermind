@@ -152,7 +152,6 @@ class PublicCallSerializer(
             'state',
             'manager',
             'customer_name',
-            'created_by',
             'offerings',
             'rounds',
         )
@@ -271,7 +270,10 @@ class ProtectedCallSerializer(PublicCallSerializer):
     reviewers = ReviewerSerializer(many=True, read_only=True, source='callreviewer_set')
 
     class Meta(PublicCallSerializer.Meta):
-        fields = PublicCallSerializer.Meta.fields + ('reviewers',)
+        fields = PublicCallSerializer.Meta.fields + (
+            'reviewers',
+            'created_by',
+        )
         view_name = 'proposal-protected-call-detail'
         protected_fields = ('manager',)
 
