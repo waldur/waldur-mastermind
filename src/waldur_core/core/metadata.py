@@ -886,6 +886,25 @@ class WaldurZammad(BaseModel):
     )
 
 
+class WaldurSmax(BaseModel):
+    SMAX_API_URL = Field(
+        '',
+        description='Address of SMAX server. For example <http://localhost:8080/>',
+    )
+    SMAX_TENANT_ID = Field(
+        '',
+        description='User tenant ID.',
+    )
+    SMAX_LOGIN = Field(
+        '',
+        description='Authorization login.',
+    )
+    SMAX_PASSWORD = Field(
+        '',
+        description='Authorization password.',
+    )
+
+
 class WaldurConfiguration(BaseModel):
     WALDUR_CORE = WaldurCore()
     WALDUR_AUTH_SOCIAL = WaldurAuthSocial()
@@ -903,6 +922,7 @@ class WaldurConfiguration(BaseModel):
     WALDUR_SUPPORT = WaldurSupport()
     WALDUR_ATLASSIAN = WaldurAtlassian()
     WALDUR_ZAMMAD = WaldurZammad()
+    WALDUR_SMAX = WaldurSmax()
     USE_PROTECTED_URL = Field(
         False, description='Protect media URLs using signed token.'
     )
