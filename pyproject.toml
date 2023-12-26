@@ -157,6 +157,7 @@ waldur_firecrest = "waldur_firecrest.extension:FirecrestExtension"
 waldur_keycloak_rancher = "waldur_keycloak_rancher.extension:KeycloakRancherExtension"
 waldur_zammad = "waldur_zammad.extension:ZammadExtension"
 waldur_lexis = "waldur_lexis.extension:LexisExtension"
+waldur_smax = "waldur_smax.extension:SmaxExtension"
 
 
 [tool.poetry.group.docs.dependencies]

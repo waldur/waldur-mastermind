@@ -6,6 +6,7 @@ from django.conf import settings
 class SupportBackendType:
     ATLASSIAN = 'atlassian'
     ZAMMAD = 'zammad'
+    SMAX = 'smax'
 
 
 def get_active_backend():
@@ -14,6 +15,8 @@ def get_active_backend():
         path = 'waldur_mastermind.support.backend.atlassian:ServiceDeskBackend'
     elif backend_type == SupportBackendType.ZAMMAD:
         path = 'waldur_mastermind.support.backend.zammad:ZammadServiceBackend'
+    elif backend_type == SupportBackendType.SMAX:
+        path = 'waldur_mastermind.support.backend.smax:SmaxServiceBackend'
     else:
         path = 'waldur_mastermind.support.backend.basic:BasicBackend'
 
