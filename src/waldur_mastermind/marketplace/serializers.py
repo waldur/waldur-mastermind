@@ -2561,6 +2561,26 @@ class ResourceSerializer(BaseItemSerializer):
 
         return limit_usage
 
+    def get_fields(self):
+        fields = super().get_fields()
+        try:
+            action = self.context['view'].action
+        except (KeyError, AttributeError):
+            return fields
+
+        query_params = self.context['request'].query_params
+        keys = query_params.getlist(self.FIELDS_PARAM_NAME)
+        keys = set(key for key in keys if key in fields.keys())
+
+        if action == 'retrieve':
+            if keys:
+                if 'order_in_progress' in keys:
+                    fields['order_in_progress'] = NestedOrderSerializer(read_only=True)
+            else:
+                fields['order_in_progress'] = NestedOrderSerializer(read_only=True)
+
+        return fields
+
 
 class ResourceSwitchPlanSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:

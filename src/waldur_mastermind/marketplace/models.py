@@ -1113,6 +1113,18 @@ class Resource(
     def creation_order(self):
         return Order.objects.filter(resource=self, type=Order.Types.CREATE).first()
 
+    @property
+    def order_in_progress(self):
+        order_in_progress = Order.objects.filter(
+            resource=self,
+            state__in=[
+                Order.States.PENDING_CONSUMER,
+                Order.States.PENDING_PROVIDER,
+                Order.States.EXECUTING,
+            ],
+        ).first()
+        return order_in_progress
+
 
 class ResourcePlanPeriod(TimeStampedModel, TimeFramedModel, core_models.UuidMixin):
     """
