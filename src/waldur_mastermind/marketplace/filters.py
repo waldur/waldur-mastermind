@@ -275,6 +275,7 @@ class CartItemFilter(django_filters.FilterSet):
 
 
 class OrderFilter(OfferingFilterMixin, django_filters.FilterSet):
+    query = django_filters.CharFilter(method='filter_query')
     project_uuid = django_filters.UUIDFilter(field_name='project__uuid')
     offering_uuid = django_filters.UUIDFilter(field_name='offering__uuid')
     offering_type = core_filters.LooseMultipleChoiceFilter(
@@ -324,6 +325,16 @@ class OrderFilter(OfferingFilterMixin, django_filters.FilterSet):
     class Meta:
         model = models.Order
         fields = []
+
+    def filter_query(self, queryset, name, value):
+        if is_uuid_like(value):
+            if queryset.filter(uuid=value).exists():
+                return queryset.filter(uuid=value)
+
+        query = queryset.filter(
+            Q(project__name__icontains=value) | Q(attributes__name__icontains=value)
+        )
+        return query
 
     def filter_can_approve_as_consumer(self, queryset, name, value):
         user = self.request.user
