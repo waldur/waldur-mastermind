@@ -111,6 +111,27 @@ class ResourceGetTest(test.APITransactionTestCase):
         response = self.get_resource(self.fixture.manager)
         self.assertEqual(response.data['username'], 'alice')
 
+    def test_resource_data_includes_order_in_progress(self):
+        response = self.get_resource(self.fixture.owner)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertIn('order_in_progress', response.data)
+        self.assertIsNone(response.data['order_in_progress'])
+
+    def test_resource_data_includes_order_info_for_existing_one(self):
+        models.Order.objects.create(
+            project=self.project,
+            resource=self.resource,
+            state=models.Order.States.EXECUTING,
+            created_by=self.fixture.owner,
+            offering=self.offering,
+        )
+        response = self.get_resource(self.fixture.owner)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertIn('order_in_progress', response.data)
+        self.assertIsNotNone(response.data['order_in_progress'])
+
 
 class ResourceSwitchPlanTest(test.APITransactionTestCase):
     def setUp(self):
