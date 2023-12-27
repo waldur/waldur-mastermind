@@ -467,3 +467,23 @@ def send_metrics():
         )
 
     return response
+
+
+@shared_task(name='waldur_mastermind.marketplace.drop_dangling_resources')
+def drop_dangling_resources():
+    creating_resources = models.Resource.objects.filter(
+        state=models.Resource.States.CREATING
+    )
+
+    for resource in creating_resources:
+        if resource.creation_order.state != models.Order.States.ERRED:
+            continue
+
+        if resource.backend_id in [None, '']:
+            logger.info('Terminating %s', resource)
+            resource.set_state_terminated()
+        else:
+            logger.info('Setting state of %s to Erred', resource)
+            resource.set_state_erred()
+
+        resource.save(update_fields=['state'])
