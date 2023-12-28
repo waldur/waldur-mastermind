@@ -1973,8 +1973,10 @@ class OrderDetailsSerializer(NestedOrderSerializer):
     class Meta(NestedOrderSerializer.Meta):
         fields = NestedOrderSerializer.Meta.fields + (
             'consumer_reviewed_by',
+            'consumer_reviewed_by_full_name',
             'consumer_reviewed_at',
             'provider_reviewed_by',
+            'provider_reviewed_by_full_name',
             'provider_reviewed_at',
             'created_by_full_name',
             'created_by_civil_number',
@@ -1998,9 +2000,15 @@ class OrderDetailsSerializer(NestedOrderSerializer):
     consumer_reviewed_by = serializers.ReadOnlyField(
         source='consumer_reviewed_by.username'
     )
+    consumer_reviewed_by_full_name = serializers.ReadOnlyField(
+        source='consumer_reviewed_by.full_name'
+    )
     consumer_reviewed_at = serializers.ReadOnlyField()
     provider_reviewed_by = serializers.ReadOnlyField(
         source='provider_reviewed_by.username'
+    )
+    provider_reviewed_by_full_name = serializers.ReadOnlyField(
+        source='provider_reviewed_by.full_name'
     )
     provider_reviewed_at = serializers.ReadOnlyField()
 
@@ -2575,9 +2583,9 @@ class ResourceSerializer(BaseItemSerializer):
         if action == 'retrieve':
             if keys:
                 if 'order_in_progress' in keys:
-                    fields['order_in_progress'] = NestedOrderSerializer(read_only=True)
+                    fields['order_in_progress'] = OrderDetailsSerializer(read_only=True)
             else:
-                fields['order_in_progress'] = NestedOrderSerializer(read_only=True)
+                fields['order_in_progress'] = OrderDetailsSerializer(read_only=True)
 
         return fields
 
