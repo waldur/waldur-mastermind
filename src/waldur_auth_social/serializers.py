@@ -96,6 +96,13 @@ class IdentityProviderSerializer(serializers.ModelSerializer):
             validated_data |= self.discover_urls(
                 validated_data['discovery_url'], verify_ssl
             )
+        protected_fields = validated_data.get('protected_fields')
+        if isinstance(protected_fields, str):
+            protected_fields = [field.strip() for field in protected_fields.split(',')]
+        if protected_fields == ['']:
+            protected_fields = []
+        if protected_fields is not None:
+            validated_data['protected_fields'] = protected_fields
         return super().update(instance, validated_data)
 
     def create(self, validated_data):
