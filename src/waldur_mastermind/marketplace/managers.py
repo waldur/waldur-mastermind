@@ -232,7 +232,7 @@ def filter_offering_permissions(user, is_active=True):
             customer__in=get_connected_customers(user)
         )
         queryset = queryset.filter(
-            models.Q(user=user) | models.Q(object_id__in=visible_offerings)
+            Q(user=user) | Q(object_id__in=visible_offerings)
         ).distinct()
 
     return queryset
