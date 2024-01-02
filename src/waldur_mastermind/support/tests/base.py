@@ -1,10 +1,7 @@
-import copy
 from unittest import mock
 
 import pkg_resources
 import pytest
-from django.conf import settings
-from django.test import override_settings
 from rest_framework import test
 
 from waldur_mastermind.support.backend import SupportBackendType, atlassian
@@ -41,41 +38,6 @@ class BaseTest(test.APITransactionTestCase):
 
     def tearDown(self):
         mock.patch.stopall()
-
-
-def override_atlassian_settings(**kwargs):
-    atlassian_settings = copy.deepcopy(settings.WALDUR_ATLASSIAN)
-    atlassian_settings.update(kwargs)
-    return override_settings(WALDUR_ATLASSIAN=atlassian_settings)
-
-
-def override_offerings():
-    return override_atlassian_settings(
-        OFFERINGS={
-            'custom_vpc': {
-                'label': 'Custom VPC',
-                'order': ['storage', 'ram', 'cpu_count'],
-                'options': {
-                    'storage': {
-                        'type': 'integer',
-                        'label': 'Max storage, GB',
-                        'help_text': 'VPC storage limit in GB.',
-                    },
-                    'ram': {
-                        'type': 'integer',
-                        'label': 'Max RAM, GB',
-                        'help_text': 'VPC RAM limit in GB.',
-                    },
-                    'cpu_count': {
-                        'default': 93,
-                        'type': 'integer',
-                        'label': 'Max vCPU',
-                        'help_text': 'VPC CPU count limit.',
-                    },
-                },
-            },
-        }
-    )
 
 
 def load_resource(path):

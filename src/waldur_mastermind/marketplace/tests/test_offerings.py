@@ -2,9 +2,10 @@ import base64
 import json
 import os
 import tempfile
+from itertools import product
 
 import pkg_resources
-from ddt import data, ddt
+from ddt import data, ddt, idata
 from rest_framework import exceptions as rest_exceptions
 from rest_framework import status, test
 
@@ -1061,8 +1062,7 @@ class OfferingCreateTest(test.APITransactionTestCase):
             self.assertEqual(offering.state, models.Offering.States.DRAFT)
 
 
-@ddt
-class OfferingUpdateTest(test.APITransactionTestCase):
+class BaseOfferingUpdateTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
@@ -1074,36 +1074,37 @@ class OfferingUpdateTest(test.APITransactionTestCase):
             shared=True,
             state=models.Offering.States.DRAFT,
         )
-        self.url = factories.OfferingFactory.get_url(self.offering)
-        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING)
-        CustomerRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING)
-        OfferingRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING)
+        for role in (CustomerRole.OWNER, CustomerRole.MANAGER, OfferingRole.MANAGER):
+            role.add_permission(PermissionEnum.UPDATE_OFFERING)
 
-        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_ATTRIBUTES)
-        CustomerRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING_ATTRIBUTES)
-        OfferingRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING_ATTRIBUTES)
+
+@ddt
+class OfferingUpdateOverviewTest(BaseOfferingUpdateTest):
+    def setUp(self):
+        super().setUp()
+        for role in (CustomerRole.OWNER, CustomerRole.MANAGER, OfferingRole.MANAGER):
+            role.add_permission(PermissionEnum.UPDATE_OFFERING)
+
+    def update_overview(self, role):
+        url = factories.OfferingFactory.get_url(self.offering, 'update_overview')
+        self.client.force_authenticate(getattr(self.fixture, role))
+        return self.client.post(url, {'name': 'new_offering'})
 
     @data('staff', 'owner')
-    def test_staff_and_owner_can_update_offering_in_draft_state(self, user):
-        self.client.force_authenticate(getattr(self.fixture, user))
-        response = self.client.patch(self.url, {'name': 'new_offering'})
+    def test_staff_and_owner_can_update_offering_in_draft_state(self, role):
+        response = self.update_overview(role)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
         self.offering.refresh_from_db()
         self.assertEqual(self.offering.name, 'new_offering')
 
     @data('customer_support', 'admin', 'manager')
-    def test_unauthorized_user_can_not_update_offering(self, user):
-        self.client.force_authenticate(getattr(self.fixture, user))
-        response = self.client.patch(self.url, {'name': 'new_offering'})
+    def test_unauthorized_user_can_not_update_offering(self, role):
+        response = self.update_overview(role)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @data(
-        'user',
-    )
-    def test_unrelated_user_can_not_update_offering(self, user):
-        self.client.force_authenticate(getattr(self.fixture, user))
-        response = self.client.patch(self.url, {'name': 'new_offering'})
+    def test_unrelated_user_can_not_update_offering(self):
+        response = self.update_overview('user')
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     @data(
@@ -1117,8 +1118,7 @@ class OfferingUpdateTest(test.APITransactionTestCase):
         self.offering.save()
 
         # Act
-        self.client.force_authenticate(self.fixture.owner)
-        response = self.client.patch(self.url, {'name': 'new_offering'})
+        response = self.update_overview('owner')
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     @data(models.Offering.States.ACTIVE, models.Offering.States.PAUSED)
@@ -1128,8 +1128,7 @@ class OfferingUpdateTest(test.APITransactionTestCase):
         self.offering.save()
 
         # Act
-        self.client.force_authenticate(self.fixture.staff)
-        response = self.client.patch(self.url, {'name': 'new_offering'})
+        response = self.update_overview('staff')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_staff_can_not_update_offering_in_archived_state(self):
@@ -1138,121 +1137,158 @@ class OfferingUpdateTest(test.APITransactionTestCase):
         self.offering.save()
 
         # Act
-        self.client.force_authenticate(self.fixture.staff)
-        response = self.client.patch(self.url, {'name': 'new_offering'})
+        response = self.update_overview('staff')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_authorized_user_can_update_offering_attributes_in_valid_state(self):
-        self.fixture.service_manager = UserFactory()
-        self.offering.add_user(self.fixture.service_manager, OfferingRole.MANAGER)
-
-        url = factories.OfferingFactory.get_url(self.offering, 'update_attributes')
-
-        for state in (
-            models.Offering.States.DRAFT,
-            models.Offering.States.ACTIVE,
-            models.Offering.States.PAUSED,
-        ):
-            for user in ('staff', 'owner', 'service_manager'):
-                with self.subTest():
-                    # Arrange
-                    self.offering.state = state
-                    self.offering.save()
-
-                    # Act
-                    self.client.force_authenticate(getattr(self.fixture, user))
-                    response = self.client.post(url, {'key': 'value'})
-                    self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-                    self.offering.refresh_from_db()
-                    self.assertEqual(self.offering.attributes, {'key': 'value'})
-
-    def test_authorized_user_can_not_update_offering_attributes_in_archived_state(self):
-        self.fixture.service_manager = UserFactory()
-        self.offering.add_user(self.fixture.service_manager, OfferingRole.MANAGER)
-
-        self.offering.state = models.Offering.States.ARCHIVED
-        self.offering.save()
-
-        url = factories.OfferingFactory.get_url(self.offering, 'update_attributes')
-
-        for user in ('staff', 'owner', 'service_manager'):
-            with self.subTest():
-                self.client.force_authenticate(getattr(self.fixture, user))
-                response = self.client.post(url, {'key': 'value'})
-                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_offering_updating_is_not_available_for_blocked_organization(self):
         self.customer.blocked = True
         self.customer.save()
 
-        self.client.force_authenticate(self.fixture.owner)
-        response = self.client.patch(self.url, {'name': 'new_offering'})
+        response = self.update_overview('owner')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_if_category_is_updated_attributes_are_validated(self):
+
+@ddt
+class OfferingUpdateAttributesTest(BaseOfferingUpdateTest):
+    def setUp(self):
+        super().setUp()
+        self.fixture.service_manager = UserFactory()
+        self.offering.add_user(self.fixture.service_manager, OfferingRole.MANAGER)
+        for role in (CustomerRole.OWNER, CustomerRole.MANAGER, OfferingRole.MANAGER):
+            role.add_permission(PermissionEnum.UPDATE_OFFERING_ATTRIBUTES)
+
+    def update_attributes(self, attributes, role):
+        url = factories.OfferingFactory.get_url(self.offering, 'update_attributes')
+        self.client.force_authenticate(getattr(self.fixture, role))
+        return self.client.post(url, attributes)
+
+    def test_attributes_are_validated(self):
         # Arrange
-        category = factories.CategoryFactory()
-        section = factories.SectionFactory(category=category)
+        section = factories.SectionFactory(category=self.offering.category)
         factories.AttributeFactory(
             section=section, key='userSupportOptions', required=True
         )
 
         # Act
-        attributes = {'userSupportOptions': 'email'}
-        category_url = factories.CategoryFactory.get_url(category)
-        payload = {'category': category_url, 'attributes': attributes}
-        self.client.force_authenticate(self.fixture.owner)
-        response = self.client.patch(self.url, payload)
+        response = self.update_attributes({'userSupportOptions': 'email'}, 'owner')
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @idata(
+        product(
+            (
+                models.Offering.States.DRAFT,
+                models.Offering.States.ACTIVE,
+                models.Offering.States.PAUSED,
+            ),
+            ('staff', 'owner', 'service_manager'),
+        )
+    )
+    def test_authorized_user_can_update_offering_attributes_in_valid_state(self, pair):
+        state, role = pair
+        # Arrange
+        self.offering.state = state
+        self.offering.save()
+
+        # Act
+        response = self.update_attributes({'key': 'value'}, role)
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.offering.refresh_from_db()
-        self.assertEqual(self.offering.category, category)
+        self.assertEqual(self.offering.attributes, {'key': 'value'})
 
-    def test_it_should_not_be_possible_to_delete_components_if_they_are_used(self):
+    @data('staff', 'owner', 'service_manager')
+    def test_authorized_user_can_not_update_offering_attributes_in_archived_state(
+        self, role
+    ):
+        self.offering.state = models.Offering.States.ARCHIVED
+        self.offering.save()
+
+        response = self.update_attributes({'key': 'value'}, role)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class OfferingComponentRemoveTest(BaseOfferingUpdateTest):
+    def setUp(self):
+        super().setUp()
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_COMPONENTS)
+
+    def remove_offering_component(self, component, role):
+        url = factories.OfferingFactory.get_url(
+            self.offering, 'remove_offering_component'
+        )
+        self.client.force_authenticate(getattr(self.fixture, role))
+        return self.client.post(url, {'uuid': component.uuid.hex})
+
+    def test_it_should_not_be_possible_to_remove_builtin_components(self):
         # Arrange
-        factories.OfferingComponentFactory(offering=self.offering)
+        self.offering.type = VIRTUAL_MACHINE_TYPE
+        self.offering.save()
+
+        cpu_component = factories.OfferingComponentFactory(
+            offering=self.offering, type='cpu'
+        )
+
+        # Act
+        response = self.remove_offering_component(cpu_component, 'owner')
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        cpu_component.refresh_from_db()
+
+    def test_it_should_not_be_possible_to_remove_components_if_they_are_used(self):
+        # Arrange
+        component = factories.OfferingComponentFactory(offering=self.offering)
         factories.ResourceFactory(offering=self.offering)
 
         # Act
-        payload = {'components': []}
-        self.client.force_authenticate(self.fixture.owner)
-        response = self.client.patch(self.url, payload)
+        response = self.remove_offering_component(component, 'owner')
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_it_should_be_possible_to_delete_components_if_they_are_not_used(self):
+    def test_it_should_be_possible_to_remove_components_if_they_are_not_used(self):
         # Arrange
-        factories.OfferingComponentFactory(offering=self.offering)
+        component = factories.OfferingComponentFactory(offering=self.offering)
 
         # Act
-        payload = {'components': []}
-        self.client.force_authenticate(self.fixture.owner)
-        response = self.client.patch(self.url, payload)
+        response = self.remove_offering_component(component, 'owner')
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.offering.refresh_from_db()
         self.assertEqual(0, self.offering.components.count())
 
+
+class OfferingComponentCreateTest(BaseOfferingUpdateTest):
+    def setUp(self):
+        super().setUp()
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_COMPONENTS)
+
+    def create_offering_component(self, role, payload):
+        url = factories.OfferingFactory.get_url(
+            self.offering, 'create_offering_component'
+        )
+        self.client.force_authenticate(getattr(self.fixture, role))
+        return self.client.post(url, payload)
+
     def test_it_should_be_possible_to_create_new_components(self):
         # Act
-        components = [
+        response = self.create_offering_component(
+            'owner',
             {
                 'type': 'cores',
                 'name': 'Cores',
                 'measured_unit': 'hours',
                 'billing_type': 'fixed',
-            }
-        ]
-        payload = {'components': components}
-        self.client.force_authenticate(self.fixture.owner)
-        response = self.client.patch(self.url, payload)
+            },
+        )
 
         # Assert
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         component = self.offering.components.get()
         self.assertEqual('cores', component.type)
         self.assertEqual('hours', component.measured_unit)
@@ -1260,25 +1296,37 @@ class OfferingUpdateTest(test.APITransactionTestCase):
             models.OfferingComponent.BillingTypes.FIXED, component.billing_type
         )
 
+
+class OfferingComponentUpdateTest(BaseOfferingUpdateTest):
+    def setUp(self):
+        super().setUp()
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_COMPONENTS)
+
+    def update_offering_component(self, payload, role):
+        url = factories.OfferingFactory.get_url(
+            self.offering, 'update_offering_component'
+        )
+        self.client.force_authenticate(getattr(self.fixture, role))
+        return self.client.post(url, payload)
+
     def test_it_should_be_possible_to_update_existing_components(self):
-        factories.OfferingComponentFactory(
+        component = factories.OfferingComponentFactory(
             offering=self.offering,
             type='cores',
             name='CPU',
             measured_unit='H',
         )
         # Act
-        components = [
+        response = self.update_offering_component(
             {
                 'type': 'cores',
                 'name': 'Cores',
                 'measured_unit': 'hours',
                 'billing_type': 'fixed',
-            }
-        ]
-        payload = {'components': components}
-        self.client.force_authenticate(self.fixture.owner)
-        response = self.client.patch(self.url, payload)
+                'uuid': component.uuid.hex,
+            },
+            'owner',
+        )
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1289,21 +1337,38 @@ class OfferingUpdateTest(test.APITransactionTestCase):
             models.OfferingComponent.BillingTypes.FIXED, component.billing_type
         )
 
+
+class OfferingUpdatePlansTest(BaseOfferingUpdateTest):
+    def update_plan(self, plan, role, payload):
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_PLAN)
+        url = factories.PlanFactory.get_url(plan)
+        self.client.force_authenticate(getattr(self.fixture, role))
+        return self.client.patch(url, payload)
+
+    def archive_plan(self, plan, role):
+        CustomerRole.OWNER.add_permission(PermissionEnum.ARCHIVE_OFFERING_PLAN)
+        url = factories.PlanFactory.get_url(plan, 'archive')
+        self.client.force_authenticate(getattr(self.fixture, role))
+        return self.client.post(url)
+
+    def create_plan(self, role, payload):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_OFFERING_PLAN)
+        url = factories.PlanFactory.get_list_url()
+        self.client.force_authenticate(getattr(self.fixture, role))
+        return self.client.post(url, payload)
+
     def test_it_should_be_possible_to_update_plan_name(self):
         # Arrange
         plan = factories.PlanFactory(offering=self.offering, name='Old name')
 
         # Act
-        payload = {
-            'plans': [
-                {
-                    'uuid': plan.uuid.hex,
-                    'name': 'New name',
-                }
-            ]
-        }
-        self.client.force_authenticate(self.fixture.owner)
-        response = self.client.patch(self.url, payload)
+        response = self.update_plan(
+            plan,
+            'owner',
+            {
+                'name': 'New name',
+            },
+        )
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1318,21 +1383,20 @@ class OfferingUpdateTest(test.APITransactionTestCase):
         )
 
         # Act
-        payload = {
-            'plans': [
-                {
-                    'uuid': plan.uuid.hex,
-                    'quotas': {
-                        'ram': 20,
-                    },
-                    'prices': {
-                        'ram': 2,
-                    },
-                }
-            ]
-        }
         self.client.force_authenticate(self.fixture.owner)
-        response = self.client.patch(self.url, payload)
+        response = self.update_plan(
+            plan,
+            'owner',
+            {
+                'offering': factories.OfferingFactory.get_url(self.offering),
+                'quotas': {
+                    'ram': 20,
+                },
+                'prices': {
+                    'ram': 2,
+                },
+            },
+        )
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
@@ -1341,37 +1405,6 @@ class OfferingUpdateTest(test.APITransactionTestCase):
         )
         self.assertEqual(plan_component.amount, 20)
         self.assertEqual(plan_component.price, 2)
-
-    def test_when_thumbnail_is_uploaded_plans_are_not_archived(self):
-        # Arrange
-        plan = factories.PlanFactory(offering=self.offering)
-
-        # Act
-        payload = {'thumbnail': dummy_image()}
-        self.client.force_authenticate(self.fixture.owner)
-        response = self.client.patch(self.url, payload, format='multipart')
-
-        # Assert
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        plan.refresh_from_db()
-        self.assertFalse(plan.archived)
-
-    def test_it_should_not_be_possible_to_remove_builtin_components(self):
-        # Arrange
-        self.offering.type = VIRTUAL_MACHINE_TYPE
-        self.offering.save()
-
-        cpu_component = factories.OfferingComponentFactory(
-            offering=self.offering, type='cpu'
-        )
-
-        # Act
-        self.client.force_authenticate(self.fixture.owner)
-        response = self.client.patch(self.url, {'components': []})
-
-        # Assert
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        cpu_component.refresh_from_db()
 
     def test_it_should_be_possible_to_update_plan_components(self):
         # Arrange
@@ -1387,21 +1420,18 @@ class OfferingUpdateTest(test.APITransactionTestCase):
         )
 
         # Act
-        payload = {
-            'plans': [
-                {
-                    'uuid': plan.uuid.hex,
-                    'quotas': {
-                        'ram': 20,
-                    },
-                    'prices': {
-                        'ram': 2,
-                    },
-                }
-            ]
-        }
-        self.client.force_authenticate(self.fixture.owner)
-        response = self.client.patch(self.url, payload)
+        response = self.update_plan(
+            plan,
+            'owner',
+            {
+                'quotas': {
+                    'ram': 20,
+                },
+                'prices': {
+                    'ram': 2,
+                },
+            },
+        )
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
@@ -1414,9 +1444,7 @@ class OfferingUpdateTest(test.APITransactionTestCase):
         plan = factories.PlanFactory(offering=self.offering)
 
         # Act
-        payload = {'plans': []}
-        self.client.force_authenticate(self.fixture.owner)
-        response = self.client.patch(self.url, payload)
+        response = self.archive_plan(plan, 'owner')
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1424,54 +1452,21 @@ class OfferingUpdateTest(test.APITransactionTestCase):
         self.assertTrue(plan.archived)
 
     def test_it_should_be_possible_to_add_new_plan(self):
-        payload = {
-            'components': [
-                {
-                    'type': 'cores',
-                    'name': 'Cores',
-                    'measured_unit': 'hours',
-                    'billing_type': 'fixed',
-                }
-            ],
-            'plans': [
-                {
-                    'name': 'small',
-                    'unit': UnitPriceMixin.Units.PER_MONTH,
-                    'prices': {'cores': 10},
-                    'quotas': {'cores': 10},
-                }
-            ],
-        }
-        self.client.force_authenticate(self.fixture.owner)
-        response = self.client.patch(self.url, payload)
+        factories.OfferingComponentFactory(offering=self.offering, type='cores')
+        response = self.create_plan(
+            'owner',
+            {
+                'offering': factories.OfferingFactory.get_url(self.offering),
+                'name': 'small',
+                'unit': UnitPriceMixin.Units.PER_MONTH,
+                'prices': {'cores': 10},
+                'quotas': {'cores': 10},
+            },
+        )
 
         # Assert
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(1, self.offering.plans.count())
-
-    def test_update_offering_backend_id(self):
-        self.client.force_authenticate(self.fixture.staff)
-        response = self.client.patch(self.url, {'backend_id': 'new_backend_id'})
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-
-        self.offering.refresh_from_db()
-        self.assertEqual(self.offering.backend_id, 'new_backend_id')
-
-    def test_it_is_possible_to_update_offering_name_even_if_attributes_are_invalid(
-        self,
-    ):
-        section = factories.SectionFactory(category=self.offering.category)
-        attribute = factories.AttributeFactory(
-            section=section, key='userSupportOptions', type='list'
-        )
-        models.AttributeOption.objects.create(
-            attribute=attribute, key='web_chat', title='Web chat'
-        )
-        self.offering.attributes = {'userSupportOptions': ['invalid_value']}
-        self.offering.save()
-        self.client.force_authenticate(self.fixture.staff)
-        response = self.client.patch(self.url, {'name': 'New name'})
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
 
 @ddt
@@ -1482,20 +1477,28 @@ class OfferingPartialUpdateTest(test.APITransactionTestCase):
 
         factories.ServiceProviderFactory(customer=self.customer)
         self.offering = factories.OfferingFactory(customer=self.customer, shared=True)
-        self.url = factories.OfferingFactory.get_url(self.offering)
 
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_ATTRIBUTES)
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_LOCATION)
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_DESCRIPTION)
-        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_OVERVIEW)
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING)
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_OPTIONS)
-        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_SECRET_OPTIONS)
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_INTEGRATION)
+
+    def test_update_offering_backend_id(self):
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.OfferingFactory.get_url(self.offering, 'update_integration')
+        response = self.client.post(url, {'backend_id': 'new_backend_id'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.backend_id, 'new_backend_id')
 
     @data('staff', 'owner')
     def test_update_location(self, user):
-        self.url = factories.OfferingFactory.get_url(self.offering, 'update_location')
+        url = factories.OfferingFactory.get_url(self.offering, 'update_location')
         self.client.force_authenticate(getattr(self.fixture, user))
-        response = self.client.post(self.url, {'latitude': 1, 'longitude': 2})
+        response = self.client.post(url, {'latitude': 1, 'longitude': 2})
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
         self.offering.refresh_from_db()
@@ -1504,13 +1507,11 @@ class OfferingPartialUpdateTest(test.APITransactionTestCase):
 
     @data('staff', 'owner')
     def test_update_description(self, user):
-        self.url = factories.OfferingFactory.get_url(
-            self.offering, 'update_description'
-        )
+        url = factories.OfferingFactory.get_url(self.offering, 'update_description')
         self.client.force_authenticate(getattr(self.fixture, user))
         new_category = factories.CategoryFactory()
         response = self.client.post(
-            self.url, {'category': factories.CategoryFactory.get_url(new_category)}
+            url, {'category': factories.CategoryFactory.get_url(new_category)}
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
@@ -1518,18 +1519,8 @@ class OfferingPartialUpdateTest(test.APITransactionTestCase):
         self.assertEqual(self.offering.category, new_category)
 
     @data('staff', 'owner')
-    def test_update_overview(self, user):
-        self.url = factories.OfferingFactory.get_url(self.offering, 'update_overview')
-        self.client.force_authenticate(getattr(self.fixture, user))
-        response = self.client.post(self.url, {'name': 'new_name'})
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-
-        self.offering.refresh_from_db()
-        self.assertEqual(self.offering.name, 'new_name')
-
-    @data('staff', 'owner')
     def test_update_options(self, user):
-        self.url = factories.OfferingFactory.get_url(self.offering, 'update_options')
+        url = factories.OfferingFactory.get_url(self.offering, 'update_options')
         self.client.force_authenticate(getattr(self.fixture, user))
         options = {
             'order': ['email'],
@@ -1542,7 +1533,7 @@ class OfferingPartialUpdateTest(test.APITransactionTestCase):
                 }
             },
         }
-        response = self.client.post(self.url, {'options': options})
+        response = self.client.post(url, {'options': options})
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
         self.offering.refresh_from_db()
@@ -1550,15 +1541,13 @@ class OfferingPartialUpdateTest(test.APITransactionTestCase):
 
     @data('staff', 'owner')
     def test_update_secret_options(self, user):
-        self.url = factories.OfferingFactory.get_url(
-            self.offering, 'update_secret_options'
-        )
+        url = factories.OfferingFactory.get_url(self.offering, 'update_integration')
         self.client.force_authenticate(getattr(self.fixture, user))
         secret_options = {
             'environ': [{'name': 'DJANGO_SETTINGS', 'value': 'settings.py'}],
             'language': 'python',
         }
-        response = self.client.post(self.url, {'secret_options': secret_options})
+        response = self.client.post(url, {'secret_options': secret_options})
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
         self.offering.refresh_from_db()
@@ -1877,7 +1866,7 @@ class OfferingStateTest(test.APITransactionTestCase):
     ):
         self.customer.blocked = True
         self.customer.save()
-        response, offering = self.update_offering_state('staff', state)
+        response, _ = self.update_offering_state('staff', state)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_user_can_provide_paused_reason(self):
@@ -2068,7 +2057,7 @@ class OfferingExportImportTest(test.APITransactionTestCase):
 
         offering = factories.OfferingFactory(thumbnail=pic.name)
         export_offering(offering, self.temp_dir)
-        filename, file_extension = os.path.splitext(offering.thumbnail.file.name)
+        _, file_extension = os.path.splitext(offering.thumbnail.file.name)
         pic_path = os.path.join(self.temp_dir, offering.uuid.hex + file_extension)
         self.assertTrue(os.path.exists(pic_path))
 
@@ -2183,12 +2172,6 @@ class OfferingThumbnailTest(test.APITransactionTestCase):
         self.offering = self.fixture.offering
         self.offering.state = models.Offering.States.ACTIVE
         self.offering.save()
-        self.url = factories.OfferingFactory.get_url(
-            offering=self.offering, action='update_thumbnail'
-        )
-        self.url_delete = factories.OfferingFactory.get_url(
-            offering=self.offering, action='delete_thumbnail'
-        )
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_THUMBNAIL)
         CustomerRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING_THUMBNAIL)
 
@@ -2196,52 +2179,60 @@ class OfferingThumbnailTest(test.APITransactionTestCase):
     def test_staff_can_update_or_delete_thumbnail_of_archived_offering(self, user):
         self.offering.state = models.Offering.States.ARCHIVED
         self.offering.save()
-        self._user_have_access(user)
+        self._test_positive(user)
 
     @data('offering_owner', 'service_manager', 'offering_admin', 'offering_manager')
     def test_user_cannot_update_or_delete_thumbnail_of_archived_offering(self, user):
         self.offering.state = models.Offering.States.ARCHIVED
         self.offering.save()
-        self._user_does_not_have_access(user)
+        self._test_negative(user)
 
     @data('staff', 'offering_owner', 'service_manager')
     def test_user_can_update_or_delete_thumbnail(self, user):
-        self._user_have_access(user)
+        self._test_positive(user)
 
     @data('offering_admin', 'offering_manager')
     def test_user_cannot_update_or_delete_thumbnail(self, user):
-        self._user_does_not_have_access(user)
+        self._test_negative(user)
 
-    def _user_have_access(self, user):
-        self.client.force_authenticate(getattr(self.fixture, user))
-        response = self.client.post(
-            self.url, {'thumbnail': dummy_image()}, format='multipart'
+    def update_thumbnail(self):
+        url = factories.OfferingFactory.get_url(
+            offering=self.offering, action='update_thumbnail'
         )
+        return self.client.post(url, {'thumbnail': dummy_image()}, format='multipart')
+
+    def delete_thumbnail(self):
+        url_delete = factories.OfferingFactory.get_url(
+            offering=self.offering, action='delete_thumbnail'
+        )
+        return self.client.post(url_delete)
+
+    def _test_positive(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.update_thumbnail()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.offering.refresh_from_db()
         self.assertTrue(self.offering.thumbnail)
 
-        response = self.client.post(self.url_delete)
+        response = self.delete_thumbnail()
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
         self.offering.refresh_from_db()
         self.assertFalse(self.offering.thumbnail)
 
-    def _user_does_not_have_access(self, user):
+    def _test_negative(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
-        response = self.client.post(
-            self.url, {'thumbnail': dummy_image()}, format='multipart'
-        )
+        response = self.update_thumbnail()
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.offering.refresh_from_db()
         self.assertFalse(self.offering.thumbnail)
 
-        response = self.client.post(self.url_delete)
+        response = self.delete_thumbnail()
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
 @ddt
-class ProviderOfferingCreateComponentsTest(test.APITransactionTestCase):
+class OfferingCreateComponentsTest(test.APITransactionTestCase):
     def setUp(self) -> None:
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
@@ -2311,7 +2302,7 @@ class ProviderOfferingCreateComponentsTest(test.APITransactionTestCase):
 
 
 @ddt
-class ProviderOfferingUpdateComponentsTest(test.APITransactionTestCase):
+class OfferingUpdateComponentsTest(test.APITransactionTestCase):
     def setUp(self) -> None:
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
@@ -2399,7 +2390,7 @@ class ProviderOfferingUpdateComponentsTest(test.APITransactionTestCase):
 
 
 @ddt
-class ProviderOfferingRemoveComponentsTest(test.APITransactionTestCase):
+class OfferingRemoveComponentsTest(test.APITransactionTestCase):
     def setUp(self) -> None:
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering

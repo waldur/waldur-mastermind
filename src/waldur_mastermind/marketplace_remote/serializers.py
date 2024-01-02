@@ -67,10 +67,17 @@ class ProjectUpdateRequestSerializer(serializers.ModelSerializer):
 def mark_synced_fields_as_read_only(sender, fields, serializer, **kwargs):
     if serializer.instance and serializer.instance.type == PLUGIN_NAME:
         for field_name in constants.OFFERING_FIELDS:
-            fields[field_name] = serializers.ReadOnlyField()
+            if field_name in fields:
+                fields[field_name] = serializers.ReadOnlyField()
 
 
 core_signals.pre_serializer_fields.connect(
     mark_synced_fields_as_read_only,
-    sender=marketplace_serializers.OfferingUpdateSerializer,
+    sender=marketplace_serializers.OfferingOptionsUpdateSerializer,
+)
+
+
+core_signals.pre_serializer_fields.connect(
+    mark_synced_fields_as_read_only,
+    sender=marketplace_serializers.OfferingOverviewUpdateSerializer,
 )

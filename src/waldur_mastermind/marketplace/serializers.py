@@ -953,7 +953,7 @@ class EndpointDeleteSerializer(serializers.Serializer):
     uuid = serializers.UUIDField()
 
 
-class OfferingDetailsSerializer(
+class ProviderOfferingDetailsSerializer(
     core_serializers.RestrictedSerializerMixin,
     structure_serializers.CountrySerializerMixin,
     MarketplaceProtectedMediaSerializerMixin,
@@ -1156,21 +1156,8 @@ class OfferingDetailsSerializer(
         }
 
 
-class ProviderOfferingDetailsSerializer(OfferingDetailsSerializer):
-    class Meta(OfferingDetailsSerializer.Meta):
-        view_name = 'marketplace-provider-offering-detail'
-
-    def get_filtered_plans(self, offering):
-        customer_uuid = self.context['request'].GET.get('allowed_customer_uuid')
-        user = self.context['request'].user
-        qs = utils.get_plans_available_for_user(
-            user=user, offering=offering, allowed_customer_uuid=customer_uuid
-        )
-        return BaseProviderPlanSerializer(qs, many=True, context=self.context).data
-
-
-class PublicOfferingDetailsSerializer(OfferingDetailsSerializer):
-    class Meta(OfferingDetailsSerializer.Meta):
+class PublicOfferingDetailsSerializer(ProviderOfferingDetailsSerializer):
+    class Meta(ProviderOfferingDetailsSerializer.Meta):
         view_name = 'marketplace-public-offering-detail'
 
     def get_filtered_plans(self, offering):
@@ -1213,7 +1200,7 @@ def create_plan(offering, plan_data):
     return plan
 
 
-class OfferingModifySerializer(ProviderOfferingDetailsSerializer):
+class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
     class Meta(ProviderOfferingDetailsSerializer.Meta):
         model = models.Offering
         fields = ProviderOfferingDetailsSerializer.Meta.fields + ('limits',)
@@ -1372,8 +1359,6 @@ class OfferingModifySerializer(ProviderOfferingDetailsSerializer):
                 article_code=values.get('article_code', ''),
             )
 
-
-class OfferingCreateSerializer(OfferingModifySerializer):
     def validate_plans(self, plans):
         if len(plans) < 1:
             raise serializers.ValidationError(
@@ -1480,185 +1465,6 @@ def update_plan(plan, data):
     update_plan_quotas(plan, data)
 
 
-class OfferingUpdateSerializer(OfferingModifySerializer):
-    class Meta(OfferingModifySerializer.Meta):
-        fields = OfferingModifySerializer.Meta.fields + ('service_attributes',)
-
-    service_attributes = serializers.JSONField(required=False, write_only=True)
-    plans = PlanUpdateSerializer(many=True, required=False, write_only=True)
-
-    def _update_components(self, instance, components):
-        resources_exist = models.Resource.objects.filter(offering=instance).exists()
-
-        old_components = {
-            component.type: component for component in instance.components.all()
-        }
-
-        new_components = {
-            component['type']: models.OfferingComponent(offering=instance, **component)
-            for component in components
-        }
-
-        removed_components = set(old_components.keys()) - set(new_components.keys())
-        added_components = set(new_components.keys()) - set(old_components.keys())
-        updated_components = set(new_components.keys()) & set(old_components.keys())
-
-        builtin_components = plugins.manager.get_components(self.instance.type)
-        valid_types = {component.type for component in builtin_components}
-
-        if removed_components & valid_types:
-            raise serializers.ValidationError(
-                {
-                    'components': _(
-                        'These components cannot be removed because they are builtin: %s'
-                    )
-                    % ', '.join(removed_components & valid_types)
-                }
-            )
-
-        if removed_components:
-            if resources_exist:
-                raise serializers.ValidationError(
-                    {
-                        'components': _(
-                            'These components cannot be removed because they are already used: %s'
-                        )
-                        % ', '.join(removed_components)
-                    }
-                )
-            else:
-                models.OfferingComponent.objects.filter(
-                    type__in=removed_components
-                ).delete()
-
-        for key in added_components:
-            new_components[key].save()
-
-        if updated_components & valid_types:
-            COMPONENT_KEYS = ('article_code',)
-        else:
-            COMPONENT_KEYS = (
-                'name',
-                'description',
-                'billing_type',
-                'measured_unit',
-                'limit_period',
-                'limit_amount',
-                'article_code',
-                'is_boolean',
-                'default_limit',
-                'min_value',
-                'max_value',
-                'max_available_limit',
-            )
-
-        for component_key in updated_components:
-            new_component = new_components[component_key]
-            old_component = old_components[component_key]
-            for key in COMPONENT_KEYS:
-                setattr(old_component, key, getattr(new_component, key))
-            old_component.save()
-
-    def _update_plans(self, offering, new_plans):
-        can_manage_plans = plugins.manager.can_manage_plans(offering.type)
-
-        old_plans = offering.plans.all()
-        old_ids = set(old_plans.values_list('uuid', flat=True))
-
-        new_map = {plan['uuid']: plan for plan in new_plans if 'uuid' in plan}
-        added_plans = [plan for plan in new_plans if 'uuid' not in plan]
-
-        removed_ids = set(old_ids) - set(new_map.keys())
-        updated_ids = set(new_map.keys()) & set(old_ids)
-
-        removed_plans = models.Plan.objects.filter(uuid__in=removed_ids).exclude(
-            archived=True
-        )
-        updated_plans = {
-            plan.uuid: plan for plan in models.Plan.objects.filter(uuid__in=updated_ids)
-        }
-
-        for plan_uuid, old_plan in updated_plans.items():
-            new_plan = new_map[plan_uuid]
-            update_plan(old_plan, new_plan)
-
-        if can_manage_plans:
-            if added_plans:
-                self._create_plans(offering, added_plans)
-
-            for plan in removed_plans:
-                plan.archived = True
-                plan.save()
-
-    def _update_service_attributes(self, instance, validated_data):
-        service_attributes = validated_data.pop('service_attributes', {})
-        if not service_attributes:
-            return
-        service_type = plugins.manager.get_service_type(instance.type)
-        if not service_type:
-            return
-
-        if not instance.scope:
-            instance.scope = structure_models.ServiceSettings.objects.create(
-                name=instance.name,
-                customer=instance.customer,
-                type=service_type,
-                shared=instance.shared,
-            )
-            instance.save()
-
-        options_serializer_class = get_options_serializer_class(service_type)
-        options_serializer = options_serializer_class(
-            instance=instance.scope, data=service_attributes, context=self.context
-        )
-        options_serializer.is_valid(raise_exception=True)
-        instance.scope.backend_url = options_serializer.validated_data.get(
-            'backend_url'
-        )
-        instance.scope.username = options_serializer.validated_data.get('username')
-        instance.scope.password = options_serializer.validated_data.get('password')
-        instance.scope.domain = options_serializer.validated_data.get('domain')
-        instance.scope.token = options_serializer.validated_data.get('token')
-        instance.scope.options = options_serializer.validated_data.get('options')
-        instance.scope.save()
-
-        if (
-            instance.scope.state
-            == structure_models.ServiceSettings.States.CREATION_SCHEDULED
-        ):
-            transaction.on_commit(
-                lambda: ServiceSettingsCreateExecutor.execute(instance.scope)
-            )
-
-    @transaction.atomic
-    def update(self, instance, validated_data):
-        """
-        Components and plans are specified using nested list serializers with many=True.
-        These serializers return empty list even if value is not provided explicitly.
-        See also: https://github.com/encode/django-rest-framework/issues/3434
-        Consider the case when offering's thumbnail is uploaded, but plans and components are not specified.
-        It leads to tricky bug when all components are removed and plans are marked as archived.
-        In order to distinguish between case when user asks to remove all plans and
-        case when user wants to update only one attribute these we need to check not only
-        validated data, but also initial data.
-        """
-        if 'components' in validated_data:
-            components = validated_data.pop('components', [])
-            if 'components' in self.initial_data:
-                if plugins.manager.can_manage_offering_components(instance.type):
-                    self._update_components(instance, components)
-        if 'plans' in validated_data:
-            new_plans = validated_data.pop('plans', [])
-            if 'plans' in self.initial_data:
-                self._update_plans(instance, new_plans)
-        limits = validated_data.pop('limits', {})
-        if limits:
-            self._update_limits(instance, limits)
-        self._update_service_attributes(instance, validated_data)
-        offering = super().update(instance, validated_data)
-        return offering
-
-
 class OfferingLocationUpdateSerializer(serializers.ModelSerializer):
     latitude = serializers.FloatField()
     longitude = serializers.FloatField()
@@ -1720,25 +1526,70 @@ class OfferingOverviewUpdateSerializer(
 
 
 class OfferingOptionsUpdateSerializer(serializers.ModelSerializer):
-    def validate_options(self, options):
-        serializer = OfferingOptionsSerializer(data=options)
-        serializer.is_valid(raise_exception=True)
-        return serializer.validated_data
+    options = OfferingOptionsSerializer(required=False)
 
     class Meta:
         model = models.Offering
         fields = ('options',)
 
 
-class OfferingSecretOptionsUpdateSerializer(serializers.ModelSerializer):
-    def validate_options(self, options):
-        serializer = OfferingOptionsSerializer(data=options)
-        serializer.is_valid(raise_exception=True)
-        return serializer.validated_data
+class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
+    service_attributes = serializers.JSONField(required=False)
 
     class Meta:
         model = models.Offering
-        fields = ('secret_options',)
+        fields = (
+            'secret_options',
+            'plugin_options',
+            'service_attributes',
+            'backend_id',
+        )
+
+    def _update_service_attributes(self, instance, validated_data):
+        service_attributes = validated_data.pop('service_attributes', {})
+        if not service_attributes:
+            return
+        service_type = plugins.manager.get_service_type(instance.type)
+        if not service_type:
+            return
+
+        if not instance.scope:
+            instance.scope = structure_models.ServiceSettings.objects.create(
+                name=instance.name,
+                customer=instance.customer,
+                type=service_type,
+                shared=instance.shared,
+            )
+            instance.save()
+
+        options_serializer_class = get_options_serializer_class(service_type)
+        options_serializer = options_serializer_class(
+            instance=instance.scope, data=service_attributes, context=self.context
+        )
+        options_serializer.is_valid(raise_exception=True)
+        instance.scope.backend_url = options_serializer.validated_data.get(
+            'backend_url'
+        )
+        instance.scope.username = options_serializer.validated_data.get('username')
+        instance.scope.password = options_serializer.validated_data.get('password')
+        instance.scope.domain = options_serializer.validated_data.get('domain')
+        instance.scope.token = options_serializer.validated_data.get('token')
+        instance.scope.options = options_serializer.validated_data.get('options')
+        instance.scope.save()
+
+        if (
+            instance.scope.state
+            == structure_models.ServiceSettings.States.CREATION_SCHEDULED
+        ):
+            transaction.on_commit(
+                lambda: ServiceSettingsCreateExecutor.execute(instance.scope)
+            )
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        self._update_service_attributes(instance, validated_data)
+        offering = super().update(instance, validated_data)
+        return offering
 
 
 class OfferingPermissionSerializer(

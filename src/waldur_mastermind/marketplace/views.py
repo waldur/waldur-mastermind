@@ -569,9 +569,7 @@ class ProviderOfferingViewSet(
     queryset = models.Offering.objects.all()
     serializer_class = serializers.ProviderOfferingDetailsSerializer
     create_serializer_class = serializers.OfferingCreateSerializer
-    update_serializer_class = (
-        partial_update_serializer_class
-    ) = serializers.OfferingUpdateSerializer
+    disabled_actions = ['update', 'partial_update']
     filterset_class = filters.OfferingFilter
     filter_backends = (
         DjangoFilterBackend,
@@ -776,9 +774,9 @@ class ProviderOfferingViewSet(
         structure_utils.check_customer_blocked_or_archived
     ]
 
-    update_permissions = partial_update_permissions = [can_update_offering]
+    update_permissions = [can_update_offering]
 
-    update_validators = partial_update_validators = [
+    update_validators = [
         validate_offering_update,
         structure_utils.check_customer_blocked_or_archived,
     ]
@@ -884,7 +882,7 @@ class ProviderOfferingViewSet(
             ['*', 'customer'],
         )
     ]
-    update_attributes_validators = [validate_offering_update]
+    update_attributes_validators = update_validators
 
     def _update_action(self, request):
         offering = self.get_object()
@@ -903,7 +901,7 @@ class ProviderOfferingViewSet(
             ['*', 'customer'],
         )
     ]
-    update_location_validators = [validate_offering_update]
+    update_location_validators = update_validators
     update_location_serializer_class = serializers.OfferingLocationUpdateSerializer
 
     @action(detail=True, methods=['post'])
@@ -916,7 +914,7 @@ class ProviderOfferingViewSet(
             ['*', 'customer'],
         )
     ]
-    update_description_validators = [validate_offering_update]
+    update_description_validators = update_validators
     update_description_serializer_class = (
         serializers.OfferingDescriptionUpdateSerializer
     )
@@ -925,13 +923,8 @@ class ProviderOfferingViewSet(
     def update_overview(self, request, uuid=None):
         return self._update_action(request)
 
-    update_overview_permissions = [
-        permission_factory(
-            PermissionEnum.UPDATE_OFFERING_OVERVIEW,
-            ['*', 'customer'],
-        )
-    ]
-    update_overview_validators = [validate_offering_update]
+    update_overview_permissions = [can_update_offering]
+    update_overview_validators = update_validators
     update_overview_serializer_class = serializers.OfferingOverviewUpdateSerializer
 
     @action(detail=True, methods=['post'])
@@ -944,22 +937,22 @@ class ProviderOfferingViewSet(
             ['*', 'customer'],
         )
     ]
-    update_options_validators = [validate_offering_update]
+    update_options_validators = update_validators
     update_options_serializer_class = serializers.OfferingOptionsUpdateSerializer
 
     @action(detail=True, methods=['post'])
-    def update_secret_options(self, request, uuid=None):
+    def update_integration(self, request, uuid=None):
         return self._update_action(request)
 
-    update_secret_options_permissions = [
+    update_integration_permissions = [
         permission_factory(
-            PermissionEnum.UPDATE_OFFERING_SECRET_OPTIONS,
+            PermissionEnum.UPDATE_OFFERING_INTEGRATION,
             ['*', 'customer'],
         )
     ]
-    update_secret_options_validators = [validate_offering_update]
-    update_secret_options_serializer_class = (
-        serializers.OfferingSecretOptionsUpdateSerializer
+    update_integration_validators = update_validators
+    update_integration_serializer_class = (
+        serializers.OfferingIntegrationUpdateSerializer
     )
 
     @action(detail=True, methods=['post'])
@@ -1092,6 +1085,7 @@ class ProviderOfferingViewSet(
         return Response(status=status.HTTP_200_OK)
 
     update_divisions_permissions = [structure_permissions.is_owner]
+    update_divisions_validators = update_validators
 
     @action(detail=True, methods=['post'])
     def delete_divisions(self, request, uuid=None):
@@ -1100,6 +1094,7 @@ class ProviderOfferingViewSet(
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     delete_divisions_permissions = update_divisions_permissions
+    delete_divisions_validators = update_validators
 
     @action(detail=True, methods=['post'])
     def add_endpoint(self, request, uuid=None):
@@ -1124,6 +1119,7 @@ class ProviderOfferingViewSet(
         )
     ]
     add_endpoint_serializer_class = serializers.NestedEndpointSerializer
+    add_endpoint_validators = update_validators
 
     @action(detail=True, methods=['post'])
     def delete_endpoint(self, request, uuid=None):
@@ -1142,6 +1138,7 @@ class ProviderOfferingViewSet(
             ['*', 'customer'],
         )
     ]
+    delete_endpoint_validators = update_validators
 
     @action(detail=False, permission_classes=[], filter_backends=[DjangoFilterBackend])
     def groups(self, *args, **kwargs):
@@ -1292,6 +1289,7 @@ class ProviderOfferingViewSet(
             ['*', 'customer'],
         )
     ]
+    update_offering_component_validators = update_validators
 
     @action(detail=True, methods=['post'])
     def remove_offering_component(self, request, uuid=None):
@@ -1350,6 +1348,7 @@ class ProviderOfferingViewSet(
             ['*', 'customer'],
         )
     ]
+    remove_offering_component_validators = update_validators
 
     @action(detail=True, methods=['post'])
     def create_offering_component(self, request, uuid=None):
@@ -1369,6 +1368,7 @@ class ProviderOfferingViewSet(
             ['*', 'customer'],
         )
     ]
+    create_offering_component_validators = update_validators
 
     @action(detail=True, methods=['post'])
     def sync(self, request, uuid=None):
