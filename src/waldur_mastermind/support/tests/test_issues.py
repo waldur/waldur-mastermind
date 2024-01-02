@@ -1,21 +1,17 @@
 import json
 from unittest import mock
 
+from constance.test.pytest import override_config
 from ddt import data, ddt
-from django.conf import settings
 from jira import Issue, User
 from jira.resources import IssueType, RequestType
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.support import models
+from waldur_mastermind.support import models, utils
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 from waldur_mastermind.support.tests import base, factories
-from waldur_mastermind.support.tests.base import (
-    load_resource,
-    override_atlassian_settings,
-    override_support_settings,
-)
+from waldur_mastermind.support.tests.base import load_resource
 from waldur_openstack.openstack_tenant.tests import (
     factories as openstack_tenant_factories,
 )
@@ -102,7 +98,7 @@ class IssueRetrieveTest(base.BaseTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('link', response.data)
 
-    @override_support_settings(ENABLED=False)
+    @override_config(WALDUR_SUPPORT_ENABLED=False)
     def test_user_can_not_see_a_list_of_issues_if_support_extension_is_disabled(self):
         self.client.force_authenticate(self.fixture.user)
         url = factories.IssueFactory.get_list_url()
@@ -151,7 +147,7 @@ class IssueCreateBaseTest(base.BaseTest):
 
     def _get_valid_payload(self, **additional):
         is_reported_manually = additional.get('is_reported_manually')
-        issue_type = settings.WALDUR_ATLASSIAN['ISSUE']['types'][0]
+        issue_type = utils.get_atlassian_issue_type()
         factories.RequestTypeFactory(issue_type_name=issue_type)
         payload = {
             'summary': 'test_issue',
@@ -210,18 +206,18 @@ class IssueCreateTest(IssueCreateBaseTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     @data('staff', 'global_support')
+    @override_config(ATLASSIAN_MAP_WALDUR_USERS_TO_SERVICEDESK_AGENTS=True)
     def test_staff_or_support_cannot_create_issue_if_he_does_not_have_support_user(
         self, user
     ):
-        settings.WALDUR_ATLASSIAN['MAP_WALDUR_USERS_TO_SERVICEDESK_AGENTS'] = True
         self.client.force_authenticate(getattr(self.fixture, user))
 
         response = self.client.post(self.url, data=self._get_valid_payload())
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    @override_config(ATLASSIAN_MAP_WALDUR_USERS_TO_SERVICEDESK_AGENTS=True)
     def test_user_cannot_create_issue_if_his_support_user_is_disabled(self):
-        settings.WALDUR_ATLASSIAN['MAP_WALDUR_USERS_TO_SERVICEDESK_AGENTS'] = True
         factories.SupportUserFactory(user=self.fixture.staff, is_active=False)
         self.client.force_authenticate(self.fixture.staff)
 
@@ -230,8 +226,8 @@ class IssueCreateTest(IssueCreateBaseTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     @data('staff', 'global_support', 'owner')
+    @override_config(ATLASSIAN_MAP_WALDUR_USERS_TO_SERVICEDESK_AGENTS=True)
     def test_user_with_access_to_customer_can_create_customer_issue(self, user):
-        settings.WALDUR_ATLASSIAN['MAP_WALDUR_USERS_TO_SERVICEDESK_AGENTS'] = True
         self.client.force_authenticate(getattr(self.fixture, user))
         payload = self._get_valid_payload(
             customer=structure_factories.CustomerFactory.get_url(self.fixture.customer),
@@ -371,9 +367,11 @@ class IssueCreateTest(IssueCreateBaseTest):
         self.assertEqual(issue.project, self.fixture.resource.project)
         self.assertEqual(issue.customer, self.fixture.resource.project.customer)
 
-    @override_support_settings(ENABLED=False)
+    @override_config(
+        WALDUR_SUPPORT_ENABLED=False,
+        ATLASSIAN_MAP_WALDUR_USERS_TO_SERVICEDESK_AGENTS=True,
+    )
     def test_user_can_not_create_issue_if_support_extension_is_disabled(self):
-        settings.WALDUR_ATLASSIAN['MAP_WALDUR_USERS_TO_SERVICEDESK_AGENTS'] = True
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(self.url, data=self._get_valid_payload())
         self.assertEqual(response.status_code, status.HTTP_424_FAILED_DEPENDENCY)
@@ -427,8 +425,7 @@ class IssueCreateTest(IssueCreateBaseTest):
         self.mock_jira().issue_type.return_value = IssueType(
             {'server': ''}, None, raw={'name': 'Service Request', 'id': '1'}
         )
-
-        issue_type = settings.WALDUR_ATLASSIAN['ISSUE']['types'][0]
+        issue_type = utils.get_atlassian_issue_type()
         factories.RequestTypeFactory(issue_type_name=issue_type)
         issue = factories.IssueFactory(reporter=None, backend_id=None, type=issue_type)
         factories.SupportCustomerFactory(user=issue.caller)
@@ -519,7 +516,7 @@ class IssueCreateTest(IssueCreateBaseTest):
                     _add_comment.assert_not_called()
 
 
-@override_atlassian_settings(USE_OLD_API=True)
+@override_config(ATLASSIAN_USE_OLD_API=True)
 class IssueCreateOldAPITest(IssueCreateBaseTest):
     def setUp(self):
         super().setUp()
@@ -568,7 +565,7 @@ class IssueUpdateTest(base.BaseTest):
             models.Issue.objects.filter(summary=payload['summary']).exists()
         )
 
-    @override_support_settings(ENABLED=False)
+    @override_config(WALDUR_SUPPORT_ENABLED=False)
     def test_staff_can_not_update_issue_if_support_extension_is_disabled(self):
         self.client.force_authenticate(self.fixture.staff)
         payload = self._get_valid_payload()
@@ -606,7 +603,7 @@ class IssueDeleteTest(base.BaseTest):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertTrue(models.Issue.objects.filter(id=self.issue.id).exists())
 
-    @override_support_settings(ENABLED=False)
+    @override_config(WALDUR_SUPPORT_ENABLED=False)
     def test_user_can_not_delete_issue_if_support_extension_is_disabled(self):
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.delete(self.url)
@@ -671,7 +668,7 @@ class IssueCommentTest(base.BaseTest):
             )
         )
 
-    @override_support_settings(ENABLED=False)
+    @override_config(WALDUR_SUPPORT_ENABLED=False)
     def test_user_can_not_comment_issue_if_support_extension_is_disabled(self):
         self.client.force_authenticate(self.fixture.staff)
         issue = factories.IssueFactory(customer=self.fixture.customer)
@@ -687,8 +684,8 @@ class IssueCommentTest(base.BaseTest):
 
 
 class IssueOrderingTest(test.APITransactionTestCase):
+    @override_config(WALDUR_SUPPORT_ENABLED=True)
     def test_issue_ordering(self):
-        settings.WALDUR_SUPPORT['ENABLED'] = True
         factories.IssueFactory(key='TST')
         factories.IssueFactory(key='TST-1')
         factories.IssueFactory(key='TST-11')

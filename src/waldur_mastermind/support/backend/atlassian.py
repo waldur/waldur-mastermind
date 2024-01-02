@@ -5,7 +5,7 @@ from datetime import datetime
 from html import unescape
 
 import dateutil.parser
-from django.conf import settings
+from constance import config
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from django.template import Context, Template
@@ -36,31 +36,24 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
 
     def __init__(self):
         self.settings = Settings(
-            backend_url=settings.WALDUR_ATLASSIAN.get('SERVER'),
-            username=settings.WALDUR_ATLASSIAN.get('USERNAME'),
-            password=settings.WALDUR_ATLASSIAN.get('PASSWORD'),
-            email=settings.WALDUR_ATLASSIAN.get('EMAIL'),
-            token=settings.WALDUR_ATLASSIAN.get('TOKEN'),
+            backend_url=config.ATLASSIAN_API_URL,
+            username=config.ATLASSIAN_USERNAME,
+            password=config.ATLASSIAN_PASSWORD,
+            email=config.ATLASSIAN_EMAIL,
+            token=config.ATLASSIAN_TOKEN,
         )
-        self.verify = settings.WALDUR_ATLASSIAN.get('VERIFY_SSL')
-        self.project_settings = settings.WALDUR_ATLASSIAN.get('PROJECT', {})
+        self.verify = config.ATLASSIAN_VERIFY_SSL
         # allow to define reference by ID as older SD cannot properly resolve
         # TODO drop once transition to request API is complete
-        self.service_desk_reference = self.project_settings.get(
-            'key_id', self.project_settings['key']
-        )
-        self.issue_settings = settings.WALDUR_ATLASSIAN.get('ISSUE', {})
-        self.use_old_api = settings.WALDUR_ATLASSIAN.get('USE_OLD_API', False)
-        self.use_teenage_api = settings.WALDUR_ATLASSIAN.get('USE_TEENAGE_API', False)
+        self.use_old_api = config.ATLASSIAN_USE_OLD_API
+        self.use_teenage_api = config.ATLASSIAN_USE_TEENAGE_API
         # In ideal world where Atlassian SD respects its spec the setting below would not be needed
-        self.use_automatic_request_mapping = settings.WALDUR_ATLASSIAN.get(
-            'USE_AUTOMATIC_REQUEST_MAPPING', True
+        self.use_automatic_request_mapping = (
+            config.ATLASSIAN_USE_AUTOMATIC_REQUEST_MAPPING
         )
         # In some cases list of priorities available to customers differ from the total list returned by SDK
-        self.pull_priorities_automatically = settings.WALDUR_ATLASSIAN.get(
-            'PULL_PRIORITIES', True
-        )
-        self.strange_setting = settings.WALDUR_ATLASSIAN.get('STRANGE_SETTING', 1)
+        self.pull_priorities_automatically = config.ATLASSIAN_PULL_PRIORITIES
+        self.strange_setting = config.ATLASSIAN_STRANGE_SETTING
 
     def pull_service_properties(self):
         super().pull_service_properties()
@@ -105,7 +98,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
 
         args = self._issue_to_dict(issue)
         args['serviceDeskId'] = self.manager.waldur_service_desk(
-            self.service_desk_reference
+            config.ATLASSIAN_PROJECT_ID
         )
         if not models.RequestType.objects.filter(issue_type_name=issue.type).count():
             self.pull_request_types()
@@ -205,7 +198,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
     @reraise_exceptions
     def get_users(self):
         users = self.manager.search_assignable_users_for_projects(
-            '', self.project_settings['key'], maxResults=False
+            '', config.ATLASSIAN_PROJECT_ID, maxResults=False
         )
         return [
             models.SupportUser(name=user.displayName, backend_id=self.get_user_id(user))
@@ -217,30 +210,30 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
 
         if issue.reporter:
             args[
-                self.get_field_id_by_name(self.issue_settings['reporter_field'])
+                self.get_field_id_by_name(config.ATLASSIAN_REPORTER_FIELD)
             ] = issue.reporter.name
         if issue.impact:
             args[
-                self.get_field_id_by_name(self.issue_settings['impact_field'])
+                self.get_field_id_by_name(config.ATLASSIAN_IMPACT_FIELD)
             ] = issue.impact
         if issue.priority:
             args['priority'] = {'name': issue.priority}
 
         def set_custom_field(field_name, value):
-            if value and self.issue_settings.get(field_name):
-                args[self.get_field_id_by_name(self.issue_settings[field_name])] = value
+            if value and getattr(config, field_name):
+                args[self.get_field_id_by_name(getattr(config, field_name))] = value
 
         if issue.customer:
-            set_custom_field('organisation_field', issue.customer.name)
+            set_custom_field('ATLASSIAN_ORGANISATION_FIELD', issue.customer.name)
 
         if issue.project:
-            set_custom_field('project_field', issue.project.name)
+            set_custom_field('ATLASSIAN_PROJECT_FIELD', issue.project.name)
 
         if issue.resource:
-            set_custom_field('affected_resource_field', issue.resource)
+            set_custom_field('ATLASSIAN_AFFECTED_RESOURCE_FIELD', issue.resource)
 
         if issue.template:
-            set_custom_field('template_field', issue.template.name)
+            set_custom_field('ATLASSIAN_TEMPLATE_FIELD', issue.template.name)
 
         return args
 
@@ -261,7 +254,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         return args
 
     def _get_first_sla_field(self, backend_issue):
-        field_name = self.get_field_id_by_name(self.issue_settings['sla_field'])
+        field_name = self.get_field_id_by_name(config.ATLASSIAN_SLA_FIELD)
         value = getattr(backend_issue.fields, field_name, None)
         if value and hasattr(value, 'ongoingCycle'):
             epoch_milliseconds = value.ongoingCycle.breachTime.epochMillis
@@ -292,7 +285,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
             if backend_user:
                 return self.get_or_create_support_user(backend_user)
 
-        impact_field_id = self.get_field_id_by_name(self.issue_settings['impact_field'])
+        impact_field_id = self.get_field_id_by_name(config.ATLASSIAN_IMPACT_FIELD)
         impact = getattr(backend_issue.fields, impact_field_id, None)
         if impact:
             issue.impact = impact
@@ -348,10 +341,10 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
 
     @reraise_exceptions
     def pull_request_types(self):
-        service_desk_id = self.manager.waldur_service_desk(self.service_desk_reference)
+        service_desk_id = self.manager.waldur_service_desk(config.ATLASSIAN_PROJECT_ID)
         # backend_request_types = self.manager.request_types(service_desk_id)
         backend_request_types = self.manager.waldur_request_types(
-            service_desk_id, self.project_settings['key'], self.strange_setting
+            service_desk_id, config.ATLASSIAN_PROJECT_ID, self.strange_setting
         )
 
         with transaction.atomic():
@@ -422,7 +415,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
 
     def create_issue_links(self, issue, linked_issues):
         for linked_issue in linked_issues:
-            link_type = self.issue_settings['type_of_linked_issue']
+            link_type = config.ATLASSIAN_LINKED_ISSUE_TYPE
             self.manager.create_issue_link(link_type, issue.key, linked_issue.key)
 
     def create_feedback(self, feedback):
@@ -439,9 +432,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
             self.create_comment(comment)
 
         if feedback.evaluation:
-            field_name = self.get_field_id_by_name(
-                self.issue_settings['satisfaction_field']
-            )
+            field_name = self.get_field_id_by_name(config.ATLASSIAN_SATISFACTION_FIELD)
             backend_issue = self.get_backend_issue(feedback.issue.backend_id)
             kwargs = {field_name: feedback.get_evaluation_display()}
             backend_issue.update(**kwargs)
@@ -449,7 +440,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
     def get_request_feedback_field(self, backend_issue):
         try:
             field_name = self.get_field_id_by_name(
-                self.issue_settings['request_feedback']
+                config.ATLASSIAN_REQUEST_FEEDBACK_FIELD
             )
         except JiraBackendError:
             logger.warning('Field request_feedback is not defined in Jira support.')
@@ -486,4 +477,4 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         ).update(is_active=False)
 
     def get_issue_details(self):
-        return {'type': settings.WALDUR_ATLASSIAN['DEFAULT_OFFERING_ISSUE_TYPE']}
+        return {'type': config.ATLASSIAN_DEFAULT_OFFERING_ISSUE_TYPE}

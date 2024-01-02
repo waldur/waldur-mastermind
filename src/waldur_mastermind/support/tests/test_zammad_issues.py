@@ -1,8 +1,7 @@
-from django.conf import settings
 from rest_framework import status
 
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.support import models
+from waldur_mastermind.support import models, utils
 from waldur_mastermind.support.tests import factories, zammad_base
 from waldur_zammad.backend import Issue
 
@@ -19,7 +18,7 @@ class IssueCreateTest(zammad_base.BaseTest):
 
     def _get_valid_payload(self, **additional):
         is_reported_manually = additional.get('is_reported_manually')
-        issue_type = settings.WALDUR_ATLASSIAN['ISSUE']['types'][0]
+        issue_type = utils.get_atlassian_issue_type()
         factories.RequestTypeFactory(issue_type_name=issue_type)
         payload = {
             'summary': 'test_issue',

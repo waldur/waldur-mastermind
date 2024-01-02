@@ -1,6 +1,7 @@
 import datetime
 from unittest import mock
 
+from constance.test.pytest import override_config
 from ddt import data, ddt
 from freezegun import freeze_time
 from rest_framework import status, test
@@ -20,7 +21,6 @@ from waldur_mastermind.marketplace.tests import helpers as test_helpers
 from waldur_mastermind.marketplace.tests import utils as test_utils
 from waldur_mastermind.marketplace.tests.fixtures import MarketplaceFixture
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
-from waldur_mastermind.support.tests.base import override_support_settings
 from waldur_openstack.openstack.tests import factories as openstack_factories
 
 
@@ -533,9 +533,9 @@ class PlanUsageTest(test.APITransactionTestCase):
 
 
 class ResourceCostEstimateTest(test.APITransactionTestCase):
-    @override_support_settings(
-        ENABLED=True,
-        ACTIVE_BACKEND_TYPE='basic',
+    @override_config(
+        WALDUR_SUPPORT_ENABLED=True,
+        WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE='basic',
     )
     def test_when_order_is_processed_cost_estimate_is_initialized(self):
         # Arrange

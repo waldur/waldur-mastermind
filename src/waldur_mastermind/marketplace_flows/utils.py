@@ -1,4 +1,4 @@
-from django.conf import settings
+from constance import config
 from rest_framework.reverse import reverse
 
 from waldur_mastermind.common import utils as common_utils
@@ -6,7 +6,7 @@ from waldur_mastermind.support import views as support_views
 
 
 def create_issue(offering_request):
-    if not settings.WALDUR_SUPPORT['ENABLED']:
+    if not config.WALDUR_SUPPORT_ENABLED:
         return
 
     user = offering_request.requested_by
@@ -23,7 +23,7 @@ def create_issue(offering_request):
             customer_name=offering_request.offering.customer.name,
             customer_uuid=offering_request.offering.customer.uuid.hex,
         ),
-        'type': settings.WALDUR_ATLASSIAN['DEFAULT_OFFERING_ISSUE_TYPE'],
+        'type': config.ATLASSIAN_DEFAULT_OFFERING_ISSUE_TYPE,
     }
 
     return common_utils.create_request(

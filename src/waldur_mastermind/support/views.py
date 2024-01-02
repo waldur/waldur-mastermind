@@ -26,7 +26,7 @@ from . import backend, exceptions, executors, filters, models, serializers
 logger = logging.getLogger(__name__)
 
 
-class CheckExtensionMixin(core_views.CheckExtensionMixin):
+class CheckExtensionMixin(core_views.ConstanceCheckExtensionMixin):
     extension_name = 'WALDUR_SUPPORT'
 
 

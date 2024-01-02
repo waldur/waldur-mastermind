@@ -110,10 +110,10 @@ def create_issue(order, description, summary, confirmation_comment=None):
         )
     )
     issue_details['summary'] = support_serializers.render_issue_template(
-        'summary', issue_details
+        'ATLASSIAN_SUMMARY_TEMPLATE', 'summary', issue_details
     )
     issue_details['description'] = support_serializers.render_issue_template(
-        'description', issue_details
+        'ATLASSIAN_DESCRIPTION_TEMPLATE', 'description', issue_details
     )
     issue = support_models.Issue.objects.create(**issue_details)
     try:

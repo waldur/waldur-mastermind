@@ -5,7 +5,7 @@ from io import BytesIO
 from unittest import mock
 
 import jira
-from django.conf import settings
+from constance.test.pytest import override_config as override_constance_config
 from django.core import mail
 from django.test import override_settings
 from django.urls import reverse
@@ -17,13 +17,12 @@ from waldur_mastermind.support.backend import SupportBackendType
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 from waldur_mastermind.support.tests import factories
 from waldur_mastermind.support.tests.base import load_resource
-from waldur_mastermind.support.tests.utils import override_plugin_settings
 
 
 @mock.patch('waldur_mastermind.support.serializers.ServiceDeskBackend')
-@override_plugin_settings(
-    ENABLED=True,
-    ACTIVE_BACKEND_TYPE='basic',
+@override_constance_config(
+    WALDUR_SUPPORT_ENABLED=True,
+    WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE='basic',
 )
 @override_settings(task_always_eager=True)
 class TestJiraWebHooks(APITransactionTestCase):
@@ -112,7 +111,7 @@ MockResolution = collections.namedtuple('MockResolution', ['name'])
 
 
 @override_settings(task_always_eager=True)
-@override_plugin_settings(ENABLED=True)
+@override_constance_config(ENABLED=True)
 class TestUpdateIssueFromJira(APITransactionTestCase):
     def setUp(self):
         self.issue = factories.IssueFactory()
@@ -225,9 +224,11 @@ class TestUpdateIssueFromJira(APITransactionTestCase):
 
 
 class TestUpdateCommentFromJira(APITransactionTestCase):
+    @override_constance_config(
+        WALDUR_SUPPORT_ENABLED=True,
+        WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE=SupportBackendType.ATLASSIAN,
+    )
     def setUp(self):
-        settings.WALDUR_SUPPORT['ENABLED'] = True
-        settings.WALDUR_SUPPORT['ACTIVE_BACKEND_TYPE'] = SupportBackendType.ATLASSIAN
         self.comment = factories.CommentFactory()
 
         backend_comment_raw = json.loads(load_resource('jira_comment_raw.json'))
@@ -281,9 +282,11 @@ class TestUpdateCommentFromJira(APITransactionTestCase):
 
 
 class TestUpdateAttachmentFromJira(APITransactionTestCase):
+    @override_constance_config(
+        WALDUR_SUPPORT_ENABLED=True,
+        WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE=SupportBackendType.ATLASSIAN,
+    )
     def setUp(self):
-        settings.WALDUR_SUPPORT['ENABLED'] = True
-        settings.WALDUR_SUPPORT['ACTIVE_BACKEND_TYPE'] = SupportBackendType.ATLASSIAN
         self.issue = factories.IssueFactory()
 
         backend_issue_raw = json.loads(load_resource('jira_issue_raw.json'))

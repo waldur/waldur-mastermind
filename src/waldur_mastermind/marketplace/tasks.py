@@ -430,7 +430,7 @@ def send_metrics():
         'deployment_id': hashlib.sha256(site_name.encode()).hexdigest(),
         'deployment_type': deployment_type,
         'helpdesk_backend': get_active_backend().backend_name,
-        'helpdesk_integration_status': settings.WALDUR_SUPPORT['ENABLED'],
+        'helpdesk_integration_status': config.WALDUR_SUPPORT_ENABLED,
         'number_of_users': core_models.User.objects.filter(is_active=True).count(),
         'number_of_offerings': marketplace_models.Offering.objects.filter(
             state__in=(

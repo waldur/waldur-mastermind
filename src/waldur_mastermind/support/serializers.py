@@ -2,6 +2,7 @@ import logging
 import os
 from datetime import timedelta
 
+from constance import config
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core import signing
@@ -21,21 +22,17 @@ from waldur_jira import serializers as jira_serializers
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 
-from . import backend, models
+from . import backend, models, utils
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
-def render_issue_template(config_name, issue):
+def render_issue_template(config_name, template_name, issue):
     try:
-        template = get_template('support/' + config_name + '.txt').template
+        template = get_template('support/' + template_name + '.txt').template
     except template_exceptions.TemplateDoesNotExist:
-        issue_settings = settings.WALDUR_ATLASSIAN.get('ISSUE', {})
-        if not issue_settings:
-            return ''
-
-        raw = issue_settings[config_name]
+        raw = getattr(config, config_name)
         template = Template(raw)
 
     return template.render(
@@ -93,9 +90,11 @@ class IssueSerializer(
     resource_type = serializers.SerializerMethodField()
     resource_name = serializers.ReadOnlyField(source='resource.name')
     type = serializers.ChoiceField(
-        choices=[(t, t) for t in settings.WALDUR_ATLASSIAN['ISSUE']['types']],
-        initial=settings.WALDUR_ATLASSIAN['ISSUE']['types'][0],
-        default=settings.WALDUR_ATLASSIAN['ISSUE']['types'][0],
+        choices=[
+            (t.strip(), t.strip()) for t in config.ATLASSIAN_ISSUE_TYPES.split(',')
+        ],
+        initial=utils.get_atlassian_issue_type(),
+        default=utils.get_atlassian_issue_type(),
     )
     is_reported_manually = serializers.BooleanField(
         initial=False,
@@ -244,7 +243,7 @@ class IssueSerializer(
                     {'caller': _('This field is required.')}
                 )
             # if change of reporter is supported, use it
-            if settings.WALDUR_ATLASSIAN['MAP_WALDUR_USERS_TO_SERVICEDESK_AGENTS']:
+            if config.ATLASSIAN_MAP_WALDUR_USERS_TO_SERVICEDESK_AGENTS:
                 reporter = models.SupportUser.objects.filter(
                     user=request_user,
                     is_active=True,
@@ -338,9 +337,11 @@ class IssueSerializer(
             validated_data['customer'] = project.customer
 
         validated_data['description'] = render_issue_template(
-            'description', validated_data
+            'ATLASSIAN_DESCRIPTION_TEMPLATE', 'description', validated_data
         )
-        validated_data['summary'] = render_issue_template('summary', validated_data)
+        validated_data['summary'] = render_issue_template(
+            'ATLASSIAN_SUMMARY_TEMPLATE', 'summary', validated_data
+        )
         return super().create(validated_data)
 
     def _render_template(self, config_name, issue):
@@ -526,7 +527,7 @@ class AttachmentSerializer(
     def validate(self, attrs):
         filename, file_extension = os.path.splitext(attrs['file'].name)
 
-        if file_extension in settings.WALDUR_ATLASSIAN['EXCLUDED_ATTACHMENT_TYPES']:
+        if file_extension in config.ATLASSIAN_EXCLUDED_ATTACHMENT_TYPES:
             raise serializers.ValidationError(_('Invalid file extension'))
 
         user = self.context['request'].user

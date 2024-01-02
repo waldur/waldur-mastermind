@@ -2,6 +2,7 @@ import copy
 from unittest import mock
 
 import pkg_resources
+import pytest
 from django.conf import settings
 from django.test import override_settings
 from rest_framework import test
@@ -11,18 +12,16 @@ from waldur_mastermind.support.backend import SupportBackendType, atlassian
 from . import fixtures
 
 
+@pytest.mark.override_config(
+    WALDUR_SUPPORT_ENABLED=True,
+    WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE=SupportBackendType.ATLASSIAN,
+    ATLASSIAN_ORGANISATION_FIELD='Reporter organization',
+    ATLASSIAN_PROJECT_FIELD='Waldur project',
+    ATLASSIAN_AFFECTED_RESOURCE_FIELD='Affected resource',
+    ATLASSIAN_TEMPLATE_FIELD='Waldur template',
+)
 class BaseTest(test.APITransactionTestCase):
     def setUp(self):
-        settings.WALDUR_SUPPORT['ENABLED'] = True
-        settings.WALDUR_SUPPORT['ACTIVE_BACKEND_TYPE'] = SupportBackendType.ATLASSIAN
-        settings.WALDUR_ATLASSIAN['ISSUE'][
-            'organisation_field'
-        ] = 'Reporter organization'
-        settings.WALDUR_ATLASSIAN['ISSUE']['project_field'] = 'Waldur project'
-        settings.WALDUR_ATLASSIAN['ISSUE'][
-            'affected_resource_field'
-        ] = 'Affected resource'
-        settings.WALDUR_ATLASSIAN['ISSUE']['template_field'] = 'Waldur template'
         self.fixture = fixtures.SupportFixture()
         mock_patch = mock.patch('waldur_mastermind.support.backend.get_active_backend')
         self.mock_get_active_backend = mock_patch.start()
@@ -42,12 +41,6 @@ class BaseTest(test.APITransactionTestCase):
 
     def tearDown(self):
         mock.patch.stopall()
-
-
-def override_support_settings(**kwargs):
-    support_settings = copy.deepcopy(settings.WALDUR_SUPPORT)
-    support_settings.update(kwargs)
-    return override_settings(WALDUR_SUPPORT=support_settings)
 
 
 def override_atlassian_settings(**kwargs):

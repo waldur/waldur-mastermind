@@ -1,6 +1,6 @@
 from unittest import mock
 
-from django.conf import settings
+import pytest
 from rest_framework import test
 
 from waldur_mastermind.support.backend import SupportBackendType
@@ -9,13 +9,14 @@ from waldur_zammad.backend import User
 from . import fixtures
 
 
+@pytest.mark.override_config(
+    WALDUR_SUPPORT_ENABLED=True,
+    WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE=SupportBackendType.ZAMMAD,
+    ZAMMAD_API_URL='http://localhost:8080',
+    ZAMMAD_TOKEN='token',
+)
 class BaseTest(test.APITransactionTestCase):
     def setUp(self):
-        settings.WALDUR_SUPPORT['ENABLED'] = True
-        settings.WALDUR_SUPPORT['ACTIVE_BACKEND_TYPE'] = SupportBackendType.ZAMMAD
-        settings.WALDUR_ZAMMAD['ZAMMAD_API_URL'] = 'http://localhost:8080'
-        settings.WALDUR_ZAMMAD['ZAMMAD_TOKEN'] = 'token'
-
         self.fixture = fixtures.SupportFixture()
 
         mock_patch = mock.patch(
