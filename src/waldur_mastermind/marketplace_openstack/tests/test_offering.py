@@ -240,22 +240,20 @@ class OfferingComponentForVolumeTypeTest(test.APITransactionTestCase):
             scope=self.volume_type,
         )
 
-    def test_switch_from_fixed_to_dynamic_billing(self):
-        self.offering.plugin_options = {'storage_mode': STORAGE_MODE_FIXED}
-        url = marketplace_factories.OfferingFactory.get_url(self.offering)
+    def set_storage_mode(self, storage_mode):
+        url = marketplace_factories.OfferingFactory.get_url(
+            self.offering, 'update_integration'
+        )
         new_options = {
-            'plugin_options': {'storage_mode': STORAGE_MODE_DYNAMIC},
-            'plans': [
-                {
-                    'name': 'small',
-                    'description': 'CPU 1',
-                    'prices': {'gigabytes_' + self.volume_type.name: 10},
-                }
-            ],
+            'plugin_options': {'storage_mode': storage_mode},
         }
 
         self.client.force_authenticate(self.fixture.staff)
-        response = self.client.patch(url, new_options)
+        return self.client.post(url, new_options)
+
+    def test_switch_from_fixed_to_dynamic_billing(self):
+        self.offering.plugin_options = {'storage_mode': STORAGE_MODE_FIXED}
+        response = self.set_storage_mode(STORAGE_MODE_DYNAMIC)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.offering.refresh_from_db()
         self.assertEqual(
@@ -264,11 +262,7 @@ class OfferingComponentForVolumeTypeTest(test.APITransactionTestCase):
 
     def test_switch_from_dynamic_to_fixed_billing(self):
         self.offering.plugin_options = {'storage_mode': STORAGE_MODE_DYNAMIC}
-        url = marketplace_factories.OfferingFactory.get_url(self.offering)
-        new_options = {'plugin_options': {'storage_mode': STORAGE_MODE_FIXED}}
-
-        self.client.force_authenticate(self.fixture.staff)
-        response = self.client.patch(url, new_options)
+        response = self.set_storage_mode(STORAGE_MODE_FIXED)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.offering.refresh_from_db()
         self.assertEqual(
@@ -413,22 +407,23 @@ class OfferingUpdateTest(test.APITransactionTestCase):
             type='cores',
             article_code='article_code',
         )
-        self.url = marketplace_factories.OfferingFactory.get_url(offering=self.offering)
+        self.url = marketplace_factories.OfferingFactory.get_url(
+            self.offering, 'update_offering_component'
+        )
 
     def test_update_article_code(self):
-        payload = {
-            'components': [
-                {
-                    'type': 'cores',
-                    'name': 'Cores',
-                    'measured_unit': 'hours',
-                    'billing_type': 'fixed',
-                    'article_code': 'new_article_code',
-                }
-            ],
-        }
         self.client.force_authenticate(self.fixture.staff)
-        response = self.client.patch(self.url, payload)
+        response = self.client.post(
+            self.url,
+            {
+                'uuid': self.component.uuid.hex,
+                'type': 'cores',
+                'name': 'Cores',
+                'measured_unit': 'hours',
+                'billing_type': 'fixed',
+                'article_code': 'new_article_code',
+            },
+        )
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -436,18 +431,16 @@ class OfferingUpdateTest(test.APITransactionTestCase):
         self.assertEqual(self.component.article_code, 'new_article_code')
 
     def test_validate_extra_components(self):
-        payload = {
-            'components': [
-                {
-                    'type': 'extra',
-                    'name': 'extra',
-                    'measured_unit': 'hours',
-                    'billing_type': 'fixed',
-                }
-            ],
-        }
         self.client.force_authenticate(self.fixture.staff)
-        response = self.client.patch(self.url, payload)
+        response = self.client.post(
+            self.url,
+            {
+                'type': 'extra',
+                'name': 'extra',
+                'measured_unit': 'hours',
+                'billing_type': 'fixed',
+            },
+        )
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

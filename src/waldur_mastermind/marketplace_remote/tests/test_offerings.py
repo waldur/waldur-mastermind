@@ -286,69 +286,17 @@ class OfferingUpdateTest(test.APITransactionTestCase):
         self.offering = self.fixture.offering
         self.offering.type = PLUGIN_NAME
         self.offering.save()
-        self.url = factories.OfferingFactory.get_url(self.offering)
+        self.url = factories.OfferingFactory.get_url(self.offering, 'update_overview')
 
     def test_edit_of_fields_that_are_being_pulled_from_remote_waldur_is_not_available(
         self,
     ):
         old_name = self.offering.name
         self.client.force_authenticate(user=self.fixture.staff)
-        response = self.client.patch(self.url, {'name': 'new_name'})
+        response = self.client.post(self.url, {'name': 'new_name'})
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.offering.refresh_from_db()
         self.assertEqual(self.offering.name, old_name)
-
-    def test_edit_of_offering_component_is_not_available(self):
-        component_type = self.offering.components.filter().first().type
-        self.client.force_authenticate(user=self.fixture.staff)
-        response = self.client.patch(
-            self.url,
-            {
-                "components": [
-                    {
-                        "billing_type": "limit",
-                        "type": "test",
-                        "name": "Test",
-                        "description": "",
-                        "measured_unit": "",
-                        "limit_period": None,
-                        "limit_amount": None,
-                        "article_code": "",
-                        "max_value": 500,
-                        "min_value": 1,
-                        "is_boolean": False,
-                        "default_limit": None,
-                        "factor": 1,
-                    }
-                ]
-            },
-        )
-        self.assertEqual(status.HTTP_200_OK, response.status_code)
-        self.offering.refresh_from_db()
-        self.assertFalse(self.offering.components.filter(type='test').exists())
-        self.assertTrue(self.offering.components.filter(type=component_type).exists())
-
-    def test_edit_of_plans_is_not_available(self):
-        self.client.force_authenticate(user=self.fixture.staff)
-        plan = self.fixture.plan
-        old_name = plan.name
-        response = self.client.patch(
-            self.url,
-            {
-                "plans": [
-                    {
-                        "url": factories.PlanFactory.get_public_url(plan),
-                        "uuid": plan.uuid.hex,
-                        "name": "new_name",
-                        "max_amount": 100,
-                    }
-                ]
-            },
-        )
-        self.assertEqual(status.HTTP_200_OK, response.status_code)
-        plan.refresh_from_db()
-        self.assertEqual(plan.max_amount, 100)
-        self.assertEqual(plan.name, old_name)
 
 
 @override_waldur_core_settings(MASTERMIND_URL='http://localhost')

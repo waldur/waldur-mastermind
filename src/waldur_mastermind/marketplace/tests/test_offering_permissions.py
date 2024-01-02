@@ -12,7 +12,6 @@ from waldur_core.structure.tests.utils import (
     client_list_users,
     client_update_user,
 )
-from waldur_mastermind.marketplace import models
 
 from . import factories
 
@@ -174,44 +173,3 @@ class RevokeOfferingPermissionTest(BaseOfferingPermissionTest):
     ):
         self.offering.customer.remove_user(self.fixture.user, CustomerRole.MANAGER)
         self.assertFalse(self.offering.has_user(self.fixture.user))
-
-
-@ddt
-class OfferingUpdateTest(BaseOfferingPermissionTest):
-    def setUp(self):
-        super().setUp()
-        self.url = factories.OfferingFactory.get_url(self.offering)
-        self.offering.state = models.Offering.States.DRAFT
-        self.offering.save()
-        self.offering.add_user(self.fixture.user, OfferingRole.MANAGER)
-        OfferingRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING)
-
-    def test_service_manager_can_update_offering_in_draft_state(self):
-        self.client.force_authenticate(self.fixture.user)
-        response = self.client.patch(self.url, {'name': 'new_offering'})
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-
-        self.offering.refresh_from_db()
-        self.assertEqual(self.offering.name, 'new_offering')
-
-    def test_offering_lookup_succeeds_if_more_than_one_manager_exists(self):
-        self.client.force_authenticate(self.fixture.user)
-        response = self.client.get(self.url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-
-    @data(
-        models.Offering.States.ACTIVE,
-        models.Offering.States.PAUSED,
-        models.Offering.States.ARCHIVED,
-    )
-    def test_service_manager_can_not_update_offering_in_active_or_paused_state(
-        self, state
-    ):
-        # Arrange
-        self.offering.state = state
-        self.offering.save()
-
-        # Act
-        self.client.force_authenticate(self.fixture.user)
-        response = self.client.patch(self.url, {'name': 'new_offering'})
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

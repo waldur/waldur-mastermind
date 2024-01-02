@@ -28,7 +28,7 @@ class IssueCreateTest(smax_base.BaseTest):
 
         response = self.client.post(self.url, data=self._get_valid_payload())
 
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.mock_smax().add_issue.assert_called_once()
         issue = models.Issue.objects.get(uuid=response.data['uuid'])
         self.assertEqual(str(issue.backend_id), str(self.smax_issue.id))
