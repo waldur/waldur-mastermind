@@ -1,6 +1,6 @@
 from unittest import mock
 
-from django.conf import settings
+from constance.test.pytest import override_config
 from rest_framework import status, test
 from rest_framework.reverse import reverse
 
@@ -401,9 +401,9 @@ class FlowApproveTest(FlowOperationsTest):
         self.assertTrue(self.flow.order.project.has_user(self.flow.requested_by))
 
 
+@override_config(WALDUR_SUPPORT_ENABLED=False)
 class CreateOfferingStateRequestTest(test.APITransactionTestCase):
     def setUp(self):
-        settings.WALDUR_SUPPORT['ENABLED'] = False
         self.list_url = reverse('marketplace-offering-activate-request-list')
         self.fixture = SupportFixture()
         self.offering = self.fixture.offering
@@ -551,8 +551,8 @@ class CreateOfferingStateRequestTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
     @mock.patch('waldur_mastermind.support.views.backend')
+    @override_config(WALDUR_SUPPORT_ENABLED=True)
     def test_create_related_issue(self, mock_backend):
-        settings.WALDUR_SUPPORT['ENABLED'] = True
         self.client.force_authenticate(self.user)
 
         response = self.client.post(self.list_url, {'offering': self.offering_url})
@@ -578,10 +578,10 @@ class CreateOfferingStateRequestTest(test.APITransactionTestCase):
         self.assertFalse(offering_request.issue)
 
     @mock.patch('waldur_mastermind.support.views.backend')
+    @override_config(WALDUR_SUPPORT_ENABLED=True)
     def test_do_not_create_request_if_related_jira_issue_has_not_been_created(
         self, mock_backend
     ):
-        settings.WALDUR_SUPPORT['ENABLED'] = True
         self.client.force_authenticate(self.user)
 
         def create_issue(*args, **kwargs):

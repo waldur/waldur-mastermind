@@ -1,6 +1,7 @@
 import datetime
 from decimal import Decimal
 
+import pytest
 from ddt import data, ddt
 from django.db.models import Q
 from django.utils import timezone
@@ -19,13 +20,14 @@ from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.support import models as support_models
 from waldur_mastermind.support.tests import factories as support_factories
-from waldur_mastermind.support.tests.base import override_support_settings
 
 from . import fixtures
 
 
+@pytest.mark.override_config(
+    WALDUR_SUPPORT_ENABLED=True, WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE='basic'
+)
 @freeze_time('2018-01-01')
-@override_support_settings(ENABLED=True, ACTIVE_BACKEND_TYPE='basic')
 class InvoicesBaseTest(test.APITransactionTestCase):
     def setUp(self):
         super().setUp()

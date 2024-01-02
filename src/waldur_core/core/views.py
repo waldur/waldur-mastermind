@@ -360,6 +360,15 @@ def get_feature_values():
     }
 
 
+def get_constance_plugin_settings(request, plugin, fields):
+    plugin_settings = {}
+    if request:
+        for field in fields:
+            if f"{plugin}_{field}" in settings.PUBLIC_CONSTANCE_SETTINGS:
+                plugin_settings[field] = getattr(config, f"{plugin}_{field}")
+    return plugin_settings
+
+
 def get_public_settings(request=None):
     cached_settings = cache.get('API_CONFIGURATION')
     if cached_settings:
@@ -392,7 +401,7 @@ def get_public_settings(request=None):
             except KeyError:
                 pass
 
-    # Processing a others extensions
+    # Processing other extensions
     for ext in WaldurExtension.get_extensions():
         settings_name = [x for x in dir(ext.Settings) if x.startswith('WALDUR_')]
         if not settings_name:
@@ -414,15 +423,22 @@ def get_public_settings(request=None):
 
     from constance.admin import get_values
 
-    constance_settings = get_values()
-
+    constance_settings = {}
+    if request:
+        for key in get_values():
+            if key in settings.PUBLIC_CONSTANCE_SETTINGS and not key.startswith(
+                'WALDUR_'
+            ):
+                constance_settings[key] = get_values()[key]
     if public_settings.get('WALDUR_CORE'):
         if request:
             for key, val in LOGO_MAP.items():
                 if constance_settings.get(key) or key in DEFAULT_LOGOS:
                     constance_settings[key] = request.build_absolute_uri('/' + val)
         public_settings['WALDUR_CORE'].update(constance_settings)
-
+    public_settings['WALDUR_SUPPORT'] = get_constance_plugin_settings(
+        request, 'WALDUR_SUPPORT', ['ENABLED', 'DISPLAY_REQUEST_TYPE']
+    )
     cache.set(
         'API_CONFIGURATION', public_settings, None
     )  # Cache invalidation is handled explicitly
@@ -507,6 +523,20 @@ class CheckExtensionMixin:
     def initial(self, request, *args, **kwargs):
         conf = getattr(settings, self.extension_name, None)
         if not conf or not conf['ENABLED']:
+            raise ExtensionDisabled()
+        return super().initial(request, *args, **kwargs)
+
+
+class ConstanceCheckExtensionMixin:
+    """Raise exception if extension is disabled"""
+
+    extension_name = NotImplemented
+
+    def initial(self, request, *args, **kwargs):
+        from constance import config
+
+        conf = getattr(config, f"{self.extension_name}_ENABLED", None)
+        if not conf:
             raise ExtensionDisabled()
         return super().initial(request, *args, **kwargs)
 

@@ -1,4 +1,4 @@
-from django.conf import settings
+from constance import config
 from django.db import transaction
 from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
@@ -134,7 +134,7 @@ class OfferingActivateRequestViewSet(ReviewViewSet):
     def perform_create(self, serializer):
         offering_request = serializer.save()
 
-        if settings.WALDUR_SUPPORT['ENABLED']:
+        if config.WALDUR_SUPPORT_ENABLED:
             response = utils.create_issue(offering_request)
 
             if response.status_code == status.HTTP_201_CREATED:

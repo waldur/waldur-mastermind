@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 @shared_task(name='waldur_mastermind.support.pull_support_users')
 def pull_support_users():
-    if not settings.WALDUR_SUPPORT['ENABLED']:
+    if not config.WALDUR_SUPPORT_ENABLED:
         return
 
     backend.get_active_backend().pull_support_users()
@@ -26,7 +26,7 @@ def pull_support_users():
 
 @shared_task(name='waldur_mastermind.support.pull_priorities')
 def pull_priorities():
-    if not settings.WALDUR_SUPPORT['ENABLED']:
+    if not config.WALDUR_SUPPORT_ENABLED:
         return
 
     backend.get_active_backend().pull_priorities()
@@ -102,7 +102,7 @@ def _send_email(
     receiver=None,
     extra_context=None,
 ):
-    if not settings.WALDUR_SUPPORT['ENABLED']:
+    if not config.WALDUR_SUPPORT_ENABLED:
         return
 
     if settings.SUPPRESS_NOTIFICATION_EMAILS:
@@ -206,7 +206,7 @@ def sync_feedback(serialized_feedback):
 
 @shared_task(name='waldur_mastermind.support.sync_request_types')
 def sync_request_types():
-    if not settings.WALDUR_SUPPORT['ENABLED']:
+    if not config.WALDUR_SUPPORT_ENABLED:
         return
 
     active_backend = backend.get_active_backend()

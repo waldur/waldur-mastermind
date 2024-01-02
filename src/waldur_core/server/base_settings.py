@@ -291,7 +291,11 @@ CONSTANCE_DBS = "default"
 CONSTANCE_SUPERUSER_ONLY = False
 CONSTANCE_IGNORE_ADMIN_VERSION_CHECK = True
 CONSTANCE_ADDITIONAL_FIELDS = {
-    'image_field': ['django.forms.ImageField', {'required': False}]
+    'image_field': ['django.forms.ImageField', {'required': False}],
+    'boolean_field': ['django.forms.BooleanField', {'required': False}],
+    'number_field': ['django.forms.DecimalField', {'required': False}],
+    'email_field': ['django.forms.EmailField', {'required': False}],
+    'url_field': ['django.forms.URLField', {'required': False}],
 }
 CONSTANCE_CONFIG = {
     'SITE_NAME': ('Waldur', 'Human-friendly name of the Waldur deployment.'),
@@ -327,7 +331,72 @@ CONSTANCE_CONFIG = {
     'SITE_LOGO': ('', 'The image used in marketplace order header.', 'image_field'),
     'LOGIN_LOGO': ('', 'A custom .png image file for login page', 'image_field'),
     'FAVICON': ('', 'A custom favicon .png image file', 'image_field'),
+    # service desk integration settings
+    'WALDUR_SUPPORT_ENABLED': (True, 'Toggler for Support plugin.', 'boolean_field'),
+    'WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE': ('atlassian', 'Type of support backend. Possible values: atlassian, zammad.'),
+    'WALDUR_SUPPORT_DISPLAY_REQUEST_TYPE': (True, 'Toggler for request type displaying', 'boolean_field'),
+    # Atlassian settings
+    'ATLASSIAN_USE_OLD_API': (False, 'Toggler for legacy API usage.', 'boolean_field'),
+    'ATLASSIAN_USE_TEENAGE_API': (False, 'Toggler for teenage API usage.', 'boolean_field'),
+    'ATLASSIAN_USE_AUTOMATIC_REQUEST_MAPPING': (True, 'Toggler for automatic request mapping.', 'boolean_field'),
+    'ATLASSIAN_MAP_WALDUR_USERS_TO_SERVICEDESK_AGENTS': (
+        False,
+        'Toggler for mapping between waldur user and service desk agents.',
+        'boolean_field'
+    ),
+    'ATLASSIAN_STRANGE_SETTING': (1, ''),
+    'ATLASSIAN_API_URL': ('http://example.com/', 'Atlassian server URL', 'url_field'),
+    'ATLASSIAN_USERNAME': ('USERNAME', 'Username for access user'),
+    'ATLASSIAN_PASSWORD': ('PASSWORD', 'Password for access user'),
+    'ATLASSIAN_EMAIL': ('', 'Email for access user', 'email_field'),
+    'ATLASSIAN_TOKEN': ('', 'Token for access user'),
+    'ATLASSIAN_VERIFY_SSL': (False, 'Toggler for SSL verification', 'boolean_field'),
+    'ATLASSIAN_PROJECT_ID': ('', 'Project-related settings'),
+    'ATLASSIAN_DEFAULT_OFFERING_ISSUE_TYPE': ('Service Request', 'Issue type'),
+    'ATLASSIAN_EXCLUDED_ATTACHMENT_TYPES': ('', 'List of attachment types'),
+    'ATLASSIAN_PULL_PRIORITIES': (True, 'Pull priorities', 'boolean_field'),
+    'ATLASSIAN_ISSUE_TYPES': (
+        'Informational, Service Request, Change Request, Incident',
+        'Issue-related settings; Issue types'
+    ),
+    'ATLASSIAN_AFFECTED_RESOURCE_FIELD': ('', 'Affected resource field'),
+    'ATLASSIAN_DESCRIPTION_TEMPLATE': ('', 'Description'),
+    'ATLASSIAN_SUMMARY_TEMPLATE': ('', 'Summary'),
+    'ATLASSIAN_IMPACT_FIELD': ('Impact', 'Impact field'),
+    'ATLASSIAN_ORGANISATION_FIELD': ('', 'Organisation field'),
+    'ATLASSIAN_RESOLUTION_SLA_FIELD': ('', 'Resolution SLA field'),
+    'ATLASSIAN_PROJECT_FIELD': ('', 'Project field'),
+    'ATLASSIAN_REPORTER_FIELD': ('Original Reporter', 'Reporter field'),
+    'ATLASSIAN_CALLER_FIELD': ('Caller', 'Caller field'),
+    'ATLASSIAN_SLA_FIELD': ('Time to first response', 'SLA field'),
+    'ATLASSIAN_LINKED_ISSUE_TYPE': ('Relates', 'Type of linked issue'),
+    'ATLASSIAN_SATISFACTION_FIELD': ('Customer satisfaction', 'Satisfaction field'),
+    'ATLASSIAN_REQUEST_FEEDBACK_FIELD': ('Request feedback', 'Issue request feedback'),
+    'ATLASSIAN_TEMPLATE_FIELD': ('', 'Template field'),
 
+    # Zammad settings
+    'ZAMMAD_API_URL': ('', 'Address of Zammad server. For example <http://localhost:8080/>', 'url_field'),
+    'ZAMMAD_TOKEN': ('', 'Authorization token.'),
+    'ZAMMAD_GROUP': ('', 'The name of the group to which the ticket will be added. '
+                         'If not specified, the first group will be used.'),
+    'ZAMMAD_ARTICLE_TYPE': ('email', 'Type of a comment.'
+                                     'Default is email because it allows support to reply to tickets directly in Zammad'
+                                     '<https://docs.zammad.org/en/latest/api/ticket/articles.html#articles/>'),
+    'ZAMMAD_COMMENT_MARKER': ('Created by Waldur', 'Marker for comment.'
+                                                   'Used for separating comments made via Waldur from natively added '
+                                                   'comments.'),
+
+    'ZAMMAD_COMMENT_PREFIX': ('User: {name}', 'Comment prefix with user info.'),
+    'ZAMMAD_COMMENT_COOLDOWN_DURATION': (5, 'Time in minutes. '
+                                     'Time in minutes while comment deletion is available '
+                                     '<https://github.com/zammad/zammad/issues/2687/>, '
+                                     '<https://github.com/zammad/zammad/issues/3086/>', 'number_field'),
+
+    # SMAX settings
+    'SMAX_API_URL': ('', 'Address of SMAX server. For example <http://localhost:8080/>', 'url_field'),
+    'SMAX_TENANT_ID': ('', 'User tenant ID.'),
+    'SMAX_LOGIN': ('', 'Authorization login.'),
+    'SMAX_PASSWORD': ('', 'Authorization password.'),
 }
 
 CONSTANCE_CONFIG_FIELDSETS = {
@@ -338,8 +407,42 @@ CONSTANCE_CONFIG_FIELDSETS = {
     ),
     'Whitelabeling settings (Logos, images, favicons)': (
         'SITE_LOGO', 'SIDEBAR_LOGO', 'SIDEBAR_LOGO_MOBILE', 'POWERED_BY_LOGO', 'HERO_IMAGE', 'LOGIN_LOGO', 'FAVICON'
+    ),
+
+    'Service desk integration settings': (
+        'WALDUR_SUPPORT_ENABLED', 'WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE', 'WALDUR_SUPPORT_DISPLAY_REQUEST_TYPE',
+    ),
+    'Atlassian settings': (
+        'ATLASSIAN_USE_OLD_API', 'ATLASSIAN_USE_TEENAGE_API', 'ATLASSIAN_USE_AUTOMATIC_REQUEST_MAPPING',
+        'ATLASSIAN_MAP_WALDUR_USERS_TO_SERVICEDESK_AGENTS', 'ATLASSIAN_STRANGE_SETTING', 'ATLASSIAN_API_URL',
+        'ATLASSIAN_USERNAME', 'ATLASSIAN_PASSWORD', 'ATLASSIAN_EMAIL', 'ATLASSIAN_TOKEN', 'ATLASSIAN_VERIFY_SSL',
+        'ATLASSIAN_PROJECT_ID', 'ATLASSIAN_DEFAULT_OFFERING_ISSUE_TYPE', 'ATLASSIAN_EXCLUDED_ATTACHMENT_TYPES',
+        'ATLASSIAN_PULL_PRIORITIES', 'ATLASSIAN_ISSUE_TYPES', 'ATLASSIAN_AFFECTED_RESOURCE_FIELD',
+        'ATLASSIAN_DESCRIPTION_TEMPLATE', 'ATLASSIAN_SUMMARY_TEMPLATE', 'ATLASSIAN_IMPACT_FIELD',
+        'ATLASSIAN_ORGANISATION_FIELD', 'ATLASSIAN_RESOLUTION_SLA_FIELD', 'ATLASSIAN_PROJECT_FIELD',
+        'ATLASSIAN_REPORTER_FIELD', 'ATLASSIAN_CALLER_FIELD', 'ATLASSIAN_SLA_FIELD',
+        'ATLASSIAN_LINKED_ISSUE_TYPE', 'ATLASSIAN_SATISFACTION_FIELD',
+        'ATLASSIAN_REQUEST_FEEDBACK_FIELD', 'ATLASSIAN_TEMPLATE_FIELD'
+    ),
+    'Zammad settings': (
+        'ZAMMAD_API_URL', 'ZAMMAD_TOKEN', 'ZAMMAD_GROUP', 'ZAMMAD_ARTICLE_TYPE', 'ZAMMAD_COMMENT_MARKER',
+        'ZAMMAD_COMMENT_PREFIX', 'ZAMMAD_COMMENT_COOLDOWN_DURATION'
+    ),
+    'SMAX settings': (
+        'SMAX_API_URL', 'SMAX_TENANT_ID', 'SMAX_LOGIN', 'SMAX_PASSWORD'
     )
 }
+
+PUBLIC_CONSTANCE_SETTINGS = (
+    # Whitelabeling settings
+    'SITE_NAME', 'SITE_DESCRIPTION', 'SITE_ADDRESS', 'SITE_EMAIL', 'SITE_PHONE',
+    'CURRENCY_NAME', 'DOCS_URL', 'SHORT_PAGE_TITLE', 'FULL_PAGE_TITLE',
+    'BRAND_COLOR', 'BRAND_LABEL_COLOR', 'HERO_LINK_LABEL', 'HERO_LINK_URL', 'SUPPORT_PORTAL_URL',
+    'SITE_LOGO', 'SIDEBAR_LOGO', 'SIDEBAR_LOGO_MOBILE', 'POWERED_BY_LOGO', 'HERO_IMAGE', 'LOGIN_LOGO', 'FAVICON',
+
+    # Support plugin
+    'WALDUR_SUPPORT_ENABLED', 'WALDUR_SUPPORT_DISPLAY_REQUEST_TYPE',
+)
 
 for ext in WaldurExtension.get_extensions():
     INSTALLED_APPS += (ext.django_app(),)
@@ -357,7 +460,6 @@ for ext in WaldurExtension.get_extensions():
             globals()[key] = val
 
     ext.update_settings(globals())
-
 
 # Swagger
 SWAGGER_SETTINGS = {

@@ -785,126 +785,6 @@ class WaldurOpenstackTenant(BaseModel):
         ]
 
 
-class WaldurSupport(BaseModel):
-    ENABLED = Field(False, description='Toggler for Support plugin')
-    ACTIVE_BACKEND_TYPE = Field(
-        'atlassian',
-        description='Type of support backend. Possible values: atlassian, zammad',
-    )
-    DISPLAY_REQUEST_TYPE = Field(
-        True, description='Toggler for request type displaying'
-    )
-
-    class Meta:
-        public_settings = [
-            'ENABLED',
-            'DISPLAY_REQUEST_TYPE',
-        ]
-
-
-class WaldurAtlassian(BaseModel):
-    USE_OLD_API = Field(False, description='Toggler for legacy API usage')
-    USE_TEENAGE_API = Field(False, description='Toggler for teenage API usage')
-    USE_AUTOMATIC_REQUEST_MAPPING = Field(
-        True, description='Toggler for automatic request mapping'
-    )
-    MAP_WALDUR_USERS_TO_SERVICEDESK_AGENTS = Field(
-        False,
-        description='Toggler for mapping between waldur user and service desk agents',
-    )
-    STRANGE_SETTING = Field(1, description='')
-    SERVER = Field('http://example.com/', description='Atlassian server URL')
-    USERNAME = Field('USERNAME', description='Username for access user')
-    PASSWORD = Field('PASSWORD', description='Password for access user')
-    EMAIL = Field('', description='Email for access user')
-    TOKEN = Field('', description='Token for access user')
-    VERIFY_SSL = Field(False, description='Toggler for SSL verification')
-    PROJECT = Field(
-        {
-            'key': 'PROJECT',
-        },
-        description='Project-related settings',
-    )
-    ISSUE = Field(
-        {
-            'types': [
-                'Informational',
-                'Service Request',
-                'Change Request',
-                'Incident',
-            ],
-            'impact_field': 'Impact',
-            'reporter_field': 'Original Reporter',
-            'caller_field': 'Caller',
-            'sla_field': 'Time to first response',
-            'type_of_linked_issue': 'Relates',
-            'satisfaction_field': 'Customer satisfaction',
-            'request_feedback': 'Request feedback',  # a field of checkbox type and with a single option 'yes'.
-        },
-        description='Issue-related settings',
-    )
-    DEFAULT_OFFERING_ISSUE_TYPE = Field('Service Request', description='Issue type')
-    EXCLUDED_ATTACHMENT_TYPES = Field([], description='List of attachment types')
-    PULL_PRIORITIES = Field(True, description='Pull priorities')
-
-
-class WaldurZammad(BaseModel):
-    ZAMMAD_API_URL = Field(
-        '',
-        description='Address of Zammad server. For example <http://localhost:8080/>',
-    )
-    ZAMMAD_TOKEN = Field(
-        '',
-        description='Authorization token.',
-    )
-    ZAMMAD_GROUP = Field(
-        '',
-        description='The name of the group to which the ticket will be added. '
-        'If not specified, the first group will be used.',
-    )
-    ZAMMAD_ARTICLE_TYPE = Field(
-        'email',
-        description='Type of a comment.'
-        'Default is email because it allows support to reply to tickets directly in Zammad'
-        '<https://docs.zammad.org/en/latest/api/ticket/articles.html#articles/>',
-    )
-    ZAMMAD_COMMENT_MARKER = Field(
-        'Created by Waldur',
-        description='Marker for comment.'
-        'Used for separating comments made via Waldur from natively added comments.',
-    )
-    ZAMMAD_COMMENT_PREFIX = Field(
-        'User: {name}',
-        description='Comment prefix with user info.',
-    )
-    COMMENT_COOLDOWN_DURATION = Field(
-        5,
-        description='Time in minutes. '
-        'Time in minutes while comment deletion is available '
-        '<https://github.com/zammad/zammad/issues/2687/>, '
-        '<https://github.com/zammad/zammad/issues/3086/>',
-    )
-
-
-class WaldurSmax(BaseModel):
-    SMAX_API_URL = Field(
-        '',
-        description='Address of SMAX server. For example <http://localhost:8080/>',
-    )
-    SMAX_TENANT_ID = Field(
-        '',
-        description='User tenant ID.',
-    )
-    SMAX_LOGIN = Field(
-        '',
-        description='Authorization login.',
-    )
-    SMAX_PASSWORD = Field(
-        '',
-        description='Authorization password.',
-    )
-
-
 class WaldurConfiguration(BaseModel):
     WALDUR_CORE = WaldurCore()
     WALDUR_AUTH_SOCIAL = WaldurAuthSocial()
@@ -919,10 +799,6 @@ class WaldurConfiguration(BaseModel):
     WALDUR_MARKETPLACE_SCRIPT = WaldurMarketplaceScript()
     WALDUR_MARKETPLACE_REMOTE_SLURM = WaldurMarketplaceRemoteSlurm()
     WALDUR_AUTH_SAML2 = WaldurAuthSAML2()
-    WALDUR_SUPPORT = WaldurSupport()
-    WALDUR_ATLASSIAN = WaldurAtlassian()
-    WALDUR_ZAMMAD = WaldurZammad()
-    WALDUR_SMAX = WaldurSmax()
     USE_PROTECTED_URL = Field(
         False, description='Protect media URLs using signed token.'
     )

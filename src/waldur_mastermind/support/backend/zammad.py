@@ -6,7 +6,6 @@ import mimetypes
 import os
 
 from constance import config
-from django.conf import settings
 from django.core.files.base import ContentFile
 from django.utils.timezone import now
 from rest_framework.exceptions import ValidationError
@@ -53,7 +52,7 @@ class ZammadServiceBackend(SupportBackend):
             return False
 
         if now() - comment.created < datetime.timedelta(
-            minutes=settings.WALDUR_ZAMMAD['COMMENT_COOLDOWN_DURATION']
+            minutes=config.ZAMMAD_COMMENT_COOLDOWN_DURATION
         ):
             return True
 
@@ -62,7 +61,7 @@ class ZammadServiceBackend(SupportBackend):
             return True
 
         if now() - attachment.created < datetime.timedelta(
-            minutes=settings.WALDUR_ZAMMAD['COMMENT_COOLDOWN_DURATION']
+            minutes=config.ZAMMAD_COMMENT_COOLDOWN_DURATION
         ):
             return True
 

@@ -3,19 +3,12 @@ import re
 from dataclasses import dataclass
 from typing import List
 
-from django.conf import settings
+from constance import config
 from requests import exceptions as requests_exceptions
 from zammad_py import ZammadAPI
 
 from waldur_core.core.clean_html import clean_html
 from waldur_core.structure.exceptions import ServiceBackendError
-
-ZAMMAD_API_URL = settings.WALDUR_ZAMMAD['ZAMMAD_API_URL']
-ZAMMAD_TOKEN = settings.WALDUR_ZAMMAD['ZAMMAD_TOKEN']
-ZAMMAD_ARTICLE_TYPE = settings.WALDUR_ZAMMAD['ZAMMAD_ARTICLE_TYPE']
-ZAMMAD_GROUP = settings.WALDUR_ZAMMAD['ZAMMAD_GROUP']
-ZAMMAD_COMMENT_MARKER = settings.WALDUR_ZAMMAD['ZAMMAD_COMMENT_MARKER']
-ZAMMAD_COMMENT_PREFIX = settings.WALDUR_ZAMMAD['ZAMMAD_COMMENT_PREFIX']
 
 
 class ZammadBackendError(ServiceBackendError):
@@ -85,12 +78,12 @@ class Priority:
 
 class ZammadBackend:
     def __init__(self):
-        if not ZAMMAD_API_URL.endswith('/'):
-            url = f'{ZAMMAD_API_URL}/api/v1/'
+        if not config.ZAMMAD_API_URL.endswith('/'):
+            url = f'{config.ZAMMAD_API_URL}/api/v1/'
         else:
-            url = f'{ZAMMAD_API_URL}api/v1/'
+            url = f'{config.ZAMMAD_API_URL}api/v1/'
 
-        self.manager = ZammadAPI(url, http_token=ZAMMAD_TOKEN)
+        self.manager = ZammadAPI(url, http_token=config.ZAMMAD_TOKEN)
 
     def _zammad_response_to_issue(self, response):
         return Issue(
@@ -126,7 +119,7 @@ class ZammadBackend:
             is_public=not response.get('internal', False),
             user_id=response.get('created_by_id'),
             is_waldur_comment=re.search(
-                r"^" + ZAMMAD_COMMENT_MARKER,
+                r"^" + config.ZAMMAD_COMMENT_MARKER,
                 clean_html(response.get('body', '')),
                 re.MULTILINE,
             ),
@@ -225,10 +218,10 @@ class ZammadBackend:
             'ticket_id': ticket_id,
             'body': content
             + '\n\n'
-            + ZAMMAD_COMMENT_MARKER
+            + config.ZAMMAD_COMMENT_MARKER
             + '\n\n'
-            + ZAMMAD_COMMENT_PREFIX.format(name=support_user_name),
-            'type': ZAMMAD_ARTICLE_TYPE,
+            + config.ZAMMAD_COMMENT_PREFIX.format(name=support_user_name),
+            'type': config.ZAMMAD_ARTICLE_TYPE,
             'internal': not is_public,  # if internal equals False so deleting of comment will be impossible
         }
 
@@ -263,9 +256,9 @@ class ZammadBackend:
 
         params = {
             'ticket_id': ticket_id,
-            'body': body + '\n\n' + ZAMMAD_COMMENT_MARKER,
+            'body': body + '\n\n' + config.ZAMMAD_COMMENT_MARKER,
             'to': waldur_user_email,
-            'type': ZAMMAD_ARTICLE_TYPE,
+            'type': config.ZAMMAD_ARTICLE_TYPE,
             'internal': True,  # if internal equals False so deleting of comment will be impossible
             'attachments': [
                 {
@@ -295,7 +288,7 @@ class ZammadBackend:
         group=None,
         tags: List[str] = '',
     ):
-        group = group or ZAMMAD_GROUP or self.get_groups()[0]['name']
+        group = group or config.ZAMMAD_GROUP or self.get_groups()[0]['name']
         tags = ','.join(tags)
         params = {
             'title': subject,
@@ -304,7 +297,7 @@ class ZammadBackend:
             "article": {
                 "subject": "Task description",
                 "body": description,  # We do not add marker as we treat first article as a special one.
-                "type": ZAMMAD_ARTICLE_TYPE,
+                "type": config.ZAMMAD_ARTICLE_TYPE,
                 "internal": False,
                 "to": waldur_user_email,
             },

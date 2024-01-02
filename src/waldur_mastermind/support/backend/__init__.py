@@ -1,6 +1,6 @@
 import importlib
 
-from django.conf import settings
+from constance import config
 
 
 class SupportBackendType:
@@ -10,7 +10,7 @@ class SupportBackendType:
 
 
 def get_active_backend():
-    backend_type = settings.WALDUR_SUPPORT['ACTIVE_BACKEND_TYPE']
+    backend_type = config.WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE
     if backend_type == SupportBackendType.ATLASSIAN:
         path = 'waldur_mastermind.support.backend.atlassian:ServiceDeskBackend'
     elif backend_type == SupportBackendType.ZAMMAD:

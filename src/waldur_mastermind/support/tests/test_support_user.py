@@ -1,6 +1,7 @@
 from unittest import mock
 
 import jira
+from constance.test.pytest import override_config
 from ddt import data, ddt
 from rest_framework import status
 
@@ -35,14 +36,14 @@ class SupportUserRetrieveTest(base.BaseTest):
         response = self.client.get(factories.SupportUserFactory.get_list_url())
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    @base.override_support_settings(ENABLED=False)
+    @override_config(WALDUR_SUPPORT_ENABLED=False)
     def test_user_can_not_retrieve_support_users_if_support_extension_is_disabled(self):
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.get(factories.SupportUserFactory.get_list_url())
         self.assertEqual(response.status_code, status.HTTP_424_FAILED_DEPENDENCY)
 
 
-@base.override_support_settings(ENABLED=True)
+@override_config(WALDUR_SUPPORT_ENABLED=True)
 class SupportUserPullTest(base.BaseTest):
     def setUp(self):
         mock_patch = mock.patch('waldur_jira.backend.JIRA')
@@ -91,7 +92,7 @@ class SupportUserPullTest(base.BaseTest):
         self.assertTrue(alice.is_active)
 
 
-@base.override_support_settings(ENABLED=True)
+@override_config(WALDUR_SUPPORT_ENABLED=True)
 @mock.patch('waldur_jira.backend.JIRA')
 class SupportUserValidateTest(base.BaseTest):
     def test_not_create_user_if_user_exists_but_he_inactive(self, mocked_jira):

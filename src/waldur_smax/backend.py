@@ -3,18 +3,13 @@ import logging
 from dataclasses import dataclass
 
 import requests
-from django.conf import settings
+from constance import config
 from requests import exceptions as requests_exceptions
 from rest_framework import status
 
 from waldur_core.structure.exceptions import ServiceBackendError
 
 logger = logging.getLogger(__name__)
-
-SMAX_API_URL = settings.WALDUR_SMAX['SMAX_API_URL']
-SMAX_TENANT_ID = settings.WALDUR_SMAX['SMAX_TENANT_ID']
-SMAX_LOGIN = settings.WALDUR_SMAX['SMAX_LOGIN']
-SMAX_PASSWORD = settings.WALDUR_SMAX['SMAX_PASSWORD']
 
 
 class SmaxBackendError(ServiceBackendError):
@@ -52,12 +47,12 @@ class Issue:
 
 class SmaxBackend:
     def __init__(self):
-        if not SMAX_API_URL.endswith('/'):
-            self.api_url = f'{SMAX_API_URL}/'
+        if not config.SMAX_API_URL.endswith('/'):
+            self.api_url = f'{config.SMAX_API_URL}/'
         else:
-            self.api_url = f'{SMAX_API_URL}'
+            self.api_url = f'{config.SMAX_API_URL}'
 
-        self.rest_api = f'{self.api_url}rest/{SMAX_TENANT_ID}/'
+        self.rest_api = f'{self.api_url}rest/{config.SMAX_TENANT_ID}/'
         self.lwsso_cookie_key = None
 
     def _smax_response_to_user(self, response):
@@ -94,8 +89,8 @@ class SmaxBackend:
     def auth(self):
         response = requests.post(
             f'{self.api_url}auth/authentication-endpoint/'
-            f'authenticate/login?TENANTID={SMAX_TENANT_ID}',
-            json={"login": SMAX_LOGIN, "password": SMAX_PASSWORD},
+            f'authenticate/login?TENANTID={config.SMAX_TENANT_ID}',
+            json={"login": config.SMAX_LOGIN, "password": config.SMAX_PASSWORD},
         )
 
         if response.status_code != status.HTTP_200_OK:
@@ -110,7 +105,7 @@ class SmaxBackend:
         params = params or {}
         self.lwsso_cookie_key or self.auth()
 
-        params['TENANTID'] = SMAX_TENANT_ID
+        params['TENANTID'] = config.SMAX_TENANT_ID
         headers = {
             'Cookie': f'LWSSO_COOKIE_KEY={self.lwsso_cookie_key}',
             'Content-Type': 'application/json',
@@ -148,7 +143,7 @@ class SmaxBackend:
             'Content-Type': 'application/json',
         }
 
-        url = self.rest_api + path + f'?TENANTID={SMAX_TENANT_ID}'
+        url = self.rest_api + path + f'?TENANTID={config.SMAX_TENANT_ID}'
         response = requests.post(
             url=url, headers=headers, data=data, json=json, **kwargs
         )

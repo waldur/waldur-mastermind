@@ -1,3 +1,4 @@
+from constance.test.pytest import override_config
 from django.conf import settings
 from django.core import mail
 from django.template import Context, Template
@@ -8,13 +9,13 @@ from waldur_mastermind.support.tests import factories
 
 
 class BaseHandlerTest(TransactionTestCase):
+    @override_config(WALDUR_SUPPORT_ENABLED=True)
     def setUp(self):
         settings.task_always_eager = True
-        settings.WALDUR_SUPPORT['ENABLED'] = True
 
+    @override_config(WALDUR_SUPPORT_ENABLED=False)
     def tearDown(self):
         settings.task_always_eager = False
-        settings.WALDUR_SUPPORT['ENABLED'] = False
 
 
 class IssueUpdatedHandlerTest(BaseHandlerTest):
