@@ -33,7 +33,7 @@ from waldur_core.core.metadata import WaldurConfiguration
 from waldur_core.core.mixins import ReviewMixin, ensure_atomic_transaction
 from waldur_core.core.serializers import (
     AuthTokenSerializer,
-    BrandingSerializer,
+    ConstanceSettingsSerializer,
     ReviewCommentSerializer,
 )
 from waldur_core.core.utils import format_homeport_link
@@ -437,7 +437,9 @@ def get_public_settings(request=None):
                     constance_settings[key] = request.build_absolute_uri('/' + val)
         public_settings['WALDUR_CORE'].update(constance_settings)
     public_settings['WALDUR_SUPPORT'] = get_constance_plugin_settings(
-        request, 'WALDUR_SUPPORT', ['ENABLED', 'DISPLAY_REQUEST_TYPE']
+        request,
+        'WALDUR_SUPPORT',
+        ['ENABLED', 'DISPLAY_REQUEST_TYPE', 'ACTIVE_BACKEND_TYPE'],
     )
     cache.set(
         'API_CONFIGURATION', public_settings, None
@@ -451,10 +453,23 @@ def configuration_detail(request):
     return Response(get_public_settings(request))
 
 
-@api_view(['POST'])
+@api_view(['POST', 'GET'])
 @permission_classes((rf_permissions.IsAdminUser,))
-def branding(request):
-    serializer = BrandingSerializer(data=request.data)
+def override_db_settings(request):
+    if request.method == 'GET':
+        from constance.admin import get_values
+
+        constance_settings = get_values()
+        plugins_to_return = ['atlassian', 'zammad', 'smax']
+        filtered_dict = {
+            key: value
+            for key, value in constance_settings.items()
+            if any(prefix.lower() in key.lower() for prefix in plugins_to_return)
+            and 'password' not in key.lower()
+            and 'token' not in key.lower()
+        }
+        return Response(filtered_dict)
+    serializer = ConstanceSettingsSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     serializer.save()
     return Response(status=status.HTTP_200_OK)
