@@ -422,7 +422,7 @@ color_hex_validator = RegexValidator(
 )
 
 
-class BrandingSerializer(serializers.Serializer):
+class ConstanceSettingsSerializer(serializers.Serializer):
     def get_fields(self):
         fields = OrderedDict()
 
@@ -459,7 +459,13 @@ class BrandingSerializer(serializers.Serializer):
                 kwargs['allow_null'] = True
             if name in ['BRAND_COLOR', 'BRAND_LABEL_COLOR']:
                 kwargs['validators'] = [color_hex_validator]
-            if name in ['HERO_LINK_URL', 'DOCS_URL', 'SUPPORT_PORTAL_URL']:
+            if name in [
+                'HERO_LINK_URL',
+                'DOCS_URL',
+                'SUPPORT_PORTAL_URL',
+                'ATLASSIAN_API_URL',
+                'ZAMMAD_API_URL',
+            ]:
                 kwargs['validators'] = [URLValidator()]
             fields[name] = field_class(**kwargs)
         return fields
