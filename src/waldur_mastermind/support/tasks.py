@@ -215,3 +215,11 @@ def sync_request_types():
         return
 
     backend.get_active_backend().pull_request_types()
+
+
+@shared_task(name='waldur_mastermind.support.run_periodic_task')
+def run_periodic_task():
+    if not settings.WALDUR_SUPPORT['ENABLED']:
+        return
+
+    backend.get_active_backend().periodic_task()

@@ -13,6 +13,7 @@ class SupportUserFactory(factory.django.DjangoModelFactory):
 
     name = factory.Sequence(lambda n: 'user-%s' % n)
     user = factory.SubFactory(structure_factories.UserFactory)
+    backend_id = factory.Sequence(lambda n: 'TST-%s' % n)
 
     @classmethod
     def get_list_url(cls):
