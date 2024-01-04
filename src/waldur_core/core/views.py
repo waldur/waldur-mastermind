@@ -472,6 +472,7 @@ def override_db_settings(request):
     serializer = ConstanceSettingsSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     serializer.save()
+    cache.delete('API_CONFIGURATION')
     return Response(status=status.HTTP_200_OK)
 
 
