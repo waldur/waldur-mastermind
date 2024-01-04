@@ -1641,6 +1641,12 @@ class NotificationSerializer(serializers.HyperlinkedModelSerializer):
         }
 
 
+class CommonMailFooterSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = core_models.CommonMailFooter
+        fields = ('html_content', 'text_content')
+
+
 class NotificationTemplateUpdateSerializers(serializers.Serializer):
     content = serializers.CharField()
 

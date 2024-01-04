@@ -1010,6 +1010,11 @@ class NotificationTemplateViewSet(ActionsViewSet):
     override_permissions = [permissions.is_staff]
 
 
+class CommonMailFooterViewSet(viewsets.ModelViewSet):
+    queryset = core_models.CommonMailFooter.objects.all()
+    serializer_class = serializers.CommonMailFooterSerializer
+
+
 class AuthTokenViewSet(ActionsViewSet):
     serializer_class = serializers.AuthTokenSerializers
     lookup_field = 'user_id'

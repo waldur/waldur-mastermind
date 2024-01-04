@@ -37,6 +37,16 @@ class IssueUpdatedHandlerTest(BaseHandlerTest):
         self.assertTrue('old summary' in body)
         self.assertTrue('new summary' in body)
 
+    def test_common_footer_is_rendered_in_email(self):
+        common_footer = factories.CommonMailFooterFactory()
+        issue = factories.IssueFactory()
+
+        issue.summary = 'new summary'
+        issue.save()
+
+        body = mail.outbox[0].body
+        self.assertIn(common_footer.text_content, body)
+
     def test_email_notification_is_not_sent_on_issue_creation(self):
         factories.IssueFactory()
 
