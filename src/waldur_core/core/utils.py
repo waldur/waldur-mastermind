@@ -224,6 +224,8 @@ def send_mail(
     reply_to=None,
     fail_silently=False,
 ):
+    from .models import CommonMailFooter
+
     from_email = from_email or settings.DEFAULT_FROM_EMAIL
     reply_to = reply_to or settings.DEFAULT_REPLY_TO_EMAIL
     email = EmailMultiAlternatives(
@@ -235,7 +237,16 @@ def send_mail(
         reply_to=[reply_to],
     )
 
-    if html_message:
+    common_footer = CommonMailFooter.objects.first()
+    if common_footer:
+        footer_html = common_footer.html_content
+        footer_text = common_footer.text_content
+        email.body += f"\n\n{footer_text}"
+
+        if html_message:
+            email.attach_alternative(f"{html_message}\n\n{footer_html}", "text/html")
+
+    elif html_message:
         email.attach_alternative(html_message, 'text/html')
 
     if filename:

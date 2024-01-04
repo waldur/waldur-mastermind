@@ -1,6 +1,7 @@
 import factory
 from django.urls import reverse
 
+from waldur_core.core.models import CommonMailFooter
 from waldur_core.structure.tests import factories as structure_factories
 
 from .. import models
@@ -40,6 +41,14 @@ class IssueFactory(factory.django.DjangoModelFactory):
     @classmethod
     def get_list_url(cls):
         return 'http://testserver' + reverse('support-issue-list')
+
+
+class CommonMailFooterFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = CommonMailFooter
+
+    html_content = '<p>Waldur Team.</p>'
+    text_content = 'Waldur Team.'
 
 
 class CommentFactory(factory.django.DjangoModelFactory):
