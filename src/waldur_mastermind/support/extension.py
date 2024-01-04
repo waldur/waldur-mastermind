@@ -48,4 +48,9 @@ class SupportExtension(WaldurExtension):
                 'schedule': timedelta(hours=24),
                 'args': (),
             },
+            'run_periodic_task': {
+                'task': 'waldur_mastermind.support.run_periodic_task',
+                'schedule': timedelta(hours=6),
+                'args': (),
+            },
         }
