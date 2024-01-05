@@ -450,6 +450,12 @@ class ConstanceSettingsSerializer(serializers.Serializer):
                 field_class = serializers.CharField
             if config_type == 'image_field':
                 field_class = serializers.ImageField
+            if config_type == 'email_field':
+                field_class = serializers.EmailField
+            if config_type == int:
+                field_class = serializers.IntegerField
+            if config_type == bool:
+                field_class = serializers.BooleanField
             if not field_class:
                 continue
             kwargs = dict(required=False)
