@@ -292,10 +292,7 @@ CONSTANCE_SUPERUSER_ONLY = False
 CONSTANCE_IGNORE_ADMIN_VERSION_CHECK = True
 CONSTANCE_ADDITIONAL_FIELDS = {
     'image_field': ['django.forms.ImageField', {'required': False}],
-    'boolean_field': ['django.forms.BooleanField', {'required': False}],
-    'number_field': ['django.forms.DecimalField', {'required': False}],
     'email_field': ['django.forms.EmailField', {'required': False}],
-    'url_field': ['django.forms.URLField', {'required': False}],
 }
 CONSTANCE_CONFIG = {
     'SITE_NAME': ('Waldur', 'Human-friendly name of the Waldur deployment.'),
@@ -332,29 +329,28 @@ CONSTANCE_CONFIG = {
     'LOGIN_LOGO': ('', 'A custom .png image file for login page', 'image_field'),
     'FAVICON': ('', 'A custom favicon .png image file', 'image_field'),
     # service desk integration settings
-    'WALDUR_SUPPORT_ENABLED': (True, 'Toggler for Support plugin.', 'boolean_field'),
+    'WALDUR_SUPPORT_ENABLED': (True, 'Toggler for Support plugin.',),
     'WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE': ('atlassian', 'Type of support backend. Possible values: atlassian, zammad.'),
-    'WALDUR_SUPPORT_DISPLAY_REQUEST_TYPE': (True, 'Toggler for request type displaying', 'boolean_field'),
+    'WALDUR_SUPPORT_DISPLAY_REQUEST_TYPE': (True, 'Toggler for request type displaying',),
     # Atlassian settings
-    'ATLASSIAN_USE_OLD_API': (False, 'Toggler for legacy API usage.', 'boolean_field'),
-    'ATLASSIAN_USE_TEENAGE_API': (False, 'Toggler for teenage API usage.', 'boolean_field'),
-    'ATLASSIAN_USE_AUTOMATIC_REQUEST_MAPPING': (True, 'Toggler for automatic request mapping.', 'boolean_field'),
+    'ATLASSIAN_USE_OLD_API': (False, 'Toggler for legacy API usage.',),
+    'ATLASSIAN_USE_TEENAGE_API': (False, 'Toggler for teenage API usage.',),
+    'ATLASSIAN_USE_AUTOMATIC_REQUEST_MAPPING': (True, 'Toggler for automatic request mapping.',),
     'ATLASSIAN_MAP_WALDUR_USERS_TO_SERVICEDESK_AGENTS': (
         False,
         'Toggler for mapping between waldur user and service desk agents.',
-        'boolean_field'
     ),
     'ATLASSIAN_STRANGE_SETTING': (1, ''),
-    'ATLASSIAN_API_URL': ('http://example.com/', 'Atlassian server URL', 'url_field'),
+    'ATLASSIAN_API_URL': ('http://example.com/', 'Atlassian server URL'),
     'ATLASSIAN_USERNAME': ('USERNAME', 'Username for access user'),
     'ATLASSIAN_PASSWORD': ('PASSWORD', 'Password for access user'),
     'ATLASSIAN_EMAIL': ('', 'Email for access user', 'email_field'),
     'ATLASSIAN_TOKEN': ('', 'Token for access user'),
-    'ATLASSIAN_VERIFY_SSL': (False, 'Toggler for SSL verification', 'boolean_field'),
+    'ATLASSIAN_VERIFY_SSL': (False, 'Toggler for SSL verification',),
     'ATLASSIAN_PROJECT_ID': ('', 'Project-related settings'),
     'ATLASSIAN_DEFAULT_OFFERING_ISSUE_TYPE': ('Service Request', 'Issue type'),
     'ATLASSIAN_EXCLUDED_ATTACHMENT_TYPES': ('', 'List of attachment types'),
-    'ATLASSIAN_PULL_PRIORITIES': (True, 'Pull priorities', 'boolean_field'),
+    'ATLASSIAN_PULL_PRIORITIES': (True, 'Pull priorities',),
     'ATLASSIAN_ISSUE_TYPES': (
         'Informational, Service Request, Change Request, Incident',
         'Issue-related settings; Issue types'
@@ -375,7 +371,7 @@ CONSTANCE_CONFIG = {
     'ATLASSIAN_TEMPLATE_FIELD': ('', 'Template field'),
 
     # Zammad settings
-    'ZAMMAD_API_URL': ('', 'Address of Zammad server. For example <http://localhost:8080/>', 'url_field'),
+    'ZAMMAD_API_URL': ('', 'Address of Zammad server. For example <http://localhost:8080/>'),
     'ZAMMAD_TOKEN': ('', 'Authorization token.'),
     'ZAMMAD_GROUP': ('', 'The name of the group to which the ticket will be added. '
                          'If not specified, the first group will be used.'),
@@ -390,10 +386,10 @@ CONSTANCE_CONFIG = {
     'ZAMMAD_COMMENT_COOLDOWN_DURATION': (5, 'Time in minutes. '
                                      'Time in minutes while comment deletion is available '
                                      '<https://github.com/zammad/zammad/issues/2687/>, '
-                                     '<https://github.com/zammad/zammad/issues/3086/>', 'number_field'),
+                                     '<https://github.com/zammad/zammad/issues/3086/>',),
 
     # SMAX settings
-    'SMAX_API_URL': ('', 'Address of SMAX server. For example <http://localhost:8080/>', 'url_field'),
+    'SMAX_API_URL': ('', 'Address of SMAX server. For example <http://localhost:8080/>'),
     'SMAX_TENANT_ID': ('', 'User tenant ID.'),
     'SMAX_LOGIN': ('', 'Authorization login.'),
     'SMAX_PASSWORD': ('', 'Authorization password.'),
@@ -441,7 +437,7 @@ PUBLIC_CONSTANCE_SETTINGS = (
     'SITE_LOGO', 'SIDEBAR_LOGO', 'SIDEBAR_LOGO_MOBILE', 'POWERED_BY_LOGO', 'HERO_IMAGE', 'LOGIN_LOGO', 'FAVICON',
 
     # Support plugin
-    'WALDUR_SUPPORT_ENABLED', 'WALDUR_SUPPORT_DISPLAY_REQUEST_TYPE',
+    'WALDUR_SUPPORT_ENABLED', 'WALDUR_SUPPORT_DISPLAY_REQUEST_TYPE', 'WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE'
 )
 
 for ext in WaldurExtension.get_extensions():
