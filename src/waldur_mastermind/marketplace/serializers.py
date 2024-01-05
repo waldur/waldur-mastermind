@@ -431,6 +431,7 @@ class BasePlanSerializer(
         fields = super().get_fields()
         method = self.context['view'].request.method
         fields['prices'] = serializers.SerializerMethodField()
+        fields['future_prices'] = serializers.SerializerMethodField()
         fields['quotas'] = serializers.SerializerMethodField()
         if method == 'GET':
             fields['plan_type'] = serializers.SerializerMethodField()
@@ -439,6 +440,11 @@ class BasePlanSerializer(
 
     def get_prices(self, plan):
         return {item.component.type: item.price for item in plan.components.all()}
+
+    def get_future_prices(self, plan):
+        return {
+            item.component.type: item.future_price for item in plan.components.all()
+        }
 
     def get_quotas(self, plan):
         return {item.component.type: item.amount for item in plan.components.all()}
