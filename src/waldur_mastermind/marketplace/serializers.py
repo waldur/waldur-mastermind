@@ -433,6 +433,7 @@ class BasePlanSerializer(
         fields['prices'] = serializers.SerializerMethodField()
         fields['future_prices'] = serializers.SerializerMethodField()
         fields['quotas'] = serializers.SerializerMethodField()
+        fields['has_resources'] = serializers.SerializerMethodField()
         if method == 'GET':
             fields['plan_type'] = serializers.SerializerMethodField()
             fields['minimal_price'] = serializers.SerializerMethodField()
@@ -448,6 +449,9 @@ class BasePlanSerializer(
 
     def get_quotas(self, plan):
         return {item.component.type: item.amount for item in plan.components.all()}
+
+    def get_has_resources(self, plan):
+        return models.Resource.objects.filter(plan=plan).exists()
 
     def get_plan_type(self, plan):
         plan_type = None
