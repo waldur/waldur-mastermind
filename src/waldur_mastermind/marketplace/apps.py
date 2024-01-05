@@ -146,6 +146,12 @@ class MarketplaceConfig(AppConfig):
             dispatch_uid='waldur_mastermind.marketplace.enable_service_settings_when_not_archived',
         )
 
+        signals.post_save.connect(
+            handlers.plan_component_has_been_updated,
+            sender=models.PlanComponent,
+            dispatch_uid='waldur_mastermind.plan_component_has_been_updated',
+        )
+
         manager.register(
             offering_type=PLUGIN_NAME,
             create_resource_processor=processors.BasicCreateResourceProcessor,

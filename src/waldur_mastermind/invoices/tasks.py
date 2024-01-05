@@ -13,6 +13,7 @@ from django.utils import timezone
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices.utils import get_previous_month
+from waldur_mastermind.marketplace.tasks import copy_future_price_to_current_price
 
 from . import models, registrators, serializers, utils
 
@@ -26,6 +27,8 @@ def create_monthly_invoices():
       and freeze their items.
     - Create new invoice for every customer in current month if not created yet.
     """
+    copy_future_price_to_current_price()
+
     date = timezone.now()
 
     old_invoices = models.Invoice.objects.filter(

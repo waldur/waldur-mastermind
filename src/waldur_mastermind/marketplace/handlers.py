@@ -555,6 +555,42 @@ def enable_service_settings_when_not_archived(
     enable_nonempty_service_settings(instance)
 
 
+def plan_component_has_been_updated(sender, instance, created=False, **kwargs):
+    if created:
+        return
+
+    if instance.tracker.has_changed('price'):
+        event_logger.marketplace_plan_component.info(
+            f'Current price of component {instance.component.type} in plan {instance.plan.name} has been updated.',
+            event_type='marketplace_plan_component_current_price_updated',
+            event_context={
+                'plan_component': instance,
+                'old_value': instance.tracker.previous('price'),
+                'new_value': instance.price,
+            },
+        )
+    if instance.tracker.has_changed('future_price'):
+        event_logger.marketplace_plan_component.info(
+            f'Future price of component {instance.component.type} in plan {instance.plan.name} has been updated.',
+            event_type='marketplace_plan_component_future_price_updated',
+            event_context={
+                'plan_component': instance,
+                'old_value': instance.tracker.previous('future_price'),
+                'new_value': instance.future_price,
+            },
+        )
+    if instance.tracker.has_changed('amount'):
+        event_logger.marketplace_plan_component.info(
+            f'Quota of component {instance.component.type} in plan {instance.plan.name} has been updated.',
+            event_type='marketplace_plan_component_quota_updated',
+            event_context={
+                'plan_component': instance,
+                'old_value': instance.tracker.previous('amount'),
+                'new_value': instance.amount,
+            },
+        )
+
+
 def resource_has_been_renamed(sender, instance, created=False, **kwargs):
     if created:
         return

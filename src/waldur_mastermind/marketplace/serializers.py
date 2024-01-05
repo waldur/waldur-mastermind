@@ -341,15 +341,67 @@ PriceSerializer = serializers.DecimalField(
 )
 
 
+def validate_components(
+    new_keys: set[str], valid_keys: set[str], plan: models.Plan
+) -> dict[str, models.PlanComponent]:
+    invalid_components = ', '.join(sorted(new_keys - valid_keys))
+    if invalid_components:
+        raise serializers.ValidationError(
+            _('Invalid components %s.') % invalid_components
+        )
+
+    old_keys = set(plan.components.values_list('component__type', flat=True))
+    for key in new_keys - old_keys:
+        component = plan.offering.components.get(type=key)
+        models.PlanComponent.objects.create(plan=plan, component=component)
+
+    return {component.component.type: component for component in plan.components.all()}
+
+
+class PricesUpdateSerializer(serializers.Serializer):
+    prices = serializers.DictField(child=PriceSerializer)
+
+    def save(self):
+        plan: models.Plan = self.instance
+        future_prices = self.validated_data['prices']
+        new_keys = set(future_prices.keys())
+        valid_types = {component.type for component in plan.offering.components.all()}
+        component_map = validate_components(new_keys, valid_types, plan)
+        if models.Resource.objects.filter(plan=plan).exists():
+            price_field = 'future_price'
+        else:
+            price_field = 'price'
+        for key, old_component in component_map.items():
+            new_price = future_prices.get(key, 0)
+            if getattr(old_component, price_field) != new_price:
+                setattr(old_component, price_field, new_price)
+                old_component.save(update_fields=[price_field])
+
+
+class QuotasUpdateSerializer(serializers.Serializer):
+    quotas = serializers.DictField(child=serializers.IntegerField(min_value=0))
+
+    def save(self):
+        new_quotas = self.validated_data['quotas']
+        new_keys = set(new_quotas.keys())
+        plan: models.Plan = self.instance
+
+        valid_types = {
+            component.type
+            for component in plan.offering.components.all()
+            if component.billing_type == models.OfferingComponent.BillingTypes.FIXED
+        }
+        component_map = validate_components(new_keys, valid_types, plan)
+        for key, old_component in component_map.items():
+            new_amount = new_quotas.get(key, 0)
+            if old_component.amount != new_amount:
+                old_component.amount = new_amount
+                old_component.save(update_fields=['amount'])
+
+
 class BasePlanSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
-    prices = serializers.DictField(
-        child=PriceSerializer, write_only=True, required=False
-    )
-    quotas = serializers.DictField(
-        child=serializers.IntegerField(min_value=0), write_only=True, required=False
-    )
     divisions = structure_serializers.DivisionSerializer(many=True, read_only=True)
 
     class Meta:
@@ -360,8 +412,6 @@ class BasePlanSerializer(
             'name',
             'description',
             'article_code',
-            'prices',
-            'quotas',
             'max_amount',
             'archived',
             'is_active',
@@ -380,9 +430,9 @@ class BasePlanSerializer(
     def get_fields(self):
         fields = super().get_fields()
         method = self.context['view'].request.method
+        fields['prices'] = serializers.SerializerMethodField()
+        fields['quotas'] = serializers.SerializerMethodField()
         if method == 'GET':
-            fields['prices'] = serializers.SerializerMethodField()
-            fields['quotas'] = serializers.SerializerMethodField()
             fields['plan_type'] = serializers.SerializerMethodField()
             fields['minimal_price'] = serializers.SerializerMethodField()
         return fields
@@ -490,32 +540,6 @@ class ProviderPlanDetailsSerializer(BaseProviderPlanSerializer):
                 attrs['offering'].customer,
             ):
                 raise PermissionDenied()
-
-        if self.instance:
-            offering = self.instance.offering
-        else:
-            offering = attrs['offering']
-        valid_types = {component.type for component in offering.components.all()}
-        fixed_types = {
-            component.type
-            for component in offering.components.all()
-            if component.billing_type == BillingTypes.FIXED
-        }
-        prices = attrs.get('prices', {})
-        invalid_components = ', '.join(sorted(set(prices.keys()) - valid_types))
-        if invalid_components:
-            raise serializers.ValidationError(
-                {'prices': _('Invalid components %s.') % invalid_components}
-            )
-
-        quotas = attrs.get('quotas', {})
-        invalid_components = ', '.join(sorted(set(quotas.keys()) - fixed_types))
-        if invalid_components:
-            raise serializers.ValidationError(
-                {
-                    'quotas': _('Invalid components %s.') % invalid_components,
-                }
-            )
         return attrs
 
     def create(self, validated_data):
@@ -526,7 +550,7 @@ class ProviderPlanDetailsSerializer(BaseProviderPlanSerializer):
         return create_plan(offering, validated_data)
 
     def update(self, instance, validated_data):
-        update_plan(instance, validated_data)
+        update_plan_details(instance, validated_data)
         return instance
 
 
@@ -745,6 +769,7 @@ class ExportImportPlanComponentSerializer(serializers.ModelSerializer):
         fields = (
             'amount',
             'price',
+            'future_price',
             'component',
             'component_id',
             'plan_id',
@@ -929,6 +954,7 @@ class PlanComponentSerializer(serializers.ModelSerializer):
             'billing_type',
             'amount',
             'price',
+            'future_price',
         )
 
 
@@ -1186,16 +1212,12 @@ class OfferingComponentLimitSerializer(serializers.Serializer):
 def create_plan(offering, plan_data):
     components = {component.type: component for component in offering.components.all()}
 
-    quotas = plan_data.pop('quotas', {})
-    prices = plan_data.pop('prices', {})
     plan = models.Plan.objects.create(offering=offering, **plan_data)
 
     for name, component in components.items():
         models.PlanComponent.objects.create(
             plan=plan,
             component=component,
-            amount=quotas.get(name) or 0,
-            price=prices.get(name) or 0,
         )
     return plan
 
@@ -1314,34 +1336,6 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
                 if component['billing_type'] == BillingTypes.FIXED
             }
 
-        for plan in attrs.get('plans', []):
-            plan_name = plan.get('name')
-
-            prices = plan.get('prices', {})
-            invalid_components = ', '.join(sorted(set(prices.keys()) - valid_types))
-            if invalid_components:
-                raise serializers.ValidationError(
-                    {
-                        'plans': _('Invalid price components %s in plan "%s".')
-                        % (invalid_components, plan_name)
-                    }
-                )
-
-            quotas = plan.get('quotas', {})
-            invalid_components = ', '.join(sorted(set(quotas.keys()) - fixed_types))
-            if invalid_components:
-                raise serializers.ValidationError(
-                    {
-                        'plans': _('Invalid quota components %s in plan "%s".')
-                        % (invalid_components, plan_name),
-                    }
-                )
-
-            plan['unit_price'] = sum(
-                prices.get(component, 0) * quotas.get(component, 0)
-                for component in fixed_types
-            )
-
     def _create_plans(self, offering, plans):
         for plan_data in plans:
             create_plan(offering, plan_data)
@@ -1425,44 +1419,6 @@ def update_plan_details(plan, data):
         if key in data:
             setattr(plan, key, data.get(key))
     plan.save()
-
-
-def update_plan_components(plan, data):
-    new_quotas = data.get('quotas', {})
-    new_prices = data.get('prices', {})
-
-    new_keys = set(new_quotas.keys()) | set(new_prices.keys())
-    old_keys = set(plan.components.values_list('component__type', flat=True))
-
-    for key in new_keys - old_keys:
-        component = plan.offering.components.get(type=key)
-        models.PlanComponent.objects.create(plan=plan, component=component)
-
-
-def update_plan_quotas(plan, data):
-    new_quotas = data.get('quotas', {})
-    new_prices = data.get('prices', {})
-    component_map = {
-        component.component.type: component for component in plan.components.all()
-    }
-    for key, old_component in component_map.items():
-        new_amount = new_quotas.get(key, 0)
-        if old_component.amount != new_amount:
-            old_component.amount = new_amount
-            old_component.save(update_fields=['amount'])
-
-        new_price = new_prices.get(key, 0)
-        if old_component.price != new_price:
-            old_component.price = new_price
-            old_component.save(update_fields=['price'])
-
-
-def update_plan(plan, data):
-    can_manage_plans = plugins.manager.can_manage_plans(plan.offering.type)
-    update_plan_details(plan, data)
-    if can_manage_plans:
-        update_plan_components(plan, data)
-    update_plan_quotas(plan, data)
 
 
 class OfferingLocationUpdateSerializer(serializers.ModelSerializer):
