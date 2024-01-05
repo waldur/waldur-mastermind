@@ -292,7 +292,7 @@ class AttributeOption(models.Model):
         return str(self.title)
 
 
-class BaseComponent(core_models.DescribableMixin):
+class BaseComponent(LoggableMixin, core_models.DescribableMixin):
     class Meta:
         abstract = True
 
@@ -310,6 +310,13 @@ class BaseComponent(core_models.DescribableMixin):
     measured_unit = models.CharField(
         max_length=30, help_text=_('Unit of measurement, for example, GB.'), blank=True
     )
+
+    def get_log_fields(self):
+        return (
+            'name',
+            'type',
+            'measured_unit',
+        )
 
 
 class CategoryComponent(BaseComponent, core_models.UuidMixin):
@@ -772,8 +779,15 @@ class Plan(
         )
         return self.max_amount > usage
 
+    def get_log_fields(self):
+        return (
+            'name',
+            'uuid',
+            'offering',
+        )
 
-class PlanComponent(models.Model):
+
+class PlanComponent(LoggableMixin, models.Model):
     class Meta:
         unique_together = ('plan', 'component')
         ordering = ('component__name',)
@@ -795,6 +809,13 @@ class PlanComponent(models.Model):
         validators=[MinValueValidator(Decimal('0'))],
         verbose_name=_('Price per unit per billing period.'),
     )
+    future_price = models.DecimalField(
+        max_digits=common_mixins.PRICE_MAX_DIGITS,
+        decimal_places=common_mixins.PRICE_DECIMAL_PLACES,
+        validators=[MinValueValidator(Decimal('0'))],
+        verbose_name=_('Price per unit for future month.'),
+        null=True,
+    )
     tracker = FieldTracker()
 
     @property
@@ -806,6 +827,15 @@ class PlanComponent(models.Model):
         if name:
             return f'{name}, plan: {self.plan.name}'
         return 'for plan: %s' % self.plan.name
+
+    def get_log_fields(self):
+        return (
+            'plan',
+            'component',
+            'amount',
+            'price',
+            'future_price',
+        )
 
 
 class Screenshot(

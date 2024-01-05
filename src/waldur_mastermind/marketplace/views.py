@@ -1550,6 +1550,13 @@ class PlanUsageReporter:
         return self.view.get_paginated_response(serializer.data)
 
 
+def can_manage_plan(plan):
+    if not plugins.manager.can_manage_plans(plan.offering.type):
+        raise rf_exceptions.ValidationError(
+            _('It is not possible to update plan for this offering type.')
+        )
+
+
 def validate_plan_update(plan):
     if models.Resource.objects.filter(plan=plan).exists():
         raise rf_exceptions.ValidationError(
@@ -1578,6 +1585,32 @@ class ProviderPlanViewSet(core_views.UpdateReversionMixin, core_views.ActionsVie
             ['offering.customer'],
         )
     ]
+
+    @action(detail=True, methods=['post'])
+    def update_prices(self, request, uuid):
+        plan: models.Plan = self.get_object()
+        serializer = serializers.PricesUpdateSerializer(
+            data=request.data, instance=plan
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(status=status.HTTP_200_OK)
+
+    update_prices_permissions = update_permissions
+    update_prices_validators = [can_manage_plan]
+
+    @action(detail=True, methods=['post'])
+    def update_quotas(self, request, uuid):
+        plan: models.Plan = self.get_object()
+        serializer = serializers.QuotasUpdateSerializer(
+            data=request.data, instance=plan
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(status=status.HTTP_200_OK)
+
+    update_quotas_permissions = update_permissions
+    update_quotas_validators = [can_manage_plan]
 
     archive_permissions = [
         permission_factory(

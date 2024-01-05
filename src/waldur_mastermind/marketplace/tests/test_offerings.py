@@ -743,24 +743,15 @@ class OfferingCreateTest(test.APITransactionTestCase):
                     'billing_type': 'fixed',
                 }
             ],
-            'plans': [
-                {
-                    'name': 'small',
-                    'unit': UnitPriceMixin.Units.PER_MONTH,
-                    'prices': {'cores': 10},
-                    'quotas': {'cores': 10},
-                }
-            ],
         }
         response = self.create_offering('owner', add_payload=plans_request)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         offering = models.Offering.objects.get(uuid=response.data['uuid'])
-        plan = offering.plans.first()
-        component = plan.components.get(component__type='cores')
-
-        self.assertEqual(plan.unit_price, 100)
-        self.assertEqual(component.amount, 10)
+        component = offering.components.get(type='cores')
+        self.assertEqual(
+            component.billing_type, models.OfferingComponent.BillingTypes.FIXED
+        )
 
     def test_component_name_should_not_contain_spaces(self):
         plans_request = {
@@ -772,139 +763,9 @@ class OfferingCreateTest(test.APITransactionTestCase):
                     'billing_type': 'fixed',
                 }
             ],
-            'plans': [
-                {
-                    'name': 'small',
-                    'unit': UnitPriceMixin.Units.PER_MONTH,
-                    'prices': {'cores': 10},
-                    'quotas': {'cores': 10},
-                }
-            ],
         }
         response = self.create_offering('owner', add_payload=plans_request)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_usage_based_components_are_ignored_for_unit_price_computing(self):
-        plans_request = {
-            'components': [
-                {
-                    'type': 'cores',
-                    'name': 'Cores',
-                    'measured_unit': 'hours',
-                    'billing_type': 'usage',
-                }
-            ],
-            'plans': [
-                {
-                    'name': 'Small',
-                    'unit': UnitPriceMixin.Units.PER_MONTH,
-                    'prices': {'cores': 10},
-                }
-            ],
-        }
-        response = self.create_offering('owner', add_payload=plans_request)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-        offering = models.Offering.objects.get(uuid=response.data['uuid'])
-        plan = offering.plans.first()
-        self.assertEqual(plan.unit_price, 0)
-
-    def test_quotas_are_not_allowed_for_usage_based_components(self):
-        plans_request = {
-            'components': [
-                {
-                    'billing_type': 'usage',
-                    'name': 'Cores',
-                    'measured_unit': 'hours',
-                    'type': 'cores',
-                }
-            ],
-            'plans': [
-                {
-                    'name': 'Small',
-                    'unit': UnitPriceMixin.Units.PER_MONTH,
-                    'prices': {'cores': 10},
-                    'quotas': {'cores': 10},
-                }
-            ],
-        }
-        response = self.create_offering('owner', add_payload=plans_request)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_zero_quotas_are_allowed_for_fixed_components(self):
-        plans_request = {
-            'components': [
-                {
-                    'billing_type': 'fixed',
-                    'name': 'Cores',
-                    'measured_unit': 'hours',
-                    'type': 'cores',
-                }
-            ],
-            'plans': [
-                {
-                    'name': 'Small',
-                    'unit': UnitPriceMixin.Units.PER_MONTH,
-                    'prices': {'cores': 10},
-                    'quotas': {'cores': 0},
-                }
-            ],
-        }
-        response = self.create_offering('owner', add_payload=plans_request)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
-
-    def test_zero_price_could_be_skipped_for_fixed_components(self):
-        plans_request = {
-            'components': [
-                {
-                    'billing_type': 'fixed',
-                    'name': 'Cores',
-                    'measured_unit': 'hours',
-                    'type': 'cores',
-                }
-            ],
-            'plans': [
-                {
-                    'name': 'Small',
-                    'unit': UnitPriceMixin.Units.PER_MONTH,
-                    'quotas': {'cores': 10},
-                }
-            ],
-        }
-        response = self.create_offering('owner', add_payload=plans_request)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
-
-    def test_invalid_price_components_are_not_allowed(self):
-        plans_request = {
-            'components': [
-                {
-                    'billing_type': 'fixed',
-                    'name': 'Cores',
-                    'measured_unit': 'hours',
-                    'type': 'cores',
-                }
-            ],
-            'plans': [
-                {
-                    'name': 'Small',
-                    'unit': UnitPriceMixin.Units.PER_MONTH,
-                    'quotas': {
-                        'cores': 1,
-                        'invalid_component': 10,
-                    },
-                    'prices': {
-                        'cores': 1,
-                        'invalid_component': 10,
-                    },
-                }
-            ],
-        }
-        response = self.create_offering('owner', add_payload=plans_request)
-        self.assertEqual(
-            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
-        )
-        self.assertTrue('Small' in response.data['plans'][0])
-        self.assertTrue('invalid_component' in response.data['plans'][0])
 
     def test_create_offering_with_options(self):
         response = self.create_offering(
@@ -1336,137 +1197,6 @@ class OfferingComponentUpdateTest(BaseOfferingUpdateTest):
         self.assertEqual(
             models.OfferingComponent.BillingTypes.FIXED, component.billing_type
         )
-
-
-class OfferingUpdatePlansTest(BaseOfferingUpdateTest):
-    def update_plan(self, plan, role, payload):
-        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_PLAN)
-        url = factories.PlanFactory.get_url(plan)
-        self.client.force_authenticate(getattr(self.fixture, role))
-        return self.client.patch(url, payload)
-
-    def archive_plan(self, plan, role):
-        CustomerRole.OWNER.add_permission(PermissionEnum.ARCHIVE_OFFERING_PLAN)
-        url = factories.PlanFactory.get_url(plan, 'archive')
-        self.client.force_authenticate(getattr(self.fixture, role))
-        return self.client.post(url)
-
-    def create_plan(self, role, payload):
-        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_OFFERING_PLAN)
-        url = factories.PlanFactory.get_list_url()
-        self.client.force_authenticate(getattr(self.fixture, role))
-        return self.client.post(url, payload)
-
-    def test_it_should_be_possible_to_update_plan_name(self):
-        # Arrange
-        plan = factories.PlanFactory(offering=self.offering, name='Old name')
-
-        # Act
-        response = self.update_plan(
-            plan,
-            'owner',
-            {
-                'name': 'New name',
-            },
-        )
-
-        # Assert
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        plan.refresh_from_db()
-        self.assertEqual(plan.name, 'New name')
-
-    def test_it_should_be_possible_to_create_plan_components(self):
-        # Arrange
-        plan = factories.PlanFactory(offering=self.offering)
-        offering_component = factories.OfferingComponentFactory(
-            offering=self.offering, type='ram'
-        )
-
-        # Act
-        self.client.force_authenticate(self.fixture.owner)
-        response = self.update_plan(
-            plan,
-            'owner',
-            {
-                'offering': factories.OfferingFactory.get_url(self.offering),
-                'quotas': {
-                    'ram': 20,
-                },
-                'prices': {
-                    'ram': 2,
-                },
-            },
-        )
-
-        # Assert
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        plan_component = models.PlanComponent.objects.get(
-            plan=plan, component=offering_component
-        )
-        self.assertEqual(plan_component.amount, 20)
-        self.assertEqual(plan_component.price, 2)
-
-    def test_it_should_be_possible_to_update_plan_components(self):
-        # Arrange
-        plan = factories.PlanFactory(offering=self.offering)
-        offering_component = factories.OfferingComponentFactory(
-            offering=self.offering, type='ram'
-        )
-        plan_component = factories.PlanComponentFactory(
-            plan=plan,
-            component=offering_component,
-            amount=10,
-            price=1,
-        )
-
-        # Act
-        response = self.update_plan(
-            plan,
-            'owner',
-            {
-                'quotas': {
-                    'ram': 20,
-                },
-                'prices': {
-                    'ram': 2,
-                },
-            },
-        )
-
-        # Assert
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        plan_component.refresh_from_db()
-        self.assertEqual(plan_component.amount, 20)
-        self.assertEqual(plan_component.price, 2)
-
-    def test_it_should_be_possible_to_archive_plan(self):
-        # Arrange
-        plan = factories.PlanFactory(offering=self.offering)
-
-        # Act
-        response = self.archive_plan(plan, 'owner')
-
-        # Assert
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        plan.refresh_from_db()
-        self.assertTrue(plan.archived)
-
-    def test_it_should_be_possible_to_add_new_plan(self):
-        factories.OfferingComponentFactory(offering=self.offering, type='cores')
-        response = self.create_plan(
-            'owner',
-            {
-                'offering': factories.OfferingFactory.get_url(self.offering),
-                'name': 'small',
-                'unit': UnitPriceMixin.Units.PER_MONTH,
-                'prices': {'cores': 10},
-                'quotas': {'cores': 10},
-            },
-        )
-
-        # Assert
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(1, self.offering.plans.count())
 
 
 @ddt

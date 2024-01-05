@@ -11,7 +11,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from django.db.models import Q, Sum
+from django.db.models import F, Q, Sum
 from django.utils import timezone
 from rest_framework import status
 
@@ -487,3 +487,11 @@ def drop_dangling_resources():
             resource.set_state_erred()
 
         resource.save(update_fields=['state'])
+
+
+def copy_future_price_to_current_price():
+    for component in models.PlanComponent.objects.exclude(
+        future_price=F('price')
+    ).exclude(future_price__isnull=True):
+        component.price = component.future_price
+        component.save(update_fields=['price'])

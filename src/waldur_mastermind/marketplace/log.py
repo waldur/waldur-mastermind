@@ -1,8 +1,30 @@
+from numbers import Number
+
 from django.conf import settings
 from django.db import transaction
 
 from waldur_core.logging.loggers import EventLogger, event_logger
 from waldur_mastermind.marketplace import models, tasks
+
+
+class MarketplacePlanComponentLogger(EventLogger):
+    plan_component = models.PlanComponent
+    old_value = Number
+    new_value = Number
+
+    class Meta:
+        event_types = (
+            'marketplace_plan_component_current_price_updated',
+            'marketplace_plan_component_future_price_updated',
+            'marketplace_plan_component_quota_updated',
+        )
+        nullable_fields = ('old_value', 'new_value')
+
+    @staticmethod
+    def get_scopes(event_context):
+        plan_component: models.PlanComponent = event_context['plan_component']
+        offering = plan_component.plan.offering
+        return {offering, offering.customer}
 
 
 class MarketplaceOrderLogger(EventLogger):
@@ -160,6 +182,7 @@ event_logger.register('marketplace_resource', MarketplaceResourceLogger)
 event_logger.register('marketplace_offering_user', MarketplaceOfferingUserEventLogger)
 event_logger.register('marketplace_robot_account', RobotAccountEventLogger)
 event_logger.register('marketplace_service_provider', MarketplaceServiceProviderLogger)
+event_logger.register('marketplace_plan_component', MarketplacePlanComponentLogger)
 
 
 def log_order_created(order):
