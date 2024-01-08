@@ -591,6 +591,37 @@ def plan_component_has_been_updated(sender, instance, created=False, **kwargs):
         )
 
 
+def offering_component_has_been_created_or_updated(
+    sender, instance, created=False, **kwargs
+):
+    if created:
+        event_logger.marketplace_offering_component.info(
+            f'Offering component {instance.name} has been created.',
+            event_type='marketplace_offering_component_created',
+            event_context={
+                'offering_component': instance,
+            },
+        )
+    else:
+        event_logger.marketplace_offering_component.info(
+            f'Offering component {instance.name} has been updated.',
+            event_type='marketplace_offering_component_updated',
+            event_context={
+                'offering_component': instance,
+            },
+        )
+
+
+def offering_component_has_been_deleted(sender, instance, **kwargs):
+    event_logger.marketplace_offering_component.info(
+        f'Offering component {instance.name} has been deleted.',
+        event_type='marketplace_offering_component_deleted',
+        event_context={
+            'offering_component': instance,
+        },
+    )
+
+
 def resource_has_been_renamed(sender, instance, created=False, **kwargs):
     if created:
         return

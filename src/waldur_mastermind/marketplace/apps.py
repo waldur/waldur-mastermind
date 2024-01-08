@@ -152,6 +152,18 @@ class MarketplaceConfig(AppConfig):
             dispatch_uid='waldur_mastermind.plan_component_has_been_updated',
         )
 
+        signals.post_save.connect(
+            handlers.offering_component_has_been_created_or_updated,
+            sender=models.OfferingComponent,
+            dispatch_uid='waldur_mastermind.offering_component_has_been_created_or_updated',
+        )
+
+        signals.post_delete.connect(
+            handlers.offering_component_has_been_deleted,
+            sender=models.OfferingComponent,
+            dispatch_uid='waldur_mastermind.offering_component_has_been_deleted',
+        )
+
         manager.register(
             offering_type=PLUGIN_NAME,
             create_resource_processor=processors.BasicCreateResourceProcessor,
