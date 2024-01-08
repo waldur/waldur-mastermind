@@ -16,10 +16,7 @@ def create_reviews(sender, instance, created=False, **kwargs):
     ):
         return
 
-    if (
-        proposal.round.call.review_strategy
-        != models.Call.ReviewStrategies.AFTER_PROPOSAL
-    ):
+    if proposal.round.review_strategy != models.Round.ReviewStrategies.AFTER_PROPOSAL:
         return
 
     for reviewer in proposal.round.call.callreviewer_set.all():
