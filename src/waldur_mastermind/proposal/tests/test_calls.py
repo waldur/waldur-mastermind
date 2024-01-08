@@ -93,7 +93,6 @@ class CallCreateTest(test.APITransactionTestCase):
         payload = {
             'name': 'new call',
             'manager': factories.CallManagingOrganisationFactory.get_url(self.manager),
-            'round_strategy': models.Call.RoundStrategies.REGULAR,
             'review_strategy': models.Call.ReviewStrategies.AFTER_PROPOSAL,
             'allocation_strategy': models.Call.AllocationStrategies.BY_CALL_MANAGER,
         }

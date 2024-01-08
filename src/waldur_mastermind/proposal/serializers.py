@@ -124,7 +124,6 @@ class PublicCallSerializer(
     serializers.HyperlinkedModelSerializer,
 ):
     state = serializers.ReadOnlyField(source='get_state_display')
-    round_strategy = serializers.ReadOnlyField(source='get_round_strategy_display')
     allocation_strategy = serializers.ReadOnlyField(
         source='get_allocation_strategy_display'
     )
@@ -144,7 +143,6 @@ class PublicCallSerializer(
             'name',
             'description',
             'description',
-            'round_strategy',
             'review_strategy',
             'allocation_strategy',
             'state',
@@ -283,9 +281,6 @@ class ProtectedCallSerializer(PublicCallSerializer):
             return fields
 
         if method in ('PUT', 'PATCH', 'POST'):
-            fields['round_strategy'] = serializers.ChoiceField(
-                models.Call.RoundStrategies.CHOICES, write_only=True
-            )
             fields['review_strategy'] = serializers.ChoiceField(
                 models.Call.ReviewStrategies.CHOICES, write_only=True
             )
