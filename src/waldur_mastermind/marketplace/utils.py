@@ -92,6 +92,7 @@ def process_order(order: models.Order, user):
             'Skipping order processing because processor is not found.'
         )
         order.set_state_erred()
+        order.resource.set_state_erred()
         order.save(update_fields=['state', 'error_message'])
         return
 
@@ -104,6 +105,7 @@ def process_order(order: models.Order, user):
         order.error_message = str(e)
         order.error_traceback = traceback.format_exc()
         order.set_state_erred()
+        order.resource.set_state_erred()
         logger.error(
             f'Error processing order { order }. '
             f'Order ID: { order.id }. '
