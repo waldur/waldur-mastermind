@@ -46,6 +46,23 @@ class MarketplaceOfferingComponentLogger(EventLogger):
         return {offering, offering.customer}
 
 
+class MarketplacePlanLogger(EventLogger):
+    plan = models.Plan
+
+    class Meta:
+        event_types = (
+            'marketplace_plan_created',
+            'marketplace_plan_updated',
+            'marketplace_plan_archived',
+        )
+
+    @staticmethod
+    def get_scopes(event_context):
+        plan: models.Plan = event_context['plan']
+        offering = plan.offering
+        return {offering, offering.customer}
+
+
 class MarketplaceOrderLogger(EventLogger):
     order = models.Order
 
@@ -205,6 +222,7 @@ event_logger.register('marketplace_plan_component', MarketplacePlanComponentLogg
 event_logger.register(
     'marketplace_offering_component', MarketplaceOfferingComponentLogger
 )
+event_logger.register('marketplace_plan', MarketplacePlanLogger)
 
 
 def log_order_created(order):

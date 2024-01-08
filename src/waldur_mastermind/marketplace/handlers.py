@@ -622,6 +622,34 @@ def offering_component_has_been_deleted(sender, instance, **kwargs):
     )
 
 
+def plan_has_been_created_or_updated(sender, instance, created=False, **kwargs):
+    if created:
+        event_logger.marketplace_plan.info(
+            f'Plan {instance.name} has been created.',
+            event_type='marketplace_plan_created',
+            event_context={
+                'plan': instance,
+            },
+        )
+    else:
+        if instance.tracker.has_changed('archived'):
+            event_logger.marketplace_plan.info(
+                f'Plan {instance.name} has been archived.',
+                event_type='marketplace_plan_archived',
+                event_context={
+                    'plan': instance,
+                },
+            )
+        else:
+            event_logger.marketplace_plan.info(
+                f'Plan {instance.name} has been updated.',
+                event_type='marketplace_plan_updated',
+                event_context={
+                    'plan': instance,
+                },
+            )
+
+
 def resource_has_been_renamed(sender, instance, created=False, **kwargs):
     if created:
         return
