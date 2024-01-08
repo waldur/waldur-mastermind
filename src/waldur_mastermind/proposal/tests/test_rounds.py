@@ -91,12 +91,10 @@ class RoundCreateTest(test.APITransactionTestCase):
         self.client.force_authenticate(user)
 
         payload = {
-            'start_time': (
-                self.fixture.call.start_time + datetime.timedelta(days=1)
-            ).strftime("%Y-%m-%dT%H:%M:%S"),
-            'end_time': (
-                self.fixture.call.start_time + datetime.timedelta(days=2)
-            ).strftime("%Y-%m-%dT%H:%M:%S"),
+            'start_time': (datetime.date.today()).strftime("%Y-%m-%dT%H:%M:%S"),
+            'end_time': (datetime.date.today() + datetime.timedelta(days=2)).strftime(
+                "%Y-%m-%dT%H:%M:%S"
+            ),
         }
 
         return self.client.post(self.url, payload)
@@ -130,10 +128,10 @@ class RoundUpdateTest(test.APITransactionTestCase):
         self.client.force_authenticate(user)
 
         payload = {
-            'start_time': self.fixture.call.start_time.strftime("%Y-%m-%dT%H:%M:%S"),
-            'end_time': (
-                self.fixture.call.start_time + datetime.timedelta(days=3)
-            ).strftime("%Y-%m-%dT%H:%M:%S"),
+            'start_time': datetime.date.today().strftime("%Y-%m-%dT%H:%M:%S"),
+            'end_time': (datetime.date.today() + datetime.timedelta(days=3)).strftime(
+                "%Y-%m-%dT%H:%M:%S"
+            ),
         }
         response = self.client.patch(self.url, payload)
         self.round.refresh_from_db()

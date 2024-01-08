@@ -20,7 +20,7 @@ class CallReviewersInline(admin.TabularInline):
 
 class CallAdmin(admin.ModelAdmin):
     inlines = [RequestedOfferingInline, RoundInline, CallReviewersInline]
-    list_display = ('name', 'start_time', 'end_time')
+    list_display = ('name',)
 
 
 class RoundAdmin(admin.ModelAdmin):

@@ -37,8 +37,6 @@ class CallFactory(factory.django.DjangoModelFactory):
     name = factory.Sequence(lambda n: 'name-%s' % n)
     manager = factory.SubFactory(CallManagingOrganisationFactory)
     created_by = factory.SubFactory(structure_factories.UserFactory)
-    start_time = datetime.date.today()
-    end_time = datetime.date.today() + datetime.timedelta(days=30)
 
     @classmethod
     def get_public_url(cls, call=None, action=None):
