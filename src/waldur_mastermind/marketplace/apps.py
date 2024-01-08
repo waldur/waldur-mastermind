@@ -170,6 +170,12 @@ class MarketplaceConfig(AppConfig):
             dispatch_uid='waldur_mastermind.plan_has_been_created_or_updated',
         )
 
+        signals.post_save.connect(
+            handlers.offering_has_been_created_or_updated,
+            sender=models.Offering,
+            dispatch_uid='waldur_mastermind.plan_has_been_created_or_updated',
+        )
+
         manager.register(
             offering_type=PLUGIN_NAME,
             create_resource_processor=processors.BasicCreateResourceProcessor,

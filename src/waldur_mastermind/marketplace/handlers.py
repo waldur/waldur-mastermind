@@ -650,6 +650,30 @@ def plan_has_been_created_or_updated(sender, instance, created=False, **kwargs):
             )
 
 
+def offering_has_been_created_or_updated(sender, instance, created=False, **kwargs):
+    if created:
+        event_logger.marketplace_offering.info(
+            'Offering has been created.',
+            event_type='marketplace_offering_created',
+            event_context={
+                'offering': instance,
+            },
+        )
+    else:
+        if instance.tracker.has_changed('state'):
+            event_logger.marketplace_offering.info(
+                'Offering state has been updated.',
+                event_type='marketplace_offering_updated',
+                event_context={
+                    'offering': instance,
+                    'old_value': models.Offering(
+                        state=instance.tracker.previous('state')
+                    ).get_state_display(),
+                    'new_value': instance.get_state_display(),
+                },
+            )
+
+
 def resource_has_been_renamed(sender, instance, created=False, **kwargs):
     if created:
         return
