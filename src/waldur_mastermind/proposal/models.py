@@ -43,15 +43,6 @@ class Call(
     core_models.NameMixin,
     core_models.DescribableMixin,
 ):
-    class RoundStrategies:
-        ONE_TIME = 1
-        REGULAR = 2
-
-        CHOICES = (
-            (ONE_TIME, 'One-time'),
-            (REGULAR, 'Regular'),
-        )
-
     class ReviewStrategies:
         AFTER_ROUND = 1
         AFTER_PROPOSAL = 2
@@ -87,10 +78,6 @@ class Call(
         on_delete=models.PROTECT,
         null=True,
         related_name='+',
-    )
-    round_strategy = FSMIntegerField(
-        default=RoundStrategies.REGULAR,
-        choices=RoundStrategies.CHOICES,
     )
     review_strategy = FSMIntegerField(
         default=ReviewStrategies.AFTER_ROUND, choices=ReviewStrategies.CHOICES
