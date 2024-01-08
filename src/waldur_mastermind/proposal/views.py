@@ -30,7 +30,7 @@ class PublicCallViewSet(viewsets.ReadOnlyModelViewSet):
     lookup_field = 'uuid'
     queryset = models.Call.objects.filter(
         state__in=[models.Call.States.ACTIVE, models.Call.States.ARCHIVED]
-    ).order_by('start_time')
+    ).order_by('created')
     serializer_class = serializers.PublicCallSerializer
     filterset_class = filters.CallFilter
     permission_classes = (rf_permissions.AllowAny,)
@@ -38,7 +38,7 @@ class PublicCallViewSet(viewsets.ReadOnlyModelViewSet):
 
 class ProtectedCallViewSet(core_views.ActionsViewSet):
     lookup_field = 'uuid'
-    queryset = models.Call.objects.all().order_by('start_time')
+    queryset = models.Call.objects.all().order_by('created')
     serializer_class = serializers.ProtectedCallSerializer
     filterset_class = filters.CallFilter
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
@@ -161,9 +161,7 @@ class ProtectedCallViewSet(core_views.ActionsViewSet):
 
     @decorators.action(detail=True, methods=['get', 'post'])
     def rounds(self, request, uuid=None):
-        return self._action_list_method('round_set', ['validate_dates'])(
-            self, request, uuid
-        )
+        return self._action_list_method('round_set')(self, request, uuid)
 
     rounds_serializer_class = serializers.RoundSerializer
 

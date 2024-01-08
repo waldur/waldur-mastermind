@@ -60,16 +60,16 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
     def round(self):
         return proposal_factories.RoundFactory(
             call=self.call,
-            start_time=self.call.start_time + datetime.timedelta(days=5),
-            end_time=self.call.start_time + datetime.timedelta(days=10),
+            start_time=datetime.date.today(),
+            end_time=datetime.date.today() + datetime.timedelta(days=10),
         )
 
     @cached_property
     def new_round(self):
         return proposal_factories.RoundFactory(
             call=self.call,
-            start_time=self.call.start_time + datetime.timedelta(days=1),
-            end_time=self.call.start_time + datetime.timedelta(days=2),
+            start_time=datetime.date.today(),
+            end_time=datetime.date.today() + datetime.timedelta(days=10),
         )
 
     @cached_property

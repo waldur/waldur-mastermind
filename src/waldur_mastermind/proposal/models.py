@@ -88,8 +88,6 @@ class Call(
         null=True,
         related_name='+',
     )
-    start_time = models.DateTimeField()
-    end_time = models.DateTimeField()
     round_strategy = FSMIntegerField(
         default=RoundStrategies.REGULAR,
         choices=RoundStrategies.CHOICES,

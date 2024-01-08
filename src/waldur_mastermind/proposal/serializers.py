@@ -143,8 +143,6 @@ class PublicCallSerializer(
             'created',
             'name',
             'description',
-            'start_time',
-            'end_time',
             'description',
             'round_strategy',
             'review_strategy',
@@ -298,14 +296,6 @@ class ProtectedCallSerializer(PublicCallSerializer):
         return fields
 
     def validate(self, attrs):
-        start_time = attrs.get('start_time')
-        end_time = attrs.get('end_time')
-
-        if start_time and end_time and end_time <= start_time:
-            raise serializers.ValidationError(
-                {'start_time': _('Start time must be grow then end time.')}
-            )
-
         manager = attrs.get('manager')
         user = self.context['request'].user
 
@@ -352,20 +342,6 @@ class RoundSerializer(core_serializers.AugmentedSerializerMixin, NestedRoundSeri
             )
 
         return attrs
-
-    def validate_dates(self, call):
-        if self.validated_data['start_time'] < call.start_time:
-            raise serializers.ValidationError(
-                {
-                    'start_time': _('Start time cannot go outside the call limits.')
-                    + f'[{call.start_time} - {call.end_time}]'
-                }
-            )
-
-        if self.validated_data['end_time'] > call.end_time:
-            raise serializers.ValidationError(
-                {'start_time': _('End time cannot go outside the call limits.')}
-            )
 
 
 class ProposalSerializer(
