@@ -43,15 +43,6 @@ class Call(
     core_models.NameMixin,
     core_models.DescribableMixin,
 ):
-    class ReviewStrategies:
-        AFTER_ROUND = 1
-        AFTER_PROPOSAL = 2
-
-        CHOICES = (
-            (AFTER_ROUND, 'After round is closed'),
-            (AFTER_PROPOSAL, 'After proposal submission'),
-        )
-
     class AllocationStrategies:
         BY_CALL_MANAGER = 1
         AUTOMATIC = 2
@@ -78,9 +69,6 @@ class Call(
         on_delete=models.PROTECT,
         null=True,
         related_name='+',
-    )
-    review_strategy = FSMIntegerField(
-        default=ReviewStrategies.AFTER_ROUND, choices=ReviewStrategies.CHOICES
     )
     allocation_strategy = FSMIntegerField(
         default=AllocationStrategies.AUTOMATIC, choices=AllocationStrategies.CHOICES
@@ -153,6 +141,20 @@ class Round(
     TimeStampedModel,
     core_models.UuidMixin,
 ):
+    class ReviewStrategies:
+        AFTER_ROUND = 1
+        AFTER_PROPOSAL = 2
+
+        CHOICES = (
+            (AFTER_ROUND, 'After round is closed'),
+            (AFTER_PROPOSAL, 'After proposal submission'),
+        )
+
+    review_strategy = FSMIntegerField(
+        default=ReviewStrategies.AFTER_ROUND, choices=ReviewStrategies.CHOICES
+    )
+    review_duration_in_days = models.PositiveIntegerField(null=True, blank=True)
+    minimum_number_of_reviewers = models.PositiveIntegerField(null=True, blank=True)
     start_time = models.DateTimeField()
     end_time = models.DateTimeField()
     call = models.ForeignKey(Call, on_delete=models.PROTECT)

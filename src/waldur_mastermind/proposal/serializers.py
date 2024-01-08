@@ -110,12 +110,17 @@ class NestedRequestedOfferingSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class NestedRoundSerializer(serializers.HyperlinkedModelSerializer):
+    review_strategy = serializers.ReadOnlyField(source='get_review_strategy_display')
+
     class Meta:
         model = models.Round
         fields = [
             'uuid',
             'start_time',
             'end_time',
+            'review_strategy',
+            'review_duration_in_days',
+            'minimum_number_of_reviewers',
         ]
 
 
@@ -127,7 +132,6 @@ class PublicCallSerializer(
     allocation_strategy = serializers.ReadOnlyField(
         source='get_allocation_strategy_display'
     )
-    review_strategy = serializers.ReadOnlyField(source='get_review_strategy_display')
     customer_name = serializers.ReadOnlyField(source='manager.customer.name')
     offerings = NestedRequestedOfferingSerializer(
         many=True, read_only=True, source='requestedoffering_set'
@@ -143,7 +147,6 @@ class PublicCallSerializer(
             'name',
             'description',
             'description',
-            'review_strategy',
             'allocation_strategy',
             'state',
             'manager',
@@ -281,9 +284,6 @@ class ProtectedCallSerializer(PublicCallSerializer):
             return fields
 
         if method in ('PUT', 'PATCH', 'POST'):
-            fields['review_strategy'] = serializers.ChoiceField(
-                models.Call.ReviewStrategies.CHOICES, write_only=True
-            )
             fields['allocation_strategy'] = serializers.ChoiceField(
                 models.Call.AllocationStrategies.CHOICES, write_only=True
             )

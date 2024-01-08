@@ -95,6 +95,9 @@ class RoundCreateTest(test.APITransactionTestCase):
             'end_time': (datetime.date.today() + datetime.timedelta(days=2)).strftime(
                 "%Y-%m-%dT%H:%M:%S"
             ),
+            'review_strategy': models.Round.ReviewStrategies.AFTER_PROPOSAL,
+            'review_duration_in_days': 2,
+            'minimum_number_of_reviewers': 3,
         }
 
         return self.client.post(self.url, payload)
