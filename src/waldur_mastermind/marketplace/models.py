@@ -568,6 +568,10 @@ class Offering(
     def get_users(self, role=None):
         return get_users(self, role)
 
+    @classmethod
+    def get_permitted_objects(cls, user):
+        return cls.objects.all().filter_for_user(user)
+
 
 class OfferingComponent(
     core_models.UuidMixin,
