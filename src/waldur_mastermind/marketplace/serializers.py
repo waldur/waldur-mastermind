@@ -1000,6 +1000,9 @@ class ProviderOfferingDetailsSerializer(
     options = serializers.JSONField(
         required=False, default={'options': {}, 'order': []}
     )
+    resource_options = serializers.JSONField(
+        required=False, default={'options': {}, 'order': []}
+    )
     secret_options = serializers.JSONField(required=False)
     service_attributes = serializers.SerializerMethodField()
     components = OfferingComponentSerializer(required=False, many=True)
@@ -1040,6 +1043,7 @@ class ProviderOfferingDetailsSerializer(
             'rating',
             'attributes',
             'options',
+            'resource_options',
             'components',
             'plugin_options',
             'secret_options',
@@ -1492,11 +1496,19 @@ class OfferingOverviewUpdateSerializer(
 
 
 class OfferingOptionsUpdateSerializer(serializers.ModelSerializer):
-    options = OfferingOptionsSerializer(required=False)
+    options = OfferingOptionsSerializer()
 
     class Meta:
         model = models.Offering
         fields = ('options',)
+
+
+class OfferingResourceOptionsUpdateSerializer(serializers.ModelSerializer):
+    resource_options = OfferingOptionsSerializer()
+
+    class Meta:
+        model = models.Offering
+        fields = ('resource_options',)
 
 
 class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
@@ -2256,6 +2268,7 @@ class ResourceSerializer(BaseItemSerializer):
             'error_message',
             'error_traceback',
             'offering_customer_uuid',
+            'options',
         )
         read_only_fields = (
             'backend_metadata',
@@ -2269,6 +2282,7 @@ class ResourceSerializer(BaseItemSerializer):
             'end_date_requested_by',
             'error_message',
             'error_traceback',
+            'options',
         )
         view_name = 'marketplace-resource-detail'
         extra_kwargs = dict(
@@ -2536,6 +2550,22 @@ class ResourceReportSerializer(serializers.Serializer):
             )
 
         return report
+
+
+class ResourceOptionsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Resource
+        fields = ('options',)
+
+    def validate_options(self, attrs):
+        resource: models.Resource = self.instance
+        resource_options = resource.offering.resource_options
+        if not resource_options or not resource_options.get('options'):
+            raise serializers.ValidationError(
+                'Metadata for resource options is not defined.'
+            )
+        validate_options(resource_options['options'], attrs)
+        return attrs
 
 
 class ResourceOfferingSerializer(serializers.ModelSerializer):
@@ -3373,6 +3403,7 @@ class ProviderOfferingSerializer(serializers.ModelSerializer):
             'components',
             'plans',
             'options',
+            'resource_options',
             'secret_options',
         )
 
