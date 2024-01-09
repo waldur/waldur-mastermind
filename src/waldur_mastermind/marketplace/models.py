@@ -419,7 +419,12 @@ class Offering(
     options = models.JSONField(
         blank=True,
         default=dict,
-        help_text=_('Fields describing Offering request form.'),
+        help_text=_('Fields describing resource provision form.'),
+    )
+    resource_options = models.JSONField(
+        blank=True,
+        default=dict,
+        help_text=_('Fields describing resource report form.'),
     )
     plugin_options = models.JSONField(
         blank=True,
@@ -1054,6 +1059,7 @@ class Resource(
         blank=True,
     )
     report = models.JSONField(blank=True, null=True)
+    options = models.JSONField(blank=True, null=True)
     current_usages = models.JSONField(blank=True, default=dict)
     tracker = FieldTracker()
     objects = managers.ResourceManager()

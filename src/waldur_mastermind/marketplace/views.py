@@ -941,6 +941,21 @@ class ProviderOfferingViewSet(
     update_options_serializer_class = serializers.OfferingOptionsUpdateSerializer
 
     @action(detail=True, methods=['post'])
+    def update_resource_options(self, request, uuid=None):
+        return self._update_action(request)
+
+    update_resource_options_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING_OPTIONS,
+            ['*', 'customer'],
+        )
+    ]
+    update_resource_options_validators = update_validators
+    update_resource_options_serializer_class = (
+        serializers.OfferingResourceOptionsUpdateSerializer
+    )
+
+    @action(detail=True, methods=['post'])
     def update_integration(self, request, uuid=None):
         return self._update_action(request)
 
@@ -2206,6 +2221,25 @@ class ResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
         )
     ]
     submit_report_serializer_class = serializers.ResourceReportSerializer
+
+    @action(detail=True, methods=['post'])
+    def update_options(self, request, uuid=None):
+        resource = self.get_object()
+        serializer = self.get_serializer(data=request.data, instance=resource)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response(
+            {'status': _('Resource options are submitted')}, status=status.HTTP_200_OK
+        )
+
+    update_options_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_RESOURCE_OPTIONS,
+            ['project', 'project.customer'],
+        )
+    ]
+    update_options_serializer_class = serializers.ResourceOptionsSerializer
 
     def _set_end_date(self, request, is_staff_action):
         resource = self.get_object()

@@ -5,6 +5,10 @@ class StringListSerializer(serializers.ListField):
     child = serializers.CharField()
 
 
+class EmailListSerializer(serializers.ListField):
+    child = serializers.EmailField()
+
+
 FIELD_CLASSES = {
     'integer': serializers.IntegerField,
     'date': serializers.DateField,
@@ -17,6 +21,7 @@ FIELD_CLASSES = {
     'select_multiple_openstack_tenants': StringListSerializer,
     'select_openstack_instance': serializers.CharField,
     'select_multiple_openstack_instances': StringListSerializer,
+    'select_multiple_emails': EmailListSerializer,
 }
 
 
