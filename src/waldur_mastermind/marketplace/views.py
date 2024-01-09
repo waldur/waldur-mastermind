@@ -2363,6 +2363,21 @@ class ResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
 
         return Response(response_text)
 
+    @action(detail=True, methods=['post'])
+    def unlink(self, request, uuid=None):
+        """
+        Delete marketplace resource and related plugin resource from the database without scheduling operations on backend
+        and without checking current state of the resource. It is intended to be used
+        for removing resource stuck in transitioning state.
+        """
+        obj = self.get_object()
+        if obj.scope:
+            obj.scope.delete()
+        obj.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    unlink_permissions = [structure_permissions.is_staff]
+
 
 class ProjectChoicesViewSet(ListAPIView):
     def get_project(self):
