@@ -217,7 +217,9 @@ class RequestedOfferingSerializer(
         return super().create(validated_data)
 
 
-class ReviewerSerializer(serializers.HyperlinkedModelSerializer):
+class ReviewerSerializer(
+    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
+):
     url = serializers.SerializerMethodField()
 
     class Meta:
@@ -226,10 +228,24 @@ class ReviewerSerializer(serializers.HyperlinkedModelSerializer):
             'url',
             'uuid',
             'user',
+            'user_full_name',
+            'user_native_name',
+            'user_username',
+            'user_uuid',
+            'user_email',
             'created',
             'created_by',
+            'created_by_full_name',
+            'created_by_native_name',
+            'created_by_username',
+            'created_by_uuid',
+            'created_by_email',
         )
         read_only_fields = ('created_by',)
+        related_paths = {
+            'user': ('username', 'full_name', 'native_name', 'uuid', 'email'),
+            'created_by': ('username', 'full_name', 'native_name', 'uuid', 'email'),
+        }
         extra_kwargs = {
             'url': {
                 'lookup_field': 'uuid',
