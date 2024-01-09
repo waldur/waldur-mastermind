@@ -1,5 +1,6 @@
 import logging
 
+from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django_fsm import FSMIntegerField
@@ -43,15 +44,6 @@ class Call(
     core_models.NameMixin,
     core_models.DescribableMixin,
 ):
-    class AllocationStrategies:
-        BY_CALL_MANAGER = 1
-        AUTOMATIC = 2
-
-        CHOICES = (
-            (BY_CALL_MANAGER, 'By call manager'),
-            (AUTOMATIC, 'Automatic based on review scoring'),
-        )
-
     class States:
         DRAFT = 1
         ACTIVE = 2
@@ -69,9 +61,6 @@ class Call(
         on_delete=models.PROTECT,
         null=True,
         related_name='+',
-    )
-    allocation_strategy = FSMIntegerField(
-        default=AllocationStrategies.AUTOMATIC, choices=AllocationStrategies.CHOICES
     )
     state = FSMIntegerField(default=States.DRAFT, choices=States.CHOICES)
     offerings = models.ManyToManyField(
@@ -150,11 +139,44 @@ class Round(
             (AFTER_PROPOSAL, 'After proposal submission'),
         )
 
+    class AllocationStrategies:
+        BY_CALL_MANAGER = 1
+        AUTOMATIC = 2
+
+        CHOICES = (
+            (BY_CALL_MANAGER, 'By call manager'),
+            (AUTOMATIC, 'Automatic based on review scoring'),
+        )
+
+    class AllocationTimes:
+        ON_DECISION = 1
+        FIXED_DATE = 2
+
+        CHOICES = (
+            (ON_DECISION, 'On decision'),
+            (FIXED_DATE, 'Fixed date'),
+        )
+
     review_strategy = FSMIntegerField(
         default=ReviewStrategies.AFTER_ROUND, choices=ReviewStrategies.CHOICES
     )
+    deciding_entity = FSMIntegerField(
+        default=AllocationStrategies.AUTOMATIC, choices=AllocationStrategies.CHOICES
+    )
+    allocation_time = FSMIntegerField(
+        default=AllocationTimes.ON_DECISION, choices=AllocationTimes.CHOICES
+    )
     review_duration_in_days = models.PositiveIntegerField(null=True, blank=True)
     minimum_number_of_reviewers = models.PositiveIntegerField(null=True, blank=True)
+    minimal_average_scoring = models.DecimalField(
+        max_digits=5,
+        decimal_places=1,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)],
+    )
+    max_allocations = models.PositiveIntegerField(null=True, blank=True)
+    allocation_date = models.DateTimeField(null=True, blank=True)
     start_time = models.DateTimeField()
     end_time = models.DateTimeField()
     call = models.ForeignKey(Call, on_delete=models.PROTECT)

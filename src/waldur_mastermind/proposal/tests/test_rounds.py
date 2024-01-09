@@ -96,8 +96,14 @@ class RoundCreateTest(test.APITransactionTestCase):
                 "%Y-%m-%dT%H:%M:%S"
             ),
             'review_strategy': models.Round.ReviewStrategies.AFTER_PROPOSAL,
+            'deciding_entity': models.Round.AllocationStrategies.BY_CALL_MANAGER,
             'review_duration_in_days': 2,
             'minimum_number_of_reviewers': 3,
+            'minimal_average_scoring': 3.0,
+            'max_allocations': 4,
+            'allocation_date': (
+                datetime.date.today() + datetime.timedelta(days=2)
+            ).strftime("%Y-%m-%dT%H:%M:%S"),
         }
 
         return self.client.post(self.url, payload)

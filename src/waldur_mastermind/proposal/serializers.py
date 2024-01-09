@@ -111,6 +111,8 @@ class NestedRequestedOfferingSerializer(serializers.HyperlinkedModelSerializer):
 
 class NestedRoundSerializer(serializers.HyperlinkedModelSerializer):
     review_strategy = serializers.ReadOnlyField(source='get_review_strategy_display')
+    deciding_entity = serializers.ReadOnlyField(source='get_deciding_entity_display')
+    allocation_time = serializers.ReadOnlyField(source='get_allocation_time_display')
 
     class Meta:
         model = models.Round
@@ -119,6 +121,11 @@ class NestedRoundSerializer(serializers.HyperlinkedModelSerializer):
             'start_time',
             'end_time',
             'review_strategy',
+            'deciding_entity',
+            'allocation_time',
+            'max_allocations',
+            'allocation_date',
+            'minimal_average_scoring',
             'review_duration_in_days',
             'minimum_number_of_reviewers',
         ]
@@ -129,9 +136,6 @@ class PublicCallSerializer(
     serializers.HyperlinkedModelSerializer,
 ):
     state = serializers.ReadOnlyField(source='get_state_display')
-    allocation_strategy = serializers.ReadOnlyField(
-        source='get_allocation_strategy_display'
-    )
     customer_name = serializers.ReadOnlyField(source='manager.customer.name')
     offerings = NestedRequestedOfferingSerializer(
         many=True, read_only=True, source='requestedoffering_set'
@@ -147,7 +151,6 @@ class PublicCallSerializer(
             'name',
             'description',
             'description',
-            'allocation_strategy',
             'state',
             'manager',
             'customer_name',
@@ -275,20 +278,6 @@ class ProtectedCallSerializer(PublicCallSerializer):
         )
         view_name = 'proposal-protected-call-detail'
         protected_fields = ('manager',)
-
-    def get_fields(self):
-        fields = super().get_fields()
-        try:
-            method = self.context['view'].request.method
-        except (KeyError, AttributeError):
-            return fields
-
-        if method in ('PUT', 'PATCH', 'POST'):
-            fields['allocation_strategy'] = serializers.ChoiceField(
-                models.Call.AllocationStrategies.CHOICES, write_only=True
-            )
-
-        return fields
 
     def validate(self, attrs):
         manager = attrs.get('manager')
