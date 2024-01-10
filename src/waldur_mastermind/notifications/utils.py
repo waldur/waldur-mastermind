@@ -19,15 +19,15 @@ def get_mapping(query):
     user_offerings = collections.defaultdict(set)
     user_customers = collections.defaultdict(set)
 
-    all_users = query.get('all_users')
+    all_users = query.get("all_users")
     if all_users:
         users = {
             user.id: user
-            for user in User.objects.filter(is_active=True).exclude(email='')
+            for user in User.objects.filter(is_active=True).exclude(email="")
         }
     else:
-        customers = query.get('customers', [])
-        offerings = query.get('offerings', [])
+        customers = query.get("customers", [])
+        offerings = query.get("offerings", [])
 
         if offerings:
             resources = Resource.objects.filter(
@@ -42,7 +42,7 @@ def get_mapping(query):
 
             # Use only unique customers
             resource_customer_ids = (
-                resources.values_list('project__customer_id', flat=True)
+                resources.values_list("project__customer_id", flat=True)
                 .distinct()
                 .order_by()
             )
@@ -53,7 +53,7 @@ def get_mapping(query):
             for customer in filtered_customers:
                 customer_offering_ids = set(
                     resources.filter(project__customer=customer)
-                    .values_list('offering', flat=True)
+                    .values_list("offering", flat=True)
                     .distinct()
                     .order_by()
                 )
@@ -81,16 +81,16 @@ def get_recipients_for_query(query):
     for user_id, user in users.items():
         result.append(
             {
-                'full_name': user.full_name,
-                'email': user.email,
-                'offerings': [
-                    {'uuid': offering.uuid, 'name': offering.name}
+                "full_name": user.full_name,
+                "email": user.email,
+                "offerings": [
+                    {"uuid": offering.uuid, "name": offering.name}
                     for offering in user_offerings[user_id]
                 ],
-                'customers': [
-                    {'uuid': customer.uuid, 'name': customer.name}
+                "customers": [
+                    {"uuid": customer.uuid, "name": customer.name}
                     for customer in user_customers[user_id]
                 ],
             }
         )
-    return sorted(result, key=lambda row: row['full_name'])
+    return sorted(result, key=lambda row: row["full_name"])

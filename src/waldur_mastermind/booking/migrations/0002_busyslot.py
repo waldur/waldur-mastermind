@@ -8,53 +8,53 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('notifications', '0004_messagetemplate'),
-        ('marketplace', '0001_squashed_0076'),
-        ('booking', '0001_initial'),
+        ("notifications", "0004_messagetemplate"),
+        ("marketplace", "0001_squashed_0076"),
+        ("booking", "0001_initial"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='BusySlot',
+            name="BusySlot",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
-                ('start', models.DateTimeField()),
-                ('end', models.DateTimeField()),
-                ('backend_id', models.CharField(blank=True, max_length=255, null=True)),
+                ("start", models.DateTimeField()),
+                ("end", models.DateTimeField()),
+                ("backend_id", models.CharField(blank=True, max_length=255, null=True)),
                 (
-                    'offering',
+                    "offering",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='marketplace.offering',
+                        to="marketplace.offering",
                     ),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
     ]

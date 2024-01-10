@@ -17,180 +17,180 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('structure', '0001_squashed_0036'),
+        ("structure", "0001_squashed_0036"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('marketplace', '0001_squashed_0076'),
+        ("marketplace", "0001_squashed_0076"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Checklist',
+            name="Checklist",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=2000, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name="description"
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'name_en',
-                    models.CharField(
-                        max_length=150,
-                        null=True,
-                        validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
-                    ),
-                ),
-                (
-                    'name_et',
+                    "name_en",
                     models.CharField(
                         max_length=150,
                         null=True,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
                 (
-                    'description_en',
+                    "name_et",
+                    models.CharField(
+                        max_length=150,
+                        null=True,
+                        validators=[waldur_core.core.validators.validate_name],
+                        verbose_name="name",
+                    ),
+                ),
+                (
+                    "description_en",
                     models.CharField(
                         blank=True,
                         max_length=2000,
                         null=True,
-                        verbose_name='description',
+                        verbose_name="description",
                     ),
                 ),
                 (
-                    'description_et',
+                    "description_et",
                     models.CharField(
                         blank=True,
                         max_length=2000,
                         null=True,
-                        verbose_name='description',
+                        verbose_name="description",
                     ),
                 ),
-                ('customers', models.ManyToManyField(to='structure.Customer')),
+                ("customers", models.ManyToManyField(to="structure.Customer")),
             ],
             options={
-                'abstract': False,
-                'ordering': ('name',),
+                "abstract": False,
+                "ordering": ("name",),
             },
         ),
         migrations.CreateModel(
-            name='Question',
+            name="Question",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=2000, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name="description"
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('order', models.PositiveIntegerField(default=0)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("order", models.PositiveIntegerField(default=0)),
                 (
-                    'category',
+                    "category",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='marketplace.category',
+                        to="marketplace.category",
                     ),
                 ),
                 (
-                    'checklist',
+                    "checklist",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='questions',
-                        to='marketplace_checklist.checklist',
+                        related_name="questions",
+                        to="marketplace_checklist.checklist",
                     ),
                 ),
                 (
-                    'solution',
+                    "solution",
                     models.TextField(
                         blank=True,
-                        help_text='It is shown when incorrect or N/A answer is chosen',
+                        help_text="It is shown when incorrect or N/A answer is chosen",
                         null=True,
                     ),
                 ),
-                ('correct_answer', models.BooleanField(default=True)),
+                ("correct_answer", models.BooleanField(default=True)),
                 (
-                    'description_en',
+                    "description_en",
                     models.CharField(
                         blank=True,
                         max_length=2000,
                         null=True,
-                        verbose_name='description',
+                        verbose_name="description",
                     ),
                 ),
                 (
-                    'description_et',
+                    "description_et",
                     models.CharField(
                         blank=True,
                         max_length=2000,
                         null=True,
-                        verbose_name='description',
+                        verbose_name="description",
                     ),
                 ),
                 (
-                    'solution_en',
+                    "solution_en",
                     models.TextField(
                         blank=True,
-                        help_text='It is shown when incorrect or N/A answer is chosen',
+                        help_text="It is shown when incorrect or N/A answer is chosen",
                         null=True,
                     ),
                 ),
                 (
-                    'solution_et',
+                    "solution_et",
                     models.TextField(
                         blank=True,
-                        help_text='It is shown when incorrect or N/A answer is chosen',
+                        help_text="It is shown when incorrect or N/A answer is chosen",
                         null=True,
                     ),
                 ),
                 (
-                    'image',
+                    "image",
                     models.ImageField(
                         blank=True,
                         null=True,
@@ -199,51 +199,51 @@ class Migration(migrations.Migration):
                 ),
             ],
             options={
-                'ordering': ('checklist', 'order'),
+                "ordering": ("checklist", "order"),
             },
         ),
         migrations.CreateModel(
-            name='Category',
+            name="Category",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=2000, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name="description"
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'icon',
+                    "icon",
                     models.FileField(
                         blank=True,
                         null=True,
-                        upload_to='marketplace_checklist_category_icons',
+                        upload_to="marketplace_checklist_category_icons",
                         validators=[
                             upload_validator.FileTypeValidator(
                                 allowed_types=[
-                                    'image/png',
-                                    'image/gif',
-                                    'image/jpeg',
-                                    'image/svg',
-                                    'image/svg+xml',
-                                    'image/x-icon',
+                                    "image/png",
+                                    "image/gif",
+                                    "image/jpeg",
+                                    "image/svg",
+                                    "image/svg+xml",
+                                    "image/x-icon",
                                 ]
                             )
                         ],
@@ -251,125 +251,125 @@ class Migration(migrations.Migration):
                 ),
             ],
             options={
-                'ordering': ('name',),
-                'verbose_name_plural': 'Categories',
+                "ordering": ("name",),
+                "verbose_name_plural": "Categories",
             },
         ),
         migrations.AddField(
-            model_name='checklist',
-            name='category',
+            model_name="checklist",
+            name="category",
             field=models.ForeignKey(
                 blank=True,
                 null=True,
                 on_delete=django.db.models.deletion.SET_NULL,
-                related_name='checklists',
-                to='marketplace_checklist.category',
+                related_name="checklists",
+                to="marketplace_checklist.category",
             ),
         ),
         migrations.CreateModel(
-            name='ChecklistProjectRole',
+            name="ChecklistProjectRole",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'role',
+                    "role",
                     waldur_core.structure.models.ProjectRole(
                         choices=[
-                            ('admin', 'Administrator'),
-                            ('manager', 'Manager'),
-                            ('member', 'Member'),
+                            ("admin", "Administrator"),
+                            ("manager", "Manager"),
+                            ("member", "Member"),
                         ],
                         max_length=30,
                     ),
                 ),
                 (
-                    'checklist',
+                    "checklist",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='project_roles',
-                        to='marketplace_checklist.checklist',
+                        related_name="project_roles",
+                        to="marketplace_checklist.checklist",
                     ),
                 ),
             ],
         ),
         migrations.CreateModel(
-            name='ChecklistCustomerRole',
+            name="ChecklistCustomerRole",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'role',
+                    "role",
                     waldur_core.structure.models.CustomerRole(
                         choices=[
-                            ('owner', 'Owner'),
-                            ('support', 'Support'),
-                            ('service_manager', 'Service manager'),
+                            ("owner", "Owner"),
+                            ("support", "Support"),
+                            ("service_manager", "Service manager"),
                         ],
                         max_length=30,
                     ),
                 ),
                 (
-                    'checklist',
+                    "checklist",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='customer_roles',
-                        to='marketplace_checklist.checklist',
+                        related_name="customer_roles",
+                        to="marketplace_checklist.checklist",
                     ),
                 ),
             ],
         ),
         migrations.CreateModel(
-            name='Answer',
+            name="Answer",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
-                ('value', models.BooleanField(null=True)),
+                ("value", models.BooleanField(null=True)),
                 (
-                    'question',
+                    "question",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='marketplace_checklist.question',
+                        to="marketplace_checklist.question",
                     ),
                 ),
                 (
-                    'user',
+                    "user",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
                         to=settings.AUTH_USER_MODEL,
@@ -377,7 +377,7 @@ class Migration(migrations.Migration):
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
     ]

@@ -3,52 +3,52 @@ from waldur_core.server.base_settings import *
 
 import os
 
-BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), '..'))
-TEMPLATES[0]['DIRS'] = [os.path.join(BASE_DIR, 'waldur_core', 'templates')]
-LOCALE_PATHS = (
-    os.path.join(BASE_DIR, 'waldur_core', 'locale'),
+BASE_DIR = os.path.abspath(
+    os.path.join(os.path.dirname(os.path.dirname(__file__)), "..")
 )
+TEMPLATES[0]["DIRS"] = [os.path.join(BASE_DIR, "waldur_core", "templates")]
+LOCALE_PATHS = (os.path.join(BASE_DIR, "waldur_core", "locale"),)
 
-SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 env: dict = os.environ
 
-conf_dir = env.get('WALDUR_BASE_CONFIG_DIR', '/etc/waldur')
-data_dir = '/usr/share/waldur'
-work_dir = '/var/lib/waldur'
-templates_dir = os.path.join(conf_dir, 'templates')
+conf_dir = env.get("WALDUR_BASE_CONFIG_DIR", "/etc/waldur")
+data_dir = "/usr/share/waldur"
+work_dir = "/var/lib/waldur"
+templates_dir = os.path.join(conf_dir, "templates")
 
-SECRET_KEY = env.get('GLOBAL_SECRET_KEY')
+SECRET_KEY = env.get("GLOBAL_SECRET_KEY")
 
-media_root: str = os.path.join(work_dir, 'media')
+media_root: str = os.path.join(work_dir, "media")
 
-redis_password: str = env.get('REDIS_PASSWORD')
-redis_host: str = env.get('REDIS_HOST', 'localhost')
-redis_port: str = env.get('REDIS_PORT', '6379')
+redis_password: str = env.get("REDIS_PASSWORD")
+redis_host: str = env.get("REDIS_HOST", "localhost")
+redis_port: str = env.get("REDIS_PORT", "6379")
 if redis_password:
-    redis_url = 'redis://:%s@%s:%s' % (redis_password,
-                                       redis_host,
-                                       redis_port)
+    redis_url = "redis://:%s@%s:%s" % (redis_password, redis_host, redis_port)
 else:
-    redis_url = 'redis://%s:%s' % (redis_host, redis_port)
+    redis_url = "redis://%s:%s" % (redis_host, redis_port)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = env.get('GLOBAL_DEBUG', 'false').lower() == 'true'
+DEBUG = env.get("GLOBAL_DEBUG", "false").lower() == "true"
 
 for tmpl in TEMPLATES:
-    tmpl.setdefault('OPTIONS', {})
-    tmpl['OPTIONS']['debug'] = DEBUG
+    tmpl.setdefault("OPTIONS", {})
+    tmpl["OPTIONS"]["debug"] = DEBUG
 
 # Allow to overwrite templates
-TEMPLATES[0]['DIRS'].insert(0, templates_dir)
+TEMPLATES[0]["DIRS"].insert(0, templates_dir)
 
 # For security reason disable browsable API rendering in production
 if not DEBUG:
-    REST_FRAMEWORK['DEFAULT_RENDERER_CLASSES'] = ('rest_framework.renderers.JSONRenderer',)
+    REST_FRAMEWORK["DEFAULT_RENDERER_CLASSES"] = (
+        "rest_framework.renderers.JSONRenderer",
+    )
 
 MEDIA_ROOT = media_root
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ["*"]
 
 #
 # Application definition
@@ -77,36 +77,36 @@ ALLOWED_HOSTS = ['*']
 #
 # See also: https://docs.djangoproject.com/en/2.2/ref/settings/#databases
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': env.get('POSTGRESQL_NAME', 'waldur'),
-        'HOST': env.get('POSTGRESQL_HOST', 'localhost'),
-        'PORT': env.get('POSTGRESQL_PORT', '5432'),
-        'USER': env.get('POSTGRESQL_USER', 'waldur'),
-        'PASSWORD': env.get('POSTGRESQL_PASSWORD', 'waldur'),
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": env.get("POSTGRESQL_NAME", "waldur"),
+        "HOST": env.get("POSTGRESQL_HOST", "localhost"),
+        "PORT": env.get("POSTGRESQL_PORT", "5432"),
+        "USER": env.get("POSTGRESQL_USER", "waldur"),
+        "PASSWORD": env.get("POSTGRESQL_PASSWORD", "waldur"),
     },
 }
 
 # Static files
 # See also: https://docs.djangoproject.com/en/2.2/ref/settings/#static-files
-STATIC_ROOT = env.get('GLOBAL_STATIC_ROOT', os.path.join(data_dir, 'static'))
+STATIC_ROOT = env.get("GLOBAL_STATIC_ROOT", os.path.join(data_dir, "static"))
 
 # Django cache
 # https://docs.djangoproject.com/en/2.2/topics/cache/
-CACHES['default']['LOCATION'] = redis_url
+CACHES["default"]["LOCATION"] = redis_url
 
 # Email
 # See also: https://docs.djangoproject.com/en/2.2/ref/settings/#default-from-email
-default_from_email = env.get('GLOBAL_DEFAULT_FROM_EMAIL')
+default_from_email = env.get("GLOBAL_DEFAULT_FROM_EMAIL")
 if default_from_email:
     DEFAULT_FROM_EMAIL = default_from_email
 
-DEFAULT_REPLY_TO_EMAIL = env.get('GLOBAL_DEFAULT_REPLY_TO_EMAIL', '')
-EMAIL_HOOK_FROM_EMAIL = env.get('GLOBAL_EMAIL_HOOK_FROM_EMAIL', '')
+DEFAULT_REPLY_TO_EMAIL = env.get("GLOBAL_DEFAULT_REPLY_TO_EMAIL", "")
+EMAIL_HOOK_FROM_EMAIL = env.get("GLOBAL_EMAIL_HOOK_FROM_EMAIL", "")
 
 # Session
 # https://docs.djangoproject.com/en/2.2/ref/settings/#sessions
-SESSION_COOKIE_AGE = env.get('AUTH_COOKIE_AGE', 3600)
+SESSION_COOKIE_AGE = env.get("AUTH_COOKIE_AGE", 3600)
 
 # Celery
 # See also:
@@ -118,48 +118,54 @@ CELERY_RESULT_BACKEND = redis_url
 
 # Waldur Core internal configuration
 # See also: http://docs.waldur.com/
-token_lifetime = env.get('AUTH_TOKEN_LIFETIME', 3600)
-WALDUR_CORE.update({
-    'TOKEN_LIFETIME': timedelta(seconds=token_lifetime),
-    'OWNER_CAN_MANAGE_CUSTOMER': env.get('GLOBAL_OWNER_CAN_MANAGE_CUSTOMER', 'false').lower() == 'true',
-    'SHOW_ALL_USERS': env.get('GLOBAL_SHOW_ALL_USERS',  'false').lower() == 'true',
-})
+token_lifetime = env.get("AUTH_TOKEN_LIFETIME", 3600)
+WALDUR_CORE.update(
+    {
+        "TOKEN_LIFETIME": timedelta(seconds=token_lifetime),
+        "OWNER_CAN_MANAGE_CUSTOMER": env.get(
+            "GLOBAL_OWNER_CAN_MANAGE_CUSTOMER", "false"
+        ).lower()
+        == "true",
+        "SHOW_ALL_USERS": env.get("GLOBAL_SHOW_ALL_USERS", "false").lower() == "true",
+    }
+)
 
 # Swagger uses DRF session authentication which can be enabled in DEBUG mode
 if DEBUG:
-    SWAGGER_SETTINGS['USE_SESSION_AUTH'] = True
-    SWAGGER_SETTINGS['LOGIN_URL'] = 'rest_framework:login'
-    SWAGGER_SETTINGS['LOGOUT_URL'] = 'rest_framework:logout'
+    SWAGGER_SETTINGS["USE_SESSION_AUTH"] = True
+    SWAGGER_SETTINGS["LOGIN_URL"] = "rest_framework:login"
+    SWAGGER_SETTINGS["LOGOUT_URL"] = "rest_framework:logout"
 
 # Sentry integration
 # See also: https://docs.sentry.io/platforms/python/guides/django/
-sentry_dsn = env.get('SENTRY_DSN')
-sentry_traces_sample_rate = float(env.get('SENTRY_TRACES_SAMPLE_RATE', 0.01))
+sentry_dsn = env.get("SENTRY_DSN")
+sentry_traces_sample_rate = float(env.get("SENTRY_TRACES_SAMPLE_RATE", 0.01))
 
 if sentry_dsn:
     import sentry_sdk
     from sentry_sdk.integrations.django import DjangoIntegration
     from sentry_sdk.integrations.celery import CeleryIntegration
     import importlib
+
     sentry_sdk.init(
         dsn=sentry_dsn,
         integrations=[DjangoIntegration(), CeleryIntegration()],
         # https://docs.sentry.io/platforms/python/guides/django/performance/
         traces_sample_rate=sentry_traces_sample_rate,
-        release='waldur-mastermind@' + importlib.metadata.version('waldur-mastermind'),
+        release="waldur-mastermind@" + importlib.metadata.version("waldur-mastermind"),
     )
 
-    WALDUR_CORE['HOMEPORT_SENTRY_TRACES_SAMPLE_RATE'] = sentry_traces_sample_rate
+    WALDUR_CORE["HOMEPORT_SENTRY_TRACES_SAMPLE_RATE"] = sentry_traces_sample_rate
 
 # Additional configuration files for Waldur
 # 'override.conf.py' must be the first element to override settings in core.ini but not plugin configuration.
 # Plugin configuration files must me ordered alphabetically to provide predictable configuration handling order.
-extensions = ('override.conf.py', 'logging.conf.py', 'saml2.conf.py')
+extensions = ("override.conf.py", "logging.conf.py", "saml2.conf.py")
 for extension_name in extensions:
     # optionally load extension configurations
     extension_conf_file_path = os.path.join(conf_dir, extension_name)
     if os.path.isfile(extension_conf_file_path):
-        exec(open(extension_conf_file_path, encoding='utf-8').read())  # nosec
+        exec(open(extension_conf_file_path, encoding="utf-8").read())  # nosec
 
 if not SECRET_KEY:
-    raise Exception('GLOBAL_SECRET_KEY is not set')
+    raise Exception("GLOBAL_SECRET_KEY is not set")

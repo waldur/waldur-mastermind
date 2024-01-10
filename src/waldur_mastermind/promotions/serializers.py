@@ -13,14 +13,14 @@ from waldur_mastermind.promotions import models
 class CampaignOfferingSerializer(serializers.ModelSerializer):
     class Meta:
         model = marketplace_models.Offering
-        fields = ('uuid', 'name')
+        fields = ("uuid", "name")
 
 
 class CampaignSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
     offerings = serializers.SlugRelatedField(
-        slug_field='uuid',
+        slug_field="uuid",
         queryset=marketplace_models.Offering.objects.all(),
         many=True,
         required=True,
@@ -28,13 +28,13 @@ class CampaignSerializer(
     )
 
     required_offerings = serializers.SlugRelatedField(
-        slug_field='uuid',
+        slug_field="uuid",
         queryset=marketplace_models.Offering.objects.all(),
         many=True,
         required=False,
     )
 
-    state = serializers.ReadOnlyField(source='get_state_display')
+    state = serializers.ReadOnlyField(source="get_state_display")
 
     def get_fields(self):
         fields = super(core_serializers.AugmentedSerializerMixin, self).get_fields()
@@ -45,11 +45,11 @@ class CampaignSerializer(
         protected_fields = self.Meta.protected_fields
 
         try:
-            method = self.context['view'].request.method
+            method = self.context["view"].request.method
         except (KeyError, AttributeError):
             return fields
 
-        if method in ('PUT', 'PATCH'):
+        if method in ("PUT", "PATCH"):
             if not self.instance or self.instance.state != models.Campaign.States.DRAFT:
                 protected_fields += (
                     self.Meta.protected_fields_if_campaign_has_been_started
@@ -58,22 +58,22 @@ class CampaignSerializer(
             for field in protected_fields:
                 fields[field].read_only = True
 
-        if method not in ('PUT', 'PATCH', 'POST'):
-            fields['offerings'] = CampaignOfferingSerializer(read_only=True, many=True)
+        if method not in ("PUT", "PATCH", "POST"):
+            fields["offerings"] = CampaignOfferingSerializer(read_only=True, many=True)
 
         return fields
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
-        start_date = attrs.get('start_date')
-        end_date = attrs.get('end_date')
-        stock = attrs.get('stock')
-        auto_apply = attrs.get('auto_apply', True)
+        start_date = attrs.get("start_date")
+        end_date = attrs.get("end_date")
+        stock = attrs.get("stock")
+        auto_apply = attrs.get("auto_apply", True)
 
-        user = self.context['request'].user
-        offerings = attrs.get('offerings', [])
-        required_offerings = attrs.get('required_offerings', [])
-        service_provider = attrs.get('service_provider') or (
+        user = self.context["request"].user
+        offerings = attrs.get("offerings", [])
+        required_offerings = attrs.get("required_offerings", [])
+        service_provider = attrs.get("service_provider") or (
             self.instance.service_provider if self.instance else None
         )
 
@@ -85,8 +85,8 @@ class CampaignSerializer(
         ):
             raise serializers.ValidationError(
                 {
-                    'service_provider': _(
-                        'You do not have permissions to create campaign for selected service provider.'
+                    "service_provider": _(
+                        "You do not have permissions to create campaign for selected service provider."
                     )
                 }
             )
@@ -95,8 +95,8 @@ class CampaignSerializer(
             if service_provider.customer != offering.customer:
                 raise serializers.ValidationError(
                     {
-                        'offering': _(
-                            'You do not have permissions to create campaign in selected offering.'
+                        "offering": _(
+                            "You do not have permissions to create campaign in selected offering."
                         )
                     }
                 )
@@ -105,25 +105,25 @@ class CampaignSerializer(
             if service_provider != required_offering.customer.service_provider:
                 raise serializers.ValidationError(
                     {
-                        'required_offering': _(
-                            'You do not have permissions to create campaign in selected offering.'
+                        "required_offering": _(
+                            "You do not have permissions to create campaign in selected offering."
                         )
                     }
                 )
 
         if start_date and start_date < datetime.date.today():
             raise serializers.ValidationError(
-                {'start_date': _('Campaign start cannot be before the current date.')}
+                {"start_date": _("Campaign start cannot be before the current date.")}
             )
 
         if start_date and end_date and start_date > end_date:
             raise serializers.ValidationError(
-                {'end_date': _('Campaign end cannot be before the start date.')}
+                {"end_date": _("Campaign end cannot be before the start date.")}
             )
 
         if auto_apply and stock:
             raise serializers.ValidationError(
-                {'stock': _('Stock cannot be defined if auto_apply is true.')}
+                {"stock": _("Stock cannot be defined if auto_apply is true.")}
             )
 
         return attrs
@@ -131,61 +131,61 @@ class CampaignSerializer(
     def validate_offerings(self, offerings):
         if not offerings:
             raise serializers.ValidationError(
-                {'offering': _('An offering must be specified.')}
+                {"offering": _("An offering must be specified.")}
             )
         return offerings
 
     class Meta:
         model = models.Campaign
         fields = (
-            'uuid',
-            'name',
-            'url',
-            'start_date',
-            'end_date',
-            'coupon',
-            'discount_type',
-            'discount',
-            'stock',
-            'description',
-            'months',
-            'auto_apply',
-            'state',
-            'service_provider',
-            'offerings',
-            'required_offerings',
+            "uuid",
+            "name",
+            "url",
+            "start_date",
+            "end_date",
+            "coupon",
+            "discount_type",
+            "discount",
+            "stock",
+            "description",
+            "months",
+            "auto_apply",
+            "state",
+            "service_provider",
+            "offerings",
+            "required_offerings",
         )
 
         extra_kwargs = {
-            'service_provider': {
-                'lookup_field': 'uuid',
-                'view_name': 'marketplace-service-provider-detail',
+            "service_provider": {
+                "lookup_field": "uuid",
+                "view_name": "marketplace-service-provider-detail",
             },
-            'url': {
-                'lookup_field': 'uuid',
-                'view_name': 'promotions-campaign-detail',
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "promotions-campaign-detail",
             },
         }
 
-        protected_fields = ('service_provider',)
+        protected_fields = ("service_provider",)
 
         protected_fields_if_campaign_has_been_started = (
-            'start_date',
-            'end_date',
-            'discount_type',
-            'discount',
-            'stock',
-            'months',
-            'auto_apply',
-            'offerings',
-            'required_offerings',
+            "start_date",
+            "end_date",
+            "discount_type",
+            "discount",
+            "stock",
+            "months",
+            "auto_apply",
+            "offerings",
+            "required_offerings",
         )
 
-        read_only_fields = ('state',)
+        read_only_fields = ("state",)
 
     def create(self, validated_data):
-        offerings = validated_data.pop('offerings')
-        required_offerings = validated_data.pop('required_offerings', [])
+        offerings = validated_data.pop("offerings")
+        required_offerings = validated_data.pop("required_offerings", [])
         campaign = super().create(validated_data)
 
         campaign.offerings.add(*offerings)
@@ -194,8 +194,8 @@ class CampaignSerializer(
         return campaign
 
     def update(self, instance, validated_data):
-        offerings = validated_data.pop('offerings', [])
-        required_offerings = validated_data.pop('required_offerings', [])
+        offerings = validated_data.pop("offerings", [])
+        required_offerings = validated_data.pop("required_offerings", [])
         campaign = super().update(instance, validated_data)
 
         if self.instance.state == models.Campaign.States.DRAFT:
@@ -224,12 +224,12 @@ def get_promotion_campaigns(serializer, offering):
             class KlassSerializer(CampaignSerializer):
                 def get_fields(self):
                     fields = super().get_fields()
-                    fields.pop('url')
-                    fields.pop('offerings')
-                    fields.pop('required_offerings')
-                    fields.pop('coupon')
-                    fields.pop('state')
-                    fields.pop('auto_apply')
+                    fields.pop("url")
+                    fields.pop("offerings")
+                    fields.pop("required_offerings")
+                    fields.pop("coupon")
+                    fields.pop("state")
+                    fields.pop("auto_apply")
                     return fields
 
             campaigns.append(
@@ -242,8 +242,8 @@ def get_promotion_campaigns(serializer, offering):
 
 
 def add_promotion_campaigns(sender, fields, **kwargs):
-    fields['promotion_campaigns'] = serializers.SerializerMethodField()
-    setattr(sender, 'get_promotion_campaigns', get_promotion_campaigns)
+    fields["promotion_campaigns"] = serializers.SerializerMethodField()
+    setattr(sender, "get_promotion_campaigns", get_promotion_campaigns)
 
 
 core_signals.pre_serializer_fields.connect(

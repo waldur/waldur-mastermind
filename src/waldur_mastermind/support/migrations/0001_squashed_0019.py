@@ -16,266 +16,266 @@ class Migration(migrations.Migration):
 
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('structure', '0001_squashed_0036'),
-        ('contenttypes', '0002_remove_content_type_name'),
+        ("structure", "0001_squashed_0036"),
+        ("contenttypes", "0002_remove_content_type_name"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='IgnoredIssueStatus',
+            name="IgnoredIssueStatus",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         unique=True,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
             ],
         ),
         migrations.CreateModel(
-            name='IssueStatus',
+            name="IssueStatus",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
-                        help_text='Status name in Jira.', max_length=255, unique=True
+                        help_text="Status name in Jira.", max_length=255, unique=True
                     ),
                 ),
                 (
-                    'type',
+                    "type",
                     django_fsm.FSMIntegerField(
-                        choices=[(0, 'Resolved'), (1, 'Canceled')], default=0
+                        choices=[(0, "Resolved"), (1, "Canceled")], default=0
                     ),
                 ),
             ],
             options={
-                'verbose_name': 'Issue status',
-                'verbose_name_plural': 'Issue statuses',
+                "verbose_name": "Issue status",
+                "verbose_name_plural": "Issue statuses",
             },
         ),
         migrations.CreateModel(
-            name='RequestType',
+            name="RequestType",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('backend_id', models.IntegerField(unique=True)),
-                ('issue_type_name', models.CharField(max_length=255)),
-                ('fields', models.JSONField(blank=True, default=dict)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("backend_id", models.IntegerField(unique=True)),
+                ("issue_type_name", models.CharField(max_length=255)),
+                ("fields", models.JSONField(blank=True, default=dict)),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='SupportUser',
+            name="SupportUser",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'backend_id',
+                    "backend_id",
                     models.CharField(
                         blank=True, max_length=255, null=True, unique=True
                     ),
                 ),
                 (
-                    'is_active',
+                    "is_active",
                     models.BooleanField(
                         default=True,
-                        help_text='Designates whether this user should be treated as active. Unselect this instead of deleting accounts.',
-                        verbose_name='active',
+                        help_text="Designates whether this user should be treated as active. Unselect this instead of deleting accounts.",
+                        verbose_name="active",
                     ),
                 ),
                 (
-                    'user',
+                    "user",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
+                        related_name="+",
                         to=settings.AUTH_USER_MODEL,
                     ),
                 ),
             ],
             options={
-                'ordering': ['name'],
+                "ordering": ["name"],
             },
         ),
         migrations.CreateModel(
-            name='Template',
+            name="Template",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('native_name', models.CharField(blank=True, max_length=150)),
-                ('description', models.TextField()),
-                ('native_description', models.TextField(blank=True)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("native_name", models.CharField(blank=True, max_length=150)),
+                ("description", models.TextField()),
+                ("native_description", models.TextField(blank=True)),
                 (
-                    'issue_type',
+                    "issue_type",
                     models.CharField(
                         choices=[
-                            ('INFORMATIONAL', 'Informational'),
-                            ('SERVICE_REQUEST', 'Service request'),
-                            ('CHANGE_REQUEST', 'Change request'),
-                            ('INCIDENT', 'Incident'),
+                            ("INFORMATIONAL", "Informational"),
+                            ("SERVICE_REQUEST", "Service request"),
+                            ("CHANGE_REQUEST", "Change request"),
+                            ("INCIDENT", "Incident"),
                         ],
-                        default='INFORMATIONAL',
+                        default="INFORMATIONAL",
                         max_length=30,
                     ),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='TemplateAttachment',
+            name="TemplateAttachment",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('file', models.FileField(upload_to='support_template_attachments')),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("file", models.FileField(upload_to="support_template_attachments")),
                 (
-                    'template',
+                    "template",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='attachments',
-                        to='support.template',
+                        related_name="attachments",
+                        to="support.template",
                     ),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='TemplateStatusNotification',
+            name="TemplateStatusNotification",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'status',
+                    "status",
                     models.CharField(
                         max_length=255,
                         unique=True,
@@ -283,7 +283,7 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 (
-                    'html',
+                    "html",
                     models.TextField(
                         validators=[
                             waldur_core.core.validators.validate_name,
@@ -292,7 +292,7 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 (
-                    'text',
+                    "text",
                     models.TextField(
                         validators=[
                             waldur_core.core.validators.validate_name,
@@ -301,7 +301,7 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 (
-                    'subject',
+                    "subject",
                     models.CharField(
                         max_length=255,
                         validators=[
@@ -313,167 +313,167 @@ class Migration(migrations.Migration):
             ],
         ),
         migrations.CreateModel(
-            name='Issue',
+            name="Issue",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('error_message', models.TextField(blank=True)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("error_message", models.TextField(blank=True)),
                 (
-                    'state',
+                    "state",
                     django_fsm.FSMIntegerField(
                         choices=[
-                            (5, 'Creation Scheduled'),
-                            (6, 'Creating'),
-                            (1, 'Update Scheduled'),
-                            (2, 'Updating'),
-                            (7, 'Deletion Scheduled'),
-                            (8, 'Deleting'),
-                            (3, 'OK'),
-                            (4, 'Erred'),
+                            (5, "Creation Scheduled"),
+                            (6, "Creating"),
+                            (1, "Update Scheduled"),
+                            (2, "Updating"),
+                            (7, "Deletion Scheduled"),
+                            (8, "Deleting"),
+                            (3, "OK"),
+                            (4, "Erred"),
                         ],
                         default=5,
                     ),
                 ),
                 (
-                    'backend_id',
+                    "backend_id",
                     models.CharField(
                         blank=True, max_length=255, null=True, unique=True
                     ),
                 ),
-                ('key', models.CharField(blank=True, max_length=255)),
-                ('type', models.CharField(max_length=255)),
+                ("key", models.CharField(blank=True, max_length=255)),
+                ("type", models.CharField(max_length=255)),
                 (
-                    'link',
+                    "link",
                     models.URLField(
                         blank=True,
-                        help_text='Link to issue in support system.',
+                        help_text="Link to issue in support system.",
                         max_length=255,
                     ),
                 ),
-                ('summary', models.CharField(max_length=255)),
-                ('description', models.TextField(blank=True)),
-                ('deadline', models.DateTimeField(blank=True, null=True)),
-                ('impact', models.CharField(blank=True, max_length=255)),
-                ('status', models.CharField(max_length=255)),
-                ('resolution', models.CharField(blank=True, max_length=255)),
-                ('priority', models.CharField(blank=True, max_length=255)),
-                ('resource_object_id', models.PositiveIntegerField(null=True)),
-                ('first_response_sla', models.DateTimeField(blank=True, null=True)),
-                ('resolution_date', models.DateTimeField(blank=True, null=True)),
+                ("summary", models.CharField(max_length=255)),
+                ("description", models.TextField(blank=True)),
+                ("deadline", models.DateTimeField(blank=True, null=True)),
+                ("impact", models.CharField(blank=True, max_length=255)),
+                ("status", models.CharField(max_length=255)),
+                ("resolution", models.CharField(blank=True, max_length=255)),
+                ("priority", models.CharField(blank=True, max_length=255)),
+                ("resource_object_id", models.PositiveIntegerField(null=True)),
+                ("first_response_sla", models.DateTimeField(blank=True, null=True)),
+                ("resolution_date", models.DateTimeField(blank=True, null=True)),
                 (
-                    'assignee',
+                    "assignee",
                     models.ForeignKey(
                         blank=True,
-                        help_text='Help desk user who will implement the issue',
+                        help_text="Help desk user who will implement the issue",
                         null=True,
                         on_delete=django.db.models.deletion.PROTECT,
-                        related_name='issues',
-                        to='support.supportuser',
+                        related_name="issues",
+                        to="support.supportuser",
                     ),
                 ),
                 (
-                    'caller',
+                    "caller",
                     models.ForeignKey(
                         blank=True,
-                        help_text='Waldur user who has reported the issue.',
+                        help_text="Waldur user who has reported the issue.",
                         null=True,
                         on_delete=django.db.models.deletion.SET_NULL,
-                        related_name='created_issues',
+                        related_name="created_issues",
                         to=settings.AUTH_USER_MODEL,
                     ),
                 ),
                 (
-                    'customer',
+                    "customer",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='issues',
-                        to='structure.customer',
-                        verbose_name='organization',
+                        related_name="issues",
+                        to="structure.customer",
+                        verbose_name="organization",
                     ),
                 ),
                 (
-                    'project',
+                    "project",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='issues',
-                        to='structure.project',
+                        related_name="issues",
+                        to="structure.project",
                     ),
                 ),
                 (
-                    'reporter',
+                    "reporter",
                     models.ForeignKey(
                         blank=True,
-                        help_text='Help desk user who have created the issue that is reported by caller.',
+                        help_text="Help desk user who have created the issue that is reported by caller.",
                         null=True,
                         on_delete=django.db.models.deletion.PROTECT,
-                        related_name='reported_issues',
-                        to='support.supportuser',
+                        related_name="reported_issues",
+                        to="support.supportuser",
                     ),
                 ),
                 (
-                    'resource_content_type',
+                    "resource_content_type",
                     models.ForeignKey(
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='contenttypes.contenttype',
+                        to="contenttypes.contenttype",
                     ),
                 ),
                 (
-                    'template',
+                    "template",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.PROTECT,
-                        related_name='issues',
-                        to='support.template',
+                        related_name="issues",
+                        to="support.template",
                     ),
                 ),
-                ('error_traceback', models.TextField(blank=True)),
+                ("error_traceback", models.TextField(blank=True)),
                 (
-                    'feedback_request',
+                    "feedback_request",
                     models.BooleanField(
                         blank=True,
                         default=True,
-                        help_text='Request feedback from the issue creator after resolution of the issue',
+                        help_text="Request feedback from the issue creator after resolution of the issue",
                     ),
                 ),
                 (
-                    'remote_id',
+                    "remote_id",
                     models.CharField(
                         blank=True, max_length=255, null=True, unique=True
                     ),
                 ),
             ],
             options={
-                'ordering': ['-created'],
+                "ordering": ["-created"],
             },
             bases=(
                 waldur_core.structure.models.StructureLoggableMixin,
@@ -482,20 +482,20 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.CreateModel(
-            name='SupportCustomer',
+            name="SupportCustomer",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('backend_id', models.CharField(max_length=255, unique=True)),
+                ("backend_id", models.CharField(max_length=255, unique=True)),
                 (
-                    'user',
+                    "user",
                     models.OneToOneField(
                         on_delete=django.db.models.deletion.CASCADE,
                         to=settings.AUTH_USER_MODEL,
@@ -504,23 +504,23 @@ class Migration(migrations.Migration):
             ],
         ),
         migrations.CreateModel(
-            name='TemplateConfirmationComment',
+            name="TemplateConfirmationComment",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'issue_type',
-                    models.CharField(default='default', max_length=255, unique=True),
+                    "issue_type",
+                    models.CharField(default="default", max_length=255, unique=True),
                 ),
                 (
-                    'template',
+                    "template",
                     models.TextField(
                         validators=[
                             waldur_core.core.validators.validate_name,
@@ -531,286 +531,286 @@ class Migration(migrations.Migration):
             ],
         ),
         migrations.CreateModel(
-            name='Priority',
+            name="Priority",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=2000, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name="description"
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
                 (
-                    'icon_url',
+                    "icon_url",
                     models.URLField(
-                        blank=True, max_length=500, verbose_name='icon url'
+                        blank=True, max_length=500, verbose_name="icon url"
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('backend_id', models.CharField(blank=True, max_length=255)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("backend_id", models.CharField(blank=True, max_length=255)),
             ],
             options={
-                'verbose_name': 'Priority',
-                'verbose_name_plural': 'Priorities',
+                "verbose_name": "Priority",
+                "verbose_name_plural": "Priorities",
             },
         ),
         migrations.CreateModel(
-            name='Feedback',
+            name="Feedback",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('error_message', models.TextField(blank=True)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("error_message", models.TextField(blank=True)),
                 (
-                    'state',
+                    "state",
                     django_fsm.FSMIntegerField(
                         choices=[
-                            (5, 'Creation Scheduled'),
-                            (6, 'Creating'),
-                            (1, 'Update Scheduled'),
-                            (2, 'Updating'),
-                            (7, 'Deletion Scheduled'),
-                            (8, 'Deleting'),
-                            (3, 'OK'),
-                            (4, 'Erred'),
+                            (5, "Creation Scheduled"),
+                            (6, "Creating"),
+                            (1, "Update Scheduled"),
+                            (2, "Updating"),
+                            (7, "Deletion Scheduled"),
+                            (8, "Deleting"),
+                            (3, "OK"),
+                            (4, "Erred"),
                         ],
                         default=5,
                     ),
                 ),
                 (
-                    'evaluation',
+                    "evaluation",
                     models.SmallIntegerField(
                         choices=[
-                            (1, '1'),
-                            (2, '2'),
-                            (3, '3'),
-                            (4, '4'),
-                            (5, '5'),
-                            (6, '6'),
-                            (7, '7'),
-                            (8, '8'),
-                            (9, '9'),
-                            (10, '10'),
+                            (1, "1"),
+                            (2, "2"),
+                            (3, "3"),
+                            (4, "4"),
+                            (5, "5"),
+                            (6, "6"),
+                            (7, "7"),
+                            (8, "8"),
+                            (9, "9"),
+                            (10, "10"),
                         ]
                     ),
                 ),
-                ('comment', models.TextField(blank=True)),
+                ("comment", models.TextField(blank=True)),
                 (
-                    'issue',
+                    "issue",
                     models.OneToOneField(
-                        on_delete=django.db.models.deletion.CASCADE, to='support.issue'
+                        on_delete=django.db.models.deletion.CASCADE, to="support.issue"
                     ),
                 ),
-                ('error_traceback', models.TextField(blank=True)),
+                ("error_traceback", models.TextField(blank=True)),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='Attachment',
+            name="Attachment",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('error_message', models.TextField(blank=True)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("error_message", models.TextField(blank=True)),
                 (
-                    'state',
+                    "state",
                     django_fsm.FSMIntegerField(
                         choices=[
-                            (5, 'Creation Scheduled'),
-                            (6, 'Creating'),
-                            (1, 'Update Scheduled'),
-                            (2, 'Updating'),
-                            (7, 'Deletion Scheduled'),
-                            (8, 'Deleting'),
-                            (3, 'OK'),
-                            (4, 'Erred'),
+                            (5, "Creation Scheduled"),
+                            (6, "Creating"),
+                            (1, "Update Scheduled"),
+                            (2, "Updating"),
+                            (7, "Deletion Scheduled"),
+                            (8, "Deleting"),
+                            (3, "OK"),
+                            (4, "Erred"),
                         ],
                         default=5,
                     ),
                 ),
-                ('file', models.FileField(upload_to='support_attachments')),
-                ('backend_id', models.CharField(max_length=255)),
+                ("file", models.FileField(upload_to="support_attachments")),
+                ("backend_id", models.CharField(max_length=255)),
                 (
-                    'mime_type',
+                    "mime_type",
                     models.CharField(
-                        blank=True, max_length=100, verbose_name='MIME type'
+                        blank=True, max_length=100, verbose_name="MIME type"
                     ),
                 ),
                 (
-                    'file_size',
+                    "file_size",
                     models.PositiveIntegerField(
-                        blank=True, null=True, verbose_name='Filesize, B'
+                        blank=True, null=True, verbose_name="Filesize, B"
                     ),
                 ),
                 (
-                    'thumbnail',
+                    "thumbnail",
                     models.FileField(
                         blank=True,
                         null=True,
-                        upload_to='support_attachments_thumbnails',
+                        upload_to="support_attachments_thumbnails",
                     ),
                 ),
                 (
-                    'author',
+                    "author",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='attachments',
-                        to='support.supportuser',
+                        related_name="attachments",
+                        to="support.supportuser",
                     ),
                 ),
                 (
-                    'issue',
+                    "issue",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='attachments',
-                        to='support.issue',
+                        related_name="attachments",
+                        to="support.issue",
                     ),
                 ),
-                ('error_traceback', models.TextField(blank=True)),
+                ("error_traceback", models.TextField(blank=True)),
             ],
             options={
-                'abstract': False,
-                'unique_together': {('issue', 'backend_id')},
+                "abstract": False,
+                "unique_together": {("issue", "backend_id")},
             },
             bases=(waldur_core.structure.models.StructureLoggableMixin, models.Model),
         ),
         migrations.CreateModel(
-            name='Comment',
+            name="Comment",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('error_message', models.TextField(blank=True)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("error_message", models.TextField(blank=True)),
                 (
-                    'state',
+                    "state",
                     django_fsm.FSMIntegerField(
                         choices=[
-                            (5, 'Creation Scheduled'),
-                            (6, 'Creating'),
-                            (1, 'Update Scheduled'),
-                            (2, 'Updating'),
-                            (7, 'Deletion Scheduled'),
-                            (8, 'Deleting'),
-                            (3, 'OK'),
-                            (4, 'Erred'),
+                            (5, "Creation Scheduled"),
+                            (6, "Creating"),
+                            (1, "Update Scheduled"),
+                            (2, "Updating"),
+                            (7, "Deletion Scheduled"),
+                            (8, "Deleting"),
+                            (3, "OK"),
+                            (4, "Erred"),
                         ],
                         default=5,
                     ),
                 ),
-                ('description', models.TextField()),
-                ('is_public', models.BooleanField(default=True)),
-                ('backend_id', models.CharField(blank=True, max_length=255, null=True)),
+                ("description", models.TextField()),
+                ("is_public", models.BooleanField(default=True)),
+                ("backend_id", models.CharField(blank=True, max_length=255, null=True)),
                 (
-                    'author',
+                    "author",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='comments',
-                        to='support.supportuser',
+                        related_name="comments",
+                        to="support.supportuser",
                     ),
                 ),
                 (
-                    'issue',
+                    "issue",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='comments',
-                        to='support.issue',
+                        related_name="comments",
+                        to="support.issue",
                     ),
                 ),
-                ('error_traceback', models.TextField(blank=True)),
-                ('remote_id', models.CharField(blank=True, max_length=255, null=True)),
+                ("error_traceback", models.TextField(blank=True)),
+                ("remote_id", models.CharField(blank=True, max_length=255, null=True)),
             ],
             options={
-                'ordering': ['-created'],
-                'unique_together': {('backend_id', 'issue')},
+                "ordering": ["-created"],
+                "unique_together": {("backend_id", "issue")},
             },
             bases=(waldur_core.core.models.BackendModelMixin, models.Model),
         ),

@@ -5,17 +5,17 @@ from . import models
 
 
 class BusySlotAdmin(admin.ModelAdmin):
-    list_display = ('offering', 'start', 'end')
+    list_display = ("offering", "start", "end")
 
 
 class BookingSlotForm(forms.ModelForm):
     class Meta:
         model = models.BookingSlot
-        exclude = ('resource',)
+        exclude = ("resource",)
 
 
 class BookingSlotAdmin(admin.ModelAdmin):
-    list_display = ('resource', 'start', 'end')
+    list_display = ("resource", "start", "end")
     form = BookingSlotForm
 
 

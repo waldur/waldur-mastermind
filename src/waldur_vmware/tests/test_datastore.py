@@ -45,7 +45,7 @@ class DatastoreGetTest(test.APITransactionTestCase):
     def test_filter_datastore_list(self):
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.get(
-            self.url, {'customer_uuid': self.fixture.customer.uuid.hex}
+            self.url, {"customer_uuid": self.fixture.customer.uuid.hex}
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(list(response.data)), 2)
@@ -56,7 +56,7 @@ class DatastorePullTest(test.APITransactionTestCase):
         super().setUp()
         self.settings = factories.VMwareServiceSettingsFactory()
         self.backend = backend.VMwareBackend(self.settings)
-        self.patcher = mock.patch('waldur_vmware.backend.VMwareClient')
+        self.patcher = mock.patch("waldur_vmware.backend.VMwareClient")
         self.mock_client = self.patcher.start()
 
     def tearDown(self):
@@ -81,11 +81,11 @@ class DatastorePullTest(test.APITransactionTestCase):
         datastores = []
         for i in range(count):
             backend_datastore = {
-                'name': 'datastore_%s' % i,
-                'type': 'VMFS',
-                'datastore': 'datastore_%s' % i,
-                'capacity': i * 1024 * 1024 * 10,
-                'free_space': i * 1024 * 1024 * 5,
+                "name": "datastore_%s" % i,
+                "type": "VMFS",
+                "datastore": "datastore_%s" % i,
+                "capacity": i * 1024 * 1024 * 10,
+                "free_space": i * 1024 * 1024 * 5,
             }
             datastores.append(backend_datastore)
 

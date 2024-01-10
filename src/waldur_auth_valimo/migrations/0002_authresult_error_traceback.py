@@ -5,13 +5,13 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('waldur_auth_valimo', '0001_initial'),
+        ("waldur_auth_valimo", "0001_initial"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='authresult',
-            name='error_traceback',
+            model_name="authresult",
+            name="error_traceback",
             field=models.TextField(blank=True),
         ),
     ]

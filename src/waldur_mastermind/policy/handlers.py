@@ -25,7 +25,7 @@ def project_estimated_cost_policy_handler(sender, instance, created=False, **kwa
             for action in policy.get_one_time_actions():
                 action(policy)
                 logger.info(
-                    '%s action has been triggered for project %s. Policy UUID: %s',
+                    "%s action has been triggered for project %s. Policy UUID: %s",
                     action.__name__,
                     policy.project.name,
                     policy.uuid.hex,
@@ -52,7 +52,7 @@ def project_estimated_cost_policy_handler_for_observable_class(
             for action in policy.get_not_one_time_actions():
                 action(policy, created)
                 logger.info(
-                    '%s action has been triggered for project %s. Policy UUID: %s',
+                    "%s action has been triggered for project %s. Policy UUID: %s",
                     action.__name__,
                     policy.project.name,
                     policy.uuid.hex,

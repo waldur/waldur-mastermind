@@ -89,50 +89,50 @@ class TestUsageAggregatorField(TransactionTestCase):
     def test_aggregator_usage_increases_on_child_quota_usage_increase(self):
         usage_value = 10
         for child in self.children:
-            child.set_quota_usage('usage_aggregator_quota', usage_value)
+            child.set_quota_usage("usage_aggregator_quota", usage_value)
 
         for parent in self.parents:
-            actual_usage = parent.get_quota_usage('usage_aggregator_quota')
+            actual_usage = parent.get_quota_usage("usage_aggregator_quota")
             self.assertEqual(actual_usage, usage_value)
 
-        actual_usage = self.grandparent.get_quota_usage('usage_aggregator_quota')
+        actual_usage = self.grandparent.get_quota_usage("usage_aggregator_quota")
         self.assertEqual(actual_usage, usage_value * len(self.children))
 
     def test_aggregator_usage_decreases_on_child_deletion(self):
         usage_value = 10
         for child in self.children:
-            child.set_quota_usage('usage_aggregator_quota', usage_value)
+            child.set_quota_usage("usage_aggregator_quota", usage_value)
 
         first_child = self.children[0]
         first_child.delete()
-        actual_usage = first_child.parent.get_quota_usage('usage_aggregator_quota')
+        actual_usage = first_child.parent.get_quota_usage("usage_aggregator_quota")
         self.assertEqual(actual_usage, 0)
 
-        actual_usage = self.grandparent.get_quota_usage('usage_aggregator_quota')
+        actual_usage = self.grandparent.get_quota_usage("usage_aggregator_quota")
         self.assertEqual(actual_usage, usage_value)
 
     def test_usage_aggregator_recalculation(self):
         usage_value = 10
         for child in self.children:
-            child.set_quota_usage('usage_aggregator_quota', usage_value)
+            child.set_quota_usage("usage_aggregator_quota", usage_value)
         # set quota as wrong number to test recalculation
         for parent in self.parents:
-            parent.set_quota_usage('usage_aggregator_quota', 666)
-        self.grandparent.set_quota_usage('usage_aggregator_quota', 1232)
+            parent.set_quota_usage("usage_aggregator_quota", 666)
+        self.grandparent.set_quota_usage("usage_aggregator_quota", 1232)
 
         update_standard_quotas()
 
         for parent in self.parents:
-            actual_usage = parent.get_quota_usage('usage_aggregator_quota')
+            actual_usage = parent.get_quota_usage("usage_aggregator_quota")
             self.assertEqual(actual_usage, usage_value)
 
-        actual_usage = self.grandparent.get_quota_usage('usage_aggregator_quota')
+        actual_usage = self.grandparent.get_quota_usage("usage_aggregator_quota")
         self.assertEqual(actual_usage, usage_value * len(self.children))
 
     def test_usage_aggregator_quota_works_with_specified_child_quota_name(self):
         usage_value = 10
         for child in self.children:
-            child.set_quota_usage('usage_aggregator_quota', usage_value)
+            child.set_quota_usage("usage_aggregator_quota", usage_value)
 
         # second_usage_aggregator_quota quota should increases too
         for parent in self.parents:

@@ -7,7 +7,7 @@ from waldur_core.core.utils import send_mail
 from . import models
 
 
-@shared_task(name='waldur_mastermind.notifications.send_broadcast_message_email')
+@shared_task(name="waldur_mastermind.notifications.send_broadcast_message_email")
 def send_broadcast_message_email(broadcast_message_uuid):
     broadcast_message = models.BroadcastMessage.objects.get(uuid=broadcast_message_uuid)
     emails = broadcast_message.emails
@@ -27,7 +27,7 @@ def send_broadcast_message_email(broadcast_message_uuid):
     broadcast_message.save()
 
 
-@shared_task(name='waldur_mastermind.notifications.send_scheduled_broadcast_messages')
+@shared_task(name="waldur_mastermind.notifications.send_scheduled_broadcast_messages")
 def send_scheduled_broadcast_messages():
     messages = models.BroadcastMessage.objects.filter(
         state=models.BroadcastMessage.States.SCHEDULED, send_at__lte=timezone.now()

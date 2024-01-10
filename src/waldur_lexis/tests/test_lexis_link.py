@@ -15,7 +15,7 @@ class LexisLinkCreateTest(test.APITransactionTestCase):
         self.fixture = fixtures.MarketplaceFixture()
         self.resource = self.fixture.resource
         self.resource.set_state_ok()
-        self.resource.backend_id = 'project_12345'
+        self.resource.backend_id = "project_12345"
         self.resource.save()
 
         self.ssh_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDRmKSYeNxfyNGIoYqQCXUjLlMFJSCX/Jx+k0ODlg0xpMMlBEEK test"
@@ -23,16 +23,16 @@ class LexisLinkCreateTest(test.APITransactionTestCase):
         offering = self.resource.offering
         offering.plugin_options.update(
             {
-                'heappe_url': "https://heappy.example.com",
-                'heappe_username': "heappe_user",
-                'heappe_cluster_id': 1,
-                'heappe_local_base_path': '~/',
+                "heappe_url": "https://heappy.example.com",
+                "heappe_username": "heappe_user",
+                "heappe_cluster_id": 1,
+                "heappe_local_base_path": "~/",
             }
         )
         offering.secret_options.update(
             {
-                'heappe_password': "6d9384da6e19449b9312a6c08b07f1e0",
-                'heappe_cluster_password': 'pass',
+                "heappe_password": "6d9384da6e19449b9312a6c08b07f1e0",
+                "heappe_cluster_password": "pass",
             }
         )
         offering.save()
@@ -53,70 +53,70 @@ class LexisLinkCreateTest(test.APITransactionTestCase):
 
     def test_robot_account_created_upon_lexis_link_creation(self):
         self.client.force_login(self.fixture.service_owner)
-        url = 'http://testserver' + reverse('lexis-link-list')
+        url = "http://testserver" + reverse("lexis-link-list")
         self.assertEqual(
             0,
             marketplace_models.RobotAccount.objects.filter(
-                type__istartswith='hl', resource=self.resource
+                type__istartswith="hl", resource=self.resource
             ).count(),
         )
         response = self.client.post(
-            url, data={'resource': factories.ResourceFactory.get_url(self.resource)}
+            url, data={"resource": factories.ResourceFactory.get_url(self.resource)}
         )
 
         self.assertEqual(201, response.status_code, response.data)
         self.assertEqual(
             1,
             marketplace_models.RobotAccount.objects.filter(
-                type__istartswith='hl', resource=self.resource
+                type__istartswith="hl", resource=self.resource
             ).count(),
         )
         robot_account = marketplace_models.RobotAccount.objects.get(
-            type__istartswith='hl', resource=self.resource
+            type__istartswith="hl", resource=self.resource
         )
-        self.assertEqual('', robot_account.username)
-        self.assertEqual('hl000', robot_account.type)
+        self.assertEqual("", robot_account.username)
+        self.assertEqual("hl000", robot_account.type)
 
     @override_settings(task_always_eager=True)
     def test_robot_account_username_update_triggers_task(self):
         responses.add(
             responses.POST,
-            'https://heappy.example.com/heappe/Management/SecureShellKey',
-            json={'PublicKeyOpenSSH': self.ssh_key},
+            "https://heappy.example.com/heappe/Management/SecureShellKey",
+            json={"PublicKeyOpenSSH": self.ssh_key},
         )
 
         responses.add(
             responses.GET,
-            'https://heappy.example.com/heappe/UserAndLimitationManagement/ProjectsForCurrentUser',
+            "https://heappy.example.com/heappe/UserAndLimitationManagement/ProjectsForCurrentUser",
             json=[],
         )
 
         responses.add(
             responses.GET,
-            'https://heappy.example.com/heappe/ClusterInformation/ListAvailableClusters',
-            json=[{'Id': 1}],
+            "https://heappy.example.com/heappe/ClusterInformation/ListAvailableClusters",
+            json=[{"Id": 1}],
         )
 
         responses.add(
             responses.POST,
-            'https://heappy.example.com/heappe/Management/Project',
-            json={'Id': 1},
+            "https://heappy.example.com/heappe/Management/Project",
+            json={"Id": 1},
         )
 
         responses.add(
             responses.POST,
-            'https://heappy.example.com/heappe/Management/ProjectAssignmentToCluster',
+            "https://heappy.example.com/heappe/Management/ProjectAssignmentToCluster",
             json={},
         )
 
         robot_account = marketplace_models.RobotAccount.objects.create(
-            username='',
-            type='hl001',
+            username="",
+            type="hl001",
             resource=self.resource,
         )
         lexis_link = models.LexisLink.objects.create(robot_account=robot_account)
 
-        robot_account.username = 'test_username'
+        robot_account.username = "test_username"
         robot_account.save()
         robot_account.refresh_from_db()
         lexis_link.refresh_from_db()
@@ -128,19 +128,19 @@ class LexisLinkCreateTest(test.APITransactionTestCase):
     def test_lexis_link_deletion_triggers_ssh_key_revoke(self):
         responses.add(
             responses.DELETE,
-            'https://heappy.example.com/heappe/Management/SecureShellKey',
+            "https://heappy.example.com/heappe/Management/SecureShellKey",
             json="",
         )
 
         responses.add(
             responses.GET,
-            'https://heappy.example.com/heappe/UserAndLimitationManagement/ProjectsForCurrentUser',
+            "https://heappy.example.com/heappe/UserAndLimitationManagement/ProjectsForCurrentUser",
             json=[
                 {
-                    'Project': {
-                        'Id': 1,
-                        'Name': self.resource.name,
-                        'AccountingString': self.resource.backend_id,
+                    "Project": {
+                        "Id": 1,
+                        "Name": self.resource.name,
+                        "AccountingString": self.resource.backend_id,
                     }
                 }
             ],
@@ -148,13 +148,13 @@ class LexisLinkCreateTest(test.APITransactionTestCase):
 
         responses.add(
             responses.DELETE,
-            'https://heappy.example.com/heappe/Management/Project',
+            "https://heappy.example.com/heappe/Management/Project",
             json="",
         )
 
         robot_account = marketplace_models.RobotAccount.objects.create(
-            username='test_username',
-            type='hl001',
+            username="test_username",
+            type="hl001",
             resource=self.resource,
             keys=[self.ssh_key],
         )
@@ -162,8 +162,8 @@ class LexisLinkCreateTest(test.APITransactionTestCase):
         lexis_link = models.LexisLink.objects.create(
             robot_account=robot_account, state=models.LexisLink.States.OK
         )
-        url = 'http://testserver' + reverse(
-            'lexis-link-detail', kwargs={'uuid': lexis_link.uuid.hex}
+        url = "http://testserver" + reverse(
+            "lexis-link-detail", kwargs={"uuid": lexis_link.uuid.hex}
         )
         self.client.force_login(self.fixture.service_manager)
         response = self.client.delete(url)

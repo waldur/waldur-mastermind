@@ -72,14 +72,14 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
 
         if not plan:
             logger.warning(
-                'Skipping an invoice creation because '
-                'billing is not enabled for resource. '
-                'Resource ID: %s',
+                "Skipping an invoice creation because "
+                "billing is not enabled for resource. "
+                "Resource ID: %s",
                 resource.id,
             )
             return
 
-        order_type = kwargs.get('order_type')
+        order_type = kwargs.get("order_type")
 
         for plan_component in plan.components.all():
             offering_component = plan_component.component
@@ -129,13 +129,13 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
                     month=invoice.month,
                     unit_price=unit_price,
                 )
-                name = f'{self.get_name(resource)} / {self.get_component_name(plan_component)}'
+                name = f"{self.get_name(resource)} / {self.get_component_name(plan_component)}"
                 details = self.get_component_details(resource, plan_component)
 
                 if campaign:
-                    name += ' Discount.'
-                    details['campaign_uuid'] = campaign.uuid.hex
-                    details['unit_price'] = float(unit_price)
+                    name += " Discount."
+                    details["campaign_uuid"] = campaign.uuid.hex
+                    details["unit_price"] = float(unit_price)
 
                 invoice_models.InvoiceItem.objects.create(
                     name=name,
@@ -155,34 +155,30 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
     @classmethod
     def get_component_details(cls, resource, plan_component):
         customer = resource.offering.customer
-        service_provider = getattr(customer, 'serviceprovider', None)
+        service_provider = getattr(customer, "serviceprovider", None)
 
         return {
-            'resource_name': resource.name,
-            'resource_uuid': resource.uuid.hex,
-            'plan_name': resource.plan.name if resource.plan else '',
-            'plan_uuid': resource.plan.uuid.hex if resource.plan else '',
-            'offering_type': resource.offering.type,
-            'offering_name': resource.offering.name,
-            'offering_uuid': resource.offering.uuid.hex,
-            'service_provider_name': customer.name,
-            'service_provider_uuid': ''
+            "resource_name": resource.name,
+            "resource_uuid": resource.uuid.hex,
+            "plan_name": resource.plan.name if resource.plan else "",
+            "plan_uuid": resource.plan.uuid.hex if resource.plan else "",
+            "offering_type": resource.offering.type,
+            "offering_name": resource.offering.name,
+            "offering_uuid": resource.offering.uuid.hex,
+            "service_provider_name": customer.name,
+            "service_provider_uuid": ""
             if not service_provider
             else service_provider.uuid.hex,
-            'plan_component_id': plan_component.id,
-            'offering_component_type': plan_component.component.type,
-            'offering_component_name': plan_component.component.name,
+            "plan_component_id": plan_component.id,
+            "offering_component_type": plan_component.component.type,
+            "offering_component_name": plan_component.component.name,
         }
 
     def get_name(self, resource):
         if resource.plan:
-            return '{} ({} / {})'.format(
-                resource.name,
-                resource.offering.name,
-                resource.plan.name,
-            )
+            return f"{resource.name} ({resource.offering.name} / {resource.plan.name})"
         else:
-            return f'{resource.name} ({resource.offering.name})'
+            return f"{resource.name} ({resource.offering.name})"
 
     @classmethod
     def get_total_quantity(cls, unit, value, start, end):
@@ -198,9 +194,9 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             return
         details = cls.get_component_details(source, plan_component)
         quantity = cls.convert_quantity(limit, offering_component.type)
-        details['resource_limit_periods'] = [
+        details["resource_limit_periods"] = [
             utils.serialize_resource_limit_period(
-                {'start': start, 'end': end, 'quantity': quantity}
+                {"start": start, "end": end, "quantity": quantity}
             )
         ]
         total_quantity = cls.get_total_quantity(
@@ -215,7 +211,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             unit = invoice_models.Units.QUANTITY
 
         invoice_models.InvoiceItem.objects.create(
-            name=f'{RegistrationManager.get_name(source)} / {cls.get_component_name(plan_component)}',
+            name=f"{RegistrationManager.get_name(source)} / {cls.get_component_name(plan_component)}",
             resource=source,
             project=source.project,
             unit_price=plan_component.price,
@@ -236,10 +232,10 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             details__offering_component_type=component_type,
             invoice=invoice,
         )
-        resource_limit_periods = invoice_item.details['resource_limit_periods']
+        resource_limit_periods = invoice_item.details["resource_limit_periods"]
         old_period = resource_limit_periods.pop()
-        old_quantity = int(old_period['quantity'])
-        old_start = parse_datetime(old_period['start'])
+        old_quantity = int(old_period["quantity"])
+        old_start = parse_datetime(old_period["start"])
         today = timezone.now()
         new_quantity = cls.convert_quantity(new_quantity, component_type)
         if old_quantity == new_quantity:
@@ -252,13 +248,13 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             new_start = today.replace(hour=0, minute=0, second=0)
             old_end = new_start - timedelta(seconds=1)
         old_period = utils.serialize_resource_limit_period(
-            {'start': old_start, 'end': old_end, 'quantity': old_quantity}
+            {"start": old_start, "end": old_end, "quantity": old_quantity}
         )
         new_period = utils.serialize_resource_limit_period(
             {
-                'start': new_start,
-                'end': get_current_month_end(),
-                'quantity': new_quantity,
+                "start": new_start,
+                "end": get_current_month_end(),
+                "quantity": new_quantity,
             }
         )
         resource_limit_periods.extend([old_period, new_period])
@@ -266,13 +262,13 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         invoice_item.quantity = sum(
             cls.get_total_quantity(
                 plan_component.plan.unit,
-                period['quantity'],
-                parse_datetime(period['start']),
-                parse_datetime(period['end']),
+                period["quantity"],
+                parse_datetime(period["start"]),
+                parse_datetime(period["end"]),
             )
             for period in resource_limit_periods
         )
-        invoice_item.save(update_fields=['details', 'quantity'])
+        invoice_item.save(update_fields=["details", "quantity"])
 
     @classmethod
     @transaction.atomic
@@ -296,7 +292,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         if created:
             return
 
-        if not instance.tracker.has_changed('state'):
+        if not instance.tracker.has_changed("state"):
             return
 
         if instance.state != instance.States.OK:
@@ -307,13 +303,13 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         if not order:
             return
 
-        coupon = order.attributes.get('coupon', '')
+        coupon = order.attributes.get("coupon", "")
 
         for campaign in promotions_models.Campaign.objects.filter(
             state=promotions_models.Campaign.States.ACTIVE,
             start_date__lte=resource.created,
             end_date__gte=resource.created,
-        ).filter(Q(coupon='') | Q(coupon=coupon)):
+        ).filter(Q(coupon="") | Q(coupon=coupon)):
             if campaign.check_resource_on_conditions_of_campaign(resource):
                 promotions_models.DiscountedResource.objects.get_or_create(
                     campaign=campaign,
@@ -331,7 +327,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
 
         if (
             resource.state == ResourceStates.OK
-            and resource.tracker.previous('state') == ResourceStates.CREATING
+            and resource.tracker.previous("state") == ResourceStates.CREATING
         ):
             cls.create_discounted_resource(sender, instance, created)
             registrators.RegistrationManager.register(
@@ -340,13 +336,13 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
 
         if (
             resource.state == ResourceStates.TERMINATED
-            and instance.tracker.previous('state') == ResourceStates.TERMINATING
+            and instance.tracker.previous("state") == ResourceStates.TERMINATING
         ):
             registrators.RegistrationManager.terminate(resource, timezone.now())
 
         if (
             resource.state != marketplace_models.Resource.States.CREATING
-            and resource.tracker.has_changed('plan_id')
+            and resource.tracker.has_changed("plan_id")
         ):
             registrators.RegistrationManager.terminate(resource, timezone.now())
             registrators.RegistrationManager.register(
@@ -355,7 +351,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
 
         if (
             resource.state != marketplace_models.Resource.States.CREATING
-            and resource.tracker.has_changed('limits')
+            and resource.tracker.has_changed("limits")
         ):
             today = timezone.now()
             invoice, _ = registrators.RegistrationManager.get_or_create_invoice(
@@ -364,7 +360,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             valid_limits = set(
                 resource.offering.components.filter(
                     billing_type=BillingTypes.LIMIT
-                ).values_list('type', flat=True)
+                ).values_list("type", flat=True)
             )
             for component_type, new_quantity in resource.limits.items():
                 if component_type not in valid_limits:
@@ -419,7 +415,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
             start = timezone.now()
             end = get_current_month_end()
             invoice_models.InvoiceItem.objects.create(
-                name=f'{RegistrationManager.get_name(resource)} / {cls.get_component_name(plan_component)}',
+                name=f"{RegistrationManager.get_name(resource)} / {cls.get_component_name(plan_component)}",
                 resource=resource,
                 project=resource.project,
                 unit_price=plan_component.price if diff > 0 else -plan_component.price,
@@ -441,7 +437,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         component_usage = instance
         resource = component_usage.resource
 
-        if not created and not component_usage.tracker.has_changed('usage'):
+        if not created and not component_usage.tracker.has_changed("usage"):
             return
 
         if resource.offering.type != cls.plugin_name:
@@ -455,8 +451,8 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         plan_period = component_usage.plan_period
         if not plan_period:
             logger.warning(
-                'Skipping processing of component usage with ID %s because '
-                'plan period is not defined.',
+                "Skipping processing of component usage with ID %s because "
+                "plan period is not defined.",
                 component_usage.id,
             )
             return
@@ -473,8 +469,8 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
                 plan_component = plan.components.get(component=offering_component)
             except ObjectDoesNotExist:
                 logger.warning(
-                    'Skipping processing of component usage with ID %s because '
-                    'plan component is not defined.',
+                    "Skipping processing of component usage with ID %s because "
+                    "plan component is not defined.",
                     component_usage.id,
                 )
                 return
@@ -513,7 +509,7 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
                 unit=common_mixins.UnitPriceMixin.Units.QUANTITY,
                 measured_unit=offering_component.measured_unit,
                 article_code=offering_component.article_code or plan.article_code,
-                name=resource.name + ' / ' + offering_component.name,
+                name=resource.name + " / " + offering_component.name,
             )
 
     @classmethod
@@ -531,12 +527,12 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         signals.post_save.connect(
             cls.on_resource_post_save,
             sender=marketplace_models.Resource,
-            dispatch_uid='%s.on_resource_post_save' % cls.__name__,
+            dispatch_uid="%s.on_resource_post_save" % cls.__name__,
         )
 
         signals.post_save.connect(
             cls.update_invoice_when_usage_is_reported,
             sender=marketplace_models.ComponentUsage,
-            dispatch_uid='waldur_mastermind.marketplace.'
-            'update_invoice_when_usage_is_reported_%s' % cls.__name__,
+            dispatch_uid="waldur_mastermind.marketplace."
+            "update_invoice_when_usage_is_reported_%s" % cls.__name__,
         )

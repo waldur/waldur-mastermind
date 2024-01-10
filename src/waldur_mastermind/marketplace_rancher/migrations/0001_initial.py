@@ -3,11 +3,11 @@ from django.db import migrations
 
 
 def create_offering_users_for_rancher_users(apps, schema_editor):
-    Offering = apps.get_model('marketplace', 'Offering')
-    OfferingUser = apps.get_model('marketplace', 'OfferingUser')
-    RancherUser = apps.get_model('waldur_rancher', 'RancherUser')
-    ServiceSettings = apps.get_model('structure', 'ServiceSettings')
-    ContentType = apps.get_model('contenttypes', 'ContentType')
+    Offering = apps.get_model("marketplace", "Offering")
+    OfferingUser = apps.get_model("marketplace", "OfferingUser")
+    RancherUser = apps.get_model("waldur_rancher", "RancherUser")
+    ServiceSettings = apps.get_model("structure", "ServiceSettings")
+    ContentType = apps.get_model("contenttypes", "ContentType")
     settings_content_type = ContentType.objects.get_for_model(ServiceSettings)
 
     for rancher_user in RancherUser.objects.all():
@@ -17,8 +17,8 @@ def create_offering_users_for_rancher_users(apps, schema_editor):
             )
         except ObjectDoesNotExist:
             print(
-                'Skipping Rancher user synchronization because offering is not found. '
-                'Rancher settings ID: %s',
+                "Skipping Rancher user synchronization because offering is not found. "
+                "Rancher settings ID: %s",
                 rancher_user.settings.id,
             )
             continue
@@ -32,9 +32,9 @@ def create_offering_users_for_rancher_users(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace', '0001_squashed_0076'),
-        ('waldur_rancher', '0001_squashed_0037_json_field'),
-        ('contenttypes', '0002_remove_content_type_name'),
+        ("marketplace", "0001_squashed_0076"),
+        ("waldur_rancher", "0001_squashed_0037_json_field"),
+        ("contenttypes", "0002_remove_content_type_name"),
     ]
 
     operations = [migrations.RunPython(create_offering_users_for_rancher_users)]

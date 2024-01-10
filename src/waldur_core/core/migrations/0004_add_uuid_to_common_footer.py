@@ -7,27 +7,27 @@ import waldur_core.core.fields
 
 
 def gen_uuid(apps, schema_editor):
-    CommonMailFooter = apps.get_model('core', 'CommonMailFooter')
+    CommonMailFooter = apps.get_model("core", "CommonMailFooter")
     for row in CommonMailFooter.objects.all():
         row.uuid = uuid.uuid4().hex
-        row.save(update_fields=['uuid'])
+        row.save(update_fields=["uuid"])
 
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('core', '0003_add_common_email_footer'),
+        ("core", "0003_add_common_email_footer"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='commonmailfooter',
-            name='uuid',
+            model_name="commonmailfooter",
+            name="uuid",
             field=waldur_core.core.fields.UUIDField(null=True),
         ),
         migrations.RunPython(gen_uuid, elidable=True),
         migrations.AlterField(
-            model_name='commonmailfooter',
-            name='uuid',
+            model_name="commonmailfooter",
+            name="uuid",
             field=waldur_core.core.fields.UUIDField(),
         ),
     ]

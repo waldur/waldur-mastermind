@@ -19,21 +19,21 @@ from waldur_openstack.openstack_base import models as openstack_base_models
 
 
 class Flavor(StateMixin, LoggableMixin, structure_models.ServiceProperty):
-    cores = models.PositiveSmallIntegerField(help_text=_('Number of cores in a VM'))
-    ram = models.PositiveIntegerField(help_text=_('Memory size in MiB'))
-    disk = models.PositiveIntegerField(help_text=_('Root disk size in MiB'))
+    cores = models.PositiveSmallIntegerField(help_text=_("Number of cores in a VM"))
+    ram = models.PositiveIntegerField(help_text=_("Memory size in MiB"))
+    disk = models.PositiveIntegerField(help_text=_("Root disk size in MiB"))
 
     class Permissions:
-        customer_path = 'settings__customer'
+        customer_path = "settings__customer"
 
     @classmethod
     def get_url_name(cls):
-        return 'openstack-flavor'
+        return "openstack-flavor"
 
     @classmethod
     def get_backend_fields(cls):
         readonly_fields = super().get_backend_fields()
-        return readonly_fields + ('cores', 'ram', 'disk')
+        return readonly_fields + ("cores", "ram", "disk")
 
     def get_backend(self):
         return self.settings.get_backend()
@@ -42,18 +42,18 @@ class Flavor(StateMixin, LoggableMixin, structure_models.ServiceProperty):
 class Image(openstack_base_models.BaseImage):
     @classmethod
     def get_url_name(cls):
-        return 'openstack-image'
+        return "openstack-image"
 
 
 class VolumeType(openstack_base_models.BaseVolumeType):
     @classmethod
     def get_url_name(cls):
-        return 'openstack-volume-type'
+        return "openstack-volume-type"
 
 
 class ServerGroup(openstack_base_models.BaseServerGroup, structure_models.SubResource):
     tenant = models.ForeignKey(
-        on_delete=models.CASCADE, to='Tenant', related_name='server_groups'
+        on_delete=models.CASCADE, to="Tenant", related_name="server_groups"
     )
 
     tracker = FieldTracker()
@@ -63,19 +63,19 @@ class ServerGroup(openstack_base_models.BaseServerGroup, structure_models.SubRes
 
     @classmethod
     def get_url_name(cls):
-        return 'openstack-server-group'
+        return "openstack-server-group"
 
     @classmethod
     def get_backend_fields(cls):
         return super().get_backend_fields() + (
-            'name',
-            'policy',
+            "name",
+            "policy",
         )
 
 
 class SecurityGroup(structure_models.SubResource):
     tenant = models.ForeignKey(
-        on_delete=models.CASCADE, to='Tenant', related_name='security_groups'
+        on_delete=models.CASCADE, to="Tenant", related_name="security_groups"
     )
 
     def get_backend(self):
@@ -83,43 +83,43 @@ class SecurityGroup(structure_models.SubResource):
 
     @classmethod
     def get_url_name(cls):
-        return 'openstack-sgp'
+        return "openstack-sgp"
 
     def increase_backend_quotas_usage(self, validate=False):
-        self.tenant.add_quota_usage('security_group_count', 1, validate=validate)
+        self.tenant.add_quota_usage("security_group_count", 1, validate=validate)
         self.tenant.add_quota_usage(
-            'security_group_rule_count',
+            "security_group_rule_count",
             self.rules.count(),
             validate=validate,
         )
 
     def decrease_backend_quotas_usage(self):
-        self.tenant.add_quota_usage('security_group_count', -1)
-        self.tenant.add_quota_usage('security_group_rule_count', -self.rules.count())
+        self.tenant.add_quota_usage("security_group_count", -1)
+        self.tenant.add_quota_usage("security_group_rule_count", -self.rules.count())
 
     def change_backend_quotas_usage_on_rules_update(
         self, old_rules_count, validate=False
     ):
         count = self.rules.count() - old_rules_count
         self.tenant.add_quota_usage(
-            'security_group_rule_count', count, validate=validate
+            "security_group_rule_count", count, validate=validate
         )
 
     @classmethod
     def get_backend_fields(cls):
-        return super().get_backend_fields() + ('name', 'description')
+        return super().get_backend_fields() + ("name", "description")
 
 
 class SecurityGroupRule(
     core_models.LoggableMixin, openstack_base_models.BaseSecurityGroupRule
 ):
     security_group = models.ForeignKey(
-        on_delete=models.CASCADE, to=SecurityGroup, related_name='rules'
+        on_delete=models.CASCADE, to=SecurityGroup, related_name="rules"
     )
     remote_group = models.ForeignKey(
         on_delete=models.CASCADE,
         to=SecurityGroup,
-        related_name='+',
+        related_name="+",
         null=True,
         blank=True,
     )
@@ -127,29 +127,29 @@ class SecurityGroupRule(
 
     def get_log_fields(self):
         return (
-            'security_group',
-            'protocol',
-            'from_port',
-            'to_port',
-            'cidr',
-            'direction',
-            'ethertype',
-            'backend_id',
+            "security_group",
+            "protocol",
+            "from_port",
+            "to_port",
+            "cidr",
+            "direction",
+            "ethertype",
+            "backend_id",
         )
 
 
 class FloatingIP(core_models.RuntimeStateMixin, structure_models.SubResource):
     tenant = models.ForeignKey(
-        on_delete=models.CASCADE, to='Tenant', related_name='floating_ips'
+        on_delete=models.CASCADE, to="Tenant", related_name="floating_ips"
     )
     address = models.GenericIPAddressField(
-        null=True, blank=True, protocol='IPv4', default=None
+        null=True, blank=True, protocol="IPv4", default=None
     )
     backend_network_id = models.CharField(max_length=255, editable=False)
     port = models.ForeignKey(
         on_delete=models.SET_NULL,
-        to='Port',
-        related_name='floating_ips',
+        to="Port",
+        related_name="floating_ips",
         blank=True,
         null=True,
     )
@@ -157,40 +157,36 @@ class FloatingIP(core_models.RuntimeStateMixin, structure_models.SubResource):
     tracker = FieldTracker()
 
     class Meta:
-        unique_together = ('tenant', 'address')
-        verbose_name = _('Floating IP')
-        verbose_name_plural = _('Floating IPs')
+        unique_together = ("tenant", "address")
+        verbose_name = _("Floating IP")
+        verbose_name_plural = _("Floating IPs")
 
     def get_backend(self):
         return self.tenant.get_backend()
 
     @classmethod
     def get_url_name(cls):
-        return 'openstack-fip'
+        return "openstack-fip"
 
     def __str__(self):
-        return '{}:{} ({})'.format(
-            self.address,
-            self.runtime_state,
-            self.service_settings,
-        )
+        return f"{self.address}:{self.runtime_state} ({self.service_settings})"
 
     @classmethod
     def get_backend_fields(cls):
         return super().get_backend_fields() + (
-            'name',
-            'description',
-            'address',
-            'backend_network_id',
-            'runtime_state',
-            'port',
+            "name",
+            "description",
+            "address",
+            "backend_network_id",
+            "runtime_state",
+            "port",
         )
 
     def increase_backend_quotas_usage(self, validate=False):
-        self.tenant.add_quota_usage('floating_ip_count', 1, validate=validate)
+        self.tenant.add_quota_usage("floating_ip_count", 1, validate=validate)
 
     def decrease_backend_quotas_usage(self):
-        self.tenant.add_quota_usage('floating_ip_count', -1)
+        self.tenant.add_quota_usage("floating_ip_count", -1)
 
 
 class Tenant(structure_models.PrivateCloud):
@@ -220,13 +216,13 @@ class Tenant(structure_models.PrivateCloud):
         max_length=100,
         blank=True,
         help_text=_(
-            'Optional availability group. Will be used for all instances provisioned in this tenant'
+            "Optional availability group. Will be used for all instances provisioned in this tenant"
         ),
     )
     default_volume_type_name = models.CharField(
         max_length=100,
         blank=True,
-        help_text=_('Volume type name to use when creating volumes.'),
+        help_text=_("Volume type name to use when creating volumes."),
     )
     user_username = models.CharField(max_length=50, blank=True)
     user_password = models.CharField(max_length=50, blank=True)
@@ -234,7 +230,7 @@ class Tenant(structure_models.PrivateCloud):
     tracker = FieldTracker()
 
     class Meta:
-        unique_together = ('service_settings', 'backend_id')
+        unique_together = ("service_settings", "backend_id")
 
     @classmethod
     def generate_username(cls, name):
@@ -243,7 +239,7 @@ class Tenant(structure_models.PrivateCloud):
         :param name: tenant name
         :return: username
         """
-        return slugify(name)[:25] + '-user-%s' % core_utils.pwgen(4)
+        return slugify(name)[:25] + "-user-%s" % core_utils.pwgen(4)
 
     def get_backend(self):
         return self.service_settings.get_backend(tenant_id=self.backend_id)
@@ -251,41 +247,41 @@ class Tenant(structure_models.PrivateCloud):
     @classmethod
     def get_backend_fields(cls):
         return super().get_backend_fields() + (
-            'name',
-            'description',
-            'error_message',
-            'runtime_state',
+            "name",
+            "description",
+            "error_message",
+            "runtime_state",
         )
 
     def get_access_url(self):
         settings = self.service_settings
-        access_url = settings.get_option('access_url')
+        access_url = settings.get_option("access_url")
         if access_url:
             return access_url
 
         if settings.backend_url:
             parsed = urlparse(settings.backend_url)
-            return f'{parsed.scheme}://{parsed.hostname}/dashboard'
+            return f"{parsed.scheme}://{parsed.hostname}/dashboard"
 
     def format_quota(self, name, limit):
         if name == self.Quotas.vcpu.name:
             return int(limit)
         elif name in (self.Quotas.storage.name, self.Quotas.ram.name):
-            return _('%s GB') % int(limit / 1024)
+            return _("%s GB") % int(limit / 1024)
         else:
             return limit
 
     @classmethod
     def get_quotas_names(cls):
-        volume_type_names = VolumeType.objects.values_list('name', flat=True).distinct()
+        volume_type_names = VolumeType.objects.values_list("name", flat=True).distinct()
         return super().get_quotas_names() + [
-            f'gigabytes_{name}' for name in volume_type_names
+            f"gigabytes_{name}" for name in volume_type_names
         ]
 
 
 class Router(structure_models.SubResource):
     tenant: Tenant = models.ForeignKey(
-        on_delete=models.CASCADE, to=Tenant, related_name='routers'
+        on_delete=models.CASCADE, to=Tenant, related_name="routers"
     )
     routes = JSONField(default=list)
     fixed_ips = JSONField(default=list)
@@ -297,12 +293,12 @@ class Router(structure_models.SubResource):
 
     @classmethod
     def get_url_name(cls):
-        return 'openstack-router'
+        return "openstack-router"
 
 
 class Network(core_models.RuntimeStateMixin, structure_models.SubResource):
     tenant = models.ForeignKey(
-        on_delete=models.CASCADE, to=Tenant, related_name='networks'
+        on_delete=models.CASCADE, to=Tenant, related_name="networks"
     )
     is_external = models.BooleanField(default=False)
     type = models.CharField(max_length=50, blank=True)
@@ -310,7 +306,7 @@ class Network(core_models.RuntimeStateMixin, structure_models.SubResource):
     mtu = models.IntegerField(
         null=True,
         help_text=_(
-            'The maximum transmission unit (MTU) value to address fragmentation.'
+            "The maximum transmission unit (MTU) value to address fragmentation."
         ),
         validators=[
             validators.MinValueValidator(68),
@@ -323,90 +319,90 @@ class Network(core_models.RuntimeStateMixin, structure_models.SubResource):
 
     @classmethod
     def get_url_name(cls):
-        return 'openstack-network'
+        return "openstack-network"
 
     def increase_backend_quotas_usage(self, validate=False):
-        self.tenant.add_quota_usage('network_count', 1, validate=validate)
+        self.tenant.add_quota_usage("network_count", 1, validate=validate)
 
     def decrease_backend_quotas_usage(self):
-        self.tenant.add_quota_usage('network_count', -1)
+        self.tenant.add_quota_usage("network_count", -1)
 
     @classmethod
     def get_backend_fields(cls):
         return super().get_backend_fields() + (
-            'name',
-            'description',
-            'is_external',
-            'type',
-            'segmentation_id',
-            'runtime_state',
-            'mtu',
+            "name",
+            "description",
+            "is_external",
+            "type",
+            "segmentation_id",
+            "runtime_state",
+            "mtu",
         )
 
 
 class SubNet(openstack_base_models.BaseSubNet, structure_models.SubResource):
     network = models.ForeignKey(
-        on_delete=models.CASCADE, to=Network, related_name='subnets'
+        on_delete=models.CASCADE, to=Network, related_name="subnets"
     )
     disable_gateway = models.BooleanField(default=False)
     host_routes = JSONField(
         default=list,
-        help_text=_('List of additional routes for the subnet.'),
+        help_text=_("List of additional routes for the subnet."),
     )
 
     class Meta:
-        verbose_name = _('Subnet')
-        verbose_name_plural = _('Subnets')
+        verbose_name = _("Subnet")
+        verbose_name_plural = _("Subnets")
 
     def get_backend(self):
         return self.network.get_backend()
 
     @classmethod
     def get_url_name(cls):
-        return 'openstack-subnet'
+        return "openstack-subnet"
 
     def increase_backend_quotas_usage(self, validate=False):
-        self.network.tenant.add_quota_usage('subnet_count', 1, validate=validate)
+        self.network.tenant.add_quota_usage("subnet_count", 1, validate=validate)
 
     def decrease_backend_quotas_usage(self):
-        self.network.tenant.add_quota_usage('subnet_count', -1)
+        self.network.tenant.add_quota_usage("subnet_count", -1)
 
     @classmethod
     def get_backend_fields(cls):
         return super().get_backend_fields() + (
-            'name',
-            'description',
-            'allocation_pools',
-            'cidr',
-            'ip_version',
-            'enable_dhcp',
-            'gateway_ip',
-            'dns_nameservers',
-            'host_routes',
-            'is_connected',
+            "name",
+            "description",
+            "allocation_pools",
+            "cidr",
+            "ip_version",
+            "enable_dhcp",
+            "gateway_ip",
+            "dns_nameservers",
+            "host_routes",
+            "is_connected",
         )
 
     def get_log_fields(self):
-        return super().get_log_fields() + ('network',)
+        return super().get_log_fields() + ("network",)
 
 
 class Port(structure_models.SubResource, openstack_base_models.Port):
     tenant: Tenant = models.ForeignKey(
-        on_delete=models.CASCADE, to=Tenant, related_name='ports'
+        on_delete=models.CASCADE, to=Tenant, related_name="ports"
     )
     network = models.ForeignKey(
         on_delete=models.CASCADE,
         to=Network,
-        related_name='ports',
+        related_name="ports",
         null=True,
         blank=True,
     )
     port_security_enabled = models.BooleanField(default=True)
-    security_groups = models.ManyToManyField(SecurityGroup, related_name='ports')
+    security_groups = models.ManyToManyField(SecurityGroup, related_name="ports")
 
     @classmethod
     def get_url_name(cls):
-        return 'openstack-port'
+        return "openstack-port"
 
     def __str__(self):
         return self.name
@@ -416,14 +412,14 @@ class CustomerOpenStack(TimeStampedModel):
     settings = models.ForeignKey(
         structure_models.ServiceSettings,
         on_delete=models.CASCADE,
-        limit_choices_to={'shared': True, 'type': 'OpenStack'},
+        limit_choices_to={"shared": True, "type": "OpenStack"},
     )
     customer = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.Customer)
     external_network_id = models.CharField(
-        _('OpenStack external network ID'), max_length=255
+        _("OpenStack external network ID"), max_length=255
     )
 
     class Meta:
-        verbose_name = _('Organization OpenStack settings')
-        verbose_name_plural = _('Organization OpenStack settings')
-        unique_together = ('settings', 'customer')
+        verbose_name = _("Organization OpenStack settings")
+        verbose_name_plural = _("Organization OpenStack settings")
+        unique_together = ("settings", "customer")

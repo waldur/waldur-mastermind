@@ -11,8 +11,8 @@ class FlavorCreateExecutor(core_executors.CreateExecutor):
     def get_task_signature(cls, flavor, serialized_flavor, **kwargs):
         return core_tasks.BackendMethodTask().si(
             serialized_flavor,
-            'create_flavor',
-            state_transition='begin_creating',
+            "create_flavor",
+            state_transition="begin_creating",
         )
 
 
@@ -21,6 +21,6 @@ class FlavorDeleteExecutor(core_executors.DeleteExecutor):
     def get_task_signature(cls, flavor, serialized_flavor, **kwargs):
         return core_tasks.BackendMethodTask().si(
             serialized_flavor,
-            'delete_flavor',
-            state_transition='begin_deleting',
+            "delete_flavor",
+            state_transition="begin_deleting",
         )

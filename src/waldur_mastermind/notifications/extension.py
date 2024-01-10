@@ -6,7 +6,7 @@ from waldur_core.core import WaldurExtension
 class NotificationsExtension(WaldurExtension):
     @staticmethod
     def django_app():
-        return 'waldur_mastermind.notifications'
+        return "waldur_mastermind.notifications"
 
     @staticmethod
     def is_assembly():
@@ -21,9 +21,9 @@ class NotificationsExtension(WaldurExtension):
     @staticmethod
     def celery_tasks():
         return {
-            'send-scheduled-broadcast-notifications': {
-                'task': 'waldur_mastermind.notifications.send_scheduled_broadcast_messages',
-                'schedule': timezone.timedelta(hours=12),
-                'args': (),
+            "send-scheduled-broadcast-notifications": {
+                "task": "waldur_mastermind.notifications.send_scheduled_broadcast_messages",
+                "schedule": timezone.timedelta(hours=12),
+                "args": (),
             },
         }

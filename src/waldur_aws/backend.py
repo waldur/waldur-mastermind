@@ -23,9 +23,9 @@ from . import models
 logger = logging.getLogger(__name__)
 
 
-RESOURCE_EXTRA_ATTRIBUTES_MAP['volume']['volume_type'] = {
-    'xpath': 'volumeType',
-    'transform_func': str,
+RESOURCE_EXTRA_ATTRIBUTES_MAP["volume"]["volume_type"] = {
+    "xpath": "volumeType",
+    "transform_func": str,
 }
 
 
@@ -65,14 +65,14 @@ class ExtendedEC2NodeDriver(EC2NodeDriver):
         """
 
         params = {
-            'Action': 'DescribeVolumes',
+            "Action": "DescribeVolumes",
         }
         if node_id:
-            filters = {'attachment.instance-id': node_id}
+            filters = {"attachment.instance-id": node_id}
             params.update(self._build_filters(filters))
 
         if ex_volume_ids:
-            params.update(self._pathlist('VolumeId', ex_volume_ids))
+            params.update(self._pathlist("VolumeId", ex_volume_ids))
 
         if ex_filters:
             params.update(self._build_filters(ex_filters))
@@ -81,7 +81,7 @@ class ExtendedEC2NodeDriver(EC2NodeDriver):
         volumes = [
             self._to_volume(el)
             for el in response.findall(
-                fixxpath(xpath='volumeSet/item', namespace=NAMESPACE)
+                fixxpath(xpath="volumeSet/item", namespace=NAMESPACE)
             )
         ]
         return volumes
@@ -106,7 +106,7 @@ class ExtendedEC2NodeDriver(EC2NodeDriver):
         name,
         location,
         snapshot=None,
-        ex_volume_type='standard',
+        ex_volume_type="standard",
         ex_iops=None,
     ):
         """
@@ -136,30 +136,30 @@ class ExtendedEC2NodeDriver(EC2NodeDriver):
         :return: The newly created volume.
         :rtype: :class:`StorageVolume`
         """
-        valid_volume_types = ['standard', 'io1', 'gp2']
+        valid_volume_types = ["standard", "io1", "gp2"]
 
-        params = {'Action': 'CreateVolume', 'Size': str(size)}
+        params = {"Action": "CreateVolume", "Size": str(size)}
 
         if ex_volume_type and ex_volume_type not in valid_volume_types:
-            raise ValueError('Invalid volume type specified: %s' % (ex_volume_type))
+            raise ValueError("Invalid volume type specified: %s" % (ex_volume_type))
 
         if snapshot:
-            params['SnapshotId'] = snapshot.id
+            params["SnapshotId"] = snapshot.id
 
-        params['AvailabilityZone'] = location.name
+        params["AvailabilityZone"] = location.name
 
         if ex_volume_type:
-            params['VolumeType'] = ex_volume_type
+            params["VolumeType"] = ex_volume_type
 
-        if ex_volume_type == 'io1' and ex_iops:
-            params['Iops'] = ex_iops
+        if ex_volume_type == "io1" and ex_iops:
+            params["Iops"] = ex_iops
 
         volume = self._to_volume(
             self.connection.request(self.path, params=params).object, name=name
         )
 
-        if self.ex_create_tags(volume, {'Name': name}):
-            volume.extra['tags']['Name'] = name
+        if self.ex_create_tags(volume, {"Name": name}):
+            volume.extra["tags"]["Name"] = name
 
         return volume
 
@@ -177,7 +177,7 @@ class ExtendedEC2NodeDriver(EC2NodeDriver):
         :return: True on success, False otherwise.
         :rtype: ``bool``
         """
-        attributes = {'InstanceType.Value': size_id}
+        attributes = {"InstanceType.Value": size_id}
         return self.ex_modify_instance_attribute(node, attributes)
 
 
@@ -192,24 +192,24 @@ class AWSBackend(ServiceBackend):
 
     State = NodeState
     Regions = (
-        ('us-east-1', 'US East (N. Virginia)'),
-        ('us-west-2', 'US West (Oregon)'),
-        ('us-west-1', 'US West (N. California)'),
-        ('eu-west-1', 'EU (Ireland)'),
-        ('eu-central-1', 'EU (Frankfurt)'),
-        ('ap-south-1', 'Asia Pacific (Mumbai)'),
-        ('ap-southeast-1', 'Asia Pacific (Singapore)'),
-        ('ap-southeast-2', 'Asia Pacific (Sydney)'),
-        ('ap-northeast-1', 'Asia Pacific (Tokyo)'),
-        ('ap-northeast-2', 'Asia Pacific (Seoul)'),
-        ('sa-east-1', 'South America (Sao Paulo)'),
+        ("us-east-1", "US East (N. Virginia)"),
+        ("us-west-2", "US West (Oregon)"),
+        ("us-west-1", "US West (N. California)"),
+        ("eu-west-1", "EU (Ireland)"),
+        ("eu-central-1", "EU (Frankfurt)"),
+        ("ap-south-1", "Asia Pacific (Mumbai)"),
+        ("ap-southeast-1", "Asia Pacific (Singapore)"),
+        ("ap-southeast-2", "Asia Pacific (Sydney)"),
+        ("ap-northeast-1", "Asia Pacific (Tokyo)"),
+        ("ap-northeast-2", "Asia Pacific (Seoul)"),
+        ("sa-east-1", "South America (Sao Paulo)"),
     )
 
     def __init__(self, settings):
         super().__init__(settings)
         self.settings = settings
 
-    def _get_api(self, region='us-east-1'):
+    def _get_api(self, region="us-east-1"):
         return ExtendedEC2NodeDriver(
             self.settings.username, self.settings.token, region=region
         )
@@ -239,7 +239,7 @@ class AWSBackend(ServiceBackend):
         self.update_images()
 
     def pull_regions(self):
-        nc_regions = set(models.Region.objects.values_list('backend_id', flat=True))
+        nc_regions = set(models.Region.objects.values_list("backend_id", flat=True))
         for backend_id, name in self.Regions:
             if backend_id in nc_regions:
                 continue
@@ -247,12 +247,12 @@ class AWSBackend(ServiceBackend):
                 models.Region.objects.create(backend_id=backend_id, name=name)
             except IntegrityError:
                 message = (
-                    'Could not create AWS region with name %s due to concurrent update'
+                    "Could not create AWS region with name %s due to concurrent update"
                 )
                 logger.warning(message, name)
 
     def pull_sizes(self):
-        regions = models.Region.objects.values_list('backend_id', flat=True)
+        regions = models.Region.objects.values_list("backend_id", flat=True)
         for region in regions:
             manager = self._get_api(region)
 
@@ -262,11 +262,11 @@ class AWSBackend(ServiceBackend):
                 size, _ = models.Size.objects.update_or_create(
                     backend_id=backend_size.id,
                     defaults={
-                        'name': backend_size.name,
-                        'cores': backend_size.extra.get('cpu', 1),
-                        'ram': self.gb2mb(backend_size.ram),
-                        'disk': self.gb2mb(backend_size.disk),
-                        'price': backend_size.price,
+                        "name": backend_size.name,
+                        "cores": backend_size.extra.get("cpu", 1),
+                        "ram": self.gb2mb(backend_size.ram),
+                        "disk": self.gb2mb(backend_size.disk),
+                        "price": backend_size.price,
                     },
                 )
 
@@ -276,7 +276,7 @@ class AWSBackend(ServiceBackend):
                         backend_id__in=[
                             r
                             for r, v in REGION_DETAILS.items()
-                            if backend_size.id in v['instance_types']
+                            if backend_size.id in v["instance_types"]
                         ]
                     )
                 )
@@ -292,11 +292,11 @@ class AWSBackend(ServiceBackend):
             try:
                 models.Image.objects.update_or_create(
                     backend_id=backend_image.id,
-                    defaults={'name': backend_image.name, 'region': region},
+                    defaults={"name": backend_image.name, "region": region},
                 )
             except IntegrityError:
                 logger.warning(
-                    'Could not create AWS image with id %s due to concurrent update',
+                    "Could not create AWS image with id %s due to concurrent update",
                     backend_image.id,
                 )
 
@@ -315,9 +315,9 @@ class AWSBackend(ServiceBackend):
                 ex_volume_type=volume.volume_type,
             )
             volume.backend_id = new_volume.id
-            volume.save(update_fields=['backend_id'])
+            volume.save(update_fields=["backend_id"])
         except Exception as e:
-            logger.exception('Unable to create volume with id %s', volume.id)
+            logger.exception("Unable to create volume with id %s", volume.id)
             raise AWSBackendError(e)
 
     def delete_volume(self, volume):
@@ -325,7 +325,7 @@ class AWSBackend(ServiceBackend):
             manager = self._get_api(volume.region.backend_id)
             manager.destroy_volume(self.get_volume(volume))
         except Exception as e:
-            logger.exception('Unable to delete volume with id %s', volume.id)
+            logger.exception("Unable to delete volume with id %s", volume.id)
             raise AWSBackendError(e)
 
     def attach_volume(self, volume):
@@ -339,7 +339,7 @@ class AWSBackend(ServiceBackend):
             manager.attach_volume(backend_node, backend_volume, volume.device)
         except Exception as e:
             logger.exception(
-                'Unable to attach volume with id %s to instance with id %s',
+                "Unable to attach volume with id %s to instance with id %s",
                 volume.id,
                 volume.instance.id,
             )
@@ -354,12 +354,12 @@ class AWSBackend(ServiceBackend):
             backend_volume = manager.get_volume(volume.backend_id)
             manager.detach_volume(backend_volume)
         except Exception as e:
-            logger.exception('Unable to detach volume with id %s', volume.id)
+            logger.exception("Unable to detach volume with id %s", volume.id)
             raise AWSBackendError(e)
         else:
             volume.instance = None
-            volume.device = ''
-            volume.save(update_fields=['instance', 'device'])
+            volume.device = ""
+            volume.save(update_fields=["instance", "device"])
 
     def get_all_images(self):
         """
@@ -368,22 +368,22 @@ class AWSBackend(ServiceBackend):
         # TODO: change into a more flexible filtering
         options = self.settings.options or {}
         regex = None
-        if 'images_regex' in options:
+        if "images_regex" in options:
             try:
-                regex = re.compile(options['images_regex'])
+                regex = re.compile(options["images_regex"])
             except re.error:
                 logger.warning(
-                    'Invalid images regexp supplied for service settings %s: %s',
+                    "Invalid images regexp supplied for service settings %s: %s",
                     self.settings.uuid.hex,
-                    options['images_regex'],
+                    options["images_regex"],
                 )
 
         for region in models.Region.objects.all():
             manager = self._get_api(region.backend_id)
             # opinionated filter for populating image list
             for image in manager.list_images(
-                ex_owner='aws-marketplace',
-                ex_filters={'virtualization-type': 'hvm', 'image-type': 'machine'},
+                ex_owner="aws-marketplace",
+                ex_filters={"virtualization-type": "hvm", "image-type": "machine"},
             ):
                 # Skip images without name
                 if image.name:
@@ -394,10 +394,10 @@ class AWSBackend(ServiceBackend):
     def update_images(self):
         def get_images(manager, owner):
             return {
-                i.id: i.extra['description']
+                i.id: i.extra["description"]
                 for i in manager.list_images(
                     ex_owner=owner,
-                    ex_filters={'virtualization-type': 'hvm', 'image-type': 'machine'},
+                    ex_filters={"virtualization-type": "hvm", "image-type": "machine"},
                 )
             }
 
@@ -405,8 +405,8 @@ class AWSBackend(ServiceBackend):
             images = region.image_set.all()
             if images.count():
                 manager = self._get_api(region.backend_id)
-                backend_images = get_images(manager, 'amazon')
-                backend_images.update(get_images(manager, 'aws-marketplace'))
+                backend_images = get_images(manager, "amazon")
+                backend_images.update(get_images(manager, "aws-marketplace"))
                 for image in images:
                     try:
                         name = backend_images[image.backend_id]
@@ -418,7 +418,7 @@ class AWSBackend(ServiceBackend):
                         image.delete()
                     else:
                         image.name = name
-                        image.save(update_fields=['name'])
+                        image.save(update_fields=["name"])
 
     def get_all_nodes(self):
         """
@@ -444,7 +444,7 @@ class AWSBackend(ServiceBackend):
             ex_custom_data=instance.user_data,
             # Set volume termination on instance delete
             ex_blockdevicemappings=[
-                {'DeviceName': '/dev/sda1', 'Ebs': {'DeleteOnTermination': 'true'}}
+                {"DeviceName": "/dev/sda1", "Ebs": {"DeleteOnTermination": "true"}}
             ],
         )
 
@@ -453,15 +453,15 @@ class AWSBackend(ServiceBackend):
             try:
                 backend_ssh_key = self.get_or_create_ssh_key(ssh_key, manager)
             except LibcloudError as e:
-                logger.exception('Unable to provision SSH key %s', ssh_key_uuid)
+                logger.exception("Unable to provision SSH key %s", ssh_key_uuid)
                 raise AWSBackendError(e)
 
-            params['ex_keyname'] = backend_ssh_key['keyName']
+            params["ex_keyname"] = backend_ssh_key["keyName"]
 
         try:
             backend_instance = manager.create_node(**params)
         except LibcloudError as e:
-            logger.exception('Failed to provision virtual machine %s', instance.name)
+            logger.exception("Failed to provision virtual machine %s", instance.name)
             raise AWSBackendError(e)
 
         if ssh_key_uuid:
@@ -469,7 +469,7 @@ class AWSBackend(ServiceBackend):
             instance.key_fingerprint = ssh_key.fingerprint
 
         instance.backend_id = backend_instance.id
-        instance.save(update_fields=['backend_id'])
+        instance.save(update_fields=["backend_id"])
         return instance
 
     def pull_instance_volume(self, volume):
@@ -479,17 +479,17 @@ class AWSBackend(ServiceBackend):
             backend_volume = manager.list_volumes(instance.backend_id)[0]
         except Exception as e:
             logger.exception(
-                'Failed to get volume for Amazon virtual machine %s', instance.uuid.hex
+                "Failed to get volume for Amazon virtual machine %s", instance.uuid.hex
             )
             raise AWSBackendError(str(e))
 
-        volume.name = ('volume-%s' % instance.name)[:150]
+        volume.name = ("volume-%s" % instance.name)[:150]
         volume.backend_id = backend_volume.id
-        volume.device = backend_volume.extra['device']
+        volume.device = backend_volume.extra["device"]
         volume.size = backend_volume.size
-        volume.volume_type = backend_volume.extra['type']
+        volume.volume_type = backend_volume.extra["type"]
         volume.save(
-            update_fields=['name', 'backend_id', 'device', 'size', 'volume_type']
+            update_fields=["name", "backend_id", "device", "size", "volume_type"]
         )
 
     def reboot_instance(self, instance):
@@ -498,12 +498,12 @@ class AWSBackend(ServiceBackend):
             manager.reboot_node(manager.get_node(instance.backend_id))
         except Exception as e:
             logger.exception(
-                'Unable to reboot Amazon virtual machine %s', instance.uuid.hex
+                "Unable to reboot Amazon virtual machine %s", instance.uuid.hex
             )
             raise AWSBackendError(str(e))
         else:
             instance.start_time = timezone.now()
-            instance.save(update_fields=['start_time'])
+            instance.save(update_fields=["start_time"])
 
     def stop_instance(self, instance):
         try:
@@ -511,12 +511,12 @@ class AWSBackend(ServiceBackend):
             manager.ex_stop_node(manager.get_node(instance.backend_id))
         except Exception as e:
             logger.exception(
-                'Unable to stop Amazon virtual machine %s', instance.uuid.hex
+                "Unable to stop Amazon virtual machine %s", instance.uuid.hex
             )
             raise AWSBackendError(str(e))
         else:
             instance.start_time = None
-            instance.save(update_fields=['start_time'])
+            instance.save(update_fields=["start_time"])
 
     def start_instance(self, instance):
         try:
@@ -524,12 +524,12 @@ class AWSBackend(ServiceBackend):
             manager.ex_start_node(manager.get_node(instance.backend_id))
         except Exception as e:
             logger.exception(
-                'Unable to start Amazon virtual machine %s', instance.uuid.hex
+                "Unable to start Amazon virtual machine %s", instance.uuid.hex
             )
             raise AWSBackendError(str(e))
         else:
             instance.start_time = timezone.now()
-            instance.save(update_fields=['start_time'])
+            instance.save(update_fields=["start_time"])
 
     def destroy_instance(self, instance):
         try:
@@ -537,7 +537,7 @@ class AWSBackend(ServiceBackend):
             manager.destroy_node(manager.get_node(instance.backend_id))
         except Exception as e:
             logger.exception(
-                'Unable to destroy Amazon virtual machine %s', instance.uuid.hex
+                "Unable to destroy Amazon virtual machine %s", instance.uuid.hex
             )
             raise AWSBackendError(str(e))
         else:
@@ -549,7 +549,7 @@ class AWSBackend(ServiceBackend):
             manager.ex_change_node_size(manager.get_node(instance.backend_id), size_id)
         except Exception as e:
             logger.exception(
-                'Unable to resize Amazon virtual machine %s', instance.uuid.hex
+                "Unable to resize Amazon virtual machine %s", instance.uuid.hex
             )
             raise AWSBackendError(str(e))
 
@@ -559,13 +559,13 @@ class AWSBackend(ServiceBackend):
             backend_vm = manager.get_node(instance.backend_id)
         except Exception as e:
             logger.exception(
-                'Unable to pull state for Amazon virtual machine %s', instance.uuid.hex
+                "Unable to pull state for Amazon virtual machine %s", instance.uuid.hex
             )
             raise AWSBackendError(str(e))
 
         if backend_vm.state != instance.runtime_state:
             instance.runtime_state = backend_vm.state
-            instance.save(update_fields=['runtime_state'])
+            instance.save(update_fields=["runtime_state"])
 
     def pull_instance_public_ips(self, instance):
         try:
@@ -573,14 +573,14 @@ class AWSBackend(ServiceBackend):
             backend_vm = manager.get_node(instance.backend_id)
         except Exception as e:
             logger.exception(
-                'Unable to pull public IPs for Amazon virtual machine %s',
+                "Unable to pull public IPs for Amazon virtual machine %s",
                 instance.uuid.hex,
             )
             raise AWSBackendError(str(e))
 
         if backend_vm.public_ips != instance.public_ips:
             instance.public_ips = backend_vm.public_ips
-            instance.save(update_fields=['public_ips'])
+            instance.save(update_fields=["public_ips"])
 
     def is_instance_terminated(self, instance):
         try:
@@ -588,7 +588,7 @@ class AWSBackend(ServiceBackend):
             backend_vm = manager.get_node(instance.backend_id)
         except Exception as e:
             logger.exception(
-                'Unable to check state for Amazon virtual machine %s', instance.uuid.hex
+                "Unable to check state for Amazon virtual machine %s", instance.uuid.hex
             )
             raise AWSBackendError(str(e))
 
@@ -602,27 +602,27 @@ class AWSBackend(ServiceBackend):
         except Exception as e:
             raise AWSBackendError(e)
 
-        for device in instance.extra['block_device_mapping']:
-            vid = device['ebs']['volume_id']
+        for device in instance.extra["block_device_mapping"]:
+            vid = device["ebs"]["volume_id"]
             if vid in volumes:
-                device['ebs']['volume_size'] = volumes[vid]
+                device["ebs"]["volume_size"] = volumes[vid]
 
         # libcloud is a funny buggy thing, put all required info here
-        instance_type = self.get_size(instance.extra['instance_type'], manager)
+        instance_type = self.get_size(instance.extra["instance_type"], manager)
 
         return {
-            'id': instance.id,
-            'name': instance.name or instance.uuid.hex,
-            'cores': instance_type.extra.get('cpu', 1),
-            'ram': instance_type.ram,
-            'disk': self.gb2mb(sum(volumes.values())),
-            'created': dateparse.parse_datetime(instance.extra['launch_time']),
-            'region': region.uuid.hex,
-            'state': models.Instance.States.OK,
-            'public_ips': instance.public_ips,
-            'flavor_name': instance.extra.get('instance_type'),
-            'type': get_resource_type(models.Instance),
-            'runtime_state': instance.state,
+            "id": instance.id,
+            "name": instance.name or instance.uuid.hex,
+            "cores": instance_type.extra.get("cpu", 1),
+            "ram": instance_type.ram,
+            "disk": self.gb2mb(sum(volumes.values())),
+            "created": dateparse.parse_datetime(instance.extra["launch_time"]),
+            "region": region.uuid.hex,
+            "state": models.Instance.States.OK,
+            "public_ips": instance.public_ips,
+            "flavor_name": instance.extra.get("instance_type"),
+            "type": get_resource_type(models.Instance),
+            "runtime_state": instance.state,
         }
 
     def get_manager(self, instance):
@@ -652,7 +652,7 @@ class AWSBackend(ServiceBackend):
 
     def get_instances_for_import(self):
         cur_instances = models.Instance.objects.all().values_list(
-            'backend_id', flat=True
+            "backend_id", flat=True
         )
 
         return [
@@ -663,7 +663,7 @@ class AWSBackend(ServiceBackend):
         ]
 
     def get_volumes_for_import(self):
-        cur_volumes = models.Volume.objects.all().values_list('backend_id', flat=True)
+        cur_volumes = models.Volume.objects.all().values_list("backend_id", flat=True)
         return [
             self.to_volume(volume)
             for region, volume in self.get_all_volumes()
@@ -698,13 +698,13 @@ class AWSBackend(ServiceBackend):
     def import_instance(self, backend_id, project):
         region, instance = self.find_instance(backend_id)
         return models.Instance.objects.create(
-            name=instance['name'],
-            public_ips=instance['public_ips'],
-            cores=instance['cores'],
-            ram=instance['ram'],
-            disk=instance['disk'],
-            created=instance['created'],
-            state=instance['state'],
+            name=instance["name"],
+            public_ips=instance["public_ips"],
+            cores=instance["cores"],
+            ram=instance["ram"],
+            disk=instance["disk"],
+            created=instance["created"],
+            state=instance["state"],
             region=region,
             service_settings=self.settings,
             project=project,
@@ -713,13 +713,13 @@ class AWSBackend(ServiceBackend):
     def import_volume(self, backend_id, project):
         region, volume = self.find_volume(backend_id)
         return models.Volume.objects.create(
-            name=volume['name'],
-            size=volume['size'],
-            created=volume['created'],
-            runtime_state=volume['runtime_state'],
+            name=volume["name"],
+            size=volume["size"],
+            created=volume["created"],
+            runtime_state=volume["runtime_state"],
             state=models.Volume.States.OK,
-            device=volume['device'],
-            volume_type=volume['volume_type'],
+            device=volume["device"],
+            volume_type=volume["volume_type"],
             region=region,
             service_settings=self.settings,
             project=project,
@@ -746,21 +746,21 @@ class AWSBackend(ServiceBackend):
                 for node in manager.list_volumes():
                     yield region, node
         except Exception as e:
-            logger.exception('Unable to list EC2 volumes')
+            logger.exception("Unable to list EC2 volumes")
             raise AWSBackendError(e)
 
     def to_volume(self, volume):
         return {
-            'id': volume.id,
-            'name': volume.name,
-            'size': volume.size,
-            'created': volume.extra['create_time'],
-            'state': self._get_volume_state(volume.state),
-            'runtime_state': volume.state,
-            'type': get_resource_type(models.Volume),
-            'device': volume.extra['device'],
-            'instance_id': volume.extra['instance_id'],
-            'volume_type': volume.extra['volume_type'],
+            "id": volume.id,
+            "name": volume.name,
+            "size": volume.size,
+            "created": volume.extra["create_time"],
+            "state": self._get_volume_state(volume.state),
+            "runtime_state": volume.state,
+            "type": get_resource_type(models.Volume),
+            "device": volume.extra["device"],
+            "instance_id": volume.extra["instance_id"],
+            "volume_type": volume.extra["volume_type"],
         }
 
     def _get_volume_state(self, state):
@@ -785,4 +785,4 @@ class AWSBackend(ServiceBackend):
         backend_volume = self.get_volume(volume)
         if backend_volume.state != volume.runtime_state:
             volume.runtime_state = backend_volume.state
-            volume.save(update_fields=['runtime_state'])
+            volume.save(update_fields=["runtime_state"])

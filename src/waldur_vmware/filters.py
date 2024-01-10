@@ -9,7 +9,7 @@ from . import models
 class VirtualMachineFilter(structure_filters.BaseResourceFilter):
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.VirtualMachine
-        fields = structure_filters.BaseResourceFilter.Meta.fields + ('runtime_state',)
+        fields = structure_filters.BaseResourceFilter.Meta.fields + ("runtime_state",)
 
 
 class PortFilter(structure_filters.BaseResourceFilter):
@@ -17,14 +17,14 @@ class PortFilter(structure_filters.BaseResourceFilter):
         model = models.Port
 
     vm = core_filters.URLFilter(
-        view_name='vmware-virtual-machine-detail', field_name='vm__uuid'
+        view_name="vmware-virtual-machine-detail", field_name="vm__uuid"
     )
-    vm_uuid = django_filters.UUIDFilter(field_name='vm__uuid')
+    vm_uuid = django_filters.UUIDFilter(field_name="vm__uuid")
 
     network = core_filters.URLFilter(
-        view_name='vmware-network-detail', field_name='network__uuid'
+        view_name="vmware-network-detail", field_name="network__uuid"
     )
-    network_uuid = django_filters.UUIDFilter(field_name='network__uuid')
+    network_uuid = django_filters.UUIDFilter(field_name="network__uuid")
 
 
 class DiskFilter(structure_filters.BaseResourceFilter):
@@ -32,11 +32,11 @@ class DiskFilter(structure_filters.BaseResourceFilter):
         model = models.Disk
 
     vm = core_filters.URLFilter(
-        view_name='vmware-virtual-machine-detail', field_name='vm__uuid'
+        view_name="vmware-virtual-machine-detail", field_name="vm__uuid"
     )
-    vm_uuid = django_filters.UUIDFilter(field_name='vm__uuid')
+    vm_uuid = django_filters.UUIDFilter(field_name="vm__uuid")
     ORDERING_FIELDS = structure_filters.BaseResourceFilter.ORDERING_FIELDS + (
-        ('size', 'size'),
+        ("size", "size"),
     )
 
 
@@ -47,7 +47,7 @@ class TemplateFilter(structure_filters.ServicePropertySettingsFilter):
 
 class ClusterFilter(structure_filters.ServicePropertySettingsFilter):
     customer_uuid = django_filters.UUIDFilter(
-        method='filter_customer', label='Customer UUID'
+        method="filter_customer", label="Customer UUID"
     )
 
     def filter_customer(self, queryset, name, value):
@@ -59,10 +59,10 @@ class ClusterFilter(structure_filters.ServicePropertySettingsFilter):
 
 class NetworkFilter(structure_filters.ServicePropertySettingsFilter):
     customer_uuid = django_filters.UUIDFilter(
-        method='filter_customer', label='Customer UUID'
+        method="filter_customer", label="Customer UUID"
     )
     customer_pair_uuid = django_filters.UUIDFilter(
-        method='filter_customer_pair', label='Customer UUID'
+        method="filter_customer_pair", label="Customer UUID"
     )
 
     def filter_customer(self, queryset, name, value):
@@ -77,7 +77,7 @@ class NetworkFilter(structure_filters.ServicePropertySettingsFilter):
 
 class DatastoreFilter(structure_filters.ServicePropertySettingsFilter):
     customer_uuid = django_filters.UUIDFilter(
-        method='filter_customer', label='Customer UUID'
+        method="filter_customer", label="Customer UUID"
     )
 
     def filter_customer(self, queryset, name, value):
@@ -89,7 +89,7 @@ class DatastoreFilter(structure_filters.ServicePropertySettingsFilter):
 
 class FolderFilter(structure_filters.ServicePropertySettingsFilter):
     customer_uuid = django_filters.UUIDFilter(
-        method='filter_customer', label='Customer UUID'
+        method="filter_customer", label="Customer UUID"
     )
 
     def filter_customer(self, queryset, name, value):

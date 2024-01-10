@@ -49,10 +49,10 @@ class ResourceGetTest(test.APITransactionTestCase):
             billing_type=models.OfferingComponent.BillingTypes.USAGE,
         )
 
-        self.assertTrue(self.get_resource().data['is_usage_based'])
+        self.assertTrue(self.get_resource().data["is_usage_based"])
 
     def test_resource_is_not_usage_based(self):
-        self.assertFalse(self.get_resource().data['is_usage_based'])
+        self.assertFalse(self.get_resource().data["is_usage_based"])
 
     def test_project_manager_can_get_resource_data(self):
         response = self.get_resource(self.fixture.manager)
@@ -83,20 +83,20 @@ class ResourceGetTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.owner)
         url = factories.ResourceFactory.get_list_url()
         response = self.client.get(
-            url, {'service_manager_uuid': self.fixture.user.uuid.hex}
+            url, {"service_manager_uuid": self.fixture.user.uuid.hex}
         )
 
         # Assert
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['uuid'], resource.uuid.hex)
+        self.assertEqual(response.data[0]["uuid"], resource.uuid.hex)
 
     def test_resource_contains_project_and_customer_data_after_project_deletion(self):
         expected_data = {
-            'project_name': self.project.name,
-            'project_uuid': self.project.uuid,
-            'project_description': self.project.description,
-            'customer_name': self.project.customer.name,
-            'customer_uuid': self.project.customer.uuid,
+            "project_name": self.project.name,
+            "project_uuid": self.project.uuid,
+            "project_description": self.project.description,
+            "customer_name": self.project.customer.name,
+            "customer_uuid": self.project.customer.uuid,
         }
 
         self.project.delete()
@@ -106,17 +106,17 @@ class ResourceGetTest(test.APITransactionTestCase):
 
     def test_username_is_fetched_for_current_user_and_offering(self):
         models.OfferingUser.objects.create(
-            offering=self.offering, user=self.fixture.manager, username='alice'
+            offering=self.offering, user=self.fixture.manager, username="alice"
         )
         response = self.get_resource(self.fixture.manager)
-        self.assertEqual(response.data['username'], 'alice')
+        self.assertEqual(response.data["username"], "alice")
 
     def test_resource_data_includes_order_in_progress(self):
         response = self.get_resource(self.fixture.owner)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        self.assertIn('order_in_progress', response.data)
-        self.assertIsNone(response.data['order_in_progress'])
+        self.assertIn("order_in_progress", response.data)
+        self.assertIsNone(response.data["order_in_progress"])
 
     def test_resource_data_includes_order_info_for_existing_one(self):
         models.Order.objects.create(
@@ -129,8 +129,8 @@ class ResourceGetTest(test.APITransactionTestCase):
         response = self.get_resource(self.fixture.owner)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        self.assertIn('order_in_progress', response.data)
-        self.assertIsNotNone(response.data['order_in_progress'])
+        self.assertIn("order_in_progress", response.data)
+        self.assertIsNotNone(response.data["order_in_progress"])
 
 
 class ResourceSwitchPlanTest(test.APITransactionTestCase):
@@ -158,8 +158,8 @@ class ResourceSwitchPlanTest(test.APITransactionTestCase):
 
     def switch_plan(self, user, resource, plan):
         self.client.force_authenticate(user)
-        url = factories.ResourceFactory.get_url(resource, 'switch_plan')
-        payload = {'plan': factories.PlanFactory.get_public_url(plan)}
+        url = factories.ResourceFactory.get_url(resource, "switch_plan")
+        payload = {"plan": factories.PlanFactory.get_public_url(plan)}
         return self.client.post(url, payload)
 
     def test_plan_switch_is_available_if_plan_limit_is_not_reached(self):
@@ -237,7 +237,7 @@ class ResourceSwitchPlanTest(test.APITransactionTestCase):
         response = self.switch_plan(self.fixture.staff, self.resource1, self.plan2)
 
         # Assert
-        order = models.Order.objects.get(uuid=response.data['order_uuid'])
+        order = models.Order.objects.get(uuid=response.data["order_uuid"])
         self.assertEqual(order.state, models.Order.States.EXECUTING)
         self.assertEqual(order.created_by, self.fixture.staff)
 
@@ -261,7 +261,7 @@ class ResourceSwitchPlanTest(test.APITransactionTestCase):
         response = self.switch_plan(self.fixture.owner, self.resource1, self.plan2)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @mock.patch('waldur_mastermind.marketplace.tasks.process_order')
+    @mock.patch("waldur_mastermind.marketplace.tasks.process_order")
     def test_order_has_been_approved_if_user_has_got_permissions(self, mock_task):
         # Arrange
         self.plan2.max_amount = 10
@@ -271,13 +271,13 @@ class ResourceSwitchPlanTest(test.APITransactionTestCase):
         response = self.switch_plan(self.fixture.owner, self.resource1, self.plan2)
 
         # Assert
-        order = models.Order.objects.get(uuid=response.data['order_uuid'])
+        order = models.Order.objects.get(uuid=response.data["order_uuid"])
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         mock_task.delay.assert_called_once_with(
-            'marketplace.order:%s' % order.id, 'core.user:%s' % self.fixture.owner.id
+            "marketplace.order:%s" % order.id, "core.user:%s" % self.fixture.owner.id
         )
 
-    @mock.patch('waldur_mastermind.marketplace.views.tasks')
+    @mock.patch("waldur_mastermind.marketplace.views.tasks")
     def test_order_has_not_been_approved_if_user_has_not_got_permissions(
         self, mock_tasks
     ):
@@ -312,14 +312,14 @@ class ResourceTerminateTest(test.APITransactionTestCase):
     def terminate(self, user, attributes=None):
         attributes = attributes or {}
         self.client.force_authenticate(user)
-        url = factories.ResourceFactory.get_url(self.resource, 'terminate')
+        url = factories.ResourceFactory.get_url(self.resource, "terminate")
         if attributes:
-            return self.client.post(url, {'attributes': attributes})
+            return self.client.post(url, {"attributes": attributes})
         else:
             return self.client.post(url)
 
     @mock.patch(
-        'waldur_mastermind.marketplace.tasks.notify_consumer_about_pending_order.delay'
+        "waldur_mastermind.marketplace.tasks.notify_consumer_about_pending_order.delay"
     )
     def test_service_provider_can_terminate_resource(self, mocked_approve):
         # Arrange
@@ -339,7 +339,7 @@ class ResourceTerminateTest(test.APITransactionTestCase):
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        order = models.Order.objects.get(uuid=response.data['order_uuid'])
+        order = models.Order.objects.get(uuid=response.data["order_uuid"])
         self.assertEqual(order.project, self.project)
 
     @data(
@@ -377,7 +377,7 @@ class ResourceTerminateTest(test.APITransactionTestCase):
         response = self.terminate(self.fixture.staff)
 
         # Assert
-        order = models.Order.objects.get(uuid=response.data['order_uuid'])
+        order = models.Order.objects.get(uuid=response.data["order_uuid"])
         self.assertEqual(order.state, models.Order.States.EXECUTING)
         self.assertEqual(order.created_by, self.fixture.staff)
 
@@ -403,13 +403,13 @@ class ResourceTerminateTest(test.APITransactionTestCase):
 
     def test_delete_options_can_be_passed_if_resource_is_terminated(self):
         # Act
-        response = self.terminate(self.fixture.staff, {'param': True})
+        response = self.terminate(self.fixture.staff, {"param": True})
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        order = models.Order.objects.get(uuid=response.data['order_uuid'])
+        order = models.Order.objects.get(uuid=response.data["order_uuid"])
         self.assertEqual(order.project, self.project)
-        self.assertTrue(order.attributes.get('param'))
+        self.assertTrue(order.attributes.get("param"))
 
     def test_user_can_terminate_resource_if_project_has_been_soft_deleted(self):
         self.project.is_removed = True
@@ -452,22 +452,22 @@ class PlanUsageTest(test.APITransactionTestCase):
 
     def get_stats(self, data=None):
         self.client.force_authenticate(self.fixture.owner)
-        url = factories.PlanFactory.get_list_url('usage_stats')
+        url = factories.PlanFactory.get_list_url("usage_stats")
         response = self.client.get(url, data)
         return response
 
     def test_count_plans_for_ok_resources(self):
         response = self.get_stats()
-        self.assertEqual(response.data[0]['offering_uuid'], self.offering.uuid)
+        self.assertEqual(response.data[0]["offering_uuid"], self.offering.uuid)
         self.assertEqual(
-            response.data[0]['customer_provider_uuid'], self.offering.customer.uuid
+            response.data[0]["customer_provider_uuid"], self.offering.customer.uuid
         )
-        self.assertEqual(response.data[0]['plan_uuid'], self.plan1.uuid)
-        self.assertEqual(response.data[0]['usage'], 3)
+        self.assertEqual(response.data[0]["plan_uuid"], self.plan1.uuid)
+        self.assertEqual(response.data[0]["usage"], 3)
 
     def test_count_plans_for_terminated_resources(self):
         response = self.get_stats()
-        self.assertEqual(response.data[1]['usage'], 2)
+        self.assertEqual(response.data[1]["usage"], 2)
 
     def test_order_by_remaining_ascending(self):
         self.plan1.max_amount = 100
@@ -476,11 +476,11 @@ class PlanUsageTest(test.APITransactionTestCase):
         self.plan2.max_amount = 10
         self.plan2.save()
 
-        response = self.get_stats({'o': 'remaining'})
+        response = self.get_stats({"o": "remaining"})
         data = response.data
 
-        self.assertEqual(data[0]['remaining'], 10 - 2)
-        self.assertEqual(data[1]['remaining'], 100 - 3)
+        self.assertEqual(data[0]["remaining"], 10 - 2)
+        self.assertEqual(data[1]["remaining"], 100 - 3)
 
     def test_order_by_remaining_descending(self):
         self.plan1.max_amount = 100
@@ -489,11 +489,11 @@ class PlanUsageTest(test.APITransactionTestCase):
         self.plan2.max_amount = 10
         self.plan2.save()
 
-        response = self.get_stats({'o': '-remaining'})
+        response = self.get_stats({"o": "-remaining"})
         data = response.data
 
-        self.assertEqual(data[0]['remaining'], 100 - 3)
-        self.assertEqual(data[1]['remaining'], 10 - 2)
+        self.assertEqual(data[0]["remaining"], 100 - 3)
+        self.assertEqual(data[1]["remaining"], 10 - 2)
 
     def test_filter_plans_by_offering_uuid(self):
         plan = factories.PlanFactory()
@@ -506,10 +506,10 @@ class PlanUsageTest(test.APITransactionTestCase):
             state=models.Resource.States.OK,
         )
 
-        response = self.get_stats({'offering_uuid': plan.offering.uuid.hex})
+        response = self.get_stats({"offering_uuid": plan.offering.uuid.hex})
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['usage'], 4)
-        self.assertEqual(response.data[0]['offering_uuid'], plan.offering.uuid)
+        self.assertEqual(response.data[0]["usage"], 4)
+        self.assertEqual(response.data[0]["offering_uuid"], plan.offering.uuid)
 
     def test_filter_plans_by_customer_provider_uuid(self):
         plan = factories.PlanFactory()
@@ -523,19 +523,19 @@ class PlanUsageTest(test.APITransactionTestCase):
         )
 
         response = self.get_stats(
-            {'customer_provider_uuid': plan.offering.customer.uuid.hex}
+            {"customer_provider_uuid": plan.offering.customer.uuid.hex}
         )
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['usage'], 4)
+        self.assertEqual(response.data[0]["usage"], 4)
         self.assertEqual(
-            response.data[0]['customer_provider_uuid'], plan.offering.customer.uuid
+            response.data[0]["customer_provider_uuid"], plan.offering.customer.uuid
         )
 
 
 class ResourceCostEstimateTest(test.APITransactionTestCase):
     @override_config(
         WALDUR_SUPPORT_ENABLED=True,
-        WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE='basic',
+        WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE="basic",
     )
     def test_when_order_is_processed_cost_estimate_is_initialized(self):
         # Arrange
@@ -546,7 +546,7 @@ class ResourceCostEstimateTest(test.APITransactionTestCase):
         order = factories.OrderFactory(
             offering=offering,
             plan=plan,
-            attributes={'name': 'item_name', 'description': 'Description'},
+            attributes={"name": "item_name", "description": "Description"},
             state=models.Order.States.EXECUTING,
         )
 
@@ -563,12 +563,12 @@ class ResourceCostEstimateTest(test.APITransactionTestCase):
         one_time_offering_component = factories.OfferingComponentFactory(
             offering=offering,
             billing_type=models.OfferingComponent.BillingTypes.ONE_TIME,
-            type='signup',
+            type="signup",
         )
         usage_offering_component = factories.OfferingComponentFactory(
             offering=offering,
             billing_type=models.OfferingComponent.BillingTypes.USAGE,
-            type='cpu',
+            type="cpu",
         )
 
         plan = factories.PlanFactory()
@@ -612,12 +612,12 @@ class ResourceCostEstimateTest(test.APITransactionTestCase):
         switch_offering_component = factories.OfferingComponentFactory(
             offering=offering,
             billing_type=models.OfferingComponent.BillingTypes.ON_PLAN_SWITCH,
-            type='plan_switch',
+            type="plan_switch",
         )
         usage_offering_component = factories.OfferingComponentFactory(
             offering=offering,
             billing_type=models.OfferingComponent.BillingTypes.USAGE,
-            type='cpu',
+            type="cpu",
         )
 
         plan = factories.PlanFactory()
@@ -640,19 +640,19 @@ class ResourceCostEstimateTest(test.APITransactionTestCase):
 @ddt
 class ResourceNotificationTest(test.APITransactionTestCase):
     @data(
-        'log_resource_creation_succeeded',
-        'log_resource_creation_failed',
-        'log_resource_update_succeeded',
-        'log_resource_update_failed',
-        'log_resource_terminate_succeeded',
-        'log_resource_terminate_failed',
+        "log_resource_creation_succeeded",
+        "log_resource_creation_failed",
+        "log_resource_update_succeeded",
+        "log_resource_update_failed",
+        "log_resource_terminate_succeeded",
+        "log_resource_terminate_failed",
     )
-    @mock.patch('waldur_mastermind.marketplace.log.tasks')
+    @mock.patch("waldur_mastermind.marketplace.log.tasks")
     def test_notify_about_resource_change(self, log_func_name, mock_tasks):
         resource = factories.ResourceFactory()
         log_func = getattr(log, log_func_name)
         log_func(resource)
-        if log_func_name != 'log_resource_update_succeeded':
+        if log_func_name != "log_resource_update_succeeded":
             mock_tasks.notify_about_resource_change.delay.assert_called_once()
         else:
             mock_tasks.notify_about_resource_change.delay.assert_not_called()
@@ -666,15 +666,15 @@ class ResourceUpdateTest(test.APITransactionTestCase):
 
     def make_request(self, user, payload=None):
         self.client.force_authenticate(user)
-        payload = payload or {'name': 'new name', 'description': 'new description'}
+        payload = payload or {"name": "new name", "description": "new description"}
         return self.client.patch(self.url, payload)
 
     def test_authorized_user_can_update_resource(self):
         response = self.make_request(self.fixture.staff)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.resource.refresh_from_db()
-        self.assertEqual(self.resource.name, 'new name')
-        self.assertEqual(self.resource.description, 'new description')
+        self.assertEqual(self.resource.name, "new name")
+        self.assertEqual(self.resource.description, "new description")
 
     def test_unauthorized_user_can_not_update_resource(self):
         response = self.make_request(self.fixture.user)
@@ -687,14 +687,13 @@ class ResourceUpdateTest(test.APITransactionTestCase):
         self.resource.refresh_from_db()
         self.assertTrue(
             logging_models.Event.objects.filter(
-                message='Marketplace resource %s has been renamed. Old name: %s.'
-                % (self.resource.name, old_name)
+                message=f"Marketplace resource {self.resource.name} has been renamed. Old name: {old_name}."
             ).exists()
         )
 
     def test_authorized_user_can_update_end_date(self):
-        with freeze_time('2020-01-01'):
-            response = self.make_request(self.fixture.staff, {'end_date': '2021-01-01'})
+        with freeze_time("2020-01-01"):
+            response = self.make_request(self.fixture.staff, {"end_date": "2021-01-01"})
             self.assertEqual(response.status_code, status.HTTP_200_OK)
             self.resource.refresh_from_db()
             self.assertTrue(self.resource.end_date)
@@ -702,30 +701,29 @@ class ResourceUpdateTest(test.APITransactionTestCase):
 
     @test_helpers.override_marketplace_settings(ENABLE_RESOURCE_END_DATE=False)
     def test_user_can_not_update_end_date_if_feature_is_disabled(self):
-        response = self.make_request(self.fixture.staff, {'end_date': '2021-01-01'})
+        response = self.make_request(self.fixture.staff, {"end_date": "2021-01-01"})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_authorized_user_can_set_current_past_date(self):
-        with freeze_time('2020-01-01'):
-            response = self.make_request(self.fixture.staff, {'end_date': '2020-01-01'})
+        with freeze_time("2020-01-01"):
+            response = self.make_request(self.fixture.staff, {"end_date": "2020-01-01"})
             self.assertEqual(response.status_code, status.HTTP_200_OK)
             self.resource.refresh_from_db()
             self.assertTrue(self.resource.end_date)
 
     def test_user_cannot_set_past_date(self):
-        with freeze_time('2022-01-01'):
-            response = self.make_request(self.fixture.staff, {'end_date': '2020-01-01'})
+        with freeze_time("2022-01-01"):
+            response = self.make_request(self.fixture.staff, {"end_date": "2020-01-01"})
             self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_update_end_date_should_generate_audit_log(self):
-        with freeze_time('2020-01-01'):
-            response = self.make_request(self.fixture.staff, {'end_date': '2021-01-01'})
+        with freeze_time("2020-01-01"):
+            response = self.make_request(self.fixture.staff, {"end_date": "2021-01-01"})
             self.assertEqual(response.status_code, status.HTTP_200_OK)
             self.resource.refresh_from_db()
             self.assertTrue(
                 logging_models.Event.objects.filter(
-                    message='End date of marketplace resource %s has been updated. End date: %s. User: %s.'
-                    % (self.resource.name, self.resource.end_date, self.fixture.staff)
+                    message=f"End date of marketplace resource {self.resource.name} has been updated. End date: {self.resource.end_date}. User: {self.fixture.staff}."
                 ).exists()
             )
 
@@ -736,7 +734,7 @@ class ResourceSetEndDateByProviderTest(test.APITransactionTestCase):
         self.fixture = MarketplaceFixture()
         self.resource = self.fixture.resource
         self.url = factories.ResourceFactory.get_url(
-            self.resource, 'set_end_date_by_provider'
+            self.resource, "set_end_date_by_provider"
         )
         CustomerRole.OWNER.add_permission(PermissionEnum.SET_RESOURCE_END_DATE)
         CustomerRole.MANAGER.add_permission(PermissionEnum.SET_RESOURCE_END_DATE)
@@ -748,74 +746,74 @@ class ResourceSetEndDateByProviderTest(test.APITransactionTestCase):
     @test_helpers.override_marketplace_settings(ENABLE_RESOURCE_END_DATE=False)
     def test_user_can_not_update_end_date_if_feature_is_disabled(self):
         response = self.make_request(
-            self.fixture.offering_owner, {'end_date': '2021-01-01'}
+            self.fixture.offering_owner, {"end_date": "2021-01-01"}
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @freeze_time('2020-01-01')
+    @freeze_time("2020-01-01")
     def test_resource_is_not_used_for_last_3_months_and_end_date_is_7_days_in_future(
         self,
     ):
         self.resource.state = models.Resource.States.OK
         self.resource.save()
-        with freeze_time('2020-05-01'):
+        with freeze_time("2020-05-01"):
             response = self.make_request(
-                self.fixture.offering_owner, {'end_date': '2020-05-08'}
+                self.fixture.offering_owner, {"end_date": "2020-05-08"}
             )
             self.assertEqual(response.status_code, status.HTTP_200_OK)
             self.resource.refresh_from_db()
-            self.assertEqual(self.resource.end_date, parse_date('2020-05-08'))
+            self.assertEqual(self.resource.end_date, parse_date("2020-05-08"))
 
             self.assertTrue(
                 logging_models.Event.objects.filter(
-                    message__contains='End date of marketplace resource %s has been updated by provider.'
+                    message__contains="End date of marketplace resource %s has been updated by provider."
                     % self.resource.name
                 ).exists()
             )
 
-    @freeze_time('2020-01-01')
+    @freeze_time("2020-01-01")
     def test_resource_is_not_used_for_last_3_months_and_end_date_is_not_7_days_in_future(
         self,
     ):
         self.resource.state = models.Resource.States.OK
         self.resource.save()
-        with freeze_time('2020-05-01'):
+        with freeze_time("2020-05-01"):
             response = self.make_request(
-                self.fixture.offering_owner, {'end_date': '2020-05-05'}
+                self.fixture.offering_owner, {"end_date": "2020-05-05"}
             )
             self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @freeze_time('2020-01-01')
+    @freeze_time("2020-01-01")
     def test_resource_is_used_for_last_3_months_and_end_date_is_not_7_days_in_future(
         self,
     ):
         self.resource.state = models.Resource.States.OK
         self.resource.save()
         response = self.make_request(
-            self.fixture.offering_owner, {'end_date': '2020-01-05'}
+            self.fixture.offering_owner, {"end_date": "2020-01-05"}
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @freeze_time('2020-01-01')
+    @freeze_time("2020-01-01")
     def test_resource_is_used_for_last_3_months_and_end_date_is_more_than_7_days_in_future(
         self,
     ):
         self.resource.state = models.Resource.States.OK
         self.resource.save()
         response = self.make_request(
-            self.fixture.offering_owner, {'end_date': '2020-01-10'}
+            self.fixture.offering_owner, {"end_date": "2020-01-10"}
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @data('staff', 'offering_owner', 'service_manager', 'global_support')
-    @freeze_time('2020-01-01')
+    @data("staff", "offering_owner", "service_manager", "global_support")
+    @freeze_time("2020-01-01")
     def test_permission_positive(self, user):
         self.resource.state = models.Resource.States.OK
         self.resource.save()
 
-        with freeze_time('2020-05-01'):
+        with freeze_time("2020-05-01"):
             response = self.make_request(
-                getattr(self.fixture, user), {'end_date': '2020-05-08'}
+                getattr(self.fixture, user), {"end_date": "2020-05-08"}
             )
             self.assertEqual(response.status_code, status.HTTP_200_OK)
             self.resource.refresh_from_db()
@@ -823,15 +821,15 @@ class ResourceSetEndDateByProviderTest(test.APITransactionTestCase):
                 self.resource.end_date_requested_by, getattr(self.fixture, user)
             )
 
-    @data('admin', 'manager', 'member', 'owner', 'customer_support')
-    @freeze_time('2020-01-01')
+    @data("admin", "manager", "member", "owner", "customer_support")
+    @freeze_time("2020-01-01")
     def test_permission_negative(self, user):
         self.resource.state = models.Resource.States.OK
         self.resource.save()
 
-        with freeze_time('2020-05-01'):
+        with freeze_time("2020-05-01"):
             response = self.make_request(
-                getattr(self.fixture, user), {'end_date': '2020-05-08'}
+                getattr(self.fixture, user), {"end_date": "2020-05-08"}
             )
             self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -842,7 +840,7 @@ class ResourceSetEndDateByStaffTest(test.APITransactionTestCase):
         self.fixture = MarketplaceFixture()
         self.resource = self.fixture.resource
         self.url = factories.ResourceFactory.get_url(
-            self.resource, 'set_end_date_by_staff'
+            self.resource, "set_end_date_by_staff"
         )
 
     def make_request(self, user, payload):
@@ -851,27 +849,27 @@ class ResourceSetEndDateByStaffTest(test.APITransactionTestCase):
 
     @test_helpers.override_marketplace_settings(ENABLE_RESOURCE_END_DATE=False)
     def test_user_can_not_update_end_date_if_feature_is_disabled(self):
-        response = self.make_request(self.fixture.staff, {'end_date': '2021-01-01'})
+        response = self.make_request(self.fixture.staff, {"end_date": "2021-01-01"})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @freeze_time('2020-01-01')
+    @freeze_time("2020-01-01")
     @data(
-        'staff',
+        "staff",
     )
     def test_user_can_set_end_date(self, user):
         self.resource.state = models.Resource.States.OK
         self.resource.save()
-        with freeze_time('2020-05-01'):
+        with freeze_time("2020-05-01"):
             response = self.make_request(
-                getattr(self.fixture, user), {'end_date': '2020-05-08'}
+                getattr(self.fixture, user), {"end_date": "2020-05-08"}
             )
             self.assertEqual(response.status_code, status.HTTP_200_OK)
             self.resource.refresh_from_db()
-            self.assertEqual(self.resource.end_date, parse_date('2020-05-08'))
+            self.assertEqual(self.resource.end_date, parse_date("2020-05-08"))
 
             self.assertTrue(
                 logging_models.Event.objects.filter(
-                    message__contains='End date of marketplace resource %s has been updated by staff.'
+                    message__contains="End date of marketplace resource %s has been updated by staff."
                     % self.resource.name
                 ).exists()
             )
@@ -880,14 +878,14 @@ class ResourceSetEndDateByStaffTest(test.APITransactionTestCase):
                 self.resource.end_date_requested_by, getattr(self.fixture, user)
             )
 
-    @freeze_time('2020-01-01')
-    @data('offering_owner', 'service_manager')
+    @freeze_time("2020-01-01")
+    @data("offering_owner", "service_manager")
     def test_user_cannot_set_end_date(self, user):
         self.resource.state = models.Resource.States.OK
         self.resource.save()
-        with freeze_time('2020-05-01'):
+        with freeze_time("2020-05-01"):
             response = self.make_request(
-                getattr(self.fixture, user), {'end_date': '2020-05-08'}
+                getattr(self.fixture, user), {"end_date": "2020-05-08"}
             )
             self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -895,7 +893,7 @@ class ResourceSetEndDateByStaffTest(test.APITransactionTestCase):
 class ResourceUpdateLimitsTest(test.APITransactionTestCase):
     def setUp(self):
         plugins.manager.register(
-            offering_type='TEST_TYPE',
+            offering_type="TEST_TYPE",
             create_resource_processor=test_utils.TestCreateProcessor,
             update_resource_processor=test_utils.TestUpdateScopedProcessor,
             can_update_limits=True,
@@ -906,18 +904,18 @@ class ResourceUpdateLimitsTest(test.APITransactionTestCase):
         self.resource.state = models.Resource.States.OK
         self.resource.project.customer = self.fixture.customer
         self.resource.project.save()
-        self.resource.limits = {'vcpu': 1}
+        self.resource.limits = {"vcpu": 1}
         self.resource.save()
-        self.resource.offering.type = 'TEST_TYPE'
+        self.resource.offering.type = "TEST_TYPE"
         self.resource.offering.save()
 
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_RESOURCE_LIMITS)
 
     def update_limits(self, user, resource, limits=None):
-        limits = limits or {'vcpu': 10}
+        limits = limits or {"vcpu": 10}
         self.client.force_authenticate(user)
-        url = factories.ResourceFactory.get_url(resource, 'update_limits')
-        payload = {'limits': limits}
+        url = factories.ResourceFactory.get_url(resource, "update_limits")
+        payload = {"limits": limits}
         return self.client.post(url, payload)
 
     def test_create_update_limits_order(self):
@@ -953,7 +951,7 @@ class ResourceUpdateLimitsTest(test.APITransactionTestCase):
         response = self.update_limits(self.fixture.staff, self.resource)
 
         # Assert
-        order = models.Order.objects.get(uuid=response.data['order_uuid'])
+        order = models.Order.objects.get(uuid=response.data["order_uuid"])
         self.assertEqual(order.state, models.Order.States.EXECUTING)
         self.assertEqual(order.created_by, self.fixture.staff)
 
@@ -978,19 +976,19 @@ class ResourceUpdateLimitsTest(test.APITransactionTestCase):
         response = self.update_limits(self.fixture.owner, self.resource)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @mock.patch('waldur_mastermind.marketplace.tasks.process_order')
+    @mock.patch("waldur_mastermind.marketplace.tasks.process_order")
     def test_order_has_been_approved_if_user_has_got_permissions(self, mock_task):
         # Act
         response = self.update_limits(self.fixture.staff, self.resource)
 
         # Assert
-        order = models.Order.objects.get(uuid=response.data['order_uuid'])
+        order = models.Order.objects.get(uuid=response.data["order_uuid"])
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         mock_task.delay.assert_called_once_with(
-            'marketplace.order:%s' % order.id, 'core.user:%s' % self.fixture.staff.id
+            "marketplace.order:%s" % order.id, "core.user:%s" % self.fixture.staff.id
         )
 
-    @mock.patch('waldur_mastermind.marketplace.views.tasks')
+    @mock.patch("waldur_mastermind.marketplace.views.tasks")
     def test_order_has_not_been_approved_if_user_has_not_got_permissions(
         self, mock_tasks
     ):
@@ -1011,10 +1009,10 @@ class ResourceUpdateLimitsTest(test.APITransactionTestCase):
         )
         marketplace_utils.process_order(order, self.fixture.staff)
         self.resource.refresh_from_db()
-        self.assertEqual(self.resource.limits['vcpu'], 10)
+        self.assertEqual(self.resource.limits["vcpu"], 10)
 
     def test_impossible_set_the_same_limits(self):
-        response = self.update_limits(self.fixture.owner, self.resource, {'vcpu': 1})
+        response = self.update_limits(self.fixture.owner, self.resource, {"vcpu": 1})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
@@ -1030,12 +1028,12 @@ class ResourceMoveTest(test.APITransactionTestCase):
         self.resource.save()
 
         self.url = factories.ResourceFactory.get_url(
-            self.resource, action='move_resource'
+            self.resource, action="move_resource"
         )
 
     def get_response(self, role):
         self.client.force_authenticate(role)
-        payload = {'project': {'url': ProjectFactory.get_url(self.new_project)}}
+        payload = {"project": {"url": ProjectFactory.get_url(self.new_project)}}
         return self.client.post(self.url, payload)
 
     def test_move_resource_rest(self):
@@ -1090,7 +1088,7 @@ class ResourceMoveTest(test.APITransactionTestCase):
         self.assertEqual(
             response.json(),
             {
-                'error_message': 'Resource moving is not possible, because invoice items moving is not possible.'
+                "error_message": "Resource moving is not possible, because invoice items moving is not possible."
             },
         )
         self.assertEqual(self.resource.project, self.project)
@@ -1103,28 +1101,28 @@ class ResourceBackendIDTest(test.APITransactionTestCase):
         self.project = self.fixture.project
         self.resource = factories.ResourceFactory(project=self.project)
         self.url = factories.ResourceFactory.get_url(
-            self.resource, action='set_backend_id'
+            self.resource, action="set_backend_id"
         )
 
         service_manager = UserFactory()
         self.resource.offering.customer.add_user(
             service_manager, role=CustomerRole.MANAGER
         )
-        setattr(self.fixture, 'service_manager', service_manager)
+        setattr(self.fixture, "service_manager", service_manager)
         CustomerRole.OWNER.add_permission(PermissionEnum.SET_RESOURCE_BACKEND_ID)
         CustomerRole.MANAGER.add_permission(PermissionEnum.SET_RESOURCE_BACKEND_ID)
 
     def make_request(self, role):
         self.client.force_authenticate(role)
-        payload = {'backend_id': 'new_backend_id'}
+        payload = {"backend_id": "new_backend_id"}
         return self.client.post(self.url, payload)
 
-    @data('staff', 'owner', 'service_manager')
+    @data("staff", "owner", "service_manager")
     def test_user_can_set_backend_id_of_resource(self, user):
         response = self.make_request(getattr(self.fixture, user))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.resource.refresh_from_db()
-        self.assertEqual(self.resource.backend_id, 'new_backend_id')
+        self.assertEqual(self.resource.backend_id, "new_backend_id")
 
     def test_admin_can_not_set_backend_id_of_resource(self):
         response = self.make_request(self.fixture.admin)
@@ -1138,27 +1136,27 @@ class ResourceReportTest(test.APITransactionTestCase):
         self.project = self.fixture.project
         self.resource = factories.ResourceFactory(project=self.project)
         self.url = factories.ResourceFactory.get_url(
-            self.resource, action='submit_report'
+            self.resource, action="submit_report"
         )
-        self.valid_report = [{'header': 'Section header', 'body': 'Section body'}]
+        self.valid_report = [{"header": "Section header", "body": "Section body"}]
 
         service_manager = UserFactory()
         self.resource.offering.customer.add_user(
             service_manager, role=CustomerRole.MANAGER
         )
-        setattr(self.fixture, 'service_manager', service_manager)
+        setattr(self.fixture, "service_manager", service_manager)
 
         service_owner = UserFactory()
         self.resource.offering.customer.add_user(service_owner, role=CustomerRole.OWNER)
-        setattr(self.fixture, 'service_owner', service_manager)
+        setattr(self.fixture, "service_owner", service_manager)
         CustomerRole.OWNER.add_permission(PermissionEnum.SUBMIT_RESOURCE_REPORT)
         CustomerRole.MANAGER.add_permission(PermissionEnum.SUBMIT_RESOURCE_REPORT)
 
     def make_request(self, role, payload):
         self.client.force_authenticate(role)
-        return self.client.post(self.url, {'report': payload})
+        return self.client.post(self.url, {"report": payload})
 
-    @data('staff', 'service_owner', 'service_manager')
+    @data("staff", "service_owner", "service_manager")
     def test_user_can_submit_report(self, user):
         response = self.make_request(getattr(self.fixture, user), self.valid_report)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -1189,7 +1187,7 @@ class ResourceDetailsTest(test.APITransactionTestCase):
         )
 
     def make_request(self):
-        url = factories.ResourceFactory.get_url(self.resource, action='details')
+        url = factories.ResourceFactory.get_url(self.resource, action="details")
         self.client.force_authenticate(self.fixture.user)
         return self.client.get(url)
 
@@ -1216,7 +1214,7 @@ class ResourceGetTeamTest(test.APITransactionTestCase):
             project=self.project, offering=self.offering
         )
 
-        self.url = factories.ResourceFactory.get_url(self.resource, action='team')
+        self.url = factories.ResourceFactory.get_url(self.resource, action="team")
         CustomerRole.OWNER.add_permission(PermissionEnum.LIST_RESOURCE_USERS)
 
     def test_service_owner_can_get_resource_team(self):
@@ -1227,7 +1225,7 @@ class ResourceGetTeamTest(test.APITransactionTestCase):
         self.assertEqual(200, response.status_code)
         self.assertEqual(1, len(users))
         user = users[0]
-        self.assertEqual(self.admin.full_name, user['full_name'])
+        self.assertEqual(self.admin.full_name, user["full_name"])
 
     def test_user_can_not_get_resource_team(self):
         self.client.force_authenticate(self.admin)
@@ -1243,7 +1241,7 @@ class ResourceUsageLimitsTest(test.APITransactionTestCase):
 
         self.resource = factories.ResourceFactory()
         self.resource.state = models.Resource.States.OK
-        self.resource.limits = {'cpu': 100}
+        self.resource.limits = {"cpu": 100}
         self.offering_component = factories.OfferingComponentFactory(
             offering=self.resource.offering,
             billing_type=models.OfferingComponent.BillingTypes.LIMIT,
@@ -1272,7 +1270,7 @@ class ResourceUsageLimitsTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.user)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['limit_usage'], {'cpu': 15})
+        self.assertEqual(response.data["limit_usage"], {"cpu": 15})
 
     def test_if_limit_period_is_annual(self):
         self.offering_component.limit_period = (
@@ -1283,19 +1281,19 @@ class ResourceUsageLimitsTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.user)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['limit_usage'], {'cpu': 10})
+        self.assertEqual(response.data["limit_usage"], {"cpu": 10})
 
     def test_if_limit_period_is_null(self):
         self.offering_component.limit_period = None
         self.offering_component.save()
 
-        self.resource.current_usages = {'cpu': 5}
+        self.resource.current_usages = {"cpu": 5}
         self.resource.save()
 
         self.client.force_authenticate(self.user)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['limit_usage'], {'cpu': 5})
+        self.assertEqual(response.data["limit_usage"], {"cpu": 5})
 
 
 class DownscalingRequestCompletedTest(test.APITransactionTestCase):
@@ -1313,7 +1311,7 @@ class DownscalingRequestCompletedTest(test.APITransactionTestCase):
         )
 
         self.url = factories.ResourceFactory.get_url(
-            self.resource, action='downscaling_request_completed'
+            self.resource, action="downscaling_request_completed"
         )
         CustomerRole.OWNER.add_permission(PermissionEnum.COMPLETE_RESOURCE_DOWNSCALING)
 
@@ -1325,7 +1323,7 @@ class DownscalingRequestCompletedTest(test.APITransactionTestCase):
 
         self.assertTrue(
             logging_models.Event.objects.filter(
-                message__contains='Resource %s has been downscaled.'
+                message__contains="Resource %s has been downscaled."
                 % self.resource.name
             ).exists()
         )

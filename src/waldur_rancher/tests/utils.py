@@ -6,7 +6,7 @@ from django.conf import settings
 from django.test import override_settings
 
 backend_node_response = json.loads(
-    pkg_resources.resource_stream(__name__, 'backend_node.json').read().decode()
+    pkg_resources.resource_stream(__name__, "backend_node.json").read().decode()
 )
 
 

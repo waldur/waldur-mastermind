@@ -15,13 +15,13 @@ class CreateAllocationProcessor(processors.BasicCreateResourceProcessor):
                 state=ServiceSettings.States.OK,
                 shared=True,
                 defaults={
-                    'name': 'SLURM remote service settings',
-                    'is_active': False,
+                    "name": "SLURM remote service settings",
+                    "is_active": False,
                 },
             )
 
             allocation = slurm_models.Allocation.objects.create(
-                name=self.order.attributes['name'],
+                name=self.order.attributes["name"],
                 service_settings=service_settings,
                 project=self.order.project,
             )
@@ -34,17 +34,17 @@ class DeleteAllocationProcessor(processors.BasicDeleteResourceProcessor):
         with transaction.atomic():
             marketplace_resource = self.order.resource
             marketplace_resource.set_state_terminating()
-            marketplace_resource.save(update_fields=['state'])
+            marketplace_resource.save(update_fields=["state"])
 
             allocation: slurm_models.Allocation = marketplace_resource.scope
             allocation.schedule_deleting()
-            allocation.save(update_fields=['state'])
+            allocation.save(update_fields=["state"])
 
 
 class UpdateAllocationLimitsProcessor(processors.BasicUpdateResourceProcessor):
     def update_limits_process(self, user):
         allocation: slurm_models.Allocation = self.order.resource.scope
         allocation.schedule_updating()
-        allocation.save(update_fields=['state'])
+        allocation.save(update_fields=["state"])
 
         return False

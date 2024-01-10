@@ -10,15 +10,15 @@ from waldur_geo_ip.mixins import CoordinatesMixin
 class Location(CoordinatesMixin, structure_models.ServiceProperty):
     enabled = models.BooleanField(
         default=True,
-        help_text='Indicates whether location is available for resource group.',
+        help_text="Indicates whether location is available for resource group.",
     )
 
     class Meta:
-        ordering = ['name']
+        ordering = ["name"]
 
     @classmethod
     def get_url_name(cls):
-        return 'azure-location'
+        return "azure-location"
 
 
 class Image(structure_models.ServiceProperty):
@@ -29,11 +29,11 @@ class Image(structure_models.ServiceProperty):
     location = models.ForeignKey(Location, on_delete=models.CASCADE)
 
     class Meta(structure_models.ServiceProperty.Meta):
-        ordering = ['publisher', 'offer', 'name', 'sku']
+        ordering = ["publisher", "offer", "name", "sku"]
 
     @classmethod
     def get_url_name(cls):
-        return 'azure-image'
+        return "azure-image"
 
 
 class Size(structure_models.ServiceProperty):
@@ -44,11 +44,11 @@ class Size(structure_models.ServiceProperty):
     resource_disk_size_in_mb = models.PositiveIntegerField()
 
     class Meta(structure_models.ServiceProperty.Meta):
-        ordering = ['number_of_cores', 'memory_in_mb']
+        ordering = ["number_of_cores", "memory_in_mb"]
 
     @classmethod
     def get_url_name(cls):
-        return 'azure-size'
+        return "azure-size"
 
 
 class SizeAvailabilityZone(models.Model):
@@ -70,7 +70,7 @@ class ResourceGroup(BaseResource):
 
     @classmethod
     def get_url_name(cls):
-        return 'azure-resource-group'
+        return "azure-resource-group"
 
 
 class BaseResourceGroupModel(BaseResource):
@@ -114,13 +114,13 @@ class NetworkInterface(BaseResourceGroupModel):
     subnet = models.ForeignKey(on_delete=models.CASCADE, to=SubNet)
     config_name = models.CharField(max_length=255)
     public_ip = models.ForeignKey(
-        'PublicIP', on_delete=models.SET_NULL, null=True, blank=True
+        "PublicIP", on_delete=models.SET_NULL, null=True, blank=True
     )
     security_group = models.ForeignKey(
         SecurityGroup, on_delete=models.SET_NULL, null=True, blank=True
     )
     ip_address = models.GenericIPAddressField(
-        null=True, blank=True, protocol='IPv4', default=None
+        null=True, blank=True, protocol="IPv4", default=None
     )
     tracker = FieldTracker()
 
@@ -131,13 +131,13 @@ class PublicIP(BaseResourceGroupModel):
     )
     location = models.ForeignKey(on_delete=models.CASCADE, to=Location)
     ip_address = models.GenericIPAddressField(
-        null=True, blank=True, protocol='IPv4', default=None
+        null=True, blank=True, protocol="IPv4", default=None
     )
     tracker = FieldTracker()
 
     @classmethod
     def get_url_name(cls):
-        return 'azure-public-ip'
+        return "azure-public-ip"
 
 
 class VirtualMachine(structure_models.VirtualMachine):
@@ -160,7 +160,7 @@ class VirtualMachine(structure_models.VirtualMachine):
     user_data = models.TextField(
         blank=True,
         max_length=87380,
-        help_text='Additional data that will be added to instance on provisioning',
+        help_text="Additional data that will be added to instance on provisioning",
     )
 
     @property
@@ -174,7 +174,7 @@ class VirtualMachine(structure_models.VirtualMachine):
 
     @classmethod
     def get_url_name(cls):
-        return 'azure-virtualmachine'
+        return "azure-virtualmachine"
 
 
 class SQLServer(BaseResourceGroupModel):
@@ -195,17 +195,17 @@ class SQLServer(BaseResourceGroupModel):
 
     @classmethod
     def get_url_name(cls):
-        return 'azure-sql-server'
+        return "azure-sql-server"
 
 
 class SQLDatabase(BaseResource):
     server = models.ForeignKey(on_delete=models.CASCADE, to=SQLServer)
-    charset = models.CharField(max_length=255, blank=True, null=True, default='utf8')
+    charset = models.CharField(max_length=255, blank=True, null=True, default="utf8")
     collation = models.CharField(
-        max_length=255, blank=True, null=True, default='utf8_general_ci'
+        max_length=255, blank=True, null=True, default="utf8_general_ci"
     )
     tracker = FieldTracker()
 
     @classmethod
     def get_url_name(cls):
-        return 'azure-sql-database'
+        return "azure-sql-database"

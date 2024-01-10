@@ -16,27 +16,27 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('contenttypes', '0002_remove_content_type_name'),
-        ('marketplace', '0001_squashed_0076'),
-        ('structure', '0001_squashed_0036'),
+        ("contenttypes", "0002_remove_content_type_name"),
+        ("marketplace", "0001_squashed_0076"),
+        ("structure", "0001_squashed_0036"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Invoice',
+            name="Invoice",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'month',
+                    "month",
                     models.PositiveSmallIntegerField(
                         default=waldur_mastermind.invoices.utils.get_current_month,
                         validators=[
@@ -46,43 +46,43 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 (
-                    'year',
+                    "year",
                     models.PositiveSmallIntegerField(
                         default=waldur_mastermind.invoices.utils.get_current_year
                     ),
                 ),
                 (
-                    'state',
+                    "state",
                     models.CharField(
                         choices=[
-                            ('pending', 'Pending'),
-                            ('created', 'Created'),
-                            ('paid', 'Paid'),
-                            ('canceled', 'Canceled'),
+                            ("pending", "Pending"),
+                            ("created", "Created"),
+                            ("paid", "Paid"),
+                            ("canceled", "Canceled"),
                         ],
-                        default='pending',
+                        default="pending",
                         max_length=30,
                     ),
                 ),
                 (
-                    'customer',
+                    "customer",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='structure.customer',
-                        verbose_name='organization',
+                        related_name="+",
+                        to="structure.customer",
+                        verbose_name="organization",
                     ),
                 ),
                 (
-                    'invoice_date',
+                    "invoice_date",
                     models.DateField(
                         blank=True,
-                        help_text='Date then invoice moved from state pending to created.',
+                        help_text="Date then invoice moved from state pending to created.",
                         null=True,
                     ),
                 ),
                 (
-                    'tax_percent',
+                    "tax_percent",
                     models.DecimalField(
                         decimal_places=2,
                         default=0,
@@ -94,253 +94,253 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 (
-                    'total_cost',
+                    "total_cost",
                     models.DecimalField(
                         decimal_places=2,
                         default=0,
                         editable=False,
-                        help_text='Cached value for total cost.',
+                        help_text="Cached value for total cost.",
                         max_digits=10,
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     models.DateField(
                         blank=True,
                         default=waldur_mastermind.invoices.models.get_created_date,
                         null=True,
                     ),
                 ),
-                ('backend_id', models.CharField(blank=True, max_length=255)),
+                ("backend_id", models.CharField(blank=True, max_length=255)),
                 (
-                    'payment_url',
+                    "payment_url",
                     models.URLField(
                         blank=True,
-                        help_text='URL for initiating payment via payment gateway.',
+                        help_text="URL for initiating payment via payment gateway.",
                     ),
                 ),
                 (
-                    'reference_number',
+                    "reference_number",
                     models.CharField(
                         blank=True,
-                        help_text='Reference number associated with the invoice.',
+                        help_text="Reference number associated with the invoice.",
                         max_length=300,
                     ),
                 ),
             ],
             options={
-                'unique_together': {('customer', 'month', 'year')},
+                "unique_together": {("customer", "month", "year")},
             },
         ),
         migrations.CreateModel(
-            name='PaymentProfile',
+            name="PaymentProfile",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'payment_type',
+                    "payment_type",
                     waldur_mastermind.invoices.models.PaymentType(
                         choices=[
-                            ('fixed_price', 'Fixed-price contract'),
-                            ('invoices', 'Monthly invoices'),
-                            ('payment_gw_monthly', ' Payment gateways (monthly)'),
+                            ("fixed_price", "Fixed-price contract"),
+                            ("invoices", "Monthly invoices"),
+                            ("payment_gw_monthly", " Payment gateways (monthly)"),
                         ],
                         max_length=30,
                     ),
                 ),
-                ('attributes', models.JSONField(blank=True, default=dict)),
+                ("attributes", models.JSONField(blank=True, default=dict)),
                 (
-                    'organization',
+                    "organization",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.PROTECT,
-                        to='structure.customer',
+                        to="structure.customer",
                     ),
                 ),
-                ('is_active', models.BooleanField(default=True, null=True)),
+                ("is_active", models.BooleanField(default=True, null=True)),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
             ],
             options={
-                'unique_together': {('organization', 'is_active')},
+                "unique_together": {("organization", "is_active")},
             },
         ),
         migrations.CreateModel(
-            name='Payment',
+            name="Payment",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'sum',
+                    "sum",
                     models.DecimalField(decimal_places=2, default=0, max_digits=10),
                 ),
-                ('date_of_payment', models.DateField()),
+                ("date_of_payment", models.DateField()),
                 (
-                    'profile',
+                    "profile",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.PROTECT,
-                        to='invoices.paymentprofile',
+                        to="invoices.paymentprofile",
                     ),
                 ),
                 (
-                    'proof',
+                    "proof",
                     models.FileField(
-                        blank=True, null=True, upload_to='proof_of_payment'
+                        blank=True, null=True, upload_to="proof_of_payment"
                     ),
                 ),
                 (
-                    'invoice',
+                    "invoice",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.SET_NULL,
-                        to='invoices.invoice',
+                        to="invoices.invoice",
                     ),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='InvoiceItem',
+            name="InvoiceItem",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'unit_price',
+                    "unit_price",
                     models.DecimalField(
                         decimal_places=7,
                         default=0,
                         max_digits=22,
                         validators=[
-                            django.core.validators.MinValueValidator(Decimal('0'))
+                            django.core.validators.MinValueValidator(Decimal("0"))
                         ],
                     ),
                 ),
                 (
-                    'unit',
+                    "unit",
                     models.CharField(
                         choices=[
-                            ('month', 'Per month'),
-                            ('half_month', 'Per half month'),
-                            ('day', 'Per day'),
-                            ('hour', 'Per hour'),
-                            ('quantity', 'Quantity'),
+                            ("month", "Per month"),
+                            ("half_month", "Per half month"),
+                            ("day", "Per day"),
+                            ("hour", "Per hour"),
+                            ("quantity", "Quantity"),
                         ],
-                        default='day',
+                        default="day",
                         max_length=30,
                     ),
                 ),
-                ('article_code', models.CharField(blank=True, max_length=30)),
+                ("article_code", models.CharField(blank=True, max_length=30)),
                 (
-                    'start',
+                    "start",
                     models.DateTimeField(
                         default=waldur_mastermind.invoices.utils.get_current_month_start,
-                        help_text='Date and time when item usage has started.',
+                        help_text="Date and time when item usage has started.",
                     ),
                 ),
                 (
-                    'end',
+                    "end",
                     models.DateTimeField(
                         default=waldur_mastermind.invoices.utils.get_current_month_end,
-                        help_text='Date and time when item usage has ended.',
+                        help_text="Date and time when item usage has ended.",
                     ),
                 ),
-                ('project_name', models.CharField(blank=True, max_length=500)),
-                ('project_uuid', models.CharField(blank=True, max_length=32)),
+                ("project_name", models.CharField(blank=True, max_length=500)),
+                ("project_uuid", models.CharField(blank=True, max_length=32)),
                 (
-                    'details',
+                    "details",
                     models.JSONField(
-                        blank=True, default=dict, help_text='Stores data about scope'
+                        blank=True, default=dict, help_text="Stores data about scope"
                     ),
                 ),
                 (
-                    'invoice',
+                    "invoice",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='items',
-                        to='invoices.invoice',
+                        related_name="items",
+                        to="invoices.invoice",
                     ),
                 ),
                 (
-                    'project',
+                    "project",
                     models.ForeignKey(
                         null=True,
                         on_delete=django.db.models.deletion.SET_NULL,
-                        to='structure.project',
+                        to="structure.project",
                     ),
                 ),
                 (
-                    'quantity',
+                    "quantity",
                     models.DecimalField(decimal_places=7, default=0, max_digits=22),
                 ),
-                ('name', models.TextField(default='')),
+                ("name", models.TextField(default="")),
                 (
-                    'resource',
+                    "resource",
                     models.ForeignKey(
                         null=True,
                         on_delete=django.db.models.deletion.SET_NULL,
-                        related_name='invoice_items',
-                        to='marketplace.resource',
+                        related_name="invoice_items",
+                        to="marketplace.resource",
                     ),
                 ),
                 (
-                    'measured_unit',
+                    "measured_unit",
                     models.CharField(
                         blank=True,
-                        help_text='Unit of measurement, for example, GB.',
+                        help_text="Unit of measurement, for example, GB.",
                         max_length=30,
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
     ]

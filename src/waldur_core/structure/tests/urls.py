@@ -9,9 +9,9 @@ from . import views
 
 def register_in(router):
     router.register(
-        r'test-new-instances',
+        r"test-new-instances",
         views.TestNewInstanceViewSet,
-        basename='test-new-instances',
+        basename="test-new-instances",
     )
 
 
@@ -19,5 +19,5 @@ router = DefaultRouter()
 register_in(router)
 
 urlpatterns += [
-    re_path(r'^api/', include(router.urls)),
+    re_path(r"^api/", include(router.urls)),
 ]

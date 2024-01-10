@@ -5,15 +5,15 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace', '0082_offeringuser_propagation_date'),
+        ("marketplace", "0082_offeringuser_propagation_date"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='offeringuser',
-            name='backend_metadata',
+            model_name="offeringuser",
+            name="backend_metadata",
             field=models.JSONField(
-                blank=True, default=dict, help_text='Backend attributes of the user'
+                blank=True, default=dict, help_text="Backend attributes of the user"
             ),
         ),
     ]

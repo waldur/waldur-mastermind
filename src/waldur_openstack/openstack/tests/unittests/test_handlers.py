@@ -11,7 +11,7 @@ from waldur_openstack.openstack import apps
 from .. import factories
 
 
-@patch('waldur_core.core.tasks.BackendMethodTask.delay')
+@patch("waldur_core.core.tasks.BackendMethodTask.delay")
 class SshKeysHandlersTest(TestCase):
     def setUp(self):
         self.user = structure_factories.UserFactory()
@@ -28,7 +28,7 @@ class SshKeysHandlersTest(TestCase):
         serialized_tenant = core_utils.serialize_instance(self.tenant)
         mocked_task_call.assert_called_once_with(
             serialized_tenant,
-            'remove_ssh_key_from_tenant',
+            "remove_ssh_key_from_tenant",
             self.ssh_key.name,
             self.ssh_key.fingerprint,
         )
@@ -53,7 +53,7 @@ class SshKeysHandlersTest(TestCase):
         serialized_tenant = core_utils.serialize_instance(self.tenant)
         mocked_task_call.assert_called_once_with(
             serialized_tenant,
-            'remove_ssh_key_from_tenant',
+            "remove_ssh_key_from_tenant",
             self.ssh_key.name,
             self.ssh_key.fingerprint,
         )
@@ -68,7 +68,7 @@ class SshKeysHandlersTest(TestCase):
         serialized_tenant = core_utils.serialize_instance(self.tenant)
         mocked_task_call.assert_called_once_with(
             serialized_tenant,
-            'remove_ssh_key_from_tenant',
+            "remove_ssh_key_from_tenant",
             self.ssh_key.name,
             self.ssh_key.fingerprint,
         )
@@ -77,19 +77,19 @@ class SshKeysHandlersTest(TestCase):
 class LogTenantQuotaUpdateTest(TestCase):
     def test_logger_called_on_quota_limit_update(self):
         tenant = factories.TenantFactory()
-        tenant.set_quota_limit('vcpu', 10)
+        tenant.set_quota_limit("vcpu", 10)
 
-        with patch('waldur_openstack.openstack.handlers.event_logger') as logger_mock:
-            tenant.set_quota_limit('vcpu', 20)
+        with patch("waldur_openstack.openstack.handlers.event_logger") as logger_mock:
+            tenant.set_quota_limit("vcpu", 20)
 
             logger_mock.openstack_tenant_quota.info.assert_called_once_with(
                 mock.ANY,
-                event_type='openstack_tenant_quota_limit_updated',
+                event_type="openstack_tenant_quota_limit_updated",
                 event_context={
-                    'quota_name': 'vcpu',
-                    'tenant': tenant,
-                    'limit': 20,
-                    'old_limit': 10,
+                    "quota_name": "vcpu",
+                    "tenant": tenant,
+                    "limit": 20,
+                    "old_limit": 10,
                 },
             )
 
@@ -101,7 +101,7 @@ class UpdateServiceSettingsNameHandlerTest(TestCase):
             scope=tenant, name=tenant.name, type=apps.OpenStackConfig.service_name
         )
 
-        tenant.name = 'new name'
+        tenant.name = "new name"
         tenant.save()
 
         service_settings.refresh_from_db()

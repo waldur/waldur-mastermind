@@ -4,7 +4,7 @@ from waldur_core.core import WaldurExtension
 class AzureExtension(WaldurExtension):
     @staticmethod
     def django_app():
-        return 'waldur_azure'
+        return "waldur_azure"
 
     @staticmethod
     def rest_urls():

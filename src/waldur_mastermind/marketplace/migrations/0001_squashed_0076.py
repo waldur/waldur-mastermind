@@ -20,84 +20,84 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('contenttypes', '0002_remove_content_type_name'),
-        ('structure', '0001_squashed_0036'),
+        ("contenttypes", "0002_remove_content_type_name"),
+        ("structure", "0001_squashed_0036"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Category',
+            name="Category",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('title', models.CharField(max_length=255)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("title", models.CharField(max_length=255)),
                 (
-                    'icon',
+                    "icon",
                     models.FileField(
                         blank=True,
                         null=True,
-                        upload_to='marketplace_category_icons',
+                        upload_to="marketplace_category_icons",
                         validators=[
                             upload_validator.FileTypeValidator(
                                 allowed_types=[
-                                    'image/png',
-                                    'image/gif',
-                                    'image/jpeg',
-                                    'image/svg',
-                                    'image/svg+xml',
-                                    'image/x-icon',
+                                    "image/png",
+                                    "image/gif",
+                                    "image/jpeg",
+                                    "image/svg",
+                                    "image/svg+xml",
+                                    "image/x-icon",
                                 ]
                             )
                         ],
                     ),
                 ),
-                ('description', models.TextField(blank=True)),
-                ('backend_id', models.CharField(blank=True, max_length=255)),
-                ('description_en', models.TextField(blank=True, null=True)),
-                ('description_et', models.TextField(blank=True, null=True)),
-                ('title_en', models.CharField(max_length=255, null=True)),
-                ('title_et', models.CharField(max_length=255, null=True)),
+                ("description", models.TextField(blank=True)),
+                ("backend_id", models.CharField(blank=True, max_length=255)),
+                ("description_en", models.TextField(blank=True, null=True)),
+                ("description_et", models.TextField(blank=True, null=True)),
+                ("title_en", models.CharField(max_length=255, null=True)),
+                ("title_et", models.CharField(max_length=255, null=True)),
                 (
-                    'default_vm_category',
+                    "default_vm_category",
                     models.BooleanField(
                         default=False,
                         help_text='Set to "true" if this category is for OpenStack VM. Only one category can have "true" value.',
                     ),
                 ),
                 (
-                    'default_volume_category',
+                    "default_volume_category",
                     models.BooleanField(
                         default=False,
                         help_text='Set to true if this category is for OpenStack Volume. Only one category can have "true" value.',
                     ),
                 ),
                 (
-                    'default_tenant_category',
+                    "default_tenant_category",
                     models.BooleanField(
                         default=False,
                         help_text='Set to true if this category is for OpenStack Tenant. Only one category can have "true" value.',
@@ -105,139 +105,139 @@ class Migration(migrations.Migration):
                 ),
             ],
             options={
-                'ordering': ('title',),
-                'verbose_name': 'Category',
-                'verbose_name_plural': 'Categories',
+                "ordering": ("title",),
+                "verbose_name": "Category",
+                "verbose_name_plural": "Categories",
             },
         ),
         migrations.CreateModel(
-            name='CategoryComponent',
+            name="CategoryComponent",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=2000, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name="description"
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
-                        help_text='Display name for the measured unit, for example, Floating IP.',
+                        help_text="Display name for the measured unit, for example, Floating IP.",
                         max_length=150,
                     ),
                 ),
                 (
-                    'type',
+                    "type",
                     models.CharField(
-                        help_text='Unique internal name of the measured unit, for example floating_ip.',
+                        help_text="Unique internal name of the measured unit, for example floating_ip.",
                         max_length=50,
                         validators=[
                             django.core.validators.RegexValidator(
-                                '^[a-zA-Z0-9_\\-\\/:]+$'
+                                "^[a-zA-Z0-9_\\-\\/:]+$"
                             )
                         ],
                     ),
                 ),
                 (
-                    'measured_unit',
+                    "measured_unit",
                     models.CharField(
                         blank=True,
-                        help_text='Unit of measurement, for example, GB.',
+                        help_text="Unit of measurement, for example, GB.",
                         max_length=30,
                     ),
                 ),
                 (
-                    'category',
+                    "category",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='components',
-                        to='marketplace.category',
+                        related_name="components",
+                        to="marketplace.category",
                     ),
                 ),
             ],
             options={
-                'unique_together': {('type', 'category')},
+                "unique_together": {("type", "category")},
             },
         ),
         migrations.CreateModel(
-            name='Offering',
+            name="Offering",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=2000, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name="description"
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('object_id', models.PositiveIntegerField(blank=True, null=True)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("object_id", models.PositiveIntegerField(blank=True, null=True)),
                 (
-                    'thumbnail',
+                    "thumbnail",
                     models.FileField(
                         blank=True,
                         null=True,
-                        upload_to='marketplace_service_offering_thumbnails',
+                        upload_to="marketplace_service_offering_thumbnails",
                         validators=[
                             upload_validator.FileTypeValidator(
                                 allowed_types=[
-                                    'image/png',
-                                    'image/gif',
-                                    'image/jpeg',
-                                    'image/svg',
-                                    'image/svg+xml',
-                                    'image/x-icon',
+                                    "image/png",
+                                    "image/gif",
+                                    "image/jpeg",
+                                    "image/svg",
+                                    "image/svg+xml",
+                                    "image/x-icon",
                                 ]
                             )
                         ],
                     ),
                 ),
-                ('full_description', models.TextField(blank=True)),
-                ('vendor_details', models.TextField(blank=True)),
+                ("full_description", models.TextField(blank=True)),
+                ("vendor_details", models.TextField(blank=True)),
                 (
-                    'rating',
+                    "rating",
                     models.IntegerField(
-                        help_text='Rating is value from 1 to 5.',
+                        help_text="Rating is value from 1 to 5.",
                         null=True,
                         validators=[
                             django.core.validators.MaxValueValidator(5),
@@ -246,144 +246,144 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 (
-                    'attributes',
+                    "attributes",
                     models.JSONField(
                         blank=True,
                         default=dict,
-                        help_text='Fields describing Category.',
+                        help_text="Fields describing Category.",
                     ),
                 ),
                 (
-                    'options',
+                    "options",
                     models.JSONField(
                         blank=True,
                         default=dict,
-                        help_text='Fields describing Offering request form.',
+                        help_text="Fields describing Offering request form.",
                     ),
                 ),
                 (
-                    'native_name',
-                    models.CharField(blank=True, default='', max_length=160),
+                    "native_name",
+                    models.CharField(blank=True, default="", max_length=160),
                 ),
                 (
-                    'native_description',
-                    models.CharField(blank=True, default='', max_length=500),
+                    "native_description",
+                    models.CharField(blank=True, default="", max_length=500),
                 ),
-                ('terms_of_service', models.TextField(blank=True)),
-                ('type', models.CharField(max_length=100)),
+                ("terms_of_service", models.TextField(blank=True)),
+                ("type", models.CharField(max_length=100)),
                 (
-                    'state',
+                    "state",
                     django_fsm.FSMIntegerField(
                         choices=[
-                            (1, 'Draft'),
-                            (2, 'Active'),
-                            (3, 'Paused'),
-                            (4, 'Archived'),
+                            (1, "Draft"),
+                            (2, "Active"),
+                            (3, "Paused"),
+                            (4, "Archived"),
                         ],
                         default=1,
                     ),
                 ),
-                ('paused_reason', models.TextField(blank=True)),
+                ("paused_reason", models.TextField(blank=True)),
                 (
-                    'shared',
+                    "shared",
                     models.BooleanField(
-                        default=True, help_text='Accessible to all customers.'
+                        default=True, help_text="Accessible to all customers."
                     ),
                 ),
                 (
-                    'billable',
+                    "billable",
                     models.BooleanField(
-                        default=True, help_text='Purchase and usage is invoiced.'
+                        default=True, help_text="Purchase and usage is invoiced."
                     ),
                 ),
-                ('backend_id', models.CharField(blank=True, max_length=255)),
+                ("backend_id", models.CharField(blank=True, max_length=255)),
                 (
-                    'category',
+                    "category",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='offerings',
-                        to='marketplace.category',
+                        related_name="offerings",
+                        to="marketplace.category",
                     ),
                 ),
                 (
-                    'content_type',
+                    "content_type",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='contenttypes.contenttype',
+                        related_name="+",
+                        to="contenttypes.contenttype",
                     ),
                 ),
                 (
-                    'customer',
+                    "customer",
                     models.ForeignKey(
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='structure.customer',
+                        related_name="+",
+                        to="structure.customer",
                     ),
                 ),
                 (
-                    'plugin_options',
+                    "plugin_options",
                     models.JSONField(
                         blank=True,
                         default=dict,
-                        help_text='Public data used by specific plugin, such as storage mode for OpenStack.',
+                        help_text="Public data used by specific plugin, such as storage mode for OpenStack.",
                     ),
                 ),
                 (
-                    'parent',
+                    "parent",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='marketplace.offering',
+                        to="marketplace.offering",
                     ),
                 ),
                 (
-                    'datacite_doi',
+                    "datacite_doi",
                     models.CharField(
-                        blank=True, max_length=255, verbose_name='Datacite DOI'
+                        blank=True, max_length=255, verbose_name="Datacite DOI"
                     ),
                 ),
                 (
-                    'secret_options',
+                    "secret_options",
                     models.JSONField(
                         blank=True,
                         default=dict,
-                        help_text='Private data used by specific plugin, such as credentials and hooks.',
+                        help_text="Private data used by specific plugin, such as credentials and hooks.",
                     ),
                 ),
                 (
-                    'citation_count',
+                    "citation_count",
                     models.IntegerField(
-                        default=-1, help_text='Number of citations of a DOI'
+                        default=-1, help_text="Number of citations of a DOI"
                     ),
                 ),
-                ('error_message', models.TextField(blank=True)),
-                ('latitude', models.FloatField(blank=True, null=True)),
-                ('longitude', models.FloatField(blank=True, null=True)),
+                ("error_message", models.TextField(blank=True)),
+                ("latitude", models.FloatField(blank=True, null=True)),
+                ("longitude", models.FloatField(blank=True, null=True)),
                 (
-                    'project',
+                    "project",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='structure.project',
+                        related_name="+",
+                        to="structure.project",
                     ),
                 ),
                 (
-                    'divisions',
+                    "divisions",
                     models.ManyToManyField(
-                        blank=True, related_name='offerings', to='structure.Division'
+                        blank=True, related_name="offerings", to="structure.Division"
                     ),
                 ),
-                ('privacy_policy_link', models.URLField(blank=True)),
-                ('terms_of_service_link', models.URLField(blank=True)),
+                ("privacy_policy_link", models.URLField(blank=True)),
+                ("terms_of_service_link", models.URLField(blank=True)),
                 (
-                    'image',
+                    "image",
                     models.ImageField(
                         blank=True,
                         null=True,
@@ -391,921 +391,921 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 (
-                    'access_url',
+                    "access_url",
                     models.URLField(
-                        blank=True, help_text='URL for accessing management console.'
+                        blank=True, help_text="URL for accessing management console."
                     ),
                 ),
-                ('country', models.CharField(blank=True, max_length=2)),
+                ("country", models.CharField(blank=True, max_length=2)),
             ],
             options={
-                'verbose_name': 'Offering',
-                'ordering': ['name'],
+                "verbose_name": "Offering",
+                "ordering": ["name"],
             },
             bases=(models.Model, waldur_core.logging.loggers.LoggableMixin),
         ),
         migrations.CreateModel(
-            name='OfferingComponent',
+            name="OfferingComponent",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=2000, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name="description"
                     ),
                 ),
-                ('article_code', models.CharField(blank=True, max_length=30)),
+                ("article_code", models.CharField(blank=True, max_length=30)),
                 (
-                    'name',
+                    "name",
                     models.CharField(
-                        help_text='Display name for the measured unit, for example, Floating IP.',
+                        help_text="Display name for the measured unit, for example, Floating IP.",
                         max_length=150,
                     ),
                 ),
                 (
-                    'type',
+                    "type",
                     models.CharField(
-                        help_text='Unique internal name of the measured unit, for example floating_ip.',
+                        help_text="Unique internal name of the measured unit, for example floating_ip.",
                         max_length=50,
                         validators=[
                             django.core.validators.RegexValidator(
-                                '^[a-zA-Z0-9_\\-\\/:]+$'
+                                "^[a-zA-Z0-9_\\-\\/:]+$"
                             )
                         ],
                     ),
                 ),
                 (
-                    'measured_unit',
+                    "measured_unit",
                     models.CharField(
                         blank=True,
-                        help_text='Unit of measurement, for example, GB.',
+                        help_text="Unit of measurement, for example, GB.",
                         max_length=30,
                     ),
                 ),
                 (
-                    'billing_type',
+                    "billing_type",
                     models.CharField(
                         choices=[
-                            ('fixed', 'Fixed-price'),
-                            ('usage', 'Usage-based'),
-                            ('limit', 'Limit-based'),
-                            ('one', 'One-time'),
-                            ('few', 'One-time on plan switch'),
+                            ("fixed", "Fixed-price"),
+                            ("usage", "Usage-based"),
+                            ("limit", "Limit-based"),
+                            ("one", "One-time"),
+                            ("few", "One-time on plan switch"),
                         ],
-                        default='fixed',
+                        default="fixed",
                         max_length=5,
                     ),
                 ),
                 (
-                    'limit_period',
+                    "limit_period",
                     models.CharField(
                         blank=True,
                         choices=[
                             (
-                                'month',
-                                'Maximum monthly - every month service provider can report up to the amount requested by user.',
+                                "month",
+                                "Maximum monthly - every month service provider can report up to the amount requested by user.",
                             ),
                             (
-                                'annual',
-                                'Maximum annually - every year service provider can report up to the amount requested by user.',
+                                "annual",
+                                "Maximum annually - every year service provider can report up to the amount requested by user.",
                             ),
                             (
-                                'total',
-                                'Maximum total - SP can report up to the requested amount over the whole active state of resource.',
+                                "total",
+                                "Maximum total - SP can report up to the requested amount over the whole active state of resource.",
                             ),
                         ],
                         max_length=6,
                         null=True,
                     ),
                 ),
-                ('limit_amount', models.IntegerField(blank=True, null=True)),
-                ('max_value', models.IntegerField(blank=True, null=True)),
-                ('min_value', models.IntegerField(blank=True, null=True)),
+                ("limit_amount", models.IntegerField(blank=True, null=True)),
+                ("max_value", models.IntegerField(blank=True, null=True)),
+                ("min_value", models.IntegerField(blank=True, null=True)),
                 (
-                    'offering',
+                    "offering",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='components',
-                        to='marketplace.offering',
+                        related_name="components",
+                        to="marketplace.offering",
                     ),
                 ),
                 (
-                    'parent',
-                    models.ForeignKey(
-                        blank=True,
-                        null=True,
-                        on_delete=django.db.models.deletion.CASCADE,
-                        to='marketplace.categorycomponent',
-                    ),
-                ),
-                (
-                    'content_type',
+                    "parent",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='contenttypes.contenttype',
+                        to="marketplace.categorycomponent",
                     ),
                 ),
-                ('object_id', models.PositiveIntegerField(blank=True, null=True)),
-                ('is_boolean', models.BooleanField(default=False)),
-                ('default_limit', models.IntegerField(blank=True, null=True)),
-                ('backend_id', models.CharField(blank=True, max_length=255)),
-                ('max_available_limit', models.IntegerField(blank=True, null=True)),
+                (
+                    "content_type",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="+",
+                        to="contenttypes.contenttype",
+                    ),
+                ),
+                ("object_id", models.PositiveIntegerField(blank=True, null=True)),
+                ("is_boolean", models.BooleanField(default=False)),
+                ("default_limit", models.IntegerField(blank=True, null=True)),
+                ("backend_id", models.CharField(blank=True, max_length=255)),
+                ("max_available_limit", models.IntegerField(blank=True, null=True)),
             ],
             options={
-                'ordering': ('name',),
-                'unique_together': {('type', 'offering')},
+                "ordering": ("name",),
+                "unique_together": {("type", "offering")},
             },
         ),
         migrations.CreateModel(
-            name='OfferingFile',
+            name="OfferingFile",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('file', models.FileField(upload_to='offering_files')),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("file", models.FileField(upload_to="offering_files")),
                 (
-                    'offering',
+                    "offering",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='files',
-                        to='marketplace.offering',
+                        related_name="files",
+                        to="marketplace.offering",
                     ),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='Order',
+            name="Order",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'approved_at',
+                    "approved_at",
                     models.DateTimeField(blank=True, editable=False, null=True),
                 ),
                 (
-                    'state',
+                    "state",
                     django_fsm.FSMIntegerField(
                         choices=[
-                            (1, 'requested for approval'),
-                            (2, 'executing'),
-                            (3, 'done'),
-                            (4, 'terminated'),
-                            (5, 'erred'),
-                            (6, 'rejected'),
+                            (1, "requested for approval"),
+                            (2, "executing"),
+                            (3, "done"),
+                            (4, "terminated"),
+                            (5, "erred"),
+                            (6, "rejected"),
                         ],
                         default=1,
                     ),
                 ),
                 (
-                    'total_cost',
+                    "total_cost",
                     models.DecimalField(
                         blank=True, decimal_places=10, max_digits=22, null=True
                     ),
                 ),
                 (
-                    'approved_by',
+                    "approved_by",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
+                        related_name="+",
                         to=settings.AUTH_USER_MODEL,
                     ),
                 ),
                 (
-                    'created_by',
+                    "created_by",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='orders',
+                        related_name="orders",
                         to=settings.AUTH_USER_MODEL,
                     ),
                 ),
                 (
-                    'project',
+                    "project",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='structure.project',
+                        to="structure.project",
                     ),
                 ),
             ],
             options={
-                'ordering': ('created',),
-                'verbose_name': 'Order',
+                "ordering": ("created",),
+                "verbose_name": "Order",
             },
             bases=(models.Model, waldur_core.logging.loggers.LoggableMixin),
         ),
         migrations.CreateModel(
-            name='Plan',
+            name="Plan",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=2000, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name="description"
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'unit_price',
+                    "unit_price",
                     models.DecimalField(
                         decimal_places=7,
                         default=0,
                         max_digits=22,
                         validators=[
-                            django.core.validators.MinValueValidator(Decimal('0'))
+                            django.core.validators.MinValueValidator(Decimal("0"))
                         ],
                     ),
                 ),
                 (
-                    'unit',
+                    "unit",
                     models.CharField(
                         choices=[
-                            ('month', 'Per month'),
-                            ('half_month', 'Per half month'),
-                            ('day', 'Per day'),
-                            ('hour', 'Per hour'),
-                            ('quantity', 'Quantity'),
+                            ("month", "Per month"),
+                            ("half_month", "Per half month"),
+                            ("day", "Per day"),
+                            ("hour", "Per hour"),
+                            ("quantity", "Quantity"),
                         ],
-                        default='day',
+                        default="day",
                         max_length=30,
                     ),
                 ),
-                ('article_code', models.CharField(blank=True, max_length=30)),
-                ('object_id', models.PositiveIntegerField(blank=True, null=True)),
+                ("article_code", models.CharField(blank=True, max_length=30)),
+                ("object_id", models.PositiveIntegerField(blank=True, null=True)),
                 (
-                    'archived',
+                    "archived",
                     models.BooleanField(
-                        default=False, help_text='Forbids creation of new resources.'
+                        default=False, help_text="Forbids creation of new resources."
                     ),
                 ),
-                ('backend_id', models.CharField(blank=True, max_length=255)),
+                ("backend_id", models.CharField(blank=True, max_length=255)),
                 (
-                    'max_amount',
+                    "max_amount",
                     models.PositiveSmallIntegerField(
                         blank=True,
-                        help_text='Maximum number of plans that could be active. Plan is disabled when maximum amount is reached.',
+                        help_text="Maximum number of plans that could be active. Plan is disabled when maximum amount is reached.",
                         null=True,
                         validators=[django.core.validators.MinValueValidator(1)],
                     ),
                 ),
                 (
-                    'content_type',
+                    "content_type",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='contenttypes.contenttype',
+                        related_name="+",
+                        to="contenttypes.contenttype",
                     ),
                 ),
                 (
-                    'offering',
+                    "offering",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='plans',
-                        to='marketplace.offering',
+                        related_name="plans",
+                        to="marketplace.offering",
                     ),
                 ),
                 (
-                    'divisions',
+                    "divisions",
                     models.ManyToManyField(
-                        blank=True, related_name='plans', to='structure.Division'
+                        blank=True, related_name="plans", to="structure.Division"
                     ),
                 ),
             ],
             options={
-                'ordering': ('name',),
+                "ordering": ("name",),
             },
             bases=(models.Model, waldur_core.logging.loggers.LoggableMixin),
         ),
         migrations.CreateModel(
-            name='Resource',
+            name="Resource",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('object_id', models.PositiveIntegerField(blank=True, null=True)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("object_id", models.PositiveIntegerField(blank=True, null=True)),
                 (
-                    'cost',
+                    "cost",
                     models.DecimalField(
                         blank=True, decimal_places=10, max_digits=22, null=True
                     ),
                 ),
-                ('limits', models.JSONField(blank=True, default=dict)),
+                ("limits", models.JSONField(blank=True, default=dict)),
                 (
-                    'state',
+                    "state",
                     django_fsm.FSMIntegerField(
                         choices=[
-                            (1, 'Creating'),
-                            (2, 'OK'),
-                            (3, 'Erred'),
-                            (4, 'Updating'),
-                            (5, 'Terminating'),
-                            (6, 'Terminated'),
+                            (1, "Creating"),
+                            (2, "OK"),
+                            (3, "Erred"),
+                            (4, "Updating"),
+                            (5, "Terminating"),
+                            (6, "Terminated"),
                         ],
                         default=1,
                     ),
                 ),
-                ('attributes', models.JSONField(blank=True, default=dict)),
-                ('backend_metadata', models.JSONField(blank=True, default=dict)),
-                ('current_usages', models.JSONField(blank=True, default=dict)),
+                ("attributes", models.JSONField(blank=True, default=dict)),
+                ("backend_metadata", models.JSONField(blank=True, default=dict)),
+                ("current_usages", models.JSONField(blank=True, default=dict)),
                 (
-                    'content_type',
+                    "content_type",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='contenttypes.contenttype',
+                        related_name="+",
+                        to="contenttypes.contenttype",
                     ),
                 ),
                 (
-                    'offering',
+                    "offering",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.PROTECT,
-                        related_name='+',
-                        to='marketplace.offering',
+                        related_name="+",
+                        to="marketplace.offering",
                     ),
                 ),
                 (
-                    'plan',
+                    "plan",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='marketplace.plan',
+                        to="marketplace.plan",
                     ),
                 ),
                 (
-                    'project',
+                    "project",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='structure.project',
+                        to="structure.project",
                     ),
                 ),
-                ('backend_id', models.CharField(blank=True, max_length=255)),
-                ('report', models.JSONField(blank=True, null=True)),
+                ("backend_id", models.CharField(blank=True, max_length=255)),
+                ("report", models.JSONField(blank=True, null=True)),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=2000, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name="description"
                     ),
                 ),
                 (
-                    'end_date',
+                    "end_date",
                     models.DateField(
                         blank=True,
-                        help_text='The date is inclusive. Once reached, a resource will be scheduled for termination.',
+                        help_text="The date is inclusive. Once reached, a resource will be scheduled for termination.",
                         null=True,
                     ),
                 ),
-                ('effective_id', models.CharField(blank=True, max_length=255)),
+                ("effective_id", models.CharField(blank=True, max_length=255)),
                 (
-                    'parent',
+                    "parent",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.SET_NULL,
-                        related_name='children',
-                        to='marketplace.resource',
+                        related_name="children",
+                        to="marketplace.resource",
                     ),
                 ),
             ],
             options={
-                'abstract': False,
-                'ordering': ['created'],
+                "abstract": False,
+                "ordering": ["created"],
             },
             bases=(waldur_core.structure.models.StructureLoggableMixin, models.Model),
         ),
         migrations.CreateModel(
-            name='ResourcePlanPeriod',
+            name="ResourcePlanPeriod",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'start',
-                    models.DateTimeField(blank=True, null=True, verbose_name='start'),
+                    "start",
+                    models.DateTimeField(blank=True, null=True, verbose_name="start"),
                 ),
                 (
-                    'end',
-                    models.DateTimeField(blank=True, null=True, verbose_name='end'),
+                    "end",
+                    models.DateTimeField(blank=True, null=True, verbose_name="end"),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'plan',
+                    "plan",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='marketplace.plan',
+                        to="marketplace.plan",
                     ),
                 ),
                 (
-                    'resource',
+                    "resource",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='marketplace.resource',
+                        related_name="+",
+                        to="marketplace.resource",
                     ),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='Section',
+            name="Section",
             fields=[
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'key',
+                    "key",
                     models.CharField(max_length=255, primary_key=True, serialize=False),
                 ),
-                ('title', models.CharField(max_length=255)),
+                ("title", models.CharField(max_length=255)),
                 (
-                    'is_standalone',
+                    "is_standalone",
                     models.BooleanField(
                         default=False,
-                        help_text='Whether section is rendered as a separate tab.',
+                        help_text="Whether section is rendered as a separate tab.",
                     ),
                 ),
                 (
-                    'category',
+                    "category",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='sections',
-                        to='marketplace.category',
+                        related_name="sections",
+                        to="marketplace.category",
                     ),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='Attribute',
+            name="Attribute",
             fields=[
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'key',
+                    "key",
                     models.CharField(
                         max_length=255,
                         primary_key=True,
                         serialize=False,
                         validators=[
                             django.core.validators.RegexValidator(
-                                '^[a-zA-Z0-9_\\-\\/:]+$'
+                                "^[a-zA-Z0-9_\\-\\/:]+$"
                             )
                         ],
                     ),
                 ),
-                ('title', models.CharField(max_length=255)),
+                ("title", models.CharField(max_length=255)),
                 (
-                    'type',
+                    "type",
                     models.CharField(
                         choices=[
-                            ('boolean', 'boolean'),
-                            ('string', 'string'),
-                            ('text', 'text'),
-                            ('integer', 'integer'),
-                            ('choice', 'choice'),
-                            ('list', 'list'),
+                            ("boolean", "boolean"),
+                            ("string", "string"),
+                            ("text", "text"),
+                            ("integer", "integer"),
+                            ("choice", "choice"),
+                            ("list", "list"),
                         ],
                         max_length=255,
                     ),
                 ),
                 (
-                    'required',
+                    "required",
                     models.BooleanField(
                         default=False,
-                        help_text='A value must be provided for the attribute.',
+                        help_text="A value must be provided for the attribute.",
                     ),
                 ),
-                ('default', models.JSONField(blank=True, null=True)),
+                ("default", models.JSONField(blank=True, null=True)),
                 (
-                    'section',
+                    "section",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='attributes',
-                        to='marketplace.section',
+                        related_name="attributes",
+                        to="marketplace.section",
                     ),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='AggregateResourceCount',
+            name="AggregateResourceCount",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('object_id', models.PositiveIntegerField(blank=True, null=True)),
-                ('count', models.PositiveIntegerField(default=0)),
+                ("object_id", models.PositiveIntegerField(blank=True, null=True)),
+                ("count", models.PositiveIntegerField(default=0)),
                 (
-                    'category',
+                    "category",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='marketplace.category',
+                        related_name="+",
+                        to="marketplace.category",
                     ),
                 ),
                 (
-                    'content_type',
+                    "content_type",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='contenttypes.contenttype',
+                        related_name="+",
+                        to="contenttypes.contenttype",
                     ),
                 ),
             ],
             options={
-                'unique_together': {('category', 'content_type', 'object_id')},
+                "unique_together": {("category", "content_type", "object_id")},
             },
         ),
         migrations.CreateModel(
-            name='CategoryColumn',
+            name="CategoryColumn",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'index',
+                    "index",
                     models.PositiveSmallIntegerField(
-                        help_text='Index allows to reorder columns.'
+                        help_text="Index allows to reorder columns."
                     ),
                 ),
                 (
-                    'title',
+                    "title",
                     models.CharField(
-                        help_text='Title is rendered as column header.', max_length=255
+                        help_text="Title is rendered as column header.", max_length=255
                     ),
                 ),
                 (
-                    'attribute',
+                    "attribute",
                     models.CharField(
                         blank=True,
-                        help_text='Resource attribute is rendered as table cell.',
+                        help_text="Resource attribute is rendered as table cell.",
                         max_length=255,
                     ),
                 ),
                 (
-                    'widget',
+                    "widget",
                     models.CharField(
                         blank=True,
-                        help_text='Widget field allows to customise table cell rendering.',
+                        help_text="Widget field allows to customise table cell rendering.",
                         max_length=255,
                         null=True,
                     ),
                 ),
                 (
-                    'category',
+                    "category",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='columns',
-                        to='marketplace.category',
+                        related_name="columns",
+                        to="marketplace.category",
                     ),
                 ),
             ],
             options={
-                'ordering': ('category', 'index'),
+                "ordering": ("category", "index"),
             },
         ),
         migrations.CreateModel(
-            name='PlanComponent',
+            name="PlanComponent",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('amount', models.PositiveIntegerField(default=0)),
+                ("amount", models.PositiveIntegerField(default=0)),
                 (
-                    'price',
+                    "price",
                     models.DecimalField(
                         decimal_places=10,
                         default=0,
                         max_digits=22,
                         validators=[
-                            django.core.validators.MinValueValidator(Decimal('0'))
+                            django.core.validators.MinValueValidator(Decimal("0"))
                         ],
-                        verbose_name='Price per unit per billing period.',
+                        verbose_name="Price per unit per billing period.",
                     ),
                 ),
                 (
-                    'component',
+                    "component",
                     models.ForeignKey(
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='components',
-                        to='marketplace.offeringcomponent',
+                        related_name="components",
+                        to="marketplace.offeringcomponent",
                     ),
                 ),
                 (
-                    'plan',
+                    "plan",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='components',
-                        to='marketplace.plan',
+                        related_name="components",
+                        to="marketplace.plan",
                     ),
                 ),
             ],
             options={
-                'unique_together': {('plan', 'component')},
-                'ordering': ('component__name',),
+                "unique_together": {("plan", "component")},
+                "ordering": ("component__name",),
             },
         ),
         migrations.CreateModel(
-            name='CategoryComponentUsage',
+            name="CategoryComponentUsage",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('object_id', models.PositiveIntegerField(blank=True, null=True)),
-                ('date', models.DateField()),
-                ('reported_usage', models.BigIntegerField(null=True)),
-                ('fixed_usage', models.BigIntegerField(null=True)),
+                ("object_id", models.PositiveIntegerField(blank=True, null=True)),
+                ("date", models.DateField()),
+                ("reported_usage", models.BigIntegerField(null=True)),
+                ("fixed_usage", models.BigIntegerField(null=True)),
                 (
-                    'component',
+                    "component",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='marketplace.categorycomponent',
+                        to="marketplace.categorycomponent",
                     ),
                 ),
                 (
-                    'content_type',
+                    "content_type",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='contenttypes.contenttype',
+                        related_name="+",
+                        to="contenttypes.contenttype",
                     ),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='Screenshot',
+            name="Screenshot",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=2000, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name="description"
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'image',
+                    "image",
                     models.ImageField(
                         upload_to=waldur_core.media.models.get_upload_path
                     ),
                 ),
                 (
-                    'thumbnail',
+                    "thumbnail",
                     models.ImageField(
                         editable=False,
                         null=True,
@@ -1313,171 +1313,171 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 (
-                    'offering',
+                    "offering",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='screenshots',
-                        to='marketplace.offering',
+                        related_name="screenshots",
+                        to="marketplace.offering",
                     ),
                 ),
             ],
             options={
-                'verbose_name': 'Screenshot',
+                "verbose_name": "Screenshot",
             },
         ),
         migrations.CreateModel(
-            name='ComponentUsage',
+            name="ComponentUsage",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=2000, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name="description"
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('usage', models.BigIntegerField(default=0)),
-                ('date', models.DateTimeField()),
-                ('billing_period', models.DateField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("usage", models.BigIntegerField(default=0)),
+                ("date", models.DateTimeField()),
+                ("billing_period", models.DateField()),
                 (
-                    'component',
+                    "component",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='marketplace.offeringcomponent',
+                        to="marketplace.offeringcomponent",
                     ),
                 ),
                 (
-                    'plan_period',
+                    "plan_period",
                     models.ForeignKey(
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='components',
-                        to='marketplace.resourceplanperiod',
+                        related_name="components",
+                        to="marketplace.resourceplanperiod",
                     ),
                 ),
                 (
-                    'resource',
+                    "resource",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='usages',
-                        to='marketplace.resource',
+                        related_name="usages",
+                        to="marketplace.resource",
                     ),
                 ),
                 (
-                    'recurring',
+                    "recurring",
                     models.BooleanField(
                         default=False,
-                        help_text='Reported value is reused every month until changed.',
+                        help_text="Reported value is reused every month until changed.",
                     ),
                 ),
-                ('backend_id', models.CharField(blank=True, max_length=255)),
+                ("backend_id", models.CharField(blank=True, max_length=255)),
             ],
             options={
-                'unique_together': {
-                    ('resource', 'component', 'plan_period', 'billing_period')
+                "unique_together": {
+                    ("resource", "component", "plan_period", "billing_period")
                 },
             },
         ),
         migrations.CreateModel(
-            name='ServiceProvider',
+            name="ServiceProvider",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=2000, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name="description"
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('enable_notifications', models.BooleanField(default=True)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("enable_notifications", models.BooleanField(default=True)),
                 (
-                    'api_secret_code',
+                    "api_secret_code",
                     models.CharField(blank=True, max_length=255, null=True),
                 ),
                 (
-                    'lead_email',
+                    "lead_email",
                     models.EmailField(
                         blank=True,
-                        help_text='Email for notification about new request based orders. If this field is set, notifications will be sent.',
+                        help_text="Email for notification about new request based orders. If this field is set, notifications will be sent.",
                         max_length=254,
                         null=True,
                     ),
                 ),
                 (
-                    'lead_subject',
+                    "lead_subject",
                     models.CharField(
                         blank=True,
-                        help_text='Notification subject template. Django template variables can be used.',
+                        help_text="Notification subject template. Django template variables can be used.",
                         max_length=255,
                     ),
                 ),
                 (
-                    'lead_body',
+                    "lead_body",
                     models.TextField(
                         blank=True,
-                        help_text='Notification body template. Django template variables can be used.',
+                        help_text="Notification body template. Django template variables can be used.",
                         validators=[
                             waldur_core.core.validators.validate_template_syntax
                         ],
                     ),
                 ),
                 (
-                    'customer',
+                    "customer",
                     models.OneToOneField(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='structure.customer',
+                        to="structure.customer",
                     ),
                 ),
                 (
-                    'image',
+                    "image",
                     models.ImageField(
                         blank=True,
                         null=True,
@@ -1486,319 +1486,319 @@ class Migration(migrations.Migration):
                 ),
             ],
             options={
-                'verbose_name': 'Service provider',
+                "verbose_name": "Service provider",
             },
         ),
         migrations.CreateModel(
-            name='ComponentQuota',
+            name="ComponentQuota",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('limit', models.BigIntegerField(default=-1)),
-                ('usage', models.BigIntegerField(default=0)),
+                ("limit", models.BigIntegerField(default=-1)),
+                ("usage", models.BigIntegerField(default=0)),
                 (
-                    'component',
+                    "component",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='marketplace.offeringcomponent',
+                        to="marketplace.offeringcomponent",
                     ),
                 ),
                 (
-                    'resource',
+                    "resource",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='quotas',
-                        to='marketplace.resource',
+                        related_name="quotas",
+                        to="marketplace.resource",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
             ],
             options={
-                'unique_together': {('resource', 'component')},
+                "unique_together": {("resource", "component")},
             },
         ),
         migrations.CreateModel(
-            name='CartItem',
+            name="CartItem",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'cost',
+                    "cost",
                     models.DecimalField(
                         blank=True, decimal_places=10, max_digits=22, null=True
                     ),
                 ),
-                ('limits', models.JSONField(blank=True, default=dict)),
+                ("limits", models.JSONField(blank=True, default=dict)),
                 (
-                    'type',
+                    "type",
                     models.PositiveSmallIntegerField(
-                        choices=[(1, 'Create'), (2, 'Update'), (3, 'Terminate')],
+                        choices=[(1, "Create"), (2, "Update"), (3, "Terminate")],
                         default=1,
                     ),
                 ),
-                ('attributes', models.JSONField(blank=True, default=dict)),
+                ("attributes", models.JSONField(blank=True, default=dict)),
                 (
-                    'offering',
+                    "offering",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='marketplace.offering',
+                        related_name="+",
+                        to="marketplace.offering",
                     ),
                 ),
                 (
-                    'plan',
+                    "plan",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='marketplace.plan',
+                        to="marketplace.plan",
                     ),
                 ),
                 (
-                    'project',
+                    "project",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='structure.project',
+                        related_name="+",
+                        to="structure.project",
                     ),
                 ),
                 (
-                    'user',
+                    "user",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
+                        related_name="+",
                         to=settings.AUTH_USER_MODEL,
                     ),
                 ),
             ],
             options={
-                'ordering': ('created',),
+                "ordering": ("created",),
             },
         ),
         migrations.CreateModel(
-            name='OrderItem',
+            name="OrderItem",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('error_message', models.TextField(blank=True)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("error_message", models.TextField(blank=True)),
                 (
-                    'cost',
+                    "cost",
                     models.DecimalField(
                         blank=True, decimal_places=10, max_digits=22, null=True
                     ),
                 ),
-                ('limits', models.JSONField(blank=True, default=dict)),
+                ("limits", models.JSONField(blank=True, default=dict)),
                 (
-                    'type',
+                    "type",
                     models.PositiveSmallIntegerField(
-                        choices=[(1, 'Create'), (2, 'Update'), (3, 'Terminate')],
+                        choices=[(1, "Create"), (2, "Update"), (3, "Terminate")],
                         default=1,
                     ),
                 ),
-                ('attributes', models.JSONField(blank=True, default=dict)),
+                ("attributes", models.JSONField(blank=True, default=dict)),
                 (
-                    'state',
+                    "state",
                     django_fsm.FSMIntegerField(
                         choices=[
-                            (1, 'pending'),
-                            (2, 'executing'),
-                            (3, 'done'),
-                            (4, 'erred'),
-                            (5, 'terminated'),
-                            (6, 'terminating'),
+                            (1, "pending"),
+                            (2, "executing"),
+                            (3, "done"),
+                            (4, "erred"),
+                            (5, "terminated"),
+                            (6, "terminating"),
                         ],
                         default=1,
                     ),
                 ),
                 (
-                    'activated',
+                    "activated",
                     models.DateTimeField(
-                        blank=True, null=True, verbose_name='activation date'
+                        blank=True, null=True, verbose_name="activation date"
                     ),
                 ),
                 (
-                    'offering',
+                    "offering",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='marketplace.offering',
-                        related_name='+',
+                        to="marketplace.offering",
+                        related_name="+",
                     ),
                 ),
                 (
-                    'old_plan',
-                    models.ForeignKey(
-                        blank=True,
-                        null=True,
-                        on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='marketplace.plan',
-                    ),
-                ),
-                (
-                    'order',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        related_name='items',
-                        to='marketplace.order',
-                    ),
-                ),
-                (
-                    'plan',
+                    "old_plan",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='marketplace.plan',
+                        related_name="+",
+                        to="marketplace.plan",
                     ),
                 ),
                 (
-                    'resource',
+                    "order",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="items",
+                        to="marketplace.order",
+                    ),
+                ),
+                (
+                    "plan",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='marketplace.resource',
+                        to="marketplace.plan",
                     ),
                 ),
-                ('output', models.TextField(blank=True)),
-                ('error_traceback', models.TextField(blank=True)),
-                ('backend_id', models.CharField(blank=True, max_length=255)),
                 (
-                    'reviewed_at',
+                    "resource",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to="marketplace.resource",
+                    ),
+                ),
+                ("output", models.TextField(blank=True)),
+                ("error_traceback", models.TextField(blank=True)),
+                ("backend_id", models.CharField(blank=True, max_length=255)),
+                (
+                    "reviewed_at",
                     models.DateTimeField(blank=True, editable=False, null=True),
                 ),
                 (
-                    'reviewed_by',
+                    "reviewed_by",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
+                        related_name="+",
                         to=settings.AUTH_USER_MODEL,
                     ),
                 ),
-                ('callback_url', models.URLField(blank=True, null=True)),
+                ("callback_url", models.URLField(blank=True, null=True)),
             ],
             options={
-                'ordering': ('created',),
-                'verbose_name': 'Order',
+                "ordering": ("created",),
+                "verbose_name": "Order",
             },
             bases=(waldur_core.structure.models.StructureLoggableMixin, models.Model),
         ),
         migrations.CreateModel(
-            name='OfferingPermission',
+            name="OfferingPermission",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now, editable=False
                     ),
                 ),
-                ('expiration_time', models.DateTimeField(blank=True, null=True)),
+                ("expiration_time", models.DateTimeField(blank=True, null=True)),
                 (
-                    'is_active',
+                    "is_active",
                     models.BooleanField(db_index=True, default=True, null=True),
                 ),
                 (
-                    'created_by',
+                    "created_by",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
+                        related_name="+",
                         to=settings.AUTH_USER_MODEL,
                     ),
                 ),
                 (
-                    'offering',
+                    "offering",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='permissions',
-                        to='marketplace.offering',
+                        related_name="permissions",
+                        to="marketplace.offering",
                     ),
                 ),
                 (
-                    'user',
+                    "user",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
                         to=settings.AUTH_USER_MODEL,
@@ -1806,113 +1806,113 @@ class Migration(migrations.Migration):
                 ),
             ],
             options={
-                'unique_together': {('offering', 'user', 'is_active')},
+                "unique_together": {("offering", "user", "is_active")},
             },
         ),
         migrations.CreateModel(
-            name='OfferingUser',
+            name="OfferingUser",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('username', models.CharField(blank=True, max_length=100, null=True)),
+                ("username", models.CharField(blank=True, max_length=100, null=True)),
                 (
-                    'offering',
+                    "offering",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='marketplace.offering',
+                        to="marketplace.offering",
                     ),
                 ),
                 (
-                    'user',
+                    "user",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
                         to=settings.AUTH_USER_MODEL,
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
             ],
             options={
-                'ordering': ['username'],
-                'unique_together': {('offering', 'user')},
+                "ordering": ["username"],
+                "unique_together": {("offering", "user")},
             },
         ),
         migrations.CreateModel(
-            name='AttributeOption',
+            name="AttributeOption",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'key',
+                    "key",
                     models.CharField(
                         max_length=255,
                         validators=[
                             django.core.validators.RegexValidator(
-                                '^[a-zA-Z0-9_\\-\\/:]+$'
+                                "^[a-zA-Z0-9_\\-\\/:]+$"
                             )
                         ],
                     ),
                 ),
-                ('title', models.CharField(max_length=255)),
+                ("title", models.CharField(max_length=255)),
                 (
-                    'attribute',
+                    "attribute",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='options',
-                        to='marketplace.attribute',
+                        related_name="options",
+                        to="marketplace.attribute",
                     ),
                 ),
             ],
             options={
-                'unique_together': {('attribute', 'key')},
+                "unique_together": {("attribute", "key")},
             },
         ),
         migrations.CreateModel(
-            name='CategoryHelpArticle',
+            name="CategoryHelpArticle",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('title', models.CharField(blank=True, max_length=255, null=True)),
-                ('url', models.URLField()),
+                ("title", models.CharField(blank=True, max_length=255, null=True)),
+                ("url", models.URLField()),
                 (
-                    'categories',
+                    "categories",
                     models.ManyToManyField(
-                        blank=True, related_name='articles', to='marketplace.Category'
+                        blank=True, related_name="articles", to="marketplace.Category"
                     ),
                 ),
             ],

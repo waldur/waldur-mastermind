@@ -2,8 +2,8 @@ from django.apps import AppConfig
 
 
 class MarketplaceScriptConfig(AppConfig):
-    name = 'waldur_mastermind.marketplace_script'
-    verbose_name = 'Marketplace Script'
+    name = "waldur_mastermind.marketplace_script"
+    verbose_name = "Marketplace Script"
 
     def ready(self):
         from waldur_mastermind.marketplace.plugins import manager

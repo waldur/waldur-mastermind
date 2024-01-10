@@ -32,8 +32,8 @@ class GenericKeyFilterBackend(BaseFilterBackend):
                 return 'scope'
     """
 
-    content_type_field = 'content_type'
-    object_id_field = 'object_id'
+    content_type_field = "content_type"
+    object_id_field = "object_id"
 
     def is_anonymous_allowed(self):
         return False
@@ -57,7 +57,7 @@ class GenericKeyFilterBackend(BaseFilterBackend):
                 related_models=self.get_related_models()
             )
             # Trick to set field context without serializer
-            field._context = {'request': request}
+            field._context = {"request": request}
             if self.is_anonymous_allowed() and request.user.is_anonymous:
                 request.user = None
             obj = field.to_internal_value(value)
@@ -76,7 +76,7 @@ class MappedFilterMixin:
         # assert set(k for k, _ in self.field.choices) == set(choice_mappings.keys()), 'Choices do not match mappings'
         assert len(set(choice_mappings.values())) == len(
             choice_mappings
-        ), 'Mappings are not unique'
+        ), "Mappings are not unique"
 
         self.mapped_to_model = choice_mappings
         self.model_to_mapped = {v: k for k, v in choice_mappings.items()}
@@ -125,26 +125,26 @@ class LooseMultipleChoiceFilter(MultipleChoiceFilter):
 
 class StateFilter(MappedMultipleChoiceFilter):
     DEFAULT_CHOICES = (
-        ('Creation Scheduled', 'Creation Scheduled'),
-        ('Creating', 'Creating'),
-        ('Update Scheduled', 'Update Scheduled'),
-        ('Updating', 'Updating'),
-        ('Deletion Scheduled', 'Deletion Scheduled'),
-        ('Deleting', 'Deleting'),
-        ('OK', 'OK'),
-        ('Erred', 'Erred'),
+        ("Creation Scheduled", "Creation Scheduled"),
+        ("Creating", "Creating"),
+        ("Update Scheduled", "Update Scheduled"),
+        ("Updating", "Updating"),
+        ("Deletion Scheduled", "Deletion Scheduled"),
+        ("Deleting", "Deleting"),
+        ("OK", "OK"),
+        ("Erred", "Erred"),
     )
 
     States = core_models.StateMixin.States
     DEFAULT_CHOICE_MAPPING = {
-        'Creation Scheduled': States.CREATION_SCHEDULED,
-        'Creating': States.CREATING,
-        'Update Scheduled': States.UPDATE_SCHEDULED,
-        'Updating': States.UPDATING,
-        'Deletion Scheduled': States.DELETION_SCHEDULED,
-        'Deleting': States.DELETING,
-        'OK': States.OK,
-        'Erred': States.ERRED,
+        "Creation Scheduled": States.CREATION_SCHEDULED,
+        "Creating": States.CREATING,
+        "Update Scheduled": States.UPDATE_SCHEDULED,
+        "Updating": States.UPDATING,
+        "Deletion Scheduled": States.DELETION_SCHEDULED,
+        "Deleting": States.DELETING,
+        "OK": States.OK,
+        "Erred": States.ERRED,
     }
 
     def __init__(self, choices=DEFAULT_CHOICES, choice_mappings=None, **kwargs):
@@ -156,15 +156,15 @@ class StateFilter(MappedMultipleChoiceFilter):
 class URLFilter(django_filters.CharFilter):
     """Filter by hyperlinks. ViewSet name must be supplied in order to validate URL."""
 
-    def __init__(self, view_name, lookup_field='uuid', **kwargs):
+    def __init__(self, view_name, lookup_field="uuid", **kwargs):
         super().__init__(**kwargs)
         self.view_name = view_name
         self.lookup_field = lookup_field
 
     def get_uuid(self, value):
-        uuid_value = ''
+        uuid_value = ""
         path = urlparse(value).path
-        if path.startswith('/'):
+        if path.startswith("/"):
             match = resolve(path)
             if match.url_name == self.view_name:
                 uuid_value = match.kwargs.get(self.lookup_field)
@@ -208,7 +208,7 @@ class CategoryFilter(django_filters.CharFilter):
 
     def filter(self, qs, value):
         if value in self.categories.keys():
-            return qs.filter(**{'%s__in' % self.name: self.categories[value]})
+            return qs.filter(**{"%s__in" % self.name: self.categories[value]})
 
         return super().filter(qs, value)
 
@@ -226,7 +226,7 @@ class ContentTypeFilter(django_filters.CharFilter):
         if value in EMPTY_VALUES:
             return qs
         try:
-            app_label, model = value.split('.')
+            app_label, model = value.split(".")
             ct = ContentType.objects.get(app_label=app_label, model=model)
             return super().filter(qs, ct)
         except (ContentType.DoesNotExist, ValueError):
@@ -240,14 +240,14 @@ class ExternalFilterBackend(BaseFilterBackend):
 
     @classmethod
     def get_registered_filters(cls):
-        return getattr(cls, '_filters', [])
+        return getattr(cls, "_filters", [])
 
     @classmethod
     def register(cls, external_filter):
         assert isinstance(
             external_filter, BaseFilterBackend
-        ), 'Registered filter has to inherit BaseFilterBackend'
-        if hasattr(cls, '_filters'):
+        ), "Registered filter has to inherit BaseFilterBackend"
+        if hasattr(cls, "_filters"):
             cls._filters.append(external_filter)
         else:
             cls._filters = [external_filter]
@@ -329,7 +329,7 @@ class ExtendedOrderingFilter(django_filters.OrderingFilter):
     """
 
     def get_ordering_value(self, param):
-        descending = param.startswith('-')
+        descending = param.startswith("-")
         param = param[1:] if descending else param
         field_name = self.param_map.get(param, param)
 
@@ -352,20 +352,20 @@ class ExtendedOrderingFilter(django_filters.OrderingFilter):
 
 
 class CreatedModifiedFilter(django_filters.FilterSet):
-    created = django_filters.DateFilter(lookup_expr='gte', label='Created after')
-    modified = django_filters.DateFilter(lookup_expr='gte', label='Modified after')
+    created = django_filters.DateFilter(lookup_expr="gte", label="Created after")
+    modified = django_filters.DateFilter(lookup_expr="gte", label="Modified after")
 
 
-def filter_by_full_name(queryset, value, field=''):
-    field = field and field + '__'
+def filter_by_full_name(queryset, value, field=""):
+    field = field and field + "__"
     return queryset.filter(
-        **{field + 'query_field__icontains': core_utils.normalize_unicode(value)}
+        **{field + "query_field__icontains": core_utils.normalize_unicode(value)}
     )
 
 
 def filter_by_full_name_and_email(queryset, value):
     return queryset.filter(
-        Q(**{'query_field__icontains': core_utils.normalize_unicode(value)})
+        Q(**{"query_field__icontains": core_utils.normalize_unicode(value)})
         | Q(email__icontains=value)
     ).distinct()
 
@@ -373,14 +373,14 @@ def filter_by_full_name_and_email(queryset, value):
 class ReviewStateFilter(MappedMultipleChoiceFilter):
     def __init__(self, *args, **kwargs):
         kwargs.setdefault(
-            'choices',
+            "choices",
             [
                 (representation, representation)
                 for db_value, representation in core_mixins.ReviewMixin.States.CHOICES
             ],
         )
         kwargs.setdefault(
-            'choice_mappings',
+            "choice_mappings",
             {
                 representation: db_value
                 for db_value, representation in core_mixins.ReviewMixin.States.CHOICES

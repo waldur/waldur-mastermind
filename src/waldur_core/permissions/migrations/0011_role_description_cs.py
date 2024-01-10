@@ -5,15 +5,15 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('permissions', '0010_role_description_ar'),
+        ("permissions", "0010_role_description_ar"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='role',
-            name='description_cs',
+            model_name="role",
+            name="description_cs",
             field=models.CharField(
-                blank=True, max_length=2000, null=True, verbose_name='description'
+                blank=True, max_length=2000, null=True, verbose_name="description"
             ),
         ),
     ]

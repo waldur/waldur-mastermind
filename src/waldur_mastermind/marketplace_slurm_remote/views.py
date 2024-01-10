@@ -22,18 +22,18 @@ User = get_user_model()
 
 
 class SlurmViewSet(core_views.ActionsViewSet):
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
     queryset = models.Resource.objects.filter(offering__type=PLUGIN_NAME).exclude(
         object_id=None
     )
     serializer_class = marketplace_serializers.ResourceSerializer
     disabled_actions = [
-        'retrieve',
-        'list',
-        'create',
-        'update',
-        'partial_update',
-        'destroy',
+        "retrieve",
+        "list",
+        "create",
+        "update",
+        "partial_update",
+        "destroy",
     ]
 
     create_association_serializer_class = (
@@ -48,7 +48,7 @@ class SlurmViewSet(core_views.ActionsViewSet):
         permissions.user_is_service_provider_owner_or_service_provider_manager
     ]
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def set_limits(self, request, uuid=None):
         resource = self.get_object()
         allocation: slurm_models.Allocation = resource.scope
@@ -58,39 +58,39 @@ class SlurmViewSet(core_views.ActionsViewSet):
         if not isinstance(new_limits, dict):
             limits_type = type(new_limits)
             raise ValidationError(
-                _('The payload must have dictionary type, not %s.' % limits_type)
+                _("The payload must have dictionary type, not %s." % limits_type)
             )
 
         old_limits = resource.limits
         resource.limits = request.data
-        resource.save(update_fields=['limits'])
+        resource.save(update_fields=["limits"])
 
         logger.info(
-            'The limits for allocation %s have been changed from %s to %s',
+            "The limits for allocation %s have been changed from %s to %s",
             allocation,
             old_limits,
             request.data,
         )
 
         return Response(
-            {'status': _('Limits are successfully set.')},
+            {"status": _("Limits are successfully set.")},
             status=status.HTTP_200_OK,
         )
 
-    @action(detail=True, methods=['POST'])
+    @action(detail=True, methods=["POST"])
     def set_usage(self, request, uuid=None):
         resource = self.get_object()
         allocation: slurm_models.Allocation = resource.scope
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         payload = serializer.validated_data
-        if payload['username'] == 'TOTAL_ACCOUNT_USAGE':
-            allocation.cpu_usage = payload['cpu_usage']
-            allocation.gpu_usage = payload['gpu_usage']
-            allocation.ram_usage = payload['ram_usage']
-            allocation.save(update_fields=['cpu_usage', 'gpu_usage', 'ram_usage'])
+        if payload["username"] == "TOTAL_ACCOUNT_USAGE":
+            allocation.cpu_usage = payload["cpu_usage"]
+            allocation.gpu_usage = payload["gpu_usage"]
+            allocation.ram_usage = payload["ram_usage"]
+            allocation.save(update_fields=["cpu_usage", "gpu_usage", "ram_usage"])
             logger.info(
-                'The total usage for allocation %s has been set: %s.',
+                "The total usage for allocation %s has been set: %s.",
                 allocation,
                 payload,
             )
@@ -100,50 +100,50 @@ class SlurmViewSet(core_views.ActionsViewSet):
                 created,
             ) = slurm_models.AllocationUserUsage.objects.update_or_create(
                 allocation=allocation,
-                user=payload['user'],
-                username=payload['username'],
-                month=payload['month'],
-                year=payload['year'],
+                user=payload["user"],
+                username=payload["username"],
+                month=payload["month"],
+                year=payload["year"],
                 defaults={
-                    'cpu_usage': payload['cpu_usage'],
-                    'ram_usage': payload['ram_usage'],
-                    'gpu_usage': payload['gpu_usage'],
+                    "cpu_usage": payload["cpu_usage"],
+                    "ram_usage": payload["ram_usage"],
+                    "gpu_usage": payload["gpu_usage"],
                 },
             )
             if created:
                 logger.info(
-                    'User usage %s has been created with the following params: %s',
+                    "User usage %s has been created with the following params: %s",
                     user_usage,
                     payload,
                 )
             else:
                 logger.info(
-                    'User usage %s has been updated with the following params: %s',
+                    "User usage %s has been updated with the following params: %s",
                     user_usage,
                     payload,
                 )
 
         return Response(
             {
-                'detail': _('Allocation usage has been updated successfully.'),
+                "detail": _("Allocation usage has been updated successfully."),
             },
             status=status.HTTP_200_OK,
         )
 
     set_usage_serializer_class = slurm_serializers.AllocationUserUsageCreateSerializer
 
-    @action(detail=True, methods=['POST'])
+    @action(detail=True, methods=["POST"])
     def create_association(self, request, uuid=None):
         resource = self.get_object()
         offering = resource.offering
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        username = serializer.validated_data['username']
+        username = serializer.validated_data["username"]
 
         allocation = resource.scope
         if not allocation:
             raise ValidationError(
-                _('The resource does not have a related SLURM allocation.')
+                _("The resource does not have a related SLURM allocation.")
             )
 
         association, created = slurm_models.Association.objects.get_or_create(
@@ -151,13 +151,13 @@ class SlurmViewSet(core_views.ActionsViewSet):
             username=username,
         )
         if created:
-            logger.info('The association %s has been created', association)
+            logger.info("The association %s has been created", association)
             offering_users = models.OfferingUser.objects.filter(
                 offering=offering, username=username
             )
             if offering_users.count() == 0:
                 logger.info(
-                    'There is no offering user for %s with username %s',
+                    "There is no offering user for %s with username %s",
                     offering,
                     username,
                 )
@@ -165,15 +165,15 @@ class SlurmViewSet(core_views.ActionsViewSet):
                 offering_user = offering_users.first()
                 if offering_user.propagation_date is None:
                     offering_user.set_propagation_date()
-                    offering_user.save(update_fields=['propagation_date'])
+                    offering_user.save(update_fields=["propagation_date"])
                     logger.info(
-                        'The corresponding offering user %s has been marked as propagated',
+                        "The corresponding offering user %s has been marked as propagated",
                         offering_user,
                     )
             return Response(
                 {
-                    'detail': _(
-                        'Association between the allocation and the username has been successfully created.'
+                    "detail": _(
+                        "Association between the allocation and the username has been successfully created."
                     ),
                 },
                 status=status.HTTP_201_CREATED,
@@ -181,24 +181,24 @@ class SlurmViewSet(core_views.ActionsViewSet):
 
         return Response(
             {
-                'detail': _(
-                    'Association between the allocation and the username already exists.'
+                "detail": _(
+                    "Association between the allocation and the username already exists."
                 ),
             },
             status=status.HTTP_200_OK,
         )
 
-    @action(detail=True, methods=['POST'])
+    @action(detail=True, methods=["POST"])
     def delete_association(self, request, uuid=None):
         resource = self.get_object()
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        username = serializer.validated_data['username']
+        username = serializer.validated_data["username"]
 
         allocation = resource.scope
         if not allocation:
             raise ValidationError(
-                _('The resource does not have a related SLURM allocation.')
+                _("The resource does not have a related SLURM allocation.")
             )
 
         associations = slurm_models.Association.objects.filter(
@@ -206,61 +206,62 @@ class SlurmViewSet(core_views.ActionsViewSet):
         )
         if not associations:
             raise ValidationError(
-                _('Association between the allocation and the username does not exist.')
+                _("Association between the allocation and the username does not exist.")
             )
 
         for association in associations:
             association.delete()
-            logger.info('The association %s has been deleted', association)
+            logger.info("The association %s has been deleted", association)
 
         return Response(
             {
-                'detail': _(
-                    'Association between the allocation and the username has been successfully deleted.'
+                "detail": _(
+                    "Association between the allocation and the username has been successfully deleted."
                 ),
             },
             status=status.HTTP_200_OK,
         )
 
-    @action(detail=True, methods=['POST'])
+    @action(detail=True, methods=["POST"])
     def set_state(self, request, uuid=None):
         resource = self.get_object()
         allocation: slurm_models.Allocation = resource.scope
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        state = serializer.validated_data['state']
+        state = serializer.validated_data["state"]
 
         state_to_methods_map = {
-            'creating': 'begin_creating',
-            'updating': 'begin_updating',
-            'deletion_scheduled': 'schedule_deleting',
-            'update_scheduled': 'schedule_updating',
-            'deleting': 'begin_deleting',
-            'ok': 'set_ok',
-            'erred': 'set_erred',
+            "creating": "begin_creating",
+            "updating": "begin_updating",
+            "deletion_scheduled": "schedule_deleting",
+            "update_scheduled": "schedule_updating",
+            "deleting": "begin_deleting",
+            "ok": "set_ok",
+            "erred": "set_erred",
         }
 
         transition_method_name = state_to_methods_map.get(state)
         if not transition_method_name:
             raise ValidationError(
-                _('Invalid state: a corresponding method for transition is absent')
+                _("Invalid state: a corresponding method for transition is absent")
             )
         try:
             transition_method = getattr(allocation, transition_method_name)
             transition_method()
-            allocation.save(update_fields=['state'])
+            allocation.save(update_fields=["state"])
             return Response(
                 {
-                    'detail': _('Allocation state has been changed to %s' % state),
+                    "detail": _("Allocation state has been changed to %s" % state),
                 },
                 status.HTTP_200_OK,
             )
         except TransitionNotAllowed:
             return Response(
                 {
-                    'detail': _(
-                        'Allocation state can not be changed from %s to %s.'
-                        % (allocation.state, state)
+                    "detail": _(
+                        "Allocation state can not be changed from {} to {}.".format(
+                            allocation.state, state
+                        )
                     ),
                 },
                 status.HTTP_409_CONFLICT,
@@ -268,31 +269,31 @@ class SlurmViewSet(core_views.ActionsViewSet):
 
     set_state_serializer_class = serializers.SetStateSerializer
 
-    @action(detail=True, methods=['POST'])
+    @action(detail=True, methods=["POST"])
     def set_backend_id(self, request, uuid=None):
         resource = self.get_object()
         allocation: slurm_models.Allocation = resource.scope
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        new_backend_id = serializer.validated_data['backend_id']
+        new_backend_id = serializer.validated_data["backend_id"]
         old_backend_id = allocation.backend_id
         if new_backend_id != old_backend_id:
-            allocation.backend_id = serializer.validated_data['backend_id']
-            allocation.save(update_fields=['backend_id'])
+            allocation.backend_id = serializer.validated_data["backend_id"]
+            allocation.save(update_fields=["backend_id"])
             logger.info(
-                '%s has changed backend_id from %s to %s',
+                "%s has changed backend_id from %s to %s",
                 request.user.full_name,
                 old_backend_id,
                 new_backend_id,
             )
 
             return Response(
-                {'status': _('Allocation backend_id has been changed.')},
+                {"status": _("Allocation backend_id has been changed.")},
                 status=status.HTTP_200_OK,
             )
         else:
             return Response(
-                {'status': _('Allocation backend_id is not changed.')},
+                {"status": _("Allocation backend_id is not changed.")},
                 status=status.HTTP_200_OK,
             )
 

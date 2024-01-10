@@ -4,23 +4,23 @@ from constance import config
 
 
 class SupportBackendType:
-    ATLASSIAN = 'atlassian'
-    ZAMMAD = 'zammad'
-    SMAX = 'smax'
+    ATLASSIAN = "atlassian"
+    ZAMMAD = "zammad"
+    SMAX = "smax"
 
 
 def get_active_backend():
     backend_type = config.WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE
     if backend_type == SupportBackendType.ATLASSIAN:
-        path = 'waldur_mastermind.support.backend.atlassian:ServiceDeskBackend'
+        path = "waldur_mastermind.support.backend.atlassian:ServiceDeskBackend"
     elif backend_type == SupportBackendType.ZAMMAD:
-        path = 'waldur_mastermind.support.backend.zammad:ZammadServiceBackend'
+        path = "waldur_mastermind.support.backend.zammad:ZammadServiceBackend"
     elif backend_type == SupportBackendType.SMAX:
-        path = 'waldur_mastermind.support.backend.smax:SmaxServiceBackend'
+        path = "waldur_mastermind.support.backend.smax:SmaxServiceBackend"
     else:
-        path = 'waldur_mastermind.support.backend.basic:BasicBackend'
+        path = "waldur_mastermind.support.backend.basic:BasicBackend"
 
-    module_path, class_name = path.split(':')
+    module_path, class_name = path.split(":")
     module = importlib.import_module(module_path)
     klass = getattr(module, class_name)
     return klass()

@@ -30,10 +30,10 @@ class IsAdminOrOwner(IsAdminOrReadOnly):
         user = request.user
         if user.is_staff or request.method in SAFE_METHODS:
             return True
-        elif view.suffix == 'List' or request.method == 'DELETE':
+        elif view.suffix == "List" or request.method == "DELETE":
             return False
         # Fix for schema generation
-        elif 'uuid' not in view.kwargs:
+        elif "uuid" not in view.kwargs:
             return False
 
         return user == view.get_object()
@@ -102,23 +102,23 @@ def _get_parent_by_permission_path(obj, permission_path):
     path = getattr(obj.Permissions, permission_path, None)
     if path is None:
         return
-    if path == 'self':
+    if path == "self":
         return obj
 
-    return reduce(getattr, path.split('__'), obj)
+    return reduce(getattr, path.split("__"), obj)
 
 
 def _get_project(obj, **kwargs):
-    return _get_parent_by_permission_path(obj, 'project_path', **kwargs)
+    return _get_parent_by_permission_path(obj, "project_path", **kwargs)
 
 
 def _get_customer(obj, **kwargs):
-    return _get_parent_by_permission_path(obj, 'customer_path', **kwargs)
+    return _get_parent_by_permission_path(obj, "customer_path", **kwargs)
 
 
 def check_access_to_services_management(request, view, obj=None):
     if (
-        django_settings.WALDUR_CORE['ONLY_STAFF_MANAGES_SERVICES']
+        django_settings.WALDUR_CORE["ONLY_STAFF_MANAGES_SERVICES"]
         and not request.user.is_staff
     ):
         raise exceptions.PermissionDenied()

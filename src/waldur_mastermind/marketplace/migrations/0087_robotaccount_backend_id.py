@@ -5,13 +5,13 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace', '0086_backend_metadata'),
+        ("marketplace", "0086_backend_metadata"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='robotaccount',
-            name='backend_id',
+            model_name="robotaccount",
+            name="backend_id",
             field=models.CharField(blank=True, max_length=255),
         ),
     ]

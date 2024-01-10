@@ -14,18 +14,18 @@ logger = logging.getLogger(__name__)
 
 class PaypalTaskMixin(ExtensionTaskMixin):
     def is_extension_disabled(self):
-        return not settings.WALDUR_PAYPAL['ENABLED']
+        return not settings.WALDUR_PAYPAL["ENABLED"]
 
 
 class PaymentsCleanUp(PaypalTaskMixin, core_tasks.BackgroundTask):
-    name = 'waldur_paypal.PaymentsCleanUp'
+    name = "waldur_paypal.PaymentsCleanUp"
 
     def is_equal(self, other_task, *args, **kwargs):
-        return self.name == other_task.get('name')
+        return self.name == other_task.get("name")
 
     def run(self):
         timespan = settings.WALDUR_PAYPAL.get(
-            'STALE_PAYMENTS_LIFETIME', timedelta(weeks=1)
+            "STALE_PAYMENTS_LIFETIME", timedelta(weeks=1)
         )
         models.Payment.objects.filter(
             state=models.Payment.States.CREATED, created__lte=timezone.now() - timespan
@@ -33,13 +33,13 @@ class PaymentsCleanUp(PaypalTaskMixin, core_tasks.BackgroundTask):
 
 
 class SendInvoices(PaypalTaskMixin, core_tasks.BackgroundTask):
-    name = 'waldur_paypal.SendInvoices'
+    name = "waldur_paypal.SendInvoices"
 
     def is_equal(self, other_task, *args, **kwargs):
-        return self.name == other_task.get('name')
+        return self.name == other_task.get("name")
 
     def run(self):
-        new_invoices = models.Invoice.objects.filter(backend_id='')
+        new_invoices = models.Invoice.objects.filter(backend_id="")
 
         for invoice in new_invoices.iterator():
             executors.InvoiceCreateExecutor.execute(invoice)

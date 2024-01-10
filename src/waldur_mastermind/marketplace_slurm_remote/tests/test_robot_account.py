@@ -16,12 +16,12 @@ class RobotAccountGlauthConfigTest(test.APITransactionTestCase):
         self.offering = self.fixture.offering
         self.offering.type = PLUGIN_NAME
         self.offering.plugin_options = {
-            'username_generation_policy': 'waldur_username',
-            'initial_uidnumber': 1000,
-            'initial_primarygroup_number': 2000,
+            "username_generation_policy": "waldur_username",
+            "initial_uidnumber": 1000,
+            "initial_primarygroup_number": 2000,
         }
         self.offering.secret_options = {
-            'service_provider_can_create_offering_user': True
+            "service_provider_can_create_offering_user": True
         }
         self.offering.save()
 
@@ -36,7 +36,7 @@ class RobotAccountGlauthConfigTest(test.APITransactionTestCase):
         self.robot_account.save()
 
         self.url = marketplace_factories.OfferingFactory.get_url(
-            self.offering, 'glauth_users_config'
+            self.offering, "glauth_users_config"
         )
         self.maxDiff = None
 

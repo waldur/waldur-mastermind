@@ -16,13 +16,13 @@ class DigitalOceanBackendTest(test.APITransactionTestCase):
     def setUp(self):
         super().setUp()
 
-        self.manager_patcher = mock.patch('digitalocean.Manager')
+        self.manager_patcher = mock.patch("digitalocean.Manager")
         self.manager_api = self.manager_patcher.start()
 
-        self.droplet_patcher = mock.patch('digitalocean.Droplet')
+        self.droplet_patcher = mock.patch("digitalocean.Droplet")
         self.droplet_api = self.droplet_patcher.start()
 
-        self.ssh_patcher = mock.patch('digitalocean.SSHKey')
+        self.ssh_patcher = mock.patch("digitalocean.SSHKey")
         self.ssh_api = self.ssh_patcher.start()
 
     def tearDown(self):
@@ -41,7 +41,7 @@ class BaseDropletProvisionTest(DigitalOceanBackendTest):
         self.settings = structure_factories.ServiceSettingsFactory(
             customer=self.customer,
             type=DigitalOceanConfig.service_name,
-            token='VALID_TOKEN',
+            token="VALID_TOKEN",
         )
         self.region = factories.RegionFactory()
         self.image = factories.ImageFactory()
@@ -74,30 +74,30 @@ class BaseDropletProvisionTest(DigitalOceanBackendTest):
 
     def mock_backend(self):
         self.mock_key = mock.Mock()
-        self.mock_key.id = 'VALID_SSH_ID'
+        self.mock_key.id = "VALID_SSH_ID"
         self.mock_key.name = self.ssh_public_key.name
         self.mock_key.fingerprint = self.ssh_public_key.fingerprint
         self.ssh_api.return_value = self.mock_key
 
         self.mock_droplet = mock.Mock()
-        self.mock_droplet.id = 'VALID_DROPLET_ID'
-        self.mock_droplet.action_ids = ['VALID_ACTION_ID']
-        self.mock_droplet.ip_address = '10.0.0.1'
+        self.mock_droplet.id = "VALID_DROPLET_ID"
+        self.mock_droplet.action_ids = ["VALID_ACTION_ID"]
+        self.mock_droplet.ip_address = "10.0.0.1"
         self.droplet_api.return_value = self.mock_droplet
 
         mock_action = mock.Mock()
-        mock_action.status = 'completed'
+        mock_action.status = "completed"
         self.manager_api().get_action.return_value = mock_action
         self.manager_api().get_droplet.return_value = self.mock_droplet
 
     def get_valid_data(self, **extra):
         default = {
-            'service_settings': ServiceSettingsFactory.get_url(self.settings),
-            'project': ProjectFactory.get_url(self.project),
-            'region': factories.RegionFactory.get_url(self.region),
-            'image': factories.ImageFactory.get_url(self.image),
-            'size': factories.SizeFactory.get_url(self.size),
-            'name': 'valid-name',
+            "service_settings": ServiceSettingsFactory.get_url(self.settings),
+            "project": ProjectFactory.get_url(self.project),
+            "region": factories.RegionFactory.get_url(self.region),
+            "image": factories.ImageFactory.get_url(self.image),
+            "size": factories.SizeFactory.get_url(self.size),
+            "name": "valid-name",
         }
         default.update(extra)
         return default
@@ -116,7 +116,7 @@ class BaseDropletProvisionTest(DigitalOceanBackendTest):
 
     def test_ssh_key_is_created_if_it_does_not_exist_yet(self):
         self.ssh_api().load.side_effect = digitalocean.DataReadError(
-            'The resource you were accessing could not be found.'
+            "The resource you were accessing could not be found."
         )
         self.client.post(self.url, self.get_valid_data(ssh_public_key=self.ssh_url))
         self.ssh_api().load.assert_called_once()
@@ -130,8 +130,8 @@ class BaseDropletProvisionTest(DigitalOceanBackendTest):
         self.droplet_api().create.assert_called_once()
 
         droplet = Droplet.objects.get(backend_id=self.mock_droplet.id)
-        self.assertEqual(droplet.key_name, '')
-        self.assertEqual(droplet.key_fingerprint, '')
+        self.assertEqual(droplet.key_name, "")
+        self.assertEqual(droplet.key_fingerprint, "")
 
     def test_if_ssh_is_used_it_is_stored_in_droplet(self):
         self.client.post(self.url, self.get_valid_data(ssh_public_key=self.ssh_url))
@@ -142,13 +142,13 @@ class BaseDropletProvisionTest(DigitalOceanBackendTest):
     def test_when_droplet_is_created_backend_is_called(self):
         self.client.post(
             self.url,
-            self.get_valid_data(name='VALID-NAME', ssh_public_key=self.ssh_url),
+            self.get_valid_data(name="VALID-NAME", ssh_public_key=self.ssh_url),
         )
 
         self.droplet_api.assert_called_once_with(
             token=mock.ANY,
-            name='VALID-NAME',
-            user_data='',
+            name="VALID-NAME",
+            user_data="",
             region=self.region.backend_id,
             image=self.image.backend_id,
             size_slug=self.size.backend_id,
@@ -156,7 +156,7 @@ class BaseDropletProvisionTest(DigitalOceanBackendTest):
         )
         self.droplet_api().create.assert_called_once()
 
-    @skip('Unclear why is failing, but not relevant for marketplace.')
+    @skip("Unclear why is failing, but not relevant for marketplace.")
     def test_when_droplet_is_created_last_action_is_pulled(self):
         self.client.post(self.url, self.get_valid_data(ssh_public_key=self.ssh_url))
         action_id = self.mock_droplet.action_ids[-1]

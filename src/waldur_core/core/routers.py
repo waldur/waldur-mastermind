@@ -28,14 +28,14 @@ class SortedDefaultRouter(DefaultRouter):
                 namespace = request.resolver_match.namespace
                 for key, url_name in sorted(api_root_dict.items(), key=itemgetter(0)):
                     if namespace:
-                        url_name = namespace + ':' + url_name
+                        url_name = namespace + ":" + url_name
                     try:
                         ret[key] = reverse(
                             url_name,
                             args=args,
                             kwargs=kwargs,
                             request=request,
-                            format=kwargs.get('format', None),
+                            format=kwargs.get("format", None),
                         )
                     except NoReverseMatch:
                         # Don't bail out if eg. no list routes exist, only detail routes.
@@ -49,10 +49,10 @@ class SortedDefaultRouter(DefaultRouter):
         """
         Attempt to automatically determine base name using `get_url_name`.
         """
-        queryset = getattr(viewset, 'queryset', None)
+        queryset = getattr(viewset, "queryset", None)
 
         if queryset is not None:
-            get_url_name = getattr(queryset.model, 'get_url_name', None)
+            get_url_name = getattr(queryset.model, "get_url_name", None)
             if get_url_name is not None:
                 return get_url_name()
 
@@ -61,7 +61,7 @@ class SortedDefaultRouter(DefaultRouter):
     def get_method_map(self, viewset, method_map):
         # head method is not included by default
         mappings = super().get_method_map(viewset, method_map)
-        if 'get' in mappings:
-            mappings['head'] = mappings['get']
+        if "get" in mappings:
+            mappings["head"] = mappings["get"]
 
         return mappings

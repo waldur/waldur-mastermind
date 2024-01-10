@@ -12,4 +12,4 @@ def protected_url(value, field):
     context = get_event_context()
     if not settings.USE_PROTECTED_URL:
         return value.url
-    return encode_protected_url(value.instance, field, user_uuid=context['user_uuid'])
+    return encode_protected_url(value.instance, field, user_uuid=context["user_uuid"])

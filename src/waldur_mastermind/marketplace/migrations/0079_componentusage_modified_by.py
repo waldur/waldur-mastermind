@@ -7,11 +7,11 @@ from django.db import migrations, models
 
 def cleanup_component_usage_log(apps, schema_editor):
     step = 1000
-    Event = apps.get_model('logging', 'Event')
+    Event = apps.get_model("logging", "Event")
     events_to_drop = Event.objects.filter(
         event_type__in=[
-            'marketplace_component_usage_created',
-            'marketplace_component_usage_updated',
+            "marketplace_component_usage_created",
+            "marketplace_component_usage_updated",
         ]
     )
 
@@ -22,8 +22,8 @@ def cleanup_component_usage_log(apps, schema_editor):
 
         events_to_drop = Event.objects.filter(
             event_type__in=[
-                'marketplace_component_usage_created',
-                'marketplace_component_usage_updated',
+                "marketplace_component_usage_created",
+                "marketplace_component_usage_updated",
             ]
         )
 
@@ -31,19 +31,19 @@ def cleanup_component_usage_log(apps, schema_editor):
 class Migration(migrations.Migration):
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('marketplace', '0078_alter_offering_parent'),
+        ("marketplace", "0078_alter_offering_parent"),
     ]
 
     operations = [
         # migrations.RunPython(cleanup_component_usage_log),
         migrations.AddField(
-            model_name='componentusage',
-            name='modified_by',
+            model_name="componentusage",
+            name="modified_by",
             field=models.ForeignKey(
                 blank=True,
                 null=True,
                 on_delete=django.db.models.deletion.SET_NULL,
-                related_name='+',
+                related_name="+",
                 to=settings.AUTH_USER_MODEL,
             ),
         ),

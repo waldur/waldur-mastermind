@@ -12,7 +12,7 @@ from . import models
 
 def load_providers():
     metadata = {}
-    for filename in settings.WALDUR_AUTH_SAML2['IDP_METADATA_LOCAL']:
+    for filename in settings.WALDUR_AUTH_SAML2["IDP_METADATA_LOCAL"]:
         mdf = MetaDataFile(ac_factory(), filename)
         mdf.load()
         metadata.update(mdf.items())
@@ -22,7 +22,7 @@ def load_providers():
 def sync_providers():
     providers = load_providers()
 
-    current_idps = list(models.IdentityProvider.objects.all().only('url', 'pk'))
+    current_idps = list(models.IdentityProvider.objects.all().only("url", "pk"))
     backend_urls = set(providers.keys())
 
     stale_idps = set(idp.pk for idp in current_idps if idp.url not in backend_urls)
@@ -34,7 +34,7 @@ def sync_providers():
         name = get_idp_name(metadata)
         if not name:
             # It is expected that every provider has name. For corner cases check entity_id
-            name = metadata.get('entity_id')
+            name = metadata.get("entity_id")
             if not name:
                 # Skip invalid identity provider
                 continue
@@ -61,7 +61,7 @@ def is_valid_idp(value):
 def get_idp_sso_supported_bindings(idp_entity_id, config):
     try:
         return config.metadata.service(
-            idp_entity_id, 'idpsso_descriptor', 'single_sign_on_service'
+            idp_entity_id, "idpsso_descriptor", "single_sign_on_service"
         ).keys()
     except (UnknownSystemEntity, AttributeError):
         return []

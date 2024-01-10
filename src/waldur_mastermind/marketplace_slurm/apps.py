@@ -3,8 +3,8 @@ from django.db.models import signals
 
 
 class MarketplaceSlurmConfig(AppConfig):
-    name = 'waldur_mastermind.marketplace_slurm'
-    verbose_name = 'Marketplace SLURM'
+    name = "waldur_mastermind.marketplace_slurm"
+    verbose_name = "Marketplace SLURM"
 
     def ready(self):
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
@@ -23,7 +23,7 @@ class MarketplaceSlurmConfig(AppConfig):
         signals.post_save.connect(
             handlers.update_component_quota,
             sender=slurm_models.Allocation,
-            dispatch_uid='waldur_mastermind.marketplace_slurm.update_component_quota',
+            dispatch_uid="waldur_mastermind.marketplace_slurm.update_component_quota",
         )
 
         marketplace_handlers.connect_resource_handlers(slurm_models.Allocation)
@@ -36,21 +36,21 @@ class MarketplaceSlurmConfig(AppConfig):
             delete_resource_processor=processor.DeleteAllocationProcessor,
             components=(
                 Component(
-                    type='cpu',
-                    name='CPU',
-                    measured_unit='hours',
+                    type="cpu",
+                    name="CPU",
+                    measured_unit="hours",
                     billing_type=USAGE,
                 ),
                 Component(
-                    type='gpu',
-                    name='GPU',
-                    measured_unit='hours',
+                    type="gpu",
+                    name="GPU",
+                    measured_unit="hours",
                     billing_type=USAGE,
                 ),
                 Component(
-                    type='ram',
-                    name='RAM',
-                    measured_unit='GB-hours',
+                    type="ram",
+                    name="RAM",
+                    measured_unit="GB-hours",
                     billing_type=USAGE,
                 ),
             ),
@@ -60,11 +60,11 @@ class MarketplaceSlurmConfig(AppConfig):
         slurm_signals.slurm_association_created.connect(
             handlers.create_offering_user_for_slurm_user,
             sender=slurm_models.Allocation,
-            dispatch_uid='waldur_mastermind.marketplace_slurm.create_offering_user_for_slurm_user',
+            dispatch_uid="waldur_mastermind.marketplace_slurm.create_offering_user_for_slurm_user",
         )
 
         slurm_signals.slurm_association_deleted.connect(
             handlers.drop_offering_user_for_slurm_user,
             sender=slurm_models.Allocation,
-            dispatch_uid='waldur_mastermind.marketplace_slurm.drop_offering_user_for_slurm_user',
+            dispatch_uid="waldur_mastermind.marketplace_slurm.drop_offering_user_for_slurm_user",
         )

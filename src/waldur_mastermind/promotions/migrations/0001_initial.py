@@ -14,146 +14,146 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('marketplace', '0001_squashed_0076'),
+        ("marketplace", "0001_squashed_0076"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Campaign',
+            name="Campaign",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=2000, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name="description"
                     ),
                 ),
                 (
-                    'start_date',
+                    "start_date",
                     models.DateField(
-                        help_text='Starting from this date, the campaign is active.'
+                        help_text="Starting from this date, the campaign is active."
                     ),
                 ),
                 (
-                    'end_date',
-                    models.DateField(help_text='The last day the campaign is active.'),
+                    "end_date",
+                    models.DateField(help_text="The last day the campaign is active."),
                 ),
                 (
-                    'coupon',
+                    "coupon",
                     models.CharField(
                         blank=True,
-                        default='',
-                        help_text='If coupon is empty, campaign is available to all users.',
+                        default="",
+                        help_text="If coupon is empty, campaign is available to all users.",
                         max_length=255,
                     ),
                 ),
                 (
-                    'discount_type',
+                    "discount_type",
                     waldur_mastermind.promotions.models.DiscountType(
                         choices=[
-                            ('discount', 'Discount'),
-                            ('special_price', 'Special price'),
+                            ("discount", "Discount"),
+                            ("special_price", "Special price"),
                         ],
                         max_length=30,
                     ),
                 ),
-                ('discount', models.IntegerField()),
-                ('stock', models.PositiveIntegerField(blank=True, null=True)),
+                ("discount", models.IntegerField()),
+                ("stock", models.PositiveIntegerField(blank=True, null=True)),
                 (
-                    'months',
+                    "months",
                     models.PositiveIntegerField(
                         default=1,
-                        help_text='How many months in a row should the related service (when activated) get special deal (0 for indefinitely until active)',
+                        help_text="How many months in a row should the related service (when activated) get special deal (0 for indefinitely until active)",
                     ),
                 ),
-                ('auto_apply', models.BooleanField(blank=True, default=True)),
+                ("auto_apply", models.BooleanField(blank=True, default=True)),
                 (
-                    'state',
+                    "state",
                     django_fsm.FSMIntegerField(
-                        choices=[(1, 'Draft'), (2, 'Active'), (3, 'Terminated')],
+                        choices=[(1, "Draft"), (2, "Active"), (3, "Terminated")],
                         default=1,
                     ),
                 ),
                 (
-                    'offerings',
+                    "offerings",
                     models.ManyToManyField(
-                        related_name='+',
-                        to='marketplace.Offering',
+                        related_name="+",
+                        to="marketplace.Offering",
                     ),
                 ),
                 (
-                    'required_offerings',
+                    "required_offerings",
                     models.ManyToManyField(
-                        related_name='+',
-                        to='marketplace.Offering',
+                        related_name="+",
+                        to="marketplace.Offering",
                     ),
                 ),
                 (
-                    'service_provider',
+                    "service_provider",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='marketplace.serviceprovider',
+                        to="marketplace.serviceprovider",
                     ),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='DiscountedResource',
+            name="DiscountedResource",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'campaign',
+                    "campaign",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='promotions.campaign',
+                        to="promotions.campaign",
                     ),
                 ),
                 (
-                    'resource',
+                    "resource",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='marketplace.resource',
+                        to="marketplace.resource",
                     ),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
     ]

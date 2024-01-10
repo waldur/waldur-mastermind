@@ -34,17 +34,17 @@ class VirtualMachineRegistrator(MarketplaceRegistrator):
             plan = resource.plan
             if not plan:
                 logger.warning(
-                    'Skipping VMware item invoice creation because '
-                    'billing plan is not defined for resource. '
-                    'Resource ID: %s',
+                    "Skipping VMware item invoice creation because "
+                    "billing plan is not defined for resource. "
+                    "Resource ID: %s",
                     resource.id,
                 )
                 return
         except marketplace_models.Resource.DoesNotExist:
             logger.warning(
-                'Skipping VMware item invoice creation because '
-                'marketplace resource is not available for VMware resource. '
-                'Resource ID: %s',
+                "Skipping VMware item invoice creation because "
+                "marketplace resource is not available for VMware resource. "
+                "Resource ID: %s",
                 source.id,
             )
             return
@@ -54,19 +54,19 @@ class VirtualMachineRegistrator(MarketplaceRegistrator):
             for plan_component in plan.components.all()
         }
 
-        missing_components = {'cpu', 'ram', 'disk'} - set(components_map.keys())
+        missing_components = {"cpu", "ram", "disk"} - set(components_map.keys())
         if missing_components:
             logger.warning(
-                'Skipping VMware item invoice creation because plan components are missing. '
-                'Plan ID: %s. Missing components: %s',
+                "Skipping VMware item invoice creation because plan components are missing. "
+                "Plan ID: %s. Missing components: %s",
                 plan.id,
-                ', '.join(missing_components),
+                ", ".join(missing_components),
             )
             return
 
-        cores_price = components_map['cpu'] * source.cores
-        ram_price = components_map['ram'] * mb_to_gb(source.ram)
-        disk_price = components_map['disk'] * mb_to_gb(source.total_disk)
+        cores_price = components_map["cpu"] * source.cores
+        ram_price = components_map["ram"] * mb_to_gb(source.ram)
+        disk_price = components_map["disk"] * mb_to_gb(source.total_disk)
         total_price = cores_price + ram_price + disk_price
 
         details = self.get_details(source)
@@ -83,7 +83,7 @@ class VirtualMachineRegistrator(MarketplaceRegistrator):
         )
 
     def get_name(self, source):
-        return '{name} ({cores} CPU, {ram} GB RAM, {disk} GB disk)'.format(
+        return "{name} ({cores} CPU, {ram} GB RAM, {disk} GB disk)".format(
             name=source.name,
             cores=source.cores,
             ram=mb_to_gb(source.ram),
@@ -92,9 +92,9 @@ class VirtualMachineRegistrator(MarketplaceRegistrator):
 
     def get_details(self, source):
         details = {
-            'cpu': source.cores,
-            'ram': source.ram,
-            'disk': source.total_disk,
+            "cpu": source.cores,
+            "ram": source.ram,
+            "disk": source.total_disk,
         }
         service_provider_info = marketplace_utils.get_service_provider_info(source)
         details.update(service_provider_info)

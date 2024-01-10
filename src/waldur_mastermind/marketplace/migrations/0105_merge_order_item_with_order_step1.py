@@ -8,46 +8,46 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('structure', '0040_useragreement_uuid'),
-        ('marketplace', '0104_translations'),
+        ("structure", "0040_useragreement_uuid"),
+        ("marketplace", "0104_translations"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='orderitem',
-            name='approved_at',
+            model_name="orderitem",
+            name="approved_at",
             field=models.DateTimeField(blank=True, editable=False, null=True),
         ),
         migrations.AddField(
-            model_name='orderitem',
-            name='approved_by',
+            model_name="orderitem",
+            name="approved_by",
             field=models.ForeignKey(
                 blank=True,
                 null=True,
                 on_delete=django.db.models.deletion.CASCADE,
-                related_name='+',
+                related_name="+",
                 to=settings.AUTH_USER_MODEL,
             ),
         ),
         migrations.AddField(
-            model_name='orderitem',
-            name='created_by',
+            model_name="orderitem",
+            name="created_by",
             field=models.ForeignKey(
                 blank=True,
                 null=True,
                 on_delete=django.db.models.deletion.CASCADE,
-                related_name='+',
+                related_name="+",
                 to=settings.AUTH_USER_MODEL,
             ),
         ),
         migrations.AddField(
-            model_name='orderitem',
-            name='project',
+            model_name="orderitem",
+            name="project",
             field=models.ForeignKey(
                 blank=True,
                 null=True,
                 on_delete=django.db.models.deletion.CASCADE,
-                to='structure.project',
+                to="structure.project",
             ),
         ),
     ]

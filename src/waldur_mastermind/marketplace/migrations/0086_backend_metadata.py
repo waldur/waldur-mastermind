@@ -5,18 +5,18 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace', '0085_orderitem_termination_comment'),
+        ("marketplace", "0085_orderitem_termination_comment"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='robotaccount',
-            name='backend_metadata',
+            model_name="robotaccount",
+            name="backend_metadata",
             field=models.JSONField(blank=True, default=dict),
         ),
         migrations.AlterField(
-            model_name='offeringuser',
-            name='backend_metadata',
+            model_name="offeringuser",
+            name="backend_metadata",
             field=models.JSONField(blank=True, default=dict),
         ),
     ]

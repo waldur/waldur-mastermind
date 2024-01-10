@@ -5,11 +5,11 @@ from django.db import migrations
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('logging', '0008_drop_sec_group_rules_pulling_events'),
+        ("logging", "0008_drop_sec_group_rules_pulling_events"),
     ]
 
     operations = [
         migrations.DeleteModel(
-            name='PushHook',
+            name="PushHook",
         ),
     ]

@@ -6,15 +6,15 @@ from ... import models
 
 
 class Command(BaseCommand):
-    help = 'Export catalog of Amazon images.'
-    args = '[ami_catalog.csv]'
+    help = "Export catalog of Amazon images."
+    args = "[ami_catalog.csv]"
 
     def handle(self, *args, **options):
         if len(args) == 0:
-            raise CommandError('AMI catalog filename is not specified.')
+            raise CommandError("AMI catalog filename is not specified.")
 
-        with open(args[0], 'w') as csvfile:
-            writer = DictWriter(csvfile, fieldnames=('name', 'region', 'backend_id'))
+        with open(args[0], "w") as csvfile:
+            writer = DictWriter(csvfile, fieldnames=("name", "region", "backend_id"))
             writer.writeheader()
             rows = [
                 dict(

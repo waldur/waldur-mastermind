@@ -5,13 +5,13 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('support', '0003_backend_id_not_unique'),
+        ("support", "0003_backend_id_not_unique"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='priority',
-            name='backend_name',
+            model_name="priority",
+            name="backend_name",
             field=models.CharField(blank=True, default=None, max_length=255, null=True),
         ),
     ]

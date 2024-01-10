@@ -37,6 +37,6 @@ class TotalCostTest(test.APITransactionTestCase):
 
     def assert_cost(self, value):
         self.client.force_authenticate(self.fixture1.staff)
-        response = self.client.get('/api/billing-total-cost/')
+        response = self.client.get("/api/billing-total-cost/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(value, response.data['total'])
+        self.assertEqual(value, response.data["total"])

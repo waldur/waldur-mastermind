@@ -7,17 +7,17 @@ import waldur_core.core.validators
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace_flows', '0002_offeringstaterequest'),
+        ("marketplace_flows", "0002_offeringstaterequest"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='projectcreaterequest',
-            name='name',
+            model_name="projectcreaterequest",
+            name="name",
             field=models.CharField(
                 max_length=500,
                 validators=[waldur_core.core.validators.validate_name],
-                verbose_name='name',
+                verbose_name="name",
             ),
         ),
     ]

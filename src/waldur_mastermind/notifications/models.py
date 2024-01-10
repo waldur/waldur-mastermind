@@ -17,14 +17,14 @@ class MessageTemplate(UuidMixin, NameMixin):
 
 class BroadcastMessage(UuidMixin):
     class States:
-        DRAFT = 'DRAFT'
-        SCHEDULED = 'SCHEDULED'
-        SENT = 'SENT'
+        DRAFT = "DRAFT"
+        SCHEDULED = "SCHEDULED"
+        SENT = "SENT"
 
         CHOICES = (
-            (DRAFT, _('Draft')),
-            (SCHEDULED, _('Scheduled')),
-            (SENT, _('Sent')),
+            (DRAFT, _("Draft")),
+            (SCHEDULED, _("Scheduled")),
+            (SENT, _("Sent")),
         )
 
     state = models.CharField(

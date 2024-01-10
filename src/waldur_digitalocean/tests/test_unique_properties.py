@@ -13,6 +13,6 @@ class UniquePropertiesTest(test.APITransactionTestCase):
         )
 
         for factory in property_factories:
-            factory(backend_id='id-1')
+            factory(backend_id="id-1")
             with self.assertRaises(IntegrityError):
-                factory(backend_id='id-1')
+                factory(backend_id="id-1")

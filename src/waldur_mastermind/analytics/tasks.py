@@ -7,7 +7,7 @@ from waldur_core.structure import models as structure_models
 from . import models
 
 
-@shared_task(name='analytics.sync_daily_quotas')
+@shared_task(name="analytics.sync_daily_quotas")
 def sync_daily_quotas():
     date = timezone.now().date()
     for model in (structure_models.Project, structure_models.Customer):
@@ -18,6 +18,6 @@ def sync_daily_quotas():
                 )
 
     expiration_date = (
-        timezone.now() - django_settings.WALDUR_ANALYTICS['DAILY_QUOTA_LIFETIME']
+        timezone.now() - django_settings.WALDUR_ANALYTICS["DAILY_QUOTA_LIFETIME"]
     )
     models.DailyQuotaHistory.objects.filter(date__lt=expiration_date).delete()

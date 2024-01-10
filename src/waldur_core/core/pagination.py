@@ -6,28 +6,28 @@ from rest_framework.utils.urls import remove_query_param, replace_query_param
 
 
 class LinkHeaderPagination(pagination.PageNumberPagination):
-    page_size_query_param = 'page_size'
+    page_size_query_param = "page_size"
     max_page_size = 300
 
     def get_paginated_response(self, data):
         link_candidates = OrderedDict(
             (
-                ('first', self.get_first_link),
-                ('prev', self.get_previous_link),
-                ('next', self.get_next_link),
-                ('last', self.get_last_link),
+                ("first", self.get_first_link),
+                ("prev", self.get_previous_link),
+                ("next", self.get_next_link),
+                ("last", self.get_last_link),
             )
         )
 
-        link = ', '.join(
+        link = ", ".join(
             f'<{get_link()}>; rel="{rel}"'
             for rel, get_link in link_candidates.items()
             if get_link()
         )
 
         headers = {
-            'X-Result-Count': self.page.paginator.count,
-            'Link': link,
+            "X-Result-Count": self.page.paginator.count,
+            "Link": link,
         }
 
         return Response(data, headers=headers)

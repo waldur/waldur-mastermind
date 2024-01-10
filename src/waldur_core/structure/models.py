@@ -62,7 +62,7 @@ def validate_service_type(service_type):
     from django.core.exceptions import ValidationError
 
     if not SupportedServices.has_service_type(service_type):
-        raise ValidationError(_('Invalid service type.'))
+        raise ValidationError(_("Invalid service type."))
 
 
 class StructureModel(models.Model):
@@ -77,15 +77,15 @@ class StructureModel(models.Model):
 
     def __getattr__(self, name):
         # add additional properties to the object according to defined Permissions class
-        fields = ('customer', 'project')
+        fields = ("customer", "project")
         if name in fields:
             try:
-                path = getattr(self.Permissions, name + '_path')
+                path = getattr(self.Permissions, name + "_path")
             except AttributeError:
                 pass
             else:
-                if not path == 'self' and '__' in path:
-                    return reduce(getattr, path.split('__'), self)
+                if not path == "self" and "__" in path:
+                    return reduce(getattr, path.split("__"), self)
 
         raise AttributeError(
             f"'{self._meta.object_name}' object has no attribute '{name}'"
@@ -111,16 +111,16 @@ class VATMixin(models.Model):
     class Meta:
         abstract = True
 
-    vat_code = models.CharField(max_length=20, blank=True, help_text=_('VAT number'))
+    vat_code = models.CharField(max_length=20, blank=True, help_text=_("VAT number"))
     vat_name = models.CharField(
         max_length=255,
         blank=True,
-        help_text=_('Optional business name retrieved for the VAT number.'),
+        help_text=_("Optional business name retrieved for the VAT number."),
     )
     vat_address = models.CharField(
         max_length=255,
         blank=True,
-        help_text=_('Optional business address retrieved for the VAT number.'),
+        help_text=_("Optional business address retrieved for the VAT number."),
     )
 
     country = models.CharField(max_length=2, blank=True)
@@ -139,15 +139,15 @@ class VATMixin(models.Model):
         if not self.country:
             raise VATException(
                 _(
-                    'Unable to get VAT charge because buyer country code is not specified.'
+                    "Unable to get VAT charge because buyer country code is not specified."
                 )
             )
 
-        seller_country = settings.WALDUR_CORE.get('SELLER_COUNTRY_CODE')
+        seller_country = settings.WALDUR_CORE.get("SELLER_COUNTRY_CODE")
         if not seller_country:
             raise VATException(
                 _(
-                    'Unable to get VAT charge because seller country code is not specified.'
+                    "Unable to get VAT charge because seller country code is not specified."
                 )
             )
 
@@ -171,7 +171,7 @@ class BasePermission(models.Model):
         to=settings.AUTH_USER_MODEL,
         null=True,
         blank=True,
-        related_name='+',
+        related_name="+",
     )
     created = AutoCreatedField()
     expiration_time = models.DateTimeField(null=True, blank=True)
@@ -235,55 +235,55 @@ class PermissionMixin:
     def get_user_mails(self, role=None):
         return (
             self.get_users(role)
-            .exclude(email='')
+            .exclude(email="")
             .exclude(notifications_enabled=False)
-            .values_list('email', flat=True)
+            .values_list("email", flat=True)
         )
 
 
 class CustomerRole(models.CharField):
-    OWNER = 'owner'
-    SUPPORT = 'support'
-    SERVICE_MANAGER = 'service_manager'
+    OWNER = "owner"
+    SUPPORT = "support"
+    SERVICE_MANAGER = "service_manager"
 
     CHOICES = (
-        (OWNER, 'Owner'),
-        (SUPPORT, 'Support'),
-        (SERVICE_MANAGER, 'Service manager'),
+        (OWNER, "Owner"),
+        (SUPPORT, "Support"),
+        (SERVICE_MANAGER, "Service manager"),
     )
 
     def __init__(self, *args, **kwargs):
-        kwargs['max_length'] = 30
-        kwargs['choices'] = self.CHOICES
+        kwargs["max_length"] = 30
+        kwargs["choices"] = self.CHOICES
         super().__init__(*args, **kwargs)
 
 
 class DivisionType(core_models.UuidMixin, core_models.NameMixin, models.Model):
     class Meta:
-        verbose_name = _('division type')
-        ordering = ('name',)
+        verbose_name = _("division type")
+        ordering = ("name",)
 
     @classmethod
     def get_url_name(cls):
-        return 'division-type'
+        return "division-type"
 
     def __str__(self):
         return self.name
 
 
 class Division(core_models.UuidMixin, core_models.NameMixin, models.Model):
-    type = models.ForeignKey(on_delete=models.CASCADE, to='DivisionType')
+    type = models.ForeignKey(on_delete=models.CASCADE, to="DivisionType")
     parent = models.ForeignKey(
-        on_delete=models.CASCADE, to='Division', null=True, blank=True
+        on_delete=models.CASCADE, to="Division", null=True, blank=True
     )
 
     class Meta:
-        verbose_name = _('division')
-        ordering = ('name',)
+        verbose_name = _("division")
+        ordering = ("name",)
 
     @classmethod
     def get_url_name(cls):
-        return 'division'
+        return "division"
 
     def __str__(self):
         full_path = [self.name]
@@ -293,29 +293,29 @@ class Division(core_models.UuidMixin, core_models.NameMixin, models.Model):
             full_path.append(d.name)
             d = d.parent
 
-        return ' -> '.join(full_path[::-1])
+        return " -> ".join(full_path[::-1])
 
 
 CUSTOMER_DETAILS_FIELDS = (
-    'name',
-    'native_name',
-    'abbreviation',
-    'contact_details',
-    'agreement_number',
-    'email',
-    'phone_number',
-    'access_subnets',
-    'registration_code',
-    'homepage',
-    'domain',
-    'vat_code',
-    'postal',
-    'address',
-    'bank_name',
-    'bank_account',
-    'latitude',
-    'longitude',
-    'country',
+    "name",
+    "native_name",
+    "abbreviation",
+    "contact_details",
+    "agreement_number",
+    "email",
+    "phone_number",
+    "access_subnets",
+    "registration_code",
+    "homepage",
+    "domain",
+    "vat_code",
+    "postal",
+    "address",
+    "bank_name",
+    "bank_account",
+    "latitude",
+    "longitude",
+    "country",
 )
 
 
@@ -323,34 +323,34 @@ class CustomerDetailsMixin(core_models.NameMixin, VATMixin, CoordinatesMixin):
     class Meta:
         abstract = True
 
-    native_name = models.CharField(max_length=160, default='', blank=True)
+    native_name = models.CharField(max_length=160, default="", blank=True)
     abbreviation = models.CharField(max_length=12, blank=True)
     contact_details = models.TextField(blank=True, validators=[MaxLengthValidator(500)])
 
-    agreement_number = models.CharField(max_length=160, default='', blank=True)
+    agreement_number = models.CharField(max_length=160, default="", blank=True)
     sponsor_number = models.PositiveIntegerField(
         null=True,
         blank=True,
-        help_text=_('External ID of the sponsor covering the costs'),
+        help_text=_("External ID of the sponsor covering the costs"),
     )
 
-    email = models.EmailField(_('email address'), max_length=75, blank=True)
-    phone_number = models.CharField(_('phone number'), max_length=255, blank=True)
+    email = models.EmailField(_("email address"), max_length=75, blank=True)
+    phone_number = models.CharField(_("phone number"), max_length=255, blank=True)
     access_subnets = models.TextField(
         validators=[validate_cidr_list],
         blank=True,
-        default='',
+        default="",
         help_text=_(
-            'Enter a comma separated list of IPv4 or IPv6 '
-            'CIDR addresses from where connection to self-service is allowed.'
+            "Enter a comma separated list of IPv4 or IPv6 "
+            "CIDR addresses from where connection to self-service is allowed."
         ),
     )
     backend_id = models.CharField(
         max_length=255,
         blank=True,
-        help_text=_('Organization identifier in another application.'),
+        help_text=_("Organization identifier in another application."),
     )
-    registration_code = models.CharField(max_length=160, default='', blank=True)
+    registration_code = models.CharField(max_length=160, default="", blank=True)
     homepage = models.URLField(max_length=255, blank=True)
     domain = models.CharField(max_length=255, blank=True)
 
@@ -372,11 +372,11 @@ class Customer(
     StructureModel,
 ):
     class Permissions:
-        customer_path = 'self'
-        project_path = 'projects'
+        customer_path = "self"
+        project_path = "projects"
 
     accounting_start_date = models.DateTimeField(
-        _('Start date of accounting'), default=timezone.now
+        _("Start date of accounting"), default=timezone.now
     )
     default_tax_percent = models.DecimalField(
         default=0,
@@ -387,30 +387,30 @@ class Customer(
     blocked = models.BooleanField(default=False)
     archived = models.BooleanField(default=False)
     division = models.ForeignKey(
-        'Division', null=True, blank=True, on_delete=models.SET_NULL
+        "Division", null=True, blank=True, on_delete=models.SET_NULL
     )
     inet = CidrAddressField(null=True, blank=True)
     tracker = FieldTracker()
     objects = NetManager()
 
     class Meta:
-        verbose_name = _('organization')
-        ordering = ('name',)
+        verbose_name = _("organization")
+        ordering = ("name",)
 
     class Quotas(quotas_models.QuotaModelMixin.Quotas):
         enable_fields_caching = False
         nc_project_count = quotas_fields.CounterQuotaField(
             target_models=lambda: [Project],
-            path_to_scope='customer',
+            path_to_scope="customer",
         )
         nc_user_count = quotas_fields.QuotaField()
         nc_resource_count = quotas_fields.CounterQuotaField(
             target_models=lambda: BaseResource.get_all_models(),
-            path_to_scope='project.customer',
+            path_to_scope="project.customer",
         )
 
     def get_log_fields(self):
-        return ('uuid', 'name', 'abbreviation', 'contact_details')
+        return ("uuid", "name", "abbreviation", "contact_details")
 
     def get_owners(self):
         return self.get_users_by_role(RoleEnum.CUSTOMER_OWNER)
@@ -418,9 +418,9 @@ class Customer(
     def get_owner_mails(self):
         return (
             self.get_owners()
-            .exclude(email='')
+            .exclude(email="")
             .exclude(notifications_enabled=False)
-            .values_list('email', flat=True)
+            .values_list("email", flat=True)
         )
 
     def get_support_users(self):
@@ -442,7 +442,7 @@ class Customer(
             get_user_model()
             .objects.filter(id__in=get_nested_customer_users(self))
             .distinct()
-            .order_by('username')
+            .order_by("username")
         )
 
     def is_billable(self):
@@ -459,7 +459,7 @@ class Customer(
         if self.abbreviation:
             return self.abbreviation
         if self.domain:
-            return f'{self.name} ({self.domain})'
+            return f"{self.name} ({self.domain})"
         return self.name
 
     def delete(self, *args, **kwargs):
@@ -472,28 +472,25 @@ class Customer(
 
     def __str__(self):
         if self.abbreviation:
-            return '{name} ({abbreviation})'.format(
-                name=self.name,
-                abbreviation=self.abbreviation,
-            )
+            return f"{self.name} ({self.abbreviation})"
         else:
             return self.name
 
 
 class ProjectRole(models.CharField):
-    ADMINISTRATOR = 'admin'
-    MANAGER = 'manager'
-    MEMBER = 'member'
+    ADMINISTRATOR = "admin"
+    MANAGER = "manager"
+    MEMBER = "member"
 
     CHOICES = (
-        (ADMINISTRATOR, 'Administrator'),
-        (MANAGER, 'Manager'),
-        (MEMBER, 'Member'),
+        (ADMINISTRATOR, "Administrator"),
+        (MANAGER, "Manager"),
+        (MEMBER, "Member"),
     )
 
     def __init__(self, *args, **kwargs):
-        kwargs['max_length'] = 30
-        kwargs['choices'] = self.CHOICES
+        kwargs["max_length"] = 30
+        kwargs["choices"] = self.CHOICES
         super().__init__(*args, **kwargs)
 
 
@@ -501,13 +498,13 @@ class ProjectType(
     core_models.DescribableMixin, core_models.UuidMixin, core_models.NameMixin
 ):
     class Meta:
-        verbose_name = _('Project type')
-        verbose_name_plural = _('Project types')
-        ordering = ['name']
+        verbose_name = _("Project type")
+        verbose_name_plural = _("Project types")
+        ordering = ["name"]
 
     @classmethod
     def get_url_name(cls):
-        return 'project_type'
+        return "project_type"
 
     def __str__(self):
         return self.name
@@ -520,11 +517,11 @@ class SoftDeletableManager(SoftDeletableManagerMixin, StructureManager):
 PROJECT_NAME_LENGTH = 500
 
 PROJECT_DETAILS_FIELDS = (
-    'name',
-    'description',
-    'end_date',
-    'oecd_fos_2007_code',
-    'is_industry',
+    "name",
+    "description",
+    "end_date",
+    "oecd_fos_2007_code",
+    "is_industry",
 )
 
 
@@ -533,68 +530,68 @@ class ProjectDetailsMixin(core_models.DescribableMixin):
         abstract = True
 
     OECD_FOS_2007_CODES = (
-        ('1.1', _('Mathematics')),
-        ('1.2', _('Computer and information sciences')),
-        ('1.3', _('Physical sciences')),
-        ('1.4', _('Chemical sciences')),
-        ('1.5', _('Earth and related environmental sciences')),
-        ('1.6', _('Biological sciences')),
-        ('1.7', _('Other natural sciences')),
-        ('2.1', _('Civil engineering')),
+        ("1.1", _("Mathematics")),
+        ("1.2", _("Computer and information sciences")),
+        ("1.3", _("Physical sciences")),
+        ("1.4", _("Chemical sciences")),
+        ("1.5", _("Earth and related environmental sciences")),
+        ("1.6", _("Biological sciences")),
+        ("1.7", _("Other natural sciences")),
+        ("2.1", _("Civil engineering")),
         (
-            '2.2',
+            "2.2",
             _(
-                'Electrical engineering, electronic engineering, information engineering'
+                "Electrical engineering, electronic engineering, information engineering"
             ),
         ),
-        ('2.3', _('Mechanical engineering')),
-        ('2.4', _('Chemical engineering')),
-        ('2.5', _('Materials engineering')),
-        ('2.6', _('Medical engineering')),
-        ('2.7', _('Environmental engineering')),
-        ('2.8', _('Systems engineering')),
-        ('2.9', _('Environmental biotechnology')),
-        ('2.10', _('Industrial biotechnology')),
-        ('2.11', _('Nano technology')),
-        ('2.12', _('Other engineering and technologies')),
-        ('3.1', _('Basic medicine')),
-        ('3.2', _('Clinical medicine')),
-        ('3.3', _('Health sciences')),
-        ('3.4', _('Health biotechnology')),
-        ('3.5', _('Other medical sciences')),
-        ('4.1', _('Agriculture, forestry, and fisheries')),
-        ('4.2', _('Animal and dairy science')),
-        ('4.3', _('Veterinary science')),
-        ('4.4', _('Agricultural biotechnology')),
-        ('4.5', _('Other agricultural sciences')),
-        ('5.1', _('Psychology')),
-        ('5.2', _('Economics and business')),
-        ('5.3', _('Educational sciences')),
-        ('5.4', _('Sociology')),
-        ('5.5', _('Law')),
-        ('5.6', _('Political science')),
-        ('5.7', _('Social and economic geography')),
-        ('5.8', _('Media and communications')),
-        ('5.9', _('Other social sciences')),
-        ('6.1', _('History and archaeology')),
-        ('6.2', _('Languages and literature')),
-        ('6.3', _('Philosophy, ethics and religion')),
-        ('6.4', _('Arts (arts, history of arts, performing arts, music)')),
-        ('6.5', _('Other humanities')),
+        ("2.3", _("Mechanical engineering")),
+        ("2.4", _("Chemical engineering")),
+        ("2.5", _("Materials engineering")),
+        ("2.6", _("Medical engineering")),
+        ("2.7", _("Environmental engineering")),
+        ("2.8", _("Systems engineering")),
+        ("2.9", _("Environmental biotechnology")),
+        ("2.10", _("Industrial biotechnology")),
+        ("2.11", _("Nano technology")),
+        ("2.12", _("Other engineering and technologies")),
+        ("3.1", _("Basic medicine")),
+        ("3.2", _("Clinical medicine")),
+        ("3.3", _("Health sciences")),
+        ("3.4", _("Health biotechnology")),
+        ("3.5", _("Other medical sciences")),
+        ("4.1", _("Agriculture, forestry, and fisheries")),
+        ("4.2", _("Animal and dairy science")),
+        ("4.3", _("Veterinary science")),
+        ("4.4", _("Agricultural biotechnology")),
+        ("4.5", _("Other agricultural sciences")),
+        ("5.1", _("Psychology")),
+        ("5.2", _("Economics and business")),
+        ("5.3", _("Educational sciences")),
+        ("5.4", _("Sociology")),
+        ("5.5", _("Law")),
+        ("5.6", _("Political science")),
+        ("5.7", _("Social and economic geography")),
+        ("5.8", _("Media and communications")),
+        ("5.9", _("Other social sciences")),
+        ("6.1", _("History and archaeology")),
+        ("6.2", _("Languages and literature")),
+        ("6.3", _("Philosophy, ethics and religion")),
+        ("6.4", _("Arts (arts, history of arts, performing arts, music)")),
+        ("6.5", _("Other humanities")),
     )
 
     OECD_FOS_2007_CODES_DICT = dict(OECD_FOS_2007_CODES)
 
     # NameMixin is not used because it has too strict limitation for max_length.
     name = models.CharField(
-        _('name'), max_length=PROJECT_NAME_LENGTH, validators=[validate_name]
+        _("name"), max_length=PROJECT_NAME_LENGTH, validators=[validate_name]
     )
 
     end_date = models.DateField(
         null=True,
         blank=True,
         help_text=_(
-            'The date is inclusive. Once reached, all project resource will be scheduled for termination.'
+            "The date is inclusive. Once reached, all project resource will be scheduled for termination."
         ),
     )
     end_date_requested_by = models.ForeignKey(
@@ -602,11 +599,11 @@ class ProjectDetailsMixin(core_models.DescribableMixin):
         to=core_models.User,
         blank=True,
         null=True,
-        related_name='+',
+        related_name="+",
     )
     type = models.ForeignKey(
         ProjectType,
-        verbose_name=_('project type'),
+        verbose_name=_("project type"),
         blank=True,
         null=True,
         on_delete=models.PROTECT,
@@ -631,20 +628,20 @@ class Project(
     SoftDeletableModel,
 ):
     class Permissions:
-        customer_path = 'customer'
-        project_path = 'self'
+        customer_path = "customer"
+        project_path = "self"
 
     class Quotas(quotas_models.QuotaModelMixin.Quotas):
         enable_fields_caching = False
         nc_resource_count = quotas_fields.CounterQuotaField(
             target_models=lambda: BaseResource.get_all_models(),
-            path_to_scope='project',
+            path_to_scope="project",
         )
 
     customer = models.ForeignKey(
         Customer,
-        verbose_name=_('organization'),
-        related_name='projects',
+        verbose_name=_("organization"),
+        related_name="projects",
         on_delete=models.CASCADE,
     )
     tracker = FieldTracker()
@@ -667,7 +664,7 @@ class Project(
                 role = get_new_role_name(Project, role)
         project_users = get_project_users(self.id, role)
         return (
-            get_user_model().objects.filter(id__in=project_users).order_by('username')
+            get_user_model().objects.filter(id__in=project_users).order_by("username")
         )
 
     @transaction.atomic()
@@ -688,29 +685,26 @@ class Project(
             return super(SoftDeletableModel, self).delete(using=using, *args, **kwargs)
 
     def __str__(self):
-        return '{name} | {customer}'.format(
-            name=self.name,
-            customer=self.customer.name,
-        )
+        return f"{self.name} | {self.customer.name}"
 
     def get_log_fields(self):
-        return ('uuid', 'customer', 'name')
+        return ("uuid", "customer", "name")
 
     def get_parents(self):
         return [self.customer]
 
     class Meta:
-        base_manager_name = 'objects'
+        base_manager_name = "objects"
 
 
 class CustomerPermissionReview(core_models.UuidMixin):
     class Permissions:
-        customer_path = 'customer'
+        customer_path = "customer"
 
     customer = models.ForeignKey(
         Customer,
-        verbose_name=_('organization'),
-        related_name='reviews',
+        verbose_name=_("organization"),
+        related_name="reviews",
         on_delete=models.CASCADE,
     )
     is_pending = models.BooleanField(default=True)
@@ -722,7 +716,7 @@ class CustomerPermissionReview(core_models.UuidMixin):
 
     @classmethod
     def get_url_name(cls):
-        return 'customer_permission_review'
+        return "customer_permission_review"
 
     def close(self, user):
         self.is_pending = False
@@ -749,17 +743,17 @@ class ServiceSettings(
     class Meta:
         verbose_name = "Service settings"
         verbose_name_plural = "Service settings"
-        ordering = ('name',)
+        ordering = ("name",)
 
     class Permissions:
-        customer_path = 'customer'
+        customer_path = "customer"
         build_query = build_service_settings_query
 
     customer = models.ForeignKey(
         on_delete=models.CASCADE,
         to=Customer,
-        verbose_name=_('organization'),
-        related_name='service_settings',
+        verbose_name=_("organization"),
+        related_name="service_settings",
         blank=True,
         null=True,
     )
@@ -769,13 +763,13 @@ class ServiceSettings(
     domain = models.CharField(max_length=200, blank=True, null=True)
     token = models.CharField(max_length=255, blank=True, null=True)
     certificate = models.FileField(
-        upload_to='certs', blank=True, null=True, validators=[CertificateValidator]
+        upload_to="certs", blank=True, null=True, validators=[CertificateValidator]
     )
     type = models.CharField(
         max_length=255, db_index=True, validators=[validate_service_type]
     )
-    options = JSONField(default=dict, help_text=_('Extra options'), blank=True)
-    shared = models.BooleanField(default=False, help_text=_('Anybody can use it'))
+    options = JSONField(default=dict, help_text=_("Extra options"), blank=True)
+    shared = models.BooleanField(default=False, help_text=_("Anybody can use it"))
     terms_of_services = models.URLField(max_length=255, blank=True)
 
     tracker = FieldTracker()
@@ -785,13 +779,13 @@ class ServiceSettings(
         on_delete=models.CASCADE, to=ContentType, null=True
     )
     object_id = models.PositiveIntegerField(null=True)
-    scope = GenericForeignKey('content_type', 'object_id')
+    scope = GenericForeignKey("content_type", "object_id")
 
-    objects = ServiceSettingsManager('scope')
+    objects = ServiceSettingsManager("scope")
 
     is_active = models.BooleanField(
         default=True,
-        help_text='Information about inactive service settings will not be updated in the background',
+        help_text="Information about inactive service settings will not be updated in the background",
     )
 
     def get_backend(self, **kwargs):
@@ -806,14 +800,14 @@ class ServiceSettings(
             return defaults.get(name)
 
     def __str__(self):
-        return f'{self.name} ({self.type})'
+        return f"{self.name} ({self.type})"
 
     def get_log_fields(self):
-        return ('uuid', 'name', 'customer')
+        return ("uuid", "name", "customer")
 
     def _get_log_context(self, entity_name):
         context = super()._get_log_context(entity_name)
-        context['service_settings_type'] = self.type
+        context["service_settings_type"] = self.type
         return context
 
     def get_type_display(self):
@@ -827,7 +821,7 @@ class SharedServiceSettings(ServiceSettings):
 
     class Meta:
         proxy = True
-        verbose_name_plural = _('Shared provider settings')
+        verbose_name_plural = _("Shared provider settings")
 
 
 class PrivateServiceSettings(ServiceSettings):
@@ -837,7 +831,7 @@ class PrivateServiceSettings(ServiceSettings):
 
     class Meta:
         proxy = True
-        verbose_name_plural = _('Private provider settings')
+        verbose_name_plural = _("Private provider settings")
 
 
 class BaseServiceProperty(
@@ -856,28 +850,28 @@ class BaseServiceProperty(
     @classmethod
     def get_url_name(cls):
         """This name will be used by generic relationships to membership model for URL creation"""
-        return f'{cls._meta.app_label}-{cls.__name__.lower()}'
+        return f"{cls._meta.app_label}-{cls.__name__.lower()}"
 
     @classmethod
     def get_backend_fields(cls):
         return super().get_backend_fields() + (
-            'backend_id',
-            'name',
+            "backend_id",
+            "name",
         )
 
 
 class ServiceProperty(BaseServiceProperty):
     class Meta:
         abstract = True
-        unique_together = ('settings', 'backend_id')
+        unique_together = ("settings", "backend_id")
 
     settings = models.ForeignKey(
-        on_delete=models.CASCADE, to=ServiceSettings, related_name='+'
+        on_delete=models.CASCADE, to=ServiceSettings, related_name="+"
     )
     backend_id = models.CharField(max_length=255, db_index=True)
 
     def __str__(self):
-        return f'{self.name} | {self.settings}'
+        return f"{self.name} | {self.settings}"
 
 
 class GeneralServiceProperty(BaseServiceProperty):
@@ -912,21 +906,21 @@ class BaseResource(
 
     class Meta:
         abstract = True
-        ordering = ['-created']
+        ordering = ["-created"]
 
     class Permissions:
-        customer_path = 'project__customer'
-        project_path = 'project'
+        customer_path = "project__customer"
+        project_path = "project"
 
     service_settings = models.ForeignKey(
-        on_delete=models.CASCADE, to=ServiceSettings, related_name='+'
+        on_delete=models.CASCADE, to=ServiceSettings, related_name="+"
     )
-    project = models.ForeignKey(on_delete=models.CASCADE, to=Project, related_name='+')
+    project = models.ForeignKey(on_delete=models.CASCADE, to=Project, related_name="+")
     backend_id = models.CharField(max_length=255, blank=True)
 
     @classmethod
     def get_backend_fields(cls):
-        return super().get_backend_fields() + ('backend_id',)
+        return super().get_backend_fields() + ("backend_id",)
 
     def get_backend(self, **kwargs):
         return self.service_settings.get_backend(**kwargs)
@@ -943,23 +937,23 @@ class BaseResource(
     @classmethod
     def get_url_name(cls):
         """This name will be used by generic relationships to membership model for URL creation"""
-        return f'{cls._meta.app_label}-{cls.__name__.lower()}'
+        return f"{cls._meta.app_label}-{cls.__name__.lower()}"
 
     def get_log_fields(self):
-        return ('uuid', 'name', 'service_settings', 'project', 'full_name')
+        return ("uuid", "name", "service_settings", "project", "full_name")
 
     @property
     def full_name(self):
-        return '{} {}'.format(
-            get_resource_type(self).replace('.', ' '),
+        return "{} {}".format(
+            get_resource_type(self).replace(".", " "),
             self.name,
         )
 
     def _get_log_context(self, entity_name):
         context = super()._get_log_context(entity_name)
         # XXX: Add resource_full_name here, because event context does not support properties as fields
-        context['resource_full_name'] = self.full_name
-        context['resource_type'] = get_resource_type(self)
+        context["resource_full_name"] = self.full_name
+        context["resource_type"] = get_resource_type(self)
 
         return context
 
@@ -984,19 +978,19 @@ class BaseResource(
 
 class VirtualMachine(IPCoordinatesMixin, core_models.RuntimeStateMixin, BaseResource):
     def __init__(self, *args, **kwargs):
-        AbstractFieldTracker().finalize_class(self.__class__, 'tracker')
+        AbstractFieldTracker().finalize_class(self.__class__, "tracker")
         super().__init__(*args, **kwargs)
 
     cores = models.PositiveSmallIntegerField(
-        default=0, help_text=_('Number of cores in a VM')
+        default=0, help_text=_("Number of cores in a VM")
     )
-    ram = models.PositiveIntegerField(default=0, help_text=_('Memory size in MiB'))
-    disk = models.PositiveIntegerField(default=0, help_text=_('Disk size in MiB'))
+    ram = models.PositiveIntegerField(default=0, help_text=_("Memory size in MiB"))
+    disk = models.PositiveIntegerField(default=0, help_text=_("Disk size in MiB"))
     min_ram = models.PositiveIntegerField(
-        default=0, help_text=_('Minimum memory size in MiB')
+        default=0, help_text=_("Minimum memory size in MiB")
     )
     min_disk = models.PositiveIntegerField(
-        default=0, help_text=_('Minimum disk size in MiB')
+        default=0, help_text=_("Minimum disk size in MiB")
     )
 
     image_name = models.CharField(max_length=150, blank=True)
@@ -1006,7 +1000,7 @@ class VirtualMachine(IPCoordinatesMixin, core_models.RuntimeStateMixin, BaseReso
 
     user_data = models.TextField(
         blank=True,
-        help_text=_('Additional data that will be added to instance on provisioning'),
+        help_text=_("Additional data that will be added to instance on provisioning"),
     )
     start_time = models.DateTimeField(blank=True, null=True)
 
@@ -1060,7 +1054,7 @@ class PrivateCloud(
 
 
 class Storage(core_models.RuntimeStateMixin, BaseResource):
-    size = models.PositiveIntegerField(help_text=_('Size in MiB'))
+    size = models.PositiveIntegerField(help_text=_("Size in MiB"))
 
     class Meta:
         abstract = True
@@ -1090,12 +1084,12 @@ class SubResource(BaseResource):
 
 class UserAgreement(core_models.UuidMixin, LoggableMixin, TimeStampedModel):
     class UserAgreements:
-        TOS = 'TOS'
-        PP = 'PP'
+        TOS = "TOS"
+        PP = "PP"
 
         CHOICES = (
-            (TOS, 'Terms of services'),
-            (PP, 'Privacy policy'),
+            (TOS, "Terms of services"),
+            (PP, "Privacy policy"),
         )
 
     content = models.TextField(blank=True)
@@ -1104,7 +1098,7 @@ class UserAgreement(core_models.UuidMixin, LoggableMixin, TimeStampedModel):
     )
 
     class Meta:
-        ordering = ['created']
+        ordering = ["created"]
 
     def __str__(self):
         return self.agreement_type
@@ -1114,13 +1108,13 @@ reversion.register(Customer)
 
 
 ROLE_MAP = {
-    ('customer', 'owner'): RoleEnum.CUSTOMER_OWNER,
-    ('customer', 'service_manager'): RoleEnum.CUSTOMER_MANAGER,
-    ('customer', 'support'): RoleEnum.CUSTOMER_SUPPORT,
-    ('project', 'admin'): RoleEnum.PROJECT_ADMIN,
-    ('project', 'manager'): RoleEnum.PROJECT_MANAGER,
-    ('project', 'member'): RoleEnum.PROJECT_MEMBER,
-    ('offering', None): RoleEnum.OFFERING_MANAGER,
+    ("customer", "owner"): RoleEnum.CUSTOMER_OWNER,
+    ("customer", "service_manager"): RoleEnum.CUSTOMER_MANAGER,
+    ("customer", "support"): RoleEnum.CUSTOMER_SUPPORT,
+    ("project", "admin"): RoleEnum.PROJECT_ADMIN,
+    ("project", "manager"): RoleEnum.PROJECT_MANAGER,
+    ("project", "member"): RoleEnum.PROJECT_MEMBER,
+    ("offering", None): RoleEnum.OFFERING_MANAGER,
 }
 
 

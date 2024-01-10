@@ -5,24 +5,24 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('core', '0002_alter_user_username'),
+        ("core", "0002_alter_user_username"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='CommonMailFooter',
+            name="CommonMailFooter",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('html_content', models.TextField(blank=True)),
-                ('text_content', models.TextField(blank=True)),
+                ("html_content", models.TextField(blank=True)),
+                ("text_content", models.TextField(blank=True)),
             ],
         ),
     ]

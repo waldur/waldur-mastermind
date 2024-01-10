@@ -18,12 +18,12 @@ def parse_duration(value):
     00:00:03 is equal to 0.05
     00:01:03 is equal to 1.05
     """
-    days_sep = '-'
-    us_sep = '.'
-    simple_fmt = '%H:%M:%S'
-    days_fmt = '%d-%H:%M:%S'
-    us_fmt = '%H:%M:%S.%f'
-    days_us_fmt = '%d-%H:%M:%S.%f'
+    days_sep = "-"
+    us_sep = "."
+    simple_fmt = "%H:%M:%S"
+    days_fmt = "%d-%H:%M:%S"
+    us_fmt = "%H:%M:%S.%f"
+    days_us_fmt = "%d-%H:%M:%S.%f"
 
     if days_sep not in value:
         if us_sep in value:  # Simple time with microseconds
@@ -60,7 +60,7 @@ def parse_duration(value):
 
 class SlurmReportLine(BaseReportLine):
     def __init__(self, line):
-        self._parts = line.split('|')
+        self._parts = line.split("|")
 
     @cached_property
     def account(self):
@@ -72,19 +72,19 @@ class SlurmReportLine(BaseReportLine):
 
     @cached_property
     def cpu(self):
-        return self.parse_field('cpu')
+        return self.parse_field("cpu")
 
     @cached_property
     def gpu(self):
-        return self.parse_field('gres/gpu')
+        return self.parse_field("gres/gpu")
 
     @cached_property
     def ram(self):
-        return self.parse_field('mem') // 2**20  # Convert from Bytes to MB
+        return self.parse_field("mem") // 2**20  # Convert from Bytes to MB
 
     @cached_property
     def node(self):
-        return self.parse_field('node')
+        return self.parse_field("node")
 
     @cached_property
     def duration(self):
@@ -92,8 +92,8 @@ class SlurmReportLine(BaseReportLine):
 
     @cached_property
     def _resources(self):
-        pairs = self._parts[1].split(',')
-        return dict(pair.split('=') for pair in pairs)
+        pairs = self._parts[1].split(",")
+        return dict(pair.split("=") for pair in pairs)
 
     def parse_field(self, field):
         if field not in self._resources:
@@ -116,9 +116,9 @@ class SlurmAssociationLine(SlurmReportLine):
 
     @cached_property
     def _resources(self):
-        if self._parts[1] != '':
-            pairs = self._parts[1].split(',')
-            return dict(pair.split('=') for pair in pairs)
+        if self._parts[1] != "":
+            pairs = self._parts[1].split(",")
+            return dict(pair.split("=") for pair in pairs)
 
     @cached_property
     def resource_limits(self):

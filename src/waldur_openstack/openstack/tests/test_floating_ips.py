@@ -10,40 +10,40 @@ class FloatingIPListRetrieveTestCase(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
         self.active_ip = factories.FloatingIPFactory(
-            runtime_state='ACTIVE',
+            runtime_state="ACTIVE",
             service_settings=self.fixture.openstack_service_settings,
             project=self.fixture.project,
         )
         self.down_ip = factories.FloatingIPFactory(
-            runtime_state='DOWN',
+            runtime_state="DOWN",
             service_settings=self.fixture.openstack_service_settings,
             project=self.fixture.project,
         )
-        self.other_ip = factories.FloatingIPFactory(runtime_state='UNDEFINED')
+        self.other_ip = factories.FloatingIPFactory(runtime_state="UNDEFINED")
 
     def test_floating_ip_list_can_be_filtered_by_project(self):
         data = {
-            'project': self.fixture.project.uuid.hex,
+            "project": self.fixture.project.uuid.hex,
         }
         # when
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.get(factories.FloatingIPFactory.get_list_url(), data)
         # then
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        response_ip_uuids = [ip['uuid'] for ip in response.data]
+        response_ip_uuids = [ip["uuid"] for ip in response.data]
         expected_ip_uuids = [ip.uuid.hex for ip in (self.active_ip, self.down_ip)]
         self.assertEqual(sorted(response_ip_uuids), sorted(expected_ip_uuids))
 
     def test_floating_ip_list_can_be_filtered_by_status(self):
         data = {
-            'runtime_state': 'ACTIVE',
+            "runtime_state": "ACTIVE",
         }
         # when
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.get(factories.FloatingIPFactory.get_list_url(), data)
         # then
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        response_ip_uuids = [ip['uuid'] for ip in response.data]
+        response_ip_uuids = [ip["uuid"] for ip in response.data]
         expected_ip_uuids = [self.active_ip.uuid.hex]
         self.assertEqual(response_ip_uuids, expected_ip_uuids)
 
@@ -53,7 +53,7 @@ class FloatingIPListRetrieveTestCase(test.APITransactionTestCase):
         response = self.client.get(factories.FloatingIPFactory.get_list_url())
         # then
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        response_ip_uuids = [ip['uuid'] for ip in response.data]
+        response_ip_uuids = [ip["uuid"] for ip in response.data]
         expected_ip_uuids = [ip.uuid.hex for ip in (self.active_ip, self.down_ip)]
         self.assertEqual(sorted(response_ip_uuids), sorted(expected_ip_uuids))
 
@@ -63,7 +63,7 @@ class FloatingIPListRetrieveTestCase(test.APITransactionTestCase):
         response = self.client.get(factories.FloatingIPFactory.get_list_url())
         # then
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        response_ip_uuids = [ip['uuid'] for ip in response.data]
+        response_ip_uuids = [ip["uuid"] for ip in response.data]
         expected_ip_uuids = [ip.uuid.hex for ip in (self.active_ip, self.down_ip)]
         self.assertEqual(sorted(response_ip_uuids), sorted(expected_ip_uuids))
 
@@ -73,7 +73,7 @@ class FloatingIPListRetrieveTestCase(test.APITransactionTestCase):
         response = self.client.get(factories.FloatingIPFactory.get_list_url())
         # then
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        response_ip_uuids = [ip['uuid'] for ip in response.data]
+        response_ip_uuids = [ip["uuid"] for ip in response.data]
         expected_ip_uuids = []
         self.assertEqual(response_ip_uuids, expected_ip_uuids)
 
@@ -83,7 +83,7 @@ class FloatingIPListRetrieveTestCase(test.APITransactionTestCase):
         response = self.client.get(factories.FloatingIPFactory.get_url(self.active_ip))
         # then
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['uuid'], self.active_ip.uuid.hex)
+        self.assertEqual(response.data["uuid"], self.active_ip.uuid.hex)
 
     def test_owner_can_not_retrieve_floating_ip_not_from_his_customer(self):
         # when
@@ -106,15 +106,15 @@ class FloatingIPRetrieveTest(BaseFloatingIPTest):
         self.ip.port = self.port
         self.ip.save()
         response = self.client.get(factories.PortFactory.get_url(self.port))
-        response_fips = response.data['floating_ips']
+        response_fips = response.data["floating_ips"]
         self.assertEqual([factories.FloatingIPFactory.get_url(self.ip)], response_fips)
 
 
 class FloatingIPAttachTest(BaseFloatingIPTest):
     def setUp(self) -> None:
         super().setUp()
-        self.request_data = {'port': factories.PortFactory.get_url(self.port)}
-        self.url = factories.FloatingIPFactory.get_url(self.ip, action='attach_to_port')
+        self.request_data = {"port": factories.PortFactory.get_url(self.port)}
+        self.url = factories.FloatingIPFactory.get_url(self.ip, action="attach_to_port")
 
     def test_floating_ip_attach(self):
         response = self.client.post(self.url, self.request_data)
@@ -126,7 +126,7 @@ class FloatingIPAttachTest(BaseFloatingIPTest):
         response = self.client.post(self.url, self.request_data)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
-    @mock.patch('waldur_openstack.openstack.executors.FloatingIPAttachExecutor.execute')
+    @mock.patch("waldur_openstack.openstack.executors.FloatingIPAttachExecutor.execute")
     def test_floating_ip_attaching_triggers_executor(
         self, attach_ip_executor_action_mock
     ):
@@ -139,21 +139,21 @@ class FloatingIPAttachTest(BaseFloatingIPTest):
         self.port.save()
         response = self.client.post(self.url, self.request_data)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
-        self.assertIn('state', response.data['detail'])
+        self.assertIn("state", response.data["detail"])
 
     def test_floating_ip_attaching_to_port_from_different_tenant(self):
         self.port.tenant = factories.TenantFactory()
         self.port.save()
         response = self.client.post(self.url, self.request_data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('tenant', response.data['detail'])
+        self.assertIn("tenant", response.data["detail"])
 
 
 class FloatingIPDetachTest(BaseFloatingIPTest):
     def setUp(self) -> None:
         super().setUp()
         self.url = factories.FloatingIPFactory.get_url(
-            self.ip, action='detach_from_port'
+            self.ip, action="detach_from_port"
         )
         self.ip.port = self.port
         self.ip.save()
@@ -168,7 +168,7 @@ class FloatingIPDetachTest(BaseFloatingIPTest):
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
-    @mock.patch('waldur_openstack.openstack.executors.FloatingIPDetachExecutor.execute')
+    @mock.patch("waldur_openstack.openstack.executors.FloatingIPDetachExecutor.execute")
     def test_floating_ip_detaching_triggers_executor(
         self, detach_ip_executor_action_mock
     ):
@@ -181,17 +181,17 @@ class FloatingIPDetachTest(BaseFloatingIPTest):
         self.ip.save()
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('not attached to any port', response.data['port'])
+        self.assertIn("not attached to any port", response.data["port"])
 
 
 class FloatingIPUpdateTest(BaseFloatingIPTest):
     def setUp(self) -> None:
         super().setUp()
         self.url = factories.FloatingIPFactory.get_url(
-            self.ip, action='update_description'
+            self.ip, action="update_description"
         )
-        self.description = 'new description'
-        self.payload = {'description': self.description}
+        self.description = "new description"
+        self.payload = {"description": self.description}
 
     def test_floating_ip_description_update(self):
         response = self.client.post(self.url, self.payload)
@@ -199,7 +199,7 @@ class FloatingIPUpdateTest(BaseFloatingIPTest):
         self.ip.refresh_from_db()
         self.assertEqual(self.ip.description, self.description)
 
-    @mock.patch('waldur_openstack.openstack.executors.FloatingIPUpdateExecutor.execute')
+    @mock.patch("waldur_openstack.openstack.executors.FloatingIPUpdateExecutor.execute")
     def test_floating_ip_description_update_triggers_executor(
         self, detach_ip_executor_action_mock
     ):

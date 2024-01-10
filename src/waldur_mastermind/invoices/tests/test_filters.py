@@ -16,7 +16,7 @@ class InvoiceFilterTest(test.APITransactionTestCase):
         resource_2 = marketplace_factories.ResourceFactory()
         resource_3 = marketplace_factories.ResourceFactory()
         factories.InvoiceItemFactory(
-            name='OFFERING-002',
+            name="OFFERING-002",
             project=self.fixture.project,
             invoice=self.fixture.invoice,
             unit_price=10,
@@ -24,7 +24,7 @@ class InvoiceFilterTest(test.APITransactionTestCase):
             quantity=1,
         )
         factories.InvoiceItemFactory(
-            name='OFFERING-003',
+            name="OFFERING-003",
             project=self.fixture.project,
             invoice=self.fixture.invoice,
             unit_price=10,
@@ -35,7 +35,7 @@ class InvoiceFilterTest(test.APITransactionTestCase):
         factories.InvoiceFactory()
         invoice = factories.InvoiceFactory()
         factories.InvoiceItemFactory(
-            name='OFFERING-004',
+            name="OFFERING-004",
             invoice=invoice,
             unit_price=100,
             resource=resource_3,
@@ -49,5 +49,5 @@ class InvoiceFilterTest(test.APITransactionTestCase):
         response = self.client.get(url)
         self.assertEqual(len(response.data), 3)
 
-        response = self.client.get(url, {'min_sum': 100, 'max_sum': 500})
+        response = self.client.get(url, {"min_sum": 100, "max_sum": 500})
         self.assertEqual(len(response.data), 1)

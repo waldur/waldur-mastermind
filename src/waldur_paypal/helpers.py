@@ -13,7 +13,7 @@ def override_paypal_settings(**kwargs):
 
 
 def convert_unit_of_measure(unit):
-    if unit == 'quantity':
+    if unit == "quantity":
         return models.InvoiceItem.UnitsOfMeasure.QUANTITY
     else:
         return models.InvoiceItem.UnitsOfMeasure.AMOUNT

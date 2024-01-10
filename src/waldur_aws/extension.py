@@ -4,7 +4,7 @@ from waldur_core.core import WaldurExtension
 class AWSExtension(WaldurExtension):
     @staticmethod
     def django_app():
-        return 'waldur_aws'
+        return "waldur_aws"
 
     @staticmethod
     def rest_urls():

@@ -30,13 +30,13 @@ class JSONMultipleChoiceField(forms.MultipleChoiceField):
 class BaseHookForm(forms.ModelForm):
     event_types = JSONMultipleChoiceField(
         choices=lambda: [(e, e) for e in get_valid_events()],
-        widget=forms.SelectMultiple(attrs={'size': '30'}),
+        widget=forms.SelectMultiple(attrs={"size": "30"}),
         required=False,
     )
 
     event_groups = JSONMultipleChoiceField(
         choices=lambda: [(g, g) for g in get_event_groups()],
-        widget=forms.SelectMultiple(attrs={'size': '30'}),
+        widget=forms.SelectMultiple(attrs={"size": "30"}),
         required=False,
     )
 
@@ -44,66 +44,66 @@ class BaseHookForm(forms.ModelForm):
 class SystemNotificationForm(BaseHookForm):
     roles = JSONMultipleChoiceField(
         choices=[(g, g) for g in models.SystemNotification.get_valid_roles()],
-        widget=forms.SelectMultiple(attrs={'size': '30'}),
+        widget=forms.SelectMultiple(attrs={"size": "30"}),
         required=True,
     )
 
     class Meta:
         model = models.SystemNotification
-        exclude = ('uuid',)
+        exclude = ("uuid",)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields[
-            'hook_content_type'
+            "hook_content_type"
         ].queryset = models.BaseHook.get_all_content_types()
 
 
 class SystemNotificationAdmin(admin.ModelAdmin):
     form = SystemNotificationForm
-    list_display = ('name', 'hook_content_type', 'roles')
+    list_display = ("name", "hook_content_type", "roles")
 
 
 class EventAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):
-    list_display = ('uuid', 'event_type', 'message', 'created')
-    readonly_fields = ('event_type', 'message', 'format_context')
-    exclude = ('context',)
-    list_filter = ('event_type', 'created')
-    search_fields = ('message',)
-    ordering = ('-created',)
+    list_display = ("uuid", "event_type", "message", "created")
+    readonly_fields = ("event_type", "message", "format_context")
+    exclude = ("context",)
+    list_filter = ("event_type", "created")
+    search_fields = ("message",)
+    ordering = ("-created",)
 
     def format_context(self, obj):
         return format_json_field(obj.context)
 
     format_context.allow_tags = True
-    format_context.short_description = _('Details')
+    format_context.short_description = _("Details")
 
 
 class BaseHookAdmin(admin.ModelAdmin):
     form = BaseHookForm
-    list_display = ('uuid', 'user', 'is_active', 'event_types', 'event_groups')
+    list_display = ("uuid", "user", "is_active", "event_types", "event_groups")
 
 
 class WebHookAdmin(BaseHookAdmin):
-    list_display = BaseHookAdmin.list_display + ('destination_url',)
+    list_display = BaseHookAdmin.list_display + ("destination_url",)
 
 
 class EmailHookAdmin(BaseHookAdmin):
-    list_display = BaseHookAdmin.list_display + ('email',)
+    list_display = BaseHookAdmin.list_display + ("email",)
 
 
 class ReportAdmin(UpdateOnlyModelAdmin, ExtraActionsMixin, admin.ModelAdmin):
-    list_display = ('created', 'state', 'get_filesize')
-    readonly_fields = ('state', 'file', 'get_filesize', 'error_message')
-    exclude = ('file_size',)
+    list_display = ("created", "state", "get_filesize")
+    readonly_fields = ("state", "file", "get_filesize", "error_message")
+    exclude = ("file_size",)
 
     def get_filesize(self, obj):
         if obj.file_size:
             return filesizeformat(obj.file_size)
         else:
-            return 'N/A'
+            return "N/A"
 
-    get_filesize.short_description = 'File size'
+    get_filesize.short_description = "File size"
 
     def get_extra_actions(self):
         return [self.create_report]
@@ -113,11 +113,11 @@ class ReportAdmin(UpdateOnlyModelAdmin, ExtraActionsMixin, admin.ModelAdmin):
             report = models.Report.objects.create()
             serialized_report = serialize_instance(report)
             transaction.on_commit(lambda: tasks.create_report.delay(serialized_report))
-        message = _('Report creation has been scheduled')
+        message = _("Report creation has been scheduled")
         self.message_user(request, message)
-        return redirect(reverse('admin:logging_report_changelist'))
+        return redirect(reverse("admin:logging_report_changelist"))
 
-    create_report.short_description = _('Create report')
+    create_report.short_description = _("Create report")
 
 
 # This hack is needed because core admin is imported several times.

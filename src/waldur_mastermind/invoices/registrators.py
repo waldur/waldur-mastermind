@@ -48,7 +48,7 @@ class BaseRegistrator:
 
         items = self._find_item(source, now)
         if items:
-            if not hasattr(items, '__iter__'):
+            if not hasattr(items, "__iter__"):
                 items = [items]
 
             for item in items:
@@ -81,7 +81,7 @@ class RegistrationManager:
 
     @classmethod
     def get_key(cls, source):
-        return getattr(source, 'invoice_registrator_key', source.__class__)
+        return getattr(source, "invoice_registrator_key", source.__class__)
 
     @classmethod
     def get_registrators(cls):

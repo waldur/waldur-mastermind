@@ -3,9 +3,9 @@ from django.db.models import signals
 
 
 class MarketplaceSlurmConfig(AppConfig):
-    name = 'waldur_mastermind.marketplace_slurm_remote'
-    verbose_name = 'Marketplace SLURM Remote'
-    service_name = 'SLURM remote'
+    name = "waldur_mastermind.marketplace_slurm_remote"
+    verbose_name = "Marketplace SLURM Remote"
+    service_name = "SLURM remote"
 
     def ready(self):
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
@@ -27,7 +27,7 @@ class MarketplaceSlurmConfig(AppConfig):
         signals.post_save.connect(
             handlers.update_component_quota,
             sender=slurm_models.Allocation,
-            dispatch_uid='waldur_mastermind.marketplace_slurm.update_component_quota',
+            dispatch_uid="waldur_mastermind.marketplace_slurm.update_component_quota",
         )
 
         marketplace_handlers.connect_resource_handlers(slurm_models.Allocation)
@@ -43,5 +43,5 @@ class MarketplaceSlurmConfig(AppConfig):
         marketplace_signals.resource_deletion_succeeded.connect(
             handlers.terminate_allocation_when_resource_is_terminated,
             sender=marketplace_models.Resource,
-            dispatch_uid='waldur_mastermind.marketplace_slurm_remote.terminate_allocation_when_resource_is_terminated',
+            dispatch_uid="waldur_mastermind.marketplace_slurm_remote.terminate_allocation_when_resource_is_terminated",
         )

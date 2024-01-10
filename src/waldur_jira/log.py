@@ -16,15 +16,15 @@ class IssueEventLogger(EventLogger):
 
     class Meta:
         event_types = (
-            'issue_deletion_succeeded',
-            'issue_update_succeeded',
-            'issue_creation_succeeded',
+            "issue_deletion_succeeded",
+            "issue_update_succeeded",
+            "issue_creation_succeeded",
         )
-        event_groups = {'jira': event_types}
+        event_groups = {"jira": event_types}
 
     @staticmethod
     def get_scopes(event_context):
-        issue = event_context['issue']
+        issue = event_context["issue"]
         return get_issue_scopes(issue)
 
 
@@ -33,17 +33,17 @@ class CommentEventLogger(EventLogger):
 
     class Meta:
         event_types = (
-            'comment_deletion_succeeded',
-            'comment_update_succeeded',
-            'comment_creation_succeeded',
+            "comment_deletion_succeeded",
+            "comment_update_succeeded",
+            "comment_creation_succeeded",
         )
-        event_groups = {'jira': event_types}
+        event_groups = {"jira": event_types}
 
     @staticmethod
     def get_scopes(event_context):
-        issue = event_context['comment'].issue
+        issue = event_context["comment"].issue
         return get_issue_scopes(issue)
 
 
-event_logger.register('jira_issue', IssueEventLogger)
-event_logger.register('jira_comment', CommentEventLogger)
+event_logger.register("jira_issue", IssueEventLogger)
+event_logger.register("jira_comment", CommentEventLogger)

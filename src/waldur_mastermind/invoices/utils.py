@@ -76,8 +76,8 @@ def parse_period(attrs, use_default=True):
     month = use_default and get_current_month() or None
 
     try:
-        year = int(attrs.get('year', ''))
-        month = int(attrs.get('month', ''))
+        year = int(attrs.get("year", ""))
+        month = int(attrs.get("month", ""))
     except ValueError:
         pass
 
@@ -102,19 +102,19 @@ def create_invoice_html(invoice):
     all_items = filter_invoice_items(invoice.items.all())
     logo_path = config.SITE_LOGO
     if logo_path:
-        with open(logo_path, 'rb') as image_file:
+        with open(logo_path, "rb") as image_file:
             deployment_logo = base64.b64encode(image_file.read()).decode("utf-8")
     else:
         deployment_logo = None
 
     context = dict(
         invoice=invoice,
-        issuer_details=settings.WALDUR_INVOICES['ISSUER_DETAILS'],
+        issuer_details=settings.WALDUR_INVOICES["ISSUER_DETAILS"],
         currency=config.CURRENCY_NAME,
         deployment_logo=deployment_logo,
         items=all_items,
     )
-    return render_to_string('invoices/invoice.html', context)
+    return render_to_string("invoices/invoice.html", context)
 
 
 def get_price_per_day(price, unit):
@@ -131,23 +131,21 @@ def get_price_per_day(price, unit):
 
 
 def get_end_date_for_profile(profile):
-    end = profile.attributes.get('end_date')
+    end = profile.attributes.get("end_date")
     if end:
-        result = re.match(r'\d{4}-\d{2}-\d{2}', end)
+        result = re.match(r"\d{4}-\d{2}-\d{2}", end)
         if result:
             end = result.group(0)
         else:
             logger.error(
-                'The field \'end_date\' for profile %s is not correct. Value: %s'
-                % (profile, end)
+                f"The field 'end_date' for profile {profile} is not correct. Value: {end}"
             )
             return
         try:
-            return datetime.datetime.strptime(end, '%Y-%m-%d').date()
+            return datetime.datetime.strptime(end, "%Y-%m-%d").date()
         except ValueError:
             logger.error(
-                'The field \'end_date\' for profile %s is not correct. Value: %s'
-                % (profile, end)
+                f"The field 'end_date' for profile {profile} is not correct. Value: {end}"
             )
 
 
@@ -170,15 +168,15 @@ def get_monthly_invoicing_reports_context():
     ids_fixed = []
     today = datetime.date.today()
     context = {
-        'contracts': [],
-        'invoices': [],
-        'month': today.month,
-        'year': today.year,
+        "contracts": [],
+        "invoices": [],
+        "month": today.month,
+        "year": today.year,
     }
 
     for profile in models.PaymentProfile.objects.filter(
         payment_type=models.PaymentType.FIXED_PRICE, is_active=True
-    ).order_by('organization__abbreviation', 'organization__name'):
+    ).order_by("organization__abbreviation", "organization__name"):
         ids_fixed.append(profile.organization.id)
         name = profile.organization.abbreviation or profile.organization.name
         end = get_end_date_for_profile(profile)
@@ -188,26 +186,26 @@ def get_monthly_invoicing_reports_context():
         else:
             alarm = False
 
-        payments_sum = profile.payment_set.aggregate(sum=Sum('sum'))['sum']
-        contract_sum = profile.attributes.get('contract_sum')
+        payments_sum = profile.payment_set.aggregate(sum=Sum("sum"))["sum"]
+        contract_sum = profile.attributes.get("contract_sum")
 
-        context['contracts'].append(
+        context["contracts"].append(
             {
-                'name': name,
-                'end': end,
-                'end_date_alarm': alarm,
-                'till_end': end and (end - today).days,
-                'profile': profile,
-                'payments_sum': payments_sum,
-                'contract_sum': contract_sum,
-                'payments_alarm': contract_sum and payments_sum != contract_sum,
+                "name": name,
+                "end": end,
+                "end_date_alarm": alarm,
+                "till_end": end and (end - today).days,
+                "profile": profile,
+                "payments_sum": payments_sum,
+                "contract_sum": contract_sum,
+                "payments_alarm": contract_sum and payments_sum != contract_sum,
             }
         )
 
-    context['invoices'] = (
+    context["invoices"] = (
         models.Invoice.objects.exclude(customer_id__in=ids_fixed)
         .filter(month=today.month, year=today.year)
-        .order_by('customer__abbreviation', 'customer__name')
+        .order_by("customer__abbreviation", "customer__name")
     )
 
     return context
@@ -215,7 +213,7 @@ def get_monthly_invoicing_reports_context():
 
 def get_monthly_invoicing_reports():
     context = get_monthly_invoicing_reports_context()
-    return render_to_string('invoices/monthly_invoicing_reports.html', context)
+    return render_to_string("invoices/monthly_invoicing_reports.html", context)
 
 
 def get_billing_price_estimate_for_resources(resources):
@@ -225,14 +223,14 @@ def get_billing_price_estimate_for_resources(resources):
         invoice__month=get_current_month(),
     )
     result = {
-        'total': Decimal(0.0),
-        'current': Decimal(0.0),
-        'tax': Decimal(0.0),
-        'tax_current': Decimal(0.0),
+        "total": Decimal(0.0),
+        "current": Decimal(0.0),
+        "tax": Decimal(0.0),
+        "tax_current": Decimal(0.0),
     }
     for item in invoice_items:
-        result['current'] += item.price
-        result['tax'] += item.tax
-        result['tax_current'] += item.tax_current
-        result['total'] += item.total
+        result["current"] += item.price
+        result["tax"] += item.tax
+        result["tax_current"] += item.tax_current
+        result["total"] += item.total
     return result

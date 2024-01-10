@@ -6,16 +6,16 @@ class PolicyActionOrderLogger(EventLogger):
 
     class Meta:
         event_types = (
-            'notify_project_team',
-            'notify_organization_owners',
-            'block_creation_of_new_resources',
-            'block_modification_of_existing_resources',
-            'terminate_resources',
-            'request_downscaling',
+            "notify_project_team",
+            "notify_organization_owners",
+            "block_creation_of_new_resources",
+            "block_modification_of_existing_resources",
+            "terminate_resources",
+            "request_downscaling",
         )
 
 
-event_logger.register('policy_action', PolicyActionOrderLogger)
+event_logger.register("policy_action", PolicyActionOrderLogger)
 
 
 class SendEmailLogger(EventLogger):
@@ -24,7 +24,7 @@ class SendEmailLogger(EventLogger):
     emails = str
 
     class Meta:
-        event_types = ('policy_notification',)
+        event_types = ("policy_notification",)
 
 
-event_logger.register('policy_notification', SendEmailLogger)
+event_logger.register("policy_notification", SendEmailLogger)

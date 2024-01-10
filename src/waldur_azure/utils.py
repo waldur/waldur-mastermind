@@ -7,11 +7,11 @@ from waldur_core.core import utils as core_utils
 
 
 def hash_string(value, length=16):
-    return hashlib.sha256(value.encode('utf-8')).hexdigest()[:length]
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()[:length]
 
 
 def generate_username():
-    return f'user{core_utils.pwgen(4)}'
+    return f"user{core_utils.pwgen(4)}"
 
 
 def generate_password():

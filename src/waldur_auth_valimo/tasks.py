@@ -22,7 +22,7 @@ class AuthTask(tasks.StateTransitionTask):
             message=auth_result.message,
         )
         auth_result.backend_transaction_id = response.backend_transaction_id
-        auth_result.save(update_fields=['backend_transaction_id'])
+        auth_result.save(update_fields=["backend_transaction_id"])
 
 
 class PollTask(views.RefreshTokenMixin, tasks.Task):
@@ -41,9 +41,9 @@ class PollTask(views.RefreshTokenMixin, tasks.Task):
         elif response.status == client.Statuses.ERRED:
             auth_result.set_canceled()
             auth_result.details = response.details
-            auth_result.save(update_fields=['state', 'details'])
+            auth_result.save(update_fields=["state", "details"])
             logger.info(
-                'PKI login failed for user with phone %s, details: %s.',
+                "PKI login failed for user with phone %s, details: %s.",
                 auth_result.phone,
                 auth_result.details,
             )
@@ -56,19 +56,19 @@ class PollTask(views.RefreshTokenMixin, tasks.Task):
             auth_result.user = user
             auth_result.set_ok()
             user.last_login = timezone.now()
-            user.save(update_fields=['last_login'])
-            logger.info('PKI login was successfully done for user %s.', user.username)
+            user.save(update_fields=["last_login"])
+            logger.info("PKI login was successfully done for user %s.", user.username)
         except User.DoesNotExist:
-            auth_result.details = 'User is not registered.'
+            auth_result.details = "User is not registered."
             auth_result.set_canceled()
             logger.info(
-                'PKI login failed for user with civil number %s - user record does not exist in Waldur.',
+                "PKI login failed for user with civil number %s - user record does not exist in Waldur.",
                 civil_number,
             )
         auth_result.save()
 
 
-@shared_task(name='waldur_auth_valimo.cleanup_auth_results')
+@shared_task(name="waldur_auth_valimo.cleanup_auth_results")
 def cleanup_auth_results():
     models.AuthResult.objects.filter(
         modified__lte=timezone.now() - timedelta(days=7)

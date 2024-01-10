@@ -40,8 +40,8 @@ class EventTypesMixin(models.Model):
     class Meta:
         abstract = True
 
-    event_types = models.JSONField('List of event types')
-    event_groups = models.JSONField('List of event groups', default=list)
+    event_types = models.JSONField("List of event types")
+    event_groups = models.JSONField("List of event groups", default=list)
 
     @classmethod
     @lru_cache(maxsize=1)
@@ -52,7 +52,7 @@ class EventTypesMixin(models.Model):
 class BaseHook(EventTypesMixin, UuidMixin, TimeStampedModel):
     class Meta:
         abstract = True
-        ordering = ['-created']
+        ordering = ["-created"]
 
     user = models.ForeignKey(on_delete=models.CASCADE, to=settings.AUTH_USER_MODEL)
     is_active = models.BooleanField(default=True)
@@ -101,7 +101,7 @@ class WebHook(BaseHook):
     class ContentTypeChoices:
         JSON = 1
         FORM = 2
-        CHOICES = ((JSON, 'json'), (FORM, 'form'))
+        CHOICES = ((JSON, "json"), (FORM, "form"))
 
     destination_url = models.URLField()
     content_type = models.SmallIntegerField(
@@ -110,7 +110,7 @@ class WebHook(BaseHook):
 
     def process(self, event):
         logger.debug(
-            'Submitting web hook to URL %s, payload: %s', self.destination_url, event
+            "Submitting web hook to URL %s, payload: %s", self.destination_url, event
         )
         payload = dict(
             created=event.created.isoformat(),
@@ -142,17 +142,17 @@ class EmailHook(BaseHook):
     def process(self, event):
         if not self.email:
             logger.info(
-                'Skipping processing of email hook (PK=%s) because email is not defined'
+                "Skipping processing of email hook (PK=%s) because email is not defined"
                 % self.pk
             )
             return
         subject = settings.WALDUR_CORE.get(
-            'NOTIFICATION_SUBJECT', 'Notifications from Waldur'
+            "NOTIFICATION_SUBJECT", "Notifications from Waldur"
         )
         text_message = event.message
-        html_message = render_to_string('logging/email.html', {'events': [event]})
+        html_message = render_to_string("logging/email.html", {"events": [event]})
         logger.info(
-            'Submitting email hook to %s, payload: %s', self.email, text_message
+            "Submitting email hook to %s, payload: %s", self.email, text_message
         )
         if settings.EMAIL_HOOK_FROM_EMAIL:
             send_mail(
@@ -173,15 +173,15 @@ class EmailHook(BaseHook):
 
 class SystemNotification(EventTypesMixin, models.Model):
     # Model doesn't inherit NameMixin, because this is circular dependence.
-    name = models.CharField(_('name'), max_length=150)
+    name = models.CharField(_("name"), max_length=150)
     hook_content_type = models.ForeignKey(
-        on_delete=models.CASCADE, to=ct_models.ContentType, related_name='+'
+        on_delete=models.CASCADE, to=ct_models.ContentType, related_name="+"
     )
-    roles = JSONField('List of roles', default=list)
+    roles = JSONField("List of roles", default=list)
 
     @staticmethod
     def get_valid_roles():
-        return 'admin', 'manager', 'owner'
+        return "admin", "manager", "owner"
 
     @classmethod
     def get_hooks(cls, event_type, project=None, customer=None):
@@ -201,17 +201,17 @@ class SystemNotification(EventTypesMixin, models.Model):
             users_qs = []
 
             if project:
-                if 'admin' in hook.roles:
+                if "admin" in hook.roles:
                     users_qs.append(get_users(project, RoleEnum.PROJECT_ADMIN))
-                if 'manager' in hook.roles:
+                if "manager" in hook.roles:
                     users_qs.append(get_users(project, RoleEnum.PROJECT_MANAGER))
-                if 'owner' in hook.roles:
+                if "owner" in hook.roles:
                     users_qs.append(
                         get_users(project.customer, RoleEnum.CUSTOMER_OWNER)
                     )
 
             if customer:
-                if 'owner' in hook.roles:
+                if "owner" in hook.roles:
                     users_qs.append(get_users(customer, RoleEnum.CUSTOMER_OWNER))
 
             if len(users_qs) > 1:
@@ -228,22 +228,22 @@ class SystemNotification(EventTypesMixin, models.Model):
                     )
 
     def __str__(self):
-        return f'{self.hook_content_type} | {self.name}'
+        return f"{self.hook_content_type} | {self.name}"
 
 
 class Report(UuidMixin, TimeStampedModel):
     class States:
-        PENDING = 'pending'
-        DONE = 'done'
-        ERRED = 'erred'
+        PENDING = "pending"
+        DONE = "done"
+        ERRED = "erred"
 
         CHOICES = (
-            (PENDING, 'Pending'),
-            (DONE, 'Done'),
-            (ERRED, 'Erred'),
+            (PENDING, "Pending"),
+            (DONE, "Done"),
+            (ERRED, "Erred"),
         )
 
-    file = models.FileField(upload_to='logging_reports')
+    file = models.FileField(upload_to="logging_reports")
     file_size = models.PositiveIntegerField(null=True)
     state = models.CharField(
         choices=States.CHOICES, default=States.PENDING, max_length=10
@@ -258,7 +258,7 @@ class Event(UuidMixin):
     context = models.JSONField(blank=True)
 
     class Meta:
-        ordering = ('-created',)
+        ordering = ("-created",)
 
 
 class FeedManager(GenericKeyMixin, models.Manager):
@@ -271,5 +271,5 @@ class Feed(models.Model):
         on_delete=models.CASCADE, to=ct_models.ContentType, db_index=True
     )
     object_id = models.PositiveIntegerField(db_index=True)
-    scope = ct_fields.GenericForeignKey('content_type', 'object_id')
+    scope = ct_fields.GenericForeignKey("content_type", "object_id")
     objects = FeedManager()

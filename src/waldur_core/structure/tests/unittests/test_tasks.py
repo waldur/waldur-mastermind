@@ -21,7 +21,7 @@ class ThrottleProvisionTaskTest(TestCase):
         service_settings = factories.ServiceSettingsFactory()
         project = factories.ProjectFactory()
         factories.TestNewInstanceFactory.create_batch(
-            size=params['size'],
+            size=params["size"],
             state=models.TestNewInstance.States.CREATING,
             service_settings=service_settings,
             project=project,
@@ -35,9 +35,9 @@ class ThrottleProvisionTaskTest(TestCase):
         mocked_retry = mock.Mock()
         tasks.ThrottleProvisionTask.retry = mocked_retry
         tasks.ThrottleProvisionTask().si(
-            serialized_vm, 'create', state_transition='begin_starting'
+            serialized_vm, "create", state_transition="begin_starting"
         ).apply()
-        self.assertEqual(mocked_retry.called, params['retried'])
+        self.assertEqual(mocked_retry.called, params["retried"])
 
 
 class SetErredProvisioningResourcesTaskTest(TestCase):
@@ -82,12 +82,12 @@ class ExceptionTest(TestCase):
 
         class Backend:
             def pull_resources(self):
-                raise KeyError('test error')
+                raise KeyError("test error")
 
         backend = Backend()
         service_settings.get_backend = lambda: backend
         task = tasks.ServiceResourcesPullTask()
-        error_message = '\'test error\', Service settings: {}, {}'.format(
+        error_message = "'test error', Service settings: {}, {}".format(
             service_settings.name,
             service_settings.type,
         )

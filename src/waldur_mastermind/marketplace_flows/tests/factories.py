@@ -21,15 +21,15 @@ class OfferingStateRequestFactory(factory.django.DjangoModelFactory):
     def get_url(cls, offering_request=None, action=None):
         if offering_request is None:
             offering_request = OfferingStateRequestFactory()
-        url = 'http://testserver' + reverse(
-            'marketplace-offering-activate-request-detail',
-            kwargs={'uuid': offering_request.uuid.hex},
+        url = "http://testserver" + reverse(
+            "marketplace-offering-activate-request-detail",
+            kwargs={"uuid": offering_request.uuid.hex},
         )
-        return url if action is None else url + action + '/'
+        return url if action is None else url + action + "/"
 
     @classmethod
     def get_list_url(cls, action=None):
-        url = 'http://testserver' + reverse(
-            'marketplace-offering-activate-request-list'
+        url = "http://testserver" + reverse(
+            "marketplace-offering-activate-request-list"
         )
-        return url if action is None else url + action + '/'
+        return url if action is None else url + action + "/"

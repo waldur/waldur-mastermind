@@ -6,11 +6,11 @@ from waldur_mastermind.marketplace import callbacks, models
 from waldur_mastermind.marketplace.tests import factories
 
 
-@freeze_time('2018-11-01')
+@freeze_time("2018-11-01")
 class CallbacksTest(test.APITransactionTestCase):
     def test_when_resource_is_created_new_period_is_opened(self):
         # Arrange
-        start = parse_datetime('2018-11-01')
+        start = parse_datetime("2018-11-01")
         order = factories.OrderFactory(
             state=models.Order.States.EXECUTING,
         )
@@ -30,8 +30,8 @@ class CallbacksTest(test.APITransactionTestCase):
 
     def test_when_plan_is_changed_old_period_is_closed_new_is_opened(self):
         # Arrange
-        old_start = parse_datetime('2018-10-01')
-        new_start = parse_datetime('2018-11-01')
+        old_start = parse_datetime("2018-10-01")
+        new_start = parse_datetime("2018-11-01")
 
         old_plan = factories.PlanFactory()
         new_plan = factories.PlanFactory()
@@ -65,8 +65,8 @@ class CallbacksTest(test.APITransactionTestCase):
 
     def test_when_resource_is_terminated_old_period_is_closed(self):
         # Arrange
-        start = parse_datetime('2018-10-01')
-        end = parse_datetime('2018-11-01')
+        start = parse_datetime("2018-10-01")
+        end = parse_datetime("2018-11-01")
 
         plan = factories.PlanFactory()
         resource = factories.ResourceFactory(plan=plan)
@@ -93,8 +93,8 @@ class CallbacksTest(test.APITransactionTestCase):
 
     def test_when_resource_is_terminated_directly_old_period_is_closed(self):
         # Arrange
-        start = parse_datetime('2018-10-01')
-        end = parse_datetime('2018-11-01')
+        start = parse_datetime("2018-10-01")
+        end = parse_datetime("2018-11-01")
 
         plan = factories.PlanFactory()
         resource = factories.ResourceFactory(

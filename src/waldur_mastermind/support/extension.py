@@ -12,7 +12,7 @@ class SupportExtension(WaldurExtension):
 
     @staticmethod
     def django_app():
-        return 'waldur_mastermind.support'
+        return "waldur_mastermind.support"
 
     @staticmethod
     def django_urls():
@@ -33,24 +33,24 @@ class SupportExtension(WaldurExtension):
     @staticmethod
     def celery_tasks():
         return {
-            'pull-support-users': {
-                'task': 'waldur_mastermind.support.pull_support_users',
-                'schedule': timedelta(hours=6),
-                'args': (),
+            "pull-support-users": {
+                "task": "waldur_mastermind.support.pull_support_users",
+                "schedule": timedelta(hours=6),
+                "args": (),
             },
-            'pull-priorities': {
-                'task': 'waldur_mastermind.support.pull_priorities',
-                'schedule': timedelta(hours=24),
-                'args': (),
+            "pull-priorities": {
+                "task": "waldur_mastermind.support.pull_priorities",
+                "schedule": timedelta(hours=24),
+                "args": (),
             },
-            'sync_request_types': {
-                'task': 'waldur_mastermind.support.sync_request_types',
-                'schedule': timedelta(hours=24),
-                'args': (),
+            "sync_request_types": {
+                "task": "waldur_mastermind.support.sync_request_types",
+                "schedule": timedelta(hours=24),
+                "args": (),
             },
-            'run_periodic_task': {
-                'task': 'waldur_mastermind.support.run_periodic_task',
-                'schedule': timedelta(hours=6),
-                'args': (),
+            "run_periodic_task": {
+                "task": "waldur_mastermind.support.run_periodic_task",
+                "schedule": timedelta(hours=6),
+                "args": (),
             },
         }

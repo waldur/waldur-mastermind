@@ -26,9 +26,9 @@ class FlavorViewSet(
     queryset = NotImplemented  # models.Flavor.objects.all().order_by('settings', 'cores', 'ram', 'disk')
     serializer_class = NotImplemented  # serializers.FlavorSerializer
     filterset_class = NotImplemented  # filters.FlavorFilter
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
     filter_backends = (DjangoFilterBackend,)
-    disabled_actions = ['update']
+    disabled_actions = ["update"]
     create_permissions = [
         structure_permissions.check_access_to_services_management,
     ]

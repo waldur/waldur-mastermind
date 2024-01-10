@@ -7,7 +7,7 @@ from rest_framework import exceptions
 import waldur_core.core.middleware
 import waldur_core.logging.middleware
 
-TOKEN_KEY = settings.WALDUR_CORE.get('TOKEN_KEY', 'x-auth-token')
+TOKEN_KEY = settings.WALDUR_CORE.get("TOKEN_KEY", "x-auth-token")
 
 
 def can_access_admin_site(user):
@@ -42,45 +42,45 @@ class TokenAuthentication(rest_framework.authentication.TokenAuthentication):
     def get_authorization_value(self, request):
         auth = rest_framework.authentication.get_authorization_header(request)
         if not auth:
-            auth = request.query_params.get(TOKEN_KEY, '')
+            auth = request.query_params.get(TOKEN_KEY, "")
         return auth
 
     def authenticate_credentials(self, key):
         model = self.get_model()
         try:
-            token = model.objects.select_related('user').get(key=key)
+            token = model.objects.select_related("user").get(key=key)
         except model.DoesNotExist:
-            raise exceptions.AuthenticationFailed(_('Invalid token.'))
+            raise exceptions.AuthenticationFailed(_("Invalid token."))
 
         if not token.user.is_active:
-            raise exceptions.AuthenticationFailed(_('User inactive or deleted.'))
+            raise exceptions.AuthenticationFailed(_("User inactive or deleted."))
 
         if token.user.token_lifetime:
             lifetime = timezone.timedelta(seconds=token.user.token_lifetime)
 
             if token.created < timezone.now() - lifetime:
-                raise exceptions.AuthenticationFailed(_('Token has expired.'))
+                raise exceptions.AuthenticationFailed(_("Token has expired."))
 
         return token.user, token
 
     def authenticate(self, request):
         auth = self.get_authorization_value(request).split()
 
-        if not auth or auth[0].lower() != b'token':
+        if not auth or auth[0].lower() != b"token":
             return None
 
         if len(auth) == 1:
-            msg = _('Invalid token. No credentials provided.')
+            msg = _("Invalid token. No credentials provided.")
             raise exceptions.AuthenticationFailed(msg)
         elif len(auth) > 2:
-            msg = _('Invalid token. Token string should not contain spaces.')
+            msg = _("Invalid token. Token string should not contain spaces.")
             raise exceptions.AuthenticationFailed(msg)
 
         try:
             token = auth[1].decode()
         except UnicodeError:
             msg = _(
-                'Invalid token header. Token string should not contain invalid characters.'
+                "Invalid token header. Token string should not contain invalid characters."
             )
             raise exceptions.AuthenticationFailed(msg)
 

@@ -18,10 +18,10 @@ logger = logging.getLogger(__name__)
 
 class Payment(LoggableMixin, TimeStampedModel, UuidMixin, ErrorMessageMixin):
     class Meta:
-        ordering = ['-modified']
+        ordering = ["-modified"]
 
     class Permissions:
-        customer_path = 'customer'
+        customer_path = "customer"
 
     class States:
         INIT = 0
@@ -31,10 +31,10 @@ class Payment(LoggableMixin, TimeStampedModel, UuidMixin, ErrorMessageMixin):
         ERRED = 4
 
     STATE_CHOICES = (
-        (States.INIT, 'Initial'),
-        (States.CREATED, 'Created'),
-        (States.APPROVED, 'Approved'),
-        (States.ERRED, 'Erred'),
+        (States.INIT, "Initial"),
+        (States.CREATED, "Created"),
+        (States.APPROVED, "Approved"),
+        (States.ERRED, "Erred"),
     )
 
     state = FSMIntegerField(default=States.INIT, choices=STATE_CHOICES)
@@ -60,10 +60,10 @@ class Payment(LoggableMixin, TimeStampedModel, UuidMixin, ErrorMessageMixin):
 
     @classmethod
     def get_url_name(cls):
-        return 'paypal-payment'
+        return "paypal-payment"
 
     def get_log_fields(self):
-        return ('uuid', 'customer', 'amount', 'modified', 'status')
+        return ("uuid", "customer", "amount", "modified", "status")
 
     @transition(field=state, source=States.INIT, target=States.CREATED)
     def set_created(self):
@@ -77,52 +77,52 @@ class Payment(LoggableMixin, TimeStampedModel, UuidMixin, ErrorMessageMixin):
     def set_cancelled(self):
         pass
 
-    @transition(field=state, source='*', target=States.ERRED)
+    @transition(field=state, source="*", target=States.ERRED)
     def set_erred(self):
         pass
 
 
 class Invoice(LoggableMixin, UuidMixin, BackendModelMixin):
     class Meta:
-        ordering = ['-invoice_date']
+        ordering = ["-invoice_date"]
 
     class Permissions:
-        customer_path = 'customer'
+        customer_path = "customer"
 
     class States:
-        DRAFT = 'DRAFT'
-        SENT = 'SENT'
-        PAID = 'PAID'
-        MARKED_AS_PAID = 'MARKED_AS_PAID'
-        CANCELLED = 'CANCELLED'
-        REFUNDED = 'REFUNDED'
-        PARTIALLY_REFUNDED = 'PARTIALLY_REFUNDED'
-        MARKED_AS_REFUNDED = 'MARKED_AS_REFUNDED'
-        UNPAID = 'UNPAID'
-        PAYMENT_PENDING = 'PAYMENT_PENDING'
+        DRAFT = "DRAFT"
+        SENT = "SENT"
+        PAID = "PAID"
+        MARKED_AS_PAID = "MARKED_AS_PAID"
+        CANCELLED = "CANCELLED"
+        REFUNDED = "REFUNDED"
+        PARTIALLY_REFUNDED = "PARTIALLY_REFUNDED"
+        MARKED_AS_REFUNDED = "MARKED_AS_REFUNDED"
+        UNPAID = "UNPAID"
+        PAYMENT_PENDING = "PAYMENT_PENDING"
 
         CHOICES = (
-            (DRAFT, _('Draft')),
-            (SENT, _('Sent')),
-            (PAID, _('Paid')),
-            (MARKED_AS_PAID, _('Marked as paid')),
-            (CANCELLED, _('Cancelled')),
-            (REFUNDED, _('Refunded')),
-            (PARTIALLY_REFUNDED, _('Partially refunded')),
-            (MARKED_AS_REFUNDED, _('Marked as refunded')),
-            (UNPAID, _('Unpaid')),
-            (PAYMENT_PENDING, _('Payment pending')),
+            (DRAFT, _("Draft")),
+            (SENT, _("Sent")),
+            (PAID, _("Paid")),
+            (MARKED_AS_PAID, _("Marked as paid")),
+            (CANCELLED, _("Cancelled")),
+            (REFUNDED, _("Refunded")),
+            (PARTIALLY_REFUNDED, _("Partially refunded")),
+            (MARKED_AS_REFUNDED, _("Marked as refunded")),
+            (UNPAID, _("Unpaid")),
+            (PAYMENT_PENDING, _("Payment pending")),
         )
 
     customer = models.ForeignKey(
-        on_delete=models.CASCADE, to=Customer, related_name='paypal_invoices'
+        on_delete=models.CASCADE, to=Customer, related_name="paypal_invoices"
     )
     state = models.CharField(
         max_length=30, choices=States.CHOICES, default=States.DRAFT
     )
     invoice_date = models.DateField()
     end_date = models.DateField()
-    pdf = models.FileField(upload_to='paypal-invoices', blank=True, null=True)
+    pdf = models.FileField(upload_to="paypal-invoices", blank=True, null=True)
     number = models.CharField(max_length=30)
     tax_percent = models.DecimalField(
         default=0,
@@ -132,12 +132,12 @@ class Invoice(LoggableMixin, UuidMixin, BackendModelMixin):
     )
     backend_id = models.CharField(max_length=128, blank=True)
     issuer_details = JSONField(
-        default=dict, blank=True, help_text=_('Stores data about invoice issuer')
+        default=dict, blank=True, help_text=_("Stores data about invoice issuer")
     )
     payment_details = JSONField(
         default=dict,
         blank=True,
-        help_text=_('Stores data about customer payment details'),
+        help_text=_("Stores data about customer payment details"),
     )
     month = models.PositiveSmallIntegerField(
         validators=[MinValueValidator(1), MaxValueValidator(12)]
@@ -150,21 +150,21 @@ class Invoice(LoggableMixin, UuidMixin, BackendModelMixin):
     @classmethod
     def get_backend_fields(cls):
         return super().get_backend_fields() + (
-            'state',
-            'issuer_details',
-            'number',
-            'payment_details',
-            'backend_id',
+            "state",
+            "issuer_details",
+            "number",
+            "payment_details",
+            "backend_id",
         )
 
     @classmethod
     def get_url_name(cls):
-        return 'paypal-invoice'
+        return "paypal-invoice"
 
     @property
     def file_name(self):
-        return '{}-invoice-{}.pdf'.format(
-            self.invoice_date.strftime('%Y-%m-%d'), self.pk
+        return "{}-invoice-{}.pdf".format(
+            self.invoice_date.strftime("%Y-%m-%d"), self.pk
         )
 
     @property
@@ -180,7 +180,7 @@ class Invoice(LoggableMixin, UuidMixin, BackendModelMixin):
         return self.price * self.tax_percent / 100
 
     def get_log_fields(self):
-        return ('uuid', 'customer', 'total', 'invoice_date', 'end_date')
+        return ("uuid", "customer", "total", "invoice_date", "end_date")
 
     def __str__(self):
         return "Invoice #%s" % self.number or self.id
@@ -188,21 +188,21 @@ class Invoice(LoggableMixin, UuidMixin, BackendModelMixin):
 
 class InvoiceItem(models.Model):
     class Meta:
-        ordering = ['invoice', '-start']
+        ordering = ["invoice", "-start"]
 
     class UnitsOfMeasure:
-        QUANTITY = 'QUANTITY'
-        HOURS = 'HOURS'
-        AMOUNT = 'AMOUNT'
+        QUANTITY = "QUANTITY"
+        HOURS = "HOURS"
+        AMOUNT = "AMOUNT"
 
         CHOICES = (
-            (QUANTITY, _('Quantity')),
-            (HOURS, _('Hours')),
-            (AMOUNT, _('Amount')),
+            (QUANTITY, _("Quantity")),
+            (HOURS, _("Hours")),
+            (AMOUNT, _("Amount")),
         )
 
     invoice = models.ForeignKey(
-        on_delete=models.CASCADE, to=Invoice, related_name='items'
+        on_delete=models.CASCADE, to=Invoice, related_name="items"
     )
     price = models.DecimalField(max_digits=9, decimal_places=2)
     tax = models.DecimalField(max_digits=9, decimal_places=2, default=0)

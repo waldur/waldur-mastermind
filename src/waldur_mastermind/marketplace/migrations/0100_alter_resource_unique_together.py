@@ -5,13 +5,13 @@ from django.db import migrations
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('contenttypes', '0002_remove_content_type_name'),
-        ('marketplace', '0099_offering_getting_started'),
+        ("contenttypes", "0002_remove_content_type_name"),
+        ("marketplace", "0099_offering_getting_started"),
     ]
 
     operations = [
         migrations.AlterUniqueTogether(
-            name='resource',
-            unique_together={('content_type', 'object_id')},
+            name="resource",
+            unique_together={("content_type", "object_id")},
         ),
     ]

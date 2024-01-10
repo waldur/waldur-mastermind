@@ -51,10 +51,10 @@ class AzureImage:
 
 class AzureClient:
     def __init__(self, settings):
-        self.subscription_id = str(settings.options['subscription_id'])
-        self.client_id = str(settings.options['client_id'])
-        self.client_secret = str(settings.options['client_secret'])
-        self.tenant_id = str(settings.options['tenant_id'])
+        self.subscription_id = str(settings.options["subscription_id"])
+        self.client_id = str(settings.options["client_id"])
+        self.client_secret = str(settings.options["client_secret"])
+        self.tenant_id = str(settings.options["tenant_id"])
 
     @cached_property
     def credentials(self):
@@ -113,12 +113,12 @@ class AzureClient:
         See also: https://docs.microsoft.com/en-us/azure/azure-resource-manager/resource-manager-supported-services
         """
         try:
-            provider = self.resource_client.providers.get('Microsoft.Resources')
+            provider = self.resource_client.providers.get("Microsoft.Resources")
         except ClientException as exc:
             raise AzureBackendError(exc)
         else:
             for resource in provider.resource_types:
-                if resource.resource_type == 'resourceGroups':
+                if resource.resource_type == "resourceGroups":
                     return resource.locations
 
     def list_resource_groups(self):
@@ -130,7 +130,7 @@ class AzureClient:
     def create_resource_group(self, location, resource_group_name):
         try:
             return self.resource_client.resource_groups.create_or_update(
-                resource_group_name, {'location': location}
+                resource_group_name, {"location": location}
             )
         except ClientException as exc:
             raise AzureBackendError(exc)
@@ -158,7 +158,7 @@ class AzureClient:
             )
         except ClientException as exc:
             raise AzureBackendError(exc)
-        vm_skus = [sku for sku in all_skus if sku.resource_type == 'virtualMachines']
+        vm_skus = [sku for sku in all_skus if sku.resource_type == "virtualMachines"]
         zones = dict()
         for sku in vm_skus:
             for location_info in sku.location_info:
@@ -274,21 +274,21 @@ class AzureClient:
                 resource_group_name,
                 vm_name,
                 {
-                    'location': location,
-                    'os_profile': os_profile,
-                    'hardware_profile': {'vm_size': size_name},
-                    'storage_profile': {
-                        'image_reference': {
-                            'publisher': image_reference['publisher'],
-                            'offer': image_reference['offer'],
-                            'sku': image_reference['sku'],
-                            'version': image_reference['version'],
+                    "location": location,
+                    "os_profile": os_profile,
+                    "hardware_profile": {"vm_size": size_name},
+                    "storage_profile": {
+                        "image_reference": {
+                            "publisher": image_reference["publisher"],
+                            "offer": image_reference["offer"],
+                            "sku": image_reference["sku"],
+                            "version": image_reference["version"],
                         },
                     },
-                    'network_profile': {
-                        'network_interfaces': [
+                    "network_profile": {
+                        "network_interfaces": [
                             {
-                                'id': nic_id,
+                                "id": nic_id,
                             }
                         ]
                     },
@@ -354,9 +354,9 @@ class AzureClient:
                 resource_group_name,
                 disk_name,
                 {
-                    'location': location,
-                    'disk_size_gb': disk_size_gb,
-                    'creation_data': {'create_option': DiskCreateOption.empty},
+                    "location": location,
+                    "disk_size_gb": disk_size_gb,
+                    "creation_data": {"create_option": DiskCreateOption.empty},
                 },
             )
         except ClientException as exc:
@@ -367,7 +367,7 @@ class AzureClient:
             return self.network_client.virtual_networks.begin_create_or_update(
                 resource_group_name,
                 network_name,
-                {'location': location, 'address_space': {'address_prefixes': [cidr]}},
+                {"location": location, "address_space": {"address_prefixes": [cidr]}},
             )
         except ClientException as exc:
             raise AzureBackendError(exc)
@@ -379,7 +379,7 @@ class AzureClient:
                 network_name,
                 subnet_name,
                 {
-                    'address_prefix': cidr,
+                    "address_prefix": cidr,
                 },
             )
         except ClientException as exc:
@@ -424,11 +424,11 @@ class AzureClient:
         security_group_id=None,
     ):
         ip_configuration = NetworkInterfaceIPConfiguration(
-            name=config_name, subnet={'id': subnet_id}
+            name=config_name, subnet={"id": subnet_id}
         )
 
         if public_ip_id:
-            ip_configuration.public_ip_address = {'id': public_ip_id}
+            ip_configuration.public_ip_address = {"id": public_ip_id}
 
         interface_parameters = NetworkInterface(
             location=location,
@@ -436,7 +436,7 @@ class AzureClient:
         )
 
         if security_group_id:
-            interface_parameters.network_security_group = {'id': security_group_id}
+            interface_parameters.network_security_group = {"id": security_group_id}
 
         try:
             return self.network_client.network_interfaces.begin_create_or_update(
@@ -449,14 +449,14 @@ class AzureClient:
         self, location, resource_group_name, network_security_group_name
     ):
         ssh_rule = SecurityRule(
-            name='default-allow-ssh',
-            protocol='Tcp',
-            source_port_range='*',
+            name="default-allow-ssh",
+            protocol="Tcp",
+            source_port_range="*",
             destination_port_range=22,
-            direction='Inbound',
-            source_address_prefix='*',
-            destination_address_prefix='*',
-            access='Allow',
+            direction="Inbound",
+            source_address_prefix="*",
+            destination_address_prefix="*",
+            access="Allow",
             priority=1000,
         )
 
@@ -490,7 +490,7 @@ class AzureClient:
     def create_public_ip(self, location, resource_group_name, public_ip_address_name):
         try:
             return self.network_client.public_ip_addresses.begin_create_or_update(
-                resource_group_name, public_ip_address_name, {'location': location}
+                resource_group_name, public_ip_address_name, {"location": location}
             )
         except ClientException as exc:
             raise AzureBackendError(exc)

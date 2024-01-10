@@ -25,9 +25,9 @@ from . import fixtures
 
 
 @pytest.mark.override_config(
-    WALDUR_SUPPORT_ENABLED=True, WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE='basic'
+    WALDUR_SUPPORT_ENABLED=True, WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE="basic"
 )
-@freeze_time('2018-01-01')
+@freeze_time("2018-01-01")
 class InvoicesBaseTest(test.APITransactionTestCase):
     def setUp(self):
         super().setUp()
@@ -36,10 +36,10 @@ class InvoicesBaseTest(test.APITransactionTestCase):
         self.order.set_state_executing()
         self.order.save()
         support_factories.IssueStatusFactory(
-            name='done', type=support_models.IssueStatus.Types.RESOLVED
+            name="done", type=support_models.IssueStatus.Types.RESOLVED
         )
         support_factories.IssueStatusFactory(
-            name='canceled', type=support_models.IssueStatus.Types.CANCELED
+            name="canceled", type=support_models.IssueStatus.Types.CANCELED
         )
 
     def order_process(self, order: marketplace_models.Order):
@@ -112,7 +112,7 @@ class InvoicesTest(InvoicesBaseTest):
     def test_switch_plan_resource(self):
         self.order_process(self.order)
 
-        with freeze_time('2018-01-15'):
+        with freeze_time("2018-01-15"):
             resource = self.order.resource
             resource.plan = self.fixture.new_plan
             resource.save()
@@ -153,13 +153,13 @@ class InvoicesTest(InvoicesBaseTest):
         self.order_process(self.order)
         invoice = self.get_invoice()
         details = invoice.items.first().details
-        self.assertTrue('service_provider_name' in details.keys())
+        self.assertTrue("service_provider_name" in details.keys())
         self.assertEqual(
-            details['service_provider_name'], self.order.offering.customer.name
+            details["service_provider_name"], self.order.offering.customer.name
         )
-        self.assertTrue('service_provider_uuid' in details.keys())
+        self.assertTrue("service_provider_uuid" in details.keys())
         self.assertEqual(
-            details['service_provider_uuid'], self.fixture.service_provider.uuid.hex
+            details["service_provider_uuid"], self.fixture.service_provider.uuid.hex
         )
 
 
@@ -181,7 +181,7 @@ class UsagesTest(InvoicesBaseTest):
         )
         self.invoice = self.get_invoice()
 
-    @freeze_time('2018-01-15')
+    @freeze_time("2018-01-15")
     def test_invoice_price_includes_fixed_and_usage_components(self):
         self.assertEqual(self.invoice.price, self.fixture.plan.unit_price)
         self._create_usage(usage=10)
@@ -197,10 +197,10 @@ class UsagesTest(InvoicesBaseTest):
     def test_recurring_usage(self):
         self.fixture.offering_component_ram.delete()
 
-        with freeze_time('2018-01-15'):
+        with freeze_time("2018-01-15"):
             self._create_usage(usage=10, recurring=True)
 
-        with freeze_time('2018-02-01'):
+        with freeze_time("2018-02-01"):
             create_monthly_invoices()
             invoice = invoices_models.Invoice.objects.get(
                 customer=self.fixture.customer, month=2, year=2018
@@ -208,7 +208,7 @@ class UsagesTest(InvoicesBaseTest):
             self.assertEqual(marketplace_models.ComponentUsage.objects.count(), 2)
             self.assertEqual(invoice.price, self.fixture.plan_component_cpu.price * 10)
 
-    @freeze_time('2018-01-15')
+    @freeze_time("2018-01-15")
     def test_new_usage_override_old_usage(self):
         self.assertEqual(self.invoice.price, self.fixture.plan.unit_price)
         usage = self._create_usage(usage=10)
@@ -230,7 +230,7 @@ class UsagesTest(InvoicesBaseTest):
         )
         self.assertEqual(self.invoice.price, expected)
 
-    @freeze_time('2018-01-15')
+    @freeze_time("2018-01-15")
     def test_case_when_usage_is_reported_for_new_plan(self):
         self.assertEqual(self.invoice.items.count(), 1)
         self.assertEqual(self.invoice.price, self.fixture.plan.unit_price)
@@ -251,7 +251,7 @@ class UsagesTest(InvoicesBaseTest):
             fixed_price + self.fixture.new_plan_component_cpu.price * 10,
         )
 
-    @freeze_time('2018-01-15')
+    @freeze_time("2018-01-15")
     def test_case_when_usage_is_reported_for_switched_plan(self):
         self.assertEqual(self.invoice.price, self.fixture.plan.unit_price)
         self._switch_plan()
@@ -269,7 +269,7 @@ class UsagesTest(InvoicesBaseTest):
             self.invoice.price, fixed_price + self.fixture.plan_component_cpu.price * 10
         )
 
-    @freeze_time('2018-01-15')
+    @freeze_time("2018-01-15")
     @data(5, 10, 20)
     def test_update_usage_component_amount(self, new_amount):
         self.assertEqual(self.invoice.price, self.fixture.plan.unit_price)
@@ -339,7 +339,7 @@ class OneTimeTest(InvoicesBaseTest):
         self.resource = self.order.resource
         self.invoice = self.get_invoice()
 
-    @freeze_time('2018-01-01')
+    @freeze_time("2018-01-01")
     def test_calculate_one_time_component_if_resource_started_in_current_period(self):
         self.invoice.refresh_from_db()
         expected = (
@@ -350,7 +350,7 @@ class OneTimeTest(InvoicesBaseTest):
         )
         self.assertEqual(self.invoice.price, expected)
 
-    @freeze_time('2018-02-01')
+    @freeze_time("2018-02-01")
     def test_do_not_calculate_one_time_component_if_resource_started_not_in_current_period(
         self,
     ):
@@ -376,7 +376,7 @@ class OnPlanSwitchTest(InvoicesBaseTest):
         self.resource = self.order.resource
         self.invoice = self.get_invoice()
 
-    @freeze_time('2018-02-01')
+    @freeze_time("2018-02-01")
     def test_do_not_calculate_on_plan_switch_component_if_resource_started_not_in_current_period(
         self,
     ):
@@ -388,7 +388,7 @@ class OnPlanSwitchTest(InvoicesBaseTest):
         )
         self.assertEqual(self.invoice.price, expected)
 
-    @freeze_time('2018-03-01')
+    @freeze_time("2018-03-01")
     def test_calculate_on_plan_switch_component_if_plan_has_been_switched_in_current_period(
         self,
     ):

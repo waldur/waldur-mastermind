@@ -12,12 +12,12 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         super().add_arguments(parser)
         parser.add_argument(
-            'notifications_file',
-            help='Specifies location of notifications file.',
+            "notifications_file",
+            help="Specifies location of notifications file.",
         )
 
     def handle(self, *args, **options):
-        with open(options['notifications_file']) as notifications_file:
+        with open(options["notifications_file"]) as notifications_file:
             notifications = json.load(notifications_file)
 
         valid_notifications_data = []
@@ -30,31 +30,31 @@ class Command(BaseCommand):
                         "path": path,
                         "templates": {
                             f"{key}/{template.path}": template.name
-                            for template in notification['templates']
+                            for template in notification["templates"]
                         },
                     }
                     valid_notifications_data.append(notification_data)
                 else:
                     self.stdout.write(
-                        self.style.WARNING(f'Invalid notifications detected: {path}')
+                        self.style.WARNING(f"Invalid notifications detected: {path}")
                     )
 
         for valid_notification_data in valid_notifications_data:
             notification, created = Notification.objects.get_or_create(
-                key=valid_notification_data['path'],
+                key=valid_notification_data["path"],
             )
-            file_enabled_status = notifications[valid_notification_data['path']]
+            file_enabled_status = notifications[valid_notification_data["path"]]
             if notification.enabled != file_enabled_status:
-                notification.enabled = notifications[valid_notification_data['path']]
+                notification.enabled = notifications[valid_notification_data["path"]]
                 notification.save()
                 self.stdout.write(
                     self.style.WARNING(
-                        f'The notification {notification.key} status has been changed to {notification.enabled}'
+                        f"The notification {notification.key} status has been changed to {notification.enabled}"
                     )
                 )
             if created:
                 self.stdout.write(
                     self.style.WARNING(
-                        f'The notification {notification.key} has been created with status {notification.enabled}'
+                        f"The notification {notification.key} has been created with status {notification.enabled}"
                     )
                 )

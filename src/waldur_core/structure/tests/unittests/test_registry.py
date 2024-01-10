@@ -11,7 +11,7 @@ class ServiceRegistryTest(TestCase):
         self.assertRaises(
             ServiceBackendNotImplemented,
             SupportedServices.get_service_backend,
-            'invalid',
+            "invalid",
         )
 
     def test_get_service_backend(self):

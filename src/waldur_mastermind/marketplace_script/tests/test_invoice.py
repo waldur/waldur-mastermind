@@ -8,7 +8,7 @@ from waldur_mastermind.invoices.tasks import create_monthly_invoices
 from . import fixtures
 
 
-@freeze_time('2020-11-01')
+@freeze_time("2020-11-01")
 class InvoiceTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixtures = fixtures.ScriptFixture()
@@ -22,7 +22,7 @@ class InvoiceTest(test.APITransactionTestCase):
         )
         self.assertEqual(1, invoice.items.filter(resource=self.resource).count())
 
-    @freeze_time('2020-11-02')
+    @freeze_time("2020-11-02")
     def test_handler_if_resource_has_been_terminated(self):
         invoice = invoices_models.Invoice.objects.get(
             customer=self.resource.project.customer, year=2020, month=11
@@ -35,7 +35,7 @@ class InvoiceTest(test.APITransactionTestCase):
         item.refresh_from_db()
         self.assertEqual(item.end, timezone.now())
 
-    @freeze_time('2020-12-01')
+    @freeze_time("2020-12-01")
     def test_create_monthly_invoices(self):
         create_monthly_invoices()
         invoice = invoices_models.Invoice.objects.get(

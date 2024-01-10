@@ -22,8 +22,8 @@ class OpenStackTenantFixture(ProjectFixture):
             username=self.tenant.user_username,
             password=self.tenant.user_password,
             options={
-                'availability_zone': self.tenant.availability_zone,
-                'tenant_id': self.tenant.backend_id,
+                "availability_zone": self.tenant.availability_zone,
+                "tenant_id": self.tenant.backend_id,
             },
         )
 
@@ -104,7 +104,7 @@ class OpenStackTenantFixture(ProjectFixture):
     def floating_ip(self):
         return factories.FloatingIPFactory(
             settings=self.openstack_tenant_service_settings,
-            runtime_state='DOWN',
+            runtime_state="DOWN",
         )
 
     @cached_property

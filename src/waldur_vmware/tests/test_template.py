@@ -13,11 +13,11 @@ class TemplatePullTest(test.APITransactionTestCase):
         super().setUp()
         self.settings = factories.VMwareServiceSettingsFactory()
         self.backend = backend.VMwareBackend(self.settings)
-        self.patcher = mock.patch('waldur_vmware.backend.VMwareClient')
+        self.patcher = mock.patch("waldur_vmware.backend.VMwareClient")
         self.mock_client = self.patcher.start()
         self.ALL_TEMPLATES = [
             {
-                'library_item': {
+                "library_item": {
                     "creation_time": "2015-01-01T22:13:05.651Z",
                     "description": "string",
                     "id": "obj-103",
@@ -27,7 +27,7 @@ class TemplatePullTest(test.APITransactionTestCase):
                     "type": "vm-template",
                     "version": "string",
                 },
-                'template': {
+                "template": {
                     "cpu": {"cores_per_socket": 1, "count": 1},
                     "disks": [
                         {
@@ -84,7 +84,7 @@ class TemplatePullTest(test.APITransactionTestCase):
     def test_template_with_multiple_nics_is_skipped(self):
         client = mock.MagicMock()
         self.mock_client.return_value = client
-        self.ALL_TEMPLATES[0]['template']['nics'].append(
+        self.ALL_TEMPLATES[0]["template"]["nics"].append(
             {
                 "key": "obj-104",
                 "value": {
@@ -103,7 +103,7 @@ class TemplatePullTest(test.APITransactionTestCase):
     def test_template_without_nics_is_skipped(self):
         client = mock.MagicMock()
         self.mock_client.return_value = client
-        self.ALL_TEMPLATES[0]['template']['nics'] = []
+        self.ALL_TEMPLATES[0]["template"]["nics"] = []
         client.list_all_templates.return_value = self.ALL_TEMPLATES
 
         self.backend.pull_templates()

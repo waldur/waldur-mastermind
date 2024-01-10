@@ -5,16 +5,16 @@ from django.db import migrations
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('proposal', '0006_add_reviewer'),
+        ("proposal", "0006_add_reviewer"),
     ]
 
     operations = [
         migrations.RemoveField(
-            model_name='call',
-            name='end_time',
+            model_name="call",
+            name="end_time",
         ),
         migrations.RemoveField(
-            model_name='call',
-            name='start_time',
+            model_name="call",
+            name="start_time",
         ),
     ]

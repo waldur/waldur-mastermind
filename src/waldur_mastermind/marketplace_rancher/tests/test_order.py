@@ -34,9 +34,9 @@ class OrderProcessedTest(test.APITransactionTestCase):
             settings=self.fixture.openstack_tenant_service_settings
         )
         openstack_tenant_factories.SecurityGroupFactory(
-            name='default', settings=self.fixture.openstack_tenant_service_settings
+            name="default", settings=self.fixture.openstack_tenant_service_settings
         )
-        service_settings.options['base_image_name'] = image.name
+        service_settings.options["base_image_name"] = image.name
         service_settings.save()
 
         ssh_public_key = SshPublicKeyFactory(user=self.fixture.staff)
@@ -45,21 +45,21 @@ class OrderProcessedTest(test.APITransactionTestCase):
             created_by=self.fixture.owner,
             offering=offering,
             attributes={
-                'name': 'name',
-                'tenant_settings': openstack_tenant_factories.OpenStackTenantServiceSettingsFactory.get_url(
+                "name": "name",
+                "tenant_settings": openstack_tenant_factories.OpenStackTenantServiceSettingsFactory.get_url(
                     self.fixture.openstack_tenant_service_settings
                 ),
-                'project': ProjectFactory.get_url(self.fixture.project),
-                'ssh_public_key': SshPublicKeyFactory.get_url(ssh_public_key),
-                'nodes': [
+                "project": ProjectFactory.get_url(self.fixture.project),
+                "ssh_public_key": SshPublicKeyFactory.get_url(ssh_public_key),
+                "nodes": [
                     {
-                        'subnet': openstack_tenant_factories.SubNetFactory.get_url(
+                        "subnet": openstack_tenant_factories.SubNetFactory.get_url(
                             self.fixture.subnet
                         ),
-                        'system_volume_size': 1024,
-                        'memory': 1,
-                        'cpu': 1,
-                        'roles': ['controlplane', 'etcd', 'worker'],
+                        "system_volume_size": 1024,
+                        "memory": 1,
+                        "cpu": 1,
+                        "roles": ["controlplane", "etcd", "worker"],
                     }
                 ],
             },
@@ -67,6 +67,6 @@ class OrderProcessedTest(test.APITransactionTestCase):
         )
         marketplace_utils.process_order(order, self.fixture.staff)
         self.assertTrue(
-            marketplace_models.Resource.objects.filter(name='name').exists()
+            marketplace_models.Resource.objects.filter(name="name").exists()
         )
-        self.assertTrue(rancher_models.Cluster.objects.filter(name='name').exists())
+        self.assertTrue(rancher_models.Cluster.objects.filter(name="name").exists())

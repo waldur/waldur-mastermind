@@ -24,7 +24,7 @@ class AllocationCreateTest(test.APITransactionTestCase):
             limits={
                 component.type: 10 for component in manager.get_components(PLUGIN_NAME)
             },
-            attributes={'name': 'My-first-allocation'},
+            attributes={"name": "My-first-allocation"},
         )
         for component in manager.get_components(PLUGIN_NAME):
             component = marketplace_models.OfferingComponent.objects.create(
@@ -47,7 +47,7 @@ class AllocationCreateTest(test.APITransactionTestCase):
         self.trigger_creation()
         self.assertTrue(
             slurm_models.Allocation.objects.filter(
-                name=self.order.attributes['name']
+                name=self.order.attributes["name"]
             ).exists()
         )
 
@@ -61,7 +61,7 @@ class AllocationCreateTest(test.APITransactionTestCase):
 
         self.assertFalse(
             slurm_models.Allocation.objects.filter(
-                name=self.order.attributes['name']
+                name=self.order.attributes["name"]
             ).exists()
         )
 

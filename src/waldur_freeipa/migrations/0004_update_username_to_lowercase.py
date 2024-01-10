@@ -4,7 +4,7 @@ from django.db import migrations
 
 
 def update_username_to_lowercase(apps, schema_editor):
-    Profile = apps.get_model('waldur_freeipa', 'Profile')
+    Profile = apps.get_model("waldur_freeipa", "Profile")
     for freeipa_profile in Profile.objects.all():
         freeipa_profile.username = freeipa_profile.username.lower()
         freeipa_profile.save()
@@ -12,7 +12,7 @@ def update_username_to_lowercase(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('waldur_freeipa', '0003_is_active_false'),
+        ("waldur_freeipa", "0003_is_active_false"),
     ]
 
     operations = [

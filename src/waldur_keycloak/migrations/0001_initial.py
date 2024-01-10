@@ -8,50 +8,50 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('structure', '0001_squashed_0036'),
+        ("structure", "0001_squashed_0036"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='ProjectGroup',
+            name="ProjectGroup",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('backend_id', models.UUIDField()),
+                ("backend_id", models.UUIDField()),
                 (
-                    'project',
+                    "project",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='structure.Project',
+                        to="structure.Project",
                     ),
                 ),
             ],
         ),
         migrations.CreateModel(
-            name='CustomerGroup',
+            name="CustomerGroup",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('backend_id', models.UUIDField()),
+                ("backend_id", models.UUIDField()),
                 (
-                    'customer',
+                    "customer",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='structure.Customer',
+                        to="structure.Customer",
                     ),
                 ),
             ],

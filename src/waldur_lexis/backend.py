@@ -24,7 +24,7 @@ class HeappeBackend:
         )
 
         if response.status_code != status.HTTP_200_OK:
-            logger.error('Unable to receive HEAppE session code.')
+            logger.error("Unable to receive HEAppE session code.")
             raise requests_exceptions.RequestException(
                 f"Status code {response.status_code}, body {response.text}"
             )
@@ -63,7 +63,7 @@ class HeappeBackend:
         resource = lexis_link.robot_account.resource
         response = requests.get(
             f"{self.heappe_config.heappe_url}/heappe/UserAndLimitationManagement/ProjectsForCurrentUser",
-            params={'sessionCode': heappe_session_code},
+            params={"sessionCode": heappe_session_code},
         )
 
         if response.status_code != status.HTTP_200_OK:
@@ -73,8 +73,8 @@ class HeappeBackend:
             )
 
         map_project_names = {
-            (item['Project']['Name'], item['Project']['AccountingString']): item[
-                'Project'
+            (item["Project"]["Name"], item["Project"]["AccountingString"]): item[
+                "Project"
             ]
             for item in response.json()
         }
@@ -85,8 +85,8 @@ class HeappeBackend:
         project = self.get_heappe_project(lexis_link)
         if project is None:
             project = self.create_heappe_project(lexis_link)
-        lexis_link.heappe_project_id = project['Id']
-        lexis_link.save(update_fields=['heappe_project_id'])
+        lexis_link.heappe_project_id = project["Id"]
+        lexis_link.save(update_fields=["heappe_project_id"])
 
     def delete_heappe_project(self, lexis_link):
         heappe_session_code = self.get_heappe_session_code()
@@ -125,9 +125,9 @@ class HeappeBackend:
             )
 
         ssh_key = response.json()
-        ssh_key_rsa = ssh_key['PublicKeyOpenSSH']
+        ssh_key_rsa = ssh_key["PublicKeyOpenSSH"]
         lexis_link.robot_account.keys = [ssh_key_rsa]
-        lexis_link.robot_account.save(update_fields=['keys'])
+        lexis_link.robot_account.save(update_fields=["keys"])
 
     def delete_ssh_key(self, lexis_link):
         heappe_session_code = self.get_heappe_session_code()
@@ -137,7 +137,7 @@ class HeappeBackend:
             json={
                 "SessionCode": heappe_session_code,
                 "ProjectId": lexis_link.heappe_project_id,
-                'PublicKey': key,
+                "PublicKey": key,
             },
         )
         if response.status_code != status.HTTP_200_OK:
@@ -148,7 +148,7 @@ class HeappeBackend:
 
     def list_available_clusters(self):
         response = requests.get(
-            f'{self.heappe_config.heappe_url}/heappe/ClusterInformation/ListAvailableClusters'
+            f"{self.heappe_config.heappe_url}/heappe/ClusterInformation/ListAvailableClusters"
         )
 
         if response.status_code != status.HTTP_200_OK:
@@ -163,16 +163,16 @@ class HeappeBackend:
         heappe_project_id = lexis_link.heappe_project_id
         clusters = self.list_available_clusters()
         cluster_project_list_map = {
-            cluster['Id']: [
-                project['Id'] for project in cluster['NodeTypes'][0]['Projects']
+            cluster["Id"]: [
+                project["Id"] for project in cluster["NodeTypes"][0]["Projects"]
             ]
             for cluster in clusters
-            if cluster.get('NodeTypes')
+            if cluster.get("NodeTypes")
         }
         for cluster_id, project_ids in cluster_project_list_map.items():
             if heappe_project_id in project_ids:
                 logger.info(
-                    'The project [id=%s] is already connected to cluster [id=%s]',
+                    "The project [id=%s] is already connected to cluster [id=%s]",
                     heappe_project_id,
                     cluster_id,
                 )

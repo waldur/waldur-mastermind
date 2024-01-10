@@ -11,7 +11,7 @@ from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import factories as structure_factories
 
 
-@skip('Fails in GitLab, works locally')
+@skip("Fails in GitLab, works locally")
 class TestHookService(test.APITransactionTestCase):
     def setUp(self):
         self.owner = structure_factories.UserFactory()
@@ -19,9 +19,9 @@ class TestHookService(test.APITransactionTestCase):
         self.customer.add_user(self.owner, CustomerRole.OWNER)
         self.other_user = structure_factories.UserFactory()
 
-        self.event_type = 'customer_update_succeeded'
-        self.other_event = 'customer_deletion_succeeded'
-        self.message = 'Customer {customer_name} has been updated.'
+        self.event_type = "customer_update_succeeded"
+        self.other_event = "customer_deletion_succeeded"
+        self.message = "Customer {customer_name} has been updated."
         self.event = EventFactory(event_type=self.event_type)
         self.payload = dict(
             created=self.event.created.isoformat(),
@@ -51,12 +51,12 @@ class TestHookService(test.APITransactionTestCase):
         # Verify that destination address of message is correct
         self.assertEqual(mail.outbox[0].to, [email_hook.email])
 
-    @mock.patch('requests.post')
+    @mock.patch("requests.post")
     def test_webhook_makes_post_request_against_destination_url(self, requests_post):
         # Create web hook for customer owner
         self.web_hook = logging_models.WebHook.objects.create(
             user=self.owner,
-            destination_url='http://example.com/',
+            destination_url="http://example.com/",
             event_types=[self.event_type],
         )
 

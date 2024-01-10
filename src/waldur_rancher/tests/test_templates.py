@@ -20,13 +20,13 @@ class TemplatesFilterTest(test.APITransactionTestCase):
         # Act
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.get(
-            self.url, data={'cluster_uuid': self.fixture.cluster.uuid.hex}
+            self.url, data={"cluster_uuid": self.fixture.cluster.uuid.hex}
         )
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 2)
 
-        template_ids = [template['uuid'] for template in response.data]
+        template_ids = [template["uuid"] for template in response.data]
         self.assertTrue(global_template.uuid.hex in template_ids)
         self.assertTrue(cluster_template.uuid.hex in template_ids)

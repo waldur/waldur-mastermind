@@ -19,68 +19,68 @@ logger = logging.getLogger(__name__)
 
 
 def get_internal_customer():
-    customer_uuid = settings.WALDUR_HPC['INTERNAL_CUSTOMER_UUID']
+    customer_uuid = settings.WALDUR_HPC["INTERNAL_CUSTOMER_UUID"]
     if not customer_uuid:
-        logger.debug('Internal customer is not specified.')
+        logger.debug("Internal customer is not specified.")
         return
     if not is_uuid_like(customer_uuid):
-        logger.warning('Internal customer UUID is invalid.')
+        logger.warning("Internal customer UUID is invalid.")
         return
     try:
         return Customer.objects.get(uuid=customer_uuid)
     except Customer.DoesNotExist:
-        logger.warning('Customer with UUID %s is not found', customer_uuid)
+        logger.warning("Customer with UUID %s is not found", customer_uuid)
         return
 
 
 def get_external_customer():
-    customer_uuid = settings.WALDUR_HPC['EXTERNAL_CUSTOMER_UUID']
+    customer_uuid = settings.WALDUR_HPC["EXTERNAL_CUSTOMER_UUID"]
     if not customer_uuid:
-        logger.debug('External customer is not specified.')
+        logger.debug("External customer is not specified.")
         return
     if not is_uuid_like(customer_uuid):
-        logger.warning('External customer UUID is invalid.')
+        logger.warning("External customer UUID is invalid.")
         return
     try:
         return Customer.objects.get(uuid=customer_uuid)
     except Customer.DoesNotExist:
-        logger.warning('Customer with UUID %s is not found', customer_uuid)
+        logger.warning("Customer with UUID %s is not found", customer_uuid)
         return
 
 
 def get_offering():
-    offering_uuid = settings.WALDUR_HPC['OFFERING_UUID']
+    offering_uuid = settings.WALDUR_HPC["OFFERING_UUID"]
     if not offering_uuid:
-        logger.debug('Offering is not specified.')
+        logger.debug("Offering is not specified.")
         return
     if not is_uuid_like(offering_uuid):
-        logger.warning('Offering UUID is invalid.')
+        logger.warning("Offering UUID is invalid.")
         return
     try:
         offering = Offering.objects.get(uuid=offering_uuid)
     except Offering.DoesNotExist:
-        logger.warning('Offering UUID %s is not found', offering_uuid)
+        logger.warning("Offering UUID %s is not found", offering_uuid)
         return
 
     if not offering.shared:
-        logger.warning('Offering is not shared.')
+        logger.warning("Offering is not shared.")
         return
 
     return offering
 
 
 def get_plan():
-    plan_uuid = settings.WALDUR_HPC['PLAN_UUID']
+    plan_uuid = settings.WALDUR_HPC["PLAN_UUID"]
     if not plan_uuid:
-        logger.debug('Plan is not specified.')
+        logger.debug("Plan is not specified.")
         return
     if not is_uuid_like(plan_uuid):
-        logger.warning('Plan UUID is invalid.')
+        logger.warning("Plan UUID is invalid.")
         return
     try:
         return Plan.objects.get(uuid=plan_uuid)
     except Plan.DoesNotExist:
-        logger.warning('Plan UUID %s is not found', plan_uuid)
+        logger.warning("Plan UUID %s is not found", plan_uuid)
         return
 
 
@@ -88,7 +88,7 @@ def get_or_create_project(customer, user, wrong_customer):
     try:
         return Project.objects.get(name=user.username, customer=customer)
     except Project.MultipleObjectsReturned:
-        logger.warning('Multiple projects with the same name %s exist.', user.username)
+        logger.warning("Multiple projects with the same name %s exist.", user.username)
         return
     except Project.DoesNotExist:
         try:
@@ -103,14 +103,14 @@ def get_or_create_project(customer, user, wrong_customer):
         project.add_user(user, ProjectRole.ADMIN)
         return project
     else:
-        logger.warning('Projects with name %s already exists.', user.username)
+        logger.warning("Projects with name %s already exists.", user.username)
         return
 
 
 def get_or_create_order(project: Project, user, offering, plan, limits=None):
     limits = limits or {}
 
-    order_ids = Order.objects.filter(offering=offering).values_list('id', flat=True)
+    order_ids = Order.objects.filter(offering=offering).values_list("id", flat=True)
 
     order = (
         Order.objects.filter(
@@ -124,7 +124,7 @@ def get_or_create_order(project: Project, user, offering, plan, limits=None):
             ),
             id__in=order_ids,
         )
-        .order_by('created')
+        .order_by("created")
         .last()
     )
     if order:
@@ -146,7 +146,7 @@ def get_or_create_order(project: Project, user, offering, plan, limits=None):
             offering=offering,
             plan=plan,
             limits=limits,
-            attributes={'name': name},
+            attributes={"name": name},
             name=name,
             state=Resource.States.CREATING,
         )
@@ -160,7 +160,7 @@ def get_or_create_order(project: Project, user, offering, plan, limits=None):
             offering=offering,
             plan=plan,
             limits=limits,
-            attributes={'name': name},
+            attributes={"name": name},
             state=Order.States.EXECUTING,
         )
 
@@ -188,12 +188,12 @@ def check_user(user, affiliations, email_patterns):
 def is_internal_user(user):
     is_internal = check_user(
         user,
-        settings.WALDUR_HPC['INTERNAL_AFFILIATIONS'],
-        settings.WALDUR_HPC['INTERNAL_EMAIL_PATTERNS'],
+        settings.WALDUR_HPC["INTERNAL_AFFILIATIONS"],
+        settings.WALDUR_HPC["INTERNAL_EMAIL_PATTERNS"],
     )
 
     if is_internal:
-        logger.info('The user %s is internal one', user)
+        logger.info("The user %s is internal one", user)
 
     return is_internal
 
@@ -204,18 +204,18 @@ def is_external_user(user):
 
     is_external = check_user(
         user,
-        settings.WALDUR_HPC['EXTERNAL_AFFILIATIONS'],
-        settings.WALDUR_HPC['EXTERNAL_EMAIL_PATTERNS'],
+        settings.WALDUR_HPC["EXTERNAL_AFFILIATIONS"],
+        settings.WALDUR_HPC["EXTERNAL_EMAIL_PATTERNS"],
     )
 
     if is_external:
-        logger.info('The user %s is external one', user)
+        logger.info("The user %s is external one", user)
 
     return is_external
 
 
 def handle_new_user(sender, instance, created=False, **kwargs):
-    if not settings.WALDUR_HPC['ENABLED']:
+    if not settings.WALDUR_HPC["ENABLED"]:
         return
 
     user = instance
@@ -237,7 +237,7 @@ def handle_new_user(sender, instance, created=False, **kwargs):
         return
 
     if plan.offering != offering:
-        logger.warning('Plan does not match offering.')
+        logger.warning("Plan does not match offering.")
         return
 
     if is_internal_user(user):
@@ -253,7 +253,7 @@ def handle_new_user(sender, instance, created=False, **kwargs):
             user,
             offering,
             plan,
-            limits=settings.WALDUR_HPC['INTERNAL_LIMITS'],
+            limits=settings.WALDUR_HPC["INTERNAL_LIMITS"],
         )
 
         if not order or not order_created:
@@ -275,7 +275,7 @@ def handle_new_user(sender, instance, created=False, **kwargs):
             user,
             offering,
             plan,
-            limits=settings.WALDUR_HPC['EXTERNAL_LIMITS'],
+            limits=settings.WALDUR_HPC["EXTERNAL_LIMITS"],
         )
 
         if not order or not order_created:

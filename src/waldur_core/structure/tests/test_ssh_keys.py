@@ -42,7 +42,7 @@ class SshKeyRetrieveListTest(BaseSshKeyTest):
         self.client.force_authenticate(self.staff)
         url = factories.SshPublicKeyFactory.get_url(self.user_key)
         response = self.client.get(url)
-        self.assertEqual(response.data['type'], 'ssh-rsa')
+        self.assertEqual(response.data["type"], "ssh-rsa")
 
 
 class SshKeyCreateTest(BaseSshKeyTest):
@@ -50,8 +50,8 @@ class SshKeyCreateTest(BaseSshKeyTest):
         self.client.force_authenticate(self.user)
         key = factories.SshPublicKeyFactory.build()
         data = {
-            'name': self.user_key.name,
-            'public_key': key.public_key,
+            "name": self.user_key.name,
+            "public_key": key.public_key,
         }
 
         response = self.client.post(
@@ -59,15 +59,15 @@ class SshKeyCreateTest(BaseSshKeyTest):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertDictContainsSubset(
-            {'name': ['This field must be unique.']}, response.data
+            {"name": ["This field must be unique."]}, response.data
         )
 
     def test_valid_key_creation(self):
         self.client.force_authenticate(self.user)
         key = factories.SshPublicKeyFactory.build()
         data = {
-            'name': key.name,
-            'public_key': key.public_key,
+            "name": key.name,
+            "public_key": key.public_key,
         }
         response = self.client.post(
             factories.SshPublicKeyFactory.get_list_url(), data=data
@@ -75,16 +75,16 @@ class SshKeyCreateTest(BaseSshKeyTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         self.assertTrue(
-            core_models.SshPublicKey.objects.filter(name=data['name']).exists(),
-            'New key should have been created in the database',
+            core_models.SshPublicKey.objects.filter(name=data["name"]).exists(),
+            "New key should have been created in the database",
         )
 
     def test_key_name_is_stripped(self):
         self.client.force_authenticate(self.user)
         key = factories.SshPublicKeyFactory.build()
         data = {
-            'name': '  ' + key.name + '  ',
-            'public_key': key.public_key,
+            "name": "  " + key.name + "  ",
+            "public_key": key.public_key,
         }
         response = self.client.post(
             factories.SshPublicKeyFactory.get_list_url(), data=data
@@ -96,8 +96,8 @@ class SshKeyCreateTest(BaseSshKeyTest):
         staff = factories.UserFactory(is_staff=True)
         key = factories.SshPublicKeyFactory()
         data = {
-            'name': 'test',
-            'public_key': key.public_key,
+            "name": "test",
+            "public_key": key.public_key,
         }
 
         self.client.force_authenticate(staff)
@@ -112,8 +112,8 @@ class SshKeyCreateTest(BaseSshKeyTest):
         staff = factories.UserFactory(is_staff=True)
         key = factories.SshPublicKeyFactory.build()
         data = {
-            'name': 'test',
-            'public_key': key.public_key + '\nABCD',
+            "name": "test",
+            "public_key": key.public_key + "\nABCD",
         }
 
         self.client.force_authenticate(staff)

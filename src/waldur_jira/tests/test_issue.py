@@ -33,10 +33,10 @@ class IssueGetTest(BaseTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 2)
         self.assertTrue(
-            issue_without_user.uuid.hex in [issue['uuid'] for issue in response.data]
+            issue_without_user.uuid.hex in [issue["uuid"] for issue in response.data]
         )
         self.assertTrue(
-            self.issue.uuid.hex in [issue['uuid'] for issue in response.data]
+            self.issue.uuid.hex in [issue["uuid"] for issue in response.data]
         )
 
     def test_author_can_list_its_own_issues(self):
@@ -45,7 +45,7 @@ class IssueGetTest(BaseTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertTrue(
-            self.issue.uuid.hex in [issue['uuid'] for issue in response.data]
+            self.issue.uuid.hex in [issue["uuid"] for issue in response.data]
         )
 
     def test_non_author_can_not_list_other_issues(self):
@@ -68,11 +68,11 @@ class IssueGetTest(BaseTest):
         self.client.force_authenticate(self.fixture.staff)
         factories.IssueFactory(
             project=self.fixture.jira_project,
-            status='OK',
+            status="OK",
         )
         factories.IssueFactory(
             project=self.fixture.jira_project,
-            status='NOTOK',
+            status="NOTOK",
         )
 
         response = self.client.get(factories.IssueFactory.get_list_url() + "?status=OK")
@@ -89,11 +89,11 @@ class IssueGetTest(BaseTest):
         self.client.force_authenticate(self.fixture.staff)
         factories.IssueFactory(
             project=self.fixture.jira_project,
-            priority=factories.PriorityFactory(name='HIGH'),
+            priority=factories.PriorityFactory(name="HIGH"),
         )
         factories.IssueFactory(
             project=self.fixture.jira_project,
-            priority=factories.PriorityFactory(name='LOW'),
+            priority=factories.PriorityFactory(name="LOW"),
         )
 
         response = self.client.get(
@@ -120,7 +120,7 @@ class IssueCreateBaseTest(BaseTest):
         super().setUp()
         self.fixture.jira_project.issue_types.add(self.fixture.issue_type)
 
-        self.jira_patcher = mock.patch('waldur_jira.backend.JIRA')
+        self.jira_patcher = mock.patch("waldur_jira.backend.JIRA")
         self.jira_mock = self.jira_patcher.start()
         self.create_issue = self.jira_mock().create_issue
 
@@ -131,37 +131,37 @@ class IssueCreateBaseTest(BaseTest):
         mock_priority.id = self.fixture.priority.backend_id
         mock_issue_type = Object()
         mock_issue_type.id = self.fixture.issue_type.backend_id
-        ttr_field_id = 'customfield_10138'
+        ttr_field_id = "customfield_10138"
         self.ttr_value = 10000
         self.create_issue.return_value = mock.Mock(
             **{
-                'key': 'backend_id',
-                'fields.assignee.name': '',
-                'fields.assignee.emailAddress': '',
-                'fields.assignee.displayName': '',
-                'fields.creator.name': '',
-                'fields.creator.emailAddress': '',
-                'fields.creator.displayName': '',
-                'fields.reporter.name': '',
-                'fields.reporter.emailAddress': '',
-                'fields.reporter.displayName': '',
-                'fields.resolutiondate': '',
-                'fields.summary': '',
-                'fields.description': '',
-                'fields.status.name': '',
-                'fields.resolution': '',
-                'fields.priority': mock_priority,
-                'fields.issuetype': mock_issue_type,
-                'fields.%s.ongoingCycle.remainingTime.millis'
+                "key": "backend_id",
+                "fields.assignee.name": "",
+                "fields.assignee.emailAddress": "",
+                "fields.assignee.displayName": "",
+                "fields.creator.name": "",
+                "fields.creator.emailAddress": "",
+                "fields.creator.displayName": "",
+                "fields.reporter.name": "",
+                "fields.reporter.emailAddress": "",
+                "fields.reporter.displayName": "",
+                "fields.resolutiondate": "",
+                "fields.summary": "",
+                "fields.description": "",
+                "fields.status.name": "",
+                "fields.resolution": "",
+                "fields.priority": mock_priority,
+                "fields.issuetype": mock_issue_type,
+                "fields.%s.ongoingCycle.remainingTime.millis"
                 % ttr_field_id: self.ttr_value,
             }
         )
         self.jira_mock().issue.return_value = self.create_issue.return_value
         self.jira_mock().fields.return_value = [
             {
-                'clauseNames': ['Time to resolution'],
-                'id': ttr_field_id,
-                'name': 'Time to resolution',
+                "clauseNames": ["Time to resolution"],
+                "id": ttr_field_id,
+                "name": "Time to resolution",
             }
         ]
 
@@ -171,11 +171,11 @@ class IssueCreateBaseTest(BaseTest):
 
     def _get_issue_payload(self, **kwargs):
         payload = {
-            'jira_project': self.fixture.jira_project_url,
-            'summary': 'Summary',
-            'description': 'description test issue',
-            'priority': self.fixture.priority_url,
-            'type': self.fixture.issue_type_url,
+            "jira_project": self.fixture.jira_project_url,
+            "summary": "Summary",
+            "description": "description test issue",
+            "priority": self.fixture.priority_url,
+            "type": self.fixture.issue_type_url,
         }
         payload.update(kwargs)
         return payload
@@ -204,9 +204,9 @@ class IssueCreateResourceTest(IssueCreateBaseTest):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
-        description_template = settings.WALDUR_JIRA['ISSUE_TEMPLATE']['RESOURCE_INFO']
+        description_template = settings.WALDUR_JIRA["ISSUE_TEMPLATE"]["RESOURCE_INFO"]
         expected_description = description_template.format(resource=self.resource)
-        actual_description = self.create_issue.call_args[1]['description']
+        actual_description = self.create_issue.call_args[1]["description"]
 
         self.assertTrue(expected_description in actual_description)
         self.assertNotEqual(expected_description, actual_description)
@@ -219,7 +219,7 @@ class IssueCreateResourceTest(IssueCreateBaseTest):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
-        issue_type_name = self.create_issue.call_args[1]['issuetype']['name']
+        issue_type_name = self.create_issue.call_args[1]["issuetype"]["name"]
         self.assertEqual(issue_type_name, self.fixture.issue_type.name)
 
     def test_issue_type_should_belong_to_project(self):
@@ -238,12 +238,12 @@ class IssueCreateResourceTest(IssueCreateBaseTest):
             factories.IssueFactory.get_list_url(), self._get_issue_payload()
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
-        new_issue = models.Issue.objects.get(backend_id=response.data['key'])
+        new_issue = models.Issue.objects.get(backend_id=response.data["key"])
         self.assertEqual(new_issue.resolution_sla, self.ttr_value / 1000)
 
     def _get_issue_payload(self, **kwargs):
         payload = {
-            'scope': structure_factories.TestNewInstanceFactory.get_url(self.resource),
+            "scope": structure_factories.TestNewInstanceFactory.get_url(self.resource),
         }
         payload.update(kwargs)
         return super()._get_issue_payload(**payload)
@@ -253,7 +253,7 @@ class IssueCreateSubtaskTest(IssueCreateBaseTest):
     def setUp(self):
         super().setUp()
         self.subtask_type = factories.IssueTypeFactory(
-            subtask=True, name='Sub-task', settings=self.fixture.service_settings
+            subtask=True, name="Sub-task", settings=self.fixture.service_settings
         )
         self.fixture.jira_project.issue_types.add(self.subtask_type)
 
@@ -269,11 +269,11 @@ class IssueCreateSubtaskTest(IssueCreateBaseTest):
 
         self.create_issue.assert_called_once_with(
             project=self.fixture.jira_project.backend_id,
-            summary='Summary',
-            description='description test issue',
-            issuetype={'name': self.subtask_type.name},
-            priority={'name': self.fixture.priority.name},
-            parent={'key': self.issue.backend_id},
+            summary="Summary",
+            description="description test issue",
+            issuetype={"name": self.subtask_type.name},
+            priority={"name": self.fixture.priority.name},
+            parent={"key": self.issue.backend_id},
         )
 
     def test_parent_issue_valid_for_subtask_only(self):
@@ -296,24 +296,24 @@ class IssueCreateSubtaskTest(IssueCreateBaseTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
-@mock.patch('waldur_jira.executors.IssueUpdateExecutor.execute')
+@mock.patch("waldur_jira.executors.IssueUpdateExecutor.execute")
 class IssueUpdateTest(BaseTest):
     def test_author_can_update_issue(self, update_executor):
         self.client.force_authenticate(self.author)
-        response = self.client.patch(self.issue_url, {'description': 'do it'})
+        response = self.client.patch(self.issue_url, {"description": "do it"})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         update_executor.assert_called_once()
 
     def test_non_author_can_not_update_issue(self, update_executor):
         self.client.force_authenticate(self.non_author)
-        response = self.client.patch(self.issue_url, {'description': 'do it'})
+        response = self.client.patch(self.issue_url, {"description": "do it"})
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.assertEqual(update_executor.call_count, 0)
 
 
-@mock.patch('waldur_jira.executors.IssueDeleteExecutor.execute')
+@mock.patch("waldur_jira.executors.IssueDeleteExecutor.execute")
 class IssueDeleteTest(BaseTest):
     def test_author_can_delete_issue(self, delete_executor):
         self.client.force_authenticate(self.author)
@@ -349,12 +349,12 @@ class IssueFilterTest(BaseTest):
     def test_filter_sla_ttr_breached_set_to_true(self):
         response = self._get_response(True)
         self.assertEqual(len(response.data), 1)
-        self.assertTrue([issue['resolution_sla'] for issue in response.data][0] == -100)
+        self.assertTrue([issue["resolution_sla"] for issue in response.data][0] == -100)
 
     def test_filter_sla_ttr_breached_set_to_false(self):
         response = self._get_response(False)
         self.assertEqual(len(response.data), 1)
-        self.assertTrue([issue['resolution_sla'] for issue in response.data][0] == 100)
+        self.assertTrue([issue["resolution_sla"] for issue in response.data][0] == 100)
 
     def test_filter_sla_ttr_breached_dont_set(self):
         response = self._get_response(None)
@@ -365,7 +365,7 @@ class IssueFilterTest(BaseTest):
         if sla_ttr_breached is not None:
             response = self.client.get(
                 factories.IssueFactory.get_list_url(),
-                {'sla_ttr_breached': sla_ttr_breached},  # ttr - Time to resolution
+                {"sla_ttr_breached": sla_ttr_breached},  # ttr - Time to resolution
             )
         else:
             response = self.client.get(factories.IssueFactory.get_list_url())

@@ -12,7 +12,7 @@ from waldur_openstack.openstack.tests import fixtures as openstack_fixtures
 TenantQuotas = openstack_models.Tenant.Quotas
 
 
-@freeze_time('2019-01-01')
+@freeze_time("2019-01-01")
 class UsagesSynchronizationTest(test.APITransactionTestCase):
     def setUp(self):
         super().setUp()
@@ -35,13 +35,13 @@ class UsagesSynchronizationTest(test.APITransactionTestCase):
         self.assertEqual(component_usage.usage, value)
 
     def test_cores_usage_is_synchronized(self):
-        self.tenant.set_quota_usage('vcpu', 10)
-        self.assert_usage_equal('cores', 10)
+        self.tenant.set_quota_usage("vcpu", 10)
+        self.assert_usage_equal("cores", 10)
 
     def test_ram_usage_is_synchronized(self):
-        self.tenant.set_quota_usage('ram', 20 * 1024)
-        self.assert_usage_equal('ram', 20 * 1024)
+        self.tenant.set_quota_usage("ram", 20 * 1024)
+        self.assert_usage_equal("ram", 20 * 1024)
 
     def test_storage_usage_is_synchronized(self):
-        self.tenant.set_quota_usage('storage', 100 * 1024)
-        self.assert_usage_equal('storage', 100 * 1024)
+        self.tenant.set_quota_usage("storage", 100 * 1024)
+        self.assert_usage_equal("storage", 100 * 1024)

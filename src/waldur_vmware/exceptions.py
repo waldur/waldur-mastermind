@@ -4,7 +4,7 @@
 class VMwareError(Exception):
     """Base exception class for VMware client."""
 
-    message = 'An unknown exception occurred.'
+    message = "An unknown exception occurred."
 
     def __init__(self, message=None, code=None):
         """Initialize exception class with optional message and code."""
@@ -25,4 +25,4 @@ class BadRequest(VMwareError):
 class Unauthorized(BadRequest):
     """Raised when invalid credentials are provided."""
 
-    message = 'Unauthorized: bad credentials.'
+    message = "Unauthorized: bad credentials."

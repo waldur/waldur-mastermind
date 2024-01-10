@@ -5,13 +5,13 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('waldur_firecrest', '0002_extend_job_model'),
+        ("waldur_firecrest", "0002_extend_job_model"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='job',
-            name='report',
-            field=models.JSONField(blank=True, null=True, verbose_name='Job output'),
+            model_name="job",
+            name="report",
+            field=models.JSONField(blank=True, null=True, verbose_name="Job output"),
         ),
     ]

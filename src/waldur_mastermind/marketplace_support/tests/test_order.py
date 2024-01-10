@@ -22,7 +22,7 @@ class RequestCreateTest(test.APITransactionTestCase):
         response = self.create_order()
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
-    def create_order(self, user='staff'):
+    def create_order(self, user="staff"):
         project_url = structure_factories.ProjectFactory.get_url(self.fixture.project)
         offering_url = marketplace_factories.OfferingFactory.get_public_url(
             self.offering
@@ -30,14 +30,14 @@ class RequestCreateTest(test.APITransactionTestCase):
         plan_url = marketplace_factories.PlanFactory.get_public_url(self.plan)
 
         attributes = dict(
-            name='My first request-based item',
+            name="My first request-based item",
         )
 
         payload = {
-            'project': project_url,
-            'offering': offering_url,
-            'plan': plan_url,
-            'attributes': attributes,
+            "project": project_url,
+            "offering": offering_url,
+            "plan": plan_url,
+            "attributes": attributes,
         }
 
         self.client.force_login(getattr(self.fixture, user))
@@ -62,6 +62,6 @@ class RequestUpdateTest(test.APITransactionTestCase):
 
     def switch_plan(self, user, resource, plan):
         self.client.force_authenticate(user)
-        url = marketplace_factories.ResourceFactory.get_url(resource, 'switch_plan')
-        payload = {'plan': marketplace_factories.PlanFactory.get_public_url(plan)}
+        url = marketplace_factories.ResourceFactory.get_url(resource, "switch_plan")
+        payload = {"plan": marketplace_factories.PlanFactory.get_public_url(plan)}
         return self.client.post(url, payload)

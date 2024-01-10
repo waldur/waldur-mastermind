@@ -18,131 +18,131 @@ class Migration(migrations.Migration):
 
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('structure', '0001_squashed_0036'),
-        ('contenttypes', '0002_remove_content_type_name'),
-        ('openstack', '0001_squashed_0028'),
+        ("structure", "0001_squashed_0036"),
+        ("contenttypes", "0002_remove_content_type_name"),
+        ("openstack", "0001_squashed_0028"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Cluster',
+            name="Cluster",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=2000, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name="description"
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('error_message', models.TextField(blank=True)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("error_message", models.TextField(blank=True)),
                 (
-                    'state',
+                    "state",
                     django_fsm.FSMIntegerField(
                         choices=[
-                            (5, 'Creation Scheduled'),
-                            (6, 'Creating'),
-                            (1, 'Update Scheduled'),
-                            (2, 'Updating'),
-                            (7, 'Deletion Scheduled'),
-                            (8, 'Deleting'),
-                            (3, 'OK'),
-                            (4, 'Erred'),
+                            (5, "Creation Scheduled"),
+                            (6, "Creating"),
+                            (1, "Update Scheduled"),
+                            (2, "Updating"),
+                            (7, "Deletion Scheduled"),
+                            (8, "Deleting"),
+                            (3, "OK"),
+                            (4, "Erred"),
                         ],
                         default=5,
                     ),
                 ),
                 (
-                    'backend_id',
+                    "backend_id",
                     models.CharField(blank=True, max_length=255),
                 ),
                 (
-                    'node_command',
+                    "node_command",
                     models.CharField(
                         blank=True,
-                        help_text='Rancher generated node installation command base.',
+                        help_text="Rancher generated node installation command base.",
                         max_length=1024,
                     ),
                 ),
                 (
-                    'tenant_settings',
+                    "tenant_settings",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='structure.servicesettings',
+                        to="structure.servicesettings",
                     ),
                 ),
-                ('runtime_state', models.CharField(blank=True, max_length=255)),
+                ("runtime_state", models.CharField(blank=True, max_length=255)),
                 (
-                    'settings',
+                    "settings",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='structure.servicesettings',
+                        related_name="+",
+                        to="structure.servicesettings",
                     ),
                 ),
-                ('error_traceback', models.TextField(blank=True)),
+                ("error_traceback", models.TextField(blank=True)),
                 (
-                    'project',
+                    "project",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='structure.project',
+                        related_name="+",
+                        to="structure.project",
                     ),
                 ),
                 (
-                    'service_settings',
+                    "service_settings",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='structure.servicesettings',
+                        related_name="+",
+                        to="structure.servicesettings",
                     ),
                 ),
                 (
-                    'management_security_group',
+                    "management_security_group",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.SET_NULL,
-                        to='openstack.securitygroup',
+                        to="openstack.securitygroup",
                     ),
                 ),
             ],
             options={
-                'unique_together': set(),
+                "unique_together": set(),
             },
             bases=(
                 waldur_core.core.models.DescendantMixin,
@@ -152,29 +152,29 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.CreateModel(
-            name='RancherUser',
+            name="RancherUser",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('backend_id', models.CharField(blank=True, max_length=255)),
-                ('is_active', models.BooleanField(default=True)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("backend_id", models.CharField(blank=True, max_length=255)),
+                ("is_active", models.BooleanField(default=True)),
                 (
-                    'settings',
+                    "settings",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.PROTECT,
-                        to='structure.servicesettings',
+                        to="structure.servicesettings",
                     ),
                 ),
                 (
-                    'user',
+                    "user",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.PROTECT,
                         to=settings.AUTH_USER_MODEL,
@@ -182,715 +182,715 @@ class Migration(migrations.Migration):
                 ),
             ],
             options={
-                'unique_together': {('user', 'settings')},
-                'ordering': ('user__username',),
+                "unique_together": {("user", "settings")},
+                "ordering": ("user__username",),
             },
         ),
         migrations.CreateModel(
-            name='RancherUserClusterLink',
+            name="RancherUserClusterLink",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('backend_id', models.CharField(blank=True, max_length=255)),
+                ("backend_id", models.CharField(blank=True, max_length=255)),
                 (
-                    'role',
+                    "role",
                     waldur_rancher.models.ClusterRole(
                         choices=[
-                            ('owner', 'Cluster owner'),
-                            ('member', 'Cluster member'),
+                            ("owner", "Cluster owner"),
+                            ("member", "Cluster member"),
                         ],
                         db_index=True,
                         max_length=30,
                     ),
                 ),
                 (
-                    'cluster',
+                    "cluster",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='waldur_rancher.cluster',
+                        to="waldur_rancher.cluster",
                     ),
                 ),
                 (
-                    'user',
+                    "user",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='waldur_rancher.rancheruser',
+                        to="waldur_rancher.rancheruser",
                     ),
                 ),
             ],
             options={
-                'unique_together': {('user', 'cluster', 'role')},
+                "unique_together": {("user", "cluster", "role")},
             },
         ),
         migrations.AddField(
-            model_name='rancheruser',
-            name='clusters',
+            model_name="rancheruser",
+            name="clusters",
             field=models.ManyToManyField(
-                through='waldur_rancher.RancherUserClusterLink',
-                to='waldur_rancher.Cluster',
+                through="waldur_rancher.RancherUserClusterLink",
+                to="waldur_rancher.Cluster",
             ),
         ),
         migrations.CreateModel(
-            name='Project',
+            name="Project",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=2000, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name="description"
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'runtime_state',
+                    "runtime_state",
                     models.CharField(
-                        blank=True, max_length=150, verbose_name='runtime state'
+                        blank=True, max_length=150, verbose_name="runtime state"
                     ),
                 ),
-                ('backend_id', models.CharField(blank=True, max_length=255)),
+                ("backend_id", models.CharField(blank=True, max_length=255)),
                 (
-                    'cluster',
+                    "cluster",
                     models.ForeignKey(
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='waldur_rancher.cluster',
+                        related_name="+",
+                        to="waldur_rancher.cluster",
                     ),
                 ),
                 (
-                    'settings',
+                    "settings",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='structure.servicesettings',
+                        related_name="+",
+                        to="structure.servicesettings",
                     ),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='Catalog',
+            name="Catalog",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=2000, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name="description"
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'runtime_state',
+                    "runtime_state",
                     models.CharField(
-                        blank=True, max_length=150, verbose_name='runtime state'
+                        blank=True, max_length=150, verbose_name="runtime state"
                     ),
                 ),
-                ('object_id', models.PositiveIntegerField(null=True)),
-                ('backend_id', models.CharField(blank=True, max_length=255)),
-                ('catalog_url', models.URLField()),
-                ('branch', models.CharField(max_length=255)),
-                ('commit', models.CharField(blank=True, max_length=40)),
-                ('username', models.CharField(blank=True, max_length=255)),
-                ('password', models.CharField(blank=True, max_length=255)),
+                ("object_id", models.PositiveIntegerField(null=True)),
+                ("backend_id", models.CharField(blank=True, max_length=255)),
+                ("catalog_url", models.URLField()),
+                ("branch", models.CharField(max_length=255)),
+                ("commit", models.CharField(blank=True, max_length=40)),
+                ("username", models.CharField(blank=True, max_length=255)),
+                ("password", models.CharField(blank=True, max_length=255)),
                 (
-                    'content_type',
+                    "content_type",
                     models.ForeignKey(
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='contenttypes.contenttype',
+                        related_name="+",
+                        to="contenttypes.contenttype",
                     ),
                 ),
                 (
-                    'settings',
+                    "settings",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='structure.servicesettings',
+                        related_name="+",
+                        to="structure.servicesettings",
                     ),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='Namespace',
+            name="Namespace",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'runtime_state',
+                    "runtime_state",
                     models.CharField(
-                        blank=True, max_length=150, verbose_name='runtime state'
+                        blank=True, max_length=150, verbose_name="runtime state"
                     ),
                 ),
-                ('backend_id', models.CharField(blank=True, max_length=255)),
+                ("backend_id", models.CharField(blank=True, max_length=255)),
                 (
-                    'project',
+                    "project",
                     models.ForeignKey(
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='namespaces',
-                        to='waldur_rancher.project',
+                        related_name="namespaces",
+                        to="waldur_rancher.project",
                     ),
                 ),
                 (
-                    'settings',
+                    "settings",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='structure.servicesettings',
+                        related_name="+",
+                        to="structure.servicesettings",
                     ),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='Template',
+            name="Template",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=2000, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name="description"
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
                 (
-                    'icon_url',
+                    "icon_url",
                     models.URLField(
-                        blank=True, max_length=500, verbose_name='icon url'
+                        blank=True, max_length=500, verbose_name="icon url"
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'runtime_state',
+                    "runtime_state",
                     models.CharField(
-                        blank=True, max_length=150, verbose_name='runtime state'
+                        blank=True, max_length=150, verbose_name="runtime state"
                     ),
                 ),
-                ('backend_id', models.CharField(blank=True, max_length=255)),
-                ('project_url', models.URLField(blank=True, max_length=500)),
-                ('default_version', models.CharField(max_length=255)),
+                ("backend_id", models.CharField(blank=True, max_length=255)),
+                ("project_url", models.URLField(blank=True, max_length=500)),
+                ("default_version", models.CharField(max_length=255)),
                 (
-                    'versions',
+                    "versions",
                     django.contrib.postgres.fields.ArrayField(
                         base_field=models.CharField(max_length=255), size=None
                     ),
                 ),
                 (
-                    'catalog',
+                    "catalog",
                     models.ForeignKey(
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='waldur_rancher.catalog',
+                        related_name="+",
+                        to="waldur_rancher.catalog",
                     ),
                 ),
                 (
-                    'cluster',
+                    "cluster",
                     models.ForeignKey(
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='waldur_rancher.cluster',
+                        related_name="+",
+                        to="waldur_rancher.cluster",
                     ),
                 ),
                 (
-                    'project',
+                    "project",
                     models.ForeignKey(
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='waldur_rancher.project',
+                        related_name="+",
+                        to="waldur_rancher.project",
                     ),
                 ),
                 (
-                    'settings',
+                    "settings",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='structure.servicesettings',
+                        related_name="+",
+                        to="structure.servicesettings",
                     ),
                 ),
                 (
-                    'icon',
-                    models.FileField(blank=True, null=True, upload_to='rancher_icons'),
+                    "icon",
+                    models.FileField(blank=True, null=True, upload_to="rancher_icons"),
                 ),
             ],
             options={
-                'abstract': False,
-                'ordering': ('name',),
+                "abstract": False,
+                "ordering": ("name",),
             },
         ),
         migrations.CreateModel(
-            name='RancherUserProjectLink',
+            name="RancherUserProjectLink",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('backend_id', models.CharField(blank=True, max_length=255)),
-                ('role', models.CharField(max_length=255)),
+                ("backend_id", models.CharField(blank=True, max_length=255)),
+                ("role", models.CharField(max_length=255)),
                 (
-                    'project',
+                    "project",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='waldur_rancher.project',
+                        to="waldur_rancher.project",
                     ),
                 ),
                 (
-                    'user',
+                    "user",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='waldur_rancher.rancheruser',
+                        to="waldur_rancher.rancheruser",
                     ),
                 ),
             ],
             options={
-                'unique_together': {('user', 'project', 'role')},
+                "unique_together": {("user", "project", "role")},
             },
         ),
         migrations.CreateModel(
-            name='Workload',
+            name="Workload",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'runtime_state',
+                    "runtime_state",
                     models.CharField(
-                        blank=True, max_length=150, verbose_name='runtime state'
+                        blank=True, max_length=150, verbose_name="runtime state"
                     ),
                 ),
-                ('backend_id', models.CharField(blank=True, max_length=255)),
-                ('scale', models.PositiveSmallIntegerField()),
+                ("backend_id", models.CharField(blank=True, max_length=255)),
+                ("scale", models.PositiveSmallIntegerField()),
                 (
-                    'cluster',
+                    "cluster",
                     models.ForeignKey(
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='waldur_rancher.cluster',
+                        related_name="+",
+                        to="waldur_rancher.cluster",
                     ),
                 ),
                 (
-                    'namespace',
+                    "namespace",
                     models.ForeignKey(
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='waldur_rancher.namespace',
+                        related_name="+",
+                        to="waldur_rancher.namespace",
                     ),
                 ),
                 (
-                    'project',
+                    "project",
                     models.ForeignKey(
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='waldur_rancher.project',
+                        related_name="+",
+                        to="waldur_rancher.project",
                     ),
                 ),
                 (
-                    'settings',
+                    "settings",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='structure.servicesettings',
+                        related_name="+",
+                        to="structure.servicesettings",
                     ),
                 ),
             ],
             options={
-                'ordering': ('name',),
+                "ordering": ("name",),
             },
         ),
         migrations.CreateModel(
-            name='ClusterTemplate',
+            name="ClusterTemplate",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=2000, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name="description"
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
             ],
             options={
-                'ordering': ('name',),
+                "ordering": ("name",),
             },
         ),
         migrations.CreateModel(
-            name='ClusterTemplateNode',
+            name="ClusterTemplateNode",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('controlplane_role', models.BooleanField(default=False)),
-                ('etcd_role', models.BooleanField(default=False)),
-                ('worker_role', models.BooleanField(default=False)),
+                ("controlplane_role", models.BooleanField(default=False)),
+                ("etcd_role", models.BooleanField(default=False)),
+                ("worker_role", models.BooleanField(default=False)),
                 (
-                    'min_vcpu',
-                    models.PositiveSmallIntegerField(verbose_name='Min vCPU (cores)'),
+                    "min_vcpu",
+                    models.PositiveSmallIntegerField(verbose_name="Min vCPU (cores)"),
                 ),
-                ('min_ram', models.PositiveIntegerField(verbose_name='Min RAM (GB)')),
+                ("min_ram", models.PositiveIntegerField(verbose_name="Min RAM (GB)")),
                 (
-                    'system_volume_size',
-                    models.PositiveIntegerField(verbose_name='System volume size (GB)'),
+                    "system_volume_size",
+                    models.PositiveIntegerField(verbose_name="System volume size (GB)"),
                 ),
-                ('preferred_volume_type', models.CharField(blank=True, max_length=150)),
+                ("preferred_volume_type", models.CharField(blank=True, max_length=150)),
                 (
-                    'template',
+                    "template",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='nodes',
-                        to='waldur_rancher.clustertemplate',
+                        related_name="nodes",
+                        to="waldur_rancher.clustertemplate",
                     ),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='Application',
+            name="Application",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=2000, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name="description"
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('error_message', models.TextField(blank=True)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("error_message", models.TextField(blank=True)),
                 (
-                    'runtime_state',
+                    "runtime_state",
                     models.CharField(
-                        blank=True, max_length=150, verbose_name='runtime state'
+                        blank=True, max_length=150, verbose_name="runtime state"
                     ),
                 ),
                 (
-                    'state',
+                    "state",
                     django_fsm.FSMIntegerField(
                         choices=[
-                            (5, 'Creation Scheduled'),
-                            (6, 'Creating'),
-                            (1, 'Update Scheduled'),
-                            (2, 'Updating'),
-                            (7, 'Deletion Scheduled'),
-                            (8, 'Deleting'),
-                            (3, 'OK'),
-                            (4, 'Erred'),
+                            (5, "Creation Scheduled"),
+                            (6, "Creating"),
+                            (1, "Update Scheduled"),
+                            (2, "Updating"),
+                            (7, "Deletion Scheduled"),
+                            (8, "Deleting"),
+                            (3, "OK"),
+                            (4, "Erred"),
                         ],
                         default=5,
                     ),
                 ),
-                ('backend_id', models.CharField(blank=True, max_length=255)),
-                ('version', models.CharField(max_length=100)),
-                ('answers', models.JSONField(blank=True, default=dict)),
+                ("backend_id", models.CharField(blank=True, max_length=255)),
+                ("version", models.CharField(max_length=100)),
+                ("answers", models.JSONField(blank=True, default=dict)),
                 (
-                    'cluster',
+                    "cluster",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='waldur_rancher.cluster',
+                        to="waldur_rancher.cluster",
                     ),
                 ),
                 (
-                    'namespace',
+                    "namespace",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='waldur_rancher.namespace',
+                        to="waldur_rancher.namespace",
                     ),
                 ),
                 (
-                    'rancher_project',
+                    "rancher_project",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='waldur_rancher.project',
+                        to="waldur_rancher.project",
                     ),
                 ),
                 (
-                    'settings',
+                    "settings",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='structure.servicesettings',
+                        related_name="+",
+                        to="structure.servicesettings",
                     ),
                 ),
                 (
-                    'template',
+                    "template",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='waldur_rancher.template',
+                        to="waldur_rancher.template",
                     ),
                 ),
-                ('error_traceback', models.TextField(blank=True)),
+                ("error_traceback", models.TextField(blank=True)),
                 (
-                    'project',
+                    "project",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='structure.project',
+                        related_name="+",
+                        to="structure.project",
                     ),
                 ),
                 (
-                    'service_settings',
+                    "service_settings",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='structure.servicesettings',
+                        related_name="+",
+                        to="structure.servicesettings",
                     ),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
             bases=(
                 waldur_core.core.models.DescendantMixin,
@@ -900,244 +900,244 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.CreateModel(
-            name='HPA',
+            name="HPA",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'runtime_state',
+                    "runtime_state",
                     models.CharField(
-                        blank=True, max_length=150, verbose_name='runtime state'
+                        blank=True, max_length=150, verbose_name="runtime state"
                     ),
                 ),
-                ('backend_id', models.CharField(blank=True, max_length=255)),
-                ('current_replicas', models.PositiveSmallIntegerField(default=0)),
-                ('desired_replicas', models.PositiveSmallIntegerField(default=0)),
-                ('min_replicas', models.PositiveSmallIntegerField(default=0)),
-                ('max_replicas', models.PositiveSmallIntegerField(default=0)),
-                ('metrics', models.JSONField()),
+                ("backend_id", models.CharField(blank=True, max_length=255)),
+                ("current_replicas", models.PositiveSmallIntegerField(default=0)),
+                ("desired_replicas", models.PositiveSmallIntegerField(default=0)),
+                ("min_replicas", models.PositiveSmallIntegerField(default=0)),
+                ("max_replicas", models.PositiveSmallIntegerField(default=0)),
+                ("metrics", models.JSONField()),
                 (
-                    'cluster',
+                    "cluster",
                     models.ForeignKey(
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='waldur_rancher.cluster',
+                        related_name="+",
+                        to="waldur_rancher.cluster",
                     ),
                 ),
                 (
-                    'namespace',
+                    "namespace",
                     models.ForeignKey(
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='waldur_rancher.namespace',
+                        related_name="+",
+                        to="waldur_rancher.namespace",
                     ),
                 ),
                 (
-                    'project',
+                    "project",
                     models.ForeignKey(
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='waldur_rancher.project',
+                        related_name="+",
+                        to="waldur_rancher.project",
                     ),
                 ),
                 (
-                    'settings',
+                    "settings",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='structure.servicesettings',
+                        related_name="+",
+                        to="structure.servicesettings",
                     ),
                 ),
                 (
-                    'workload',
+                    "workload",
                     models.ForeignKey(
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='waldur_rancher.workload',
+                        related_name="+",
+                        to="waldur_rancher.workload",
                     ),
                 ),
-                ('error_message', models.TextField(blank=True)),
+                ("error_message", models.TextField(blank=True)),
                 (
-                    'state',
+                    "state",
                     django_fsm.FSMIntegerField(
                         choices=[
-                            (5, 'Creation Scheduled'),
-                            (6, 'Creating'),
-                            (1, 'Update Scheduled'),
-                            (2, 'Updating'),
-                            (7, 'Deletion Scheduled'),
-                            (8, 'Deleting'),
-                            (3, 'OK'),
-                            (4, 'Erred'),
+                            (5, "Creation Scheduled"),
+                            (6, "Creating"),
+                            (1, "Update Scheduled"),
+                            (2, "Updating"),
+                            (7, "Deletion Scheduled"),
+                            (8, "Deleting"),
+                            (3, "OK"),
+                            (4, "Erred"),
                         ],
                         default=5,
                     ),
                 ),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=2000, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name="description"
                     ),
                 ),
-                ('error_traceback', models.TextField(blank=True)),
+                ("error_traceback", models.TextField(blank=True)),
             ],
             options={
-                'ordering': ('name',),
+                "ordering": ("name",),
             },
         ),
         migrations.CreateModel(
-            name='Ingress',
+            name="Ingress",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=2000, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name="description"
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('error_message', models.TextField(blank=True)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("error_message", models.TextField(blank=True)),
                 (
-                    'runtime_state',
+                    "runtime_state",
                     models.CharField(
-                        blank=True, max_length=150, verbose_name='runtime state'
+                        blank=True, max_length=150, verbose_name="runtime state"
                     ),
                 ),
                 (
-                    'state',
+                    "state",
                     django_fsm.FSMIntegerField(
                         choices=[
-                            (5, 'Creation Scheduled'),
-                            (6, 'Creating'),
-                            (1, 'Update Scheduled'),
-                            (2, 'Updating'),
-                            (7, 'Deletion Scheduled'),
-                            (8, 'Deleting'),
-                            (3, 'OK'),
-                            (4, 'Erred'),
+                            (5, "Creation Scheduled"),
+                            (6, "Creating"),
+                            (1, "Update Scheduled"),
+                            (2, "Updating"),
+                            (7, "Deletion Scheduled"),
+                            (8, "Deleting"),
+                            (3, "OK"),
+                            (4, "Erred"),
                         ],
                         default=5,
                     ),
                 ),
-                ('backend_id', models.CharField(blank=True, max_length=255)),
-                ('rules', models.JSONField(blank=True, default=list)),
+                ("backend_id", models.CharField(blank=True, max_length=255)),
+                ("rules", models.JSONField(blank=True, default=list)),
                 (
-                    'cluster',
+                    "cluster",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='waldur_rancher.cluster',
+                        to="waldur_rancher.cluster",
                     ),
                 ),
                 (
-                    'namespace',
+                    "namespace",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='waldur_rancher.namespace',
+                        to="waldur_rancher.namespace",
                     ),
                 ),
                 (
-                    'rancher_project',
+                    "rancher_project",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='waldur_rancher.project',
+                        to="waldur_rancher.project",
                     ),
                 ),
                 (
-                    'settings',
+                    "settings",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='structure.servicesettings',
+                        related_name="+",
+                        to="structure.servicesettings",
                     ),
                 ),
-                ('error_traceback', models.TextField(blank=True)),
+                ("error_traceback", models.TextField(blank=True)),
                 (
-                    'project',
+                    "project",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='structure.project',
+                        related_name="+",
+                        to="structure.project",
                     ),
                 ),
                 (
-                    'service_settings',
+                    "service_settings",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='structure.servicesettings',
+                        related_name="+",
+                        to="structure.servicesettings",
                     ),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
             bases=(
                 waldur_core.core.models.DescendantMixin,
@@ -1147,229 +1147,229 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.CreateModel(
-            name='Node',
+            name="Node",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('object_id', models.PositiveIntegerField(null=True)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("object_id", models.PositiveIntegerField(null=True)),
                 (
-                    'cluster',
+                    "cluster",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='waldur_rancher.cluster',
+                        to="waldur_rancher.cluster",
                     ),
                 ),
                 (
-                    'content_type',
+                    "content_type",
                     models.ForeignKey(
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='contenttypes.contenttype',
+                        related_name="+",
+                        to="contenttypes.contenttype",
                     ),
                 ),
-                ('controlplane_role', models.BooleanField(default=False)),
-                ('etcd_role', models.BooleanField(default=False)),
-                ('worker_role', models.BooleanField(default=False)),
-                ('backend_id', models.CharField(blank=True, max_length=255)),
-                ('error_message', models.TextField(blank=True)),
+                ("controlplane_role", models.BooleanField(default=False)),
+                ("etcd_role", models.BooleanField(default=False)),
+                ("worker_role", models.BooleanField(default=False)),
+                ("backend_id", models.CharField(blank=True, max_length=255)),
+                ("error_message", models.TextField(blank=True)),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
                 (
-                    'state',
+                    "state",
                     django_fsm.FSMIntegerField(
                         choices=[
-                            (5, 'Creation Scheduled'),
-                            (6, 'Creating'),
-                            (1, 'Update Scheduled'),
-                            (2, 'Updating'),
-                            (7, 'Deletion Scheduled'),
-                            (8, 'Deleting'),
-                            (3, 'OK'),
-                            (4, 'Erred'),
+                            (5, "Creation Scheduled"),
+                            (6, "Creating"),
+                            (1, "Update Scheduled"),
+                            (2, "Updating"),
+                            (7, "Deletion Scheduled"),
+                            (8, "Deleting"),
+                            (3, "OK"),
+                            (4, "Erred"),
                         ],
                         default=5,
                     ),
                 ),
                 (
-                    'initial_data',
+                    "initial_data",
                     models.JSONField(
                         blank=True,
                         default=dict,
-                        help_text='Initial data for instance creating.',
+                        help_text="Initial data for instance creating.",
                     ),
                 ),
-                ('annotations', models.JSONField(blank=True, default=dict)),
-                ('cpu_allocated', models.FloatField(blank=True, null=True)),
-                ('cpu_total', models.IntegerField(blank=True, null=True)),
-                ('docker_version', models.CharField(blank=True, max_length=255)),
-                ('k8s_version', models.CharField(blank=True, max_length=255)),
-                ('labels', models.JSONField(blank=True, default=dict)),
-                ('pods_allocated', models.IntegerField(blank=True, null=True)),
-                ('pods_total', models.IntegerField(blank=True, null=True)),
+                ("annotations", models.JSONField(blank=True, default=dict)),
+                ("cpu_allocated", models.FloatField(blank=True, null=True)),
+                ("cpu_total", models.IntegerField(blank=True, null=True)),
+                ("docker_version", models.CharField(blank=True, max_length=255)),
+                ("k8s_version", models.CharField(blank=True, max_length=255)),
+                ("labels", models.JSONField(blank=True, default=dict)),
+                ("pods_allocated", models.IntegerField(blank=True, null=True)),
+                ("pods_total", models.IntegerField(blank=True, null=True)),
                 (
-                    'ram_allocated',
+                    "ram_allocated",
                     models.IntegerField(
-                        blank=True, help_text='Allocated RAM in Mi.', null=True
+                        blank=True, help_text="Allocated RAM in Mi.", null=True
                     ),
                 ),
                 (
-                    'ram_total',
+                    "ram_total",
                     models.IntegerField(
-                        blank=True, help_text='Total RAM in Mi.', null=True
+                        blank=True, help_text="Total RAM in Mi.", null=True
                     ),
                 ),
-                ('runtime_state', models.CharField(blank=True, max_length=255)),
-                ('error_traceback', models.TextField(blank=True)),
+                ("runtime_state", models.CharField(blank=True, max_length=255)),
+                ("error_traceback", models.TextField(blank=True)),
             ],
             options={
-                'ordering': ('name',),
-                'unique_together': {('content_type', 'object_id'), ('cluster', 'name')},
+                "ordering": ("name",),
+                "unique_together": {("content_type", "object_id"), ("cluster", "name")},
             },
         ),
         migrations.CreateModel(
-            name='Service',
+            name="Service",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=2000, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name="description"
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('error_message', models.TextField(blank=True)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("error_message", models.TextField(blank=True)),
                 (
-                    'runtime_state',
+                    "runtime_state",
                     models.CharField(
-                        blank=True, max_length=150, verbose_name='runtime state'
+                        blank=True, max_length=150, verbose_name="runtime state"
                     ),
                 ),
                 (
-                    'state',
+                    "state",
                     django_fsm.FSMIntegerField(
                         choices=[
-                            (5, 'Creation Scheduled'),
-                            (6, 'Creating'),
-                            (1, 'Update Scheduled'),
-                            (2, 'Updating'),
-                            (7, 'Deletion Scheduled'),
-                            (8, 'Deleting'),
-                            (3, 'OK'),
-                            (4, 'Erred'),
+                            (5, "Creation Scheduled"),
+                            (6, "Creating"),
+                            (1, "Update Scheduled"),
+                            (2, "Updating"),
+                            (7, "Deletion Scheduled"),
+                            (8, "Deleting"),
+                            (3, "OK"),
+                            (4, "Erred"),
                         ],
                         default=5,
                     ),
                 ),
-                ('backend_id', models.CharField(blank=True, max_length=255)),
+                ("backend_id", models.CharField(blank=True, max_length=255)),
                 (
-                    'cluster_ip',
+                    "cluster_ip",
                     models.GenericIPAddressField(
-                        blank=True, null=True, protocol='IPv4'
+                        blank=True, null=True, protocol="IPv4"
                     ),
                 ),
-                ('selector', models.JSONField(blank=True, null=True)),
+                ("selector", models.JSONField(blank=True, null=True)),
                 (
-                    'namespace',
+                    "namespace",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='waldur_rancher.namespace',
-                    ),
-                ),
-                (
-                    'settings',
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='structure.servicesettings',
+                        to="waldur_rancher.namespace",
                     ),
                 ),
                 (
-                    'target_workloads',
-                    models.ManyToManyField(to='waldur_rancher.Workload'),
-                ),
-                ('error_traceback', models.TextField(blank=True)),
-                (
-                    'project',
+                    "settings",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='structure.project',
+                        related_name="+",
+                        to="structure.servicesettings",
                     ),
                 ),
                 (
-                    'service_settings',
+                    "target_workloads",
+                    models.ManyToManyField(to="waldur_rancher.Workload"),
+                ),
+                ("error_traceback", models.TextField(blank=True)),
+                (
+                    "project",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='structure.servicesettings',
+                        related_name="+",
+                        to="structure.project",
+                    ),
+                ),
+                (
+                    "service_settings",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="+",
+                        to="structure.servicesettings",
                     ),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
             bases=(
                 waldur_core.core.models.DescendantMixin,

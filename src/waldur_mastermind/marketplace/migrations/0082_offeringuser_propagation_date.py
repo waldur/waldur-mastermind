@@ -5,13 +5,13 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace', '0081_robotaccount'),
+        ("marketplace", "0081_robotaccount"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='offeringuser',
-            name='propagation_date',
+            model_name="offeringuser",
+            name="propagation_date",
             field=models.DateTimeField(blank=True, null=True),
         ),
     ]

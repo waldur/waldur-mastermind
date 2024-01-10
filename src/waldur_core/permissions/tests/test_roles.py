@@ -5,7 +5,7 @@ from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests.factories import UserFactory
 from waldur_mastermind.marketplace.tests import fixtures
 
-ROLE_ENDPOINT = '/api/roles/'
+ROLE_ENDPOINT = "/api/roles/"
 
 
 class RoleTest(test.APITransactionTestCase):
@@ -17,7 +17,7 @@ class RoleTest(test.APITransactionTestCase):
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING)
         response = self.client.get(ROLE_ENDPOINT)
         self.assertEqual(
-            list(response.data[0]['permissions']), [PermissionEnum.UPDATE_OFFERING]
+            list(response.data[0]["permissions"]), [PermissionEnum.UPDATE_OFFERING]
         )
 
     def test_staff_can_create_role(self):
@@ -26,9 +26,9 @@ class RoleTest(test.APITransactionTestCase):
         response = self.client.post(
             ROLE_ENDPOINT,
             {
-                'name': RoleEnum.CUSTOMER_OWNER,
-                'content_type': 'customer',
-                'permissions': [PermissionEnum.UPDATE_OFFERING.value],
+                "name": RoleEnum.CUSTOMER_OWNER,
+                "content_type": "customer",
+                "permissions": [PermissionEnum.UPDATE_OFFERING.value],
             },
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
@@ -39,9 +39,9 @@ class RoleTest(test.APITransactionTestCase):
         response = self.client.post(
             ROLE_ENDPOINT,
             {
-                'name': RoleEnum.CUSTOMER_OWNER,
-                'content_type': 'customer',
-                'permissions': [PermissionEnum.UPDATE_OFFERING.value],
+                "name": RoleEnum.CUSTOMER_OWNER,
+                "content_type": "customer",
+                "permissions": [PermissionEnum.UPDATE_OFFERING.value],
             },
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -51,13 +51,13 @@ class RoleTest(test.APITransactionTestCase):
         user = UserFactory(is_staff=True)
         self.client.force_login(user)
         response = self.client.get(ROLE_ENDPOINT)
-        role_uuid = response.data[0]['uuid']
+        role_uuid = response.data[0]["uuid"]
         response = self.client.put(
-            f'{ROLE_ENDPOINT}{role_uuid}/',
+            f"{ROLE_ENDPOINT}{role_uuid}/",
             {
-                'name': RoleEnum.CUSTOMER_OWNER,
-                'content_type': 'customer',
-                'permissions': [
+                "name": RoleEnum.CUSTOMER_OWNER,
+                "content_type": "customer",
+                "permissions": [
                     PermissionEnum.UPDATE_OFFERING.value,
                     PermissionEnum.APPROVE_ORDER.value,
                 ],
@@ -65,7 +65,7 @@ class RoleTest(test.APITransactionTestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(
-            response.data['permissions'],
+            response.data["permissions"],
             [PermissionEnum.UPDATE_OFFERING, PermissionEnum.APPROVE_ORDER],
         )
 
@@ -74,12 +74,12 @@ class RoleTest(test.APITransactionTestCase):
         user = UserFactory(is_staff=True)
         self.client.force_login(user)
         response = self.client.get(ROLE_ENDPOINT)
-        role_uuid = response.data[0]['uuid']
+        role_uuid = response.data[0]["uuid"]
         response = self.client.put(
-            f'{ROLE_ENDPOINT}{role_uuid}/',
+            f"{ROLE_ENDPOINT}{role_uuid}/",
             {
-                'name': 'new name',
-                'permissions': [
+                "name": "new name",
+                "permissions": [
                     PermissionEnum.UPDATE_OFFERING.value,
                     PermissionEnum.APPROVE_ORDER.value,
                 ],
@@ -92,14 +92,14 @@ class RoleTest(test.APITransactionTestCase):
         user = UserFactory(is_staff=True)
         self.client.force_login(user)
         response = self.client.get(ROLE_ENDPOINT)
-        role_uuid = response.data[0]['uuid']
-        response = self.client.delete(f'{ROLE_ENDPOINT}{role_uuid}/')
+        role_uuid = response.data[0]["uuid"]
+        response = self.client.delete(f"{ROLE_ENDPOINT}{role_uuid}/")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_list_users_project_has_user(self):
         self.user = self.fixture.admin
         self.client.force_authenticate(self.user)
-        url = f'http://testserver/api/projects/{self.project.uuid}/list_users/'
+        url = f"http://testserver/api/projects/{self.project.uuid}/list_users/"
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
@@ -107,7 +107,7 @@ class RoleTest(test.APITransactionTestCase):
     def test_list_users_with_no_user(self):
         self.user = self.fixture.staff
         self.client.force_authenticate(self.user)
-        url = f'http://testserver/api/projects/{self.project.uuid}/list_users/'
+        url = f"http://testserver/api/projects/{self.project.uuid}/list_users/"
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 0)

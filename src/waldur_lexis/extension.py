@@ -4,7 +4,7 @@ from waldur_core.core import WaldurExtension
 class LexisExtension(WaldurExtension):
     @staticmethod
     def django_app():
-        return 'waldur_lexis'
+        return "waldur_lexis"
 
     @staticmethod
     def rest_urls():

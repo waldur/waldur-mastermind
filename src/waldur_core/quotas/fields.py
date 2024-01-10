@@ -89,7 +89,7 @@ class CounterQuotaField(QuotaField):
         path_to_scope,
         get_current_usage=None,
         get_delta=None,
-        **kwargs
+        **kwargs,
     ):
         self._raw_target_models = target_models
         self._raw_get_current_usage = get_current_usage
@@ -106,7 +106,7 @@ class CounterQuotaField(QuotaField):
         if self._raw_get_current_usage is not None:
             return self._raw_get_current_usage(models, scope)
         else:
-            filter_path_to_scope = self.path_to_scope.replace('.', '__')
+            filter_path_to_scope = self.path_to_scope.replace(".", "__")
             return sum(
                 [
                     m.objects.filter(**{filter_path_to_scope: scope}).count()
@@ -116,7 +116,7 @@ class CounterQuotaField(QuotaField):
 
     @property
     def target_models(self):
-        if not hasattr(self, '_target_models'):
+        if not hasattr(self, "_target_models"):
             self._target_models = (
                 self._raw_target_models()
                 if callable(self._raw_target_models)
@@ -139,7 +139,7 @@ class CounterQuotaField(QuotaField):
             scope.add_quota_usage(self.name, delta)
 
     def _get_scope(self, target_instance):
-        return reduce(getattr, self.path_to_scope.split('.'), target_instance)
+        return reduce(getattr, self.path_to_scope.split("."), target_instance)
 
 
 class TotalQuotaField(CounterQuotaField):
@@ -162,13 +162,13 @@ class TotalQuotaField(CounterQuotaField):
 
     def get_current_usage(self, models, scope):
         total_usage = 0
-        filter_path_to_scope = self.path_to_scope.replace('.', '__')
+        filter_path_to_scope = self.path_to_scope.replace(".", "__")
         query = {filter_path_to_scope: scope}
         for model in models:
             resources = model.objects.filter(**query)
             subtotal = resources.values(self.target_field).aggregate(
                 total_usage=Sum(self.target_field)
-            )['total_usage']
+            )["total_usage"]
             if subtotal:
                 total_usage += subtotal
         return total_usage

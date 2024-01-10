@@ -17,15 +17,15 @@ class SupportUserRetrieveTest(base.BaseTest):
         super().setUp()
         self.support_user = factories.SupportUserFactory()
 
-    @data('staff', 'global_support')
+    @data("staff", "global_support")
     def test_staff_or_support_can_retrieve_support_users(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
 
         response = self.client.get(factories.SupportUserFactory.get_list_url())
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data[0]['uuid'], self.support_user.uuid.hex)
+        self.assertEqual(response.data[0]["uuid"], self.support_user.uuid.hex)
 
-    @data('user')
+    @data("user")
     def test_user_can_not_retrieve_support_users(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
 
@@ -46,14 +46,14 @@ class SupportUserRetrieveTest(base.BaseTest):
 @override_config(WALDUR_SUPPORT_ENABLED=True)
 class SupportUserPullTest(base.BaseTest):
     def setUp(self):
-        mock_patch = mock.patch('waldur_jira.backend.JIRA')
+        mock_patch = mock.patch("waldur_jira.backend.JIRA")
         self.mocked_jira = mock_patch.start()
 
         class AtlassianUser:
-            displayName = 'alice'
-            name = 'alice'
-            key = 'alice'
-            accountId = 'alice'
+            displayName = "alice"
+            name = "alice"
+            key = "alice"
+            accountId = "alice"
 
         self.mocked_jira().search_assignable_users_for_projects.return_value = [
             AtlassianUser()
@@ -65,9 +65,9 @@ class SupportUserPullTest(base.BaseTest):
     def test_if_user_is_not_available_he_is_marked_as_disabled(self):
         # Arrange
         alice = factories.SupportUserFactory(
-            backend_id='alice', backend_name='atlassian'
+            backend_id="alice", backend_name="atlassian"
         )
-        bob = factories.SupportUserFactory(backend_id='bob', backend_name='atlassian')
+        bob = factories.SupportUserFactory(backend_id="bob", backend_name="atlassian")
 
         # Act
         ServiceDeskBackend().pull_support_users()
@@ -81,7 +81,7 @@ class SupportUserPullTest(base.BaseTest):
     def test_if_user_is_available_he_is_marked_as_enabled(self):
         # Arrange
         alice = factories.SupportUserFactory(
-            backend_id='alice', is_active=False, backend_name='atlassian'
+            backend_id="alice", is_active=False, backend_name="atlassian"
         )
 
         # Act
@@ -93,12 +93,12 @@ class SupportUserPullTest(base.BaseTest):
 
 
 @override_config(WALDUR_SUPPORT_ENABLED=True)
-@mock.patch('waldur_jira.backend.JIRA')
+@mock.patch("waldur_jira.backend.JIRA")
 class SupportUserValidateTest(base.BaseTest):
     def test_not_create_user_if_user_exists_but_he_inactive(self, mocked_jira):
         def side_effect(*args, **kwargs):
-            if kwargs.get('includeInactive'):
-                return [jira.User(None, None, raw={'active': False})]
+            if kwargs.get("includeInactive"):
+                return [jira.User(None, None, raw={"active": False})]
             return []
 
         mocked_jira().search_users.side_effect = side_effect

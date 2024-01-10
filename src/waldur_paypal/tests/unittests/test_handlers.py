@@ -13,15 +13,15 @@ class CreateInvoiceTest(TestCase):
     def setUp(self):
         self.fixture = fixtures.PayPalFixture()
         self.issuer_details = {
-            'email': "example@domain.com",
-            'first_name': "John",
-            'last_name': "White",
-            'business_name': "Corporation Professionals, LLC",
-            'phone': {
-                'country_code': '001',
-                'national_number': '5032141716',
+            "email": "example@domain.com",
+            "first_name": "John",
+            "last_name": "White",
+            "business_name": "Corporation Professionals, LLC",
+            "phone": {
+                "country_code": "001",
+                "national_number": "5032141716",
             },
-            'address': {
+            "address": {
                 "line1": "1234 Main St.",
                 "city": "Portland",
                 "state": "OR",
@@ -45,13 +45,13 @@ class CreateInvoiceTest(TestCase):
 
     def _get_payment_details(self):
         payment_details = mock.Mock()
-        payment_details.company = 'Company'
-        payment_details.address = 'Address #1'
-        payment_details.country = 'Wonderland'
-        payment_details.email = 'test@example.com'
-        payment_details.postal = '10110'
-        payment_details.phone = '+372-555-55-55'
-        payment_details.bank = 'Harry Potter Bank #2.5'
+        payment_details.company = "Company"
+        payment_details.address = "Address #1"
+        payment_details.country = "Wonderland"
+        payment_details.email = "test@example.com"
+        payment_details.postal = "10110"
+        payment_details.phone = "+372-555-55-55"
+        payment_details.bank = "Harry Potter Bank #2.5"
         return payment_details
 
     def _generate_invoice_items(self, count=1):
@@ -59,14 +59,14 @@ class CreateInvoiceTest(TestCase):
 
         for i in range(0, count):
             item = mock.Mock()
-            item.unit = 'day'
+            item.unit = "day"
             item.unit_price = 10
             item.quantity = self.usage_days
             item.price = item.unit_price * self.usage_days
             item.tax = 15
             item.start = timezone.now()
             item.end = item.start + timezone.timedelta(days=self.usage_days)
-            item.name = 'invoice item #%s' % i
+            item.name = "invoice item #%s" % i
             items.append(item)
 
         return items

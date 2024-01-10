@@ -18,47 +18,47 @@ def _get_filename(path):
     # JIRA does not support composite symbols from Latin-1 charset.
     # Hence we need to use NFD normalization which translates
     # each character into its decomposed form.
-    path = unicodedata.normalize('NFD', path)
+    path = unicodedata.normalize("NFD", path)
     limit = CHARS_LIMIT - PADDING
     fname = os.path.basename(path)
-    filename = fname.split('.')[0]
-    filename_extension = fname.split('.')[1:]
+    filename = fname.split(".")[0]
+    filename_extension = fname.split(".")[1:]
     count = (
-        len('.'.join(filename_extension).encode('utf-8')) + 1
+        len(".".join(filename_extension).encode("utf-8")) + 1
         if filename_extension
         else 0
     )
     char_limit = 0
 
     for char in filename:
-        count += len(char.encode('utf-8'))
+        count += len(char.encode("utf-8"))
         if count > limit:
             break
         else:
             char_limit += 1
 
     if not char_limit:
-        raise JIRAError('Attachment filename is very long.')
+        raise JIRAError("Attachment filename is very long.")
 
     tmp = [filename[:char_limit]]
     tmp.extend(filename_extension)
-    filename = '.'.join(tmp)
+    filename = ".".join(tmp)
     return filename
 
 
 def _upload_file(manager, issue, upload_file, filename):
     # This method will fix original method jira.JIRA.add_attachment (jira/client.py line 591)
-    url = manager._get_url('issue/' + str(issue) + '/attachments')
+    url = manager._get_url("issue/" + str(issue) + "/attachments")
     files = {
-        'file': (filename, upload_file),
+        "file": (filename, upload_file),
     }
     headers = {
-        'X-Atlassian-Token': 'no-check',
+        "X-Atlassian-Token": "no-check",
     }
-    req = Request('POST', url, headers=headers, files=files, auth=manager._session.auth)
+    req = Request("POST", url, headers=headers, files=files, auth=manager._session.auth)
     prepped = req.prepare()
     prepped.body = re.sub(
-        b'filename=.*', b'filename="%s"\r' % filename.encode('utf-8'), prepped.body
+        b"filename=.*", b'filename="%s"\r' % filename.encode("utf-8"), prepped.body
     )
     r = manager._session.send(prepped)
 
@@ -97,16 +97,14 @@ def service_desk(manager, id_or_key):
     try:
         return manager.service_desk(id_or_key)
     except JIRAError as e:
-        if 'java.lang.NumberFormatException' in e.text:
+        if "java.lang.NumberFormatException" in e.text:
             service_desks = [
                 sd for sd in manager.service_desks() if sd.projectKey == id_or_key
             ]
             if len(service_desks):
                 return service_desks[0]
             else:
-                msg = 'The Service Desk with ID {id} does not exist.'.format(
-                    id=id_or_key
-                )
+                msg = f"The Service Desk with ID {id_or_key} does not exist."
                 raise JIRAError(text=msg, status_code=404)
         else:
             raise e
@@ -116,38 +114,38 @@ def request_types(manager, service_desk, project_key=None, strange_setting=None)
     """We need to use this function because in the old Jira version issueTypeId field does not exist."""
     types = manager.request_types(service_desk)
 
-    if len(types) and not hasattr(types[0], 'issueTypeId'):
-        if hasattr(service_desk, 'id'):
+    if len(types) and not hasattr(types[0], "issueTypeId"):
+        if hasattr(service_desk, "id"):
             service_desk = service_desk.id
 
         url = manager._options[
-            'server'
-        ] + '/rest/servicedesk/{}/servicedesk/{}/groups/{}/request-types'.format(
+            "server"
+        ] + "/rest/servicedesk/{}/servicedesk/{}/groups/{}/request-types".format(
             strange_setting,
             project_key.lower(),
             service_desk,
         )
-        headers = {'X-ExperimentalApi': 'opt-in'}
+        headers = {"X-ExperimentalApi": "opt-in"}
         r_json = json_loads(manager._session.get(url, headers=headers))
         types = [
             RequestType(manager._options, manager._session, raw_type_json)
             for raw_type_json in r_json
         ]
-        list(map(lambda t: setattr(t, 'issueTypeId', t.issueType), types))
+        list(map(lambda t: setattr(t, "issueTypeId", t.issueType), types))
 
     return types
 
 
 def request_type_fields(manager, service_desk, request_type_id):
     url = manager._options[
-        'server'
-    ] + '/rest/servicedeskapi/servicedesk/{}/requesttype/{}/field'.format(
+        "server"
+    ] + "/rest/servicedeskapi/servicedesk/{}/requesttype/{}/field".format(
         service_desk.id,
         request_type_id,
     )
-    headers = {'X-ExperimentalApi': 'opt-in'}
+    headers = {"X-ExperimentalApi": "opt-in"}
     r_json = json_loads(manager._session.get(url, headers=headers))
-    return r_json.get('requestTypeFields')
+    return r_json.get("requestTypeFields")
 
 
 def search_users(
@@ -157,21 +155,21 @@ def search_users(
     username field for lookups.
     """
     params = {
-        'query': query,
-        'includeActive': includeActive,
-        'includeInactive': includeInactive,
+        "query": query,
+        "includeActive": includeActive,
+        "includeInactive": includeInactive,
     }
     try:
-        return self._fetch_pages(User, None, 'user/search', startAt, maxResults, params)
+        return self._fetch_pages(User, None, "user/search", startAt, maxResults, params)
     except JIRAError as e:
-        if e.text == 'The username query parameter was not provided':
+        if e.text == "The username query parameter was not provided":
             params = {
-                'username': query,
-                'includeActive': includeActive,
-                'includeInactive': includeInactive,
+                "username": query,
+                "includeActive": includeActive,
+                "includeInactive": includeInactive,
             }
             return self._fetch_pages(
-                User, None, 'user/search', startAt, maxResults, params
+                User, None, "user/search", startAt, maxResults, params
             )
         raise e
 
@@ -183,7 +181,7 @@ def create_customer_request(
     function create_customer_request of the JIRA library"""
     data = fields
 
-    p = data['serviceDeskId']
+    p = data["serviceDeskId"]
     service_desk = None
 
     if isinstance(p, str) or isinstance(p, int):
@@ -191,35 +189,35 @@ def create_customer_request(
     elif isinstance(p, ServiceDesk):
         service_desk = p
 
-    data['serviceDeskId'] = service_desk.id
+    data["serviceDeskId"] = service_desk.id
 
-    p = data['requestTypeId']
+    p = data["requestTypeId"]
     if isinstance(p, int):
-        data['requestTypeId'] = p
+        data["requestTypeId"] = p
     elif isinstance(p, str):
-        data['requestTypeId'] = self.request_type_by_name(service_desk, p).id
+        data["requestTypeId"] = self.request_type_by_name(service_desk, p).id
 
-    requestParticipants = data.pop('requestParticipants', None)
+    requestParticipants = data.pop("requestParticipants", None)
 
-    url = self._options['server'] + '/rest/servicedeskapi/request'
-    headers = {'X-ExperimentalApi': 'opt-in'}
+    url = self._options["server"] + "/rest/servicedeskapi/request"
+    headers = {"X-ExperimentalApi": "opt-in"}
     r = self._session.post(url, headers=headers, data=json.dumps(data))
 
     raw_issue_json = json_loads(r)
-    if 'issueKey' not in raw_issue_json:
+    if "issueKey" not in raw_issue_json:
         raise JIRAError(r.status_code, request=r)
 
     if requestParticipants:
         url = (
-            self._options['server']
-            + '/rest/servicedeskapi/request/%s/participant' % raw_issue_json['issueKey']
+            self._options["server"]
+            + "/rest/servicedeskapi/request/%s/participant" % raw_issue_json["issueKey"]
         )
-        headers = {'X-ExperimentalApi': 'opt-in'}
+        headers = {"X-ExperimentalApi": "opt-in"}
 
         if use_old_api:
-            data = {'usernames': requestParticipants}
+            data = {"usernames": requestParticipants}
         else:
-            data = {'accountIds': requestParticipants}
+            data = {"accountIds": requestParticipants}
 
         r = self._session.post(url, headers=headers, json=data)
 
@@ -227,22 +225,22 @@ def create_customer_request(
         raise JIRAError(r.status_code, request=r)
 
     if prefetch:
-        return self.issue(raw_issue_json['issueKey'])
+        return self.issue(raw_issue_json["issueKey"])
     else:
         return Issue(self._options, self._session, raw=raw_issue_json)
 
 
 def create_customer(self, email, displayName):
     """Create a new customer and return an issue Resource for it."""
-    url = self._options['server'] + '/rest/servicedeskapi/customer'
-    headers = {'X-ExperimentalApi': 'opt-in'}
+    url = self._options["server"] + "/rest/servicedeskapi/customer"
+    headers = {"X-ExperimentalApi": "opt-in"}
     r = self._session.post(
         url,
         headers=headers,
         data=json.dumps(
             {
-                'email': email,
-                'fullName': displayName,  # different property for the server one
+                "email": email,
+                "fullName": displayName,  # different property for the server one
             }
         ),
     )

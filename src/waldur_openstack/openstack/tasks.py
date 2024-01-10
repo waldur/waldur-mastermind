@@ -27,9 +27,9 @@ class TenantCreateSuccessTask(core_tasks.StateTransitionTask):
     def execute(self, tenant):
         network = tenant.networks.first()
         subnet = network.subnets.first()
-        self.state_transition(network, 'set_ok')
-        self.state_transition(subnet, 'set_ok')
-        self.state_transition(tenant, 'set_ok')
+        self.state_transition(network, "set_ok")
+        self.state_transition(subnet, "set_ok")
+        self.state_transition(tenant, "set_ok")
 
         from . import executors
 
@@ -38,10 +38,10 @@ class TenantCreateSuccessTask(core_tasks.StateTransitionTask):
 
 
 class TenantPullQuotas(core_tasks.BackgroundTask):
-    name = 'openstack.TenantPullQuotas'
+    name = "openstack.TenantPullQuotas"
 
     def is_equal(self, other_task):
-        return self.name == other_task.get('name')
+        return self.name == other_task.get("name")
 
     def run(self):
         from . import executors
@@ -53,18 +53,18 @@ class TenantPullQuotas(core_tasks.BackgroundTask):
 class SendSignalTenantPullSucceeded(core_tasks.Task):
     @classmethod
     def get_description(cls, *args, **kwargs):
-        return 'Send tenant_pull_succeeded signal.'
+        return "Send tenant_pull_succeeded signal."
 
     def execute(self, tenant):
         signals.tenant_pull_succeeded.send(models.Tenant, instance=tenant)
 
 
-@shared_task(name='openstack.mark_as_erred_old_tenants_in_deleting_state')
+@shared_task(name="openstack.mark_as_erred_old_tenants_in_deleting_state")
 def mark_as_erred_old_tenants_in_deleting_state():
     models.Tenant.objects.filter(
         modified__lte=timezone.now() - timezone.timedelta(days=1),
         state=models.Tenant.States.DELETING,
     ).update(
         state=models.Tenant.States.ERRED,
-        error_message='Deletion error. Deleting took more than a day.',
+        error_message="Deletion error. Deleting took more than a day.",
     )

@@ -19,10 +19,10 @@ class DryRun(
         ERRED = 4
 
         CHOICES = (
-            (PENDING, 'pending'),
-            (EXECUTING, 'executing'),
-            (DONE, 'done'),
-            (ERRED, 'erred'),
+            (PENDING, "pending"),
+            (EXECUTING, "executing"),
+            (DONE, "done"),
+            (ERRED, "erred"),
         )
 
     order = models.ForeignKey(
@@ -40,11 +40,11 @@ class DryRun(
     output = models.TextField(blank=True)
 
     class Meta:
-        verbose_name = _('Dry run')
-        ordering = ('created',)
+        verbose_name = _("Dry run")
+        ordering = ("created",)
 
     class Permissions:
-        customer_path = 'order_offering__customer'
+        customer_path = "order_offering__customer"
 
     @property
     def human_readable_state(self):
@@ -58,6 +58,6 @@ class DryRun(
     def set_ok(self):
         pass
 
-    @transition(field=state, source='*', target=States.ERRED)
+    @transition(field=state, source="*", target=States.ERRED)
     def set_erred(self):
         pass

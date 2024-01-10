@@ -5,13 +5,13 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('notifications', '0006_broadcastmessage_fill'),
+        ("notifications", "0006_broadcastmessage_fill"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='broadcastmessage',
-            name='send_at',
+            model_name="broadcastmessage",
+            name="send_at",
             field=models.DateField(null=True),
         ),
     ]

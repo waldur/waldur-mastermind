@@ -15,11 +15,11 @@ class NestedPriceEstimateSerializer(serializers.HyperlinkedModelSerializer):
     tax_current = serializers.SerializerMethodField()
 
     def _parse_period(self):
-        request = self.context['request']
+        request = self.context["request"]
 
         try:
-            year = int(request.query_params.get('year', ''))
-            month = int(request.query_params.get('month', ''))
+            year = int(request.query_params.get("year", ""))
+            month = int(request.query_params.get("month", ""))
 
             if not utils.check_past_date(year, month):
                 raise ValueError()
@@ -65,7 +65,7 @@ class NestedPriceEstimateSerializer(serializers.HyperlinkedModelSerializer):
 
     class Meta:
         model = models.PriceEstimate
-        fields = ('total', 'current', 'tax', 'tax_current')
+        fields = ("total", "current", "tax", "tax_current")
 
 
 def get_price_estimate(serializer, scope):
@@ -76,10 +76,10 @@ def get_price_estimate(serializer, scope):
         estimate = models.PriceEstimate.objects.get(scope=scope)
     except models.PriceEstimate.DoesNotExist:
         return {
-            'total': 0.0,
-            'current': 0.0,
-            'tax': 0.0,
-            'tax_current': 0.0,
+            "total": 0.0,
+            "current": 0.0,
+            "tax": 0.0,
+            "tax_current": 0.0,
         }
     else:
         serializer = NestedPriceEstimateSerializer(
@@ -89,23 +89,23 @@ def get_price_estimate(serializer, scope):
 
 
 def add_price_estimate(sender, fields, **kwargs):
-    fields['billing_price_estimate'] = serializers.SerializerMethodField()
-    setattr(sender, 'get_billing_price_estimate', get_price_estimate)
+    fields["billing_price_estimate"] = serializers.SerializerMethodField()
+    setattr(sender, "get_billing_price_estimate", get_price_estimate)
 
 
 class FinancialReportSerializer(serializers.ModelSerializer):
     class Meta:
         model = structure_models.Customer
         fields = (
-            'name',
-            'uuid',
-            'abbreviation',
-            'created',
-            'accounting_start_date',
-            'registration_code',
-            'agreement_number',
-            'payment_profiles',
-            'billing_price_estimate',
+            "name",
+            "uuid",
+            "abbreviation",
+            "created",
+            "accounting_start_date",
+            "registration_code",
+            "agreement_number",
+            "payment_profiles",
+            "billing_price_estimate",
         )
 
     payment_profiles = serializers.SerializerMethodField()

@@ -13,83 +13,83 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('marketplace', '0088_usage_decimal'),
+        ("marketplace", "0088_usage_decimal"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='DryRun',
+            name="DryRun",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('error_message', models.TextField(blank=True)),
-                ('error_traceback', models.TextField(blank=True)),
-                ('order_item_attributes', models.JSONField(blank=True, default=dict)),
-                ('order_item_type', models.CharField(max_length=255)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("error_message", models.TextField(blank=True)),
+                ("error_traceback", models.TextField(blank=True)),
+                ("order_item_attributes", models.JSONField(blank=True, default=dict)),
+                ("order_item_type", models.CharField(max_length=255)),
                 (
-                    'state',
+                    "state",
                     django_fsm.FSMIntegerField(
                         choices=[
-                            (1, 'pending'),
-                            (2, 'executing'),
-                            (3, 'done'),
-                            (4, 'erred'),
+                            (1, "pending"),
+                            (2, "executing"),
+                            (3, "done"),
+                            (4, "erred"),
                         ],
                         default=1,
                     ),
                 ),
-                ('output', models.TextField(blank=True)),
+                ("output", models.TextField(blank=True)),
                 (
-                    'order',
+                    "order",
                     models.ForeignKey(
                         null=True,
                         on_delete=django.db.models.deletion.SET_NULL,
-                        to='marketplace.order',
+                        to="marketplace.order",
                     ),
                 ),
                 (
-                    'order_item_offering',
+                    "order_item_offering",
                     models.ForeignKey(
                         null=True,
                         on_delete=django.db.models.deletion.SET_NULL,
-                        to='marketplace.offering',
+                        to="marketplace.offering",
                     ),
                 ),
                 (
-                    'order_item_plan',
+                    "order_item_plan",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='marketplace.plan',
+                        to="marketplace.plan",
                     ),
                 ),
             ],
             options={
-                'verbose_name': 'Dry run',
-                'ordering': ('created',),
+                "verbose_name": "Dry run",
+                "ordering": ("created",),
             },
         ),
     ]

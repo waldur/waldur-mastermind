@@ -30,17 +30,17 @@ class IssueEventLogger(EventLogger):
 
     class Meta:
         event_types = (
-            'issue_deletion_succeeded',
-            'issue_update_succeeded',
-            'issue_creation_succeeded',
+            "issue_deletion_succeeded",
+            "issue_update_succeeded",
+            "issue_creation_succeeded",
         )
         event_groups = {
-            'support': event_types,
+            "support": event_types,
         }
 
     @staticmethod
     def get_scopes(event_context):
-        issue = event_context['issue']
+        issue = event_context["issue"]
         return get_issue_scopes(issue)
 
 
@@ -49,19 +49,19 @@ class AttachmentEventLogger(EventLogger):
 
     class Meta:
         event_types = (
-            'attachment_created',
-            'attachment_updated',
-            'attachment_deleted',
+            "attachment_created",
+            "attachment_updated",
+            "attachment_deleted",
         )
         event_groups = {
-            'support': event_types,
+            "support": event_types,
         }
 
     @staticmethod
     def get_scopes(event_context):
-        attachment = event_context['attachment']
+        attachment = event_context["attachment"]
         return get_issue_scopes(attachment.issue)
 
 
-event_logger.register('waldur_issue', IssueEventLogger)
-event_logger.register('waldur_attachment', AttachmentEventLogger)
+event_logger.register("waldur_issue", IssueEventLogger)
+event_logger.register("waldur_attachment", AttachmentEventLogger)

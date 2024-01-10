@@ -26,7 +26,7 @@ from . import factories
 class CreateResourceFlowTest(test.APITransactionTestCase):
     def setUp(self):
         super().setUp()
-        self.list_url = reverse('marketplace-resource-creation-flow-list')
+        self.list_url = reverse("marketplace-resource-creation-flow-list")
         self.fixture = SupportFixture()
         self.offering = self.fixture.offering
         self.offering.state = Offering.States.ACTIVE
@@ -34,13 +34,13 @@ class CreateResourceFlowTest(test.APITransactionTestCase):
         self.plan = self.fixture.plan
         self.user = UserFactory()
         self.payload = {
-            'customer_create_request': {'name': 'XYZ corp'},
-            'project_create_request': {'name': 'First project'},
-            'resource_create_request': {
-                'name': 'Test VM',
-                'offering': OfferingFactory.get_public_url(self.offering),
-                'plan': PlanFactory.get_public_url(self.plan),
-                'attributes': {},
+            "customer_create_request": {"name": "XYZ corp"},
+            "project_create_request": {"name": "First project"},
+            "resource_create_request": {
+                "name": "Test VM",
+                "offering": OfferingFactory.get_public_url(self.offering),
+                "plan": PlanFactory.get_public_url(self.plan),
+                "attributes": {},
             },
         }
 
@@ -50,33 +50,33 @@ class CreateResourceFlowTest(test.APITransactionTestCase):
         response = self.client.post(self.list_url, self.payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-        flow = FlowTracker.objects.get(uuid=response.data['uuid'])
+        flow = FlowTracker.objects.get(uuid=response.data["uuid"])
         self.assertEqual(flow.requested_by, self.user)
-        self.assertEqual(flow.customer_create_request.name, 'XYZ corp')
-        self.assertEqual(flow.project_create_request.name, 'First project')
-        self.assertEqual(flow.resource_create_request.name, 'Test VM')
+        self.assertEqual(flow.customer_create_request.name, "XYZ corp")
+        self.assertEqual(flow.project_create_request.name, "First project")
+        self.assertEqual(flow.resource_create_request.name, "Test VM")
         self.assertEqual(flow.resource_create_request.offering, self.offering)
         self.assertEqual(flow.resource_create_request.plan, self.plan)
 
     def test_user_can_create_submission_for_existing_customer(self):
         self.client.force_authenticate(self.user)
 
-        del self.payload['customer_create_request']
-        self.payload['customer'] = CustomerFactory.get_url(self.fixture.customer)
+        del self.payload["customer_create_request"]
+        self.payload["customer"] = CustomerFactory.get_url(self.fixture.customer)
         self.fixture.project.add_user(self.user, ProjectRole.MEMBER)
 
         response = self.client.post(self.list_url, self.payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
-        flow = FlowTracker.objects.get(uuid=response.data['uuid'])
+        flow = FlowTracker.objects.get(uuid=response.data["uuid"])
         self.assertEqual(flow.customer_create_request, None)
         self.assertEqual(flow.customer, self.fixture.customer)
 
     def test_user_can_not_create_submission_for_unrelated_customer(self):
         self.client.force_authenticate(self.user)
 
-        del self.payload['customer_create_request']
-        self.payload['customer'] = CustomerFactory.get_url(self.fixture.customer)
+        del self.payload["customer_create_request"]
+        self.payload["customer"] = CustomerFactory.get_url(self.fixture.customer)
 
         response = self.client.post(self.list_url, self.payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -97,10 +97,10 @@ class FlowOperationsTest(test.APITransactionTestCase):
             requested_by=self.fixture.manager,
             customer=self.fixture.customer,
             project_create_request=ProjectCreateRequest.objects.create(
-                name='First project'
+                name="First project"
             ),
             resource_create_request=ResourceCreateRequest.objects.create(
-                name='First project',
+                name="First project",
                 offering=self.fixture.offering,
                 plan=self.fixture.plan,
             ),
@@ -110,7 +110,7 @@ class FlowOperationsTest(test.APITransactionTestCase):
 class ListResourceFlowTest(FlowOperationsTest):
     def setUp(self):
         super().setUp()
-        self.list_url = reverse('marketplace-resource-creation-flow-list')
+        self.list_url = reverse("marketplace-resource-creation-flow-list")
 
     def test_user_can_see_his_own_flow(self):
         self.client.force_authenticate(self.fixture.manager)
@@ -133,10 +133,10 @@ class FlowSubmitTest(FlowOperationsTest):
         super().setUp()
         self.detail_url = (
             reverse(
-                'marketplace-resource-creation-flow-detail',
-                kwargs={'uuid': self.flow.uuid.hex},
+                "marketplace-resource-creation-flow-detail",
+                kwargs={"uuid": self.flow.uuid.hex},
             )
-            + 'submit/'
+            + "submit/"
         )
 
     def test_user_can_submit_his_own_flow(self):
@@ -161,10 +161,10 @@ class FlowCancelTest(FlowOperationsTest):
         super().setUp()
         self.detail_url = (
             reverse(
-                'marketplace-resource-creation-flow-detail',
-                kwargs={'uuid': self.flow.uuid.hex},
+                "marketplace-resource-creation-flow-detail",
+                kwargs={"uuid": self.flow.uuid.hex},
             )
-            + 'cancel/'
+            + "cancel/"
         )
 
     def test_user_can_cancel_his_own_flow(self):
@@ -188,16 +188,16 @@ class CustomerCreationApproveTest(FlowOperationsTest):
     def setUp(self):
         super().setUp()
         self.flow.customer_create_request = CustomerCreateRequest.objects.create(
-            name='XYZ corp'
+            name="XYZ corp"
         )
         self.flow.save()
 
         self.detail_url = (
             reverse(
-                'marketplace-customer-creation-request-detail',
-                kwargs={'flow__uuid': self.flow.uuid.hex},
+                "marketplace-customer-creation-request-detail",
+                kwargs={"flow__uuid": self.flow.uuid.hex},
             )
-            + 'approve/'
+            + "approve/"
         )
 
     def test_staff_can_approve_pending_request(self):
@@ -217,11 +217,11 @@ class CustomerCreationApproveTest(FlowOperationsTest):
     def test_reviewer_may_attach_comment(self):
         self.flow.submit()
         self.client.force_authenticate(self.fixture.staff)
-        response = self.client.post(self.detail_url, {'comment': 'Test comment'})
+        response = self.client.post(self.detail_url, {"comment": "Test comment"})
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.flow.refresh_from_db()
         self.assertEqual(
-            self.flow.customer_create_request.review_comment, 'Test comment'
+            self.flow.customer_create_request.review_comment, "Test comment"
         )
 
     def test_staff_can_not_approve_draft_request(self):
@@ -239,16 +239,16 @@ class CustomerCreationRejectTest(FlowOperationsTest):
     def setUp(self):
         super().setUp()
         self.flow.customer_create_request = CustomerCreateRequest.objects.create(
-            name='XYZ corp'
+            name="XYZ corp"
         )
         self.flow.save()
 
         self.detail_url = (
             reverse(
-                'marketplace-customer-creation-request-detail',
-                kwargs={'flow__uuid': self.flow.uuid.hex},
+                "marketplace-customer-creation-request-detail",
+                kwargs={"flow__uuid": self.flow.uuid.hex},
             )
-            + 'reject/'
+            + "reject/"
         )
 
     def test_staff_can_reject_pending_request(self):
@@ -282,17 +282,17 @@ class ProjectCreationApproveTest(FlowOperationsTest):
         super().setUp()
         self.detail_url = (
             reverse(
-                'marketplace-project-creation-request-detail',
-                kwargs={'flow__uuid': self.flow.uuid.hex},
+                "marketplace-project-creation-request-detail",
+                kwargs={"flow__uuid": self.flow.uuid.hex},
             )
-            + 'approve/'
+            + "approve/"
         )
 
     def test_staff_can_approve_project_creation_request_even_if_customer_is_not_defined(
         self,
     ):
         self.flow.customer_create_request = CustomerCreateRequest.objects.create(
-            name='XYZ corp'
+            name="XYZ corp"
         )
         self.flow.save()
         self.flow.submit()
@@ -326,10 +326,10 @@ class ProjectCreationRejectTest(FlowOperationsTest):
         super().setUp()
         self.detail_url = (
             reverse(
-                'marketplace-project-creation-request-detail',
-                kwargs={'flow__uuid': self.flow.uuid.hex},
+                "marketplace-project-creation-request-detail",
+                kwargs={"flow__uuid": self.flow.uuid.hex},
             )
-            + 'reject/'
+            + "reject/"
         )
 
     def test_customer_owner_can_reject_request(self):
@@ -355,10 +355,10 @@ class ResourceCreationApproveTest(FlowOperationsTest):
         super().setUp()
         self.detail_url = (
             reverse(
-                'marketplace-resource-creation-request-detail',
-                kwargs={'flow__uuid': self.flow.uuid.hex},
+                "marketplace-resource-creation-request-detail",
+                kwargs={"flow__uuid": self.flow.uuid.hex},
             )
-            + 'approve/'
+            + "approve/"
         )
 
     def test_service_owner_can_approve_request(self):
@@ -404,7 +404,7 @@ class FlowApproveTest(FlowOperationsTest):
 @override_config(WALDUR_SUPPORT_ENABLED=False)
 class CreateOfferingStateRequestTest(test.APITransactionTestCase):
     def setUp(self):
-        self.list_url = reverse('marketplace-offering-activate-request-list')
+        self.list_url = reverse("marketplace-offering-activate-request-list")
         self.fixture = SupportFixture()
         self.offering = self.fixture.offering
         self.offering.state = Offering.States.DRAFT
@@ -415,7 +415,7 @@ class CreateOfferingStateRequestTest(test.APITransactionTestCase):
 
     def test_user_can_create_request(self):
         self.client.force_authenticate(self.user)
-        response = self.client.post(self.list_url, {'offering': self.offering_url})
+        response = self.client.post(self.list_url, {"offering": self.offering_url})
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(
             OfferingStateRequest.objects.filter(requested_by=self.user).exists()
@@ -425,14 +425,14 @@ class CreateOfferingStateRequestTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.user)
         self.offering.state = Offering.States.ACTIVE
         self.offering.save()
-        response = self.client.post(self.list_url, {'offering': self.offering_url})
+        response = self.client.post(self.list_url, {"offering": self.offering_url})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_user_cannot_create_request_twice(self):
         self.client.force_authenticate(self.user)
-        response = self.client.post(self.list_url, {'offering': self.offering_url})
+        response = self.client.post(self.list_url, {"offering": self.offering_url})
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        response = self.client.post(self.list_url, {'offering': self.offering_url})
+        response = self.client.post(self.list_url, {"offering": self.offering_url})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_user_can_get_only_his_requests(self):
@@ -454,7 +454,7 @@ class CreateOfferingStateRequestTest(test.APITransactionTestCase):
             offering=self.offering,
         )
         approve_url = factories.OfferingStateRequestFactory.get_url(
-            offering_request, 'approve'
+            offering_request, "approve"
         )
         self.client.force_authenticate(self.fixture.staff)
 
@@ -475,7 +475,7 @@ class CreateOfferingStateRequestTest(test.APITransactionTestCase):
             offering=self.offering,
         )
         reject_url = factories.OfferingStateRequestFactory.get_url(
-            offering_request, 'reject'
+            offering_request, "reject"
         )
         self.client.force_authenticate(self.fixture.staff)
 
@@ -499,13 +499,13 @@ class CreateOfferingStateRequestTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.user)
 
         approve_url = factories.OfferingStateRequestFactory.get_url(
-            offering_request, 'approve'
+            offering_request, "approve"
         )
         response = self.client.post(approve_url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
         approve_url = factories.OfferingStateRequestFactory.get_url(
-            offering_request, 'reject'
+            offering_request, "reject"
         )
         response = self.client.post(approve_url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -520,7 +520,7 @@ class CreateOfferingStateRequestTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.user)
 
         submit_url = factories.OfferingStateRequestFactory.get_url(
-            offering_request, 'submit'
+            offering_request, "submit"
         )
         response = self.client.post(submit_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -540,7 +540,7 @@ class CreateOfferingStateRequestTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.user)
 
         cancel_url = factories.OfferingStateRequestFactory.get_url(
-            offering_request, 'cancel'
+            offering_request, "cancel"
         )
         response = self.client.post(cancel_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -550,12 +550,12 @@ class CreateOfferingStateRequestTest(test.APITransactionTestCase):
         response = self.client.post(cancel_url)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
-    @mock.patch('waldur_mastermind.support.views.backend')
+    @mock.patch("waldur_mastermind.support.views.backend")
     @override_config(WALDUR_SUPPORT_ENABLED=True)
     def test_create_related_issue(self, mock_backend):
         self.client.force_authenticate(self.user)
 
-        response = self.client.post(self.list_url, {'offering': self.offering_url})
+        response = self.client.post(self.list_url, {"offering": self.offering_url})
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(
             OfferingStateRequest.objects.filter(requested_by=self.user).count(), 1
@@ -568,7 +568,7 @@ class CreateOfferingStateRequestTest(test.APITransactionTestCase):
     def test_do_not_create_issue_if_support_extension_is_not_enabled(self):
         self.client.force_authenticate(self.user)
 
-        response = self.client.post(self.list_url, {'offering': self.offering_url})
+        response = self.client.post(self.list_url, {"offering": self.offering_url})
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(
             OfferingStateRequest.objects.filter(requested_by=self.user).count(), 1
@@ -577,7 +577,7 @@ class CreateOfferingStateRequestTest(test.APITransactionTestCase):
         self.assertEqual(offering_request.state, OfferingStateRequest.States.DRAFT)
         self.assertFalse(offering_request.issue)
 
-    @mock.patch('waldur_mastermind.support.views.backend')
+    @mock.patch("waldur_mastermind.support.views.backend")
     @override_config(WALDUR_SUPPORT_ENABLED=True)
     def test_do_not_create_request_if_related_jira_issue_has_not_been_created(
         self, mock_backend
@@ -592,7 +592,7 @@ class CreateOfferingStateRequestTest(test.APITransactionTestCase):
             ServiceBackendError,
             self.client.post,
             self.list_url,
-            {'offering': self.offering_url},
+            {"offering": self.offering_url},
         )
 
 
@@ -600,10 +600,10 @@ class IssueTest(test.APITransactionTestCase):
     def setUp(self):
         self.issue = support_factories.IssueFactory()
         support_factories.IssueStatusFactory(
-            name='RESOLVED', type=support_models.IssueStatus.Types.RESOLVED
+            name="RESOLVED", type=support_models.IssueStatus.Types.RESOLVED
         )
         support_factories.IssueStatusFactory(
-            name='CANCELED', type=support_models.IssueStatus.Types.CANCELED
+            name="CANCELED", type=support_models.IssueStatus.Types.CANCELED
         )
         self.offering_request = factories.OfferingStateRequestFactory(issue=self.issue)
         PlanFactory(offering=self.offering_request.offering)
@@ -624,7 +624,7 @@ class IssueTest(test.APITransactionTestCase):
         )
 
     def test_request_does_not_change_if_issue_has_not_been_resolved(self):
-        self.issue.status = 'OTHER'
+        self.issue.status = "OTHER"
         self.issue.save()
         self.offering_request.refresh_from_db()
         self.assertEqual(

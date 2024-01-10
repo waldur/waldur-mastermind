@@ -7,15 +7,15 @@ import waldur_core.core.fields
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace', '0090_alter_resource_offering'),
+        ("marketplace", "0090_alter_resource_offering"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='offering',
-            name='access_url',
+            model_name="offering",
+            name="access_url",
             field=waldur_core.core.fields.BackendURLField(
-                blank=True, help_text='URL for accessing management console.', null=True
+                blank=True, help_text="URL for accessing management console.", null=True
             ),
         ),
     ]

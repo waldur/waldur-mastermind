@@ -29,38 +29,38 @@ def get_order_issue(order):
 
 def get_request_link(resource: marketplace_models.Resource):
     return format_homeport_link(
-        'projects/{project_uuid}/support/{request_uuid}/',
+        "projects/{project_uuid}/support/{request_uuid}/",
         project_uuid=resource.project.uuid,
         request_uuid=resource.uuid,
     )
 
 
 def format_description(template_name, context):
-    template = get_template('marketplace_support/' + template_name + '.txt')
+    template = get_template("marketplace_support/" + template_name + ".txt")
     return template.template.render(Context(context, autoescape=False))
 
 
 def format_create_description(order):
     result = []
 
-    for key in order.offering.options.get('order') or []:
+    for key in order.offering.options.get("order") or []:
         if key not in order.attributes:
             continue
 
-        label = order.offering.options['options'].get(key, {})
-        label_value = label.get('label', key)
-        result.append(f'{label_value}: \'{order.attributes[key]}\'')
+        label = order.offering.options["options"].get(key, {})
+        label_value = label.get("label", key)
+        result.append(f"{label_value}: '{order.attributes[key]}'")
 
-    if 'description' in order.attributes:
-        result.append('\n %s' % order.attributes['description'])
+    if "description" in order.attributes:
+        result.append("\n %s" % order.attributes["description"])
 
     result.append(
         format_description(
-            'create_resource_template',
+            "create_resource_template",
             {
-                'order': order,
-                'order_url': get_order_url(order),
-                'resource': order.resource,
+                "order": order,
+                "order_url": get_order_url(order),
+                "resource": order.resource,
             },
         )
     )
@@ -79,7 +79,7 @@ def format_create_description(order):
                     )
                 )
 
-    description = '\n'.join(result)
+    description = "\n".join(result)
 
     return description
 
@@ -92,7 +92,7 @@ def create_issue(order, description, summary, confirmation_comment=None):
         resource_object_id=order.id, resource_content_type=order_content_type
     ).exists():
         logger.warning(
-            'An issue creating is skipped because an issue for order %s exists already.',
+            "An issue creating is skipped because an issue for order %s exists already.",
             order.uuid,
         )
         return
@@ -109,11 +109,11 @@ def create_issue(order, description, summary, confirmation_comment=None):
             resource=order,
         )
     )
-    issue_details['summary'] = support_serializers.render_issue_template(
-        'ATLASSIAN_SUMMARY_TEMPLATE', 'summary', issue_details
+    issue_details["summary"] = support_serializers.render_issue_template(
+        "ATLASSIAN_SUMMARY_TEMPLATE", "summary", issue_details
     )
-    issue_details['description'] = support_serializers.render_issue_template(
-        'ATLASSIAN_DESCRIPTION_TEMPLATE', 'description', issue_details
+    issue_details["description"] = support_serializers.render_issue_template(
+        "ATLASSIAN_DESCRIPTION_TEMPLATE", "description", issue_details
     )
     issue = support_models.Issue.objects.create(**issue_details)
     try:
@@ -121,21 +121,21 @@ def create_issue(order, description, summary, confirmation_comment=None):
     except support_exceptions.SupportUserInactive:
         issue.delete()
         order.resource.set_state_erred()
-        order.resource.save(update_fields=['state'])
+        order.resource.save(update_fields=["state"])
         raise rf_exceptions.ValidationError(
             _(
-                'Delete resource process is cancelled and issue not created '
-                'because a caller is inactive.'
+                "Delete resource process is cancelled and issue not created "
+                "because a caller is inactive."
             )
         )
     except ServiceBackendError as e:
         issue.delete()
         order.resource.set_state_erred()
-        order.resource.save(update_fields=['state'])
+        order.resource.save(update_fields=["state"])
         raise rf_exceptions.ValidationError(e)
 
     ids = marketplace_models.Order.objects.filter(resource=order.resource).values_list(
-        'id', flat=True
+        "id", flat=True
     )
     linked_issues = support_models.Issue.objects.filter(
         resource_object_id__in=ids,
@@ -144,13 +144,13 @@ def create_issue(order, description, summary, confirmation_comment=None):
     try:
         active_backend.create_issue_links(issue, list(linked_issues))
     except JIRAError as e:
-        logger.exception('Linked issues have not been added: %s', e)
+        logger.exception("Linked issues have not been added: %s", e)
 
     if confirmation_comment:
         try:
             active_backend.create_confirmation_comment(issue, confirmation_comment)
         except JIRAError as e:
-            logger.exception('Unable to create confirmation comment: %s', e)
+            logger.exception("Unable to create confirmation comment: %s", e)
 
     return issue
 
@@ -158,8 +158,8 @@ def create_issue(order, description, summary, confirmation_comment=None):
 def format_update_description(order):
     request_url = get_request_link(order.resource)
     return format_description(
-        'update_resource_template',
-        {'order': order, 'request_url': request_url},
+        "update_resource_template",
+        {"order": order, "request_url": request_url},
     )
 
 
@@ -170,13 +170,13 @@ def format_update_limits_description(order):
     old_limits = format_limits_list(components_map, order.resource.limits)
     new_limits = format_limits_list(components_map, order.limits)
     context = {
-        'order': order,
-        'request_url': request_url,
-        'old_limits': old_limits,
-        'new_limits': new_limits,
+        "order": order,
+        "request_url": request_url,
+        "old_limits": old_limits,
+        "new_limits": new_limits,
     }
     return format_description(
-        'update_limits_template',
+        "update_limits_template",
         context,
     )
 
@@ -184,6 +184,6 @@ def format_update_limits_description(order):
 def format_delete_description(order):
     request_url = get_request_link(order.resource)
     return format_description(
-        'terminate_resource_template',
-        {'order': order, 'request_url': request_url},
+        "terminate_resource_template",
+        {"order": order, "request_url": request_url},
     )

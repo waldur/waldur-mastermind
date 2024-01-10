@@ -27,11 +27,11 @@ class DailyQuotaHistory(models.Model):
 
     content_type = models.ForeignKey(on_delete=models.CASCADE, to=ct_models.ContentType)
     object_id = models.PositiveIntegerField()
-    scope = ct_fields.GenericForeignKey('content_type', 'object_id')
+    scope = ct_fields.GenericForeignKey("content_type", "object_id")
     objects = QuotaManager()
     name = models.CharField(max_length=150, db_index=True)
     usage = models.BigIntegerField()
     date = models.DateField()
 
     class Meta:
-        unique_together = ('content_type', 'object_id', 'name', 'date')
+        unique_together = ("content_type", "object_id", "name", "date")

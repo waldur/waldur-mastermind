@@ -34,7 +34,7 @@ class EventViewSet(viewsets.ReadOnlyModelViewSet):
 
         self.queryset = self.filter_queryset(self.get_queryset())
         return response.Response(
-            {'count': self.queryset.count()}, status=status.HTTP_200_OK
+            {"count": self.queryset.count()}, status=status.HTTP_200_OK
         )
 
     @decorators.action(detail=False)
@@ -58,7 +58,7 @@ class BaseHookViewSet(viewsets.ModelViewSet):
     """
 
     filter_backends = (core_filters.StaffOrUserFilter, DjangoFilterBackend)
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
 
 
 class WebHookViewSet(BaseHookViewSet):
@@ -170,16 +170,16 @@ class EventsStatsViewSet(viewsets.ReadOnlyModelViewSet):
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
         aggregated_result = (
-            queryset.values('created__year', 'created__month')
-            .annotate(count=Count('*'))
-            .order_by('-created__year', '-created__month')
+            queryset.values("created__year", "created__month")
+            .annotate(count=Count("*"))
+            .order_by("-created__year", "-created__month")
         )
         paginated_result = self.paginate_queryset(aggregated_result)
         final_result = [
             {
-                'year': item['created__year'],
-                'month': item['created__month'],
-                'count': item['count'],
+                "year": item["created__year"],
+                "month": item["created__month"],
+                "count": item["count"],
             }
             for item in paginated_result
         ]

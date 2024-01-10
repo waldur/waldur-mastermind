@@ -11,11 +11,11 @@ User = get_user_model()
 
 class CallManagingOrganisationFilter(django_filters.FilterSet):
     customer = core_filters.URLFilter(
-        view_name='customer-detail', field_name='customer__uuid'
+        view_name="customer-detail", field_name="customer__uuid"
     )
-    customer_uuid = django_filters.UUIDFilter(field_name='customer__uuid')
-    customer_keyword = django_filters.CharFilter(method='filter_customer_keyword')
-    o = django_filters.OrderingFilter(fields=(('customer__name', 'customer_name'),))
+    customer_uuid = django_filters.UUIDFilter(field_name="customer__uuid")
+    customer_keyword = django_filters.CharFilter(method="filter_customer_keyword")
+    o = django_filters.OrderingFilter(fields=(("customer__name", "customer_name"),))
 
     class Meta:
         model = models.CallManagingOrganisation
@@ -31,12 +31,12 @@ class CallManagingOrganisationFilter(django_filters.FilterSet):
 
 class CallFilter(django_filters.FilterSet):
     customer = core_filters.URLFilter(
-        view_name='customer-detail', field_name='manager__customer__uuid'
+        view_name="customer-detail", field_name="manager__customer__uuid"
     )
-    customer_uuid = django_filters.UUIDFilter(field_name='manager__customer__uuid')
-    customer_keyword = django_filters.CharFilter(method='filter_customer_keyword')
+    customer_uuid = django_filters.UUIDFilter(field_name="manager__customer__uuid")
+    customer_keyword = django_filters.CharFilter(method="filter_customer_keyword")
     o = django_filters.OrderingFilter(
-        fields=('manager__customer__name', 'created', 'name')
+        fields=("manager__customer__name", "created", "name")
     )
 
     class Meta:
@@ -53,11 +53,11 @@ class CallFilter(django_filters.FilterSet):
 
 class ProposalFilter(django_filters.FilterSet):
     call = core_filters.URLFilter(
-        view_name='proposal-public-call-detail', field_name='round__call__uuid'
+        view_name="proposal-public-call-detail", field_name="round__call__uuid"
     )
-    customer_uuid = django_filters.UUIDFilter(field_name='round__call__uuid')
+    customer_uuid = django_filters.UUIDFilter(field_name="round__call__uuid")
     o = django_filters.OrderingFilter(
-        fields=('round__call__name', 'start_time', 'end_time', 'state')
+        fields=("round__call__name", "start_time", "end_time", "state")
     )
 
     class Meta:
@@ -67,10 +67,10 @@ class ProposalFilter(django_filters.FilterSet):
 
 class ReviewFilter(django_filters.FilterSet):
     proposal = core_filters.URLFilter(
-        view_name='proposal-proposal-detail', field_name='proposal__uuid'
+        view_name="proposal-proposal-detail", field_name="proposal__uuid"
     )
-    o = django_filters.OrderingFilter(fields=('created', 'state'))
+    o = django_filters.OrderingFilter(fields=("created", "state"))
 
     class Meta:
         model = models.Review
-        fields = ['state']
+        fields = ["state"]

@@ -5,20 +5,20 @@ from django.db import migrations
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('google', '0002_googlecalendar'),
+        ("google", "0002_googlecalendar"),
     ]
 
     operations = [
         migrations.RemoveField(
-            model_name='googlecredentials',
-            name='client_id',
+            model_name="googlecredentials",
+            name="client_id",
         ),
         migrations.RemoveField(
-            model_name='googlecredentials',
-            name='project_id',
+            model_name="googlecredentials",
+            name="project_id",
         ),
         migrations.RemoveField(
-            model_name='googlecredentials',
-            name='client_secret',
+            model_name="googlecredentials",
+            name="client_secret",
         ),
     ]

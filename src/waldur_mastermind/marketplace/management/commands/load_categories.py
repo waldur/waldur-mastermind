@@ -24,165 +24,165 @@ def humanize(name):
 
 
 available_categories = {
-    'backup': ('Backup', 'Backup solution'),
-    'consultancy': ('Consultancy', 'Experts for hire'),
-    'collocation': ('Collocation', 'Collocation services'),
-    'cms': ('CMS', 'Content Management Systems'),
-    'db': ('Databases', 'Relational DBMS'),
-    'email': ('E-mail', 'E-mail services'),
-    'hpc': ('HPC', 'High Performance Computing'),
-    'lumi': ('LUMI', 'LUMI HPC Offerings'),
-    'licenses': ('Licenses', 'Application and OS licenses'),
-    'vm': ('VMs', 'Virtual machines'),
-    'vpc': ('Private clouds', 'Virtual private clouds'),
-    'network': ('Network', 'Network services'),
-    'operations': ('Operations', 'Reliable support'),
-    'security': ('Security', 'Security services'),
-    'storage': ('Storage', 'Data preservation'),
+    "backup": ("Backup", "Backup solution"),
+    "consultancy": ("Consultancy", "Experts for hire"),
+    "collocation": ("Collocation", "Collocation services"),
+    "cms": ("CMS", "Content Management Systems"),
+    "db": ("Databases", "Relational DBMS"),
+    "email": ("E-mail", "E-mail services"),
+    "hpc": ("HPC", "High Performance Computing"),
+    "lumi": ("LUMI", "LUMI HPC Offerings"),
+    "licenses": ("Licenses", "Application and OS licenses"),
+    "vm": ("VMs", "Virtual machines"),
+    "vpc": ("Private clouds", "Virtual private clouds"),
+    "network": ("Network", "Network services"),
+    "operations": ("Operations", "Reliable support"),
+    "security": ("Security", "Security services"),
+    "storage": ("Storage", "Data preservation"),
     # devices
-    'measurement_devices': ('Measurement systems', 'Available measurement devices'),
+    "measurement_devices": ("Measurement systems", "Available measurement devices"),
 }
 
 category_columns = {
-    'storage': [
+    "storage": [
         {
-            'title': 'Size',
-            'widget': 'filesize',
-            'attribute': 'size',
+            "title": "Size",
+            "widget": "filesize",
+            "attribute": "size",
         },
         {
-            'title': 'Attached to',
-            'widget': 'attached_instance',
+            "title": "Attached to",
+            "widget": "attached_instance",
         },
         {
-            'title': 'Type',
-            'attribute': 'type_name',
+            "title": "Type",
+            "attribute": "type_name",
         },
     ],
-    'vm': [
+    "vm": [
         {
-            'title': 'Internal IP',
-            'attribute': 'internal_ips',
-            'widget': 'csv',
+            "title": "Internal IP",
+            "attribute": "internal_ips",
+            "widget": "csv",
         },
         {
-            'title': 'External IP',
-            'attribute': 'external_ips',
-            'widget': 'csv',
+            "title": "External IP",
+            "attribute": "external_ips",
+            "widget": "csv",
         },
     ],
 }
 
 category_components = {
-    'vpc': [
+    "vpc": [
         {
-            'type': 'storage',
-            'name': 'Storage',
-            'measured_unit': 'GB',
+            "type": "storage",
+            "name": "Storage",
+            "measured_unit": "GB",
         },
         {
-            'type': 'ram',
-            'name': 'RAM',
-            'measured_unit': 'GB',
+            "type": "ram",
+            "name": "RAM",
+            "measured_unit": "GB",
         },
         {
-            'type': 'cores',
-            'name': 'Cores',
-            'measured_unit': 'cores',
+            "type": "cores",
+            "name": "Cores",
+            "measured_unit": "cores",
         },
     ]
 }
 
 common_sections = {
-    'Support': [
-        ('email', 'E-mail', 'string'),
-        ('phone', 'Phone', 'string'),
-        ('portal', 'Support portal', 'string'),
-        ('description', 'Description', 'string'),
-        ('terms_of_services_link', 'ToS link', 'string'),
+    "Support": [
+        ("email", "E-mail", "string"),
+        ("phone", "Phone", "string"),
+        ("portal", "Support portal", "string"),
+        ("description", "Description", "string"),
+        ("terms_of_services_link", "ToS link", "string"),
     ],
-    'Security': [
-        ('certification', 'Certification', 'list'),
+    "Security": [
+        ("certification", "Certification", "list"),
     ],
-    'Location': [('address', 'Address', 'string')],
+    "Location": [("address", "Address", "string")],
 }
 
 hpc_sections = {
-    'system_information': [
-        ('queuing_system', 'Queueing system', 'list'),
-        ('home_space', 'Home space', 'string'),
-        ('work_space', 'Work space', 'string'),
-        ('linux_distro', 'Linux distribution', 'list'),
+    "system_information": [
+        ("queuing_system", "Queueing system", "list"),
+        ("home_space", "Home space", "string"),
+        ("work_space", "Work space", "string"),
+        ("linux_distro", "Linux distribution", "list"),
     ],
-    'node_information': [
-        ('cpu', 'CPU model', 'choice'),
-        ('gpu', 'GPU model', 'choice'),
-        ('memory', 'Memory per node (GB)', 'integer'),
-        ('local_disk', 'Local disk (GB)', 'integer'),
-        ('interconnect', 'Interconnect', 'choice'),
-        ('node_count', 'Node count', 'integer'),
+    "node_information": [
+        ("cpu", "CPU model", "choice"),
+        ("gpu", "GPU model", "choice"),
+        ("memory", "Memory per node (GB)", "integer"),
+        ("local_disk", "Local disk (GB)", "integer"),
+        ("interconnect", "Interconnect", "choice"),
+        ("node_count", "Node count", "integer"),
     ],
-    'performance': [
-        ('tflops', 'Peak TFlop/s', 'integer'),
-        ('linpack', 'Linpack TFlop/s', 'integer'),
+    "performance": [
+        ("tflops", "Peak TFlop/s", "integer"),
+        ("linpack", "Linpack TFlop/s", "integer"),
     ],
-    'software': [
-        ('applications', 'Applications', 'list'),
+    "software": [
+        ("applications", "Applications", "list"),
     ],
 }
 
 # based on https://eurohpc-ju.europa.eu/sites/default/files/2021-03/Decision%2006.2021%20-%20Access%20policy.pdf
 lumi_sections = {
-    'accessiblity_to_industry': [
-        ('accessible_to_industry', 'Accessible to industry', 'boolean'),
+    "accessiblity_to_industry": [
+        ("accessible_to_industry", "Accessible to industry", "boolean"),
     ],
-    'review': [
-        ('external_review', 'External scientific review', 'boolean'),
-        ('technical_assesment', 'Technical assessment', 'boolean'),
+    "review": [
+        ("external_review", "External scientific review", "boolean"),
+        ("technical_assesment", "Technical assessment", "boolean"),
     ],
-    'prerequisites': [
-        ('dmp_required', 'Data management plan', 'boolean'),
-        ('benchmark_project', 'Benchmarking required', 'boolean'),
+    "prerequisites": [
+        ("dmp_required", "Data management plan", "boolean"),
+        ("benchmark_project", "Benchmarking required", "boolean"),
     ],
 }
 
 collocation_sections = {
-    'features': [
-        ('collocation_remote_access', 'Remote access', 'choice'),
-        ('computing_network', 'Network access', 'list'),
-        ('collocation_dimensions', 'Dimensions', 'list'),
-        ('collocation_power', 'Power (A)', 'integer'),
-        ('collocation_cages', 'Locked cages', 'boolean'),
+    "features": [
+        ("collocation_remote_access", "Remote access", "choice"),
+        ("computing_network", "Network access", "list"),
+        ("collocation_dimensions", "Dimensions", "list"),
+        ("collocation_power", "Power (A)", "integer"),
+        ("collocation_cages", "Locked cages", "boolean"),
     ],
 }
 
 measurement_devices_sections = {
-    'properties': [
-        ('measurement_devices_type', 'Type', 'choice'),
-        ('measurement_devices_sample_matrix', 'Sample matrix', 'list'),
-        ('measurement_devices_principle', 'Measurement principle', 'list'),
+    "properties": [
+        ("measurement_devices_type", "Type", "choice"),
+        ("measurement_devices_sample_matrix", "Sample matrix", "list"),
+        ("measurement_devices_principle", "Measurement principle", "list"),
     ],
-    'model': [
-        ('measurement_devices_mark', 'Mark', 'string'),
-        ('measurement_devices_model', 'Model', 'string'),
-        ('measurement_devices_manufacturer', 'Manufacturer', 'string'),
+    "model": [
+        ("measurement_devices_mark", "Mark", "string"),
+        ("measurement_devices_model", "Model", "string"),
+        ("measurement_devices_manufacturer", "Manufacturer", "string"),
     ],
-    'usage_info': [
-        ('measurement_devices_routine_application', 'Routine applications', 'text'),
-        ('measurement_devices_additional_components', 'Additional components', 'list'),
+    "usage_info": [
+        ("measurement_devices_routine_application", "Routine applications", "text"),
+        ("measurement_devices_additional_components", "Additional components", "list"),
     ],
 }
 
 computing_common_sections = {
-    'details': [
-        ('virtualization', 'Virtualization', 'choice'),
-        ('computing_network', 'Network', 'list'),
-        ('ha', 'High Availability', 'boolean'),
-        ('av_monitoring', 'Availability monitoring', 'boolean'),
+    "details": [
+        ("virtualization", "Virtualization", "choice"),
+        ("computing_network", "Network", "list"),
+        ("ha", "High Availability", "boolean"),
+        ("av_monitoring", "Availability monitoring", "boolean"),
     ],
-    'application': [
-        ('os', 'Operating system', 'list'),
-        ('application', 'Application', 'list'),
+    "application": [
+        ("os", "Operating system", "list"),
+        ("application", "Application", "list"),
     ],
 }
 
@@ -191,55 +191,55 @@ vpc_sections = {
 }
 
 vm_sections = {
-    'software': [
-        ('antivirus', 'Antivirus', 'boolean'),
+    "software": [
+        ("antivirus", "Antivirus", "boolean"),
     ],
-    'remote_access': [
-        ('vm_remote_access', 'Remote access', 'list'),
-        ('vm_access_level', 'Access level', 'choice'),
+    "remote_access": [
+        ("vm_remote_access", "Remote access", "list"),
+        ("vm_access_level", "Access level", "choice"),
     ],
 }
 
 email_sections = {
-    'software': [
-        ('email_software', 'Software', 'choice'),
+    "software": [
+        ("email_software", "Software", "choice"),
     ],
-    'features': [
+    "features": [
         (
-            'delegated_domain_administration',
-            'Delegated domain administration',
-            'boolean',
+            "delegated_domain_administration",
+            "Delegated domain administration",
+            "boolean",
         ),
-        ('calendar', 'Calendar management', 'boolean'),
-        ('webchat', 'Webchat', 'boolean'),
+        ("calendar", "Calendar management", "boolean"),
+        ("webchat", "Webchat", "boolean"),
     ],
 }
 
 storage_sections = {
-    'details': [
-        ('storage_type', 'Storage type', 'choice'),
+    "details": [
+        ("storage_type", "Storage type", "choice"),
     ],
-    'access': [
-        ('web_interface', 'Web interface', 'boolean'),
-        ('api', 'API', 'boolean'),
-        ('api_flavor', 'API flavor', 'list'),
+    "access": [
+        ("web_interface", "Web interface", "boolean"),
+        ("api", "API", "boolean"),
+        ("api_flavor", "API flavor", "list"),
     ],
-    'encryption': [
-        ('encryption_at_rest', 'Encryption at-rest', 'boolean'),
-        ('encryption_in_transit', 'Encryption in-transit', 'boolean'),
+    "encryption": [
+        ("encryption_at_rest", "Encryption at-rest", "boolean"),
+        ("encryption_in_transit", "Encryption in-transit", "boolean"),
     ],
 }
 
 common_expert_sections = {
-    'Scope': [
-        ('scope_of_services', 'Scope of services', 'list'),
+    "Scope": [
+        ("scope_of_services", "Scope of services", "list"),
     ]
 }
 
 operations_sections = {
-    'Supported services': [
-        ('os', 'Supported OS', 'list'),
-        ('application', 'Supported applications', 'list'),
+    "Supported services": [
+        ("os", "Supported OS", "list"),
+        ("application", "Supported applications", "list"),
     ],
 }
 
@@ -248,189 +248,189 @@ consultancy_sections = {
 }
 
 security_sections = {
-    'Application': [
-        ('security_application', 'Application', 'string'),
-        ('hardware_module', 'Hardware module', 'boolean'),
-        ('vendor_name', 'Vendor name', 'string'),
-        ('application_version', 'Application version', 'string'),
+    "Application": [
+        ("security_application", "Application", "string"),
+        ("hardware_module", "Hardware module", "boolean"),
+        ("vendor_name", "Vendor name", "string"),
+        ("application_version", "Application version", "string"),
     ],
-    'Access': [
-        ('security_access', 'Access', 'list'),
+    "Access": [
+        ("security_access", "Access", "list"),
     ],
 }
 
 network_section = {
-    'Technology': [
-        ('computing_network', 'Connected network', 'list'),
-        ('vpn_technology', 'VPN technology', 'list'),
+    "Technology": [
+        ("computing_network", "Connected network", "list"),
+        ("vpn_technology", "VPN technology", "list"),
     ]
 }
 
 specific_sections = {
-    'collocation': collocation_sections,
-    'computing': merge_two_dicts(computing_common_sections, vm_sections),
-    'consultancy': merge_two_dicts(common_expert_sections, consultancy_sections),
-    'email': email_sections,
-    'hpc': hpc_sections,
-    'lumi': lumi_sections,
-    'operations': merge_two_dicts(common_expert_sections, operations_sections),
-    'vm': merge_two_dicts(computing_common_sections, vm_sections),
-    'vpc': merge_two_dicts(computing_common_sections, vpc_sections),
-    'security': security_sections,
-    'measurement_devices': measurement_devices_sections,
-    'storage': storage_sections,
+    "collocation": collocation_sections,
+    "computing": merge_two_dicts(computing_common_sections, vm_sections),
+    "consultancy": merge_two_dicts(common_expert_sections, consultancy_sections),
+    "email": email_sections,
+    "hpc": hpc_sections,
+    "lumi": lumi_sections,
+    "operations": merge_two_dicts(common_expert_sections, operations_sections),
+    "vm": merge_two_dicts(computing_common_sections, vm_sections),
+    "vpc": merge_two_dicts(computing_common_sections, vpc_sections),
+    "security": security_sections,
+    "measurement_devices": measurement_devices_sections,
+    "storage": storage_sections,
 }
 
 enums = {
-    'languages': [
-        ('et', 'Estonian'),
-        ('en', 'English'),
-        ('lv', 'Latvian'),
-        ('lt', 'Lithuanian'),
-        ('ru', 'Russian'),
-        ('sw', 'Swedish'),
-        ('fi', 'Finnish'),
+    "languages": [
+        ("et", "Estonian"),
+        ("en", "English"),
+        ("lv", "Latvian"),
+        ("lt", "Lithuanian"),
+        ("ru", "Russian"),
+        ("sw", "Swedish"),
+        ("fi", "Finnish"),
     ],
-    'collocation_dimensions': [
-        ('600x800', '600 x 800'),
-        ('600x1000', '600 x 1000'),
+    "collocation_dimensions": [
+        ("600x800", "600 x 800"),
+        ("600x1000", "600 x 1000"),
     ],
-    'deployment_type': [
-        ('appliance', 'Appliance (Managed)'),
-        ('remote', 'Remote (SaaS)'),
+    "deployment_type": [
+        ("appliance", "Appliance (Managed)"),
+        ("remote", "Remote (SaaS)"),
     ],
-    'email_software': [
-        ('zimbra', 'Zimbra'),
-        ('ibm_lotus', 'IBM Lotus'),
+    "email_software": [
+        ("zimbra", "Zimbra"),
+        ("ibm_lotus", "IBM Lotus"),
     ],
-    'workdays': [
-        ('base', '5 days'),
-        ('extended', '7 days'),
+    "workdays": [
+        ("base", "5 days"),
+        ("extended", "7 days"),
     ],
-    'businesshours': [
-        ('basehours', '8 hours'),
-        ('extendedhours', '24 hours'),
+    "businesshours": [
+        ("basehours", "8 hours"),
+        ("extendedhours", "24 hours"),
     ],
-    'priority': [
-        ('eob', 'End-of-business day'),
-        ('nbd', 'Next business day'),
+    "priority": [
+        ("eob", "End-of-business day"),
+        ("nbd", "Next business day"),
     ],
-    'certification': [
-        ('iskel', 'ISKE L'),
-        ('iskem', 'ISKE M'),
-        ('iskeh', 'ISKE H'),
-        ('iso27001', 'ISO27001'),
+    "certification": [
+        ("iskel", "ISKE L"),
+        ("iskem", "ISKE M"),
+        ("iskeh", "ISKE H"),
+        ("iso27001", "ISO27001"),
     ],
-    'interconnect': [
-        ('infiniband_fdr', 'Infiniband FDR'),
-        ('infiniband_edr', 'Infiniband EDR'),
-        ('Ethernet_1G', 'Ethernet 1G'),
-        ('Ethernet_10G', 'Ethernet 10G'),
+    "interconnect": [
+        ("infiniband_fdr", "Infiniband FDR"),
+        ("infiniband_edr", "Infiniband EDR"),
+        ("Ethernet_1G", "Ethernet 1G"),
+        ("Ethernet_10G", "Ethernet 10G"),
     ],
-    'virtualization': [
-        ('kvm', 'KVM'),
-        ('xen', 'XEN'),
-        ('vmware', 'VMware'),
-        ('Baremetal', 'Baremetal'),
+    "virtualization": [
+        ("kvm", "KVM"),
+        ("xen", "XEN"),
+        ("vmware", "VMware"),
+        ("Baremetal", "Baremetal"),
     ],
-    'measurement_devices_type': [
-        ('aas', 'Atomic Absorption Spectrometer'),
-        ('spectrophotometer', 'Spectrophotometer'),
-        ('spectrometers', 'Spectrometers'),
+    "measurement_devices_type": [
+        ("aas", "Atomic Absorption Spectrometer"),
+        ("spectrophotometer", "Spectrophotometer"),
+        ("spectrometers", "Spectrometers"),
     ],
-    'measurement_devices_sample_matrix': [
-        ('liquids', 'Liquids'),
-        ('solds', 'Solids'),
+    "measurement_devices_sample_matrix": [
+        ("liquids", "Liquids"),
+        ("solds", "Solids"),
     ],
-    'measurement_devices_principle': [
-        ('x-ray-diffraction', 'X-ray diffraction'),
-        ('chromatography', 'Chromatography'),
-        ('mass-spectrometry ', 'Mass-spectrometry'),
-        ('electrophoresis', 'Electrophoresis'),
-        ('magnetic-resonance', 'Magnetic resonance'),
-        ('physical-properties', 'Physical properties'),
-        ('infrapuna-spektromeeter', 'Infrapuna spektromeeter'),
+    "measurement_devices_principle": [
+        ("x-ray-diffraction", "X-ray diffraction"),
+        ("chromatography", "Chromatography"),
+        ("mass-spectrometry ", "Mass-spectrometry"),
+        ("electrophoresis", "Electrophoresis"),
+        ("magnetic-resonance", "Magnetic resonance"),
+        ("physical-properties", "Physical properties"),
+        ("infrapuna-spektromeeter", "Infrapuna spektromeeter"),
         (
-            'thz-radiation-amplitude-and-phase',
-            'Measurement of THz radiation amplitude and phase',
+            "thz-radiation-amplitude-and-phase",
+            "Measurement of THz radiation amplitude and phase",
         ),
     ],
-    'measurement_devices_additional_components': [
-        ('autosampler-with-cooling', 'Autosampler with cooling'),
-        ('autosampler', 'Autosampler'),
-        ('photodiode-array-detector', 'Photodiode array detector (PDA)'),
-        ('column-thermostate', 'Column thermostate'),
-        ('flame-ionization-detector', 'Flame ionization detector (FID)'),
-        ('thermal-conductivity-detector', 'Thermal conductivity detector (TCD)'),
+    "measurement_devices_additional_components": [
+        ("autosampler-with-cooling", "Autosampler with cooling"),
+        ("autosampler", "Autosampler"),
+        ("photodiode-array-detector", "Photodiode array detector (PDA)"),
+        ("column-thermostate", "Column thermostate"),
+        ("flame-ionization-detector", "Flame ionization detector (FID)"),
+        ("thermal-conductivity-detector", "Thermal conductivity detector (TCD)"),
     ],
-    'scope_of_services': [
-        ('analysis', 'Analysis'),
-        ('implementation', 'Implementation'),
-        ('design', 'Design'),
-        ('deployment', 'Deployment'),
-        ('issue_resolution', 'issue_resolution'),
-        ('change_management', 'Change management'),
-        ('disaster_recovery', 'Disaster recovery'),
+    "scope_of_services": [
+        ("analysis", "Analysis"),
+        ("implementation", "Implementation"),
+        ("design", "Design"),
+        ("deployment", "Deployment"),
+        ("issue_resolution", "issue_resolution"),
+        ("change_management", "Change management"),
+        ("disaster_recovery", "Disaster recovery"),
     ],
-    'security_access': [
-        ('api', 'API'),
-        ('offline', 'Offline'),
+    "security_access": [
+        ("api", "API"),
+        ("offline", "Offline"),
     ],
-    'storage_type': [
-        ('block', 'Block'),
-        ('object', 'Object'),
-        ('fs', 'Filesystem'),
+    "storage_type": [
+        ("block", "Block"),
+        ("object", "Object"),
+        ("fs", "Filesystem"),
     ],
-    'computing_network': [
-        ('private', 'Private (own)'),
-        ('aso', 'ASO'),
-        ('ddn', 'DDN'),
-        ('ogn', 'OGN'),
-        ('banglagovnet', 'BanglaGovNet'),
-        ('public', 'Public Internet'),
+    "computing_network": [
+        ("private", "Private (own)"),
+        ("aso", "ASO"),
+        ("ddn", "DDN"),
+        ("ogn", "OGN"),
+        ("banglagovnet", "BanglaGovNet"),
+        ("public", "Public Internet"),
     ],
-    'vpn_technology': [
-        ('ipsec', 'IPSEC'),
-        ('gre+ipsec', 'GRE + IPSEC'),
+    "vpn_technology": [
+        ("ipsec", "IPSEC"),
+        ("gre+ipsec", "GRE + IPSEC"),
     ],
-    'vm_access_level': [
-        ('root', 'Root / Administrator'),
-        ('user', 'User level'),
+    "vm_access_level": [
+        ("root", "Root / Administrator"),
+        ("user", "User level"),
     ],
-    'api_flavor': [
-        ('s3', 'S3'),
-        ('swift', 'Swift'),
-        ('custom', 'Custom'),
+    "api_flavor": [
+        ("s3", "S3"),
+        ("swift", "Swift"),
+        ("custom", "Custom"),
     ],
-    'vm_remote_access': [
-        ('console', 'Console'),
-        ('ssh_rdp', 'SSH/RDP'),
-        ('direct_access', 'Direct access'),
+    "vm_remote_access": [
+        ("console", "Console"),
+        ("ssh_rdp", "SSH/RDP"),
+        ("direct_access", "Direct access"),
     ],
-    'collocation_remote_access': [
-        ('vpn', 'VPN'),
+    "collocation_remote_access": [
+        ("vpn", "VPN"),
     ],
-    'os': [
-        ('ubuntu16.04', 'Ubuntu 16.04'),
-        ('centos7', 'CentOS 7'),
-        ('windows2016', 'Windows 2016'),
-        ('rhel7', 'RHEL 7'),
+    "os": [
+        ("ubuntu16.04", "Ubuntu 16.04"),
+        ("centos7", "CentOS 7"),
+        ("windows2016", "Windows 2016"),
+        ("rhel7", "RHEL 7"),
     ],
-    'application': [
-        ('zevenet', 'Zevenet'),
-        ('owncloud', 'Owncloud'),
-        ('lamp', 'LAMP'),
-        ('nginx', 'Nginx'),
-        ('iis', 'IIS'),
-        ('mssql2017', 'MS SQL Server 2017'),
-        ('mysql57', 'MySQL 5.7'),
+    "application": [
+        ("zevenet", "Zevenet"),
+        ("owncloud", "Owncloud"),
+        ("lamp", "LAMP"),
+        ("nginx", "Nginx"),
+        ("iis", "IIS"),
+        ("mssql2017", "MS SQL Server 2017"),
+        ("mysql57", "MySQL 5.7"),
     ],
 }
 
 
 def populate_category(category_code, category, sections):
     for section_key in sections.keys():
-        section_prefix = f'{category_code}_{section_key}'
+        section_prefix = f"{category_code}_{section_key}"
         sec, _ = Section.objects.get_or_create(
             key=section_prefix, title=humanize(section_key), category=category
         )
@@ -439,7 +439,7 @@ def populate_category(category_code, category, sections):
         for attribute in sections[section_key]:
             key, title, attribute_type = attribute
             attr, _ = Attribute.objects.get_or_create(
-                key=f'{section_prefix}_{key}',
+                key=f"{section_prefix}_{key}",
                 title=title,
                 type=attribute_type,
                 section=sec,
@@ -449,7 +449,7 @@ def populate_category(category_code, category, sections):
                 for val_key, val_label in values:
                     AttributeOption.objects.get_or_create(
                         attribute=attr,
-                        key=f'{section_prefix}_{key}_{val_key}',
+                        key=f"{section_prefix}_{key}_{val_key}",
                         title=val_label,
                     )
 
@@ -459,16 +459,16 @@ def load_category(category_short):
     args = dict(title=category_name, description=category_description)
 
     new_category, _ = Category.objects.get_or_create(**args)
-    if category_name == 'vm':
+    if category_name == "vm":
         new_category.default_vm_category = True
-    if category_name == 'storage':
+    if category_name == "storage":
         new_category.default_volume_category = True
-    if category_name == 'vpc':
+    if category_name == "vpc":
         new_category.default_tenant_category = True
 
-    category_icon = '%s.svg' % category_short
-    path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'category_icons/')
-    new_category.icon.save(category_icon, File(open(path + category_icon, 'rb')))
+    category_icon = "%s.svg" % category_short
+    path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "category_icons/")
+    new_category.icon.save(category_icon, File(open(path + category_icon, "rb")))
     new_category.save()
     # populate category with common section
     populate_category(category_short, new_category, common_sections)
@@ -483,11 +483,11 @@ def load_category(category_short):
     for index, attribute in enumerate(columns):
         CategoryColumn.objects.get_or_create(
             category=new_category,
-            title=attribute['title'],
+            title=attribute["title"],
             defaults=dict(
                 index=index,
-                attribute=attribute.get('attribute', ''),
-                widget=attribute.get('widget'),
+                attribute=attribute.get("attribute", ""),
+                widget=attribute.get("widget"),
             ),
         )
 
@@ -496,31 +496,31 @@ def load_category(category_short):
     for component in components:
         CategoryComponent.objects.get_or_create(
             category=new_category,
-            type=component['type'],
+            type=component["type"],
             defaults=dict(
-                name=component['name'],
-                measured_unit=component.get('measured_unit'),
+                name=component["name"],
+                measured_unit=component.get("measured_unit"),
             ),
         )
     return new_category
 
 
 class Command(BaseCommand):
-    help = 'Loads a categories for the Marketplace'
+    help = "Loads a categories for the Marketplace"
 
     missing_args_message = (
-        'Please define at least one category to load, available are:\n%s'
-        % '\n'.join(available_categories.keys())
+        "Please define at least one category to load, available are:\n%s"
+        % "\n".join(available_categories.keys())
     )
 
     def add_arguments(self, parser):
         parser.add_argument(
-            'category', nargs='+', type=str, help='List of categories to load'
+            "category", nargs="+", type=str, help="List of categories to load"
         )
 
     def handle(self, *args, **options):
         all_categories = available_categories.keys()
-        for category_short in options['category']:
+        for category_short in options["category"]:
             if category_short not in all_categories:
                 self.stdout.write(
                     self.style.WARNING(
@@ -531,6 +531,6 @@ class Command(BaseCommand):
             new_category = load_category(category_short)
             self.stdout.write(
                 self.style.SUCCESS(
-                    f'Loaded category {category_short}, {new_category.uuid} '
+                    f"Loaded category {category_short}, {new_category.uuid} "
                 )
             )

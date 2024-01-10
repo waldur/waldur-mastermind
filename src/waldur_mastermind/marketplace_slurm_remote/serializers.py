@@ -6,7 +6,7 @@ from waldur_slurm import models as slurm_models
 class UsernameSerializer(serializers.ModelSerializer):
     class Meta:
         model = slurm_models.Association
-        fields = ('username',)
+        fields = ("username",)
 
 
 class SetStateSerializer(serializers.Serializer):
@@ -16,4 +16,4 @@ class SetStateSerializer(serializers.Serializer):
 class SetBackendIdSerializer(serializers.ModelSerializer):
     class Meta:
         model = slurm_models.Allocation
-        fields = ('backend_id',)
+        fields = ("backend_id",)

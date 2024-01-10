@@ -2,7 +2,7 @@ from typing import Generic, TypeVar
 
 import factory
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class BaseMetaFactory(Generic[T], factory.base.FactoryMetaClass):

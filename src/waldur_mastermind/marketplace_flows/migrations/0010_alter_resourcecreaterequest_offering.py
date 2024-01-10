@@ -6,18 +6,18 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace', '0090_alter_resource_offering'),
-        ('marketplace_flows', '0009_end_date_requested_by'),
+        ("marketplace", "0090_alter_resource_offering"),
+        ("marketplace_flows", "0009_end_date_requested_by"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='resourcecreaterequest',
-            name='offering',
+            model_name="resourcecreaterequest",
+            name="offering",
             field=models.ForeignKey(
                 on_delete=django.db.models.deletion.CASCADE,
-                related_name='+',
-                to='marketplace.offering',
+                related_name="+",
+                to="marketplace.offering",
             ),
         ),
     ]

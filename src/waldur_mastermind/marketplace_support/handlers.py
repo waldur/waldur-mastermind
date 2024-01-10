@@ -31,7 +31,7 @@ def update_order_if_issue_was_complete(sender, instance, created=False, **kwargs
 
     issue = instance
 
-    if not issue.tracker.has_changed('status'):
+    if not issue.tracker.has_changed("status"):
         return
 
     if not (
@@ -52,7 +52,7 @@ def notify_about_request_based_item_creation(sender, instance, created=False, **
 
     issue = instance
 
-    if not issue.tracker.has_changed('backend_id'):
+    if not issue.tracker.has_changed("backend_id"):
         return
 
     if not (
@@ -64,11 +64,11 @@ def notify_about_request_based_item_creation(sender, instance, created=False, **
         return
 
     order = issue.resource
-    service_provider = getattr(order.offering.customer, 'serviceprovider', None)
+    service_provider = getattr(order.offering.customer, "serviceprovider", None)
 
     if not service_provider:
         logger.warning(
-            'Customer providing an Offering is not registered as a Service Provider.'
+            "Customer providing an Offering is not registered as a Service Provider."
         )
         return
 
@@ -78,16 +78,16 @@ def notify_about_request_based_item_creation(sender, instance, created=False, **
     attributes_with_display_names = {}
 
     for attribute_key, attribute_value in order.attributes.items():
-        if attribute_key in order.offering.options['options'].keys():
-            display_name = order.offering.options['options'][attribute_key]['label']
+        if attribute_key in order.offering.options["options"].keys():
+            display_name = order.offering.options["options"][attribute_key]["label"]
             attributes_with_display_names[display_name] = attribute_value
             continue
 
         attributes_with_display_names[attribute_key] = attribute_value
 
-    setattr(order, 'attributes_with_display_names', attributes_with_display_names)
+    setattr(order, "attributes_with_display_names", attributes_with_display_names)
 
-    context = Context({'order': order, 'issue': issue}, autoescape=False)
+    context = Context({"order": order, "issue": issue}, autoescape=False)
     template = Template(service_provider.lead_body)
     message = template.render(context).strip()
     template = Template(service_provider.lead_subject)

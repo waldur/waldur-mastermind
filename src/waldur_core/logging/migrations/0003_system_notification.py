@@ -7,30 +7,30 @@ import waldur_core.core.fields
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('logging', '0002_immutable_default_json'),
+        ("logging", "0002_immutable_default_json"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='systemnotification',
-            name='name',
-            field=models.CharField(default='', max_length=150, verbose_name='name'),
+            model_name="systemnotification",
+            name="name",
+            field=models.CharField(default="", max_length=150, verbose_name="name"),
             preserve_default=False,
         ),
         migrations.AddField(
-            model_name='systemnotification',
-            name='roles',
+            model_name="systemnotification",
+            name="roles",
             field=waldur_core.core.fields.JSONField(
-                default=list, verbose_name='List of roles'
+                default=list, verbose_name="List of roles"
             ),
         ),
         migrations.AlterField(
-            model_name='systemnotification',
-            name='hook_content_type',
+            model_name="systemnotification",
+            name="hook_content_type",
             field=models.ForeignKey(
                 on_delete=django.db.models.deletion.CASCADE,
-                related_name='+',
-                to='contenttypes.ContentType',
+                related_name="+",
+                to="contenttypes.ContentType",
             ),
         ),
     ]

@@ -37,17 +37,17 @@ class StatsBaseTest(test.APITransactionTestCase):
         self.offering_component = factories.OfferingComponentFactory(
             offering=self.offering,
             parent=self.category_component,
-            type='cores',
+            type="cores",
             billing_type=models.OfferingComponent.BillingTypes.LIMIT,
         )
 
 
-@freeze_time('2019-01-22')
+@freeze_time("2019-01-22")
 class StatsTest(StatsBaseTest):
     def setUp(self):
         super().setUp()
 
-        self.date = parse_date('2019-01-01')
+        self.date = parse_date("2019-01-01")
 
         self.plan = factories.PlanFactory(offering=self.offering)
         self.plan_component = factories.PlanComponentFactory(
@@ -61,7 +61,7 @@ class StatsTest(StatsBaseTest):
     def test_reported_usage_is_aggregated_for_project_and_customer(self):
         # Arrange
         plan_period = models.ResourcePlanPeriod.objects.create(
-            start=parse_datetime('2019-01-01'),
+            start=parse_datetime("2019-01-01"),
             resource=self.resource,
             plan=self.plan,
         )
@@ -69,8 +69,8 @@ class StatsTest(StatsBaseTest):
         models.ComponentUsage.objects.create(
             resource=self.resource,
             component=self.offering_component,
-            date=parse_date('2019-01-10'),
-            billing_period=parse_date('2019-01-01'),
+            date=parse_date("2019-01-10"),
+            billing_period=parse_date("2019-01-01"),
             plan_period=plan_period,
             usage=100,
         )
@@ -80,7 +80,7 @@ class StatsTest(StatsBaseTest):
         )
 
         new_plan_period = models.ResourcePlanPeriod.objects.create(
-            start=parse_date('2019-01-01'),
+            start=parse_date("2019-01-01"),
             resource=self.new_resource,
             plan=self.plan,
         )
@@ -88,8 +88,8 @@ class StatsTest(StatsBaseTest):
         models.ComponentUsage.objects.create(
             resource=self.resource,
             component=self.offering_component,
-            date=parse_date('2019-01-20'),
-            billing_period=parse_date('2019-01-01'),
+            date=parse_date("2019-01-20"),
+            billing_period=parse_date("2019-01-01"),
             plan_period=new_plan_period,
             usage=200,
         )
@@ -121,8 +121,8 @@ class StatsTest(StatsBaseTest):
         models.ResourcePlanPeriod.objects.create(
             resource=self.resource,
             plan=self.plan,
-            start=parse_date('2019-01-10'),
-            end=parse_date('2019-01-20'),
+            start=parse_date("2019-01-10"),
+            end=parse_date("2019-01-20"),
         )
 
         # Act
@@ -150,21 +150,21 @@ class StatsTest(StatsBaseTest):
         self.assertEqual(customer_usage, self.plan_component.amount)
 
     def test_offering_customers_stats(self):
-        url = factories.OfferingFactory.get_url(self.offering, action='customers')
+        url = factories.OfferingFactory.get_url(self.offering, action="customers")
         self.client.force_authenticate(self.fixture.staff)
         result = self.client.get(url)
         self.assertEqual(result.status_code, status.HTTP_200_OK)
         self.assertEqual(len(result.data), 1)
         self.assertEqual(
-            result.data[0]['uuid'], self.resource.project.customer.uuid.hex
+            result.data[0]["uuid"], self.resource.project.customer.uuid.hex
         )
 
 
-@freeze_time('2020-01-01')
+@freeze_time("2020-01-01")
 class CostsStatsTest(StatsBaseTest):
     def setUp(self):
         super().setUp()
-        self.url = factories.OfferingFactory.get_url(self.offering, action='costs')
+        self.url = factories.OfferingFactory.get_url(self.offering, action="costs")
 
         self.plan = factories.PlanFactory(
             offering=self.offering,
@@ -178,40 +178,40 @@ class CostsStatsTest(StatsBaseTest):
             offering=self.offering,
             state=models.Resource.States.OK,
             plan=self.plan,
-            limits={'cores': 1},
+            limits={"cores": 1},
         )
         invoices_tasks.create_monthly_invoices()
 
     def test_offering_costs_stats(self):
-        with freeze_time('2020-03-01'):
+        with freeze_time("2020-03-01"):
             self._check_stats()
 
     def test_period_filter(self):
         self.client.force_authenticate(self.fixture.staff)
 
-        result = self.client.get(self.url, {'other_param': ''})
+        result = self.client.get(self.url, {"other_param": ""})
         self.assertEqual(result.status_code, status.HTTP_200_OK)
 
-        result = self.client.get(self.url, {'start': '2020-01'})
+        result = self.client.get(self.url, {"start": "2020-01"})
         self.assertEqual(result.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_offering_costs_stats_if_resource_has_been_failed(self):
-        with freeze_time('2020-03-01'):
+        with freeze_time("2020-03-01"):
             self.resource.state = models.Resource.States.ERRED
             self.resource.save()
             self._check_stats()
 
     def _check_stats(self):
         self.client.force_authenticate(self.fixture.staff)
-        result = self.client.get(self.url, {'start': '2020-01', 'end': '2020-02'})
+        result = self.client.get(self.url, {"start": "2020-01", "end": "2020-02"})
         self.assertEqual(result.status_code, status.HTTP_200_OK)
         self.assertDictEqual(
             result.data[0],
             {
-                'tax': 0,
-                'total': self.plan_component.price * 31,
-                'price': self.plan_component.price * 31,
-                'period': '2020-01',
+                "tax": 0,
+                "total": self.plan_component.price * 31,
+                "price": self.plan_component.price * 31,
+                "period": "2020-01",
             },
         )
 
@@ -220,18 +220,18 @@ class CostsStatsTest(StatsBaseTest):
         self.assertEqual(result.status_code, status.HTTP_401_UNAUTHORIZED)
 
         customers_url = factories.OfferingFactory.get_url(
-            self.offering, action='customers'
+            self.offering, action="customers"
         )
         result = self.client.get(customers_url)
         self.assertEqual(result.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
-@freeze_time('2020-03-01')
+@freeze_time("2020-03-01")
 class ComponentStatsTest(StatsBaseTest):
     def setUp(self):
         super().setUp()
         self.url = factories.OfferingFactory.get_url(
-            self.offering, action='component_stats'
+            self.offering, action="component_stats"
         )
 
         self.plan = factories.PlanFactory(
@@ -246,7 +246,7 @@ class ComponentStatsTest(StatsBaseTest):
             offering=self.offering,
             state=models.Resource.States.OK,
             plan=self.plan,
-            limits={'cores': 1},
+            limits={"cores": 1},
         )
 
     def _create_items(self):
@@ -261,7 +261,7 @@ class ComponentStatsTest(StatsBaseTest):
         component = factories.OfferingComponentFactory(
             offering=self.resource.offering,
             billing_type=models.OfferingComponent.BillingTypes.LIMIT,
-            type='storage',
+            type="storage",
         )
         factories.ComponentUsageFactory(
             resource=self.resource,
@@ -272,25 +272,25 @@ class ComponentStatsTest(StatsBaseTest):
         self.assertDictEqual(
             item.details,
             {
-                'resource_name': item.resource.name,
-                'resource_uuid': item.resource.uuid.hex,
-                'service_provider_name': self.resource.offering.customer.name,
-                'service_provider_uuid': sp.uuid.hex,
-                'offering_name': self.offering.name,
-                'offering_type': TENANT_TYPE,
-                'offering_uuid': self.offering.uuid.hex,
-                'plan_name': self.resource.plan.name,
-                'plan_uuid': self.resource.plan.uuid.hex,
-                'plan_component_id': self.plan_component.id,
-                'offering_component_type': self.plan_component.component.type,
-                'offering_component_name': self.plan_component.component.name,
-                'resource_limit_periods': [
+                "resource_name": item.resource.name,
+                "resource_uuid": item.resource.uuid.hex,
+                "service_provider_name": self.resource.offering.customer.name,
+                "service_provider_uuid": sp.uuid.hex,
+                "offering_name": self.offering.name,
+                "offering_type": TENANT_TYPE,
+                "offering_uuid": self.offering.uuid.hex,
+                "plan_name": self.resource.plan.name,
+                "plan_uuid": self.resource.plan.uuid.hex,
+                "plan_component_id": self.plan_component.id,
+                "offering_component_type": self.plan_component.component.type,
+                "offering_component_name": self.plan_component.component.name,
+                "resource_limit_periods": [
                     {
-                        'end': '2020-03-31T23:59:59.999999+00:00',
-                        'start': '2020-03-01T00:00:00+00:00',
-                        'total': '31',
-                        'quantity': 1,
-                        'billing_periods': 31,
+                        "end": "2020-03-31T23:59:59.999999+00:00",
+                        "start": "2020-03-01T00:00:00+00:00",
+                        "total": "31",
+                        "quantity": 1,
+                        "billing_periods": 31,
                     }
                 ],
             },
@@ -308,18 +308,18 @@ class ComponentStatsTest(StatsBaseTest):
 
         self._create_items()
         self.client.force_authenticate(self.fixture.staff)
-        result = self.client.get(self.url, {'start': '2020-03', 'end': '2020-03'})
+        result = self.client.get(self.url, {"start": "2020-03", "end": "2020-03"})
         self.assertEqual(
             result.data,
             [
                 {
-                    'description': self.offering_component.description,
-                    'measured_unit': self.offering_component.measured_unit,
-                    'name': self.offering_component.name,
-                    'period': '2020-03',
-                    'date': '2020-03-31T00:00:00+00:00',
-                    'type': self.offering_component.type,
-                    'usage': 31,
+                    "description": self.offering_component.description,
+                    "measured_unit": self.offering_component.measured_unit,
+                    "name": self.offering_component.name,
+                    "period": "2020-03",
+                    "date": "2020-03-31T00:00:00+00:00",
+                    "type": self.offering_component.type,
+                    "usage": 31,
                 }
             ],
         )
@@ -329,7 +329,7 @@ class ComponentStatsTest(StatsBaseTest):
         self.resource.offering.save()
 
         # add usage-based component to the offering and plan
-        COMPONENT_TYPE = 'storage'
+        COMPONENT_TYPE = "storage"
         new_component = factories.OfferingComponentFactory(
             offering=self.resource.offering,
             billing_type=models.OfferingComponent.BillingTypes.USAGE,
@@ -355,32 +355,32 @@ class ComponentStatsTest(StatsBaseTest):
             usage=2,
         )
         self.client.force_authenticate(self.fixture.staff)
-        result = self.client.get(self.url, {'start': '2020-03', 'end': '2020-03'})
-        component_cores = self.resource.offering.components.get(type='cores')
-        component_storage = self.resource.offering.components.get(type='storage')
+        result = self.client.get(self.url, {"start": "2020-03", "end": "2020-03"})
+        component_cores = self.resource.offering.components.get(type="cores")
+        component_storage = self.resource.offering.components.get(type="storage")
         self.assertEqual(len(result.data), 2)
         self.assertEqual(
-            [r for r in result.data if r['type'] == component_cores.type][0],
+            [r for r in result.data if r["type"] == component_cores.type][0],
             {
-                'description': component_cores.description,
-                'measured_unit': component_cores.measured_unit,
-                'name': component_cores.name,
-                'period': '2020-03',
-                'date': '2020-03-31T00:00:00+00:00',
-                'type': component_cores.type,
-                'usage': 31,  # days in March of 1 core usage with per-day plan
+                "description": component_cores.description,
+                "measured_unit": component_cores.measured_unit,
+                "name": component_cores.name,
+                "period": "2020-03",
+                "date": "2020-03-31T00:00:00+00:00",
+                "type": component_cores.type,
+                "usage": 31,  # days in March of 1 core usage with per-day plan
             },
         )
         self.assertEqual(
-            [r for r in result.data if r['type'] == component_storage.type][0],
+            [r for r in result.data if r["type"] == component_storage.type][0],
             {
-                'description': component_storage.description,
-                'measured_unit': component_storage.measured_unit,
-                'name': component_storage.name,
-                'period': '2020-03',
-                'date': '2020-03-31T00:00:00+00:00',
-                'type': component_storage.type,
-                'usage': 2,
+                "description": component_storage.description,
+                "measured_unit": component_storage.measured_unit,
+                "name": component_storage.name,
+                "period": "2020-03",
+                "date": "2020-03-31T00:00:00+00:00",
+                "type": component_storage.type,
+                "usage": 2,
             },
         )
 
@@ -391,20 +391,20 @@ class CustomerStatsTest(test.APITransactionTestCase):
         self.fixture = structure_fixtures.ProjectFixture()
 
     @data(
-        'staff',
-        'global_support',
+        "staff",
+        "global_support",
     )
     def test_user_can_get_marketplace_stats(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
-        response = self.client.get('/api/marketplace-stats/customer_member_count/')
+        response = self.client.get("/api/marketplace-stats/customer_member_count/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    @data('owner', 'user', 'customer_support', 'admin', 'manager')
+    @data("owner", "user", "customer_support", "admin", "manager")
     def test_user_cannot_get_marketplace_stats(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
-        response = self.client.get('/api/marketplace-stats/customer_member_count/')
+        response = self.client.get("/api/marketplace-stats/customer_member_count/")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_field_of_count_if_several_quotas_exist(self):
@@ -412,20 +412,20 @@ class CustomerStatsTest(test.APITransactionTestCase):
         quota_1 = quotas_factories.QuotaFactory(
             object_id=customer.id,
             content_type=ContentType.objects.get_for_model(customer.__class__),
-            name='nc_user_count',
+            name="nc_user_count",
             delta=10,
         )
         quota_2 = quotas_factories.QuotaFactory(
             object_id=customer.id,
             content_type=ContentType.objects.get_for_model(customer.__class__),
-            name='nc_user_count',
+            name="nc_user_count",
             delta=5,
         )
-        user = getattr(self.fixture, 'staff')
+        user = getattr(self.fixture, "staff")
         self.client.force_authenticate(user)
-        response = self.client.get('/api/marketplace-stats/customer_member_count/')
+        response = self.client.get("/api/marketplace-stats/customer_member_count/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data[0]['count'], quota_1.delta + quota_2.delta)
+        self.assertEqual(response.data[0]["count"], quota_1.delta + quota_2.delta)
 
 
 @ddt
@@ -433,31 +433,31 @@ class LimitsStatsTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.resource_1 = factories.ResourceFactory(
-            limits={'cpu': 5}, state=models.Resource.States.OK
+            limits={"cpu": 5}, state=models.Resource.States.OK
         )
         factories.ResourceFactory(
-            limits={'cpu': 2},
+            limits={"cpu": 2},
             state=models.Resource.States.OK,
             offering=self.resource_1.offering,
         )
         self.resource_2 = factories.ResourceFactory(
-            limits={'cpu': 10, 'ram': 1}, state=models.Resource.States.OK
+            limits={"cpu": 10, "ram": 1}, state=models.Resource.States.OK
         )
-        self.url = '/api/marketplace-stats/resources_limits/'
+        self.url = "/api/marketplace-stats/resources_limits/"
 
         self.division_1 = structure_factories.DivisionFactory()
         self.division_2 = structure_factories.DivisionFactory()
         self.resource_1.offering.divisions.add(self.division_1, self.division_2)
 
-        self.resource_1.offering.country = 'EE'
+        self.resource_1.offering.country = "EE"
         self.resource_1.offering.save()
 
-        self.resource_2.offering.customer.country = 'FI'
+        self.resource_2.offering.customer.country = "FI"
         self.resource_2.offering.customer.save()
 
     @data(
         # skipping because it is not stable now 'staff',
-        'global_support',
+        "global_support",
     )
     def test_user_can_get_marketplace_stats(self, user):
         user = getattr(self.fixture, user)
@@ -470,50 +470,50 @@ class LimitsStatsTest(test.APITransactionTestCase):
         )
         self.assertTrue(
             {
-                'offering_uuid': self.resource_1.offering.uuid,
-                'name': 'cpu',
-                'value': 7,
-                'offering_country': 'EE',
-                'division_name': self.division_1.name,
-                'division_uuid': self.division_1.uuid.hex,
+                "offering_uuid": self.resource_1.offering.uuid,
+                "name": "cpu",
+                "value": 7,
+                "offering_country": "EE",
+                "division_name": self.division_1.name,
+                "division_uuid": self.division_1.uuid.hex,
             }
             in response.data,
         )
         self.assertTrue(
             {
-                'offering_uuid': self.resource_1.offering.uuid,
-                'name': 'cpu',
-                'value': 7,
-                'offering_country': 'EE',
-                'division_name': self.division_2.name,
-                'division_uuid': self.division_2.uuid.hex,
+                "offering_uuid": self.resource_1.offering.uuid,
+                "name": "cpu",
+                "value": 7,
+                "offering_country": "EE",
+                "division_name": self.division_2.name,
+                "division_uuid": self.division_2.uuid.hex,
             }
             in response.data,
         )
         self.assertTrue(
             {
-                'offering_uuid': self.resource_2.offering.uuid,
-                'name': 'cpu',
-                'value': 10,
-                'offering_country': 'FI',
-                'division_name': '',
-                'division_uuid': '',
+                "offering_uuid": self.resource_2.offering.uuid,
+                "name": "cpu",
+                "value": 10,
+                "offering_country": "FI",
+                "division_name": "",
+                "division_uuid": "",
             }
             in response.data,
         )
         self.assertTrue(
             {
-                'offering_uuid': self.resource_2.offering.uuid,
-                'name': 'ram',
-                'value': 1,
-                'offering_country': 'FI',
-                'division_name': '',
-                'division_uuid': '',
+                "offering_uuid": self.resource_2.offering.uuid,
+                "name": "ram",
+                "value": 1,
+                "offering_country": "FI",
+                "division_name": "",
+                "division_uuid": "",
             }
             in response.data,
         )
 
-    @data('owner', 'user', 'customer_support', 'admin', 'manager')
+    @data("owner", "user", "customer_support", "admin", "manager")
     def test_user_cannot_get_marketplace_stats(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
@@ -525,11 +525,11 @@ class LimitsStatsTest(test.APITransactionTestCase):
 class CountUsersOfServiceProviderTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
-        self.url = '/api/marketplace-stats/count_users_of_service_providers/'
+        self.url = "/api/marketplace-stats/count_users_of_service_providers/"
 
     @data(
-        'staff',
-        'global_support',
+        "staff",
+        "global_support",
     )
     def test_user_can_get_marketplace_stats(self, user):
         user = getattr(self.fixture, user)
@@ -538,7 +538,7 @@ class CountUsersOfServiceProviderTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
 
-    @data('owner', 'user', 'customer_support', 'admin', 'manager')
+    @data("owner", "user", "customer_support", "admin", "manager")
     def test_user_cannot_get_marketplace_stats(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
@@ -550,11 +550,11 @@ class CountUsersOfServiceProviderTest(test.APITransactionTestCase):
 class CountProjectsGroupedByOecdOfServiceProviderTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
-        self.url = '/api/marketplace-stats/count_projects_of_service_providers_grouped_by_oecd/'
+        self.url = "/api/marketplace-stats/count_projects_of_service_providers_grouped_by_oecd/"
 
     @data(
-        'staff',
-        'global_support',
+        "staff",
+        "global_support",
     )
     def test_user_can_get_marketplace_stats(self, user):
         user = getattr(self.fixture, user)
@@ -563,7 +563,7 @@ class CountProjectsGroupedByOecdOfServiceProviderTest(test.APITransactionTestCas
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
 
-    @data('owner', 'user', 'customer_support', 'admin', 'manager')
+    @data("owner", "user", "customer_support", "admin", "manager")
     def test_user_cannot_get_marketplace_stats(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
@@ -577,11 +577,11 @@ class CountUniqueUsersConnectedWithActiveResourcesOfServiceProviderTest(
 ):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
-        self.url = '/api/marketplace-stats/count_unique_users_connected_with_active_resources_of_service_provider/'
+        self.url = "/api/marketplace-stats/count_unique_users_connected_with_active_resources_of_service_provider/"
 
     @data(
-        'staff',
-        'global_support',
+        "staff",
+        "global_support",
     )
     def test_user_can_get_marketplace_stats(self, user):
         user = getattr(self.fixture, user)
@@ -595,24 +595,24 @@ class CountUniqueUsersConnectedWithActiveResourcesOfServiceProviderTest(
 
         response = self.client.get(self.url)
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['count_users'], 0)
+        self.assertEqual(response.data[0]["count_users"], 0)
 
         self.fixture.admin
         response = self.client.get(self.url)
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['count_users'], 1)
+        self.assertEqual(response.data[0]["count_users"], 1)
 
         self.fixture.member
         response = self.client.get(self.url)
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['count_users'], 2)
+        self.assertEqual(response.data[0]["count_users"], 2)
 
         self.fixture.manager
         response = self.client.get(self.url)
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['count_users'], 3)
+        self.assertEqual(response.data[0]["count_users"], 3)
 
-    @data('owner', 'user', 'customer_support', 'admin', 'manager')
+    @data("owner", "user", "customer_support", "admin", "manager")
     def test_user_cannot_get_marketplace_stats(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
@@ -621,7 +621,7 @@ class CountUniqueUsersConnectedWithActiveResourcesOfServiceProviderTest(
 
 
 class CountCustomersTest(test.APITransactionTestCase):
-    @freeze_time('2020-01-01')
+    @freeze_time("2020-01-01")
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.service_provider = self.fixture.service_provider
@@ -654,7 +654,7 @@ class CountCustomersTest(test.APITransactionTestCase):
         return resource.save()
 
     def test_count_customers_number_change(self):
-        with freeze_time('2022-01-10'):
+        with freeze_time("2022-01-10"):
             self.assertEqual(
                 0, utils.count_customers_number_change(self.service_provider)
             )
@@ -675,7 +675,7 @@ class CountCustomersTest(test.APITransactionTestCase):
                 2, utils.count_customers_number_change(self.service_provider)
             )
 
-        with freeze_time('2022-02-10'):
+        with freeze_time("2022-02-10"):
             self.assertEqual(
                 0, utils.count_customers_number_change(self.service_provider)
             )
@@ -690,7 +690,7 @@ class CountCustomersTest(test.APITransactionTestCase):
                 -1, utils.count_customers_number_change(self.service_provider)
             )
 
-        with freeze_time('2022-03-10'):
+        with freeze_time("2022-03-10"):
             self.assertEqual(
                 0, utils.count_customers_number_change(self.service_provider)
             )
@@ -701,7 +701,7 @@ class CountCustomersTest(test.APITransactionTestCase):
             )
 
     def test_count_resources_number_change(self):
-        with freeze_time('2022-01-10'):
+        with freeze_time("2022-01-10"):
             self.assertEqual(
                 0, utils.count_resources_number_change(self.service_provider)
             )
@@ -722,7 +722,7 @@ class CountCustomersTest(test.APITransactionTestCase):
                 2, utils.count_resources_number_change(self.service_provider)
             )
 
-        with freeze_time('2022-02-10'):
+        with freeze_time("2022-02-10"):
             self.assertEqual(
                 0, utils.count_resources_number_change(self.service_provider)
             )
@@ -737,7 +737,7 @@ class CountCustomersTest(test.APITransactionTestCase):
                 0, utils.count_resources_number_change(self.service_provider)
             )
 
-        with freeze_time('2022-03-10'):
+        with freeze_time("2022-03-10"):
             self.assertEqual(
                 0, utils.count_resources_number_change(self.service_provider)
             )
@@ -749,30 +749,30 @@ class CountCustomersTest(test.APITransactionTestCase):
 
 
 class OfferingStatsTest(test.APITransactionTestCase):
-    @freeze_time('2020-01-01')
+    @freeze_time("2020-01-01")
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
-        self.url = factories.OfferingFactory.get_url(self.offering, 'stats')
+        self.url = factories.OfferingFactory.get_url(self.offering, "stats")
 
     def test_offering_stats(self):
         self.client.force_authenticate(self.fixture.offering_owner)
         response = self.client.get(self.url)
-        self.assertEqual(response.data['resources_count'], 1)
-        self.assertEqual(response.data['customers_count'], 1)
+        self.assertEqual(response.data["resources_count"], 1)
+        self.assertEqual(response.data["customers_count"], 1)
 
         new_resource = factories.ResourceFactory(offering=self.offering)
         response = self.client.get(self.url)
-        self.assertEqual(response.data['resources_count'], 2)
-        self.assertEqual(response.data['customers_count'], 2)
+        self.assertEqual(response.data["resources_count"], 2)
+        self.assertEqual(response.data["customers_count"], 2)
 
         new_resource.state = models.Resource.States.TERMINATED
         new_resource.save()
         response = self.client.get(self.url)
-        self.assertEqual(response.data['resources_count'], 1)
-        self.assertEqual(response.data['customers_count'], 1)
+        self.assertEqual(response.data["resources_count"], 1)
+        self.assertEqual(response.data["customers_count"], 1)
 
         factories.ResourceFactory(offering=self.offering, project=self.fixture.project)
         response = self.client.get(self.url)
-        self.assertEqual(response.data['resources_count'], 2)
-        self.assertEqual(response.data['customers_count'], 1)
+        self.assertEqual(response.data["resources_count"], 2)
+        self.assertEqual(response.data["customers_count"], 1)

@@ -12,7 +12,7 @@ class SupportUserQuerySet(django_models.QuerySet):
         return self.get_or_create(
             user=user,
             backend_name=backend.get_active_backend().backend_name,
-            defaults={'name': user.full_name or user.username},
+            defaults={"name": user.full_name or user.username},
         )
 
 

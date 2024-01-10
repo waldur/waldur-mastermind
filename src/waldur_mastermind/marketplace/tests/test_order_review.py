@@ -59,7 +59,7 @@ class OrderApproveByConsumerTest(test.APITransactionTestCase):
         response = self.approve_order(self.fixture.owner)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @mock.patch('waldur_mastermind.marketplace.tasks.process_order.delay')
+    @mock.patch("waldur_mastermind.marketplace.tasks.process_order.delay")
     def test_order_with_basic_offering_is_approved_by_consumer_it_is_pending_for_provider_review_too(
         self, mocked_delay
     ):
@@ -78,14 +78,14 @@ class OrderApproveByConsumerTest(test.APITransactionTestCase):
         self.project.end_date = datetime.datetime(year=2020, month=1, day=1).date()
         self.project.save()
 
-        with freeze_time('2020-01-01'):
+        with freeze_time("2020-01-01"):
             response = self.approve_order(self.fixture.staff)
             self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def approve_order(self, user, order=None):
         order = order or self.order
         self.client.force_authenticate(user)
-        url = factories.OrderFactory.get_url(order, 'approve_by_consumer')
+        url = factories.OrderFactory.get_url(order, "approve_by_consumer")
         response = self.client.post(url)
         order.refresh_from_db()
         return response
@@ -190,7 +190,7 @@ class OrderApproveByProviderTest(test.APITransactionTestCase):
 
     def approve_order(self, user, order):
         self.client.force_authenticate(user)
-        url = factories.OrderFactory.get_url(order, 'approve_by_provider')
+        url = factories.OrderFactory.get_url(order, "approve_by_provider")
         response = self.client.post(url)
         order.refresh_from_db()
         return response
@@ -210,11 +210,11 @@ class OrderRejectByConsumerTest(test.APITransactionTestCase):
         ProjectRole.ADMIN.add_permission(PermissionEnum.REJECT_ORDER)
 
     def reject_order(self, user):
-        url = factories.OrderFactory.get_url(self.order, 'reject_by_consumer')
+        url = factories.OrderFactory.get_url(self.order, "reject_by_consumer")
         self.client.force_authenticate(user)
         return self.client.post(url)
 
-    @data('staff', 'manager', 'admin', 'owner')
+    @data("staff", "manager", "admin", "owner")
     def test_authorized_user_can_reject_order(self, user):
         response = self.reject_order(getattr(self.fixture, user))
 
@@ -261,8 +261,8 @@ class OrderRejectByProviderTest(test.APITransactionTestCase):
         CustomerRole.OWNER.add_permission(PermissionEnum.REJECT_ORDER)
 
     @data(
-        'staff',
-        'owner',
+        "staff",
+        "owner",
     )
     def test_authorized_user_can_reject_order(self, user):
         response = self.reject_order(user)
@@ -271,8 +271,8 @@ class OrderRejectByProviderTest(test.APITransactionTestCase):
         self.assertEqual(self.order.state, models.Order.States.REJECTED)
 
     @data(
-        'admin',
-        'manager',
+        "admin",
+        "manager",
     )
     def test_user_cannot_reject_order(self, user):
         response = self.reject_order(user)
@@ -287,7 +287,7 @@ class OrderRejectByProviderTest(test.APITransactionTestCase):
     ):
         self.order.state = state
         self.order.save()
-        response = self.reject_order('staff')
+        response = self.reject_order("staff")
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
     def test_when_create_order_with_basic_offering_is_rejected_resource_is_marked_as_terminated(
@@ -296,7 +296,7 @@ class OrderRejectByProviderTest(test.APITransactionTestCase):
         self.offering.type = PLUGIN_NAME
         self.offering.save()
 
-        self.reject_order('owner')
+        self.reject_order("owner")
         self.order.refresh_from_db()
         self.assertEqual(models.Resource.States.TERMINATED, self.order.resource.state)
 
@@ -313,7 +313,7 @@ class OrderRejectByProviderTest(test.APITransactionTestCase):
         old_plan.offering = self.offering
         old_plan.save()
 
-        old_limits = {'unit': 50}
+        old_limits = {"unit": 50}
         resource = self.order.resource
         resource.plan = old_plan
         resource.limits = old_limits
@@ -322,7 +322,7 @@ class OrderRejectByProviderTest(test.APITransactionTestCase):
         plan_period.resource = resource
         plan_period.save()
 
-        self.reject_order('owner')
+        self.reject_order("owner")
         self.order.refresh_from_db()
         self.assertEqual(models.Resource.States.OK, self.order.resource.state)
         self.assertEqual(old_plan, self.order.resource.plan)
@@ -336,14 +336,14 @@ class OrderRejectByProviderTest(test.APITransactionTestCase):
         self.order.type = models.Order.Types.TERMINATE
         self.order.save()
 
-        self.reject_order('owner')
+        self.reject_order("owner")
         self.order.refresh_from_db()
         self.assertEqual(models.Resource.States.OK, self.order.resource.state)
 
     def reject_order(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
-        url = factories.OrderFactory.get_url(self.order, 'reject_by_provider')
+        url = factories.OrderFactory.get_url(self.order, "reject_by_provider")
         return self.client.post(url)
 
 
@@ -357,23 +357,23 @@ class ApproveOrderAsProviderFilterTest(test.APITransactionTestCase):
 
     def test_provider_owner_can_approve(self):
         CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_ORDER)
-        self.assert_result('offering_owner', 1)
+        self.assert_result("offering_owner", 1)
 
     def test_consumer_owner_can_not_approve(self):
         CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_ORDER)
-        self.assert_result('owner', 0)
+        self.assert_result("owner", 0)
 
     def test_can_not_approve_executing_order(self):
         CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_ORDER)
         self.order.state = models.Order.States.EXECUTING
         self.order.save()
-        self.assert_result('offering_owner', 0)
+        self.assert_result("offering_owner", 0)
 
     def assert_result(self, user, expected):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         url = factories.OrderFactory.get_list_url()
-        response = self.client.get(url, {'can_approve_as_provider': True})
+        response = self.client.get(url, {"can_approve_as_provider": True})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), expected)
 
@@ -386,27 +386,27 @@ class ApproveOrderAsConsumerFilterTest(test.APITransactionTestCase):
         self.fixture.order.save()
         self.url = factories.OrderFactory.get_list_url()
 
-    @data('offering_owner', 'manager', 'admin')
+    @data("offering_owner", "manager", "admin")
     def test_by_default_user_can_not_approve(self, user):
         self.assert_result(user, 0)
 
     def test_owner_can_get_order(self):
         CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_ORDER)
-        self.assert_result('owner', 1)
+        self.assert_result("owner", 1)
 
     def test_manager_can_get_order(self):
         ProjectRole.MANAGER.add_permission(PermissionEnum.APPROVE_ORDER)
-        self.assert_result('manager', 1)
+        self.assert_result("manager", 1)
 
     def test_admin_can_get_order(self):
         ProjectRole.ADMIN.add_permission(PermissionEnum.APPROVE_ORDER)
-        self.assert_result('admin', 1)
+        self.assert_result("admin", 1)
 
     def assert_result(self, user, expected):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         url = factories.OrderFactory.get_list_url()
-        response = self.client.get(url, {'can_approve_as_consumer': True})
+        response = self.client.get(url, {"can_approve_as_consumer": True})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), expected)
 

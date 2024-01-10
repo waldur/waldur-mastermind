@@ -4,7 +4,7 @@ from waldur_core.core import WaldurExtension
 class DigitalOceanExtension(WaldurExtension):
     @staticmethod
     def django_app():
-        return 'waldur_digitalocean'
+        return "waldur_digitalocean"
 
     @staticmethod
     def rest_urls():

@@ -19,12 +19,12 @@ class OfferingUserCreationTest(test.APITransactionTestCase):
 
         offering = self.resource.offering
         offering.type = PLUGIN_NAME
-        offering.secret_options = {'service_provider_can_create_offering_user': True}
+        offering.secret_options = {"service_provider_can_create_offering_user": True}
         offering.plugin_options = {
-            'username_generation_policy': 'waldur_username',
-            'initial_uidnumber': 1000,
-            'initial_primarygroup_number': 2000,
-            'homedir_prefix': '/tmp/',
+            "username_generation_policy": "waldur_username",
+            "initial_uidnumber": 1000,
+            "initial_primarygroup_number": 2000,
+            "homedir_prefix": "/tmp/",
         }
         offering.save()
 
@@ -55,10 +55,10 @@ class OfferingUserCreationTest(test.APITransactionTestCase):
         self.assertEqual(
             offering_user.backend_metadata,
             {
-                'uidnumber': 1001,
-                'primarygroup': 2001,
-                'homeDir': f'/tmp/{offering_user.username}',
-                'loginShell': '/bin/bash',
+                "uidnumber": 1001,
+                "primarygroup": 2001,
+                "homeDir": f"/tmp/{offering_user.username}",
+                "loginShell": "/bin/bash",
             },
         )
 
@@ -97,19 +97,19 @@ class OfferingUserCreationTest(test.APITransactionTestCase):
         self.assertEqual(
             offering_user.backend_metadata,
             {
-                'uidnumber': 1001,
-                'primarygroup': 2001,
-                'homeDir': f'/tmp/{offering_user.username}',
-                'loginShell': '/bin/bash',
+                "uidnumber": 1001,
+                "primarygroup": 2001,
+                "homeDir": f"/tmp/{offering_user.username}",
+                "loginShell": "/bin/bash",
             },
         )
         self.assertEqual(
             offering_user2.backend_metadata,
             {
-                'uidnumber': 1002,
-                'primarygroup': 2002,
-                'homeDir': f'/tmp/{offering_user2.username}',
-                'loginShell': '/bin/bash',
+                "uidnumber": 1002,
+                "primarygroup": 2002,
+                "homeDir": f"/tmp/{offering_user2.username}",
+                "loginShell": "/bin/bash",
             },
         )
 
@@ -125,11 +125,11 @@ class OfferingUserUpdateTest(test.APITransactionTestCase):
         self.offering = self.resource.offering
         self.offering.type = PLUGIN_NAME
         self.offering.secret_options = {
-            'service_provider_can_create_offering_user': True
+            "service_provider_can_create_offering_user": True
         }
         self.offering.plugin_options = {
-            'username_generation_policy': 'waldur_username',
-            'homedir_prefix': '/tmp/',
+            "username_generation_policy": "waldur_username",
+            "homedir_prefix": "/tmp/",
         }
         self.offering.save()
 
@@ -142,34 +142,34 @@ class OfferingUserUpdateTest(test.APITransactionTestCase):
     def test_username_updated_when_generation_policy_changed(self):
         self.assertEqual(self.admin.username, self.offering_user.username)
         self.assertEqual(
-            f'/tmp/{self.admin.username}',
-            self.offering_user.backend_metadata['homeDir'],
+            f"/tmp/{self.admin.username}",
+            self.offering_user.backend_metadata["homeDir"],
         )
 
-        self.offering.plugin_options['username_generation_policy'] = 'anonymized'
-        self.offering.save(update_fields=['plugin_options'])
+        self.offering.plugin_options["username_generation_policy"] = "anonymized"
+        self.offering.save(update_fields=["plugin_options"])
 
         self.offering_user.refresh_from_db()
 
         self.assertEqual(
             self.offering_user.username,
-            'walduruser_00000',
+            "walduruser_00000",
         )
         self.assertEqual(
-            '/tmp/walduruser_00000', self.offering_user.backend_metadata['homeDir']
+            "/tmp/walduruser_00000", self.offering_user.backend_metadata["homeDir"]
         )
 
     def test_username_updated_when_generation_policy_changed_to_service_provider(self):
         self.assertEqual(self.admin.username, self.offering_user.username)
 
-        self.offering.plugin_options['username_generation_policy'] = 'service_provider'
-        self.offering.save(update_fields=['plugin_options'])
+        self.offering.plugin_options["username_generation_policy"] = "service_provider"
+        self.offering.save(update_fields=["plugin_options"])
 
         self.offering_user.refresh_from_db()
 
         self.assertEqual(
             self.offering_user.username,
-            '',
+            "",
         )
 
 
@@ -180,14 +180,14 @@ class OfferingUserGlauthConfigTest(test.APITransactionTestCase):
         self.offering = self.fixture.offering
         self.offering.type = PLUGIN_NAME
         self.offering.plugin_options = {
-            'username_generation_policy': 'waldur_username',
-            'initial_uidnumber': 1000,
-            'initial_primarygroup_number': 2000,
-            'initial_usergroup_number': 3000,
-            'homedir_prefix': '/tmp/',
+            "username_generation_policy": "waldur_username",
+            "initial_uidnumber": 1000,
+            "initial_primarygroup_number": 2000,
+            "initial_usergroup_number": 3000,
+            "homedir_prefix": "/tmp/",
         }
         self.offering.secret_options = {
-            'service_provider_can_create_offering_user': True
+            "service_provider_can_create_offering_user": True
         }
         self.offering.save()
 
@@ -203,7 +203,7 @@ class OfferingUserGlauthConfigTest(test.APITransactionTestCase):
         self.offering_user.save()
 
         self.offering_user_group1 = marketplace_models.OfferingUserGroup.objects.create(
-            offering=self.offering, backend_metadata={'gid': 6001}
+            offering=self.offering, backend_metadata={"gid": 6001}
         )
         self.offering_user_group1.projects.set(
             [self.resource.project, self.fixture.offering_project]
@@ -211,13 +211,13 @@ class OfferingUserGlauthConfigTest(test.APITransactionTestCase):
         self.offering_user_group1.save()
 
         self.offering_user_group2 = marketplace_models.OfferingUserGroup.objects.create(
-            offering=self.offering, backend_metadata={'gid': 6002}
+            offering=self.offering, backend_metadata={"gid": 6002}
         )
         self.offering_user_group2.projects.set([self.fixture.offering_project])
         self.offering_user_group2.save()
 
         self.url = marketplace_factories.OfferingFactory.get_url(
-            self.offering, 'glauth_users_config'
+            self.offering, "glauth_users_config"
         )
         self.maxDiff = None
 

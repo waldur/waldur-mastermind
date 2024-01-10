@@ -12,10 +12,10 @@ def update_google_calendar_name_if_offering_name_has_been_changed(
     offering = instance
 
     if (
-        hasattr(offering, 'googlecalendar')
+        hasattr(offering, "googlecalendar")
         and offering.googlecalendar.backend_id
         and offering.googlecalendar.state
         in [core_models.StateMixin.States.OK, core_models.StateMixin.States.ERRED]
-        and offering.tracker.has_changed('name')
+        and offering.tracker.has_changed("name")
     ):
         GoogleCalendarRenameExecutor.execute(offering.googlecalendar)

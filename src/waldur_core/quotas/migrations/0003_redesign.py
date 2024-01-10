@@ -6,62 +6,62 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('contenttypes', '0002_remove_content_type_name'),
-        ('quotas', '0002_drop_quota_revisions'),
+        ("contenttypes", "0002_remove_content_type_name"),
+        ("quotas", "0002_drop_quota_revisions"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='QuotaUsage',
+            name="QuotaUsage",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('name', models.CharField(db_index=True, max_length=150)),
-                ('delta', models.BigIntegerField(default=0)),
-                ('object_id', models.PositiveIntegerField(null=True)),
+                ("name", models.CharField(db_index=True, max_length=150)),
+                ("delta", models.BigIntegerField(default=0)),
+                ("object_id", models.PositiveIntegerField(null=True)),
                 (
-                    'content_type',
+                    "content_type",
                     models.ForeignKey(
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='contenttypes.contenttype',
+                        to="contenttypes.contenttype",
                     ),
                 ),
             ],
         ),
         migrations.CreateModel(
-            name='QuotaLimit',
+            name="QuotaLimit",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('name', models.CharField(db_index=True, max_length=150)),
-                ('value', models.BigIntegerField(default=-1)),
-                ('object_id', models.PositiveIntegerField(null=True)),
+                ("name", models.CharField(db_index=True, max_length=150)),
+                ("value", models.BigIntegerField(default=-1)),
+                ("object_id", models.PositiveIntegerField(null=True)),
                 (
-                    'content_type',
+                    "content_type",
                     models.ForeignKey(
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='contenttypes.contenttype',
+                        to="contenttypes.contenttype",
                     ),
                 ),
             ],
             options={
-                'unique_together': {('name', 'content_type', 'object_id')},
+                "unique_together": {("name", "content_type", "object_id")},
             },
         ),
     ]

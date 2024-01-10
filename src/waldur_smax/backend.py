@@ -24,7 +24,7 @@ def reraise_exceptions(msg=None):
             try:
                 return func(self, *args, **kwargs)
             except requests_exceptions.RequestException as e:
-                raise SmaxBackendError(f'{msg}. {e}')
+                raise SmaxBackendError(f"{msg}. {e}")
 
         return wrapped
 
@@ -57,41 +57,41 @@ class Comment:
 
 class SmaxBackend:
     def __init__(self):
-        if not config.SMAX_API_URL.endswith('/'):
-            self.api_url = f'{config.SMAX_API_URL}/'
+        if not config.SMAX_API_URL.endswith("/"):
+            self.api_url = f"{config.SMAX_API_URL}/"
         else:
-            self.api_url = f'{config.SMAX_API_URL}'
+            self.api_url = f"{config.SMAX_API_URL}"
 
-        self.rest_api = f'{self.api_url}rest/{config.SMAX_TENANT_ID}/'
+        self.rest_api = f"{self.api_url}rest/{config.SMAX_TENANT_ID}/"
         self.lwsso_cookie_key = None
 
     def _smax_response_to_user(self, response):
-        entities = response.json()['entities']
+        entities = response.json()["entities"]
         result = []
 
         for e in entities:
             result.append(
                 User(
-                    id=e['properties']['Id'],
-                    email=e['properties']['Email'],
-                    name=e['properties']['Name'],
-                    upn=e['properties']['Upn'],
+                    id=e["properties"]["Id"],
+                    email=e["properties"]["Email"],
+                    name=e["properties"]["Name"],
+                    upn=e["properties"]["Upn"],
                 )
             )
 
         return result
 
     def _smax_response_to_issue(self, response):
-        entities = response.json()['entities']
+        entities = response.json()["entities"]
         result = []
 
         for e in entities:
             result.append(
                 Issue(
-                    id=e['properties']['Id'],
-                    summary=e['properties']['DisplayLabel'],
-                    description=e['properties']['Description'],
-                    status=e['properties']['Status'],
+                    id=e["properties"]["Id"],
+                    summary=e["properties"]["DisplayLabel"],
+                    description=e["properties"]["Description"],
+                    status=e["properties"]["Status"],
                 )
             )
 
@@ -104,10 +104,10 @@ class SmaxBackend:
         for e in entities:
             result.append(
                 Comment(
-                    id=e['Id'],
-                    is_public=False if e['PrivacyType'] == 'INTERNAL' else True,
-                    description=unescape(e['Body']),
-                    backend_user_id=e['Submitter']['UserId'],
+                    id=e["Id"],
+                    is_public=False if e["PrivacyType"] == "INTERNAL" else True,
+                    description=unescape(e["Body"]),
+                    backend_user_id=e["Submitter"]["UserId"],
                 )
             )
 
@@ -115,13 +115,13 @@ class SmaxBackend:
 
     def auth(self):
         response = requests.post(
-            f'{self.api_url}auth/authentication-endpoint/'
-            f'authenticate/login?TENANTID={config.SMAX_TENANT_ID}',
+            f"{self.api_url}auth/authentication-endpoint/"
+            f"authenticate/login?TENANTID={config.SMAX_TENANT_ID}",
             json={"login": config.SMAX_LOGIN, "password": config.SMAX_PASSWORD},
         )
 
         if response.status_code != status.HTTP_200_OK:
-            logger.error('Unable to receive session token.')
+            logger.error("Unable to receive session token.")
             raise requests_exceptions.RequestException(
                 f"Status code {response.status_code}, body {response.text}"
             )
@@ -132,10 +132,10 @@ class SmaxBackend:
         params = params or {}
         self.lwsso_cookie_key or self.auth()
 
-        params['TENANTID'] = config.SMAX_TENANT_ID
+        params["TENANTID"] = config.SMAX_TENANT_ID
         headers = {
-            'Cookie': f'LWSSO_COOKIE_KEY={self.lwsso_cookie_key}',
-            'Content-Type': 'application/json',
+            "Cookie": f"LWSSO_COOKIE_KEY={self.lwsso_cookie_key}",
+            "Content-Type": "application/json",
         }
 
         url = self.rest_api + path
@@ -162,15 +162,15 @@ class SmaxBackend:
 
         return response
 
-    def _request(self, path, method='post', data=None, json=None, **kwargs):
+    def _request(self, path, method="post", data=None, json=None, **kwargs):
         self.lwsso_cookie_key or self.auth()
 
         headers = {
-            'Cookie': f'LWSSO_COOKIE_KEY={self.lwsso_cookie_key}',
-            'Content-Type': 'application/json',
+            "Cookie": f"LWSSO_COOKIE_KEY={self.lwsso_cookie_key}",
+            "Content-Type": "application/json",
         }
 
-        url = self.rest_api + path + f'?TENANTID={config.SMAX_TENANT_ID}'
+        url = self.rest_api + path + f"?TENANTID={config.SMAX_TENANT_ID}"
         response = getattr(requests, method)(
             url=url, headers=headers, data=data, json=json, **kwargs
         )
@@ -183,16 +183,16 @@ class SmaxBackend:
         return response
 
     def post(self, path, data=None, json=None, **kwargs):
-        return self._request(path, method='post', data=data, json=json, **kwargs)
+        return self._request(path, method="post", data=data, json=json, **kwargs)
 
     def put(self, path, data=None, json=None, **kwargs):
-        return self._request(path, method='put', data=data, json=json, **kwargs)
+        return self._request(path, method="put", data=data, json=json, **kwargs)
 
     def delete(self, path, **kwargs):
-        return self._request(path, method='delete', **kwargs)
+        return self._request(path, method="delete", **kwargs)
 
     def get_user(self, user_id):
-        response = self.get(f'ems/Person/{user_id}?layout=Name,Email,Upn')
+        response = self.get(f"ems/Person/{user_id}?layout=Name,Email,Upn")
         user = self._smax_response_to_user(response)
 
         if not user:
@@ -201,7 +201,7 @@ class SmaxBackend:
             return user[0]
 
     def get_all_users(self):
-        response = self.get('ems/Person/?layout=Name,Email,Upn')
+        response = self.get("ems/Person/?layout=Name,Email,Upn")
         return self._smax_response_to_user(response)
 
     def search_user_by_email(self, email):
@@ -211,8 +211,8 @@ class SmaxBackend:
 
     def add_user(self, user: User):
         name = user.name.split()
-        first_name = name[0] if len(name) else ''
-        last_name = name[1] if len(name) > 1 else ''
+        first_name = name[0] if len(name) else ""
+        last_name = name[1] if len(name) > 1 else ""
 
         if not first_name or not last_name:
             raise requests_exceptions.RequestException(
@@ -220,7 +220,7 @@ class SmaxBackend:
             )
 
         self.post(
-            'ums/managePersons',
+            "ums/managePersons",
             json={
                 "operation": "CREATE_OR_UPDATE",
                 "users": [
@@ -243,15 +243,15 @@ class SmaxBackend:
         return backend_user
 
     def get_issue(self, issue_id):
-        response = self.get(f'ems/Request?layout=FULL_LAYOUT&filter=Id={issue_id}')
+        response = self.get(f"ems/Request?layout=FULL_LAYOUT&filter=Id={issue_id}")
         issues = self._smax_response_to_issue(response)
         return issues[0] if issues else None
 
-    def add_issue(self, subject, user: User, description='', entity_type='Request'):
+    def add_issue(self, subject, user: User, description="", entity_type="Request"):
         user = self.search_user_by_email(user.email) or self.add_user(user)
 
         response = self.post(
-            'ems/bulk',
+            "ems/bulk",
             json={
                 "entities": [
                     {
@@ -266,18 +266,18 @@ class SmaxBackend:
                 "operation": "CREATE",
             },
         )
-        issue_id = response.json()['entity_result_list'][0]['entity']['properties'][
-            'Id'
+        issue_id = response.json()["entity_result_list"][0]["entity"]["properties"][
+            "Id"
         ]
         return self.get_issue(issue_id)
 
     def get_comments(self, issue_id):
-        response = self.get(f'collaboration/comments/Request/{issue_id}')
+        response = self.get(f"collaboration/comments/Request/{issue_id}")
         return self._smax_response_to_comment(response)
 
     def add_comment(self, issue_id, comment: Comment):
         response = self.post(
-            f'/collaboration/comments/Request/{issue_id}/',
+            f"/collaboration/comments/Request/{issue_id}/",
             json={
                 "IsSystem": False,
                 "Body": comment.description,
@@ -288,12 +288,12 @@ class SmaxBackend:
             },
         )
 
-        comment.id = response.json()['Id']
+        comment.id = response.json()["Id"]
         return comment
 
     def update_comment(self, issue_id, comment: Comment):
         self.put(
-            f'/collaboration/comments/Request/{issue_id}/{comment.id}',
+            f"/collaboration/comments/Request/{issue_id}/{comment.id}",
             json={
                 "IsSystem": False,
                 "Body": comment.description,
@@ -307,5 +307,5 @@ class SmaxBackend:
         return comment
 
     def delete_comment(self, issue_id, comment_id):
-        self.delete(f'/collaboration/comments/Request/{issue_id}/{comment_id}')
+        self.delete(f"/collaboration/comments/Request/{issue_id}/{comment_id}")
         return

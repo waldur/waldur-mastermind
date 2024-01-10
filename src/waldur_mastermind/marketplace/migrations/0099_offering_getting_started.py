@@ -5,13 +5,13 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace', '0098_robotaccount_responsible_user'),
+        ("marketplace", "0098_robotaccount_responsible_user"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='offering',
-            name='getting_started',
+            model_name="offering",
+            name="getting_started",
             field=models.TextField(blank=True),
         ),
     ]

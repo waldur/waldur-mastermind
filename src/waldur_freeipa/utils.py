@@ -1,9 +1,9 @@
 from django.conf import settings
 from django.core.cache import cache
 
-QUOTA_NAME = 'freeipa_quota'
+QUOTA_NAME = "freeipa_quota"
 
-CACHE_KEY = 'waldur_freeipa_syncing_groups'
+CACHE_KEY = "waldur_freeipa_syncing_groups"
 
 
 def is_syncing():
@@ -27,9 +27,9 @@ def release_task_status():
 
 def generate_username(username):
     # Prepend username suffix
-    prefix = settings.WALDUR_FREEIPA['USERNAME_PREFIX']
+    prefix = settings.WALDUR_FREEIPA["USERNAME_PREFIX"]
     if prefix:
-        username = f'{prefix}{username}'
+        username = f"{prefix}{username}"
     return username.lower()
 
 

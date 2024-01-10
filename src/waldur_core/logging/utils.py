@@ -43,7 +43,7 @@ def create_report_archive(log_directory, interval):
 
     stream = BytesIO()
 
-    with tarfile.open(fileobj=stream, mode='w:gz') as archive:
+    with tarfile.open(fileobj=stream, mode="w:gz") as archive:
         for filename in log_filenames:
             archive.add(filename)
 

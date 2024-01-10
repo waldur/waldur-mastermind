@@ -1,1 +1,1 @@
-PLUGIN_NAME = 'Support.OfferingTemplate'
+PLUGIN_NAME = "Support.OfferingTemplate"

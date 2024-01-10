@@ -28,8 +28,7 @@ def reraise_exceptions(func):
             return func(self, service_settings, *args, **kwargs)
         except Exception as e:
             raise e.__class__(
-                '%s, Service settings: %s, %s'
-                % (e, service_settings.name, service_settings.type)
+                f"{e}, Service settings: {service_settings.name}, {service_settings.type}"
             )
 
     return wrapped
@@ -52,15 +51,15 @@ class BackgroundPullTask(core_tasks.BackgroundTask):
 
     def is_equal(self, other_task, serialized_instance):
         return self.name == other_task.get(
-            'name'
-        ) and serialized_instance in other_task.get('args', [])
+            "name"
+        ) and serialized_instance in other_task.get("args", [])
 
     def pull(self, instance):
         """Pull instance from backend.
 
         This method should not handle backend exception.
         """
-        raise NotImplementedError('Pull task should implement pull method.')
+        raise NotImplementedError("Pull task should implement pull method.")
 
     def on_pull_fail(self, instance, error):
         error_message = str(error)
@@ -75,11 +74,11 @@ class BackgroundPullTask(core_tasks.BackgroundTask):
             return
         if instance.state == instance.States.ERRED:
             instance.recover()
-            instance.error_message = ''
-            instance.save(update_fields=['state', 'error_message'])
+            instance.error_message = ""
+            instance.save(update_fields=["state", "error_message"])
 
     def log_error_message(self, instance, error_message):
-        logger_message = 'Failed to pull {} {} (PK: {}). Error: {}'.format(
+        logger_message = "Failed to pull {} {} (PK: {}). Error: {}".format(
             instance.__class__.__name__,
             instance.name,
             instance.pk,
@@ -96,7 +95,7 @@ class BackgroundPullTask(core_tasks.BackgroundTask):
         """Mark instance as erred and save error message"""
         instance.set_erred()
         instance.error_message = error_message
-        instance.save(update_fields=['state', 'error_message'])
+        instance.save(update_fields=["state", "error_message"])
 
 
 class BackgroundListPullTask(core_tasks.BackgroundTask):
@@ -106,12 +105,12 @@ class BackgroundListPullTask(core_tasks.BackgroundTask):
     pull_task = NotImplemented
 
     def is_equal(self, other_task):
-        return self.name == other_task.get('name')
+        return self.name == other_task.get("name")
 
     def get_pulled_objects(self):
         States = self.model.States
         return self.model.objects.filter(state__in=[States.ERRED, States.OK]).exclude(
-            backend_id=''
+            backend_id=""
         )
 
     def run(self):
@@ -145,7 +144,7 @@ class ServiceResourcesPullTask(BackgroundPullTask):
             backend = service_settings.get_backend()
         except ServiceBackendNotImplemented:
             logger.info(
-                'Service % has not backend so ServiceResourcePullTask cannot execute.',
+                "Service % has not backend so ServiceResourcePullTask cannot execute.",
                 service_settings,
             )
         else:
@@ -159,17 +158,17 @@ class ServiceSubResourcesPullTask(BackgroundPullTask):
 
 
 class ServicePropertiesListPullTask(ServiceListPullTask):
-    name = 'waldur_core.structure.ServicePropertiesListPullTask'
+    name = "waldur_core.structure.ServicePropertiesListPullTask"
     pull_task = ServicePropertiesPullTask
 
 
 class ServiceResourcesListPullTask(ServiceListPullTask):
-    name = 'waldur_core.structure.ServiceResourcesListPullTask'
+    name = "waldur_core.structure.ServiceResourcesListPullTask"
     pull_task = ServiceResourcesPullTask
 
 
 class ServiceSubResourcesListPullTask(ServiceListPullTask):
-    name = 'waldur_core.structure.ServiceSubResourcesListPullTask'
+    name = "waldur_core.structure.ServiceSubResourcesListPullTask"
     pull_task = ServiceSubResourcesPullTask
 
 
@@ -226,10 +225,10 @@ class SetErredStuckResources(core_tasks.BackgroundTask):
     This task marks all resources which have been provisioning for more than 3 hours as erred.
     """
 
-    name = 'waldur_core.structure.SetErredStuckResources'
+    name = "waldur_core.structure.SetErredStuckResources"
 
     def is_equal(self, other_task):
-        return self.name == other_task.get('name')
+        return self.name == other_task.get("name")
 
     def run(self):
         cutoff = timezone.now() - timedelta(hours=3)
@@ -244,11 +243,11 @@ class SetErredStuckResources(core_tasks.BackgroundTask):
         for model in resource_models:
             for resource in model.objects.filter(modified__lt=cutoff, state__in=states):
                 resource.set_erred()
-                resource.error_message = 'Provisioning has timed out.'
-                resource.save(update_fields=['state', 'error_message'])
+                resource.error_message = "Provisioning has timed out."
+                resource.save(update_fields=["state", "error_message"])
                 logger.warning(
-                    'Switching resource %s to erred state, '
-                    'because provisioning has timed out.',
+                    "Switching resource %s to erred state, "
+                    "because provisioning has timed out.",
                     core_utils.serialize_instance(resource),
                 )
 
@@ -257,15 +256,15 @@ class SetErredStuckResources(core_tasks.BackgroundTask):
 def send_change_email_notification(request_serialized):
     request = core_utils.deserialize_instance(request_serialized)
     link = core_utils.format_homeport_link(
-        'user_email_change/{code}/', code=request.uuid.hex
+        "user_email_change/{code}/", code=request.uuid.hex
     )
-    context = {'request': request, 'link': link}
+    context = {"request": request, "link": link}
     core_utils.broadcast_mail(
-        'structure', 'change_email_request', context, [request.email]
+        "structure", "change_email_request", context, [request.email]
     )
 
 
-@shared_task(name='waldur_core.structure.create_customer_permission_reviews')
+@shared_task(name="waldur_core.structure.create_customer_permission_reviews")
 def create_customer_permission_reviews():
     for customer in structure_models.Customer.objects.all():
         # Skip customers with pending reviews or customers which recently passed permission review
@@ -295,7 +294,7 @@ def send_structure_role_granted_notification(
     if not user.email or not user.notifications_enabled:
         return
 
-    context = {'permission': permission, 'structure': structure}
+    context = {"permission": permission, "structure": structure}
     core_utils.broadcast_mail(
-        'structure', 'structure_role_granted', context, [user.email]
+        "structure", "structure_role_granted", context, [user.email]
     )

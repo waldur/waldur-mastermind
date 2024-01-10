@@ -63,37 +63,37 @@ USERNAME_POSTFIX_LENGTH = 2
 
 class UsernameGenerationPolicy(Enum):
     SERVICE_PROVIDER = (
-        'service_provider'  # SP should manually submit username for the offering users
+        "service_provider"  # SP should manually submit username for the offering users
     )
-    ANONYMIZED = 'anonymized'  # Usernames are generated with <prefix>_<number>, e.g. "anonym_00001".
+    ANONYMIZED = "anonymized"  # Usernames are generated with <prefix>_<number>, e.g. "anonym_00001".
     # The prefix must be specified in offering.plugin_options as "username_anonymized_prefix"
-    FULL_NAME = 'full_name'  # Usernames are constructed using first and last name of users with numerical suffix, e.g. "john_doe_01"
-    WALDUR_USERNAME = 'waldur_username'  # Using username field of User model
-    FREEIPA = 'freeipa'  # Using username field of waldur_freeipa.Profile model
+    FULL_NAME = "full_name"  # Usernames are constructed using first and last name of users with numerical suffix, e.g. "john_doe_01"
+    WALDUR_USERNAME = "waldur_username"  # Using username field of User model
+    FREEIPA = "freeipa"  # Using username field of waldur_freeipa.Profile model
 
 
 def get_order_processor(order):
     offering = order.resource.offering
 
     if order.type == models.RequestTypeMixin.Types.CREATE:
-        return plugins.manager.get_processor(offering.type, 'create_resource_processor')
+        return plugins.manager.get_processor(offering.type, "create_resource_processor")
 
     elif order.type == models.RequestTypeMixin.Types.UPDATE:
-        return plugins.manager.get_processor(offering.type, 'update_resource_processor')
+        return plugins.manager.get_processor(offering.type, "update_resource_processor")
 
     elif order.type == models.RequestTypeMixin.Types.TERMINATE:
-        return plugins.manager.get_processor(offering.type, 'delete_resource_processor')
+        return plugins.manager.get_processor(offering.type, "delete_resource_processor")
 
 
 def process_order(order: models.Order, user):
     processor = get_order_processor(order)
     if not processor:
         order.error_message = (
-            'Skipping order processing because processor is not found.'
+            "Skipping order processing because processor is not found."
         )
         order.set_state_erred()
         order.resource.set_state_erred()
-        order.save(update_fields=['state', 'error_message'])
+        order.save(update_fields=["state", "error_message"])
         return
 
     try:
@@ -107,16 +107,16 @@ def process_order(order: models.Order, user):
         order.set_state_erred()
         order.resource.set_state_erred()
         logger.error(
-            f'Error processing order { order }. '
-            f'Order ID: { order.id }. '
-            f'Exception: { order.error_message }.'
+            f"Error processing order { order }. "
+            f"Order ID: { order.id }. "
+            f"Exception: { order.error_message }."
         )
 
         order.save(
             update_fields=[
-                'state',
-                'error_message',
-                'error_traceback',
+                "state",
+                "error_message",
+                "error_traceback",
             ]
         )
 
@@ -133,21 +133,21 @@ def validate_order(order, request):
 
 def create_screenshot_thumbnail(screenshot):
     pic = screenshot.image
-    fh = storage.open(pic.name, 'rb')
+    fh = storage.open(pic.name, "rb")
     image = Image.open(fh)
-    image.thumbnail(settings.WALDUR_MARKETPLACE['THUMBNAIL_SIZE'], Image.ANTIALIAS)
+    image.thumbnail(settings.WALDUR_MARKETPLACE["THUMBNAIL_SIZE"], Image.ANTIALIAS)
     fh.close()
 
     thumb_extension = os.path.splitext(pic.name)[1]
     thumb_extension = thumb_extension.lower()
     thumb_name = os.path.basename(pic.name)
 
-    if thumb_extension in ['.jpg', '.jpeg']:
-        FTYPE = 'JPEG'
-    elif thumb_extension == '.gif':
-        FTYPE = 'GIF'
-    elif thumb_extension == '.png':
-        FTYPE = 'PNG'
+    if thumb_extension in [".jpg", ".jpeg"]:
+        FTYPE = "JPEG"
+    elif thumb_extension == ".gif":
+        FTYPE = "GIF"
+    elif thumb_extension == ".png":
+        FTYPE = "PNG"
     else:
         return
 
@@ -160,10 +160,10 @@ def create_screenshot_thumbnail(screenshot):
 
 def import_resource_metadata(resource):
     instance = resource.scope
-    fields = {'action', 'action_details', 'state', 'runtime_state'}
+    fields = {"action", "action_details", "state", "runtime_state"}
 
     for field in fields:
-        if field == 'state':
+        if field == "state":
             value = instance.get_state_display()
         else:
             value = getattr(instance, field, None)
@@ -174,7 +174,7 @@ def import_resource_metadata(resource):
         resource.backend_id = instance.backend_id
     resource.name = instance.name
     resource.save(
-        update_fields=['backend_metadata', 'attributes', 'name', 'backend_id']
+        update_fields=["backend_metadata", "attributes", "name", "backend_id"]
     )
 
 
@@ -182,11 +182,11 @@ def get_service_provider_info(source):
     try:
         resource = models.Resource.objects.get(scope=source)
         customer = resource.offering.customer
-        service_provider = getattr(customer, 'serviceprovider', None)
+        service_provider = getattr(customer, "serviceprovider", None)
 
         return {
-            'service_provider_name': customer.name,
-            'service_provider_uuid': ''
+            "service_provider_name": customer.name,
+            "service_provider_uuid": ""
             if not service_provider
             else service_provider.uuid.hex,
         }
@@ -199,11 +199,11 @@ def get_offering_details(offering):
         return {}
 
     return {
-        'offering_type': offering.type,
-        'offering_name': offering.name,
-        'offering_uuid': offering.uuid.hex,
-        'service_provider_name': offering.customer.name,
-        'service_provider_uuid': offering.customer.uuid.hex,
+        "offering_type": offering.type,
+        "offering_name": offering.name,
+        "offering_uuid": offering.uuid.hex,
+        "service_provider_name": offering.customer.name,
+        "service_provider_uuid": offering.customer.uuid.hex,
     }
 
 
@@ -211,12 +211,12 @@ def format_list(resources):
     """
     Format comma-separated list of IDs from Django queryset.
     """
-    return ', '.join(map(str, sorted(resources.values_list('id', flat=True))))
+    return ", ".join(map(str, sorted(resources.values_list("id", flat=True))))
 
 
 def get_order_url(order):
     return core_utils.format_homeport_link(
-        'projects/{project_uuid}/marketplace-order-details/{order_uuid}/',
+        "projects/{project_uuid}/marketplace-order-details/{order_uuid}/",
         order_uuid=order.uuid.hex,
         project_uuid=order.project.uuid,
     )
@@ -235,10 +235,10 @@ def get_info_about_missing_usage_reports():
     offering_ids = models.OfferingComponent.objects.filter(
         billing_type=models.OfferingComponent.BillingTypes.USAGE,
         offering__type__in=whitelist_types,
-    ).values_list('offering_id', flat=True)
+    ).values_list("offering_id", flat=True)
     resource_with_usages = models.ComponentUsage.objects.filter(
         billing_period=billing_period
-    ).values_list('resource', flat=True)
+    ).values_list("resource", flat=True)
     resources_without_usages = models.Resource.objects.filter(
         state=models.Resource.States.OK, offering_id__in=offering_ids
     ).exclude(id__in=resource_with_usages)
@@ -246,15 +246,15 @@ def get_info_about_missing_usage_reports():
 
     for resource in resources_without_usages:
         rows = list(
-            filter(lambda x: x['customer'] == resource.offering.customer, result)
+            filter(lambda x: x["customer"] == resource.offering.customer, result)
         )
         if rows:
-            rows[0]['resources'].append(resource)
+            rows[0]["resources"].append(resource)
         else:
             result.append(
                 {
-                    'customer': resource.offering.customer,
-                    'resources': [resource],
+                    "customer": resource.offering.customer,
+                    "resources": [resource],
                 }
             )
 
@@ -263,7 +263,7 @@ def get_info_about_missing_usage_reports():
 
 def get_public_resources_url(customer):
     return core_utils.format_homeport_link(
-        'organizations/{organization_uuid}/marketplace-public-resources/',
+        "organizations/{organization_uuid}/marketplace-public-resources/",
         organization_uuid=customer.uuid,
     )
 
@@ -274,44 +274,53 @@ def validate_limit_amount(value, component):
 
     if component.limit_period == models.OfferingComponent.LimitPeriods.MONTH:
         current = (
-            models.ComponentQuota.objects.filter(
-                component=component,
-                modified__year=timezone.now().year,
-                modified__month=timezone.now().month,
+            (
+                models.ComponentQuota.objects.filter(
+                    component=component,
+                    modified__year=timezone.now().year,
+                    modified__month=timezone.now().month,
+                )
+                .exclude(limit=-1)
+                .aggregate(sum=Sum("limit"))["sum"]
             )
-            .exclude(limit=-1)
-            .aggregate(sum=Sum('limit'))['sum']
-        ) or 0
+            or 0
+        )
         if current + value > component.limit_amount:
             raise serializers.ValidationError(
-                _('Monthly limit exceeds threshold %s.') % component.limit_amount
+                _("Monthly limit exceeds threshold %s.") % component.limit_amount
             )
 
     elif component.limit_period == models.OfferingComponent.LimitPeriods.ANNUAL:
         current = (
-            models.ComponentQuota.objects.filter(
-                component=component,
-                modified__year=timezone.now().year,
+            (
+                models.ComponentQuota.objects.filter(
+                    component=component,
+                    modified__year=timezone.now().year,
+                )
+                .exclude(limit=-1)
+                .aggregate(sum=Sum("limit"))["sum"]
             )
-            .exclude(limit=-1)
-            .aggregate(sum=Sum('limit'))['sum']
-        ) or 0
+            or 0
+        )
         if current + value > component.limit_amount:
             raise serializers.ValidationError(
-                _('Annual limit exceeds threshold %s.') % component.limit_amount
+                _("Annual limit exceeds threshold %s.") % component.limit_amount
             )
 
     elif component.limit_period == models.OfferingComponent.LimitPeriods.TOTAL:
         current = (
-            models.ComponentQuota.objects.filter(
-                component=component,
+            (
+                models.ComponentQuota.objects.filter(
+                    component=component,
+                )
+                .exclude(limit=-1)
+                .aggregate(sum=Sum("limit"))["sum"]
             )
-            .exclude(limit=-1)
-            .aggregate(sum=Sum('limit'))['sum']
-        ) or 0
+            or 0
+        )
         if current + value > component.limit_amount:
             raise serializers.ValidationError(
-                _('Total limit exceeds threshold %s.') % component.limit_amount
+                _("Total limit exceeds threshold %s.") % component.limit_amount
             )
 
 
@@ -327,8 +336,8 @@ def validate_maximum_available_limit(value, component, resource=None):
         all_offering_resources = all_offering_resources.exclude(id=resource.id)
 
     current_total_limits = sum(
-        resource['limits'].get(component.type, 0)
-        for resource in all_offering_resources.values('limits')
+        resource["limits"].get(component.type, 0)
+        for resource in all_offering_resources.values("limits")
     )
 
     if current_total_limits + value >= component.max_available_limit:
@@ -353,12 +362,12 @@ def validate_maximum_available_limit(value, component, resource=None):
 def validate_min_max_limit(value, component):
     if component.max_value and value > component.max_value:
         raise serializers.ValidationError(
-            _('The limit %s value cannot be more than %s.')
+            _("The limit %s value cannot be more than %s.")
             % (value, component.max_value)
         )
     if component.min_value and value < component.min_value:
         raise serializers.ValidationError(
-            _('The limit %s value cannot be less than %s.')
+            _("The limit %s value cannot be less than %s.")
             % (value, component.min_value)
         )
 
@@ -367,13 +376,13 @@ def get_components_map(limits, offering):
     valid_component_types = set(
         offering.components.filter(
             billing_type=models.OfferingComponent.BillingTypes.LIMIT
-        ).values_list('type', flat=True)
+        ).values_list("type", flat=True)
     )
 
     invalid_types = set(limits.keys()) - valid_component_types
     if invalid_types:
         raise serializers.ValidationError(
-            {'limits': _('Invalid types: %s') % ', '.join(invalid_types)}
+            {"limits": _("Invalid types: %s") % ", ".join(invalid_types)}
         )
 
     components_map = {
@@ -397,7 +406,7 @@ def validate_limits(limits, offering, resource=None):
     """
     if not plugins.manager.can_update_limits(offering.type):
         raise serializers.ValidationError(
-            {'limits': _('Limits update is not supported for this resource.')}
+            {"limits": _("Limits update is not supported for this resource.")}
         )
 
     limits_validator = plugins.manager.get_limits_validator(offering.type)
@@ -416,16 +425,16 @@ def validate_attributes(attributes, category):
     category_attributes = models.Attribute.objects.filter(section__category=category)
 
     required_attributes = category_attributes.filter(required=True).values_list(
-        'key', flat=True
+        "key", flat=True
     )
 
     missing_attributes = set(required_attributes) - set(attributes.keys())
     if missing_attributes:
         raise rf_exceptions.ValidationError(
             {
-                'attributes': _(
-                    'These attributes are required: %s'
-                    % ', '.join(sorted(missing_attributes))
+                "attributes": _(
+                    "These attributes are required: %s"
+                    % ", ".join(sorted(missing_attributes))
                 )
             }
         )
@@ -444,7 +453,7 @@ def validate_attributes(attributes, category):
 
         try:
             validator.validate(
-                value, list(attribute.options.values_list('key', flat=True))
+                value, list(attribute.options.values_list("key", flat=True))
             )
         except ValidationError as e:
             raise rf_exceptions.ValidationError({attribute.key: e.message})
@@ -560,45 +569,45 @@ def get_is_limit_based(serializer, scope):
 
 
 def add_marketplace_offering(sender, fields, **kwargs):
-    fields['marketplace_offering_uuid'] = serializers.SerializerMethodField()
-    setattr(sender, 'get_marketplace_offering_uuid', get_marketplace_offering_uuid)
+    fields["marketplace_offering_uuid"] = serializers.SerializerMethodField()
+    setattr(sender, "get_marketplace_offering_uuid", get_marketplace_offering_uuid)
 
-    fields['marketplace_offering_name'] = serializers.SerializerMethodField()
-    setattr(sender, 'get_marketplace_offering_name', get_marketplace_offering_name)
+    fields["marketplace_offering_name"] = serializers.SerializerMethodField()
+    setattr(sender, "get_marketplace_offering_name", get_marketplace_offering_name)
 
-    fields['marketplace_offering_plugin_options'] = serializers.SerializerMethodField()
+    fields["marketplace_offering_plugin_options"] = serializers.SerializerMethodField()
     setattr(
         sender,
-        'get_marketplace_offering_plugin_options',
+        "get_marketplace_offering_plugin_options",
         get_marketplace_offering_plugin_options,
     )
 
-    fields['marketplace_category_uuid'] = serializers.SerializerMethodField()
-    setattr(sender, 'get_marketplace_category_uuid', get_marketplace_category_uuid)
+    fields["marketplace_category_uuid"] = serializers.SerializerMethodField()
+    setattr(sender, "get_marketplace_category_uuid", get_marketplace_category_uuid)
 
-    fields['marketplace_category_name'] = serializers.SerializerMethodField()
-    setattr(sender, 'get_marketplace_category_name', get_marketplace_category_name)
+    fields["marketplace_category_name"] = serializers.SerializerMethodField()
+    setattr(sender, "get_marketplace_category_name", get_marketplace_category_name)
 
-    fields['marketplace_resource_uuid'] = serializers.SerializerMethodField()
-    setattr(sender, 'get_marketplace_resource_uuid', get_marketplace_resource_uuid)
+    fields["marketplace_resource_uuid"] = serializers.SerializerMethodField()
+    setattr(sender, "get_marketplace_resource_uuid", get_marketplace_resource_uuid)
 
-    fields['marketplace_plan_uuid'] = serializers.SerializerMethodField()
-    setattr(sender, 'get_marketplace_plan_uuid', get_marketplace_plan_uuid)
+    fields["marketplace_plan_uuid"] = serializers.SerializerMethodField()
+    setattr(sender, "get_marketplace_plan_uuid", get_marketplace_plan_uuid)
 
-    fields['marketplace_resource_state'] = serializers.SerializerMethodField()
-    setattr(sender, 'get_marketplace_resource_state', get_marketplace_resource_state)
+    fields["marketplace_resource_state"] = serializers.SerializerMethodField()
+    setattr(sender, "get_marketplace_resource_state", get_marketplace_resource_state)
 
-    fields['is_usage_based'] = serializers.SerializerMethodField()
-    setattr(sender, 'get_is_usage_based', get_is_usage_based)
+    fields["is_usage_based"] = serializers.SerializerMethodField()
+    setattr(sender, "get_is_usage_based", get_is_usage_based)
 
-    fields['is_limit_based'] = serializers.SerializerMethodField()
-    setattr(sender, 'get_is_limit_based', get_is_limit_based)
+    fields["is_limit_based"] = serializers.SerializerMethodField()
+    setattr(sender, "get_is_limit_based", get_is_limit_based)
 
 
 def get_offering_costs(invoice_items):
-    price = Ceil(F('quantity') * F('unit_price') * 100) / 100
-    tax_rate = F('invoice__tax_percent') / 100
-    return invoice_items.values('invoice__year', 'invoice__month').annotate(
+    price = Ceil(F("quantity") * F("unit_price") * 100) / 100
+    tax_rate = F("invoice__tax_percent") / 100
+    return invoice_items.values("invoice__year", "invoice__month").annotate(
         computed_price=Sum(price, output_field=FloatField()),
         computed_tax=Sum(price * tax_rate, output_field=FloatField()),
     )
@@ -609,7 +618,7 @@ def get_offering_customers(offering, active_customers):
         offering=offering,
         project__customer__in=active_customers,
     )
-    customers_ids = resources.values_list('project__customer_id', flat=True)
+    customers_ids = resources.values_list("project__customer_id", flat=True)
     return structure_models.Customer.objects.filter(id__in=customers_ids)
 
 
@@ -617,7 +626,7 @@ def get_offering_projects(offering):
     related_project_ids = (
         models.Resource.objects.filter(offering=offering)
         .exclude(state=models.Resource.States.TERMINATED)
-        .values_list('project', flat=True)
+        .values_list("project", flat=True)
         .distinct()
         .order_by()
     )
@@ -646,10 +655,10 @@ def get_start_and_end_dates_from_request(request):
     today = datetime.date.today()
     default_start = datetime.date(year=today.year - 1, month=today.month, day=1)
     start_year, start_month = serializer.validated_data.get(
-        'start', (default_start.year, default_start.month)
+        "start", (default_start.year, default_start.month)
     )
     end_year, end_month = serializer.validated_data.get(
-        'end', (today.year, today.month)
+        "end", (today.year, today.month)
     )
     end = datetime.date(year=end_year, month=end_month, day=1)
     start = datetime.date(year=start_year, month=start_month, day=1)
@@ -670,16 +679,16 @@ class MoveResourceException(Exception):
 @transaction.atomic
 def move_resource(resource: models.Resource, project):
     if project.customer.blocked:
-        raise rf_exceptions.ValidationError('New customer must be not blocked')
+        raise rf_exceptions.ValidationError("New customer must be not blocked")
 
     old_project = resource.project
 
     resource.project = project
-    resource.save(update_fields=['project'])
+    resource.save(update_fields=["project"])
 
     if resource.scope:
         resource.scope.project = project
-        resource.scope.save(update_fields=['project'])
+        resource.scope.save(update_fields=["project"])
 
         for service_settings in structure_models.ServiceSettings.objects.filter(
             scope=resource.scope
@@ -690,7 +699,7 @@ def move_resource(resource: models.Resource, project):
 
     for order in resource.order_set.exclude(project=project):
         order.project = project
-        order.save(update_fields=['project'])
+        order.save(update_fields=["project"])
 
     for invoice_item in invoice_models.InvoiceItem.objects.filter(
         resource=resource,
@@ -708,8 +717,8 @@ def move_resource(resource: models.Resource, project):
 
         if target_invoice.state != invoice_models.Invoice.States.PENDING:
             raise MoveResourceException(
-                'Resource moving is not possible, '
-                'because invoice items moving is not possible.'
+                "Resource moving is not possible, "
+                "because invoice items moving is not possible."
             )
 
         invoice_item.project = project
@@ -717,7 +726,7 @@ def move_resource(resource: models.Resource, project):
         invoice_item.project_name = project.name
         invoice_item.invoice = target_invoice
         invoice_item.save(
-            update_fields=['project', 'project_uuid', 'project_name', 'invoice']
+            update_fields=["project", "project_uuid", "project_name", "invoice"]
         )
 
         start_invoice.update_total_cost()
@@ -754,13 +763,13 @@ def get_invoice_item_for_component_usage(component_usage):
 
 
 def serialize_resource_limit_period(period):
-    billing_periods = get_full_days(period['start'], period['end'])
+    billing_periods = get_full_days(period["start"], period["end"])
     return {
-        'start': period['start'].isoformat(),
-        'end': period['end'].isoformat(),
-        'quantity': period['quantity'],
-        'billing_periods': billing_periods,
-        'total': str(period['quantity'] * billing_periods),
+        "start": period["start"].isoformat(),
+        "end": period["end"].isoformat(),
+        "quantity": period["quantity"],
+        "billing_periods": billing_periods,
+        "total": str(period["quantity"] * billing_periods),
     }
 
 
@@ -770,7 +779,7 @@ def schedule_resources_termination(resources, termination_comment=None):
     if not resources:
         return
 
-    view = views.ResourceViewSet.as_view({'post': 'terminate'})
+    view = views.ResourceViewSet.as_view({"post": "terminate"})
 
     for resource in resources:
         user = (
@@ -781,7 +790,7 @@ def schedule_resources_termination(resources, termination_comment=None):
 
         if not user:
             logger.error(
-                'User for terminating resources of project with due date does not exist.'
+                "User for terminating resources of project with due date does not exist."
             )
             return
 
@@ -800,7 +809,7 @@ def schedule_resources_termination(resources, termination_comment=None):
 
         if response.status_code != status.HTTP_200_OK:
             logger.error(
-                'Terminating resource %s has failed. %s',
+                "Terminating resource %s has failed. %s",
                 resource.uuid.hex,
                 response.rendered_content,
             )
@@ -815,7 +824,7 @@ def get_service_provider_resources(service_provider):
 def get_service_provider_customer_ids(service_provider):
     return (
         get_service_provider_resources(service_provider)
-        .values_list('project__customer_id', flat=True)
+        .values_list("project__customer_id", flat=True)
         .distinct()
     )
 
@@ -823,7 +832,7 @@ def get_service_provider_customer_ids(service_provider):
 def get_service_provider_project_ids(service_provider):
     return (
         get_service_provider_resources(service_provider)
-        .values_list('project_id', flat=True)
+        .values_list("project_id", flat=True)
         .distinct()
     )
 
@@ -831,7 +840,7 @@ def get_service_provider_project_ids(service_provider):
 def get_service_provider_user_ids(user, service_provider, customer=None):
     project_ids = get_service_provider_project_ids(service_provider)
     if customer:
-        customer_projects = customer.projects.all().values_list('id', flat=True)
+        customer_projects = customer.projects.all().values_list("id", flat=True)
         project_ids = set(project_ids) & set(customer_projects)
     content_type = ContentType.objects.get_for_model(structure_models.Project)
     qs = UserRole.objects.filter(
@@ -839,7 +848,7 @@ def get_service_provider_user_ids(user, service_provider, customer=None):
     )
     if not user.is_staff and not user.is_support:
         qs = qs.filter(user__is_active=True)
-    return qs.values_list('user_id', flat=True).distinct()
+    return qs.values_list("user_id", flat=True).distinct()
 
 
 def import_current_usages(resource):
@@ -852,9 +861,9 @@ def import_current_usages(resource):
             )
         except models.OfferingComponent.DoesNotExist:
             logger.warning(
-                'Skipping current usage synchronization because related '
-                'OfferingComponent does not exist.'
-                'Resource ID: %s',
+                "Skipping current usage synchronization because related "
+                "OfferingComponent does not exist."
+                "Resource ID: %s",
                 resource.id,
             )
             continue
@@ -869,9 +878,9 @@ def import_current_usages(resource):
             )
         except models.ResourcePlanPeriod.DoesNotExist:
             logger.warning(
-                'Skipping current usage synchronization because related '
-                'ResourcePlanPeriod does not exist.'
-                'Resource ID: %s',
+                "Skipping current usage synchronization because related "
+                "ResourcePlanPeriod does not exist."
+                "Resource ID: %s",
                 resource.id,
             )
             continue
@@ -899,8 +908,8 @@ def import_current_usages(resource):
 
 
 def format_limits_list(components_map, limits):
-    return ', '.join(
-        f'{components_map[key].name or components_map[key].type}: {value}'
+    return ", ".join(
+        f"{components_map[key].name or components_map[key].type}: {value}"
         for key, value in limits.items()
     )
 
@@ -914,24 +923,24 @@ def get_resource_users(resource):
 
 
 def generate_uidnumber_and_primary_group(offering):
-    initial_uidnumber = int(offering.plugin_options.get('initial_uidnumber', 5000))
+    initial_uidnumber = int(offering.plugin_options.get("initial_uidnumber", 5000))
     initial_primarygroup_number = int(
-        offering.plugin_options.get('initial_primarygroup_number', 5000)
+        offering.plugin_options.get("initial_primarygroup_number", 5000)
     )
 
     offering_user_last_uidnumber = (
         models.OfferingUser.objects.exclude(backend_metadata=None)
-        .filter(backend_metadata__has_key='uidnumber')
-        .order_by('backend_metadata__uidnumber')
-        .values_list('backend_metadata__uidnumber', flat=True)
+        .filter(backend_metadata__has_key="uidnumber")
+        .order_by("backend_metadata__uidnumber")
+        .values_list("backend_metadata__uidnumber", flat=True)
         .last()
     ) or initial_uidnumber
 
     robot_account_last_uidnumber = (
         models.RobotAccount.objects.exclude(backend_metadata=None)
-        .filter(backend_metadata__has_key='uidnumber')
-        .order_by('backend_metadata__uidnumber')
-        .values_list('backend_metadata__uidnumber', flat=True)
+        .filter(backend_metadata__has_key="uidnumber")
+        .order_by("backend_metadata__uidnumber")
+        .values_list("backend_metadata__uidnumber", flat=True)
         .last()
     ) or initial_uidnumber
 
@@ -957,7 +966,7 @@ def count_customers_number_change(service_provider):
             created__gte=core_utils.month_start(to_day),
         )
         .order_by()
-        .values_list('project__customer_id', flat=True)
+        .values_list("project__customer_id", flat=True)
         .distinct()
     ):
         if (
@@ -979,7 +988,7 @@ def count_customers_number_change(service_provider):
             created__gte=core_utils.month_start(to_day),
         )
         .order_by()
-        .values_list('project__customer_id', flat=True)
+        .values_list("project__customer_id", flat=True)
         .distinct()
     ):
         if (
@@ -1006,7 +1015,7 @@ def count_resources_number_change(service_provider):
             created__gte=core_utils.month_start(to_day),
         )
         .order_by()
-        .values_list('resource', flat=True)
+        .values_list("resource", flat=True)
         .distinct()
         .count()
     )
@@ -1019,7 +1028,7 @@ def count_resources_number_change(service_provider):
             created__gte=core_utils.month_start(to_day),
         )
         .order_by()
-        .values_list('resource', flat=True)
+        .values_list("resource", flat=True)
         .distinct()
         .count()
     )
@@ -1028,33 +1037,33 @@ def count_resources_number_change(service_provider):
 
 
 def generate_offering_password_hash(offering):
-    password = offering.secret_options.get('shared_user_password')
+    password = offering.secret_options.get("shared_user_password")
     if password:
         password_hash = hashlib.sha256()
-        password_hash.update(password.encode('utf-8'))
+        password_hash.update(password.encode("utf-8"))
         return password_hash.hexdigest()
     else:
-        return ''
+        return ""
 
 
 def setup_linux_related_data(
     instance: models.OfferingUser | models.RobotAccount, offering
 ):
-    uidnumber = instance.backend_metadata.get('uidnumber')
-    primarygroup = instance.backend_metadata.get('primarygroup')
+    uidnumber = instance.backend_metadata.get("uidnumber")
+    primarygroup = instance.backend_metadata.get("primarygroup")
 
     if not uidnumber or not primarygroup:
         uidnumber, primarygroup = generate_uidnumber_and_primary_group(offering)
 
-        instance.backend_metadata['uidnumber'] = uidnumber
-        instance.backend_metadata['primarygroup'] = primarygroup
+        instance.backend_metadata["uidnumber"] = uidnumber
+        instance.backend_metadata["primarygroup"] = primarygroup
 
-    login_shell = instance.backend_metadata.get('loginShell')
+    login_shell = instance.backend_metadata.get("loginShell")
     if not login_shell:
-        instance.backend_metadata['loginShell'] = "/bin/bash"
+        instance.backend_metadata["loginShell"] = "/bin/bash"
 
-    homedir_prefix = offering.plugin_options.get('homedir_prefix', '/home/')
-    instance.backend_metadata['homeDir'] = f"{homedir_prefix}{instance.username}"
+    homedir_prefix = offering.plugin_options.get("homedir_prefix", "/home/")
+    instance.backend_metadata["homeDir"] = f"{homedir_prefix}{instance.username}"
 
 
 def get_plans_available_for_user(
@@ -1085,15 +1094,15 @@ def generate_glauth_records_for_offering_users(offering, offering_users):
     for offering_user in offering_users:
         user = offering_user.user
         username = offering_user.username
-        uidnumber = offering_user.backend_metadata['uidnumber']
-        primarygroup = offering_user.backend_metadata['primarygroup']
-        login_shell = offering_user.backend_metadata['loginShell']
-        home_dir = offering_user.backend_metadata['homeDir']
+        uidnumber = offering_user.backend_metadata["uidnumber"]
+        primarygroup = offering_user.backend_metadata["primarygroup"]
+        login_shell = offering_user.backend_metadata["loginShell"]
+        home_dir = offering_user.backend_metadata["homeDir"]
 
         ssh_keys = [
             f'"{ssh_key.public_key}"' for ssh_key in user.sshpublickey_set.all()
         ]
-        ssh_keys_line = ',\n    '.join(ssh_keys)
+        ssh_keys_line = ",\n    ".join(ssh_keys)
 
         password_sha256 = generate_offering_password_hash(offering)
 
@@ -1101,7 +1110,7 @@ def generate_glauth_records_for_offering_users(offering, offering_users):
 
         group_ids = models.OfferingUserGroup.objects.filter(
             projects__in=user_projects
-        ).values_list('backend_metadata__gid', flat=True)
+        ).values_list("backend_metadata__gid", flat=True)
         group_ids = [str(gid) for gid in group_ids]
 
         other_groups = ", ".join(group_ids)
@@ -1141,13 +1150,13 @@ def generate_glauth_records_for_robot_accounts(offering, robot_accounts):
     robot_account_records = []
     for robot_account in robot_accounts:
         ssh_keys = robot_account.keys
-        ssh_keys_line = ',\n    '.join(ssh_keys)
+        ssh_keys_line = ",\n    ".join(ssh_keys)
 
         username = robot_account.username
-        uidnumber = robot_account.backend_metadata['uidnumber']
-        primarygroup = robot_account.backend_metadata['primarygroup']
-        login_shell = robot_account.backend_metadata['loginShell']
-        home_dir = robot_account.backend_metadata['homeDir']
+        uidnumber = robot_account.backend_metadata["uidnumber"]
+        primarygroup = robot_account.backend_metadata["primarygroup"]
+        login_shell = robot_account.backend_metadata["loginShell"]
+        home_dir = robot_account.backend_metadata["homeDir"]
         password_sha256 = generate_offering_password_hash(offering)
 
         record = textwrap.dedent(
@@ -1180,24 +1189,24 @@ def generate_glauth_records_for_robot_accounts(offering, robot_accounts):
 
 def sanitize_name(name):
     name = name.strip().lower()
-    name = re.sub(r'\s+', '_', name)
-    name = re.sub(r'\W+', '', name)
-    name = unicodedata.normalize('NFKD', name).encode('ascii', 'ignore').decode()
+    name = re.sub(r"\s+", "_", name)
+    name = re.sub(r"\W+", "", name)
+    name = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode()
     return name
 
 
 def create_anonymized_username(offering):
-    prefix = offering.plugin_options.get('username_anonymized_prefix', 'walduruser_')
+    prefix = offering.plugin_options.get("username_anonymized_prefix", "walduruser_")
     previous_users = models.OfferingUser.objects.filter(
         offering=offering, username__istartswith=prefix
-    ).order_by('username')
+    ).order_by("username")
 
     if previous_users.exists():
         last_username = previous_users.last().username
         last_number = int(last_username[-USERNAME_ANONYMIZED_POSTFIX_LENGTH:])
         number = str(last_number + 1).zfill(USERNAME_ANONYMIZED_POSTFIX_LENGTH)
     else:
-        number = '0'.zfill(USERNAME_ANONYMIZED_POSTFIX_LENGTH)
+        number = "0".zfill(USERNAME_ANONYMIZED_POSTFIX_LENGTH)
 
     return f"{prefix}{number}"
 
@@ -1209,14 +1218,14 @@ def create_username_from_full_name(user, offering):
     username_raw = f"{first_name}_{last_name}"
     previous_users = models.OfferingUser.objects.filter(
         offering=offering, username__istartswith=username_raw
-    ).order_by('username')
+    ).order_by("username")
 
     if previous_users.exists():
         last_username = previous_users.last().username
         last_number = int(last_username[-USERNAME_POSTFIX_LENGTH:])
         number = str(last_number + 1).zfill(USERNAME_POSTFIX_LENGTH)
     else:
-        number = '0'.zfill(USERNAME_POSTFIX_LENGTH)
+        number = "0".zfill(USERNAME_POSTFIX_LENGTH)
 
     return f"{username_raw}_{number}"
 
@@ -1224,19 +1233,19 @@ def create_username_from_full_name(user, offering):
 def create_username_from_freeipa_profile(user):
     profiles = freeipa_models.Profile.objects.filter(user=user)
     if profiles.count() == 0:
-        logger.warning('There is no FreeIPA profile for user %s', user)
-        return ''
+        logger.warning("There is no FreeIPA profile for user %s", user)
+        return ""
     else:
         return profiles.first().username
 
 
 def generate_username(user, offering):
     username_generation_policy = offering.plugin_options.get(
-        'username_generation_policy', UsernameGenerationPolicy.SERVICE_PROVIDER.value
+        "username_generation_policy", UsernameGenerationPolicy.SERVICE_PROVIDER.value
     )
 
     if username_generation_policy == UsernameGenerationPolicy.SERVICE_PROVIDER.value:
-        return ''
+        return ""
 
     if username_generation_policy == UsernameGenerationPolicy.ANONYMIZED.value:
         return create_anonymized_username(offering)
@@ -1250,16 +1259,16 @@ def generate_username(user, offering):
     if username_generation_policy == UsernameGenerationPolicy.FREEIPA.value:
         return create_username_from_freeipa_profile(user)
 
-    return ''
+    return ""
 
 
 def user_offerings_mapping(offerings):
     resources = models.Resource.objects.filter(
         state=models.Resource.States.OK, offering__in=offerings
     )
-    resource_ids = resources.values_list('id', flat=True)
+    resource_ids = resources.values_list("id", flat=True)
 
-    project_ids = resources.values_list('project_id', flat=True)
+    project_ids = resources.values_list("project_id", flat=True)
     projects = structure_models.Project.objects.filter(id__in=project_ids)
 
     user_offerings_set = set()
@@ -1268,7 +1277,7 @@ def user_offerings_mapping(offerings):
         users = project.get_users()
 
         project_resources = project.resource_set.filter(id__in=resource_ids)
-        project_offering_ids = project_resources.values_list('offering_id', flat=True)
+        project_offering_ids = project_resources.values_list("offering_id", flat=True)
         project_offerings = models.Offering.objects.filter(id__in=project_offering_ids)
 
         for user in users:
@@ -1285,7 +1294,7 @@ def user_offerings_mapping(offerings):
             )
             offering_user.set_propagation_date()
             offering_user.save()
-            logger.info('Offering user %s has been created.')
+            logger.info("Offering user %s has been created.")
 
 
 def order_should_not_be_reviewed_by_provider(order: models.Order):
@@ -1301,7 +1310,7 @@ def order_should_not_be_reviewed_by_provider(order: models.Order):
     if offering.type == REMOTE_PLUGIN_NAME:
         # If an offering has auto_approve_remote_orders flag set to True, an order can be processed without approval
         auto_approve_remote_orders = offering.plugin_options.get(
-            'auto_approve_remote_orders', False
+            "auto_approve_remote_orders", False
         )
         # A service provider owner or a service manager is not required to approve an order manually
         user_is_service_provider_owner = structure_permissions._has_owner_access(
@@ -1324,7 +1333,7 @@ def order_should_not_be_reviewed_by_provider(order: models.Order):
 def get_consumer_approvers(order):
     users = User.objects.none()
 
-    if settings.WALDUR_MARKETPLACE['NOTIFY_STAFF_ABOUT_APPROVALS']:
+    if settings.WALDUR_MARKETPLACE["NOTIFY_STAFF_ABOUT_APPROVALS"]:
         users |= User.objects.filter(is_staff=True, is_active=True)
 
     users |= get_users_with_permission(
@@ -1335,9 +1344,9 @@ def get_consumer_approvers(order):
 
     approvers = (
         users.distinct()
-        .exclude(email='')
+        .exclude(email="")
         .exclude(notifications_enabled=False)
-        .values_list('email', flat=True)
+        .values_list("email", flat=True)
     )
 
     return approvers
@@ -1346,7 +1355,7 @@ def get_consumer_approvers(order):
 def get_provider_approvers(order):
     users = User.objects.none()
 
-    if settings.WALDUR_MARKETPLACE['NOTIFY_STAFF_ABOUT_APPROVALS']:
+    if settings.WALDUR_MARKETPLACE["NOTIFY_STAFF_ABOUT_APPROVALS"]:
         users |= User.objects.filter(is_staff=True, is_active=True)
 
     users |= get_users_with_permission(
@@ -1357,9 +1366,9 @@ def get_provider_approvers(order):
 
     approvers = (
         users.distinct()
-        .exclude(email='')
+        .exclude(email="")
         .exclude(notifications_enabled=False)
-        .values_list('email', flat=True)
+        .values_list("email", flat=True)
     )
 
     return approvers

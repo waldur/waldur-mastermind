@@ -15,7 +15,7 @@ class Category(
     core_models.DescribableMixin,
 ):
     icon = models.FileField(
-        upload_to='marketplace_checklist_category_icons',
+        upload_to="marketplace_checklist_category_icons",
         blank=True,
         null=True,
         validators=[ImageValidator],
@@ -25,7 +25,7 @@ class Category(
         return self.name
 
     class Meta:
-        ordering = ('name',)
+        ordering = ("name",)
         verbose_name_plural = "Categories"
 
 
@@ -40,7 +40,7 @@ class Checklist(
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='checklists',
+        related_name="checklists",
     )
     customers = models.ManyToManyField(Customer)
 
@@ -48,19 +48,19 @@ class Checklist(
         return self.name
 
     class Meta:
-        ordering = ('name',)
+        ordering = ("name",)
 
 
 class ChecklistCustomerRole(models.Model):
     checklist = models.ForeignKey(
-        to=Checklist, on_delete=models.CASCADE, related_name='customer_roles'
+        to=Checklist, on_delete=models.CASCADE, related_name="customer_roles"
     )
     role = CustomerRole()
 
 
 class ChecklistProjectRole(models.Model):
     checklist = models.ForeignKey(
-        to=Checklist, on_delete=models.CASCADE, related_name='project_roles'
+        to=Checklist, on_delete=models.CASCADE, related_name="project_roles"
     )
     role = ProjectRole()
 
@@ -69,7 +69,7 @@ class Question(core_models.UuidMixin, core_models.DescribableMixin, ImageModelMi
     checklist = models.ForeignKey(
         to=Checklist,
         on_delete=models.CASCADE,
-        related_name='questions',
+        related_name="questions",
     )
     order = models.PositiveIntegerField(default=0)
     category = models.ForeignKey(
@@ -82,13 +82,13 @@ class Question(core_models.UuidMixin, core_models.DescribableMixin, ImageModelMi
     solution = models.TextField(
         blank=True,
         null=True,
-        help_text=_('It is shown when incorrect or N/A answer is chosen'),
+        help_text=_("It is shown when incorrect or N/A answer is chosen"),
     )
 
     class Meta:
         ordering = (
-            'checklist',
-            'order',
+            "checklist",
+            "order",
         )
 
     def __str__(self):

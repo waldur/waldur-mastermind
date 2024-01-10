@@ -6,9 +6,9 @@ from .models import Image, Instance, Region, Size, Volume
 
 
 class ImageAdmin(structure_admin.BackendModelAdmin):
-    fields = 'name', 'region', 'backend_id'
-    list_display = 'name', 'region', 'backend_id'
-    list_filter = ('region',)
+    fields = "name", "region", "backend_id"
+    list_display = "name", "region", "backend_id"
+    list_filter = ("region",)
 
 
 class ImageInline(admin.TabularInline):
@@ -19,13 +19,13 @@ class ImageInline(admin.TabularInline):
 class RegionAdmin(
     structure_admin.ProtectedModelMixin, structure_admin.BackendModelAdmin
 ):
-    readonly_fields = 'name', 'backend_id'
+    readonly_fields = "name", "backend_id"
     inlines = (ImageInline,)
 
 
 class SizeAdmin(structure_admin.ProtectedModelMixin, structure_admin.BackendModelAdmin):
-    readonly_fields = 'name', 'backend_id'
-    list_display = 'name', 'backend_id', 'cores', 'ram', 'disk'
+    readonly_fields = "name", "backend_id"
+    list_display = "name", "backend_id", "cores", "ram", "disk"
 
 
 class VolumeAdmin(structure_admin.ResourceAdmin):

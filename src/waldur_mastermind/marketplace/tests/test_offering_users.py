@@ -20,34 +20,34 @@ class ListOfferingUsersTest(test.APITransactionTestCase):
             shared=True, customer=self.fixture.customer
         )
         self.offering.secret_options = {
-            'service_provider_can_create_offering_user': True
+            "service_provider_can_create_offering_user": True
         }
         self.offering.save()
         user = UserFactory()
         self.fixture.project.add_user(user, ProjectRole.ADMIN)
-        OfferingUser.objects.create(offering=self.offering, user=user, username='user')
+        OfferingUser.objects.create(offering=self.offering, user=user, username="user")
         user2 = UserFactory()
         offering2 = factories.OfferingFactory(shared=True)
         self.fixture.project.add_user(user, ProjectRole.MANAGER)
-        OfferingUser.objects.create(offering=offering2, user=user2, username='user2')
+        OfferingUser.objects.create(offering=offering2, user=user2, username="user2")
 
     def list_permissions(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
-        return self.client.get(reverse('marketplace-offering-user-list'))
+        return self.client.get(reverse("marketplace-offering-user-list"))
 
-    @data('owner', 'admin', 'manager')
+    @data("owner", "admin", "manager")
     def test_authorized_user_can_list_offering_users(self, user):
         response = self.list_permissions(user)
         self.assertEqual(len(response.data), 1)
-        self.assertEqual('user', response.data[0]['username'])
+        self.assertEqual("user", response.data[0]["username"])
 
-    @data('staff', 'global_support')
+    @data("staff", "global_support")
     def test_authorized_privileged_user_can_list_offering_users(self, user):
         response = self.list_permissions(user)
         self.assertEqual(len(response.data), 2)
 
     @data(
-        'user',
+        "user",
     )
     def test_unauthorized_user_can_not_list_offering_permission(self, user):
         response = self.list_permissions(user)
@@ -56,39 +56,39 @@ class ListOfferingUsersTest(test.APITransactionTestCase):
     def test_user_can_view_own_offering_user(self):
         sample_user = UserFactory()
         OfferingUser.objects.create(
-            offering=self.offering, user=sample_user, username='user3'
+            offering=self.offering, user=sample_user, username="user3"
         )
 
         self.client.force_authenticate(sample_user)
-        response = self.client.get(reverse('marketplace-offering-user-list'))
+        response = self.client.get(reverse("marketplace-offering-user-list"))
 
         self.assertEqual(1, len(response.data))
-        self.assertEqual('user3', response.data[0]['username'])
+        self.assertEqual("user3", response.data[0]["username"])
 
     def test_user_can_filter_offering_users(self):
-        offering_user1 = OfferingUser.objects.get(username='user')
+        offering_user1 = OfferingUser.objects.get(username="user")
         offering_user1.set_propagation_date()
         offering_user1.save()
 
         self.client.force_login(self.fixture.staff)
 
         response = self.client.get(
-            reverse('marketplace-offering-user-list'), {'is_not_propagated': False}
+            reverse("marketplace-offering-user-list"), {"is_not_propagated": False}
         )
         self.assertEqual(1, len(response.data))
-        self.assertEqual('user', response.data[0]['username'])
-        self.assertIsNotNone(response.data[0]['propagation_date'], response.data[0])
+        self.assertEqual("user", response.data[0]["username"])
+        self.assertIsNotNone(response.data[0]["propagation_date"], response.data[0])
 
     def test_user_can_filter_by_user_username(self):
-        offering_user = OfferingUser.objects.get(username='user')
+        offering_user = OfferingUser.objects.get(username="user")
         user = offering_user.user
-        user.username = 'UserName1'
+        user.username = "UserName1"
         user.save()
 
         self.client.force_login(self.fixture.staff)
 
         response = self.client.get(
-            reverse('marketplace-offering-user-list'), {'user_username': 'username1'}
+            reverse("marketplace-offering-user-list"), {"user_username": "username1"}
         )
 
         self.assertEqual(200, response.status_code)
@@ -103,7 +103,7 @@ class CreateOfferingUsersTest(test.APITransactionTestCase):
         self.offering = factories.OfferingFactory(
             shared=True, customer=self.fixture.customer
         )
-        self.offering.secret_options['service_provider_can_create_offering_user'] = True
+        self.offering.secret_options["service_provider_can_create_offering_user"] = True
         self.offering.save()
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_OFFERING_USER)
 
@@ -111,24 +111,24 @@ class CreateOfferingUsersTest(test.APITransactionTestCase):
         self.client.force_authenticate(user=getattr(self.fixture, user))
         offering_url = factories.OfferingFactory.get_url(self.offering)
         user_url = UserFactory.get_url(self.fixture.user)
-        payload = {'offering': offering_url, 'user': user_url}
-        return self.client.post(reverse('marketplace-offering-user-list'), payload)
+        payload = {"offering": offering_url, "user": user_url}
+        return self.client.post(reverse("marketplace-offering-user-list"), payload)
 
-    @data('staff', 'owner')
+    @data("staff", "owner")
     def test_authorized_user_can_create_offering_user(self, user):
         response = self.create_offering_user(user)
         self.assertEqual(status.HTTP_201_CREATED, response.status_code)
 
-    @data('staff', 'owner')
+    @data("staff", "owner")
     def test_offering_does_not_allow_to_create_user(self, user):
         self.offering.secret_options[
-            'service_provider_can_create_offering_user'
+            "service_provider_can_create_offering_user"
         ] = False
         self.offering.save()
         response = self.create_offering_user(user)
         self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
 
-    @data('admin', 'manager')
+    @data("admin", "manager")
     def test_unauthorized_user_can_not_create_offering_user(self, user):
         response = self.create_offering_user(user)
         self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
@@ -142,9 +142,9 @@ class ListUsersTest(test.APITransactionTestCase):
         self.fixture.manager
         self.fixture.member
 
-        self.url = reverse('user-list')
+        self.url = reverse("user-list")
 
-    @data('service_manager', 'offering_owner')
+    @data("service_manager", "offering_owner")
     def test_user_should_be_able_to_see_users_connected_with_public_resources(
         self, user
     ):
@@ -155,7 +155,7 @@ class ListUsersTest(test.APITransactionTestCase):
         response = self.client.get(self.url)
         self.assertEqual(len(response.data), 4)
 
-    @data('service_manager', 'offering_owner')
+    @data("service_manager", "offering_owner")
     def test_user_should_not_be_able_to_see_users_connected_with_private_resources(
         self, user
     ):
@@ -165,7 +165,7 @@ class ListUsersTest(test.APITransactionTestCase):
         response = self.client.get(self.url)
         self.assertEqual(len(response.data), 1)
 
-    @data('service_manager', 'offering_owner', 'user')
+    @data("service_manager", "offering_owner", "user")
     def test_users_related_to_terminated_resources_are_not_exposed(self, user):
         self.fixture.offering.shared = True
         self.fixture.offering.save()
@@ -186,11 +186,11 @@ class OfferingUsersHandlerTest(test.APITransactionTestCase):
         OfferingUser.objects.create(
             offering=self.fixture.offering,
             user=self.fixture.user,
-            username='user',
+            username="user",
         )
         self.assertTrue(
             Event.objects.filter(
-                event_type='marketplace_offering_user_created'
+                event_type="marketplace_offering_user_created"
             ).exists()
         )
 
@@ -198,11 +198,11 @@ class OfferingUsersHandlerTest(test.APITransactionTestCase):
         offering_user = OfferingUser.objects.create(
             offering=self.fixture.offering,
             user=self.fixture.user,
-            username='user',
+            username="user",
         )
         offering_user.delete()
         self.assertTrue(
             Event.objects.filter(
-                event_type='marketplace_offering_user_deleted'
+                event_type="marketplace_offering_user_deleted"
             ).exists()
         )

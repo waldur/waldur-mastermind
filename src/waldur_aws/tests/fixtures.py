@@ -23,7 +23,7 @@ class AWSFixture(ProjectFixture):
 
     @cached_property
     def service_settings(self):
-        return ServiceSettingsFactory(type='Amazon', customer=self.customer)
+        return ServiceSettingsFactory(type="Amazon", customer=self.customer)
 
     @cached_property
     def instance(self):

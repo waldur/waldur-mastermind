@@ -18,14 +18,14 @@ def notify_project_team(policy):
     tasks.notify_about_limit_cost.delay(serialized_scope, serialized_policy)
 
     logger.info(
-        'Policy action notify_project_team has been triggered. Policy UUID: %s.',
+        "Policy action notify_project_team has been triggered. Policy UUID: %s.",
         policy.uuid.hex,
     )
 
     log.event_logger.policy_action.info(
-        'Cost policy has been triggered and notification to project members has been scheduled.',
-        event_type='notify_project_team',
-        event_context={'policy_uuid': policy.uuid.hex},
+        "Cost policy has been triggered and notification to project members has been scheduled.",
+        event_type="notify_project_team",
+        event_context={"policy_uuid": policy.uuid.hex},
     )
 
 
@@ -38,14 +38,14 @@ def notify_organization_owners(policy):
     tasks.notify_about_limit_cost.delay(serialized_scope, serialized_policy)
 
     logger.info(
-        'Policy action notify_organization_owners has been triggered. Policy UUID: %s.',
+        "Policy action notify_organization_owners has been triggered. Policy UUID: %s.",
         policy.uuid.hex,
     )
 
     log.event_logger.policy_action.info(
-        'Cost policy has been triggered and notification to organization owners has been scheduled.',
-        event_type='notify_organization_owners',
-        event_context={'policy_uuid': policy.uuid.hex},
+        "Cost policy has been triggered and notification to organization owners has been scheduled.",
+        event_type="notify_organization_owners",
+        event_context={"policy_uuid": policy.uuid.hex},
     )
 
 
@@ -60,7 +60,7 @@ def terminate_resources(policy):
     for resource in marketplace_models.Resource.objects.filter(project=policy.project):
         with transaction.atomic():
             attributes = (
-                {'action': 'force_destroy'}
+                {"action": "force_destroy"}
                 if resource.offering.type == INSTANCE_TYPE
                 else {}
             )
@@ -76,16 +76,16 @@ def terminate_resources(policy):
             )
 
             logger.info(
-                'Policy created termination order. Policy UUID: %s. Resource: %s',
+                "Policy created termination order. Policy UUID: %s. Resource: %s",
                 policy.uuid.hex,
                 str(resource),
             )
 
             log.event_logger.policy_action.info(
-                'Cost policy has been triggered and termination order has been created. Resource: %s.'
+                "Cost policy has been triggered and termination order has been created. Resource: %s."
                 % str(resource),
-                event_type='terminate_resources',
-                event_context={'policy_uuid': policy.uuid.hex},
+                event_type="terminate_resources",
+                event_context={"policy_uuid": policy.uuid.hex},
             )
 
             marketplace_tasks.process_order_on_commit(order, user)
@@ -97,16 +97,16 @@ terminate_resources.one_time_action = True
 def block_creation_of_new_resources(policy, created):
     if created:
         logger.info(
-            'Policy action block_creation_of_new_resources has been triggered. Policy UUID: %s.',
+            "Policy action block_creation_of_new_resources has been triggered. Policy UUID: %s.",
             policy.uuid.hex,
         )
         log.event_logger.policy_action.info(
-            'Cost policy has been triggered and creation of new resource has been blocked.',
-            event_type='block_creation_of_new_resources',
-            event_context={'policy_uuid': policy.uuid.hex},
+            "Cost policy has been triggered and creation of new resource has been blocked.",
+            event_type="block_creation_of_new_resources",
+            event_context={"policy_uuid": policy.uuid.hex},
         )
         raise PolicyException(
-            'Creation of new resources in this project is not available due to a policy.'
+            "Creation of new resources in this project is not available due to a policy."
         )
 
 
@@ -116,16 +116,16 @@ block_creation_of_new_resources.one_time_action = False
 def block_modification_of_existing_resources(policy, created):
     if not created:
         logger.info(
-            'Policy action block_modification_of_existing_resources has been triggered. Policy UUID: %s.',
+            "Policy action block_modification_of_existing_resources has been triggered. Policy UUID: %s.",
             policy.uuid.hex,
         )
         log.event_logger.policy_action.info(
-            'Cost policy has been triggered and updating existing resource has been blocked.',
-            event_type='block_modification_of_existing_resources',
-            event_context={'policy_uuid': policy.uuid.hex},
+            "Cost policy has been triggered and updating existing resource has been blocked.",
+            event_type="block_modification_of_existing_resources",
+            event_context={"policy_uuid": policy.uuid.hex},
         )
         raise PolicyException(
-            'Modification of new resources in this project is not available due to a policy.'
+            "Modification of new resources in this project is not available due to a policy."
         )
 
 
@@ -136,15 +136,15 @@ def request_downscaling(policy):
     resources = marketplace_models.Resource.objects.filter(project=policy.project)
     resources.update(requested_downscaling=True)
     logger.info(
-        'Policy action request_downscaling has been triggered. Policy UUID: %s. Resources: %s',
+        "Policy action request_downscaling has been triggered. Policy UUID: %s. Resources: %s",
         policy.uuid.hex,
-        ', '.join([r.name for r in resources]),
+        ", ".join([r.name for r in resources]),
     )
     log.event_logger.policy_action.info(
-        'Cost policy has been triggered and downscaling has been requested. Resources: %s'
-        % ', '.join([str(r) for r in resources]),
-        event_type='block_modification_of_existing_resources',
-        event_context={'policy_uuid': policy.uuid.hex},
+        "Cost policy has been triggered and downscaling has been requested. Resources: %s"
+        % ", ".join([str(r) for r in resources]),
+        event_type="block_modification_of_existing_resources",
+        event_context={"policy_uuid": policy.uuid.hex},
     )
 
 

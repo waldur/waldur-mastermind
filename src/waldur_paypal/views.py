@@ -15,14 +15,14 @@ logger = logging.getLogger(__name__)
 
 class ExtensionDisabled(exceptions.APIException):
     status_code = status.HTTP_424_FAILED_DEPENDENCY
-    default_detail = _('PayPal extension is disabled.')
+    default_detail = _("PayPal extension is disabled.")
 
 
 class CheckExtensionMixin:
     """Raise exception if paypal extension is disabled"""
 
     def initial(self, request, *args, **kwargs):
-        if not settings.WALDUR_PAYPAL['ENABLED']:
+        if not settings.WALDUR_PAYPAL["ENABLED"]:
             raise ExtensionDisabled()
         return super().initial(request, *args, **kwargs)
 
@@ -31,7 +31,7 @@ class CreateByStaffOrOwnerMixin:
     def create(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        customer = serializer.validated_data['customer']
+        customer = serializer.validated_data["customer"]
         if not structure_permissions._has_owner_access(request.user, customer):
             raise exceptions.PermissionDenied()
 
@@ -43,7 +43,7 @@ class PaymentView(
 ):
     queryset = models.Payment.objects.all()
     serializer_class = serializers.PaymentSerializer
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
     filterset_class = filters.PaymentFilter
 
     def perform_create(self, serializer):
@@ -51,8 +51,8 @@ class PaymentView(
         Create new payment via Paypal gateway
         """
 
-        return_url = serializer.validated_data.pop('return_url')
-        cancel_url = serializer.validated_data.pop('cancel_url')
+        return_url = serializer.validated_data.pop("return_url")
+        cancel_url = serializer.validated_data.pop("cancel_url")
 
         payment = serializer.save()
 
@@ -60,7 +60,7 @@ class PaymentView(
             backend_payment = payment.get_backend().make_payment(
                 payment.amount,
                 payment.tax,
-                description='Replenish account in Waldur for %s'
+                description="Replenish account in Waldur for %s"
                 % payment.customer.name,
                 return_url=return_url,
                 cancel_url=cancel_url,
@@ -75,13 +75,13 @@ class PaymentView(
             serializer.instance = payment
 
             log.event_logger.paypal_payment.info(
-                'Created new payment for {customer_name}',
-                event_type='payment_creation_succeeded',
-                event_context={'payment': payment},
+                "Created new payment for {customer_name}",
+                event_type="payment_creation_succeeded",
+                event_context={"payment": payment},
             )
 
         except backend.PayPalError as e:
-            message = 'Unable to create payment because of backend error %s' % e
+            message = "Unable to create payment because of backend error %s" % e
             logger.warning(message)
             payment.set_erred()
             payment.error_message = message
@@ -109,7 +109,7 @@ class PaymentView(
 
         return payment
 
-    @decorators.action(detail=False, methods=['POST'])
+    @decorators.action(detail=False, methods=["POST"])
     def approve(self, request):
         """
         Approve Paypal payment.
@@ -117,44 +117,44 @@ class PaymentView(
         serializer = serializers.PaymentApproveSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        payment_id = serializer.validated_data['payment_id']
-        payer_id = serializer.validated_data['payer_id']
-        token = serializer.validated_data['token']
+        payment_id = serializer.validated_data["payment_id"]
+        payer_id = serializer.validated_data["payer_id"]
+        token = serializer.validated_data["token"]
         payment = self.get_payment(token)
 
         try:
             payment.get_backend().approve_payment(payment_id, payer_id)
 
             payment.set_approved()
-            payment.error_message = ''
+            payment.error_message = ""
             payment.save()
 
             log.event_logger.paypal_payment.info(
-                'Payment for {customer_name} has been approved.',
-                event_type='payment_approval_succeeded',
-                event_context={'payment': payment},
+                "Payment for {customer_name} has been approved.",
+                event_type="payment_approval_succeeded",
+                event_context={"payment": payment},
             )
             return response.Response(
-                {'detail': 'Payment has been approved.'}, status=status.HTTP_200_OK
+                {"detail": "Payment has been approved."}, status=status.HTTP_200_OK
             )
 
         except backend.PayPalError as e:
-            message = 'Unable to approve payment because of backend error %s' % e
+            message = "Unable to approve payment because of backend error %s" % e
             logger.warning(message)
             payment.error_message = message
             payment.save()
             raise exceptions.APIException(message)
 
         except TransitionNotAllowed:
-            message = 'Unable to approve payment because of invalid state.'
+            message = "Unable to approve payment because of invalid state."
             payment.set_erred()
             payment.error_message = message
             payment.save()
             return response.Response(
-                {'detail': message}, status=status.HTTP_409_CONFLICT
+                {"detail": message}, status=status.HTTP_409_CONFLICT
             )
 
-    @decorators.action(detail=False, methods=['POST'])
+    @decorators.action(detail=False, methods=["POST"])
     def cancel(self, request):
         """
         Cancel Paypal payment.
@@ -162,7 +162,7 @@ class PaymentView(
         serializer = serializers.PaymentCancelSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        token = serializer.validated_data['token']
+        token = serializer.validated_data["token"]
         payment = self.get_payment(token)
 
         try:
@@ -170,17 +170,17 @@ class PaymentView(
             payment.save()
 
             log.event_logger.paypal_payment.info(
-                'Payment for {customer_name} has been cancelled.',
-                event_type='payment_cancel_succeeded',
-                event_context={'payment': payment},
+                "Payment for {customer_name} has been cancelled.",
+                event_type="payment_cancel_succeeded",
+                event_context={"payment": payment},
             )
             return response.Response(
-                {'detail': 'Payment has been cancelled.'}, status=status.HTTP_200_OK
+                {"detail": "Payment has been cancelled."}, status=status.HTTP_200_OK
             )
 
         except TransitionNotAllowed:
             return response.Response(
-                {'detail': 'Unable to cancel payment because of invalid state.'},
+                {"detail": "Unable to cancel payment because of invalid state."},
                 status=status.HTTP_409_CONFLICT,
             )
 
@@ -188,7 +188,7 @@ class PaymentView(
 class InvoicesViewSet(CheckExtensionMixin, core_views.ReadOnlyActionsViewSet):
     queryset = models.Invoice.objects.all()
     serializer_class = serializers.InvoiceSerializer
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
     filterset_class = filters.InvoiceFilter
 
 
@@ -197,15 +197,15 @@ class InvoiceWebHookViewSet(CheckExtensionMixin, views.APIView):
     permission_classes = ()
     serializer_class = serializers.InvoiceUpdateWebHookSerializer
     valid_event_types = [
-        'INVOICING.INVOICE.CANCELLED',
-        'INVOICING.INVOICE.PAID',
-        'INVOICING.INVOICE.REFUNDED',
-        'INVOICING.INVOICE.UPDATED',
+        "INVOICING.INVOICE.CANCELLED",
+        "INVOICING.INVOICE.PAID",
+        "INVOICING.INVOICE.REFUNDED",
+        "INVOICING.INVOICE.UPDATED",
         # 'INVOICING.INVOICE.CREATED', No need to update created Invoice
     ]
 
     def post(self, request, *args, **kwargs):
-        if request.data.get('event_type') not in self.valid_event_types:
+        if request.data.get("event_type") not in self.valid_event_types:
             return response.Response(status=status.HTTP_304_NOT_MODIFIED)
 
         serializer = self.serializer_class(data=request.data)

@@ -4,15 +4,15 @@ from waldur_core.core import WaldurExtension
 class AuthBCCExtension(WaldurExtension):
     class Settings:
         WALDUR_AUTH_BCC = {
-            'ENABLED': False,
-            'BASE_API_URL': '',
-            'USERNAME': '',
-            'PASSWORD': '',
+            "ENABLED": False,
+            "BASE_API_URL": "",
+            "USERNAME": "",
+            "PASSWORD": "",
         }
 
     @staticmethod
     def django_app():
-        return 'waldur_auth_bcc'
+        return "waldur_auth_bcc"
 
     @staticmethod
     def django_urls():

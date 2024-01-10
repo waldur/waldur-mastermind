@@ -5,26 +5,26 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace', '0116_plancomponent_future_price'),
+        ("marketplace", "0116_plancomponent_future_price"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='offering',
-            name='resource_options',
+            model_name="offering",
+            name="resource_options",
             field=models.JSONField(
                 blank=True,
                 default=dict,
-                help_text='Fields describing resource report form.',
+                help_text="Fields describing resource report form.",
             ),
         ),
         migrations.AlterField(
-            model_name='offering',
-            name='options',
+            model_name="offering",
+            name="options",
             field=models.JSONField(
                 blank=True,
                 default=dict,
-                help_text='Fields describing resource provision form.',
+                help_text="Fields describing resource provision form.",
             ),
         ),
     ]

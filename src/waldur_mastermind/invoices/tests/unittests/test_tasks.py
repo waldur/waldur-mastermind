@@ -15,49 +15,49 @@ from waldur_mastermind.invoices.tests import factories, fixtures
 
 class CreateMonthlyInvoiceTest(TestCase):
     def test_invoice_item_is_created_for_created_resource_in_new_month(self):
-        with freeze_time('2017-01-15'):
+        with freeze_time("2017-01-15"):
             fixture = fixtures.InvoiceFixture()
             fixture.resource.set_state_ok()
             fixture.resource.save()
 
-        with freeze_time('2017-02-01'):
+        with freeze_time("2017-02-01"):
             tasks.create_monthly_invoices()
 
         self.assertEqual(models.InvoiceItem.objects.count(), 2)
 
     def test_invoice_item_is_not_created_for_pending_resource_in_new_month(self):
-        with freeze_time('2017-01-15'):
+        with freeze_time("2017-01-15"):
             fixture = fixtures.InvoiceFixture()
             fixture.invoice_item
 
-        with freeze_time('2017-02-01'):
+        with freeze_time("2017-02-01"):
             tasks.create_monthly_invoices()
 
         self.assertEqual(models.InvoiceItem.objects.count(), 1)
 
     def test_old_invoices_are_marked_as_created(self):
         # previous year
-        with freeze_time('2016-11-01'):
+        with freeze_time("2016-11-01"):
             invoice1 = factories.InvoiceFactory()
 
         # previous month
-        with freeze_time('2017-01-15'):
+        with freeze_time("2017-01-15"):
             invoice2 = factories.InvoiceFactory()
 
-        with freeze_time('2017-02-4'):
+        with freeze_time("2017-02-4"):
             tasks.create_monthly_invoices()
             invoice1.refresh_from_db()
             self.assertEqual(
                 invoice1.state,
                 models.Invoice.States.CREATED,
-                'Invoice for previous year is not marked as CREATED',
+                "Invoice for previous year is not marked as CREATED",
             )
 
             invoice2.refresh_from_db()
             self.assertEqual(
                 invoice2.state,
                 models.Invoice.States.CREATED,
-                'Invoice for previous month is not marked as CREATED',
+                "Invoice for previous month is not marked as CREATED",
             )
 
 

@@ -26,13 +26,13 @@ def is_owner_of_service_provider(request, view, obj=None):
         return
     raise exceptions.PermissionDenied(
         _(
-            'Only owner of service provider is allowed to review resource creation request.'
+            "Only owner of service provider is allowed to review resource creation request."
         )
     )
 
 
 class CustomerCreateRequestViewSet(ReviewViewSet):
-    lookup_field = 'flow__uuid'
+    lookup_field = "flow__uuid"
     queryset = models.CustomerCreateRequest.objects.all()
     approve_permissions = reject_permissions = [structure_permissions.is_staff]
     filterset_class = filters.CustomerCreateRequestFilter
@@ -47,7 +47,7 @@ class CustomerCreateRequestViewSet(ReviewViewSet):
 
 
 class ProjectCreateRequestViewSet(ReviewViewSet):
-    lookup_field = 'flow__uuid'
+    lookup_field = "flow__uuid"
     queryset = models.ProjectCreateRequest.objects.all()
     approve_permissions = reject_permissions = [structure_permissions.is_owner]
     filterset_class = filters.ProjectCreateRequestFilter
@@ -67,7 +67,7 @@ class ProjectCreateRequestViewSet(ReviewViewSet):
 
 
 class ResourceCreateRequestViewSet(ConnectedOfferingDetailsMixin, ReviewViewSet):
-    lookup_field = 'flow__uuid'
+    lookup_field = "flow__uuid"
     queryset = models.ResourceCreateRequest.objects.all()
     approve_permissions = reject_permissions = [is_owner_of_service_provider]
     filterset_class = filters.ResourceCreateRequestFilter
@@ -86,23 +86,23 @@ class ResourceCreateRequestViewSet(ConnectedOfferingDetailsMixin, ReviewViewSet)
 
 class FlowViewSet(ActionsViewSet):
     queryset = models.FlowTracker.objects.all()
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
     update_validators = (
         partial_update_validators
     ) = submit_validators = cancel_validators = [
         core_validators.StateValidator(models.ReviewMixin.States.DRAFT)
     ]
-    disabled_actions = ['destroy']
+    disabled_actions = ["destroy"]
     serializer_class = serializers.FlowSerializer
     filterset_class = filters.FlowFilter
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def submit(self, request, uuid=None):
         flow = self.get_object()
         flow.submit()
         return Response(status=status.HTTP_200_OK)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def cancel(self, request, uuid=None):
         flow = self.get_object()
         flow.cancel()
@@ -121,7 +121,7 @@ class OfferingActivateRequestViewSet(ReviewViewSet):
     approve_permissions = reject_permissions = [structure_permissions.is_staff]
     filterset_class = filters.OfferingActivateRequestFilter
     serializer_class = serializers.OfferingActivateRequestSerializer
-    disabled_actions = ['destroy', 'update', 'partial_update']
+    disabled_actions = ["destroy", "update", "partial_update"]
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -140,19 +140,19 @@ class OfferingActivateRequestViewSet(ReviewViewSet):
             if response.status_code == status.HTTP_201_CREATED:
                 offering_request.submit()
                 offering_request.issue = support_models.Issue.objects.get(
-                    uuid=response.data['uuid']
+                    uuid=response.data["uuid"]
                 )
                 offering_request.save()
             else:
                 raise exceptions.ValidationError(response.rendered_content)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def submit(self, request, **kwargs):
         review_request = self.get_object()
         review_request.submit()
         return Response(status=status.HTTP_200_OK)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def cancel(self, request, **kwargs):
         review_request = self.get_object()
         review_request.cancel()

@@ -12,8 +12,8 @@ def count_quota_handler_factory(count_quota_field):
     """Creates handler that will recalculate count_quota on creation/deletion"""
 
     def recalculate_count_quota(sender, instance, **kwargs):
-        signal = kwargs['signal']
-        if signal == signals.post_save and kwargs.get('created'):
+        signal = kwargs["signal"]
+        if signal == signals.post_save and kwargs.get("created"):
             count_quota_field.add_usage(instance, delta=1)
         elif signal == signals.post_delete:
             count_quota_field.add_usage(instance, delta=-1)
@@ -48,7 +48,7 @@ def handle_aggregated_quotas(sender, instance, **kwargs):
     # usage aggregation should not count another usage aggregator field to avoid calls duplication.
     if isinstance(quota_field, fields.UsageAggregatorQuotaField) or quota_field is None:
         return
-    signal = kwargs['signal']
+    signal = kwargs["signal"]
     ancestors = {}
     if isinstance(quota.scope, DescendantMixin):
         # We need to use set in order to eliminate duplicates.

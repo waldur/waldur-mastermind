@@ -4,7 +4,7 @@ from waldur_core.core import WaldurExtension
 class OpenStackExtension(WaldurExtension):
     @staticmethod
     def django_app():
-        return 'waldur_openstack.openstack'
+        return "waldur_openstack.openstack"
 
     @staticmethod
     def rest_urls():
@@ -17,15 +17,15 @@ class OpenStackExtension(WaldurExtension):
         from datetime import timedelta
 
         return {
-            'openstack-tenant-pull-quotas': {
-                'task': 'openstack.TenantPullQuotas',
-                'schedule': timedelta(hours=12),
-                'args': (),
+            "openstack-tenant-pull-quotas": {
+                "task": "openstack.TenantPullQuotas",
+                "schedule": timedelta(hours=12),
+                "args": (),
             },
-            'openstack_mark_as_erred_old_tenants_in_deleting_state': {
-                'task': 'openstack.mark_as_erred_old_tenants_in_deleting_state',
-                'schedule': timedelta(hours=24),
-                'args': (),
+            "openstack_mark_as_erred_old_tenants_in_deleting_state": {
+                "task": "openstack.mark_as_erred_old_tenants_in_deleting_state",
+                "schedule": timedelta(hours=24),
+                "args": (),
             },
         }
 

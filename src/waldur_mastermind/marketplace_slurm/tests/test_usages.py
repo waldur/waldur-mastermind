@@ -19,14 +19,14 @@ from waldur_slurm.tests import factories as slurm_factories
 class ComponentUsageTest(test.APITransactionTestCase):
     def setUp(self):
         fixture = structure_fixtures.ProjectFixture()
-        service_settings = structure_factories.ServiceSettingsFactory(type='SLURM')
+        service_settings = structure_factories.ServiceSettingsFactory(type="SLURM")
         offering = marketplace_factories.OfferingFactory(
             type=PLUGIN_NAME, scope=service_settings
         )
         plan = marketplace_factories.PlanFactory(offering=offering)
         self.allocation = slurm_factories.AllocationFactory()
         self.resource = marketplace_models.Resource.objects.create(
-            name='test-resource',
+            name="test-resource",
             scope=self.allocation,
             offering=offering,
             plan=plan,
@@ -50,17 +50,17 @@ class ComponentUsageTest(test.APITransactionTestCase):
             )
 
     def test_backend_triggers_usage_sync(self):
-        self.allocation.backend_id = 'allocation1'
+        self.allocation.backend_id = "allocation1"
         self.allocation.save()
 
         backend = self.allocation.get_backend()
         backend.client = mock.Mock()
         backend.client.get_usage_report.return_value = [
             SlurmReportLine(
-                'allocation1|cpu=1,node=1,gres/gpu=1,gres/gpu:tesla=1|00:01:00|user1|'
+                "allocation1|cpu=1,node=1,gres/gpu=1,gres/gpu:tesla=1|00:01:00|user1|"
             ),
             SlurmReportLine(
-                'allocation1|cpu=2,node=2,gres/gpu=2,gres/gpu:tesla=1|00:02:00|user2|'
+                "allocation1|cpu=2,node=2,gres/gpu=2,gres/gpu:tesla=1|00:02:00|user2|"
             ),
         ]
         backend.sync_usage()
@@ -71,12 +71,12 @@ class ComponentUsageTest(test.APITransactionTestCase):
 
         self.assertTrue(
             marketplace_models.ComponentUsage.objects.filter(
-                resource=self.resource, component__type='cpu'
+                resource=self.resource, component__type="cpu"
             ).exists()
         )
         self.assertTrue(
             marketplace_models.ComponentUsage.objects.filter(
-                resource=self.resource, component__type='gpu'
+                resource=self.resource, component__type="gpu"
             ).exists()
         )
 
@@ -96,10 +96,10 @@ class ComponentUsageTest(test.APITransactionTestCase):
                 resource=self.resource, component__type=component.type
             )
             self.assertEqual(
-                quota.limit, getattr(self.allocation, component.type + '_limit')
+                quota.limit, getattr(self.allocation, component.type + "_limit")
             )
             self.assertEqual(
-                quota.usage, getattr(self.allocation, component.type + '_usage')
+                quota.usage, getattr(self.allocation, component.type + "_usage")
             )
 
     def test_invoice_item_is_not_created_when_allocation_creation_succeded(self):
@@ -131,7 +131,7 @@ class ComponentUsageTest(test.APITransactionTestCase):
         self.allocation.save()
 
         item = InvoiceItem.objects.get(
-            resource=self.resource, details__offering_component_type='cpu'
+            resource=self.resource, details__offering_component_type="cpu"
         )
         self.assertEqual(item.quantity, 1)
 
@@ -140,7 +140,7 @@ class ComponentUsageTest(test.APITransactionTestCase):
         self.allocation.save()
 
         item = InvoiceItem.objects.get(
-            resource=self.resource, details__offering_component_type='gpu'
+            resource=self.resource, details__offering_component_type="gpu"
         )
         self.assertEqual(item.quantity, 1)
 
@@ -151,6 +151,6 @@ class ComponentUsageTest(test.APITransactionTestCase):
         self.allocation.save()
 
         item = InvoiceItem.objects.get(
-            resource=self.resource, details__offering_component_type='ram'
+            resource=self.resource, details__offering_component_type="ram"
         )
         self.assertEqual(item.quantity, 1)

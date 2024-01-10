@@ -7,4 +7,4 @@ class QuotaFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = QuotaUsage
 
-    name = factory.Sequence(lambda i: 'quota_%s' % i)
+    name = factory.Sequence(lambda i: "quota_%s" % i)

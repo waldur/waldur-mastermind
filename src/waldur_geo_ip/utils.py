@@ -9,14 +9,14 @@ from . import exceptions
 logger = logging.getLogger(__name__)
 
 
-Coordinates = collections.namedtuple('Coordinates', ('latitude', 'longitude'))
+Coordinates = collections.namedtuple("Coordinates", ("latitude", "longitude"))
 
 
 def get_response(ip_address):
     if not settings.IPSTACK_ACCESS_KEY:
         raise exceptions.GeoIpException("IPSTACK_ACCESS_KEY is empty.")
 
-    url = 'http://api.ipstack.com/{}?access_key={}&output=json&legacy=1'.format(
+    url = "http://api.ipstack.com/{}?access_key={}&output=json&legacy=1".format(
         ip_address, settings.IPSTACK_ACCESS_KEY
     )  # We don't use https, because current plan does not support HTTPS Encryption
 
@@ -29,7 +29,9 @@ def get_response(ip_address):
         return response.json()
 
     params = (url, response.status_code, response.text)
-    raise exceptions.GeoIpException("Request to geoip API %s failed: %s %s" % params)
+    raise exceptions.GeoIpException(
+        "Request to geoip API {} failed: {} {}".format(*params)
+    )
 
 
 def get_coordinates_by_ip(ip_address):
@@ -38,8 +40,8 @@ def get_coordinates_by_ip(ip_address):
     :param ip_address: IP or hostname
     """
     data = get_response(ip_address)
-    latitude = data.get('latitude')
-    longitude = data.get('longitude')
+    latitude = data.get("latitude")
+    longitude = data.get("longitude")
     return Coordinates(latitude=latitude, longitude=longitude)
 
 
@@ -49,17 +51,17 @@ def get_country_by_ip(ip_address):
     :param ip_address: IP or hostname
     """
     data = get_response(ip_address)
-    return data.get('country_name')
+    return data.get("country_name")
 
 
 def detect_coordinates(instance):
     try:
         coordinates = instance.detect_coordinates()
     except exceptions.GeoIpException as e:
-        logger.warning('Unable to detect coordinates for %s: %s.', instance, e)
+        logger.warning("Unable to detect coordinates for %s: %s.", instance, e)
         return
 
     if coordinates:
         instance.latitude = coordinates.latitude
         instance.longitude = coordinates.longitude
-        instance.save(update_fields=['latitude', 'longitude'])
+        instance.save(update_fields=["latitude", "longitude"])

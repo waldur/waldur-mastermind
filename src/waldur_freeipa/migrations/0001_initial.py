@@ -20,48 +20,48 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.CreateModel(
-            name='Profile',
+            name="Profile",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'username',
+                    "username",
                     models.CharField(
-                        help_text='Letters, numbers and ./+/-/_ characters',
+                        help_text="Letters, numbers and ./+/-/_ characters",
                         max_length=255,
                         unique=True,
                         validators=[
                             waldur_freeipa.models.validate_username,
                             django.core.validators.RegexValidator(
                                 re.compile(
-                                    r'^[a-zA-Z0-9_.][a-zA-Z0-9_.-]*[a-zA-Z0-9_.$-]?$'
+                                    r"^[a-zA-Z0-9_.][a-zA-Z0-9_.-]*[a-zA-Z0-9_.$-]?$"
                                 ),
-                                'Enter a valid username.',
-                                'invalid',
+                                "Enter a valid username.",
+                                "invalid",
                             ),
                         ],
-                        verbose_name='username',
+                        verbose_name="username",
                     ),
                 ),
                 (
-                    'agreement_date',
+                    "agreement_date",
                     models.DateTimeField(
                         default=django.utils.timezone.now,
-                        help_text='Indicates when the user has agreed with the policy.',
-                        verbose_name='agreement date',
+                        help_text="Indicates when the user has agreed with the policy.",
+                        verbose_name="agreement date",
                     ),
                 ),
-                ('is_active', models.BooleanField(default=True, verbose_name='active')),
+                ("is_active", models.BooleanField(default=True, verbose_name="active")),
                 (
-                    'user',
+                    "user",
                     models.OneToOneField(
                         on_delete=django.db.models.deletion.CASCADE,
                         to=settings.AUTH_USER_MODEL,
@@ -69,7 +69,7 @@ class Migration(migrations.Migration):
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
     ]

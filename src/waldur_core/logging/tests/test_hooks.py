@@ -28,8 +28,8 @@ class HookCreationViewTest(BaseHookApiTest):
         response = self.client.post(
             WebHookFactory.get_list_url(),
             data={
-                'event_types': self.valid_event_types,
-                'destination_url': 'http://example.com/',
+                "event_types": self.valid_event_types,
+                "destination_url": "http://example.com/",
             },
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
@@ -37,8 +37,8 @@ class HookCreationViewTest(BaseHookApiTest):
     def test_user_can_create_email_hook(self):
         self.client.force_authenticate(user=self.author)
         response = self.client.post(
-            reverse('emailhook-list'),
-            data={'event_types': self.valid_event_types, 'email': 'test@example.com'},
+            reverse("emailhook-list"),
+            data={"event_types": self.valid_event_types, "email": "test@example.com"},
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
@@ -50,13 +50,13 @@ class HookCreationViewTest(BaseHookApiTest):
         response = self.client.post(
             WebHookFactory.get_list_url(),
             data={
-                'event_groups': event_groups,
-                'destination_url': 'http://example.com/',
+                "event_groups": event_groups,
+                "destination_url": "http://example.com/",
             },
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data['event_groups'], set(event_groups))
-        self.assertEqual(response.data['event_types'], set(event_types))
+        self.assertEqual(response.data["event_groups"], set(event_groups))
+        self.assertEqual(response.data["event_types"], set(event_types))
 
 
 @ddt
@@ -64,40 +64,40 @@ class HookUpdateTest(BaseHookApiTest):
     def setUp(self):
         super().setUp()
         self.hooks = {
-            'web': WebHookFactory.get_url(WebHookFactory(user=self.author)),
+            "web": WebHookFactory.get_url(WebHookFactory(user=self.author)),
         }
 
     def test_author_can_update_webhook_destination_url(self):
-        new_data = {'destination_url': 'http://another-host.com'}
-        response = self.update_hook('web', new_data)
-        self.assertEqual(new_data['destination_url'], response.data['destination_url'])
+        new_data = {"destination_url": "http://another-host.com"}
+        response = self.update_hook("web", new_data)
+        self.assertEqual(new_data["destination_url"], response.data["destination_url"])
 
     @data(
-        'web',
+        "web",
     )
     def test_author_can_update_hook_event_types(self, hook):
         new_event_types = set(self.valid_event_types[:1])
-        response = self.update_hook(hook, {'event_types': new_event_types})
-        self.assertEqual(new_event_types, response.data['event_types'])
+        response = self.update_hook(hook, {"event_types": new_event_types})
+        self.assertEqual(new_event_types, response.data["event_types"])
 
     @data(
-        'web',
+        "web",
     )
     def test_author_can_update_event_groups(self, hook):
         event_groups = self.valid_event_groups
         event_types = loggers.expand_event_groups(event_groups)
 
         self.client.force_authenticate(user=self.author)
-        response = self.update_hook(hook, {'event_groups': event_groups})
-        self.assertEqual(response.data['event_groups'], set(event_groups))
-        self.assertEqual(response.data['event_types'], set(event_types))
+        response = self.update_hook(hook, {"event_groups": event_groups})
+        self.assertEqual(response.data["event_groups"], set(event_groups))
+        self.assertEqual(response.data["event_types"], set(event_types))
 
     @data(
-        'web',
+        "web",
     )
     def test_author_can_disable_hook(self, hook):
-        response = self.update_hook(hook, {'is_active': False})
-        self.assertFalse(response.data['is_active'])
+        response = self.update_hook(hook, {"is_active": False})
+        self.assertFalse(response.data["is_active"])
 
     def update_hook(self, hook, data):
         self.client.force_authenticate(user=self.author)
@@ -116,7 +116,7 @@ class HookPermissionsViewTest(BaseHookApiTest):
         self.client.force_authenticate(user=self.author)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertEqual(str(self.author.uuid), str(response.data['author_uuid']))
+        self.assertEqual(str(self.author.uuid), str(response.data["author_uuid"]))
 
     def test_hook_visible_to_staff(self):
         self.client.force_authenticate(user=self.staff)
@@ -135,22 +135,22 @@ class HookFilterViewTest(BaseHookApiTest):
         WebHookFactory(user=self.other_user)
         self.client.force_authenticate(user=self.staff)
         response = self.client.get(
-            WebHookFactory.get_list_url(), {'author_uuid': self.author.uuid.hex}
+            WebHookFactory.get_list_url(), {"author_uuid": self.author.uuid.hex}
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(str(self.author.uuid), str(response.data[0]['author_uuid']))
+        self.assertEqual(str(self.author.uuid), str(response.data[0]["author_uuid"]))
 
     def test_staff_can_filter_summary_hook_by_author_uuid(self):
         WebHookFactory(user=self.author)
         WebHookFactory(user=self.other_user)
         self.client.force_authenticate(user=self.staff)
         response = self.client.get(
-            reverse('hooks-list'), {'author_uuid': self.author.uuid.hex}
+            reverse("hooks-list"), {"author_uuid": self.author.uuid.hex}
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(str(self.author.uuid), str(response.data[0]['author_uuid']))
+        self.assertEqual(str(self.author.uuid), str(response.data[0]["author_uuid"]))
 
 
 class SystemNotificationTest(test.APITransactionTestCase):
@@ -174,7 +174,7 @@ class SystemNotificationTest(test.APITransactionTestCase):
 
     def test_not_send_notification_if_event_type_is_not_system_type(self):
         self.assertFalse(models.EmailHook.objects.count())
-        self.event.event_type = 'test_event_type'
+        self.event.event_type = "test_event_type"
         self.event.save()
         tasks.process_event(self.event.id)
         self.assertEqual(len(mail.outbox), 0)
@@ -188,7 +188,7 @@ class SystemNotificationTest(test.APITransactionTestCase):
 
     def test_not_send_notification_if_wrong_role(self):
         self.assertFalse(models.EmailHook.objects.count())
-        self.system_notification.roles = ['manager']
+        self.system_notification.roles = ["manager"]
         self.system_notification.save()
         tasks.process_event(self.event.id)
         self.assertEqual(len(mail.outbox), 1)
@@ -206,9 +206,9 @@ class SystemNotificationTest(test.APITransactionTestCase):
         self.assertEqual(len(mail.outbox), 1)
         self.assertTrue(self.admin.email in mail.outbox[0].to)
 
-    @override_waldur_core_settings(NOTIFICATION_SUBJECT='Test Subject')
+    @override_waldur_core_settings(NOTIFICATION_SUBJECT="Test Subject")
     def test_notification_subject(self):
         self.assertFalse(models.EmailHook.objects.count())
         tasks.process_event(self.event.id)
         self.assertEqual(len(mail.outbox), 1)
-        self.assertEqual(mail.outbox[0].subject, 'Test Subject')
+        self.assertEqual(mail.outbox[0].subject, "Test Subject")

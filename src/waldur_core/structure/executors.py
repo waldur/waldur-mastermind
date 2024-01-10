@@ -13,7 +13,7 @@ class ServiceSettingsCreateExecutor(core_executors.CreateExecutor):
     def get_task_signature(cls, settings, serialized_settings, **kwargs):
         creation_tasks = [
             core_tasks.StateTransitionTask().si(
-                serialized_settings, state_transition='begin_creating'
+                serialized_settings, state_transition="begin_creating"
             )
         ]
         # sync settings if they have not only global properties
@@ -21,7 +21,7 @@ class ServiceSettingsCreateExecutor(core_executors.CreateExecutor):
         if not backend.has_global_properties():
             creation_tasks.append(
                 core_tasks.IndependentBackendMethodTask().si(
-                    serialized_settings, 'sync'
+                    serialized_settings, "sync"
                 )
             )
         return chain(*creation_tasks)
@@ -31,7 +31,7 @@ class ServiceSettingsPullExecutor(core_executors.ActionExecutor):
     @classmethod
     def get_task_signature(cls, settings, serialized_settings, **kwargs):
         return core_tasks.IndependentBackendMethodTask().si(
-            serialized_settings, 'sync', state_transition='begin_updating'
+            serialized_settings, "sync", state_transition="begin_updating"
         )
 
 
@@ -178,9 +178,9 @@ def check_cleanup_executors(app_configs, **kwargs):
             if not issubclass(model, Model):
                 errors.append(
                     checks.Error(
-                        'Invalid resource model is detected in project cleanup executor.',
+                        "Invalid resource model is detected in project cleanup executor.",
                         obj=cleanup_executor,
-                        id='waldur.E001',
+                        id="waldur.E001",
                     )
                 )
 
@@ -188,9 +188,9 @@ def check_cleanup_executors(app_configs, **kwargs):
             if not is_valid_executor(item):
                 errors.append(
                     checks.Error(
-                        'Invalid resource executor is detected in project cleanup executor.',
+                        "Invalid resource executor is detected in project cleanup executor.",
                         obj=cleanup_executor,
-                        id='waldur.E001',
+                        id="waldur.E001",
                     )
                 )
 

@@ -12,7 +12,7 @@ class CustomerChecklistTest(test.APITransactionTestCase):
         self.project = self.fixture.customer
         self.checklist1 = factories.ChecklistFactory()
         self.checklist2 = factories.ChecklistFactory()
-        self.url = reverse('marketplace-checklist-list')
+        self.url = reverse("marketplace-checklist-list")
 
     def test_filter_by_project_roles(self):
         models.ChecklistProjectRole.objects.create(
@@ -25,12 +25,12 @@ class CustomerChecklistTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.manager)
         data = self.client.get(self.url).data
         self.assertEqual(len(data), 1)
-        self.assertEqual(data[0]['uuid'], self.checklist1.uuid.hex)
+        self.assertEqual(data[0]["uuid"], self.checklist1.uuid.hex)
 
         self.client.force_authenticate(self.fixture.admin)
         data = self.client.get(self.url).data
         self.assertEqual(len(data), 1)
-        self.assertEqual(data[0]['uuid'], self.checklist2.uuid.hex)
+        self.assertEqual(data[0]["uuid"], self.checklist2.uuid.hex)
 
     def test_filter_by_customer_roles(self):
         models.ChecklistCustomerRole.objects.create(
@@ -43,12 +43,12 @@ class CustomerChecklistTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.owner)
         data = self.client.get(self.url).data
         self.assertEqual(len(data), 1)
-        self.assertEqual(data[0]['uuid'], self.checklist1.uuid.hex)
+        self.assertEqual(data[0]["uuid"], self.checklist1.uuid.hex)
 
         self.client.force_authenticate(self.fixture.customer_support)
         data = self.client.get(self.url).data
         self.assertEqual(len(data), 1)
-        self.assertEqual(data[0]['uuid'], self.checklist2.uuid.hex)
+        self.assertEqual(data[0]["uuid"], self.checklist2.uuid.hex)
 
     def test_checklist_without_roles_available_to_any_authorized_user(self):
         self.client.force_authenticate(self.fixture.owner)

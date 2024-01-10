@@ -135,7 +135,7 @@ class ResourceDeletionInvoiceTest(BaseSupportInvoiceTest):
     def get_invoice_items(self, invoice):
         resources_ids = marketplace_models.Resource.objects.filter(
             offering__type=PLUGIN_NAME
-        ).values_list('id', flat=True)
+        ).values_list("id", flat=True)
         return models.InvoiceItem.objects.filter(
             invoice=invoice,
             resource_id__in=resources_ids,

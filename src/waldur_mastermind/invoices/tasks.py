@@ -20,7 +20,7 @@ from . import models, registrators, serializers, utils
 logger = logging.getLogger(__name__)
 
 
-@shared_task(name='invoices.create_monthly_invoices')
+@shared_task(name="invoices.create_monthly_invoices")
 def create_monthly_invoices():
     """
     - For every customer change state of the invoices for previous months from "pending" to "billed"
@@ -39,7 +39,7 @@ def create_monthly_invoices():
         invoice.set_created()
 
     customers = structure_models.Customer.objects.exclude(archived=True)
-    if settings.WALDUR_CORE['ENABLE_ACCOUNTING_START_DATE']:
+    if settings.WALDUR_CORE["ENABLE_ACCOUNTING_START_DATE"]:
         customers = customers.filter(accounting_start_date__lt=timezone.now())
 
     for customer in customers.iterator():
@@ -50,46 +50,42 @@ def create_monthly_invoices():
         except Exception:
             # Continue processing even if some customers could not be processed
             logger.exception(
-                'Unable to create monthly invoice for customer %s', customer
+                "Unable to create monthly invoice for customer %s", customer
             )
 
-    if settings.WALDUR_INVOICES['INVOICE_REPORTING']['ENABLE']:
+    if settings.WALDUR_INVOICES["INVOICE_REPORTING"]["ENABLE"]:
         send_invoice_report.delay()
 
-    if settings.WALDUR_INVOICES['SEND_CUSTOMER_INVOICES']:
+    if settings.WALDUR_INVOICES["SEND_CUSTOMER_INVOICES"]:
         send_new_invoices_notification.delay()
 
 
-@shared_task(name='invoices.send_invoice_notification')
+@shared_task(name="invoices.send_invoice_notification")
 def send_invoice_notification(invoice_uuid):
     """Sends email notification with invoice link to customer owners"""
     invoice = models.Invoice.objects.get(uuid=invoice_uuid)
 
     context = {
-        'month': invoice.month,
-        'year': invoice.year,
-        'customer': invoice.customer.name,
-        'link': core_utils.format_homeport_link('invoice/{uuid}', uuid=invoice_uuid),
+        "month": invoice.month,
+        "year": invoice.year,
+        "customer": invoice.customer.name,
+        "link": core_utils.format_homeport_link("invoice/{uuid}", uuid=invoice_uuid),
     }
 
     emails = invoice.customer.get_owner_mails()
 
-    filename = '{}_{}_{}.html'.format(
-        config.SITE_NAME.replace(' ', '_'),
+    filename = "{}_{}_{}.html".format(
+        config.SITE_NAME.replace(" ", "_"),
         invoice.year,
         invoice.month,
     )
     attachment = utils.create_invoice_html(invoice)
-    content_type = 'text/html'
+    content_type = "text/html"
 
-    logger.info(
-        'About to send invoice {invoice} notification to {emails}'.format(
-            invoice=invoice, emails=emails
-        )
-    )
+    logger.info(f"About to send invoice {invoice} notification to {emails}")
     core_utils.broadcast_mail(
-        'invoices',
-        'notification',
+        "invoices",
+        "notification",
         context,
         emails,
         filename=filename,
@@ -98,7 +94,7 @@ def send_invoice_notification(invoice_uuid):
     )
 
 
-@shared_task(name='invoices.send_invoice_report')
+@shared_task(name="invoices.send_invoice_report")
 def send_invoice_report(
     year=None, month=None, emails=None, include_settings_email=True
 ):
@@ -109,26 +105,26 @@ def send_invoice_report(
         date = get_previous_month()
 
     subject = render_to_string(
-        'invoices/report_subject.txt',
+        "invoices/report_subject.txt",
         {
-            'month': date.month,
-            'year': date.year,
+            "month": date.month,
+            "year": date.year,
         },
     ).strip()
     body = render_to_string(
-        'invoices/report_body.txt',
+        "invoices/report_body.txt",
         {
-            'month': date.month,
-            'year': date.year,
+            "month": date.month,
+            "year": date.year,
         },
     ).strip()
-    filename = '3M%02d%dWaldur.txt' % (date.month, date.year)
+    filename = "3M%02d%dWaldur.txt" % (date.month, date.year)
     invoices = models.Invoice.objects.filter(
         year=date.year, month=date.month, customer__archived=False
     )
 
     # Report should include only organizations that had accounting running during the invoice period.
-    if settings.WALDUR_CORE['ENABLE_ACCOUNTING_START_DATE']:
+    if settings.WALDUR_CORE["ENABLE_ACCOUNTING_START_DATE"]:
         invoices = invoices.filter(
             customer__accounting_start_date__lte=core_utils.month_end(date)
         )
@@ -140,10 +136,10 @@ def send_invoice_report(
     # Please note that email body could be empty if there are no valid invoices
     recipient_emails = []
     if include_settings_email:
-        recipient_emails.append(settings.WALDUR_INVOICES['INVOICE_REPORTING']['EMAIL'])
+        recipient_emails.append(settings.WALDUR_INVOICES["INVOICE_REPORTING"]["EMAIL"])
     if emails:
         recipient_emails += emails
-    logger.info(f'About to send accounting report to {recipient_emails}')
+    logger.info(f"About to send accounting report to {recipient_emails}")
     core_utils.send_mail(
         subject=subject,
         body=body,
@@ -157,9 +153,9 @@ def format_invoice_csv(invoices):
     if not isinstance(invoices, list):
         invoices = [invoices]
 
-    csv_params = settings.WALDUR_INVOICES['INVOICE_REPORTING']['CSV_PARAMS']
+    csv_params = settings.WALDUR_INVOICES["INVOICE_REPORTING"]["CSV_PARAMS"]
 
-    if settings.WALDUR_INVOICES['INVOICE_REPORTING'].get('USE_SAF'):
+    if settings.WALDUR_INVOICES["INVOICE_REPORTING"].get("USE_SAF"):
         fields = serializers.SAFReportSerializer.Meta.fields
         stream = StringIO()
         writer = DictWriter(stream, fieldnames=fields, **csv_params)
@@ -167,12 +163,12 @@ def format_invoice_csv(invoices):
 
         for invoice in invoices:
             items = utils.filter_invoice_items(
-                invoice.items.order_by('project_name', 'name')
+                invoice.items.order_by("project_name", "name")
             )
             serializer = serializers.SAFReportSerializer(items, many=True)
             writer.writerows(serializer.data)
         return stream.getvalue()
-    elif settings.WALDUR_INVOICES['INVOICE_REPORTING'].get('USE_SAP'):
+    elif settings.WALDUR_INVOICES["INVOICE_REPORTING"].get("USE_SAP"):
         fields = serializers.SAPReportSerializer.Meta.fields
         stream = StringIO()
         writer = DictWriter(stream, fieldnames=fields, **csv_params)
@@ -180,7 +176,7 @@ def format_invoice_csv(invoices):
 
         for invoice in invoices:
             items = utils.filter_invoice_items(
-                invoice.items.order_by('project_name', 'name')
+                invoice.items.order_by("project_name", "name")
             )
             serializer = serializers.SAPReportSerializer(items, many=True)
             writer.writerows(serializer.data)
@@ -199,7 +195,7 @@ def format_invoice_csv(invoices):
     return stream.getvalue()
 
 
-@shared_task(name='invoices.update_invoices_total_cost')
+@shared_task(name="invoices.update_invoices_total_cost")
 def update_invoices_total_cost():
     year = utils.get_current_year()
     month = utils.get_current_month()
@@ -215,7 +211,7 @@ def send_new_invoices_notification():
     # invoice notifications are not sent if customer has a fixed price payment profile
     fixed_price_profiles = models.PaymentProfile.objects.filter(
         is_active=True, payment_type=models.PaymentType.FIXED_PRICE
-    ).values_list('organization_id', flat=True)
+    ).values_list("organization_id", flat=True)
 
     for invoice in (
         models.Invoice.objects.filter(year=date.year, month=date.month)
@@ -225,46 +221,46 @@ def send_new_invoices_notification():
         send_invoice_notification.delay(invoice.uuid.hex)
 
 
-@shared_task(name='invoices.send_notifications_about_upcoming_ends')
+@shared_task(name="invoices.send_notifications_about_upcoming_ends")
 def send_notifications_about_upcoming_ends():
     upcoming_ends = utils.get_upcoming_ends_of_fixed_payment_profiles()
 
     for profile in upcoming_ends:
         context = {
-            'organization_name': profile.organization.name,
-            'end': utils.get_end_date_for_profile(profile),
-            'contract_number': profile.attributes.get('contract_number', ''),
+            "organization_name": profile.organization.name,
+            "end": utils.get_end_date_for_profile(profile),
+            "contract_number": profile.attributes.get("contract_number", ""),
         }
         emails = profile.organization.get_owner_mails()
         core_utils.broadcast_mail(
-            'invoices',
-            'upcoming_ends_notification',
+            "invoices",
+            "upcoming_ends_notification",
             context,
             emails,
         )
 
 
-@shared_task(name='invoices.send_monthly_invoicing_reports_about_customers')
+@shared_task(name="invoices.send_monthly_invoicing_reports_about_customers")
 def send_monthly_invoicing_reports_about_customers():
-    if settings.WALDUR_INVOICES['INVOICE_REPORTING']['ENABLE']:
+    if settings.WALDUR_INVOICES["INVOICE_REPORTING"]["ENABLE"]:
         report = utils.get_monthly_invoicing_reports()
         today = timezone.datetime.today()
-        filename = '%02d_%04d_invoice_report.html' % (today.month, today.year)
-        subject = 'Financial report for %02d-%04d' % (
+        filename = "%02d_%04d_invoice_report.html" % (today.month, today.year)
+        subject = "Financial report for %02d-%04d" % (
             today.month,
             today.year,
         )
-        body = 'Financial report for %02d-%04d is attached.' % (
+        body = "Financial report for %02d-%04d is attached." % (
             today.month,
             today.year,
         )
-        emails = [settings.WALDUR_INVOICES['INVOICE_REPORTING']['EMAIL']]
-        logger.info(f'About to send monthly invoicing report to {emails}')
+        emails = [settings.WALDUR_INVOICES["INVOICE_REPORTING"]["EMAIL"]]
+        logger.info(f"About to send monthly invoicing report to {emails}")
         core_utils.send_mail(
             subject=subject,
             body=body,
             to=emails,
             attachment=report,
             filename=filename,
-            content_type='text/html',
+            content_type="text/html",
         )

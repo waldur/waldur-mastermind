@@ -22,7 +22,7 @@ def get_affected_cache_keys(service_settings):
     keys.append(get_cached_session_key(service_settings, admin=True))
     for tenant_id in (
         Tenant.objects.filter(service_settings=service_settings)
-        .values_list('backend_id', flat=True)
+        .values_list("backend_id", flat=True)
         .distinct()
     ):
         if tenant_id:
@@ -33,7 +33,7 @@ def get_affected_cache_keys(service_settings):
 def clear_cache_when_service_settings_are_updated(sender, instance, **kwargs):
     if instance.type != apps.OpenStackConfig.service_name:
         return
-    if set(instance.tracker.changed()) == {'is_active'}:
+    if set(instance.tracker.changed()) == {"is_active"}:
         return
     cache.delete_many(get_affected_cache_keys(instance))
 
@@ -55,7 +55,7 @@ def remove_ssh_key_from_tenants(sender, instance, **kwargs):
         for key in ssh_keys:
             core_tasks.BackendMethodTask().delay(
                 serialized_tenant,
-                'remove_ssh_key_from_tenant',
+                "remove_ssh_key_from_tenant",
                 key.name,
                 key.fingerprint,
             )
@@ -72,7 +72,7 @@ def remove_ssh_key_from_all_tenants_on_it_deletion(sender, instance, **kwargs):
         serialized_tenant = core_utils.serialize_instance(tenant)
         core_tasks.BackendMethodTask().delay(
             serialized_tenant,
-            'remove_ssh_key_from_tenant',
+            "remove_ssh_key_from_tenant",
             ssh_key.name,
             ssh_key.fingerprint,
         )
@@ -83,23 +83,22 @@ def log_tenant_quota_update(sender, instance, created=False, **kwargs):
     if created or not isinstance(quota.scope, Tenant):
         return
 
-    if not quota.tracker.has_changed('value'):
+    if not quota.tracker.has_changed("value"):
         return
 
     tenant = quota.scope
     new_value_representation = quota.scope.format_quota(quota.name, quota.value)
     old_value_representation = quota.scope.format_quota(
-        quota.name, quota.tracker.previous('value')
+        quota.name, quota.tracker.previous("value")
     )
     event_logger.openstack_tenant_quota.info(
-        '{quota_name} quota limit has been changed from %s to %s for tenant {tenant_name}.'
-        % (old_value_representation, new_value_representation),
-        event_type='openstack_tenant_quota_limit_updated',
+        f"{{quota_name}} quota limit has been changed from {old_value_representation} to {new_value_representation} for tenant {{tenant_name}}.",
+        event_type="openstack_tenant_quota_limit_updated",
         event_context={
-            'quota_name': quota.name,
-            'tenant': tenant,
-            'limit': quota.value,
-            'old_limit': quota.tracker.previous('value'),
+            "quota_name": quota.name,
+            "tenant": tenant,
+            "limit": quota.value,
+            "old_limit": quota.tracker.previous("value"),
         },
     )
 
@@ -107,7 +106,7 @@ def log_tenant_quota_update(sender, instance, created=False, **kwargs):
 def update_service_settings_name(sender, instance, created=False, **kwargs):
     tenant = instance
 
-    if created or not tenant.tracker.has_changed('name'):
+    if created or not tenant.tracker.has_changed("name"):
         return
 
     try:
@@ -123,49 +122,49 @@ def update_service_settings_name(sender, instance, created=False, **kwargs):
 
 def log_security_group_cleaned(sender, instance, **kwargs):
     event_logger.openstack_security_group.info(
-        'Security group %s has been cleaned from cache.' % instance.name,
-        event_type='openstack_security_group_cleaned',
+        "Security group %s has been cleaned from cache." % instance.name,
+        event_type="openstack_security_group_cleaned",
         event_context={
-            'security_group': instance,
+            "security_group": instance,
         },
     )
 
 
 def log_security_group_rule_cleaned(sender, instance, **kwargs):
     event_logger.openstack_security_group_rule.info(
-        'Security group rule %s has been cleaned from cache.' % str(instance),
-        event_type='openstack_security_group_rule_cleaned',
+        "Security group rule %s has been cleaned from cache." % str(instance),
+        event_type="openstack_security_group_rule_cleaned",
         event_context={
-            'security_group_rule': instance,
+            "security_group_rule": instance,
         },
     )
 
 
 def log_network_cleaned(sender, instance, **kwargs):
     event_logger.openstack_network.info(
-        'Network %s has been cleaned from cache.' % instance.name,
-        event_type='openstack_network_cleaned',
+        "Network %s has been cleaned from cache." % instance.name,
+        event_type="openstack_network_cleaned",
         event_context={
-            'network': instance,
+            "network": instance,
         },
     )
 
 
 def log_subnet_cleaned(sender, instance, **kwargs):
     event_logger.openstack_subnet.info(
-        'SubNet %s has been cleaned.' % instance.name,
-        event_type='openstack_subnet_cleaned',
+        "SubNet %s has been cleaned." % instance.name,
+        event_type="openstack_subnet_cleaned",
         event_context={
-            'subnet': instance,
+            "subnet": instance,
         },
     )
 
 
 def log_server_group_cleaned(sender, instance, **kwargs):
     event_logger.openstack_server_group.info(
-        'Server group %s has been cleaned from cache.' % instance.name,
-        event_type='openstack_server_group_cleaned',
+        "Server group %s has been cleaned from cache." % instance.name,
+        event_type="openstack_server_group_cleaned",
         event_context={
-            'server_group': instance,
+            "server_group": instance,
         },
     )

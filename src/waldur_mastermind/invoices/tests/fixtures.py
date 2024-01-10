@@ -13,7 +13,7 @@ class InvoiceFixture(marketplace_fixtures.MarketplaceFixture):
     @cached_property
     def invoice_item(self):
         return factories.InvoiceItemFactory(
-            name='OFFERING-001',
+            name="OFFERING-001",
             project=self.project,
             invoice=self.invoice,
             unit_price=10,

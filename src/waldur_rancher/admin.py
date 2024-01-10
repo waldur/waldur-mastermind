@@ -19,7 +19,7 @@ class RancherUserProjectLinkInline(admin.TabularInline):
 
 
 class RancherUserAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
-    list_display = ('__str__', 'settings', 'is_active')
+    list_display = ("__str__", "settings", "is_active")
 
     inlines = [
         RancherUserClusterLinkInline,
@@ -27,7 +27,7 @@ class RancherUserAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
     ]
 
     def get_extra_actions(self):
-        if settings.WALDUR_RANCHER['READ_ONLY_MODE']:
+        if settings.WALDUR_RANCHER["READ_ONLY_MODE"]:
             return []
         return [
             self.sync_users,
@@ -35,38 +35,38 @@ class RancherUserAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
 
     def sync_users(self, request):
         tasks.sync_users.delay()
-        self.message_user(request, _('Users\' synchronization has been scheduled.'))
-        return redirect(reverse('admin:waldur_rancher_rancheruser_changelist'))
+        self.message_user(request, _("Users' synchronization has been scheduled."))
+        return redirect(reverse("admin:waldur_rancher_rancheruser_changelist"))
 
 
 class CatalogAdmin(admin.ModelAdmin):
-    list_display = ('name', 'scope_type', 'scope_name', 'catalog_url')
+    list_display = ("name", "scope_type", "scope_name", "catalog_url")
 
     def scope_name(self, obj):
         return obj.scope.name
 
 
 class ClusterAdmin(structure_admin.ResourceAdmin):
-    list_display = structure_admin.ResourceAdmin.list_display + ('runtime_state',)
-    list_filter = structure_admin.ResourceAdmin.list_filter + ('tenant_settings',)
+    list_display = structure_admin.ResourceAdmin.list_display + ("runtime_state",)
+    list_filter = structure_admin.ResourceAdmin.list_filter + ("tenant_settings",)
 
 
 class ProjectAdmin(admin.ModelAdmin):
-    list_display = ('name', 'description', 'cluster', 'runtime_state')
+    list_display = ("name", "description", "cluster", "runtime_state")
 
 
 class NamespaceAdmin(admin.ModelAdmin):
-    list_display = ('name', 'project', 'runtime_state')
+    list_display = ("name", "project", "runtime_state")
 
 
 class TemplateAdmin(admin.ModelAdmin):
-    list_display = ('name', 'description', 'catalog', 'runtime_state')
+    list_display = ("name", "description", "catalog", "runtime_state")
     list_filter = (
-        'cluster',
-        'catalog',
+        "cluster",
+        "catalog",
     )
 
-    search_fields = ('name', 'description')
+    search_fields = ("name", "description")
 
 
 class ClusterTemplateNodeInline(admin.TabularInline):
@@ -74,7 +74,7 @@ class ClusterTemplateNodeInline(admin.TabularInline):
 
 
 class ClusterTemplateAdmin(core_admin.HideAdminOriginalMixin):
-    list_display = ('name', 'description')
+    list_display = ("name", "description")
     inlines = [ClusterTemplateNodeInline]
 
 

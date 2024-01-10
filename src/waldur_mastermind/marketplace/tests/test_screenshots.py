@@ -19,7 +19,7 @@ class ScreenshotsGetTest(test.APITransactionTestCase):
         self.fixture = fixtures.ProjectFixture()
         self.screenshot = factories.ScreenshotFactory()
 
-    @data('staff', 'owner', 'user', 'customer_support', 'admin', 'manager')
+    @data("staff", "owner", "user", "customer_support", "admin", "manager")
     def test_screenshots_should_be_visible_to_all_authenticated_users(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
@@ -34,7 +34,7 @@ class ScreenshotsGetTest(test.APITransactionTestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    @data('staff', 'owner', 'user', 'customer_support', 'admin', 'manager')
+    @data("staff", "owner", "user", "customer_support", "admin", "manager")
     def test_screenshots_of_offering_should_be_visible_to_all_authenticated_users(
         self, user
     ):
@@ -42,7 +42,7 @@ class ScreenshotsGetTest(test.APITransactionTestCase):
         self.client.force_authenticate(user)
         offering = self.screenshot.offering
         url = factories.ScreenshotFactory.get_list_url()
-        response = self.client.get(url, {'offering_uuid': offering.uuid.hex})
+        response = self.client.get(url, {"offering_uuid": offering.uuid.hex})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 1)
 
@@ -54,7 +54,7 @@ class ScreenshotsCreateTest(test.APITransactionTestCase):
         self.customer = self.fixture.customer
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_OFFERING_SCREENSHOT)
 
-    @data('staff', 'owner')
+    @data("staff", "owner")
     def test_authorized_user_can_create_screenshot(self, user):
         response = self.create_screenshot(user)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -62,14 +62,14 @@ class ScreenshotsCreateTest(test.APITransactionTestCase):
             models.Screenshot.objects.filter(offering__customer=self.customer).exists()
         )
 
-    @data('user', 'customer_support', 'admin', 'manager')
+    @data("user", "customer_support", "admin", "manager")
     def test_unauthorized_user_can_not_create_screenshot(self, user):
         response = self.create_screenshot(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @mock.patch('waldur_mastermind.marketplace.handlers.tasks')
+    @mock.patch("waldur_mastermind.marketplace.handlers.tasks")
     def test_create_thumbnail(self, mock_tasks):
-        response = self.create_screenshot('staff')
+        response = self.create_screenshot("staff")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(mock_tasks.create_screenshot_thumbnail.delay.call_count, 1)
 
@@ -81,12 +81,12 @@ class ScreenshotsCreateTest(test.APITransactionTestCase):
         self.offering = factories.OfferingFactory(customer=self.customer)
 
         payload = {
-            'name': 'screenshot',
-            'offering': factories.OfferingFactory.get_url(offering=self.offering),
-            'image': dummy_image(),
+            "name": "screenshot",
+            "offering": factories.OfferingFactory.get_url(offering=self.offering),
+            "image": dummy_image(),
         }
 
-        return self.client.post(url, payload, format='multipart')
+        return self.client.post(url, payload, format="multipart")
 
 
 @ddt
@@ -96,16 +96,16 @@ class ScreenshotsUpdateTest(test.APITransactionTestCase):
         self.customer = self.fixture.customer
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_SCREENSHOT)
 
-    @data('staff', 'owner')
+    @data("staff", "owner")
     def test_authorized_user_can_update_screenshot(self, user):
         response, screenshot = self.update_screenshot(user)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertEqual(screenshot.name, 'new_screenshot')
+        self.assertEqual(screenshot.name, "new_screenshot")
         self.assertTrue(
-            models.Screenshot.objects.filter(name='new_screenshot').exists()
+            models.Screenshot.objects.filter(name="new_screenshot").exists()
         )
 
-    @data('user', 'customer_support', 'admin', 'manager')
+    @data("user", "customer_support", "admin", "manager")
     def test_unauthorized_user_can_not_update_screenshot(self, user):
         response, offering = self.update_screenshot(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -118,7 +118,7 @@ class ScreenshotsUpdateTest(test.APITransactionTestCase):
         screenshot = factories.ScreenshotFactory(offering=self.offering)
         url = factories.ScreenshotFactory.get_url(screenshot=screenshot)
 
-        response = self.client.patch(url, {'name': 'new_screenshot'})
+        response = self.client.patch(url, {"name": "new_screenshot"})
         screenshot.refresh_from_db()
 
         return response, screenshot
@@ -134,7 +134,7 @@ class ScreenshotsDeleteTest(test.APITransactionTestCase):
         self.screenshot = factories.ScreenshotFactory(offering=self.offering)
         CustomerRole.OWNER.add_permission(PermissionEnum.DELETE_OFFERING_SCREENSHOT)
 
-    @data('staff', 'owner')
+    @data("staff", "owner")
     def test_authorized_user_can_delete_screenshot(self, user):
         response = self.delete_screenshot(user)
         self.assertEqual(
@@ -144,7 +144,7 @@ class ScreenshotsDeleteTest(test.APITransactionTestCase):
             models.Screenshot.objects.filter(offering__customer=self.customer).exists()
         )
 
-    @data('user', 'customer_support', 'admin', 'manager')
+    @data("user", "customer_support", "admin", "manager")
     def test_unauthorized_user_can_not_delete_screenshot(self, user):
         response = self.delete_screenshot(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

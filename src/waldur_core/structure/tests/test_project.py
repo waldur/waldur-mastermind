@@ -43,30 +43,30 @@ class ProjectUpdateDeleteTest(test.APITransactionTestCase):
     def test_user_can_change_single_project_field(self):
         self.client.force_authenticate(self.fixture.staff)
 
-        data = {'name': 'New project name'}
+        data = {"name": "New project name"}
         response = self.client.patch(
             factories.ProjectFactory.get_url(self.fixture.project), data
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn('New project name', response.data['name'])
-        self.assertTrue(Project.objects.filter(name=data['name']).exists())
+        self.assertIn("New project name", response.data["name"])
+        self.assertTrue(Project.objects.filter(name=data["name"]).exists())
 
     def test_update_backend_id(self):
         self.client.force_authenticate(self.fixture.staff)
 
-        data = {'backend_id': 'backend_id'}
+        data = {"backend_id": "backend_id"}
         response = self.client.patch(
             factories.ProjectFactory.get_url(self.fixture.project), data
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn('backend_id', response.data['backend_id'])
-        self.assertTrue(Project.objects.filter(backend_id=data['backend_id']).exists())
+        self.assertIn("backend_id", response.data["backend_id"])
+        self.assertTrue(Project.objects.filter(backend_id=data["backend_id"]).exists())
 
-    @data('staff', 'owner')
+    @data("staff", "owner")
     def test_user_can_update_end_date(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
-        with freeze_time('2020-01-01'):
-            data = {'end_date': '2021-01-01'}
+        with freeze_time("2020-01-01"):
+            data = {"end_date": "2021-01-01"}
             response = self.client.patch(
                 factories.ProjectFactory.get_url(self.fixture.project), data
             )
@@ -77,11 +77,11 @@ class ProjectUpdateDeleteTest(test.APITransactionTestCase):
                 self.fixture.project.end_date_requested_by, getattr(self.fixture, user)
             )
 
-    @data('manager', 'admin')
+    @data("manager", "admin")
     def test_user_cannot_update_end_date(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
-        with freeze_time('2020-01-01'):
-            data = {'end_date': '2021-01-01'}
+        with freeze_time("2020-01-01"):
+            data = {"end_date": "2021-01-01"}
             response = self.client.patch(
                 factories.ProjectFactory.get_url(self.fixture.project), data
             )
@@ -110,7 +110,7 @@ class ProjectUpdateDeleteTest(test.APITransactionTestCase):
         self.fixture.project.save()
         self.client.force_authenticate(self.fixture.staff)
 
-        data = {'backend_id': 'backend_id'}
+        data = {"backend_id": "backend_id"}
         response = self.client.patch(
             factories.ProjectFactory.get_url(self.fixture.project), data
         )
@@ -131,7 +131,7 @@ class ProjectCreateTest(test.APITransactionTestCase):
         response = self.client.post(factories.ProjectFactory.get_list_url(), data)
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(Project.objects.filter(name=data['name']).exists())
+        self.assertTrue(Project.objects.filter(name=data["name"]).exists())
 
     def test_owner_can_create_project_belonging_to_the_customer_he_owns(self):
         self.client.force_authenticate(self.fixture.owner)
@@ -140,17 +140,17 @@ class ProjectCreateTest(test.APITransactionTestCase):
         response = self.client.post(factories.ProjectFactory.get_list_url(), data)
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(Project.objects.filter(name=data['name']).exists())
+        self.assertTrue(Project.objects.filter(name=data["name"]).exists())
 
     def test_owner_cannot_create_project_not_belonging_to_the_customer_he_owns(self):
         self.client.force_authenticate(self.fixture.owner)
         data = self._get_valid_project_payload(factories.CustomerFactory())
-        data['name'] = 'unique name 2'
+        data["name"] = "unique name 2"
 
         response = self.client.post(factories.ProjectFactory.get_list_url(), data)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertFalse(Project.objects.filter(name=data['name']).exists())
+        self.assertFalse(Project.objects.filter(name=data["name"]).exists())
 
     def test_customer_support_cannot_create_project(self):
         self.client.force_authenticate(self.fixture.customer_support)
@@ -159,25 +159,25 @@ class ProjectCreateTest(test.APITransactionTestCase):
         response = self.client.post(factories.ProjectFactory.get_list_url(), data)
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertFalse(Project.objects.filter(name=data['name']).exists())
+        self.assertFalse(Project.objects.filter(name=data["name"]).exists())
 
     def test_validate_end_date(self):
         self.client.force_authenticate(self.fixture.staff)
         payload = self._get_valid_project_payload(self.fixture.customer)
-        payload['end_date'] = '2021-06-01'
+        payload["end_date"] = "2021-06-01"
 
-        with freeze_time('2021-07-01'):
+        with freeze_time("2021-07-01"):
             response = self.client.post(
                 factories.ProjectFactory.get_list_url(), payload
             )
 
             self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
             self.assertTrue(
-                'Cannot be earlier than the current date.' in str(response.data)
+                "Cannot be earlier than the current date." in str(response.data)
             )
-            self.assertFalse(Project.objects.filter(name=payload['name']).exists())
+            self.assertFalse(Project.objects.filter(name=payload["name"]).exists())
 
-        with freeze_time('2021-06-01'):
+        with freeze_time("2021-06-01"):
             response = self.client.post(
                 factories.ProjectFactory.get_list_url(), payload
             )
@@ -185,18 +185,18 @@ class ProjectCreateTest(test.APITransactionTestCase):
             self.assertEqual(response.status_code, status.HTTP_201_CREATED)
             self.assertTrue(
                 Project.objects.filter(
-                    name=payload['name'],
+                    name=payload["name"],
                     end_date=datetime.datetime(year=2021, month=6, day=1).date(),
                 ).exists()
             )
 
-    @data('staff', 'owner')
+    @data("staff", "owner")
     def test_user_can_set_end_date(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         payload = self._get_valid_project_payload(self.fixture.customer)
-        payload['end_date'] = '2021-06-01'
+        payload["end_date"] = "2021-06-01"
 
-        with freeze_time('2021-01-01'):
+        with freeze_time("2021-01-01"):
             response = self.client.post(
                 factories.ProjectFactory.get_list_url(), payload
             )
@@ -204,23 +204,23 @@ class ProjectCreateTest(test.APITransactionTestCase):
             self.assertEqual(response.status_code, status.HTTP_201_CREATED)
             self.assertTrue(
                 Project.objects.filter(
-                    name=payload['name'],
+                    name=payload["name"],
                     end_date=datetime.datetime(year=2021, month=6, day=1).date(),
                 ).exists()
             )
             project = Project.objects.get(
-                name=payload['name'],
+                name=payload["name"],
                 end_date=datetime.datetime(year=2021, month=6, day=1).date(),
             )
             self.assertEqual(project.end_date_requested_by, getattr(self.fixture, user))
 
-    @data('manager', 'admin')
+    @data("manager", "admin")
     def test_user_cannot_set_end_date(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         payload = self._get_valid_project_payload(self.fixture.customer)
-        payload['end_date'] = '2021-06-01'
+        payload["end_date"] = "2021-06-01"
 
-        with freeze_time('2021-01-01'):
+        with freeze_time("2021-01-01"):
             response = self.client.post(
                 factories.ProjectFactory.get_list_url(), payload
             )
@@ -230,61 +230,61 @@ class ProjectCreateTest(test.APITransactionTestCase):
     def test_project_oecd_fos_2007_code(self):
         self.client.force_authenticate(self.fixture.owner)
         payload = self._get_valid_project_payload(self.fixture.customer)
-        payload['oecd_fos_2007_code'] = '1.1'
+        payload["oecd_fos_2007_code"] = "1.1"
         response = self.client.post(factories.ProjectFactory.get_list_url(), payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual('1.1', response.data['oecd_fos_2007_code'])
+        self.assertEqual("1.1", response.data["oecd_fos_2007_code"])
 
     @override_waldur_core_settings(OECD_FOS_2007_CODE_MANDATORY=True)
     def test_oecd_fos_2007_code_is_required(self):
         self.client.force_authenticate(self.fixture.owner)
         payload = self._get_valid_project_payload(self.fixture.customer)
-        payload['name'] = 'new'
+        payload["name"] = "new"
         response = self.client.post(factories.ProjectFactory.get_list_url(), payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def _get_valid_project_payload(self, customer):
         return {
-            'name': 'New project name',
-            'customer': factories.CustomerFactory.get_url(customer),
+            "name": "New project name",
+            "customer": factories.CustomerFactory.get_url(customer),
         }
 
 
 class ProjectApiPermissionTest(test.APITransactionTestCase):
     forbidden_combinations = (
         # User role, Project
-        ('admin', 'manager'),
-        ('admin', 'inaccessible'),
-        ('manager', 'admin'),
-        ('manager', 'inaccessible'),
-        ('no_role', 'admin'),
-        ('no_role', 'manager'),
-        ('no_role', 'inaccessible'),
+        ("admin", "manager"),
+        ("admin", "inaccessible"),
+        ("manager", "admin"),
+        ("manager", "inaccessible"),
+        ("no_role", "admin"),
+        ("no_role", "manager"),
+        ("no_role", "inaccessible"),
     )
 
     def setUp(self):
         self.users = {
-            'owner': factories.UserFactory(),
-            'admin': factories.UserFactory(),
-            'manager': factories.UserFactory(),
-            'no_role': factories.UserFactory(),
-            'multirole': factories.UserFactory(),
+            "owner": factories.UserFactory(),
+            "admin": factories.UserFactory(),
+            "manager": factories.UserFactory(),
+            "no_role": factories.UserFactory(),
+            "multirole": factories.UserFactory(),
         }
 
         self.projects = {
-            'owner': factories.ProjectFactory(),
-            'admin': factories.ProjectFactory(),
-            'manager': factories.ProjectFactory(),
-            'inaccessible': factories.ProjectFactory(),
+            "owner": factories.ProjectFactory(),
+            "admin": factories.ProjectFactory(),
+            "manager": factories.ProjectFactory(),
+            "inaccessible": factories.ProjectFactory(),
         }
 
-        self.projects['admin'].add_user(self.users['admin'], ProjectRole.ADMIN)
-        self.projects['manager'].add_user(self.users['manager'], ProjectRole.MANAGER)
+        self.projects["admin"].add_user(self.users["admin"], ProjectRole.ADMIN)
+        self.projects["manager"].add_user(self.users["manager"], ProjectRole.MANAGER)
 
-        self.projects['admin'].add_user(self.users['multirole'], ProjectRole.ADMIN)
-        self.projects['manager'].add_user(self.users['multirole'], ProjectRole.MANAGER)
-        self.projects['owner'].customer.add_user(
-            self.users['owner'], CustomerRole.OWNER
+        self.projects["admin"].add_user(self.users["multirole"], ProjectRole.ADMIN)
+        self.projects["manager"].add_user(self.users["multirole"], ProjectRole.MANAGER)
+        self.projects["owner"].customer.add_user(
+            self.users["owner"], CustomerRole.OWNER
         )
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT)
 
@@ -294,64 +294,64 @@ class ProjectApiPermissionTest(test.APITransactionTestCase):
         for old_project in self.projects.values():
             project = factories.ProjectFactory(customer=old_project.customer)
             response = self.client.post(
-                reverse('project-list'), self._get_valid_payload(project)
+                reverse("project-list"), self._get_valid_payload(project)
             )
             self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_user_cannot_create_project_within_customer_he_doesnt_own_but_admins_its_project(
         self,
     ):
-        self.client.force_authenticate(user=self.users['admin'])
+        self.client.force_authenticate(user=self.users["admin"])
 
-        customer = self.projects['admin'].customer
+        customer = self.projects["admin"].customer
 
         project = factories.ProjectFactory(customer=customer)
         response = self.client.post(
-            reverse('project-list'), self._get_valid_payload(project)
+            reverse("project-list"), self._get_valid_payload(project)
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertDictContainsSubset(
-            {'detail': 'You do not have permission to perform this action.'},
+            {"detail": "You do not have permission to perform this action."},
             response.data,
         )
 
     def test_user_cannot_create_project_within_customer_he_doesnt_own_but_manages_its_project(
         self,
     ):
-        self.client.force_authenticate(user=self.users['manager'])
+        self.client.force_authenticate(user=self.users["manager"])
 
-        customer = self.projects['manager'].customer
+        customer = self.projects["manager"].customer
 
         project = factories.ProjectFactory(customer=customer)
         response = self.client.post(
-            reverse('project-list'), self._get_valid_payload(project)
+            reverse("project-list"), self._get_valid_payload(project)
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertDictContainsSubset(
-            {'detail': 'You do not have permission to perform this action.'},
+            {"detail": "You do not have permission to perform this action."},
             response.data,
         )
 
     def test_user_cannot_create_project_within_customer_he_is_not_affiliated_with(self):
-        self.client.force_authenticate(user=self.users['admin'])
+        self.client.force_authenticate(user=self.users["admin"])
 
         project = factories.ProjectFactory()
         response = self.client.post(
-            reverse('project-list'), self._get_valid_payload(project)
+            reverse("project-list"), self._get_valid_payload(project)
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertDictContainsSubset(
-            {'customer': ['Invalid hyperlink - Object does not exist.']}, response.data
+            {"customer": ["Invalid hyperlink - Object does not exist."]}, response.data
         )
 
     def test_user_can_create_project_within_customer_he_owns(self):
-        self.client.force_authenticate(user=self.users['owner'])
+        self.client.force_authenticate(user=self.users["owner"])
 
-        customer = self.projects['owner'].customer
+        customer = self.projects["owner"].customer
 
         project = factories.ProjectFactory(customer=customer)
         response = self.client.post(
-            reverse('project-list'), self._get_valid_payload(project)
+            reverse("project-list"), self._get_valid_payload(project)
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -359,45 +359,45 @@ class ProjectApiPermissionTest(test.APITransactionTestCase):
         staff = factories.UserFactory(is_staff=True)
         self.client.force_authenticate(user=staff)
 
-        customer = self.projects['inaccessible'].customer
+        customer = self.projects["inaccessible"].customer
 
         project = factories.ProjectFactory(customer=customer)
         response = self.client.post(
-            reverse('project-list'), self._get_valid_payload(project)
+            reverse("project-list"), self._get_valid_payload(project)
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     # List filtration tests
     def test_anonymous_user_cannot_list_projects(self):
-        response = self.client.get(reverse('project-list'))
+        response = self.client.get(reverse("project-list"))
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_user_can_list_projects_belonging_to_customer_he_owns(self):
-        self._ensure_list_access_allowed('owner')
+        self._ensure_list_access_allowed("owner")
 
     def test_user_can_list_projects_he_is_administrator_of(self):
-        self._ensure_list_access_allowed('admin')
+        self._ensure_list_access_allowed("admin")
 
     def test_user_can_list_projects_he_is_manager_of(self):
-        self._ensure_list_access_allowed('manager')
+        self._ensure_list_access_allowed("manager")
 
     def test_user_cannot_list_projects_he_has_no_role_in(self):
         for user_role, project in self.forbidden_combinations:
             self._ensure_list_access_forbidden(user_role, project)
 
     def test_user_can_filter_by_projects_where_he_has_manager_role(self):
-        self.client.force_authenticate(user=self.users['multirole'])
-        response = self.client.get(reverse('project-list') + '?can_manage')
+        self.client.force_authenticate(user=self.users["multirole"])
+        response = self.client.get(reverse("project-list") + "?can_manage")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        managed_project_url = self._get_project_url(self.projects['manager'])
-        administrated_project_url = self._get_project_url(self.projects['admin'])
+        managed_project_url = self._get_project_url(self.projects["manager"])
+        administrated_project_url = self._get_project_url(self.projects["admin"])
 
         self.assertIn(
-            managed_project_url, [resource['url'] for resource in response.data]
+            managed_project_url, [resource["url"] for resource in response.data]
         )
         self.assertNotIn(
-            administrated_project_url, [resource['url'] for resource in response.data]
+            administrated_project_url, [resource["url"] for resource in response.data]
         )
 
     # Direct instance access tests
@@ -407,13 +407,13 @@ class ProjectApiPermissionTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_user_can_access_project_belonging_to_customer_he_owns(self):
-        self._ensure_direct_access_allowed('owner')
+        self._ensure_direct_access_allowed("owner")
 
     def test_user_can_access_project_he_is_administrator_of(self):
-        self._ensure_direct_access_allowed('admin')
+        self._ensure_direct_access_allowed("admin")
 
     def test_user_can_access_project_he_is_manager_of(self):
-        self._ensure_direct_access_allowed('manager')
+        self._ensure_direct_access_allowed("manager")
 
     def test_user_cannot_access_project_he_has_no_role_in(self):
         for user_role, project in self.forbidden_combinations:
@@ -426,27 +426,27 @@ class ProjectApiPermissionTest(test.APITransactionTestCase):
     def _get_valid_payload(self, resource=None):
         resource = resource or factories.ProjectFactory()
         return {
-            'name': resource.name,
-            'customer': factories.CustomerFactory.get_url(resource.customer),
+            "name": resource.name,
+            "customer": factories.CustomerFactory.get_url(resource.customer),
         }
 
     def _ensure_list_access_allowed(self, user_role):
         self.client.force_authenticate(user=self.users[user_role])
 
-        response = self.client.get(reverse('project-list'))
+        response = self.client.get(reverse("project-list"))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         project_url = self._get_project_url(self.projects[user_role])
-        self.assertIn(project_url, [instance['url'] for instance in response.data])
+        self.assertIn(project_url, [instance["url"] for instance in response.data])
 
     def _ensure_list_access_forbidden(self, user_role, project):
         self.client.force_authenticate(user=self.users[user_role])
 
-        response = self.client.get(reverse('project-list'))
+        response = self.client.get(reverse("project-list"))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         project_url = self._get_project_url(self.projects[project])
-        self.assertNotIn(project_url, [resource['url'] for resource in response.data])
+        self.assertNotIn(project_url, [resource["url"] for resource in response.data])
 
     def _ensure_direct_access_allowed(self, user_role):
         self.client.force_authenticate(user=self.users[user_role])
@@ -468,7 +468,7 @@ class ProjectUsersListTest(test.APITransactionTestCase):
         self.admin = self.fixture.admin
         self.manager = self.fixture.manager
         self.project = self.fixture.project
-        self.url = factories.ProjectFactory.get_url(self.project, action='users')
+        self.url = factories.ProjectFactory.get_url(self.project, action="users")
         self.staff = factories.UserFactory(is_staff=True)
         self.user1 = factories.UserFactory()
         self.user2 = factories.UserFactory()
@@ -478,7 +478,7 @@ class ProjectUsersListTest(test.APITransactionTestCase):
         self.project2.add_user(self.user1, ProjectRole.MEMBER)
         self.project2.add_user(self.user2, ProjectRole.MEMBER)
 
-    @data('staff', 'owner', 'manager', 'admin')
+    @data("staff", "owner", "manager", "admin")
     def test_user_can_list_project_users(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(self.url)
@@ -487,10 +487,10 @@ class ProjectUsersListTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 2)
 
         self.assertSetEqual(
-            {user['role'] for user in response.data}, {'admin', 'manager'}
+            {user["role"] for user in response.data}, {"admin", "manager"}
         )
         self.assertSetEqual(
-            {user['uuid'] for user in response.data},
+            {user["uuid"] for user in response.data},
             {self.admin.uuid.hex, self.manager.uuid.hex},
         )
 
@@ -509,11 +509,11 @@ class ProjectUsersListTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.staff)
         response = self.client.get(
             factories.ProjectFactory.get_list_url(),
-            {'user_uuid': user.uuid.hex, 'fields': ['uuid']},
+            {"user_uuid": user.uuid.hex, "fields": ["uuid"]},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(
-            {project['uuid'] for project in response.data},
+            {project["uuid"] for project in response.data},
             {project.uuid.hex for project in projects},
         )
 
@@ -525,20 +525,20 @@ class ProjectCountersListTest(test.APITransactionTestCase):
         self.admin = self.fixture.admin
         self.manager = self.fixture.manager
         self.project = self.fixture.project
-        self.url = factories.ProjectFactory.get_url(self.project, action='counters')
+        self.url = factories.ProjectFactory.get_url(self.project, action="counters")
 
     def test_user_can_get_project_counters(self):
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data, {'users': 2})
+        self.assertEqual(response.data, {"users": 2})
 
 
 class TestExecutor(executors.BaseCleanupExecutor):
     pre_models = (test_models.TestNewInstance,)
 
 
-@mock.patch('waldur_core.core.WaldurExtension.get_extensions')
+@mock.patch("waldur_core.core.WaldurExtension.get_extensions")
 class ProjectCleanupTest(test.APITransactionTestCase):
     def test_executors_are_sorted_in_topological_order(self, get_extensions):
         class ParentExecutor(executors.BaseCleanupExecutor):
@@ -621,11 +621,11 @@ class ChangeProjectCustomerTest(test.APITransactionTestCase):
         )
 
     def test_recalculate_quotas(self):
-        self.assertEqual(self.old_customer.get_quota_usage('nc_project_count'), 1.0)
-        self.assertEqual(self.new_customer.get_quota_usage('nc_project_count'), 0)
+        self.assertEqual(self.old_customer.get_quota_usage("nc_project_count"), 1.0)
+        self.assertEqual(self.new_customer.get_quota_usage("nc_project_count"), 0)
         self.change_customer()
-        self.assertEqual(self.old_customer.get_quota_usage('nc_project_count'), 0)
-        self.assertEqual(self.new_customer.get_quota_usage('nc_project_count'), 1.0)
+        self.assertEqual(self.old_customer.get_quota_usage("nc_project_count"), 0)
+        self.assertEqual(self.new_customer.get_quota_usage("nc_project_count"), 1.0)
 
 
 @ddt
@@ -637,23 +637,23 @@ class ChangeProjectImageTest(test.APITransactionTestCase):
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_PROJECT)
         ProjectRole.MANAGER.add_permission(PermissionEnum.UPDATE_PROJECT)
 
-    @data('staff', 'owner', 'manager')
+    @data("staff", "owner", "manager")
     def test_user_can_update_image(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
         self.assertFalse(self.project.image)
         response = self.client.patch(
-            self.url, {'image': dummy_image()}, format='multipart'
+            self.url, {"image": dummy_image()}, format="multipart"
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.project.refresh_from_db()
         self.assertTrue(self.project.image)
 
-    @data('admin', 'customer_support', 'member', 'global_support')
+    @data("admin", "customer_support", "member", "global_support")
     def test_user_cannot_update_image(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
         self.assertFalse(self.project.image)
         response = self.client.patch(
-            self.url, {'image': dummy_image()}, format='multipart'
+            self.url, {"image": dummy_image()}, format="multipart"
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
@@ -662,12 +662,12 @@ class ProjectMoveTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
-        self.url = factories.ProjectFactory.get_url(self.project, action='move_project')
+        self.url = factories.ProjectFactory.get_url(self.project, action="move_project")
         self.customer = factories.CustomerFactory()
 
     def get_response(self, role, customer):
         self.client.force_authenticate(role)
-        payload = {'customer': {'url': factories.CustomerFactory.get_url(customer)}}
+        payload = {"customer": {"url": factories.CustomerFactory.get_url(customer)}}
         return self.client.post(self.url, payload)
 
     def test_move_project_rest(self):
@@ -688,7 +688,7 @@ class ProjectMoveTest(test.APITransactionTestCase):
     def test_move_project_is_not_possible_when_new_customer_is_blocked(self):
         old_customer = self.project.customer
         self.customer.blocked = True
-        self.customer.save(update_fields=['blocked'])
+        self.customer.save(update_fields=["blocked"])
         response = self.get_response(self.fixture.staff, self.customer)
 
         self.project.refresh_from_db()
@@ -702,8 +702,8 @@ class ProjectListFilterTest(test.APITransactionTestCase):
 
     def setUp(self):
         self.user_fixture = fixtures.UserFixture()
-        self.project1 = factories.ProjectFactory(name='project_1')
-        self.project2 = factories.ProjectFactory(name='project_2')
+        self.project1 = factories.ProjectFactory(name="project_1")
+        self.project2 = factories.ProjectFactory(name="project_2")
 
         offering = marketplace_factories.OfferingFactory()
         self.resource1 = marketplace_factories.ResourceFactory(
@@ -715,48 +715,48 @@ class ProjectListFilterTest(test.APITransactionTestCase):
         self.resource2 = marketplace_factories.ResourceFactory(
             project=self.project2,
             offering=offering,
-            name='resource_2',
-            backend_id='non_uuid_backend_id',
-            effective_id='non_uuid_effective_id',
+            name="resource_2",
+            backend_id="non_uuid_backend_id",
+            effective_id="non_uuid_effective_id",
         )
         self.url = factories.ProjectFactory.get_list_url()
 
     def test_filter_projects_by_uuid_like_resource_effective_id(self):
         self.client.force_authenticate(self.user_fixture.staff)
         response = self.client.get(
-            self.url, {'query': ProjectListFilterTest._valid_effective_id}
+            self.url, {"query": ProjectListFilterTest._valid_effective_id}
         )
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['name'], self.project1.name)
+        self.assertEqual(response.data[0]["name"], self.project1.name)
 
     def test_filter_projects_by_uuid_like_resource_backend_id(self):
         self.client.force_authenticate(self.user_fixture.staff)
         response = self.client.get(
-            self.url, {'query': ProjectListFilterTest._valid_backend_id}
+            self.url, {"query": ProjectListFilterTest._valid_backend_id}
         )
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['name'], self.project1.name)
+        self.assertEqual(response.data[0]["name"], self.project1.name)
 
     def test_filter_projects_by_non_uuid_like_resource_effective_id(self):
         self.client.force_authenticate(self.user_fixture.staff)
-        response = self.client.get(self.url, {'query': 'non_uuid_effective_id'})
+        response = self.client.get(self.url, {"query": "non_uuid_effective_id"})
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['name'], self.project2.name)
+        self.assertEqual(response.data[0]["name"], self.project2.name)
 
     def test_filter_projects_by_non_uuid_like_resource_backend_id(self):
         self.client.force_authenticate(self.user_fixture.staff)
-        response = self.client.get(self.url, {'query': 'non_uuid_backend_id'})
+        response = self.client.get(self.url, {"query": "non_uuid_backend_id"})
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['name'], self.project2.name)
+        self.assertEqual(response.data[0]["name"], self.project2.name)
 
     def test_filter_projects_by_resource_name(self):
         self.client.force_authenticate(self.user_fixture.staff)
-        response = self.client.get(self.url, {'query': 'resource_2'})
+        response = self.client.get(self.url, {"query": "resource_2"})
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['name'], self.project2.name)
+        self.assertEqual(response.data[0]["name"], self.project2.name)
 
     def test_filter_projects_by_name(self):
         self.client.force_authenticate(self.user_fixture.staff)
-        response = self.client.get(self.url, {'query': 'project_1'})
+        response = self.client.get(self.url, {"query": "project_1"})
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['name'], self.project1.name)
+        self.assertEqual(response.data[0]["name"], self.project1.name)

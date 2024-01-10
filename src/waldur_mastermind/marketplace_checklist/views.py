@@ -32,18 +32,18 @@ def filter_checklists_by_roles(queryset, user):
         is_active=True,
         content_type=ContentType.objects.get_for_model(Project),
         role__is_system_role=True,
-    ).values_list('role__name', flat=True)
+    ).values_list("role__name", flat=True)
     project_roles = [get_old_role_name(role) for role in project_roles]
     customer_roles = UserRole.objects.filter(
         user=user,
         is_active=True,
         content_type=ContentType.objects.get_for_model(Customer),
         role__is_system_role=True,
-    ).values_list('role__name', flat=True)
+    ).values_list("role__name", flat=True)
     customer_roles = [get_old_role_name(role) for role in customer_roles]
     return queryset.annotate(
-        project_roles_count=Count('project_roles'),
-        customer_roles_count=Count('customer_roles'),
+        project_roles_count=Count("project_roles"),
+        customer_roles_count=Count("customer_roles"),
     ).filter(
         Q(project_roles__role__in=project_roles)
         | Q(customer_roles__role__in=customer_roles)
@@ -54,7 +54,7 @@ def filter_checklists_by_roles(queryset, user):
 class CategoriesView(RetrieveModelMixin, ListModelMixin, GenericViewSet):
     queryset = models.Category.objects.all()
     serializer_class = serializers.CategorySerializer
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
 
 
 class CategoryChecklistsView(ListModelMixin, GenericViewSet):
@@ -62,7 +62,7 @@ class CategoryChecklistsView(ListModelMixin, GenericViewSet):
 
     def get_queryset(self):
         qs = models.Checklist.objects.filter(
-            category__uuid=self.kwargs['category_uuid']
+            category__uuid=self.kwargs["category_uuid"]
         )
         return filter_checklists_by_roles(qs, self.request.user)
 
@@ -86,7 +86,7 @@ class QuestionsView(ListModelMixin, GenericViewSet):
 
     def get_queryset(self):
         return models.Question.objects.filter(
-            checklist__uuid=self.kwargs['checklist_uuid']
+            checklist__uuid=self.kwargs["checklist_uuid"]
         )
 
 
@@ -103,7 +103,7 @@ class StatsView(APIView):
             correct_count = models.Answer.objects.filter(
                 user__in=customer_users,
                 question__checklist=checklist,
-                value=F('question__correct_answer'),
+                value=F("question__correct_answer"),
             ).count()
             points.append(
                 dict(
@@ -124,7 +124,7 @@ class ProjectStatsView(APIView):
         try:
             project = Project.available_objects.get(uuid=project_uuid)
         except Project.DoesNotExist:
-            raise ValidationError(_('Project does not exist.'))
+            raise ValidationError(_("Project does not exist."))
 
         is_administrator(request, self, project)
 
@@ -135,10 +135,10 @@ class ProjectStatsView(APIView):
                 user__in=users, question__checklist=checklist
             )
             total = checklist.questions.count() * users.count()
-            positive_count = qs.filter(value=F('question__correct_answer')).count()
+            positive_count = qs.filter(value=F("question__correct_answer")).count()
             negative_count = (
                 qs.exclude(value__isnull=True)
-                .exclude(value=F('question__correct_answer'))
+                .exclude(value=F("question__correct_answer"))
                 .count()
             )
             unknown_count = total - positive_count - negative_count
@@ -166,7 +166,7 @@ class CustomerStatsView(APIView):
         total_questions = checklist.questions.count()
         points = []
         for project in Project.available_objects.filter(customer=customer).order_by(
-            'name'
+            "name"
         ):
             project_users = project.get_users()
             customer_users = customer.get_owners()
@@ -177,7 +177,7 @@ class CustomerStatsView(APIView):
                 )
                 .filter(
                     question__checklist=checklist,
-                    value=F('question__correct_answer'),
+                    value=F("question__correct_answer"),
                 )
                 .count()
             )
@@ -199,7 +199,7 @@ class CustomerChecklistUpdateView(APIView):
         ChecklistCustomers = models.Checklist.customers.through
         current_checklists = ChecklistCustomers.objects.filter(customer=customer)
         serializer = serializers.CustomerChecklistUpdateSerializer(
-            [cc.checklist for cc in current_checklists], context={'request': request}
+            [cc.checklist for cc in current_checklists], context={"request": request}
         )
         return Response(serializer.data)
 
@@ -208,7 +208,7 @@ class CustomerChecklistUpdateView(APIView):
         is_owner(request, self, customer)
 
         serializer = serializers.CustomerChecklistUpdateSerializer(
-            data=request.data, context={'request': request}
+            data=request.data, context={"request": request}
         )
         serializer.is_valid(raise_exception=True)
 
@@ -227,7 +227,7 @@ class CustomerChecklistUpdateView(APIView):
                 customer=customer, checklist_id=checklist_id
             )
 
-        return Response({'detail': _('Customer checklist have been updated.')})
+        return Response({"detail": _("Customer checklist have been updated.")})
 
 
 class AnswersListView(ListModelMixin, GenericViewSet):
@@ -235,7 +235,7 @@ class AnswersListView(ListModelMixin, GenericViewSet):
 
     def get_queryset(self):
         return models.Answer.objects.filter(
-            question__checklist__uuid=self.kwargs['checklist_uuid'],
+            question__checklist__uuid=self.kwargs["checklist_uuid"],
             user=self.request.user,
         )
 
@@ -245,9 +245,9 @@ class UserAnswersListView(ListModelMixin, GenericViewSet):
 
     def get_queryset(self):
         visible_users = filter_visible_users(User.objects.all(), self.request.user)
-        user = get_object_or_404(visible_users, uuid=self.kwargs['user_uuid'])
+        user = get_object_or_404(visible_users, uuid=self.kwargs["user_uuid"])
         return models.Answer.objects.filter(
-            question__checklist__uuid=self.kwargs['checklist_uuid'],
+            question__checklist__uuid=self.kwargs["checklist_uuid"],
             user=user,
         )
 
@@ -259,31 +259,31 @@ class AnswersSubmitView(CreateModelMixin, GenericViewSet):
         serializer = self.get_serializer(data=request.data, many=True)
         serializer.is_valid(raise_exception=True)
         checklist = get_object_or_404(
-            models.Checklist, uuid=self.kwargs['checklist_uuid']
+            models.Checklist, uuid=self.kwargs["checklist_uuid"]
         )
 
         # we allow staff users to answer on behalf of users
-        on_behalf_user_uuid = request.query_params.get('on_behalf_user_uuid', '')
+        on_behalf_user_uuid = request.query_params.get("on_behalf_user_uuid", "")
         if request.user.is_staff and on_behalf_user_uuid:
             if not is_uuid_like(on_behalf_user_uuid):
                 raise ValidationError(
-                    {'on_behalf_user_uuid': "Format of user UUID is not correct"}
+                    {"on_behalf_user_uuid": "Format of user UUID is not correct"}
                 )
             try:
                 user = User.objects.get(uuid=on_behalf_user_uuid)
             except User.DoesNotExist:
-                raise ValidationError({'on_behalf_user_uuid': "User was not found."})
+                raise ValidationError({"on_behalf_user_uuid": "User was not found."})
         else:
             user = request.user
 
         for answer in serializer.validated_data:
             question = get_object_or_404(
-                models.Question, uuid=answer['question_uuid'], checklist=checklist
+                models.Question, uuid=answer["question_uuid"], checklist=checklist
             )
             models.Answer.objects.update_or_create(
                 question=question,
                 user=user,
-                defaults={'value': answer['value']},
+                defaults={"value": answer["value"]},
             )
 
         headers = self.get_success_headers(serializer.data)
@@ -303,8 +303,8 @@ class UserStatsView(APIView):
             checklist__in=visible_checklists
         ).count()
         correct_count = models.Answer.objects.filter(
-            value=F('question__correct_answer'),
+            value=F("question__correct_answer"),
             question__checklist__in=visible_checklists,
             user=user,
         ).count()
-        return Response({'score': get_score(correct_count, total_count)})
+        return Response({"score": get_score(correct_count, total_count)})

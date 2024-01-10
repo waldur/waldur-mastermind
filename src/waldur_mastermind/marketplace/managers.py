@@ -69,7 +69,7 @@ class OfferingQuerySet(django_models.QuerySet):
         )
 
         if user.is_anonymous:
-            if not settings.WALDUR_MARKETPLACE['ANONYMOUS_USER_CAN_VIEW_OFFERINGS']:
+            if not settings.WALDUR_MARKETPLACE["ANONYMOUS_USER_CAN_VIEW_OFFERINGS"]:
                 return self.none()
             else:
                 return queryset.filter(shared=True)
@@ -191,7 +191,7 @@ class PlanQuerySet(django_models.QuerySet):
         )
 
         if user.is_anonymous:
-            if not settings.WALDUR_MARKETPLACE['ANONYMOUS_USER_CAN_VIEW_PLANS']:
+            if not settings.WALDUR_MARKETPLACE["ANONYMOUS_USER_CAN_VIEW_PLANS"]:
                 return self.none()
             else:
                 return queryset.filter(offering__shared=True)
@@ -225,7 +225,7 @@ def filter_offering_permissions(user, is_active=True):
         content_type=ContentType.objects.get_for_model(models.Offering),
         role__name=RoleEnum.OFFERING_MANAGER,
         is_active=is_active,
-    ).order_by('-created')
+    ).order_by("-created")
 
     if not (user.is_staff or user.is_support):
         visible_offerings = models.Offering.objects.filter(

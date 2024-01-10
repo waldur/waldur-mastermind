@@ -29,7 +29,7 @@ def change_users_quota(sender, instance: UserRole, **kwargs):
         return
 
     customer = get_customer(instance.scope)
-    customer.set_quota_usage('nc_user_count', count_customer_users(customer))
+    customer.set_quota_usage("nc_user_count", count_customer_users(customer))
 
 
 def revoke_roles_on_project_deletion(sender, instance=None, **kwargs):
@@ -45,28 +45,28 @@ def revoke_roles_on_project_deletion(sender, instance=None, **kwargs):
 def log_customer_save(sender, instance, created=False, **kwargs):
     if created:
         event_logger.customer.info(
-            'Customer {customer_name} has been created.',
-            event_type='customer_creation_succeeded',
+            "Customer {customer_name} has been created.",
+            event_type="customer_creation_succeeded",
             event_context={
-                'customer': instance,
+                "customer": instance,
             },
         )
     else:
         event_logger.customer.info(
-            'Customer {customer_name} has been updated.',
-            event_type='customer_update_succeeded',
+            "Customer {customer_name} has been updated.",
+            event_type="customer_update_succeeded",
             event_context={
-                'customer': instance,
+                "customer": instance,
             },
         )
 
 
 def log_customer_delete(sender, instance, **kwargs):
     event_logger.customer.info(
-        'Customer {customer_name} has been deleted.',
-        event_type='customer_deletion_succeeded',
+        "Customer {customer_name} has been deleted.",
+        event_type="customer_deletion_succeeded",
         event_context={
-            'customer': instance,
+            "customer": instance,
         },
     )
 
@@ -74,19 +74,19 @@ def log_customer_delete(sender, instance, **kwargs):
 def log_project_save(sender, instance, created=False, **kwargs):
     if created:
         event_logger.project.info(
-            'Project {project_name} has been created.',
-            event_type='project_creation_succeeded',
+            "Project {project_name} has been created.",
+            event_type="project_creation_succeeded",
             event_context={
-                'project': instance,
+                "project": instance,
             },
         )
     else:
         changed_fields = instance.tracker.changed().copy()
-        changed_fields.pop('modified', None)
+        changed_fields.pop("modified", None)
         if not changed_fields:
             return
 
-        message = 'Project {project_name} has been updated.'
+        message = "Project {project_name} has been updated."
         for name in sorted(changed_fields.keys()):
             previous_value = changed_fields[name]
             current_value = getattr(instance, name)
@@ -99,26 +99,26 @@ def log_project_save(sender, instance, created=False, **kwargs):
 
         event_logger.project.info(
             message,
-            event_type='project_update_succeeded',
-            event_context={'project': instance},
+            event_type="project_update_succeeded",
+            event_context={"project": instance},
         )
 
 
 def log_project_delete(sender, instance, **kwargs):
     event_logger.project.info(
-        'Project {project_name} has been deleted.',
-        event_type='project_deletion_succeeded',
+        "Project {project_name} has been deleted.",
+        event_type="project_deletion_succeeded",
         event_context={
-            'project': instance,
+            "project": instance,
         },
     )
 
 
 def log_resource_deleted(sender, instance, **kwargs):
     event_logger.resource.info(
-        '{resource_full_name} has been deleted.',
-        event_type='resource_deletion_succeeded',
-        event_context={'resource': instance},
+        "{resource_full_name} has been deleted.",
+        event_type="resource_deletion_succeeded",
+        event_context={"resource": instance},
     )
 
 
@@ -126,25 +126,25 @@ def log_resource_imported(sender, instance, **kwargs):
     if not instance.pk:
         return
     event_logger.resource.info(
-        'Resource {resource_full_name} has been imported.',
-        event_type='resource_import_succeeded',
-        event_context={'resource': instance},
+        "Resource {resource_full_name} has been imported.",
+        event_type="resource_import_succeeded",
+        event_context={"resource": instance},
     )
 
 
 def log_resource_creation_succeeded(instance):
     event_logger.resource.info(
-        'Resource {resource_name} has been created.',
-        event_type='resource_creation_succeeded',
-        event_context={'resource': instance},
+        "Resource {resource_name} has been created.",
+        event_type="resource_creation_succeeded",
+        event_context={"resource": instance},
     )
 
 
 def log_resource_creation_failed(instance):
     event_logger.resource.error(
-        'Resource {resource_name} creation has failed.',
-        event_type='resource_creation_failed',
-        event_context={'resource': instance},
+        "Resource {resource_name} creation has failed.",
+        event_type="resource_creation_failed",
+        event_context={"resource": instance},
     )
 
 
@@ -160,9 +160,9 @@ def log_resource_creation_scheduled(sender, instance, created=False, **kwargs):
 def _log_resource_creation_scheduled(instance):
     if instance.pk:
         event_logger.resource.info(
-            'Resource {resource_name} creation has been scheduled.',
-            event_type='resource_creation_scheduled',
-            event_context={'resource': instance},
+            "Resource {resource_name} creation has been scheduled.",
+            event_type="resource_creation_scheduled",
+            event_context={"resource": instance},
         )
 
 
@@ -179,9 +179,9 @@ def log_resource_action(sender, instance, name, source, target, **kwargs):
         and target == StateMixin.States.DELETION_SCHEDULED
     ):
         event_logger.resource.info(
-            'Resource {resource_name} deletion has been scheduled.',
-            event_type='resource_deletion_scheduled',
-            event_context={'resource': instance},
+            "Resource {resource_name} deletion has been scheduled.",
+            event_type="resource_deletion_scheduled",
+            event_context={"resource": instance},
         )
 
 
@@ -189,7 +189,7 @@ def update_resource_start_time(sender, instance, created=False, **kwargs):
     if created:
         return
 
-    if not instance.tracker.has_changed('runtime_state'):
+    if not instance.tracker.has_changed("runtime_state"):
         return
 
     # queryset is needed in order to call update method which does not
@@ -213,7 +213,7 @@ def delete_service_settings_on_scope_delete(sender, instance, **kwargs):
 
 def notify_about_user_profile_changes(sender, instance, created=False, **kwargs):
     user = instance
-    change_fields = settings.WALDUR_CORE['NOTIFICATIONS_PROFILE_CHANGES']['FIELDS']
+    change_fields = settings.WALDUR_CORE["NOTIFICATIONS_PROFILE_CHANGES"]["FIELDS"]
     organizations = get_connected_customers(user, RoleEnum.CUSTOMER_OWNER)
 
     if not (
@@ -226,47 +226,47 @@ def notify_about_user_profile_changes(sender, instance, created=False, **kwargs)
         if user.tracker.has_changed(field):
             fields.append(
                 {
-                    'name': field,
-                    'old_value': user.tracker.previous(field),
-                    'new_value': getattr(user, field, None),
+                    "name": field,
+                    "old_value": user.tracker.previous(field),
+                    "new_value": getattr(user, field, None),
                 }
             )
     context = {
-        'user': user,
-        'fields': fields,
-        'organizations': Customer.objects.filter(id__in=organizations),
+        "user": user,
+        "fields": fields,
+        "organizations": Customer.objects.filter(id__in=organizations),
     }
     msg = render_to_string(
-        'structure/notifications_profile_changes.html',
+        "structure/notifications_profile_changes.html",
         context,
     )
 
-    msg = re.sub(r'\s+', ' ', msg).strip()
+    msg = re.sub(r"\s+", " ", msg).strip()
 
     event_logger.user.info(
-        msg, event_type='user_profile_changed', event_context={'affected_user': user}
+        msg, event_type="user_profile_changed", event_context={"affected_user": user}
     )
 
     if (
-        settings.WALDUR_CORE['NOTIFICATIONS_PROFILE_CHANGES'][
-            'ENABLE_OPERATOR_OWNER_NOTIFICATIONS'
+        settings.WALDUR_CORE["NOTIFICATIONS_PROFILE_CHANGES"][
+            "ENABLE_OPERATOR_OWNER_NOTIFICATIONS"
         ]
-        and settings.WALDUR_CORE['NOTIFICATIONS_PROFILE_CHANGES'][
-            'OPERATOR_NOTIFICATION_EMAILS'
+        and settings.WALDUR_CORE["NOTIFICATIONS_PROFILE_CHANGES"][
+            "OPERATOR_NOTIFICATION_EMAILS"
         ]
     ):
-        emails = settings.WALDUR_CORE['NOTIFICATIONS_PROFILE_CHANGES'][
-            'OPERATOR_NOTIFICATION_EMAILS'
+        emails = settings.WALDUR_CORE["NOTIFICATIONS_PROFILE_CHANGES"][
+            "OPERATOR_NOTIFICATION_EMAILS"
         ]
         core_utils.broadcast_mail(
-            'structure', 'notifications_profile_changes_operator', context, emails
+            "structure", "notifications_profile_changes_operator", context, emails
         )
 
 
 def update_customer_users_count(sender, **kwargs):
     for customer in Customer.objects.all():
         usage = count_customer_users(customer)
-        customer.set_quota_usage('nc_user_count', usage)
+        customer.set_quota_usage("nc_user_count", usage)
 
 
 def change_email_has_been_requested(sender, instance, created=False, **kwargs):

@@ -16,27 +16,27 @@ from .backend import GoogleAuthorize
 
 class GoogleAuthViewSet(core_views.ReadOnlyActionsViewSet):
     queryset = marketplace_models.ServiceProvider.objects.exclude().order_by(
-        'customer__name'
+        "customer__name"
     )
     filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
     filterset_class = filters.GoogleAuthFilter
     serializer_class = serializers.GoogleCredentialsSerializer
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
 
-    @action(detail=True, methods=['get'])
+    @action(detail=True, methods=["get"])
     def authorize(self, request, uuid=None):
         service_provider = self.get_object()
-        redirect_uri = request.build_absolute_uri('../../') + 'callback/'
+        redirect_uri = request.build_absolute_uri("../../") + "callback/"
         backend = GoogleAuthorize(service_provider, redirect_uri)
         url = backend.get_authorization_url(service_provider.uuid.hex)
         return Response(
-            {'request_url': url},
+            {"request_url": url},
             status=status.HTTP_200_OK,
         )
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=["get"])
     def callback(self, request):
-        service_provider_uuid = request.query_params.get('state')
+        service_provider_uuid = request.query_params.get("state")
         service_provider = filter_queryset_for_user(
             marketplace_models.ServiceProvider.objects.filter(
                 uuid=service_provider_uuid
@@ -46,20 +46,20 @@ class GoogleAuthViewSet(core_views.ReadOnlyActionsViewSet):
 
         if not service_provider:
             raise exceptions.ValidationError(
-                _('Service provider has not been found. Google auth has failed.')
+                _("Service provider has not been found. Google auth has failed.")
             )
 
-        code = request.query_params.get('code')
+        code = request.query_params.get("code")
         if not code:
-            raise exceptions.ValidationError(_('Google auth has failed.'))
+            raise exceptions.ValidationError(_("Google auth has failed."))
         redirect_uri = request.build_absolute_uri(request.path)
         backend = GoogleAuthorize(service_provider, redirect_uri)
         try:
             backend.create_tokens(code)
         except OAuth2Error:
             raise exceptions.ValidationError(
-                _('Tokens have not been created. Google auth has failed.')
+                _("Tokens have not been created. Google auth has failed.")
             )
         return Response(
-            _('Google authorization is successful.'), status=status.HTTP_200_OK
+            _("Google authorization is successful."), status=status.HTTP_200_OK
         )

@@ -18,7 +18,7 @@ class PolicySerializer(serializers.HyperlinkedModelSerializer):
         if not value:
             return
 
-        actions = set(value.split(','))
+        actions = set(value.split(","))
         if actions - {a.__name__ for a in self.Meta.model.available_actions}:
             raise ValidationError(
                 _("%(value)s includes unavailable actions."),
@@ -35,14 +35,14 @@ class PolicySerializer(serializers.HyperlinkedModelSerializer):
             policy.fired_datetime = timezone.now()
             policy.save()
             logger.info(
-                'A newly created policy %s has fired.',
+                "A newly created policy %s has fired.",
                 policy.uuid.hex,
             )
 
             for action in policy.get_one_time_actions():
                 action(policy)
                 logger.info(
-                    '%s action of policy %s has been triggerd.',
+                    "%s action of policy %s has been triggerd.",
                     action.__name__,
                     policy.uuid.hex,
                 )
@@ -53,42 +53,42 @@ class PolicySerializer(serializers.HyperlinkedModelSerializer):
 class ProjectEstimatedCostPolicySerializer(
     core_serializers.AugmentedSerializerMixin, PolicySerializer
 ):
-    project_name = serializers.ReadOnlyField(source='project.name')
-    project_uuid = serializers.ReadOnlyField(source='project.uuid')
-    created_by_full_name = serializers.ReadOnlyField(source='created_by.full_name')
-    created_by_username = serializers.ReadOnlyField(source='created_by.username')
+    project_name = serializers.ReadOnlyField(source="project.name")
+    project_uuid = serializers.ReadOnlyField(source="project.uuid")
+    created_by_full_name = serializers.ReadOnlyField(source="created_by.full_name")
+    created_by_username = serializers.ReadOnlyField(source="created_by.username")
     has_fired = serializers.BooleanField(read_only=True)
     fired_datetime = serializers.DateTimeField(read_only=True)
 
     class Meta:
         model = models.ProjectEstimatedCostPolicy
         fields = (
-            'uuid',
-            'url',
-            'limit_cost',
-            'project',
-            'project_name',
-            'project_uuid',
-            'actions',
-            'created',
-            'created_by_full_name',
-            'created_by_username',
-            'has_fired',
-            'fired_datetime',
+            "uuid",
+            "url",
+            "limit_cost",
+            "project",
+            "project_name",
+            "project_uuid",
+            "actions",
+            "created",
+            "created_by_full_name",
+            "created_by_username",
+            "has_fired",
+            "fired_datetime",
         )
-        view_name = 'marketplace-project-estimated-cost-policy-detail'
+        view_name = "marketplace-project-estimated-cost-policy-detail"
         extra_kwargs = {
-            'url': {
-                'lookup_field': 'uuid',
+            "url": {
+                "lookup_field": "uuid",
             },
-            'project': {'lookup_field': 'uuid', 'view_name': 'project-detail'},
+            "project": {"lookup_field": "uuid", "view_name": "project-detail"},
         }
 
     def validate_project(self, project):
         if not project:
             return project
 
-        user = self.context['request'].user
+        user = self.context["request"].user
 
         if (
             not project
@@ -98,9 +98,9 @@ class ProjectEstimatedCostPolicySerializer(
         ):
             return project
         raise serializers.ValidationError(
-            _('Only customer owner and staff can create policy.')
+            _("Only customer owner and staff can create policy.")
         )
 
     def create(self, validated_data):
-        validated_data['created_by'] = self.context['request'].user
+        validated_data["created_by"] = self.context["request"].user
         return super().create(validated_data)

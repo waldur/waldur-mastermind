@@ -15,53 +15,53 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('structure', '0001_squashed_0036'),
+        ("structure", "0001_squashed_0036"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Invoice',
+            name="Invoice",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'state',
+                    "state",
                     models.CharField(
                         choices=[
-                            ('DRAFT', 'Draft'),
-                            ('SENT', 'Sent'),
-                            ('PAID', 'Paid'),
-                            ('MARKED_AS_PAID', 'Marked as paid'),
-                            ('CANCELLED', 'Cancelled'),
-                            ('REFUNDED', 'Refunded'),
-                            ('PARTIALLY_REFUNDED', 'Partially refunded'),
-                            ('MARKED_AS_REFUNDED', 'Marked as refunded'),
-                            ('UNPAID', 'Unpaid'),
-                            ('PAYMENT_PENDING', 'Payment pending'),
+                            ("DRAFT", "Draft"),
+                            ("SENT", "Sent"),
+                            ("PAID", "Paid"),
+                            ("MARKED_AS_PAID", "Marked as paid"),
+                            ("CANCELLED", "Cancelled"),
+                            ("REFUNDED", "Refunded"),
+                            ("PARTIALLY_REFUNDED", "Partially refunded"),
+                            ("MARKED_AS_REFUNDED", "Marked as refunded"),
+                            ("UNPAID", "Unpaid"),
+                            ("PAYMENT_PENDING", "Payment pending"),
                         ],
-                        default='DRAFT',
+                        default="DRAFT",
                         max_length=30,
                     ),
                 ),
-                ('invoice_date', models.DateField()),
-                ('end_date', models.DateField()),
+                ("invoice_date", models.DateField()),
+                ("end_date", models.DateField()),
                 (
-                    'pdf',
+                    "pdf",
                     models.FileField(
-                        blank=True, null=True, upload_to='paypal-invoices'
+                        blank=True, null=True, upload_to="paypal-invoices"
                     ),
                 ),
-                ('number', models.CharField(max_length=30)),
+                ("number", models.CharField(max_length=30)),
                 (
-                    'tax_percent',
+                    "tax_percent",
                     models.DecimalField(
                         decimal_places=2,
                         default=0,
@@ -72,25 +72,25 @@ class Migration(migrations.Migration):
                         ],
                     ),
                 ),
-                ('backend_id', models.CharField(blank=True, max_length=128)),
+                ("backend_id", models.CharField(blank=True, max_length=128)),
                 (
-                    'issuer_details',
+                    "issuer_details",
                     waldur_core.core.fields.JSONField(
                         blank=True,
                         default={},
-                        help_text='Stores data about invoice issuer',
+                        help_text="Stores data about invoice issuer",
                     ),
                 ),
                 (
-                    'payment_details',
+                    "payment_details",
                     waldur_core.core.fields.JSONField(
                         blank=True,
                         default={},
-                        help_text='Stores data about customer payment details',
+                        help_text="Stores data about customer payment details",
                     ),
                 ),
                 (
-                    'month',
+                    "month",
                     models.PositiveSmallIntegerField(
                         validators=[
                             django.core.validators.MinValueValidator(1),
@@ -98,18 +98,18 @@ class Migration(migrations.Migration):
                         ]
                     ),
                 ),
-                ('year', models.PositiveSmallIntegerField()),
+                ("year", models.PositiveSmallIntegerField()),
                 (
-                    'customer',
+                    "customer",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='paypal_invoices',
-                        to='structure.Customer',
+                        related_name="paypal_invoices",
+                        to="structure.Customer",
                     ),
                 ),
             ],
             options={
-                'ordering': ['-invoice_date'],
+                "ordering": ["-invoice_date"],
             },
             bases=(
                 waldur_core.logging.loggers.LoggableMixin,
@@ -118,106 +118,106 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.CreateModel(
-            name='InvoiceItem',
+            name="InvoiceItem",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('price', models.DecimalField(decimal_places=2, max_digits=9)),
-                ('tax', models.DecimalField(decimal_places=2, default=0, max_digits=9)),
-                ('unit_price', models.DecimalField(decimal_places=2, max_digits=9)),
-                ('quantity', models.PositiveIntegerField(default=0)),
+                ("price", models.DecimalField(decimal_places=2, max_digits=9)),
+                ("tax", models.DecimalField(decimal_places=2, default=0, max_digits=9)),
+                ("unit_price", models.DecimalField(decimal_places=2, max_digits=9)),
+                ("quantity", models.PositiveIntegerField(default=0)),
                 (
-                    'unit_of_measure',
+                    "unit_of_measure",
                     models.CharField(
                         choices=[
-                            ('QUANTITY', 'Quantity'),
-                            ('HOURS', 'Hours'),
-                            ('AMOUNT', 'Amount'),
+                            ("QUANTITY", "Quantity"),
+                            ("HOURS", "Hours"),
+                            ("AMOUNT", "Amount"),
                         ],
-                        default='HOURS',
+                        default="HOURS",
                         max_length=30,
                     ),
                 ),
-                ('name', models.CharField(max_length=255)),
-                ('start', models.DateTimeField(null=True)),
-                ('end', models.DateTimeField(null=True)),
+                ("name", models.CharField(max_length=255)),
+                ("start", models.DateTimeField(null=True)),
+                ("end", models.DateTimeField(null=True)),
                 (
-                    'invoice',
+                    "invoice",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='items',
-                        to='waldur_paypal.Invoice',
+                        related_name="items",
+                        to="waldur_paypal.Invoice",
                     ),
                 ),
             ],
             options={
-                'ordering': ['invoice', '-start'],
+                "ordering": ["invoice", "-start"],
             },
         ),
         migrations.CreateModel(
-            name='Payment',
+            name="Payment",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('error_message', models.TextField(blank=True)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("error_message", models.TextField(blank=True)),
                 (
-                    'state',
+                    "state",
                     django_fsm.FSMIntegerField(
                         choices=[
-                            (0, 'Initial'),
-                            (1, 'Created'),
-                            (2, 'Approved'),
-                            (4, 'Erred'),
+                            (0, "Initial"),
+                            (1, "Created"),
+                            (2, "Approved"),
+                            (4, "Erred"),
                         ],
                         default=0,
                     ),
                 ),
-                ('amount', models.DecimalField(decimal_places=2, max_digits=9)),
-                ('tax', models.DecimalField(decimal_places=2, default=0, max_digits=9)),
-                ('backend_id', models.CharField(max_length=255, null=True)),
-                ('token', models.CharField(max_length=255, null=True)),
-                ('approval_url', models.URLField()),
+                ("amount", models.DecimalField(decimal_places=2, max_digits=9)),
+                ("tax", models.DecimalField(decimal_places=2, default=0, max_digits=9)),
+                ("backend_id", models.CharField(max_length=255, null=True)),
+                ("token", models.CharField(max_length=255, null=True)),
+                ("approval_url", models.URLField()),
                 (
-                    'customer',
+                    "customer",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='structure.Customer',
+                        to="structure.Customer",
                     ),
                 ),
             ],
             options={
-                'ordering': ['-modified'],
+                "ordering": ["-modified"],
             },
             bases=(waldur_core.logging.loggers.LoggableMixin, models.Model),
         ),

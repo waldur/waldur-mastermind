@@ -25,7 +25,7 @@ from waldur_openstack.openstack_tenant.tests.fixtures import OpenStackTenantFixt
 from .. import TENANT_TYPE
 
 
-@freeze_time('2019-09-10')
+@freeze_time("2019-09-10")
 class BaseTenantInvoiceTest(test.APITransactionTestCase):
     def setUp(self):
         self.offering = marketplace_factories.OfferingFactory(type=TENANT_TYPE)
@@ -98,10 +98,10 @@ class TenantInvoiceTest(BaseTenantInvoiceTest):
             CORES_TYPE: 20,
             STORAGE_TYPE: 30 * 1024,
         }
-        with freeze_time('2017-01-01'):
+        with freeze_time("2017-01-01"):
             resource = self.create_resource(self.prices, self.limits)
 
-        with freeze_time('2017-01-10'):
+        with freeze_time("2017-01-10"):
             self.update_resource_limits(resource, new_limits)
 
         invoice_items = invoices_models.InvoiceItem.objects.filter(resource=resource)
@@ -109,7 +109,7 @@ class TenantInvoiceTest(BaseTenantInvoiceTest):
 
     def test_when_resource_is_deleted_invoice_is_updated(self):
         resource = self.create_resource(self.prices, self.limits)
-        with freeze_time('2019-09-18'):
+        with freeze_time("2019-09-18"):
             resource.set_state_terminating()
             resource.save()
             self.delete_resource(resource)
@@ -120,7 +120,7 @@ class TenantInvoiceTest(BaseTenantInvoiceTest):
 
     def test_resource_limit_period_is_updated_when_resource_is_terminated(self):
         resource = self.create_resource(self.prices, self.limits)
-        with freeze_time('2019-09-18'):
+        with freeze_time("2019-09-18"):
             resource.set_state_terminating()
             resource.save()
             resource.set_state_terminated()
@@ -130,7 +130,7 @@ class TenantInvoiceTest(BaseTenantInvoiceTest):
             ).last()
             self.assertEqual(
                 parse_datetime(
-                    invoice_item.details['resource_limit_periods'][-1]['end']
+                    invoice_item.details["resource_limit_periods"][-1]["end"]
                 ),
                 timezone.now(),
             )
@@ -148,7 +148,7 @@ class StorageModeInvoiceTest(BaseTenantInvoiceTest):
         tenant = fixture.openstack_tenant
         offering_component = marketplace_models.OfferingComponent.objects.create(
             offering=self.offering,
-            type='gigabytes_gpfs',
+            type="gigabytes_gpfs",
             billing_type=marketplace_models.OfferingComponent.BillingTypes.LIMIT,
         )
 
@@ -168,58 +168,58 @@ class StorageModeInvoiceTest(BaseTenantInvoiceTest):
         callbacks.resource_creation_succeeded(self.resource)
         self.resource.scope = tenant
         self.resource.save()
-        tenant.set_quota_limit('vcpu', 6)
-        tenant.set_quota_limit('ram', 10 * 1024)
-        tenant.set_quota_usage('storage', 30 * 1024)
-        tenant.set_quota_usage('gigabytes_gpfs', 100 * 1024)
+        tenant.set_quota_limit("vcpu", 6)
+        tenant.set_quota_limit("ram", 10 * 1024)
+        tenant.set_quota_usage("storage", 30 * 1024)
+        tenant.set_quota_usage("gigabytes_gpfs", 100 * 1024)
 
     def test_when_storage_mode_is_switched_to_dynamic_limits_are_updated(self):
         # Act
-        with freeze_time('2019-09-20'):
-            self.offering.plugin_options['storage_mode'] = STORAGE_MODE_DYNAMIC
+        with freeze_time("2019-09-20"):
+            self.offering.plugin_options["storage_mode"] = STORAGE_MODE_DYNAMIC
             self.offering.save()
 
         # Assert
         self.resource.refresh_from_db()
-        self.assertEqual(self.resource.limits.get('cores'), 6)
-        self.assertEqual(self.resource.limits.get('ram'), 10 * 1024)
-        self.assertEqual(self.resource.limits.get('storage'), None)
-        self.assertEqual(self.resource.limits.get('gigabytes_gpfs'), 100 * 1024)
+        self.assertEqual(self.resource.limits.get("cores"), 6)
+        self.assertEqual(self.resource.limits.get("ram"), 10 * 1024)
+        self.assertEqual(self.resource.limits.get("storage"), None)
+        self.assertEqual(self.resource.limits.get("gigabytes_gpfs"), 100 * 1024)
 
         invoice_item = invoices_models.InvoiceItem.objects.filter(
-            resource=self.resource, details__offering_component_type='gigabytes_gpfs'
+            resource=self.resource, details__offering_component_type="gigabytes_gpfs"
         ).get()
-        last_period = invoice_item.details['resource_limit_periods'][-1]
-        self.assertEqual(last_period['quantity'], 100 * 1024)
+        last_period = invoice_item.details["resource_limit_periods"][-1]
+        self.assertEqual(last_period["quantity"], 100 * 1024)
 
     def test_when_storage_mode_is_switched_to_fixed_limits_are_updated(self):
         # Act
-        with freeze_time('2019-09-20'):
-            self.offering.plugin_options['storage_mode'] = STORAGE_MODE_FIXED
+        with freeze_time("2019-09-20"):
+            self.offering.plugin_options["storage_mode"] = STORAGE_MODE_FIXED
             self.offering.save()
 
         # Assert
         self.resource.refresh_from_db()
-        self.assertEqual(self.resource.limits.get('cores'), 6)
-        self.assertEqual(self.resource.limits.get('ram'), 10 * 1024)
-        self.assertEqual(self.resource.limits.get('storage'), 30 * 1024)
-        self.assertEqual(self.resource.limits.get('gigabytes_gpfs'), None)
+        self.assertEqual(self.resource.limits.get("cores"), 6)
+        self.assertEqual(self.resource.limits.get("ram"), 10 * 1024)
+        self.assertEqual(self.resource.limits.get("storage"), 30 * 1024)
+        self.assertEqual(self.resource.limits.get("gigabytes_gpfs"), None)
 
         invoice_item = invoices_models.InvoiceItem.objects.filter(
             resource=self.resource
         ).last()
-        last_period = invoice_item.details['resource_limit_periods'][-1]
-        self.assertEqual(last_period['quantity'], 30)
+        last_period = invoice_item.details["resource_limit_periods"][-1]
+        self.assertEqual(last_period["quantity"], 30)
 
     @mock.patch(
-        'waldur_mastermind.marketplace_openstack.utils.import_limits_when_storage_mode_is_switched'
+        "waldur_mastermind.marketplace_openstack.utils.import_limits_when_storage_mode_is_switched"
     )
     def test_when_storage_mode_is_not_switched_limits_are_not_updated(
         self, mocked_utils
     ):
         # Act
-        with freeze_time('2019-09-20'):
-            self.offering.plugin_options['FOO'] = 'BAR'
+        with freeze_time("2019-09-20"):
+            self.offering.plugin_options["FOO"] = "BAR"
             self.offering.save()
 
         # Assert
@@ -240,8 +240,8 @@ class SharedInstanceTest(test.APITransactionTestCase):
         resource = marketplace_factories.ResourceFactory(
             offering=offering,
             attributes={
-                'flavor': FlavorFactory.get_url(fixture.flavor),
-                'data_volume_size': 1024 * 4,
+                "flavor": FlavorFactory.get_url(fixture.flavor),
+                "data_volume_size": 1024 * 4,
             },
         )
         plan = marketplace_factories.PlanFactory(offering=offering)
@@ -249,7 +249,7 @@ class SharedInstanceTest(test.APITransactionTestCase):
             resource=resource,
             plan=plan,
         )
-        resource.attributes['system_volume_size'] = 1024 * 2
+        resource.attributes["system_volume_size"] = 1024 * 2
         resource.save()
 
         self.assertEqual(

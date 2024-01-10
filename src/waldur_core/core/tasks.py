@@ -36,32 +36,32 @@ class TaskType(type):
 
     def __new__(cls, name, bases, attrs):
         new = super().__new__
-        task_module = attrs.get('__module__') or '__main__'
+        task_module = attrs.get("__module__") or "__main__"
 
         # - Abstract class: abstract attribute shouldn't be inherited.
-        abstract = attrs.pop('abstract', None)
-        if abstract or not attrs.get('autoregister', True):
+        abstract = attrs.pop("abstract", None)
+        if abstract or not attrs.get("autoregister", True):
             return new(cls, name, bases, attrs)
 
         # The 'app' attribute is now a property, with the real app located
         # in the '_app' attribute.  Previously this was a regular attribute,
         # so we should support classes defining it.
-        app = attrs.pop('_app', None) or attrs.pop('app', None)
+        app = attrs.pop("_app", None) or attrs.pop("app", None)
 
         # Attempt to inherit app from one the bases
         if not isinstance(app, Proxy) and app is None:
             for base in bases:
-                if getattr(base, '_app', None):
+                if getattr(base, "_app", None):
                     app = base._app
                     break
             else:
                 app = current_app._get_current_object()
-        attrs['_app'] = app
+        attrs["_app"] = app
 
         # - Automatically generate missing/empty name.
-        task_name = attrs.get('name')
+        task_name = attrs.get("name")
         if not task_name:
-            attrs['name'] = task_name = app.gen_task_name(name, task_module)
+            attrs["name"] = task_name = app.gen_task_name(name, task_module)
 
         # - Create and register class.
         # Because of the way import happens (recursively)
@@ -99,7 +99,7 @@ class Task(CeleryTask, metaclass=TaskType):
             instance = utils.deserialize_instance(serialized_instance)
         except ObjectDoesNotExist:
             raise ObjectDoesNotExist(
-                'Cannot restore instance from serialized object %s. Probably it was deleted.'
+                "Cannot restore instance from serialized object %s. Probably it was deleted."
                 % serialized_instance
             )
 
@@ -119,7 +119,7 @@ class Task(CeleryTask, metaclass=TaskType):
     def execute(self, instance, *args, **kwargs):
         """Execute backend operation"""
         raise NotImplementedError(
-            '%s should implement method `execute`' % self.__class__.__name__
+            "%s should implement method `execute`" % self.__class__.__name__
         )
 
     def post_execute(self, instance):
@@ -139,7 +139,7 @@ class StateTransitionTask(Task):
 
     @classmethod
     def get_description(cls, instance, *args, **kwargs):
-        transition_method = kwargs.get('state_transition')
+        transition_method = kwargs.get("state_transition")
         return 'Change state of object "{}" using method "{}".'.format(
             instance,
             transition_method,
@@ -148,7 +148,7 @@ class StateTransitionTask(Task):
     def state_transition(
         self, instance, transition_method, action=None, action_details=None
     ):
-        instance_description = '{} instance `{}` (PK: {})'.format(
+        instance_description = "{} instance `{}` (PK: {})".format(
             instance.__class__.__name__,
             instance,
             instance.pk,
@@ -162,24 +162,18 @@ class StateTransitionTask(Task):
                 instance.action_details = action_details
             instance.save()
         except IntegrityError:
-            message = (
-                'Could not change state of %s, using method `%s` due to concurrent update'
-                % (instance_description, transition_method)
-            )
+            message = f"Could not change state of {instance_description}, using method `{transition_method}` due to concurrent update"
             raise StateChangeError(message)
         except TransitionNotAllowed:
-            message = (
-                'Could not change state of %s, using method `%s`. Current instance state: %s.'
-                % (
-                    instance_description,
-                    transition_method,
-                    instance.human_readable_state,
-                )
+            message = "Could not change state of {}, using method `{}`. Current instance state: {}.".format(
+                instance_description,
+                transition_method,
+                instance.human_readable_state,
             )
             raise StateChangeError(message)
         else:
             logger.info(
-                'State of %s changed from %s to %s, with method `%s`',
+                "State of %s changed from %s to %s, with method `%s`",
                 instance_description,
                 old_state,
                 instance.human_readable_state,
@@ -187,9 +181,9 @@ class StateTransitionTask(Task):
             )
 
     def pre_execute(self, instance):
-        state_transition = self.kwargs.pop('state_transition', None)
-        action = self.kwargs.pop('action', None)
-        action_details = self.kwargs.pop('action_details', None)
+        state_transition = self.kwargs.pop("state_transition", None)
+        action = self.kwargs.pop("action", None)
+        action_details = self.kwargs.pop("action_details", None)
         if state_transition is not None:
             self.state_transition(instance, state_transition, action, action_details)
         super().pre_execute(instance)
@@ -209,19 +203,16 @@ class RuntimeStateChangeTask(Task):
 
     @classmethod
     def get_description(cls, instance, *args, **kwargs):
-        runtime_state = kwargs.get('runtime_state')
-        return 'Change runtime state of object "{}" to "{}".'.format(
-            instance,
-            runtime_state,
-        )
+        runtime_state = kwargs.get("runtime_state")
+        return f'Change runtime state of object "{instance}" to "{runtime_state}".'
 
     def update_runtime_state(self, instance, runtime_state):
         instance.runtime_state = runtime_state
-        instance.save(update_fields=['runtime_state'])
+        instance.save(update_fields=["runtime_state"])
 
     def pre_execute(self, instance):
-        self.runtime_state = self.kwargs.pop('runtime_state', None)
-        self.success_runtime_state = self.kwargs.pop('success_runtime_state', None)
+        self.runtime_state = self.kwargs.pop("runtime_state", None)
+        self.success_runtime_state = self.kwargs.pop("success_runtime_state", None)
 
         if self.runtime_state is not None:
             self.update_runtime_state(instance, self.runtime_state)
@@ -243,19 +234,19 @@ class BackendMethodTask(RuntimeStateChangeTask, StateTransitionTask):
     @classmethod
     def get_description(cls, instance, backend_method, *args, **kwargs):
         actions = [f'Run backend method "{backend_method}" for instance "{instance}".']
-        if 'state_transition' in kwargs:
+        if "state_transition" in kwargs:
             actions.append(
                 StateTransitionTask.get_description(
                     instance, backend_method, *args, **kwargs
                 )
             )
-        if 'runtime_state' in kwargs:
+        if "runtime_state" in kwargs:
             actions.append(
                 RuntimeStateChangeTask.get_description(
                     instance, backend_method, *args, **kwargs
                 )
             )
-        return ' '.join(actions)
+        return " ".join(actions)
 
     def get_backend(self, instance):
         return instance.get_backend()
@@ -282,13 +273,13 @@ class DeletionTask(Task):
         return 'Delete instance "%s".' % instance
 
     def execute(self, instance):
-        instance_description = '{} instance `{}` (PK: {})'.format(
+        instance_description = "{} instance `{}` (PK: {})".format(
             instance.__class__.__name__,
             instance,
             instance.pk,
         )
         instance.delete()
-        logger.info('%s was successfully deleted', instance_description)
+        logger.info("%s was successfully deleted", instance_description)
 
 
 class ErrorMessageTask(Task):
@@ -309,20 +300,20 @@ class ErrorMessageTask(Task):
     def save_error_message(self, instance):
         if isinstance(instance, models.ErrorMessageMixin):
             try:
-                error_message = self.result.result or ''
+                error_message = self.result.result or ""
                 error_traceback = str(self.result.traceback)
             except AttributeError as ex:
-                error_message = f'Internal error: {ex.message}'
+                error_message = f"Internal error: {ex.message}"
                 error_traceback = traceback.format_exc()
 
             instance.error_message = error_message
             instance.error_traceback = error_traceback
 
-            instance.save(update_fields=['error_message', 'error_traceback'])
+            instance.save(update_fields=["error_message", "error_traceback"])
             # log exception if instance is not already ERRED.
             if instance.state != models.StateMixin.States.ERRED:
-                message = 'Instance: %s.\n' % utils.serialize_instance(instance)
-                message += 'Error: %s.\n' % error_message
+                message = "Instance: %s.\n" % utils.serialize_instance(instance)
+                message += "Error: %s.\n" % error_message
                 message += error_traceback
                 logger.exception(message)
 
@@ -343,7 +334,7 @@ class ErrorStateTransitionTask(ErrorMessageTask, StateTransitionTask):
 
     def execute(self, instance):
         self.save_error_message(instance)
-        self.state_transition(instance, 'set_erred', action='', action_details={})
+        self.state_transition(instance, "set_erred", action="", action_details={})
 
 
 class RecoverTask(StateTransitionTask):
@@ -354,10 +345,10 @@ class RecoverTask(StateTransitionTask):
         return 'Recover instance "%s".' % instance
 
     def execute(self, instance):
-        self.state_transition(instance, 'recover')
-        instance.error_message = ''
-        instance.error_traceback = ''
-        instance.save(update_fields=['error_message', 'error_traceback'])
+        self.state_transition(instance, "recover")
+        instance.error_message = ""
+        instance.error_traceback = ""
+        instance.save(update_fields=["error_message", "error_traceback"])
 
 
 class PreApplyExecutorTask(Task):
@@ -418,12 +409,12 @@ class BackgroundTask(CeleryTask, metaclass=TaskType):
         """Do not run background task if previous task is uncompleted"""
         if self.is_previous_task_processing(*args, **kwargs):
             message = (
-                'Background task %s was not scheduled, because its predecessor is not completed yet.'
+                "Background task %s was not scheduled, because its predecessor is not completed yet."
                 % self.name
             )
             logger.info(message)
             # It is expected by Celery that apply_async return AsyncResult, otherwise celerybeat dies
-            return self.AsyncResult(options.get('task_id') or str(uuid4()))
+            return self.AsyncResult(options.get("task_id") or str(uuid4()))
         return super().apply_async(args=args, kwargs=kwargs, **options)
 
 
@@ -440,15 +431,14 @@ def log_celery_task(request):
         except Exception as e:
             # Logging should never break workflow.
             logger.exception(
-                'Cannot get description for task %s. Error: %s'
-                % (task.__class__.__name__, e)
+                f"Cannot get description for task {task.__class__.__name__}. Error: {e}"
             )
 
-    return '{0.name}[{0.id}]{1}{2}{3}'.format(
+    return "{0.name}[{0.id}]{1}{2}{3}".format(
         request,
-        f' {description}' if description else '',
-        f' eta:[{request.eta}]' if request.eta else '',
-        f' expires:[{request.expires}]' if request.expires else '',
+        f" {description}" if description else "",
+        f" eta:[{request.eta}]" if request.eta else "",
+        f" expires:[{request.expires}]" if request.expires else "",
     )
 
 
@@ -482,8 +472,7 @@ class PollRuntimeStateTask(Task):
             self.retry()
         elif instance.runtime_state == erred_state:
             raise RuntimeStateException(
-                '%s (PK: %s) runtime state become erred: %s'
-                % (instance.__class__.__name__, instance.pk, erred_state)
+                f"{instance.__class__.__name__} (PK: {instance.pk}) runtime state become erred: {erred_state}"
             )
         return instance
 
@@ -531,9 +520,9 @@ class ExtensionTaskMixin(CeleryTask, metaclass=TaskType):
     def apply_async(self, args=None, kwargs=None, **options):
         if self.is_extension_disabled():
             message = (
-                'Task %s is not scheduled, because its extension is disabled.'
+                "Task %s is not scheduled, because its extension is disabled."
                 % self.name
             )
             logger.info(message)
-            return self.AsyncResult(options.get('task_id') or str(uuid4()))
+            return self.AsyncResult(options.get("task_id") or str(uuid4()))
         return super().apply_async(args=args, kwargs=kwargs, **options)

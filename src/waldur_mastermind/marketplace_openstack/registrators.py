@@ -19,12 +19,12 @@ class OpenStackBaseRegistrator(MarketplaceRegistrator):
     def get_component_name(cls, plan_component):
         component_type = plan_component.component.type
         if component_type == CORES_TYPE:
-            return 'CPU'
+            return "CPU"
         elif component_type == RAM_TYPE:
-            return 'RAM'
+            return "RAM"
         elif component_type == STORAGE_TYPE:
-            return 'storage'
-        elif component_type.startswith('gigabytes_'):
+            return "storage"
+        elif component_type.startswith("gigabytes_"):
             return f'{component_type.replace("gigabytes_", "")} storage'
         else:
             return plan_component.component.name

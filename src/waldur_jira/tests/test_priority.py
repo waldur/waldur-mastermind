@@ -12,18 +12,18 @@ class PriorityPullTest(test.APITransactionTestCase):
         self.fixture = fixtures.JiraFixture()
 
         self.highest_priority = mock.MagicMock(
-            id='10',
-            description='This problem will block progress.',
-            iconUrl='http://example.com/highest.svg',
+            id="10",
+            description="This problem will block progress.",
+            iconUrl="http://example.com/highest.svg",
         )
-        self.highest_priority.name = 'Highest'
+        self.highest_priority.name = "Highest"
 
         self.lowest_priority = mock.Mock(
-            id='100',
-            description='Trivial problem with little or no impact on progress.',
-            iconUrl='http://example.com/lowest.svg',
+            id="100",
+            description="Trivial problem with little or no impact on progress.",
+            iconUrl="http://example.com/lowest.svg",
         )
-        self.lowest_priority.name = 'Lowest'
+        self.lowest_priority.name = "Lowest"
         self.priorities = [self.highest_priority, self.lowest_priority]
 
         self.backend = JiraBackend(self.fixture.service_settings)
@@ -38,7 +38,7 @@ class PriorityPullTest(test.APITransactionTestCase):
         factories.PriorityFactory(
             settings=self.fixture.service_settings,
             backend_id=self.highest_priority.id,
-            name='Old name',
+            name="Old name",
         )
         self.backend.pull_priorities()
         self.assert_priorities_are_pulled()

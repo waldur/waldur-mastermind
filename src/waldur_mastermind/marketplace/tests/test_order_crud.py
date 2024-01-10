@@ -22,14 +22,14 @@ class OrderCreateTest(test.APITransactionTestCase):
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
 
-    @data('staff', 'owner', 'admin', 'manager')
+    @data("staff", "owner", "admin", "manager")
     def test_user_can_create_order_in_valid_project(self, user):
         user = getattr(self.fixture, user)
         response = self.create_order(user)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(models.Order.objects.filter(created_by=user).exists())
 
-    @data('user')
+    @data("user")
     def test_user_can_not_create_order_in_invalid_project(self, user):
         user = getattr(self.fixture, user)
         response = self.create_order(user)
@@ -44,9 +44,9 @@ class OrderCreateTest(test.APITransactionTestCase):
         offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
         plan = factories.PlanFactory(offering=offering)
         add_payload = {
-            'offering': factories.OfferingFactory.get_public_url(offering),
-            'plan': factories.PlanFactory.get_public_url(plan),
-            'attributes': {},
+            "offering": factories.OfferingFactory.get_public_url(offering),
+            "plan": factories.PlanFactory.get_public_url(plan),
+            "attributes": {},
         }
         response = self.create_order(
             self.fixture.staff, offering, add_payload=add_payload
@@ -54,7 +54,7 @@ class OrderCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     @mock.patch(
-        'waldur_mastermind.marketplace.tasks.notify_consumer_about_pending_order.delay'
+        "waldur_mastermind.marketplace.tasks.notify_consumer_about_pending_order.delay"
     )
     def test_notification_is_sent_when_order_is_created(self, mock_task):
         offering = factories.OfferingFactory(
@@ -62,9 +62,9 @@ class OrderCreateTest(test.APITransactionTestCase):
         )
         plan = factories.PlanFactory(offering=offering)
         add_payload = {
-            'offering': factories.OfferingFactory.get_public_url(offering),
-            'plan': factories.PlanFactory.get_public_url(plan),
-            'attributes': {},
+            "offering": factories.OfferingFactory.get_public_url(offering),
+            "plan": factories.PlanFactory.get_public_url(plan),
+            "attributes": {},
         }
         response = self.create_order(
             self.fixture.manager, offering, add_payload=add_payload
@@ -79,9 +79,9 @@ class OrderCreateTest(test.APITransactionTestCase):
         offering.customer.add_user(self.fixture.owner, CustomerRole.OWNER)
         plan = factories.PlanFactory(offering=offering)
         add_payload = {
-            'offering': factories.OfferingFactory.get_public_url(offering),
-            'plan': factories.PlanFactory.get_public_url(plan),
-            'attributes': {},
+            "offering": factories.OfferingFactory.get_public_url(offering),
+            "plan": factories.PlanFactory.get_public_url(plan),
+            "attributes": {},
         }
         response = self.create_order(
             self.fixture.owner, offering, add_payload=add_payload
@@ -92,9 +92,9 @@ class OrderCreateTest(test.APITransactionTestCase):
         offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
         plan = factories.PlanFactory(offering=offering)
         add_payload = {
-            'offering': factories.OfferingFactory.get_public_url(),
-            'plan': factories.PlanFactory.get_public_url(plan),
-            'attributes': {},
+            "offering": factories.OfferingFactory.get_public_url(),
+            "plan": factories.PlanFactory.get_public_url(plan),
+            "attributes": {},
         }
         response = self.create_order(
             self.fixture.staff, offering, add_payload=add_payload
@@ -106,9 +106,9 @@ class OrderCreateTest(test.APITransactionTestCase):
         plan = factories.PlanFactory(offering=offering, max_amount=3)
         factories.ResourceFactory.create_batch(3, plan=plan, offering=offering)
         add_payload = {
-            'offering': factories.OfferingFactory.get_public_url(offering),
-            'plan': factories.PlanFactory.get_public_url(plan),
-            'attributes': {},
+            "offering": factories.OfferingFactory.get_public_url(offering),
+            "plan": factories.PlanFactory.get_public_url(plan),
+            "attributes": {},
         }
         response = self.create_order(
             self.fixture.staff, offering, add_payload=add_payload
@@ -117,37 +117,37 @@ class OrderCreateTest(test.APITransactionTestCase):
 
     def test_user_can_create_order_with_valid_attributes_specified_by_options(self):
         attributes = {
-            'storage': 1000,
-            'ram': 30,
-            'cpu_count': 5,
+            "storage": 1000,
+            "ram": 30,
+            "cpu_count": 5,
         }
         offering = factories.OfferingFactory(
             state=models.Offering.States.ACTIVE, options=OFFERING_OPTIONS
         )
         plan = factories.PlanFactory(offering=offering)
         add_payload = {
-            'offering': factories.OfferingFactory.get_public_url(offering),
-            'plan': factories.PlanFactory.get_public_url(plan),
-            'attributes': attributes,
+            "offering": factories.OfferingFactory.get_public_url(offering),
+            "plan": factories.PlanFactory.get_public_url(plan),
+            "attributes": attributes,
         }
         response = self.create_order(
             self.fixture.staff, offering, add_payload=add_payload
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data['attributes'], attributes)
+        self.assertEqual(response.data["attributes"], attributes)
 
     def test_user_can_not_create_order_with_invalid_attributes(self):
         attributes = {
-            'storage': 'invalid value',
+            "storage": "invalid value",
         }
         offering = factories.OfferingFactory(
             state=models.Offering.States.ACTIVE, options=OFFERING_OPTIONS
         )
         plan = factories.PlanFactory(offering=offering)
         add_payload = {
-            'offering': factories.OfferingFactory.get_public_url(offering),
-            'plan': factories.PlanFactory.get_public_url(plan),
-            'attributes': attributes,
+            "offering": factories.OfferingFactory.get_public_url(offering),
+            "plan": factories.PlanFactory.get_public_url(plan),
+            "attributes": attributes,
         }
         response = self.create_order(
             self.fixture.staff, offering, add_payload=add_payload
@@ -156,9 +156,9 @@ class OrderCreateTest(test.APITransactionTestCase):
 
     def test_user_can_create_order_with_valid_limits(self):
         limits = {
-            'storage': 1000,
-            'ram': 30,
-            'cpu_count': 5,
+            "storage": 1000,
+            "ram": 30,
+            "cpu_count": 5,
         }
 
         offering = factories.OfferingFactory(
@@ -174,10 +174,10 @@ class OrderCreateTest(test.APITransactionTestCase):
             )
 
         add_payload = {
-            'offering': factories.OfferingFactory.get_public_url(offering),
-            'plan': factories.PlanFactory.get_public_url(plan),
-            'limits': limits,
-            'attributes': {},
+            "offering": factories.OfferingFactory.get_public_url(offering),
+            "plan": factories.PlanFactory.get_public_url(plan),
+            "limits": limits,
+            "attributes": {},
         }
 
         response = self.create_order(
@@ -186,13 +186,13 @@ class OrderCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
         order = models.Order.objects.last()
-        self.assertEqual(order.limits['cpu_count'], 5)
+        self.assertEqual(order.limits["cpu_count"], 5)
 
     def test_user_can_not_create_order_with_invalid_limits(self):
         limits = {
-            'storage': 1000,
-            'ram': 30,
-            'cpu_count': 5,
+            "storage": 1000,
+            "ram": 30,
+            "cpu_count": 5,
         }
 
         offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
@@ -206,10 +206,10 @@ class OrderCreateTest(test.APITransactionTestCase):
             )
 
         add_payload = {
-            'offering': factories.OfferingFactory.get_public_url(offering),
-            'plan': factories.PlanFactory.get_public_url(plan),
-            'limits': limits,
-            'attributes': {},
+            "offering": factories.OfferingFactory.get_public_url(offering),
+            "plan": factories.PlanFactory.get_public_url(plan),
+            "limits": limits,
+            "attributes": {},
         }
 
         response = self.create_order(
@@ -227,12 +227,12 @@ class OrderCreateTest(test.APITransactionTestCase):
     def test_user_can_create_order_if_terms_of_service_have_been_accepted(self):
         user = self.fixture.admin
         offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
-        offering.terms_of_service = 'Terms of service'
+        offering.terms_of_service = "Terms of service"
         offering.save()
         add_payload = {
-            'offering': factories.OfferingFactory.get_public_url(offering),
-            'attributes': {},
-            'accepting_terms_of_service': True,
+            "offering": factories.OfferingFactory.get_public_url(offering),
+            "attributes": {},
+            "accepting_terms_of_service": True,
         }
         response = self.create_order(user, offering=offering, add_payload=add_payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -242,8 +242,8 @@ class OrderCreateTest(test.APITransactionTestCase):
         user = self.fixture.admin
         offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
         add_payload = {
-            'offering': factories.OfferingFactory.get_public_url(offering),
-            'attributes': {},
+            "offering": factories.OfferingFactory.get_public_url(offering),
+            "attributes": {},
         }
         response = self.create_order(user, offering=offering, add_payload=add_payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -256,8 +256,8 @@ class OrderCreateTest(test.APITransactionTestCase):
         offering.customer = self.project.customer
         offering.save()
         add_payload = {
-            'offering': factories.OfferingFactory.get_public_url(offering),
-            'attributes': {},
+            "offering": factories.OfferingFactory.get_public_url(offering),
+            "attributes": {},
         }
         response = self.create_order(user, offering=offering, add_payload=add_payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -266,27 +266,27 @@ class OrderCreateTest(test.APITransactionTestCase):
     def test_user_cannot_create_order_if_terms_of_service_have_been_not_accepted(self):
         user = self.fixture.admin
         offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
-        offering.terms_of_service = 'Terms of service'
+        offering.terms_of_service = "Terms of service"
         offering.save()
         add_payload = {
-            'offering': factories.OfferingFactory.get_public_url(offering),
-            'attributes': {},
+            "offering": factories.OfferingFactory.get_public_url(offering),
+            "attributes": {},
         }
         response = self.create_order(user, offering=offering, add_payload=add_payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(
-            str(response.content, 'utf-8'),
+            str(response.content, "utf-8"),
             '{"non_field_errors":["Terms of service for offering \'%s\' have not been accepted."]}'
             % offering,
         )
         self.assertFalse(models.Order.objects.filter(created_by=user).exists())
 
     def test_user_cannot_create_order_in_project_is_expired(self):
-        user = getattr(self.fixture, 'staff')
+        user = getattr(self.fixture, "staff")
         self.project.end_date = datetime.datetime(day=1, month=1, year=2020)
         self.project.save()
 
-        with freeze_time('2020-01-01'):
+        with freeze_time("2020-01-01"):
             response = self.create_order(user)
             self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -317,9 +317,9 @@ class OrderCreateTest(test.APITransactionTestCase):
         self.client.force_authenticate(user)
         url = factories.OrderFactory.get_list_url()
         payload = {
-            'project': structure_factories.ProjectFactory.get_url(self.project),
-            'offering': factories.OfferingFactory.get_public_url(offering),
-            'attributes': {},
+            "project": structure_factories.ProjectFactory.get_url(self.project),
+            "offering": factories.OfferingFactory.get_public_url(offering),
+            "attributes": {},
         }
 
         if add_payload:
@@ -341,7 +341,7 @@ class OrderDeleteTest(test.APITransactionTestCase):
         ProjectRole.MANAGER.add_permission(PermissionEnum.DESTROY_ORDER)
         ProjectRole.ADMIN.add_permission(PermissionEnum.DESTROY_ORDER)
 
-    @data('staff', 'owner', 'admin', 'manager')
+    @data("staff", "owner", "admin", "manager")
     def test_authorized_user_can_delete_order(self, user):
         response = self.delete_order(user)
         self.assertEqual(
@@ -349,7 +349,7 @@ class OrderDeleteTest(test.APITransactionTestCase):
         )
         self.assertFalse(models.Order.objects.filter(project=self.project).exists())
 
-    @data('user')
+    @data("user")
     def test_other_user_can_not_delete_order(self, user):
         response = self.delete_order(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
@@ -363,7 +363,7 @@ class OrderDeleteTest(test.APITransactionTestCase):
     def test_order_deleting_is_not_available_for_blocked_organization(self):
         self.fixture.customer.blocked = True
         self.fixture.customer.save()
-        response = self.delete_order('owner')
+        response = self.delete_order("owner")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def delete_order(self, user):
@@ -385,7 +385,7 @@ class OrderFilterTest(test.APITransactionTestCase):
         )
         self.url = factories.OrderFactory.get_list_url()
 
-    @data('staff', 'owner', 'admin', 'manager')
+    @data("staff", "owner", "admin", "manager")
     def test_orders_should_be_visible_to_colleagues_and_staff(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
@@ -393,7 +393,7 @@ class OrderFilterTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 1)
 
-    @data('user')
+    @data("user")
     def test_orders_should_be_invisible_to_other_users(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
@@ -416,12 +416,12 @@ class OrderFilterTest(test.APITransactionTestCase):
         # Act
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.get(
-            self.url, {'service_manager_uuid': self.fixture.user.uuid.hex}
+            self.url, {"service_manager_uuid": self.fixture.user.uuid.hex}
         )
 
         # Assert
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['uuid'], order.uuid.hex)
+        self.assertEqual(response.data[0]["uuid"], order.uuid.hex)
 
     def test_service_provider_can_see_order(self):
         # Arrange
@@ -434,4 +434,4 @@ class OrderFilterTest(test.APITransactionTestCase):
 
         # Assert
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['uuid'], self.order.uuid.hex)
+        self.assertEqual(response.data[0]["uuid"], self.order.uuid.hex)

@@ -9,14 +9,14 @@ class ViewsetsTest(TestCase):
         for ext in WaldurExtension.get_extensions():
             try:
                 views = __import__(
-                    ext.django_app() + '.views',
-                    fromlist=['views'],
+                    ext.django_app() + ".views",
+                    fromlist=["views"],
                 )
             except ImportError:
                 continue
 
             for v in dir(views):
-                if 'ViewSet' not in v:
+                if "ViewSet" not in v:
                     continue
 
                 view = getattr(views, v)
@@ -30,5 +30,5 @@ class ViewsetsTest(TestCase):
 
                 self.assertTrue(
                     queryset.ordered,
-                    msg='default ordering for %s has not been defined.' % v,
+                    msg="default ordering for %s has not been defined." % v,
                 )

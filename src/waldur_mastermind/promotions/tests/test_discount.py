@@ -41,13 +41,13 @@ class DiscountTest(test.APITransactionTestCase):
             invoice__year=datetime.date.today().year,
             invoice__month=datetime.date.today().month,
         )
-        self.assertTrue('unit_price' in invoice_item.details.keys())
+        self.assertTrue("unit_price" in invoice_item.details.keys())
         self.assertEqual(
-            invoice_item.details.get('campaign_uuid'), self.campaign.uuid.hex
+            invoice_item.details.get("campaign_uuid"), self.campaign.uuid.hex
         )
         self.assertEqual(
             invoice_item.unit_price,
-            self.campaign.get_discount_price(invoice_item.details.get('unit_price')),
+            self.campaign.get_discount_price(invoice_item.details.get("unit_price")),
         )
 
     def test_discount_price_if_campaign_is_activating(self):
@@ -73,16 +73,16 @@ class DiscountTest(test.APITransactionTestCase):
             invoice__year=datetime.date.today().year,
             invoice__month=datetime.date.today().month,
         )
-        self.assertTrue('unit_price' in invoice_item.details.keys())
+        self.assertTrue("unit_price" in invoice_item.details.keys())
         self.assertEqual(
-            invoice_item.details.get('campaign_uuid'), self.campaign.uuid.hex
+            invoice_item.details.get("campaign_uuid"), self.campaign.uuid.hex
         )
         self.assertEqual(
             invoice_item.unit_price,
-            self.campaign.get_discount_price(invoice_item.details.get('unit_price')),
+            self.campaign.get_discount_price(invoice_item.details.get("unit_price")),
         )
 
-    @unittest.skip('Unclear why is failing, but not relevant for SLURM.')
+    @unittest.skip("Unclear why is failing, but not relevant for SLURM.")
     def test_not_discount_price_if_campaign_is_activating_with_delayed_start(self):
         self.activate_resource()
 
@@ -108,5 +108,5 @@ class DiscountTest(test.APITransactionTestCase):
             invoice__year=datetime.date.today().year,
             invoice__month=datetime.date.today().month,
         )
-        self.assertFalse('unit_price' in invoice_item.details.keys())
-        self.assertFalse('campaign_uuid' in invoice_item.details.keys())
+        self.assertFalse("unit_price" in invoice_item.details.keys())
+        self.assertFalse("campaign_uuid" in invoice_item.details.keys())

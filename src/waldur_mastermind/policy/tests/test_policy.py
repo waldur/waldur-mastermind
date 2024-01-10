@@ -17,12 +17,12 @@ class ActionsFunctionsTest(test.APITransactionTestCase):
     def setUp(self):
         self.notify_project_team_mock = mock.MagicMock()
         self.notify_project_team_mock.one_time_action = True
-        self.notify_project_team_mock.__name__ = 'notify_project_team'
+        self.notify_project_team_mock.__name__ = "notify_project_team"
 
         self.block_creation_of_new_resources_mock = mock.MagicMock()
         self.block_creation_of_new_resources_mock.one_time_action = False
         self.block_creation_of_new_resources_mock.__name__ = (
-            'block_creation_of_new_resources'
+            "block_creation_of_new_resources"
         )
 
         self.fixture = marketplace_fixtures.MarketplaceFixture()
@@ -36,7 +36,7 @@ class ActionsFunctionsTest(test.APITransactionTestCase):
     def test_calling_of_one_time_actions(self):
         with mock.patch.object(
             ProjectEstimatedCostPolicy,
-            'get_all_actions',
+            "get_all_actions",
             return_value=[
                 self.notify_project_team_mock,
                 self.block_creation_of_new_resources_mock,
@@ -73,7 +73,7 @@ class ActionsFunctionsTest(test.APITransactionTestCase):
     def test_calling_of_not_one_time_actions(self):
         with mock.patch.object(
             ProjectEstimatedCostPolicy,
-            'get_all_actions',
+            "get_all_actions",
             return_value=[
                 self.notify_project_team_mock,
                 self.block_creation_of_new_resources_mock,
@@ -88,7 +88,7 @@ class ActionsFunctionsTest(test.APITransactionTestCase):
             order = marketplace_factories.OrderFactory(
                 project=self.project,
                 offering=self.fixture.offering,
-                attributes={'name': 'item_name', 'description': 'Description'},
+                attributes={"name": "item_name", "description": "Description"},
                 plan=self.fixture.plan,
                 state=marketplace_models.Order.States.EXECUTING,
             )
@@ -112,7 +112,7 @@ class ActionsFunctionsTest(test.APITransactionTestCase):
     def test_several_policies(self):
         with mock.patch.object(
             ProjectEstimatedCostPolicy,
-            'get_all_actions',
+            "get_all_actions",
             return_value=[
                 self.notify_project_team_mock,
                 self.block_creation_of_new_resources_mock,
@@ -135,14 +135,14 @@ class GetPolicyTest(test.APITransactionTestCase):
         self.policy = factories.ProjectEstimatedCostPolicyFactory(project=self.project)
         self.url = factories.ProjectEstimatedCostPolicyFactory.get_list_url()
 
-    @data('staff', 'owner', 'customer_support', 'admin', 'manager')
+    @data("staff", "owner", "customer_support", "admin", "manager")
     def test_user_can_get_policy(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
 
-    @data('user', 'offering_owner')
+    @data("user", "offering_owner")
     def test_user_can_not_get_policy(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(self.url)
@@ -160,20 +160,20 @@ class CreatePolicyTest(test.APITransactionTestCase):
     def _create_policy(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         payload = {
-            'limit_cost': 100,
-            'actions': 'notify_organization_owners,block_modification_of_existing_resources',
-            'project': structure_factories.ProjectFactory.get_url(self.project),
+            "limit_cost": 100,
+            "actions": "notify_organization_owners,block_modification_of_existing_resources",
+            "project": structure_factories.ProjectFactory.get_url(self.project),
         }
         return self.client.post(self.url, payload)
 
-    @data('staff', 'owner')
+    @data("staff", "owner")
     def test_user_can_create_policy(self, user):
         response = self._create_policy(user)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        policy = ProjectEstimatedCostPolicy.objects.get(uuid=response.data['uuid'])
+        policy = ProjectEstimatedCostPolicy.objects.get(uuid=response.data["uuid"])
         self.assertEqual(policy.has_fired, False)
 
-    @data('admin', 'manager', 'user', 'offering_owner')
+    @data("admin", "manager", "user", "offering_owner")
     def test_user_can_not_create_policy(self, user):
         response = self._create_policy(user)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -181,18 +181,18 @@ class CreatePolicyTest(test.APITransactionTestCase):
     def test_validate_actions(self):
         self.client.force_authenticate(self.fixture.staff)
         payload = {
-            'limit_cost': 100,
-            'actions': 'notify_organization_owners,non_existent_method',
-            'project': structure_factories.ProjectFactory.get_url(self.project),
+            "limit_cost": 100,
+            "actions": "notify_organization_owners,non_existent_method",
+            "project": structure_factories.ProjectFactory.get_url(self.project),
         }
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_create_some_policies_for_one_project(self):
-        response = self._create_policy('staff')
+        response = self._create_policy("staff")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-        response = self._create_policy('staff')
+        response = self._create_policy("staff")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_policies_should_be_triggered_after_creation_if_cost_limit_has_been_reached(
@@ -200,17 +200,17 @@ class CreatePolicyTest(test.APITransactionTestCase):
     ):
         notify_project_team_mock = mock.MagicMock()
         notify_project_team_mock.one_time_action = True
-        notify_project_team_mock.__name__ = 'notify_project_team'
+        notify_project_team_mock.__name__ = "notify_project_team"
 
         block_creation_of_new_resources_mock = mock.MagicMock()
         block_creation_of_new_resources_mock.one_time_action = False
         block_creation_of_new_resources_mock.__name__ = (
-            'block_creation_of_new_resources'
+            "block_creation_of_new_resources"
         )
 
         with mock.patch.object(
             ProjectEstimatedCostPolicy,
-            'get_all_actions',
+            "get_all_actions",
             return_value=[
                 notify_project_team_mock,
                 block_creation_of_new_resources_mock,
@@ -220,8 +220,8 @@ class CreatePolicyTest(test.APITransactionTestCase):
             estimate.total = 1000
             estimate.save()
 
-            response = self._create_policy('staff')
-            policy = ProjectEstimatedCostPolicy.objects.get(uuid=response.data['uuid'])
+            response = self._create_policy("staff")
+            policy = ProjectEstimatedCostPolicy.objects.get(uuid=response.data["uuid"])
             notify_project_team_mock.assert_called_once()
             block_creation_of_new_resources_mock.assert_not_called()
             self.assertEqual(policy.has_fired, True)
@@ -239,17 +239,17 @@ class DeletePolicyTest(test.APITransactionTestCase):
         self.client.force_authenticate(getattr(self.fixture, user))
         return self.client.delete(self.url)
 
-    @data('staff', 'owner', 'customer_support')
+    @data("staff", "owner", "customer_support")
     def test_user_can_delete_policy(self, user):
         response = self._delete_policy(user)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
-    @data('user', 'offering_owner')
+    @data("user", "offering_owner")
     def test_user_can_not_delete_policy(self, user):
         response = self._delete_policy(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    @data('admin', 'manager')
+    @data("admin", "manager")
     def test_project_member_can_not_delete_policy(self, user):
         response = self._delete_policy(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -265,19 +265,19 @@ class UpdatePolicyTest(test.APITransactionTestCase):
 
     def _update_policy(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
-        return self.client.patch(self.url, {'actions': 'notify_organization_owners'})
+        return self.client.patch(self.url, {"actions": "notify_organization_owners"})
 
-    @data('staff', 'owner', 'customer_support')
+    @data("staff", "owner", "customer_support")
     def test_user_can_update_policy(self, user):
         response = self._update_policy(user)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    @data('user', 'offering_owner')
+    @data("user", "offering_owner")
     def test_user_can_not_update_policy(self, user):
         response = self._update_policy(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    @data('admin', 'manager')
+    @data("admin", "manager")
     def test_project_member_can_not_update_policy(self, user):
         response = self._update_policy(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

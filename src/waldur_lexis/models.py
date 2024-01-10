@@ -21,23 +21,23 @@ class LexisLink(core_models.UuidMixin, core_models.ErrorMessageMixin, TimeStampe
         ERRED = 4
 
         CHOICES = (
-            (PENDING, 'pending'),
-            (EXECUTING, 'executing'),
-            (OK, 'OK'),
-            (ERRED, 'erred'),
+            (PENDING, "pending"),
+            (EXECUTING, "executing"),
+            (OK, "OK"),
+            (ERRED, "erred"),
         )
 
     robot_account = models.OneToOneField(
         to=marketplace_models.RobotAccount,
         on_delete=models.CASCADE,
-        related_name='lexis_link',
+        related_name="lexis_link",
     )
     state = FSMIntegerField(default=States.PENDING, choices=States.CHOICES)
     heappe_project_id = models.PositiveIntegerField(blank=True, null=True)
 
     class Meta:
-        verbose_name = _('Lexis Link')
-        ordering = ('created',)
+        verbose_name = _("Lexis Link")
+        ordering = ("created",)
 
     @property
     def human_readable_state(self):
@@ -53,7 +53,7 @@ class LexisLink(core_models.UuidMixin, core_models.ErrorMessageMixin, TimeStampe
     def set_ok(self):
         pass
 
-    @transition(field=state, source='*', target=States.ERRED)
+    @transition(field=state, source="*", target=States.ERRED)
     def set_erred(self):
         pass
 
@@ -66,42 +66,42 @@ class LexisLink(core_models.UuidMixin, core_models.ErrorMessageMixin, TimeStampe
             logger.exception(exc)
             self.error_message = str(exc)
             self.set_erred()
-            self.save(update_fields=['error_message', 'state'])
+            self.save(update_fields=["error_message", "state"])
 
     def get_heappe_config(self):
         offering = self.robot_account.resource.offering
-        heappe_url = offering.plugin_options.get('heappe_url')
+        heappe_url = offering.plugin_options.get("heappe_url")
         if heappe_url is None:
             raise exceptions.HeappeConfigError(
                 "Offering %s does not include heappe_url option" % offering
             )
 
-        heappe_username = offering.plugin_options.get('heappe_username')
+        heappe_username = offering.plugin_options.get("heappe_username")
         if heappe_username is None:
             raise exceptions.HeappeConfigError(
                 "Offering %s does not include heappe_username option" % offering
             )
 
-        heappe_password = offering.secret_options.get('heappe_password')
+        heappe_password = offering.secret_options.get("heappe_password")
         if heappe_password is None:
             raise exceptions.HeappeConfigError(
                 "Offering %s does not include heappe_password option" % offering
             )
 
-        heappe_cluster_id = offering.plugin_options.get('heappe_cluster_id')
+        heappe_cluster_id = offering.plugin_options.get("heappe_cluster_id")
         if heappe_cluster_id is None:
             raise exceptions.HeappeConfigError(
                 "Offering %s does not include heappe_cluster_id option" % offering
             )
 
-        heappe_local_base_path = offering.plugin_options.get('heappe_local_base_path')
+        heappe_local_base_path = offering.plugin_options.get("heappe_local_base_path")
         if heappe_local_base_path is None:
             raise exceptions.HeappeConfigError(
                 "Offering %s does not include heappe_local_base_path option" % offering
             )
 
         # TODO: use secret_options instead
-        heappe_cluster_password = offering.secret_options.get('heappe_cluster_password')
+        heappe_cluster_password = offering.secret_options.get("heappe_cluster_password")
 
         return structures.HeappeConfig(
             heappe_url=heappe_url,

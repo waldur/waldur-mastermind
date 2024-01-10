@@ -19,69 +19,69 @@ User = get_user_model()
 
 class UserChoiceField(forms.ModelChoiceField):
     def label_from_instance(self, user):
-        return f'{user.full_name} - {user.username}'
+        return f"{user.full_name} - {user.username}"
 
 
 class SupportUserAdminForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['user'] = UserChoiceField(
-            queryset=User.objects.all().order_by('first_name', 'last_name')
+        self.fields["user"] = UserChoiceField(
+            queryset=User.objects.all().order_by("first_name", "last_name")
         )
 
 
 class SupportUserAdmin(admin.ModelAdmin):
-    list_display = ('user', 'backend_id', 'is_active', 'backend_name')
-    search_fields = ('user__first_name', 'user__last_name', 'user__email')
+    list_display = ("user", "backend_id", "is_active", "backend_name")
+    search_fields = ("user__first_name", "user__last_name", "user__email")
     form = SupportUserAdminForm
 
 
 class SupportCustomerAdmin(admin.ModelAdmin):
-    list_display = ('user', 'backend_id')
-    search_fields = ('user__first_name', 'user__last_name', 'user__email')
+    list_display = ("user", "backend_id")
+    search_fields = ("user__first_name", "user__last_name", "user__email")
 
 
 class IssueAdmin(core_admin.ExtraActionsObjectMixin, structure_admin.BackendModelAdmin):
-    exclude = ('resource_content_type', 'resource_object_id')
-    ordering = ('-created',)
-    search_fields = ('key', 'backend_id', 'summary')
-    list_filter = ('type', 'status', 'resolution')
+    exclude = ("resource_content_type", "resource_object_id")
+    ordering = ("-created",)
+    search_fields = ("key", "backend_id", "summary")
+    list_filter = ("type", "status", "resolution")
     list_display = (
-        'key',
-        'summary',
-        'type',
-        'status',
-        'resolution',
-        'get_caller_full_name',
-        'remote_id',
+        "key",
+        "summary",
+        "type",
+        "status",
+        "resolution",
+        "get_caller_full_name",
+        "remote_id",
     )
-    readonly_fields = ('resource',)
+    readonly_fields = ("resource",)
 
     def resource(self, obj):
         return obj.resource
 
-    resource.short_description = 'Resource'
+    resource.short_description = "Resource"
 
     def get_caller_full_name(self, obj):
         if obj.caller:
             return obj.caller.full_name
         return
 
-    get_caller_full_name.short_description = 'Caller name'
+    get_caller_full_name.short_description = "Caller name"
 
     def resolve(self, request, pk=None):
         issue = get_object_or_404(models.Issue, pk=pk)
         issue.set_resolved()
-        message = _('Issue has been resolved.')
+        message = _("Issue has been resolved.")
         self.message_user(request, message)
-        return HttpResponseRedirect('../')
+        return HttpResponseRedirect("../")
 
     def cancel(self, request, pk=None):
         issue = get_object_or_404(models.Issue, pk=pk)
         issue.set_canceled()
-        message = _('Issue has been canceled.')
+        message = _("Issue has been canceled.")
         self.message_user(request, message)
-        return HttpResponseRedirect('../')
+        return HttpResponseRedirect("../")
 
     def buttons_validate(request, obj):
         if (
@@ -102,34 +102,34 @@ class IssueAdmin(core_admin.ExtraActionsObjectMixin, structure_admin.BackendMode
 
 class TemplateAttachmentInline(admin.TabularInline):
     model = models.TemplateAttachment
-    fields = ('name', 'file')
+    fields = ("name", "file")
 
 
 class TemplateAdmin(core_admin.ExcludedFieldsAdminMixin, admin.ModelAdmin):
-    list_display = ('name', 'issue_type', 'created')
-    search_fields = ('name', 'native_name')
+    list_display = ("name", "issue_type", "created")
+    search_fields = ("name", "native_name")
     fields = (
-        'name',
-        'native_name',
-        'description',
-        'native_description',
-        'issue_type',
-        'created',
-        'modified',
+        "name",
+        "native_name",
+        "description",
+        "native_description",
+        "issue_type",
+        "created",
+        "modified",
     )
-    readonly_fields = ('created', 'modified')
+    readonly_fields = ("created", "modified")
     inlines = [TemplateAttachmentInline]
 
     @cached_property
     def excluded_fields(self):
-        if not settings.WALDUR_CORE['NATIVE_NAME_ENABLED']:
-            return ['native_name', 'native_description']
+        if not settings.WALDUR_CORE["NATIVE_NAME_ENABLED"]:
+            return ["native_name", "native_description"]
         return []
 
 
 class RequestTypeAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
-    list_display = ('name', 'issue_type_name', 'backend_id')
-    search_fields = ('name',)
+    list_display = ("name", "issue_type_name", "backend_id")
+    search_fields = ("name",)
 
     def get_extra_actions(self):
         return [
@@ -139,35 +139,35 @@ class RequestTypeAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
     def sync_request_types(self, request):
         tasks.sync_request_types.delay()
         self.message_user(
-            request, _('Request types\' synchronization has been scheduled.')
+            request, _("Request types' synchronization has been scheduled.")
         )
-        return redirect(reverse('admin:support_requesttype_changelist'))
+        return redirect(reverse("admin:support_requesttype_changelist"))
 
 
 class PriorityAdmin(admin.ModelAdmin):
-    list_display = ('name', 'description', 'backend_id')
-    search_fields = ('name', 'description')
+    list_display = ("name", "description", "backend_id")
+    search_fields = ("name", "description")
 
 
 class IssueStatusAdmin(admin.ModelAdmin):
-    list_display = ('name', 'type')
+    list_display = ("name", "type")
 
 
 class CommentAdmin(structure_admin.BackendModelAdmin):
-    list_display = ('get_issue_key', 'is_public', 'author', 'created', 'remote_id')
-    list_filter = ('is_public', 'author')
-    search_fields = ('description',)
+    list_display = ("get_issue_key", "is_public", "author", "created", "remote_id")
+    list_filter = ("is_public", "author")
+    search_fields = ("description",)
 
     def get_issue_key(self, obj):
         return f"{obj.issue.key}: {obj.issue.summary}"
 
-    get_issue_key.short_description = 'Issue'
+    get_issue_key.short_description = "Issue"
 
 
 class FeedbackAdmin(admin.ModelAdmin):
-    list_display = ('issue', 'evaluation', 'state')
-    list_filter = ('evaluation', 'state')
-    search_fields = ('issue__key', 'issue__summary')
+    list_display = ("issue", "evaluation", "state")
+    list_filter = ("evaluation", "state")
+    search_fields = ("issue__key", "issue__summary")
 
 
 admin.site.register(models.Issue, IssueAdmin)

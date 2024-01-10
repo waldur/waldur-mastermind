@@ -6,16 +6,16 @@ from waldur_core.core.views import validate_authentication_method
 
 from . import executors, models, serializers
 
-validate_valimo = validate_authentication_method('VALIMO')
+validate_valimo = validate_authentication_method("VALIMO")
 
 
 class AuthResultViewSet(
     core_mixins.CreateExecutorMixin, mixins.CreateModelMixin, viewsets.GenericViewSet
 ):
-    queryset = models.AuthResult.objects.all().order_by('user')
+    queryset = models.AuthResult.objects.all().order_by("user")
     serializer_class = serializers.AuthResultSerializer
     permission_classes = ()
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
     create_executor = executors.AuthExecutor
 
     @validate_valimo
@@ -38,7 +38,7 @@ class AuthResultViewSet(
         return super().create(request, *args, **kwargs)
 
     @validate_valimo
-    @decorators.action(detail=False, methods=['POST'])
+    @decorators.action(detail=False, methods=["POST"])
     def result(self, request, *args, **kwargs):
         """
         To get PKI login status and details - issue post request against /api/auth-valimo/result/
@@ -64,7 +64,7 @@ class AuthResultViewSet(
             }
         """
         try:
-            auth_result = models.AuthResult.objects.get(uuid=request.data.get('uuid'))
+            auth_result = models.AuthResult.objects.get(uuid=request.data.get("uuid"))
         except models.AuthResult.DoesNotExist:
             raise Http404
         serializer = self.get_serializer(auth_result)

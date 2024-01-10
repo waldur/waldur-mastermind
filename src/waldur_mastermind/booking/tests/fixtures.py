@@ -14,14 +14,14 @@ class BookingFixture(marketplace_fixtures.MarketplaceFixture):
     def offering(self):
         return marketplace_factories.OfferingFactory(
             type=PLUGIN_NAME,
-            options={'order': []},
+            options={"order": []},
             state=marketplace_models.Offering.States.ACTIVE,
         )
 
     @cached_property
     def offering_service_manager(self):
         user = structure_factories.UserFactory(
-            first_name='Service', last_name='Manager'
+            first_name="Service", last_name="Manager"
         )
         self.offering.customer.add_user(user, CustomerRole.MANAGER)
         return user

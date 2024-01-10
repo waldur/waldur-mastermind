@@ -11,7 +11,7 @@ from waldur_mastermind.invoices.tests import factories as invoice_factories
 
 
 def get_financial_report_url(customer):
-    return f'/api/financial-reports/{customer.uuid.hex}/'
+    return f"/api/financial-reports/{customer.uuid.hex}/"
 
 
 class PriceEstimateSignalsTest(test.APITransactionTestCase):
@@ -64,27 +64,27 @@ class PriceEstimateAPITest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
 
-    @freeze_time('2017-11-01')
+    @freeze_time("2017-11-01")
     def test_get_archive_price_estimate_for_customer(self):
-        self.client.force_authenticate(getattr(self.fixture, 'staff'))
+        self.client.force_authenticate(getattr(self.fixture, "staff"))
         models.PriceEstimate.objects.filter(scope=self.fixture.customer).update(
             total=100
         )
 
         response = self.client.get(get_financial_report_url(self.fixture.customer))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        estimate = response.data['billing_price_estimate']
-        self.assertEqual(estimate['total'], 100)
+        estimate = response.data["billing_price_estimate"]
+        self.assertEqual(estimate["total"], 100)
 
         response = self.client.get(
             get_financial_report_url(self.fixture.customer),
-            {'year': 2017, 'month': 10},
+            {"year": 2017, "month": 10},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        estimate = response.data['billing_price_estimate']
-        self.assertEqual(estimate['total'], 0)
+        estimate = response.data["billing_price_estimate"]
+        self.assertEqual(estimate["total"], 0)
 
-    @data('staff', 'owner', 'manager', 'admin')
+    @data("staff", "owner", "manager", "admin")
     def test_authorized_can_get_price_estimate_for_customer(self, user):
         models.PriceEstimate.objects.filter(scope=self.fixture.customer).update(
             total=100
@@ -94,10 +94,10 @@ class PriceEstimateAPITest(test.APITransactionTestCase):
         response = self.client.get(get_financial_report_url(self.fixture.customer))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        estimate = response.data['billing_price_estimate']
-        self.assertEqual(estimate['total'], 100)
+        estimate = response.data["billing_price_estimate"]
+        self.assertEqual(estimate["total"], 100)
 
-    @data('staff', 'owner', 'manager', 'admin')
+    @data("staff", "owner", "manager", "admin")
     def test_authorized_can_get_price_estimate_for_project(self, user):
         models.PriceEstimate.objects.filter(scope=self.fixture.project).update(
             total=100
@@ -109,17 +109,17 @@ class PriceEstimateAPITest(test.APITransactionTestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        estimate = response.data['billing_price_estimate']
-        self.assertEqual(estimate['total'], 100)
+        estimate = response.data["billing_price_estimate"]
+        self.assertEqual(estimate["total"], 100)
 
 
 @ddt
-@freeze_time('2017-01-01')
+@freeze_time("2017-01-01")
 class PriceEstimateInvoiceItemTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
 
-    @data('project', 'customer')
+    @data("project", "customer")
     def test_when_invoice_item_is_created_total_is_updated(self, scope):
         invoice = invoice_factories.InvoiceFactory(customer=self.fixture.customer)
         invoice_factories.InvoiceItemFactory(
@@ -131,14 +131,14 @@ class PriceEstimateInvoiceItemTest(test.APITransactionTestCase):
             decimal.Decimal(10 * 31),
         )
 
-    @data('project', 'customer')
+    @data("project", "customer")
     def test_when_invoice_item_is_updated_total_is_updated_too(self, scope):
         invoice = invoice_factories.InvoiceFactory(customer=self.fixture.customer)
         invoice_item = invoice_factories.InvoiceItemFactory(
             invoice=invoice, project=self.fixture.project, unit_price=10, quantity=31
         )
         invoice_item.unit_price = 11
-        invoice_item.save(update_fields=['unit_price'])
+        invoice_item.save(update_fields=["unit_price"])
         estimate = models.PriceEstimate.objects.get(scope=getattr(self.fixture, scope))
         self.assertAlmostEqual(
             decimal.Decimal(estimate.total),

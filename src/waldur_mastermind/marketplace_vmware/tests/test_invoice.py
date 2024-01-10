@@ -11,8 +11,8 @@ from waldur_vmware import signals
 from waldur_vmware.tests.fixtures import VMwareFixture
 
 
-@freeze_time('2019-07-01')
-@unittest.skip('Disabled till invoicing is updated to component-based model')
+@freeze_time("2019-07-01")
+@unittest.skip("Disabled till invoicing is updated to component-based model")
 class InvoiceTest(test.APITransactionTestCase):
     def setUp(self):
         self.offering = marketplace_factories.OfferingFactory(type=VIRTUAL_MACHINE_TYPE)
@@ -21,7 +21,7 @@ class InvoiceTest(test.APITransactionTestCase):
             unit=UnitPriceMixin.Units.PER_DAY,
         )
 
-        for component_type in ('cpu', 'ram', 'disk'):
+        for component_type in ("cpu", "ram", "disk"):
             marketplace_factories.PlanComponentFactory(
                 plan=self.plan,
                 component=marketplace_factories.OfferingComponentFactory(
@@ -57,7 +57,7 @@ class InvoiceTest(test.APITransactionTestCase):
         self.assertGreater(old_total, 0)
 
         # Act
-        with freeze_time('2019-07-10'):
+        with freeze_time("2019-07-10"):
             self.fixture.disk
             signals.vm_updated.send(self.__class__, vm=self.vm)
 
@@ -144,20 +144,20 @@ class InvoiceTest(test.APITransactionTestCase):
         # Act
         self.downgrade_vm()
 
-        with freeze_time('2019-07-12'):
+        with freeze_time("2019-07-12"):
             self.vm.delete()
 
         # Assert
         self.assertEqual(invoice.items.first().end.day, 10)
         self.assertEqual(invoice.items.last().end.day, 12)
 
-    @freeze_time('2019-07-10')
+    @freeze_time("2019-07-10")
     def upgrade_vm(self):
         self.vm.cores += 1
         self.vm.save()
         signals.vm_updated.send(self.__class__, vm=self.vm)
 
-    @freeze_time('2019-07-10')
+    @freeze_time("2019-07-10")
     def downgrade_vm(self):
         self.vm.cores -= 1
         self.vm.save()

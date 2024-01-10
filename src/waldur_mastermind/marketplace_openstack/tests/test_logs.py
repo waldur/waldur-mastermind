@@ -21,7 +21,7 @@ class InstanceCreateLogTest(test.APITransactionTestCase):
         self.fixture = openstack_tenant_fixtures.OpenStackTenantFixture()
         self.service_settings = self.fixture.openstack_tenant_service_settings
 
-    @mock.patch('waldur_mastermind.marketplace.handlers.log')
+    @mock.patch("waldur_mastermind.marketplace.handlers.log")
     def test_ranamed_log_is_not_created_if_instance_has_been_created(self, mock_log):
         self.trigger_instance_creation()
         mock_log.log_marketplace_resource_renamed.assert_not_called()
@@ -38,12 +38,12 @@ class InstanceCreateLogTest(test.APITransactionTestCase):
             self.fixture.subnet
         )
         attributes = {
-            'flavor': openstack_tenant_factories.FlavorFactory.get_url(flavor),
-            'image': openstack_tenant_factories.ImageFactory.get_url(image),
-            'name': 'virtual-machine',
-            'system_volume_size': image.min_disk,
-            'internal_ips_set': [{'subnet': subnet_url}],
-            'ssh_public_key': structure_factories.SshPublicKeyFactory.get_url(
+            "flavor": openstack_tenant_factories.FlavorFactory.get_url(flavor),
+            "image": openstack_tenant_factories.ImageFactory.get_url(image),
+            "name": "virtual-machine",
+            "system_volume_size": image.min_disk,
+            "internal_ips_set": [{"subnet": subnet_url}],
+            "ssh_public_key": structure_factories.SshPublicKeyFactory.get_url(
                 structure_factories.SshPublicKeyFactory(user=self.fixture.manager)
             ),
         }

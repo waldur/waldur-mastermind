@@ -24,20 +24,20 @@ from waldur_mastermind.marketplace_remote.tasks import ResourceInvoicePullTask
 class InvoiceItemPullTest(test.APITransactionTestCase):
     def setUp(self) -> None:
         super().setUp()
-        patcher = mock.patch('waldur_mastermind.marketplace_remote.utils.WaldurClient')
+        patcher = mock.patch("waldur_mastermind.marketplace_remote.utils.WaldurClient")
         self.client_mock = patcher.start()
         self.fixture = ProjectFixture()
         offering = OfferingFactory(
             type=PLUGIN_NAME,
             secret_options={
-                'api_url': 'https://remote-waldur.com/',
-                'token': 'valid_token',
-                'customer_uuid': 'customer-uuid',
+                "api_url": "https://remote-waldur.com/",
+                "token": "valid_token",
+                "customer_uuid": "customer-uuid",
             },
         )
         self.customer = self.fixture.customer
         self.resource = ResourceFactory(project=self.fixture.project, offering=offering)
-        self.resource.backend_id = 'valid-backend-id'
+        self.resource.backend_id = "valid-backend-id"
         self.resource.save()
 
     def tearDown(self):
@@ -51,19 +51,19 @@ class InvoiceItemPullTest(test.APITransactionTestCase):
         if end is None:
             end = month_end(now)
         return {
-            'unit': 'sample-unit',
-            'name': 'Fake invoice item',
-            'measured_unit': 'sample-m-unit',
-            'article_code': '',
-            'unit_price': 2.0,
-            'details': {},
-            'quantity': quantity,
-            'start': start.isoformat(),
-            'end': end.isoformat(),
-            'uuid': uuid.uuid4().hex,
+            "unit": "sample-unit",
+            "name": "Fake invoice item",
+            "measured_unit": "sample-m-unit",
+            "article_code": "",
+            "unit_price": 2.0,
+            "details": {},
+            "quantity": quantity,
+            "start": start.isoformat(),
+            "end": end.isoformat(),
+            "uuid": uuid.uuid4().hex,
         }
 
-    @freeze_time('2021-08-17')
+    @freeze_time("2021-08-17")
     def test_invoice_is_created_after_pull(self):
         self.client_mock().list_invoice_items.return_value = []
         today = datetime.date.today()
@@ -94,7 +94,7 @@ class InvoiceItemPullTest(test.APITransactionTestCase):
     def test_invoice_items_creation(self):
         item_data = self.get_common_data()
         self.client_mock().list_invoice_items.return_value = [
-            {'resource_uuid': self.resource.backend_id, **item_data}
+            {"resource_uuid": self.resource.backend_id, **item_data}
         ]
         today = datetime.date.today()
         ResourceInvoicePullTask().run(serialize_instance(self.resource))
@@ -135,14 +135,14 @@ class InvoiceItemPullTest(test.APITransactionTestCase):
         new_item_data = self.get_common_data(quantity=new_quantity, end=new_month_end)
         old_item_data = self.get_common_data()
         self.client_mock().list_invoice_items.return_value = [
-            {'resource_uuid': self.resource.backend_id, **new_item_data}
+            {"resource_uuid": self.resource.backend_id, **new_item_data}
         ]
         invoice = InvoiceFactory(customer=self.customer)
         item = InvoiceItemFactory(
             invoice=invoice,
             resource=self.resource,
             **old_item_data,
-            backend_uuid=new_item_data['uuid'],
+            backend_uuid=new_item_data["uuid"],
         )
 
         self.assertNotEqual(new_month_end, item.end)

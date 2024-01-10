@@ -5,13 +5,13 @@ from django.db import migrations
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace_flows', '0010_alter_resourcecreaterequest_offering'),
+        ("marketplace_flows", "0010_alter_resourcecreaterequest_offering"),
     ]
 
     operations = [
         migrations.RenameField(
-            model_name='flowtracker',
-            old_name='order_item',
-            new_name='order',
+            model_name="flowtracker",
+            old_name="order_item",
+            new_name="order",
         ),
     ]

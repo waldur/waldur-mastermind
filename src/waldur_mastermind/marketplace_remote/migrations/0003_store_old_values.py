@@ -5,68 +5,68 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace_remote', '0002_projectupdaterequest_offering'),
+        ("marketplace_remote", "0002_projectupdaterequest_offering"),
     ]
 
     operations = [
         migrations.RemoveField(
-            model_name='projectupdaterequest',
-            name='description',
+            model_name="projectupdaterequest",
+            name="description",
         ),
         migrations.RemoveField(
-            model_name='projectupdaterequest',
-            name='end_date',
+            model_name="projectupdaterequest",
+            name="end_date",
         ),
         migrations.RemoveField(
-            model_name='projectupdaterequest',
-            name='name',
+            model_name="projectupdaterequest",
+            name="name",
         ),
         migrations.RemoveField(
-            model_name='projectupdaterequest',
-            name='oecd_fos_2007_code',
+            model_name="projectupdaterequest",
+            name="oecd_fos_2007_code",
         ),
         migrations.RemoveField(
-            model_name='projectupdaterequest',
-            name='type',
+            model_name="projectupdaterequest",
+            name="type",
         ),
         migrations.AddField(
-            model_name='projectupdaterequest',
-            name='new_description',
+            model_name="projectupdaterequest",
+            name="new_description",
             field=models.CharField(blank=True, max_length=2000),
         ),
         migrations.AddField(
-            model_name='projectupdaterequest',
-            name='new_end_date',
+            model_name="projectupdaterequest",
+            name="new_end_date",
             field=models.DateField(blank=True, null=True),
         ),
         migrations.AddField(
-            model_name='projectupdaterequest',
-            name='new_name',
+            model_name="projectupdaterequest",
+            name="new_name",
             field=models.CharField(blank=True, max_length=500),
         ),
         migrations.AddField(
-            model_name='projectupdaterequest',
-            name='new_oecd_fos_2007_code',
+            model_name="projectupdaterequest",
+            name="new_oecd_fos_2007_code",
             field=models.CharField(blank=True, max_length=5, null=True),
         ),
         migrations.AddField(
-            model_name='projectupdaterequest',
-            name='old_description',
+            model_name="projectupdaterequest",
+            name="old_description",
             field=models.CharField(blank=True, max_length=2000),
         ),
         migrations.AddField(
-            model_name='projectupdaterequest',
-            name='old_end_date',
+            model_name="projectupdaterequest",
+            name="old_end_date",
             field=models.DateField(blank=True, null=True),
         ),
         migrations.AddField(
-            model_name='projectupdaterequest',
-            name='old_name',
+            model_name="projectupdaterequest",
+            name="old_name",
             field=models.CharField(blank=True, max_length=500),
         ),
         migrations.AddField(
-            model_name='projectupdaterequest',
-            name='old_oecd_fos_2007_code',
+            model_name="projectupdaterequest",
+            name="old_oecd_fos_2007_code",
             field=models.CharField(blank=True, max_length=5, null=True),
         ),
     ]

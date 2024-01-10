@@ -28,35 +28,35 @@ def log_profile_event(sender, instance, created=False, **kwargs):
 
     if created:
         event_logger.freeipa.info(
-            '{username} FreeIPA profile has been created.',
-            event_type='freeipa_profile_created',
+            "{username} FreeIPA profile has been created.",
+            event_type="freeipa_profile_created",
             event_context={
-                'user': profile.user,
-                'username': profile.username,
+                "user": profile.user,
+                "username": profile.username,
             },
         )
 
-    elif profile.tracker.has_changed('is_active') and profile.tracker.previous(
-        'is_active'
+    elif profile.tracker.has_changed("is_active") and profile.tracker.previous(
+        "is_active"
     ):
         event_logger.freeipa.info(
-            '{username} FreeIPA profile has been disabled.',
-            event_type='freeipa_profile_disabled',
+            "{username} FreeIPA profile has been disabled.",
+            event_type="freeipa_profile_disabled",
             event_context={
-                'user': profile.user,
-                'username': profile.username,
+                "user": profile.user,
+                "username": profile.username,
             },
         )
 
-    elif profile.tracker.has_changed('is_active') and not profile.tracker.previous(
-        'is_active'
+    elif profile.tracker.has_changed("is_active") and not profile.tracker.previous(
+        "is_active"
     ):
         event_logger.freeipa.info(
-            '{username} FreeIPA profile has been enabled.',
-            event_type='freeipa_profile_enabled',
+            "{username} FreeIPA profile has been enabled.",
+            event_type="freeipa_profile_enabled",
             event_context={
-                'user': profile.user,
-                'username': profile.username,
+                "user": profile.user,
+                "username": profile.username,
             },
         )
 
@@ -64,11 +64,11 @@ def log_profile_event(sender, instance, created=False, **kwargs):
 def log_profile_deleted(sender, instance, **kwargs):
     profile = instance
     event_logger.freeipa.info(
-        '{username} FreeIPA profile has been deleted.',
-        event_type='freeipa_profile_deleted',
+        "{username} FreeIPA profile has been deleted.",
+        event_type="freeipa_profile_deleted",
         event_context={
-            'user': profile.user,
-            'username': profile.username,
+            "user": profile.user,
+            "username": profile.username,
         },
     )
 
@@ -89,9 +89,9 @@ def schedule_ssh_key_sync(ssh_key):
         profile = models.Profile.objects.get(user=ssh_key.user)
     except ObjectDoesNotExist:
         logger.debug(
-            'Skipping SSH key synchronization because '
-            'FreeIPA profile does not exist. '
-            'User ID: %s',
+            "Skipping SSH key synchronization because "
+            "FreeIPA profile does not exist. "
+            "User ID: %s",
             ssh_key.user.id,
         )
     else:
@@ -110,13 +110,13 @@ def update_user(sender, instance, created=False, **kwargs):
     user = instance
 
     if created or not set(user.tracker.changed()) & {
-        'first_name',
-        'last_name',
-        'email',
-        'organization',
-        'job_title',
-        'preferred_language',
-        'phone_number',
+        "first_name",
+        "last_name",
+        "email",
+        "organization",
+        "job_title",
+        "preferred_language",
+        "phone_number",
     }:
         return
 

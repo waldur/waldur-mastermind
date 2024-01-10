@@ -35,9 +35,9 @@ class VMwareBackend(ServiceBackend):
     @cached_property
     def host(self):
         return (
-            self.settings.backend_url.split('https://')[-1]
-            .split('http://')[-1]
-            .strip('/')
+            self.settings.backend_url.split("https://")[-1]
+            .split("http://")[-1]
+            .strip("/")
         )
 
     @cached_property
@@ -99,11 +99,11 @@ class VMwareBackend(ServiceBackend):
             backend_templates = [
                 template
                 for template in backend_templates
-                if len(template['template']['nics']) == 1
+                if len(template["template"]["nics"]) == 1
             ]
 
         backend_templates_map = {
-            item['library_item']['id']: item for item in backend_templates
+            item["library_item"]["id"]: item for item in backend_templates
         }
 
         frontend_templates_map = {
@@ -131,13 +131,13 @@ class VMwareBackend(ServiceBackend):
             )
             frontend_template = frontend_templates_map[library_item_id]
             fields = (
-                'cores',
-                'cores_per_socket',
-                'ram',
-                'disk',
-                'guest_os',
-                'modified',
-                'description',
+                "cores",
+                "cores_per_socket",
+                "ram",
+                "disk",
+                "guest_os",
+                "modified",
+                "description",
             )
             update_pulled_fields(frontend_template, backend_template, fields)
 
@@ -146,26 +146,26 @@ class VMwareBackend(ServiceBackend):
         ).delete()
 
     def _backend_template_to_template(self, backend_template):
-        library_item = backend_template['library_item']
-        template = backend_template['template']
-        total_disk = self._get_total_disk(template['disks'])
+        library_item = backend_template["library_item"]
+        template = backend_template["template"]
+        total_disk = self._get_total_disk(template["disks"])
         return models.Template(
             settings=self.settings,
-            backend_id=library_item['id'],
-            name=library_item['name'],
-            description=library_item['description'],
-            created=parse_datetime(library_item['creation_time']),
-            modified=parse_datetime(library_item['last_modified_time']),
-            cores=template['cpu']['count'],
-            cores_per_socket=template['cpu']['cores_per_socket'],
-            ram=template['memory']['size_MiB'],
+            backend_id=library_item["id"],
+            name=library_item["name"],
+            description=library_item["description"],
+            created=parse_datetime(library_item["creation_time"]),
+            modified=parse_datetime(library_item["last_modified_time"]),
+            cores=template["cpu"]["count"],
+            cores_per_socket=template["cpu"]["cores_per_socket"],
+            ram=template["memory"]["size_MiB"],
             disk=total_disk,
-            guest_os=template['guest_OS'],
+            guest_os=template["guest_OS"],
         )
 
     def _get_total_disk(self, backend_disks):
         # Convert disk size from bytes to MiB
-        return sum([disk['value']['capacity'] / 1024 / 1024 for disk in backend_disks])
+        return sum([disk["value"]["capacity"] / 1024 / 1024 for disk in backend_disks])
 
     @log_backend_action()
     def pull_virtual_machine(self, vm, update_fields=None):
@@ -231,13 +231,13 @@ class VMwareBackend(ServiceBackend):
         """
         return models.VirtualMachine(
             backend_id=backend_id,
-            name=backend_vm['name'],
+            name=backend_vm["name"],
             state=models.VirtualMachine.States.OK,
-            runtime_state=backend_vm['power_state'],
-            cores=backend_vm['cpu']['count'],
-            cores_per_socket=backend_vm['cpu']['cores_per_socket'],
-            ram=backend_vm['memory']['size_MiB'],
-            disk=self._get_total_disk(backend_vm['disks']),
+            runtime_state=backend_vm["power_state"],
+            cores=backend_vm["cpu"]["count"],
+            cores_per_socket=backend_vm["cpu"]["cores_per_socket"],
+            ram=backend_vm["memory"]["size_MiB"],
+            disk=self._get_total_disk(backend_vm["disks"]),
             tools_installed=tools_installed,
             tools_state=tools_state,
         )
@@ -248,7 +248,7 @@ class VMwareBackend(ServiceBackend):
         except VMwareError as e:
             raise VMwareBackendError(e)
 
-        backend_clusters_map = {item['cluster']: item for item in backend_clusters}
+        backend_clusters_map = {item["cluster"]: item for item in backend_clusters}
 
         frontend_clusters_map = {
             p.backend_id: p
@@ -264,16 +264,16 @@ class VMwareBackend(ServiceBackend):
         for item_id in common_ids:
             backend_item = backend_clusters_map[item_id]
             frontend_item = frontend_clusters_map[item_id]
-            if frontend_item.name != backend_item['name']:
-                frontend_item.name = backend_item['name']
-                frontend_item.save(update_fields=['name'])
+            if frontend_item.name != backend_item["name"]:
+                frontend_item.name = backend_item["name"]
+                frontend_item.save(update_fields=["name"])
 
         for item_id in new_ids:
             item = backend_clusters_map[item_id]
             models.Cluster.objects.create(
                 settings=self.settings,
                 backend_id=item_id,
-                name=item['name'],
+                name=item["name"],
             )
 
         models.Cluster.objects.filter(
@@ -286,7 +286,7 @@ class VMwareBackend(ServiceBackend):
         except VMwareError as e:
             raise VMwareBackendError(e)
 
-        backend_networks_map = {item['network']: item for item in backend_networks}
+        backend_networks_map = {item["network"]: item for item in backend_networks}
 
         frontend_networks_map = {
             p.backend_id: p
@@ -302,17 +302,17 @@ class VMwareBackend(ServiceBackend):
         for item_id in common_ids:
             backend_item = backend_networks_map[item_id]
             frontend_item = frontend_networks_map[item_id]
-            if frontend_item.name != backend_item['name']:
-                frontend_item.name = backend_item['name']
-                frontend_item.save(update_fields=['name'])
+            if frontend_item.name != backend_item["name"]:
+                frontend_item.name = backend_item["name"]
+                frontend_item.save(update_fields=["name"])
 
         for item_id in new_ids:
             item = backend_networks_map[item_id]
             models.Network.objects.create(
                 settings=self.settings,
                 backend_id=item_id,
-                name=item['name'],
-                type=item['type'],
+                name=item["name"],
+                type=item["type"],
             )
 
         models.Network.objects.filter(
@@ -326,7 +326,7 @@ class VMwareBackend(ServiceBackend):
             raise VMwareBackendError(e)
 
         backend_datastores_map = {
-            item['datastore']: item for item in backend_datastores
+            item["datastore"]: item for item in backend_datastores
         }
 
         frontend_datastores_map = {
@@ -355,7 +355,7 @@ class VMwareBackend(ServiceBackend):
                 backend_datastores_map[item_id]
             )
             frontend_datastore = frontend_datastores_map[item_id]
-            fields = ('name', 'capacity', 'free_space')
+            fields = ("name", "capacity", "free_space")
             update_pulled_fields(frontend_datastore, backend_datastore, fields)
 
         models.Datastore.objects.filter(
@@ -363,28 +363,28 @@ class VMwareBackend(ServiceBackend):
         ).delete()
 
     def _backend_datastore_to_datastore(self, backend_datastore):
-        capacity = backend_datastore.get('capacity')
+        capacity = backend_datastore.get("capacity")
         # Convert from bytes to MB
         if capacity:
             capacity /= 1024 * 1024
 
-        free_space = backend_datastore.get('free_space')
+        free_space = backend_datastore.get("free_space")
         # Convert from bytes to MB
         if free_space:
             free_space /= 1024 * 1024
 
         return models.Datastore(
             settings=self.settings,
-            backend_id=backend_datastore['datastore'],
-            name=backend_datastore['name'],
-            type=backend_datastore['type'],
+            backend_id=backend_datastore["datastore"],
+            name=backend_datastore["name"],
+            type=backend_datastore["type"],
             capacity=capacity,
             free_space=free_space,
         )
 
     def get_vm_folders(self):
         try:
-            return self.client.list_folders(folder_type='VIRTUAL_MACHINE')
+            return self.client.list_folders(folder_type="VIRTUAL_MACHINE")
         except VMwareError as e:
             raise VMwareBackendError(e)
 
@@ -396,7 +396,7 @@ class VMwareBackend(ServiceBackend):
         :return: Virtual machine folder identifier.
         :rtype: str
         """
-        return self.get_vm_folders()[0]['folder']
+        return self.get_vm_folders()[0]["folder"]
 
     def get_default_resource_pool(self):
         """
@@ -407,7 +407,7 @@ class VMwareBackend(ServiceBackend):
         :rtype: str
         """
         try:
-            return self.client.list_resource_pools()[0]['resource_pool']
+            return self.client.list_resource_pools()[0]["resource_pool"]
         except VMwareError as e:
             raise VMwareBackendError(e)
 
@@ -420,14 +420,14 @@ class VMwareBackend(ServiceBackend):
         :rtype: str
         """
         try:
-            return self.client.list_datastores()[0]['datastore']
+            return self.client.list_datastores()[0]["datastore"]
         except VMwareError as e:
             raise VMwareBackendError(e)
 
     def pull_folders(self):
         backend_folders = self.get_vm_folders()
 
-        backend_folders_map = {item['folder']: item for item in backend_folders}
+        backend_folders_map = {item["folder"]: item for item in backend_folders}
 
         frontend_folders_map = {
             p.backend_id: p
@@ -441,16 +441,16 @@ class VMwareBackend(ServiceBackend):
         for item_id in common_ids:
             backend_item = backend_folders_map[item_id]
             frontend_item = frontend_folders_map[item_id]
-            if frontend_item.name != backend_item['name']:
-                frontend_item.name = backend_item['name']
-                frontend_item.save(update_fields=['name'])
+            if frontend_item.name != backend_item["name"]:
+                frontend_item.name = backend_item["name"]
+                frontend_item.save(update_fields=["name"])
 
         for item_id in new_ids:
             item = backend_folders_map[item_id]
             models.Folder.objects.create(
                 settings=self.settings,
                 backend_id=item_id,
-                name=item['name'],
+                name=item["name"],
             )
 
         models.Folder.objects.filter(
@@ -475,11 +475,11 @@ class VMwareBackend(ServiceBackend):
             raise VMwareBackendError(e)
 
         vm.backend_id = backend_id
-        vm.runtime_state = backend_vm['power_state']
-        vm.save(update_fields=['backend_id', 'runtime_state'])
+        vm.runtime_state = backend_vm["power_state"]
+        vm.save(update_fields=["backend_id", "runtime_state"])
 
-        for disk in backend_vm['disks']:
-            disk = self._backend_disk_to_disk(disk['value'], disk['key'])
+        for disk in backend_vm["disks"]:
+            disk = self._backend_disk_to_disk(disk["value"], disk["key"])
             disk.vm = vm
             disk.service_settings = vm.service_settings
             disk.project = vm.project
@@ -501,24 +501,24 @@ class VMwareBackend(ServiceBackend):
         placement = {}
 
         if vm.folder:
-            placement['folder'] = vm.folder.backend_id
+            placement["folder"] = vm.folder.backend_id
         else:
             logger.warning(
-                'Folder is not specified for VM with ID: %s. '
-                'Trying to assign default folder.',
+                "Folder is not specified for VM with ID: %s. "
+                "Trying to assign default folder.",
                 vm.id,
             )
-            placement['folder'] = self.get_default_vm_folder()
+            placement["folder"] = self.get_default_vm_folder()
 
         if vm.cluster:
-            placement['cluster'] = vm.cluster.backend_id
+            placement["cluster"] = vm.cluster.backend_id
         else:
             logger.warning(
-                'Cluster is not specified for VM with ID: %s. '
-                'Trying to assign default resource pool.',
+                "Cluster is not specified for VM with ID: %s. "
+                "Trying to assign default resource pool.",
                 vm.id,
             )
-            placement['resource_pool'] = self.get_default_resource_pool()
+            placement["resource_pool"] = self.get_default_resource_pool()
 
         return placement
 
@@ -538,7 +538,7 @@ class VMwareBackend(ServiceBackend):
         except VMwareError as e:
             raise VMwareBackendError(e)
         else:
-            return [nic['key'] for nic in backend_template['nics']]
+            return [nic["key"] for nic in backend_template["nics"]]
 
     def _get_vm_nics(self, vm):
         """
@@ -555,53 +555,53 @@ class VMwareBackend(ServiceBackend):
         if is_basic_mode():
             if len(networks) != 1:
                 logger.warning(
-                    'Skipping network assignment because VM does not have '
-                    'exactly one network in basic mode. VM ID: %s',
+                    "Skipping network assignment because VM does not have "
+                    "exactly one network in basic mode. VM ID: %s",
                     vm.id,
                 )
                 return
             elif len(nics) != 1:
                 logger.warning(
-                    'Skipping network assignment because related template does '
-                    'not have exactly one NIC in basic mode. VM ID: %s',
+                    "Skipping network assignment because related template does "
+                    "not have exactly one NIC in basic mode. VM ID: %s",
                     vm.id,
                 )
 
         if len(networks) != len(nics):
             logger.warning(
-                'It is not safe to update network assignment when '
-                'number of interfaces and networks do not match. VM ID: %s',
+                "It is not safe to update network assignment when "
+                "number of interfaces and networks do not match. VM ID: %s",
                 vm.id,
             )
 
         return [
-            {'key': nic, 'value': {'network': network.backend_id}}
+            {"key": nic, "value": {"network": network.backend_id}}
             for (nic, network) in zip(nics, networks)
         ]
 
     def create_virtual_machine_from_template(self, vm):
         spec = {
-            'name': vm.name,
-            'description': vm.description,
-            'hardware_customization': {
-                'cpu_update': {
-                    'num_cpus': vm.cores,
-                    'num_cores_per_socket': vm.cores_per_socket,
+            "name": vm.name,
+            "description": vm.description,
+            "hardware_customization": {
+                "cpu_update": {
+                    "num_cpus": vm.cores,
+                    "num_cores_per_socket": vm.cores_per_socket,
                 },
-                'memory_update': {
-                    'memory': vm.ram,
+                "memory_update": {
+                    "memory": vm.ram,
                 },
             },
-            'placement': self._get_vm_placement(vm),
+            "placement": self._get_vm_placement(vm),
         }
 
         if vm.datastore:
-            spec['disk_storage'] = {'datastore': vm.datastore.backend_id}
-            spec['vm_home_storage'] = {'datastore': vm.datastore.backend_id}
+            spec["disk_storage"] = {"datastore": vm.datastore.backend_id}
+            spec["vm_home_storage"] = {"datastore": vm.datastore.backend_id}
 
         nics = self._get_vm_nics(vm)
         if nics:
-            spec['hardware_customization']['nics'] = nics
+            spec["hardware_customization"]["nics"] = nics
 
         try:
             return self.client.deploy_vm_from_template(vm.template.backend_id, spec)
@@ -610,25 +610,25 @@ class VMwareBackend(ServiceBackend):
 
     def create_virtual_machine_from_scratch(self, vm):
         spec = {
-            'name': vm.name,
-            'guest_OS': vm.guest_os,
-            'cpu': {
-                'count': vm.cores,
-                'cores_per_socket': vm.cores_per_socket,
-                'hot_add_enabled': True,
-                'hot_remove_enabled': True,
+            "name": vm.name,
+            "guest_OS": vm.guest_os,
+            "cpu": {
+                "count": vm.cores,
+                "cores_per_socket": vm.cores_per_socket,
+                "hot_add_enabled": True,
+                "hot_remove_enabled": True,
             },
-            'memory': {
-                'size_MiB': vm.ram,
-                'hot_add_enabled': True,
+            "memory": {
+                "size_MiB": vm.ram,
+                "hot_add_enabled": True,
             },
-            'placement': self._get_vm_placement(vm),
+            "placement": self._get_vm_placement(vm),
         }
 
         if vm.datastore:
-            spec['placement']['datastore'] = vm.datastore.backend_id
+            spec["placement"]["datastore"] = vm.datastore.backend_id
         else:
-            spec['placement']['datastore'] = self.get_default_datastore()
+            spec["placement"]["datastore"] = self.get_default_datastore()
 
         try:
             return self.client.create_vm(spec)
@@ -727,7 +727,7 @@ class VMwareBackend(ServiceBackend):
             raise VMwareBackendError(e)
         else:
             return (
-                guest_power['state']
+                guest_power["state"]
                 == models.VirtualMachine.GuestPowerStates.NOT_RUNNING
             )
 
@@ -743,7 +743,7 @@ class VMwareBackend(ServiceBackend):
         result = tools_state == models.VirtualMachine.ToolsStates.RUNNING
         if result:
             vm.tools_state = tools_state
-            vm.save(update_fields=['tools_state'])
+            vm.save(update_fields=["tools_state"])
         self.pull_virtual_machine_runtime_state(vm)
         return result
 
@@ -753,17 +753,17 @@ class VMwareBackend(ServiceBackend):
         except VMwareError as e:
             raise VMwareBackendError(e)
         else:
-            backend_power_state = backend_vm['power_state']
+            backend_power_state = backend_vm["power_state"]
             if backend_power_state != vm.runtime_state:
                 vm.runtime_state = backend_power_state
-                vm.save(update_fields=['runtime_state'])
+                vm.save(update_fields=["runtime_state"])
 
     def is_virtual_machine_tools_not_running(self, vm):
         tools_state = self.get_vm_tools_state(vm.backend_id)
         result = tools_state == models.VirtualMachine.ToolsStates.NOT_RUNNING
         if result:
             vm.tools_state = tools_state
-            vm.save(update_fields=['tools_state'])
+            vm.save(update_fields=["tools_state"])
         return result
 
     def update_virtual_machine(self, vm):
@@ -784,14 +784,14 @@ class VMwareBackend(ServiceBackend):
         try:
             cpu_spec = self.client.get_cpu(vm.backend_id)
             if (
-                cpu_spec['cores_per_socket'] != vm.cores_per_socket
-                or cpu_spec['count'] != vm.cores
+                cpu_spec["cores_per_socket"] != vm.cores_per_socket
+                or cpu_spec["count"] != vm.cores
             ):
                 self.client.update_cpu(
                     vm.backend_id,
                     {
-                        'cores_per_socket': vm.cores_per_socket,
-                        'count': vm.cores,
+                        "cores_per_socket": vm.cores_per_socket,
+                        "count": vm.cores,
                     },
                 )
         except VMwareError as e:
@@ -806,8 +806,8 @@ class VMwareBackend(ServiceBackend):
         """
         try:
             memory_spec = self.client.get_memory(vm.backend_id)
-            if memory_spec['size_MiB'] != vm.ram:
-                self.client.update_memory(vm.backend_id, {'size_MiB': vm.ram})
+            if memory_spec["size_MiB"] != vm.ram:
+                self.client.update_memory(vm.backend_id, {"size_MiB": vm.ram})
         except VMwareError as e:
             raise VMwareBackendError(e)
 
@@ -826,7 +826,7 @@ class VMwareBackend(ServiceBackend):
             raise VMwareBackendError(e)
         else:
             port.backend_id = backend_id
-            port.save(update_fields=['backend_id'])
+            port.save(update_fields=["backend_id"])
             return port
 
     def delete_port(self, port):
@@ -886,7 +886,7 @@ class VMwareBackend(ServiceBackend):
         """
         try:
             backend_port = self.client.get_nic(backend_vm_id, backend_port_id)
-            backend_port['nic'] = backend_port_id
+            backend_port["nic"] = backend_port_id
         except VMwareError as e:
             raise VMwareBackendError(e)
 
@@ -907,12 +907,12 @@ class VMwareBackend(ServiceBackend):
         :rtype: :class:`waldur_vmware.models.Port`
         """
         return models.Port(
-            backend_id=backend_port['nic'],
-            name=backend_port['label'],
+            backend_id=backend_port["nic"],
+            name=backend_port["label"],
             # MAC address is optional
-            mac_address=backend_port.get('mac_address'),
+            mac_address=backend_port.get("mac_address"),
             state=models.Port.States.OK,
-            runtime_state=backend_port['state'],
+            runtime_state=backend_port["state"],
         )
 
     def pull_vm_ports(self, vm):
@@ -921,7 +921,7 @@ class VMwareBackend(ServiceBackend):
         except VMwareError as e:
             raise VMwareBackendError(e)
 
-        backend_ports_map = {item['nic']: item for item in backend_ports}
+        backend_ports_map = {item["nic"]: item for item in backend_ports}
 
         frontend_ports_map = {
             p.backend_id: p for p in models.Port.objects.filter(vm=vm)
@@ -941,7 +941,7 @@ class VMwareBackend(ServiceBackend):
             port = self._backend_port_to_port(backend_port)
             port.service_settings = vm.service_settings
             port.port = vm.port
-            network_id = backend_port['backing']['network']
+            network_id = backend_port["backing"]["network"]
             port.network = networks_map.get(network_id)
             port.vm = vm
             port.save()
@@ -949,7 +949,7 @@ class VMwareBackend(ServiceBackend):
         for item_id in common_ids:
             backend_port = self._backend_port_to_port(backend_ports_map[item_id])
             frontend_port = frontend_ports_map[item_id]
-            fields = ('mac_address', 'runtime_state')
+            fields = ("mac_address", "runtime_state")
             update_pulled_fields(frontend_port, backend_port, fields)
 
         models.Port.objects.filter(vm=vm, backend_id__in=stale_ids).delete()
@@ -962,11 +962,9 @@ class VMwareBackend(ServiceBackend):
         :type disk: :class:`waldur_vmware.models.Disk`
         """
         spec = {
-            'new_vmdk': {
+            "new_vmdk": {
                 # Convert from mebibytes to bytes because VMDK is specified in bytes
-                'capacity': 1024
-                * 1024
-                * disk.size,
+                "capacity": 1024 * 1024 * disk.size,
             }
         }
 
@@ -976,7 +974,7 @@ class VMwareBackend(ServiceBackend):
             raise VMwareBackendError(e)
         else:
             disk.backend_id = backend_id
-            disk.save(update_fields=['backend_id'])
+            disk.save(update_fields=["backend_id"])
             signals.vm_updated.send(self.__class__, vm=disk.vm)
             return disk
 
@@ -1004,8 +1002,8 @@ class VMwareBackend(ServiceBackend):
             try:
                 pyVim.task.WaitForTask(task)
             except Exception:
-                logger.exception('Unable to delete VMware disk. Disk ID: %s.', disk.id)
-                raise VMwareBackendError('Unknown error.')
+                logger.exception("Unable to delete VMware disk. Disk ID: %s.", disk.id)
+                raise VMwareBackendError("Unknown error.")
             signals.vm_updated.send(self.__class__, vm=disk.vm)
 
     def extend_disk(self, disk):
@@ -1031,8 +1029,8 @@ class VMwareBackend(ServiceBackend):
         try:
             pyVim.task.WaitForTask(task)
         except Exception:
-            logger.exception('Unable to extend VMware disk. Disk ID: %s.', disk.id)
-            raise VMwareBackendError('Unknown error.')
+            logger.exception("Unable to extend VMware disk. Disk ID: %s.", disk.id)
+            raise VMwareBackendError("Unknown error.")
         signals.vm_updated.send(self.__class__, vm=disk.vm)
 
     def get_object(self, vim_type, vim_id):
@@ -1049,9 +1047,9 @@ class VMwareBackend(ServiceBackend):
             ]
         except Exception:
             logger.exception(
-                'Unable to get VMware object. Type: %s, ID: %s.', vim_type, vim_id
+                "Unable to get VMware object. Type: %s, ID: %s.", vim_type, vim_id
             )
-            raise VMwareBackendError('Unknown error.')
+            raise VMwareBackendError("Unknown error.")
         for item in items:
             if item._moId == vim_id:
                 return item
@@ -1076,11 +1074,11 @@ class VMwareBackend(ServiceBackend):
         """
         backend_vm = self._get_backend_vm(backend_id)
         backend_tools_state = backend_vm.guest.toolsRunningStatus
-        if backend_tools_state == 'guestToolsExecutingScripts':
+        if backend_tools_state == "guestToolsExecutingScripts":
             return models.VirtualMachine.ToolsStates.STARTING
-        elif backend_tools_state == 'guestToolsNotRunning':
+        elif backend_tools_state == "guestToolsNotRunning":
             return models.VirtualMachine.ToolsStates.NOT_RUNNING
-        elif backend_tools_state == 'guestToolsRunning':
+        elif backend_tools_state == "guestToolsRunning":
             return models.VirtualMachine.ToolsStates.RUNNING
 
     def get_vm_tools_installed(self, backend_id):
@@ -1092,7 +1090,7 @@ class VMwareBackend(ServiceBackend):
         :rtype: bool
         """
         backend_vm = self._get_backend_vm(backend_id)
-        return backend_vm.config.tools.toolsInstallType != 'guestToolsTypeUnknown'
+        return backend_vm.config.tools.toolsInstallType != "guestToolsTypeUnknown"
 
     def _get_backend_vm(self, backend_id):
         return self.get_object(vim.VirtualMachine, backend_id)
@@ -1193,9 +1191,9 @@ class VMwareBackend(ServiceBackend):
         """
         return models.Disk(
             backend_id=backend_disk_id,
-            name=backend_disk['label'],
+            name=backend_disk["label"],
             # Convert disk size from bytes to MiB
-            size=backend_disk['capacity'] / 1024 / 1024,
+            size=backend_disk["capacity"] / 1024 / 1024,
             state=models.Disk.States.OK,
         )
 
@@ -1207,9 +1205,7 @@ class VMwareBackend(ServiceBackend):
         :type vm: :class:`waldur_vmware.models.VirtualMachine`
         """
         ticket = self.soap_client.content.sessionManager.AcquireCloneTicket()
-        return 'vmrc://clone:{ticket}@{host}/?moid={vm}'.format(
-            ticket=ticket, host=self.host, vm=vm.backend_id
-        )
+        return f"vmrc://clone:{ticket}@{self.host}/?moid={vm.backend_id}"
 
     def get_web_console_url(self, vm):
         """
@@ -1221,14 +1217,12 @@ class VMwareBackend(ServiceBackend):
         backend_vm = self.get_backend_vm(vm)
         ticket = backend_vm.AcquireMksTicket()
         params = {
-            'host': ticket.host,
-            'port': ticket.port,
-            'ticket': ticket.ticket,
-            'cfgFile': ticket.cfgFile,
-            'thumbprint': ticket.sslThumbprint,
-            'vmId': vm.backend_id,
-            'encoding': 'UTF-8',
+            "host": ticket.host,
+            "port": ticket.port,
+            "ticket": ticket.ticket,
+            "cfgFile": ticket.cfgFile,
+            "thumbprint": ticket.sslThumbprint,
+            "vmId": vm.backend_id,
+            "encoding": "UTF-8",
         }
-        return 'wss://{host}/ui/webconsole/authd?{params}'.format(
-            host=ticket.host, params=urlencode(params)
-        )
+        return f"wss://{ticket.host}/ui/webconsole/authd?{urlencode(params)}"

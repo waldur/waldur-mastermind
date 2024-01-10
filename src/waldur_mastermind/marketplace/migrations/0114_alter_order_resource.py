@@ -6,15 +6,15 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace', '0113_init_order_resource'),
+        ("marketplace", "0113_init_order_resource"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='order',
-            name='resource',
+            model_name="order",
+            name="resource",
             field=models.ForeignKey(
-                on_delete=django.db.models.deletion.CASCADE, to='marketplace.resource'
+                on_delete=django.db.models.deletion.CASCADE, to="marketplace.resource"
             ),
         ),
     ]

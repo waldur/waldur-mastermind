@@ -5,13 +5,13 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('waldur_paypal', '0002_immutable_default_json'),
+        ("waldur_paypal", "0002_immutable_default_json"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='payment',
-            name='error_traceback',
+            model_name="payment",
+            name="error_traceback",
             field=models.TextField(blank=True),
         ),
     ]

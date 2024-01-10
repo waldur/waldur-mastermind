@@ -7,52 +7,52 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('contenttypes', '0002_remove_content_type_name'),
-        ('quotas', '0001_squashed_0004'),
+        ("contenttypes", "0002_remove_content_type_name"),
+        ("quotas", "0001_squashed_0004"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='DailyQuotaHistory',
+            name="DailyQuotaHistory",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('object_id', models.PositiveIntegerField(null=True)),
-                ('name', models.CharField(db_index=True, max_length=150)),
-                ('usage', models.BigIntegerField()),
-                ('date', models.DateField()),
+                ("object_id", models.PositiveIntegerField(null=True)),
+                ("name", models.CharField(db_index=True, max_length=150)),
+                ("usage", models.BigIntegerField()),
+                ("date", models.DateField()),
                 (
-                    'content_type',
+                    "content_type",
                     models.ForeignKey(
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='contenttypes.ContentType',
+                        to="contenttypes.ContentType",
                     ),
                 ),
             ],
         ),
         migrations.AlterField(
-            model_name='dailyquotahistory',
-            name='content_type',
+            model_name="dailyquotahistory",
+            name="content_type",
             field=models.ForeignKey(
                 on_delete=django.db.models.deletion.CASCADE,
-                to='contenttypes.ContentType',
+                to="contenttypes.ContentType",
             ),
         ),
         migrations.AlterField(
-            model_name='dailyquotahistory',
-            name='object_id',
+            model_name="dailyquotahistory",
+            name="object_id",
             field=models.PositiveIntegerField(),
         ),
         migrations.AlterUniqueTogether(
-            name='dailyquotahistory',
-            unique_together=set([('content_type', 'object_id', 'name', 'date')]),
+            name="dailyquotahistory",
+            unique_together=set([("content_type", "object_id", "name", "date")]),
         ),
     ]

@@ -4,16 +4,16 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('waldur_azure', '0014_networkinterface_ip_address'),
+        ("waldur_azure", "0014_networkinterface_ip_address"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='location',
-            name='enabled',
+            model_name="location",
+            name="enabled",
             field=models.BooleanField(
                 default=True,
-                help_text='Indicates whether location is available for resource group.',
+                help_text="Indicates whether location is available for resource group.",
             ),
         ),
     ]

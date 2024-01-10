@@ -14,34 +14,34 @@ logger = logging.getLogger(__name__)
 def get_resource_user(default_user, resource):
     if not resource.scope:
         logger.warning(
-            'Using default user for resource because it does not have scope. '
-            'Resource UUID: %s',
+            "Using default user for resource because it does not have scope. "
+            "Resource UUID: %s",
             resource.uuid,
         )
         return default_user
-    view = EventViewSet.as_view({'get': 'list'})
+    view = EventViewSet.as_view({"get": "list"})
     response = get_request(
         view,
         default_user,
-        event_type='resource_creation_scheduled',
+        event_type="resource_creation_scheduled",
         resource_type=resource.scope.get_scope_type(),
         resource_uuid=resource.scope.uuid,
     )
     if response.status_code == status.HTTP_200_OK and len(response.data) > 0:
-        user_uuid = response.data[0]['user_uuid']
+        user_uuid = response.data[0]["user_uuid"]
         try:
             return User.objects.get(uuid=user_uuid)
         except User.DoesNotExist:
             logger.warning(
-                'Using default user for resource because user does not exist. '
-                'Resource UUID: %s. User UUID: %s',
+                "Using default user for resource because user does not exist. "
+                "Resource UUID: %s. User UUID: %s",
                 resource.uuid.hex,
                 user_uuid,
             )
     else:
         logger.warning(
-            'Using default user for resource because related event is not found. '
-            'Resource UUID: %s',
+            "Using default user for resource because related event is not found. "
+            "Resource UUID: %s",
             resource.uuid,
         )
     return default_user
@@ -51,7 +51,7 @@ def import_orders(find_user=True):
     default_user = User.objects.filter(is_staff=True).first()
     existing_resources = (
         Order.objects.exclude(resource_id=None)
-        .values_list('resource_id', flat=True)
+        .values_list("resource_id", flat=True)
         .distinct()
     )
     missing_resources = Resource.objects.exclude(id__in=existing_resources)
@@ -81,11 +81,11 @@ class Command(BaseCommand):
         count = import_orders()
         if count == 0:
             self.stdout.write(
-                self.style.SUCCESS('There are no resources without orders.')
+                self.style.SUCCESS("There are no resources without orders.")
             )
         if count == 1:
-            self.stdout.write(self.style.SUCCESS('%s order has been created.' % count))
+            self.stdout.write(self.style.SUCCESS("%s order has been created." % count))
         else:
             self.stdout.write(
-                self.style.SUCCESS('%s orders have been created.' % count)
+                self.style.SUCCESS("%s orders have been created." % count)
             )

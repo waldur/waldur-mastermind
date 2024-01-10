@@ -36,21 +36,21 @@ class CreateCampaignTest(test.APITransactionTestCase):
         payload.update(kwargs)
         return payload
 
-    @data('staff', 'offering_owner', 'service_manager')
+    @data("staff", "offering_owner", "service_manager")
     def test_user_can_create_campaign(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.post(self.url, data=self._get_payload())
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     @data(
-        'offering_support',
-        'offering_admin',
-        'offering_manager',
-        'admin',
-        'manager',
-        'owner',
-        'member',
-        'user',
+        "offering_support",
+        "offering_admin",
+        "offering_manager",
+        "admin",
+        "manager",
+        "owner",
+        "member",
+        "user",
     )
     def test_user_can_not_create_campaign(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
@@ -90,7 +90,7 @@ class GetCampaignTest(test.APITransactionTestCase):
         self.fixture = fixtures.PromotionsFixture()
         self.url = factories.CampaignFactory.get_list_url()
 
-    @data('staff', 'offering_owner', 'service_manager', 'offering_support')
+    @data("staff", "offering_owner", "service_manager", "offering_support")
     def test_user_can_get_campaign(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(self.url)
@@ -98,13 +98,13 @@ class GetCampaignTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 1)
 
     @data(
-        'offering_admin',
-        'offering_manager',
-        'admin',
-        'manager',
-        'owner',
-        'member',
-        'user',
+        "offering_admin",
+        "offering_manager",
+        "admin",
+        "manager",
+        "owner",
+        "member",
+        "user",
     )
     def test_user_can_not_get_campaign(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
@@ -113,20 +113,20 @@ class GetCampaignTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 0)
 
     def test_orders(self):
-        url = factories.CampaignFactory.get_url(self.fixture.campaign, 'orders')
+        url = factories.CampaignFactory.get_url(self.fixture.campaign, "orders")
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['uuid'], self.fixture.order.uuid.hex)
+        self.assertEqual(response.data[0]["uuid"], self.fixture.order.uuid.hex)
 
     def test_resources(self):
-        url = factories.CampaignFactory.get_url(self.fixture.campaign, 'resources')
+        url = factories.CampaignFactory.get_url(self.fixture.campaign, "resources")
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['uuid'], self.fixture.resource.uuid.hex)
+        self.assertEqual(response.data[0]["uuid"], self.fixture.resource.uuid.hex)
 
 
 @ddt
@@ -140,15 +140,15 @@ class OfferingPublicEndpointTest(test.APITransactionTestCase):
             offering=self.fixture.offering
         )
 
-    @data('admin', 'owner', 'user')
+    @data("admin", "owner", "user")
     def test_offering_promotion_campaigns(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data['promotion_campaigns']), 1)
-        self.assertFalse('coupon' in response.data['promotion_campaigns'][0].keys())
+        self.assertEqual(len(response.data["promotion_campaigns"]), 1)
+        self.assertFalse("coupon" in response.data["promotion_campaigns"][0].keys())
 
-    @data('admin', 'owner', 'user')
+    @data("admin", "owner", "user")
     def test_unstarted_campaigns_are_not_displayed(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
 
@@ -157,9 +157,9 @@ class OfferingPublicEndpointTest(test.APITransactionTestCase):
 
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data['promotion_campaigns']), 0)
+        self.assertEqual(len(response.data["promotion_campaigns"]), 0)
 
-    @data('admin', 'owner', 'user')
+    @data("admin", "owner", "user")
     def test_old_campaigns_are_not_displayed(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
 
@@ -169,9 +169,9 @@ class OfferingPublicEndpointTest(test.APITransactionTestCase):
 
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data['promotion_campaigns']), 0)
+        self.assertEqual(len(response.data["promotion_campaigns"]), 0)
 
-    @data('admin', 'owner', 'user')
+    @data("admin", "owner", "user")
     def test_unactive_campaigns_are_not_displayed(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
 
@@ -180,7 +180,7 @@ class OfferingPublicEndpointTest(test.APITransactionTestCase):
 
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data['promotion_campaigns']), 0)
+        self.assertEqual(len(response.data["promotion_campaigns"]), 0)
 
 
 @ddt
@@ -209,8 +209,8 @@ class UpdateCampaignTest(test.APITransactionTestCase):
         payload.update(kwargs)
         return payload
 
-    @freeze_time('2023-11-01')
-    @data('staff', 'offering_owner', 'service_manager')
+    @freeze_time("2023-11-01")
+    @data("staff", "offering_owner", "service_manager")
     def test_user_can_update_campaign(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.put(self.url, self._get_payload(months=5))
@@ -235,7 +235,7 @@ class UpdateCampaignTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
     @data(
-        'offering_support',
+        "offering_support",
     )
     def test_user_can_not_update_campaign(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
@@ -251,13 +251,13 @@ class DeleteCampaignTest(test.APITransactionTestCase):
         CustomerRole.OWNER.add_permission(PermissionEnum.MANAGE_CAMPAIGN)
         CustomerRole.MANAGER.add_permission(PermissionEnum.MANAGE_CAMPAIGN)
 
-    @data('staff', 'offering_owner', 'service_manager')
+    @data("staff", "offering_owner", "service_manager")
     def test_user_can_delete_campaign(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.delete(self.url)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
-    @data('staff', 'offering_owner', 'service_manager')
+    @data("staff", "offering_owner", "service_manager")
     def test_user_can_not_delete_not_draft_campaign(self, user):
         self.fixture.campaign.activate()
         self.fixture.campaign.save()
@@ -265,7 +265,7 @@ class DeleteCampaignTest(test.APITransactionTestCase):
         response = self.client.delete(self.url)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @data('offering_support')
+    @data("offering_support")
     def test_user_can_not_delete_campaign(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
 

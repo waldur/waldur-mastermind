@@ -14,7 +14,7 @@ def create_notification_about_permission_request_has_been_submitted(
     permission_request = instance
 
     if (
-        not permission_request.tracker.has_changed('state')
+        not permission_request.tracker.has_changed("state")
         or not permission_request.state == PermissionRequest.States.PENDING
     ):
         return

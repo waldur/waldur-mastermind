@@ -101,10 +101,10 @@ class PlanComponentsGetTest(test.APITransactionTestCase):
     def test_filter_by_shared(self):
         user = self.fixture.staff
         self.client.force_authenticate(user)
-        response = self.client.get(self.url, {'shared': True})
+        response = self.client.get(self.url, {"shared": True})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 1)
-        self.assertEqual(response.data[0]['plan_name'], self.shared_plan.name)
+        self.assertEqual(response.data[0]["plan_name"], self.shared_plan.name)
 
     def test_filter_by_archived(self):
         user = self.fixture.staff
@@ -112,7 +112,7 @@ class PlanComponentsGetTest(test.APITransactionTestCase):
 
         self.shared_plan.archived = True
         self.shared_plan.save()
-        response = self.client.get(self.url, {'archived': True})
+        response = self.client.get(self.url, {"archived": True})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 1)
-        self.assertEqual(response.data[0]['plan_name'], self.shared_plan.name)
+        self.assertEqual(response.data[0]["plan_name"], self.shared_plan.name)

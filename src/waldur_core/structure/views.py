@@ -58,9 +58,9 @@ User = auth.get_user_model()
 
 
 class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelViewSet):
-    queryset = models.Customer.objects.all().order_by('name')
+    queryset = models.Customer.objects.all().order_by("name")
     serializer_class = serializers.CustomerSerializer
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
     filter_backends = (
         filters.GenericUserFilter,
         filters.GenericRoleFilter,
@@ -71,14 +71,14 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
         filters.ExternalCustomerFilterBackend,
     )
     ordering_fields = (
-        'abbreviation',
-        'accounting_start_date',
-        'agreement_number',
-        'contact_details',
-        'created',
-        'name',
-        'native_name',
-        'registration_code',
+        "abbreviation",
+        "accounting_start_date",
+        "agreement_number",
+        "contact_details",
+        "created",
+        "name",
+        "native_name",
+        "registration_code",
     )
     filterset_class = filters.CustomerFilter
 
@@ -163,21 +163,21 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
         return super().destroy(request, *args, **kwargs)
 
     def get_serializer_class(self):
-        if self.action == 'users':
+        if self.action == "users":
             return serializers.CustomerUserSerializer
         return super().get_serializer_class()
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
-        if self.action == 'users':
-            context['customer'] = self.get_object()
+        if self.action == "users":
+            context["customer"] = self.get_object()
         return context
 
     def check_customer_permissions(self, customer=None):
         if self.request.user.is_staff:
             return
 
-        if not django_settings.WALDUR_CORE.get('OWNER_CAN_MANAGE_CUSTOMER'):
+        if not django_settings.WALDUR_CORE.get("OWNER_CAN_MANAGE_CUSTOMER"):
             raise PermissionDenied()
 
         if not customer:
@@ -195,11 +195,11 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
             )
 
         if django_settings.WALDUR_CORE.get(
-            'CREATE_DEFAULT_PROJECT_ON_ORGANIZATION_CREATION', False
+            "CREATE_DEFAULT_PROJECT_ON_ORGANIZATION_CREATION", False
         ):
             project = models.Project(
-                name=_('First project'),
-                description=_('First project we have created for you'),
+                name=_("First project"),
+                description=_("First project we have created for you"),
                 customer=customer,
             )
             project.save()
@@ -249,7 +249,7 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
 class ProjectTypeViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = models.ProjectType.objects.all()
     serializer_class = serializers.ProjectTypeSerializer
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.ProjectTypeFilter
 
@@ -257,9 +257,9 @@ class ProjectTypeViewSet(viewsets.ReadOnlyModelViewSet):
 class ProjectViewSet(
     UserRoleMixin, core_mixins.EagerLoadMixin, core_views.ActionsViewSet
 ):
-    queryset = models.Project.available_objects.all().order_by('name')
+    queryset = models.Project.available_objects.all().order_by("name")
     serializer_class = serializers.ProjectSerializer
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
     filter_backends = (
         filters.GenericUserFilter,
         filters.ProjectEstimatedCostFilter,
@@ -275,17 +275,17 @@ class ProjectViewSet(
     ]
 
     destroy_permissions = [
-        permission_factory(PermissionEnum.DELETE_PROJECT, ['customer'])
+        permission_factory(PermissionEnum.DELETE_PROJECT, ["customer"])
     ]
 
     update_permissions = partial_update_permissions = [
-        permission_factory(PermissionEnum.UPDATE_PROJECT, ['*', 'customer'])
+        permission_factory(PermissionEnum.UPDATE_PROJECT, ["*", "customer"])
     ]
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
-        if self.action == 'users':
-            context['project'] = self.get_object()
+        if self.action == "users":
+            context["project"] = self.get_object()
         return context
 
     def list(self, request, *args, **kwargs):
@@ -358,7 +358,7 @@ class ProjectViewSet(
         user = self.request.user
         queryset = super().get_queryset()
 
-        can_manage = self.request.query_params.get('can_manage', None)
+        can_manage = self.request.query_params.get("can_manage", None)
         if can_manage is not None:
             connected_customers = get_connected_customers(user, RoleEnum.CUSTOMER_OWNER)
             connected_projects = get_connected_projects(user, RoleEnum.PROJECT_MANAGER)
@@ -366,7 +366,7 @@ class ProjectViewSet(
                 Q(customer__in=connected_customers) | Q(id__in=connected_projects)
             ).distinct()
 
-        can_admin = self.request.query_params.get('can_admin', None)
+        can_admin = self.request.query_params.get("can_admin", None)
 
         if can_admin is not None:
             connected_projects = get_connected_projects(user, RoleEnum.PROJECT_ADMIN)
@@ -375,7 +375,7 @@ class ProjectViewSet(
         return queryset
 
     def perform_create(self, serializer):
-        customer = serializer.validated_data['customer']
+        customer = serializer.validated_data["customer"]
 
         utils.check_customer_blocked_or_archived(customer)
 
@@ -398,17 +398,17 @@ class ProjectViewSet(
 
     users_serializer_class = serializers.ProjectUserSerializer
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def move_project(self, request, uuid=None):
         project = self.get_object()
         serializer = self.get_serializer(project, data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        customer = serializer.validated_data['customer']
+        customer = serializer.validated_data["customer"]
 
         utils.move_project(project, customer, request.user)
         serialized_project = serializers.ProjectSerializer(
-            project, context={'request': self.request}
+            project, context={"request": self.request}
         )
 
         return Response(serialized_project.data, status=status.HTTP_200_OK)
@@ -416,11 +416,11 @@ class ProjectViewSet(
     move_project_serializer_class = serializers.MoveProjectSerializer
     move_project_permissions = [permissions.is_staff]
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=["get"])
     def oecd_codes(self, request):
         return Response(
             [
-                {'value': value, 'label': label}
+                {"value": value, "label": label}
                 for (value, label) in models.Project.OECD_FOS_2007_CODES
             ]
         )
@@ -429,7 +429,7 @@ class ProjectViewSet(
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = serializers.UserSerializer
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
     permission_classes = (
         rf_permissions.IsAuthenticated,
         permissions.IsAdminOrOwner,
@@ -488,12 +488,12 @@ class UserViewSet(viewsets.ModelViewSet):
             request.user.is_staff or request.user.is_support
         ):
             return Response(
-                _('Identity manager is not allowed to list users.'),
+                _("Identity manager is not allowed to list users."),
                 status=status.HTTP_403_FORBIDDEN,
             )
         return super().list(request, *args, **kwargs)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def change_email(self, request, uuid=None):
         user = self.get_object()
 
@@ -501,11 +501,11 @@ class UserViewSet(viewsets.ModelViewSet):
             user.registration_method
         )
 
-        if 'email' in idp_protected_fields:
+        if "email" in idp_protected_fields:
             raise ValidationError(
                 {
-                    'detail': _(
-                        'The registration method does not allow direct email modification.'
+                    "detail": _(
+                        "The registration method does not allow direct email modification."
                     )
                 }
             )
@@ -513,60 +513,60 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer = serializers.UserEmailChangeSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        email = serializer.validated_data['email']
+        email = serializer.validated_data["email"]
         try:
             user.create_request_for_update_email(email)
         except django_exceptions.ValidationError as error:
             raise ValidationError(error.message_dict)
 
         return Response(
-            {'detail': _('The change email request has been successfully created.')},
+            {"detail": _("The change email request has been successfully created.")},
             status=status.HTTP_200_OK,
         )
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def cancel_change_email(self, request, uuid=None):
         user = self.get_object()
         count = core_models.ChangeEmailRequest.objects.filter(user=user).delete()[0]
 
         if count:
-            msg = _('The change email request has been successfully deleted.')
+            msg = _("The change email request has been successfully deleted.")
         else:
-            msg = _('The change email request has not been found.')
+            msg = _("The change email request has not been found.")
 
-        return Response({'detail': msg}, status=status.HTTP_200_OK)
+        return Response({"detail": msg}, status=status.HTTP_200_OK)
 
-    @action(detail=False, methods=['post'])
+    @action(detail=False, methods=["post"])
     def confirm_email(self, request):
-        code = request.data.get('code')
+        code = request.data.get("code")
         if not code or not is_uuid_like(code):
-            raise ValidationError(_('The confirmation code is required.'))
+            raise ValidationError(_("The confirmation code is required."))
 
         change_request = get_object_or_404(core_models.ChangeEmailRequest, uuid=code)
 
         if (
-            change_request.created + django_settings.WALDUR_CORE['EMAIL_CHANGE_MAX_AGE']
+            change_request.created + django_settings.WALDUR_CORE["EMAIL_CHANGE_MAX_AGE"]
             < timezone.now()
         ):
-            raise ValidationError(_('Request has expired.'))
+            raise ValidationError(_("Request has expired."))
 
         with transaction.atomic():
             change_request.user.email = change_request.email
-            change_request.user.save(update_fields=['email'])
+            change_request.user.save(update_fields=["email"])
             core_models.ChangeEmailRequest.objects.filter(
                 email=change_request.email
             ).delete()
         return Response(
-            {'detail': _('Email has been successfully updated.')},
+            {"detail": _("Email has been successfully updated.")},
             status=status.HTTP_200_OK,
         )
 
     def check_permissions(self, request):
-        if self.action == 'confirm_email':
+        if self.action == "confirm_email":
             return
         super().check_permissions(request)
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=["get"])
     def me(self, request):
         serializer = self.get_serializer(request.user)
 
@@ -575,14 +575,14 @@ class UserViewSet(viewsets.ModelViewSet):
             status=status.HTTP_200_OK,
         )
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def pull_remote_user(self, request, uuid=None):
         user = self.get_object()
         if user.registration_method != ProviderChoices.EDUTEAMS:
-            raise ValidationError(_('User is not managed by eduTEAMS.'))
-        if not django_settings.WALDUR_AUTH_SOCIAL['REMOTE_EDUTEAMS_ENABLED']:
+            raise ValidationError(_("User is not managed by eduTEAMS."))
+        if not django_settings.WALDUR_AUTH_SOCIAL["REMOTE_EDUTEAMS_ENABLED"]:
             raise ValidationError(
-                _('Remote eduTEAMS account synchronization extension is disabled.')
+                _("Remote eduTEAMS account synchronization extension is disabled.")
             )
         pull_remote_eduteams_user(user.username)
         return Response(status=status.HTTP_200_OK)
@@ -633,13 +633,13 @@ class CustomerPermissionReviewViewSet(
         DjangoFilterBackend,
     )
     filterset_class = filters.CustomerPermissionReviewFilter
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def close(self, request, uuid=None):
         review: models.CustomerPermissionReview = self.get_object()
         if not review.is_pending:
-            raise ValidationError(_('Review is already closed.'))
+            raise ValidationError(_("Review is already closed."))
         review.close(request.user)
         return Response(status=status.HTTP_200_OK)
 
@@ -662,7 +662,7 @@ class SshKeyViewSet(
 
     queryset = core_models.SshPublicKey.objects.all()
     serializer_class = serializers.SshKeySerializer
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.SshKeyFilter
 
@@ -676,7 +676,7 @@ class SshKeyViewSet(
     def perform_destroy(self, instance):
         if instance.is_shared and not self.request.user.is_staff:
             raise PermissionDenied(
-                _('Only staff users are allowed to delete shared SSH public key.')
+                _("Only staff users are allowed to delete shared SSH public key.")
             )
         else:
             instance.delete()
@@ -708,11 +708,11 @@ class SshKeyViewSet(
 
     def perform_create(self, serializer):
         user = self.request.user
-        name = serializer.validated_data['name']
+        name = serializer.validated_data["name"]
 
         if core_models.SshPublicKey.objects.filter(user=user, name=name).exists():
             raise rf_serializers.ValidationError(
-                {'name': [_('This field must be unique.')]}
+                {"name": [_("This field must be unique.")]}
             )
 
         serializer.save(user=user)
@@ -721,7 +721,7 @@ class SshKeyViewSet(
 class ServiceSettingsViewSet(
     core_mixins.EagerLoadMixin, core_views.ReadOnlyActionsViewSet
 ):
-    queryset = models.ServiceSettings.objects.filter().order_by('pk')
+    queryset = models.ServiceSettings.objects.filter().order_by("pk")
     serializer_class = serializers.ServiceSettingsSerializer
     filter_backends = (
         filters.GenericRoleFilter,
@@ -730,11 +730,11 @@ class ServiceSettingsViewSet(
         rf_filters.OrderingFilter,
     )
     filterset_class = filters.ServiceSettingsFilter
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
     ordering_fields = (
-        'type',
-        'name',
-        'state',
+        "type",
+        "name",
+        "state",
     )
 
 
@@ -761,7 +761,7 @@ class BaseCounterView(viewsets.GenericViewSet):
             result[field] = func()
         for func in self.dynamic_counters:
             result.update(func(self.object))
-        fields = request.query_params.getlist('fields')
+        fields = request.query_params.getlist("fields")
         if fields:
             result = {k: v for k, v in result.items() if k in fields}
         return Response(result)
@@ -786,26 +786,26 @@ class CustomerCountersView(BaseCounterView):
         }
     """
 
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
     extra_counters = {}
     dynamic_counters = set()
 
     def get_queryset(self):
         return filter_queryset_for_user(
-            models.Customer.objects.all().only('pk', 'uuid'), self.request.user
+            models.Customer.objects.all().only("pk", "uuid"), self.request.user
         )
 
     def get_fields(self):
         return {
-            'projects': self.get_projects,
-            'users': self.get_users,
+            "projects": self.get_projects,
+            "users": self.get_users,
         }
 
     def get_users(self):
         return count_customer_users(self.object)
 
     def get_projects(self):
-        qs = models.Project.available_objects.filter(customer=self.object).only('pk')
+        qs = models.Project.available_objects.filter(customer=self.object).only("pk")
         qs = filter_queryset_for_user(qs, self.request.user)
         return qs.count()
 
@@ -813,7 +813,7 @@ class CustomerCountersView(BaseCounterView):
         return sum(self._count_model(model) for model in models)
 
     def _count_model(self, model):
-        qs = model.objects.filter(customer=self.object).only('pk')
+        qs = model.objects.filter(customer=self.object).only("pk")
         qs = filter_queryset_for_user(qs, self.request.user)
         return qs.count()
 
@@ -829,18 +829,18 @@ class ProjectCountersView(BaseCounterView):
         }
     """
 
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
     extra_counters = {}
     dynamic_counters = set()
 
     def get_queryset(self):
         return filter_queryset_for_user(
-            models.Project.objects.all().only('pk', 'uuid'), self.request.user
+            models.Project.objects.all().only("pk", "uuid"), self.request.user
         )
 
     def get_fields(self):
         fields = {
-            'users': self.get_users,
+            "users": self.get_users,
         }
         return fields
 
@@ -851,7 +851,7 @@ class ProjectCountersView(BaseCounterView):
         return sum(self._count_model(model) for model in models)
 
     def _count_model(self, model):
-        qs = model.objects.filter(project=self.object).only('pk')
+        qs = model.objects.filter(project=self.object).only("pk")
         qs = filter_queryset_for_user(qs, self.request.user)
         return qs.count()
 
@@ -862,13 +862,13 @@ class BaseServicePropertyViewSet(viewsets.ReadOnlyModelViewSet):
 
 def check_resource_backend_id(resource):
     if not resource.backend_id:
-        raise ValidationError(_('Resource does not have backend ID.'))
+        raise ValidationError(_("Resource does not have backend ID."))
 
 
 class ResourceViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     """Basic view set for all resource view sets."""
 
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
     filter_backends = (filters.GenericRoleFilter, DjangoFilterBackend)
     unsafe_methods_permissions = [permissions.is_administrator]
     update_validators = partial_update_validators = [
@@ -880,16 +880,16 @@ class ResourceViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
         )
     ]
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def pull(self, request, uuid=None):
         if self.pull_executor == NotImplemented:
             return Response(
-                {'detail': _('Pull operation is not implemented.')},
+                {"detail": _("Pull operation is not implemented.")},
                 status=status.HTTP_409_CONFLICT,
             )
         self.pull_executor.execute(self.get_object())
         return Response(
-            {'detail': _('Pull operation was successfully scheduled.')},
+            {"detail": _("Pull operation was successfully scheduled.")},
             status=status.HTTP_202_ACCEPTED,
         )
 
@@ -901,7 +901,7 @@ class ResourceViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
         check_resource_backend_id,
     ]
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def unlink(self, request, uuid=None):
         """
         Delete resource from the database without scheduling operations on backend
@@ -917,18 +917,18 @@ class ResourceViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
 
 class DivisionViewSet(core_views.ReadOnlyActionsViewSet):
     permission_classes = ()
-    queryset = models.Division.objects.all().order_by('name')
+    queryset = models.Division.objects.all().order_by("name")
     serializer_class = serializers.DivisionSerializer
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.DivisionFilter
 
 
 class DivisionTypesViewSet(core_views.ReadOnlyActionsViewSet):
     permission_classes = ()
-    queryset = models.DivisionType.objects.all().order_by('name')
+    queryset = models.DivisionType.objects.all().order_by("name")
     serializer_class = serializers.DivisionTypesSerializer
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.DivisionTypesFilter
 
@@ -937,24 +937,24 @@ class UserAgreementsViewSet(ActionsViewSet):
     serializer_class = serializers.UserAgreementSerializer
     permission_classes = (core_permissions.ActionsPermission,)
     unsafe_methods_permissions = [permissions.is_staff]
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
 
     def get_queryset(self):
         queryset = models.UserAgreement.objects.all()
-        agreement_type = self.request.query_params.get('agreement_type')
+        agreement_type = self.request.query_params.get("agreement_type")
         if agreement_type is not None:
             queryset = queryset.filter(agreement_type=agreement_type)
         return queryset
 
 
 class NotificationViewSet(ActionsViewSet):
-    queryset = core_models.Notification.objects.all().order_by('id')
+    queryset = core_models.Notification.objects.all().order_by("id")
     serializer_class = serializers.NotificationSerializer
     permission_classes = (rf_permissions.IsAdminUser,)
     filterset_class = filters.NotificationFilter
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def enable(self, request, uuid=None):
         notification: core_models.Notification = self.get_object()
         message = f"The notification {notification.key} has been enabled"
@@ -963,11 +963,11 @@ class NotificationViewSet(ActionsViewSet):
             notification.save()
             logger.info(message)
         return Response(
-            {'detail': _(message)},
+            {"detail": _(message)},
             status=status.HTTP_200_OK,
         )
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def disable(self, request, uuid=None):
         notification: core_models.Notification = self.get_object()
         message = f"The notification {notification.key} has been disabled"
@@ -976,7 +976,7 @@ class NotificationViewSet(ActionsViewSet):
             notification.save()
             logger.info(message)
         return Response(
-            {'detail': _(message)},
+            {"detail": _(message)},
             status=status.HTTP_200_OK,
         )
 
@@ -984,16 +984,16 @@ class NotificationViewSet(ActionsViewSet):
 class NotificationTemplateViewSet(ActionsViewSet):
     queryset = core_models.NotificationTemplate.objects.all()
     serializer_class = serializers.NotificationTemplateDetailSerializers
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.NotificationTemplateFilter
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def override(self, request, uuid=None):
         template = self.get_object()
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        new_content = serializer.validated_data['content']
+        new_content = serializer.validated_data["content"]
         name = template.path
         message = f"The template {name} has been overridden"
         try:
@@ -1002,9 +1002,9 @@ class NotificationTemplateViewSet(ActionsViewSet):
             template_dbtemplates.save()
             remove_cached_template(template_dbtemplates)
         except Template.DoesNotExist:
-            raise NotFound('A template %s does not exist.' % name)
+            raise NotFound("A template %s does not exist." % name)
         logger.info(message)
-        return Response({'detail': _(message)}, status=status.HTTP_200_OK)
+        return Response({"detail": _(message)}, status=status.HTTP_200_OK)
 
     override_serializer_class = serializers.NotificationTemplateUpdateSerializers
     override_permissions = [permissions.is_staff]
@@ -1013,15 +1013,15 @@ class NotificationTemplateViewSet(ActionsViewSet):
 class CommonMailFooterViewSet(viewsets.ModelViewSet):
     queryset = core_models.CommonMailFooter.objects.all()
     serializer_class = serializers.CommonMailFooterSerializer
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
     permission_classes = (core_permissions.IsAdminOrReadOnly,)
 
 
 class AuthTokenViewSet(ActionsViewSet):
     serializer_class = serializers.AuthTokenSerializers
-    lookup_field = 'user_id'
+    lookup_field = "user_id"
     filter_backends = []
-    disabled_actions = ['create', 'update', 'partial_update']
+    disabled_actions = ["create", "update", "partial_update"]
     permission_classes = (core_permissions.IsStaff,)
 
     def get_queryset(self):

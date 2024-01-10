@@ -16,91 +16,91 @@ import waldur_core.logging.loggers
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('waldur_azure', '0011_sql_collation'),
+        ("waldur_azure", "0011_sql_collation"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='SecurityGroup',
+            name="SecurityGroup",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=500, verbose_name='description'
+                        blank=True, max_length=500, verbose_name="description"
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('error_message', models.TextField(blank=True)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("error_message", models.TextField(blank=True)),
                 (
-                    'runtime_state',
+                    "runtime_state",
                     models.CharField(
-                        blank=True, max_length=150, verbose_name='runtime state'
+                        blank=True, max_length=150, verbose_name="runtime state"
                     ),
                 ),
                 (
-                    'state',
+                    "state",
                     django_fsm.FSMIntegerField(
                         choices=[
-                            (5, 'Creation Scheduled'),
-                            (6, 'Creating'),
-                            (1, 'Update Scheduled'),
-                            (2, 'Updating'),
-                            (7, 'Deletion Scheduled'),
-                            (8, 'Deleting'),
-                            (3, 'OK'),
-                            (4, 'Erred'),
+                            (5, "Creation Scheduled"),
+                            (6, "Creating"),
+                            (1, "Update Scheduled"),
+                            (2, "Updating"),
+                            (7, "Deletion Scheduled"),
+                            (8, "Deleting"),
+                            (3, "OK"),
+                            (4, "Erred"),
                         ],
                         default=5,
                     ),
                 ),
-                ('backend_id', models.CharField(blank=True, max_length=255)),
+                ("backend_id", models.CharField(blank=True, max_length=255)),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=80,
                         validators=[
                             django.core.validators.RegexValidator(
-                                message='The name can contain only letters, numbers, underscore, period and hyphens.',
-                                regex=re.compile('^[a-zA-Z][a-zA-Z0-9._-]+$'),
+                                message="The name can contain only letters, numbers, underscore, period and hyphens.",
+                                regex=re.compile("^[a-zA-Z][a-zA-Z0-9._-]+$"),
                             )
                         ],
                     ),
                 ),
                 (
-                    'resource_group',
+                    "resource_group",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='waldur_azure.ResourceGroup',
+                        to="waldur_azure.ResourceGroup",
                     ),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
             bases=(
                 waldur_core.core.models.DescendantMixin,
@@ -110,13 +110,13 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.AddField(
-            model_name='networkinterface',
-            name='security_group',
+            model_name="networkinterface",
+            name="security_group",
             field=models.ForeignKey(
                 blank=True,
                 null=True,
                 on_delete=django.db.models.deletion.SET_NULL,
-                to='waldur_azure.SecurityGroup',
+                to="waldur_azure.SecurityGroup",
             ),
         ),
     ]

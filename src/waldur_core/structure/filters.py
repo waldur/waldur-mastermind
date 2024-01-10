@@ -34,8 +34,8 @@ User = auth.get_user_model()
 
 
 class NameFilterSet(django_filters.FilterSet):
-    name = django_filters.CharFilter(lookup_expr='icontains')
-    name_exact = django_filters.CharFilter(field_name='name', lookup_expr='exact')
+    name = django_filters.CharFilter(lookup_expr="icontains")
+    name_exact = django_filters.CharFilter(field_name="name", lookup_expr="exact")
 
 
 class GenericRoleFilter(BaseFilterBackend):
@@ -46,7 +46,7 @@ class GenericRoleFilter(BaseFilterBackend):
 
 class GenericUserFilter(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
-        user_uuid = request.query_params.get('user_uuid')
+        user_uuid = request.query_params.get("user_uuid")
         if not user_uuid:
             return queryset
 
@@ -62,41 +62,41 @@ class GenericUserFilter(BaseFilterBackend):
 
 
 class CustomerFilter(NameFilterSet):
-    query = django_filters.CharFilter(method='filter_query')
-    native_name = django_filters.CharFilter(lookup_expr='icontains')
-    abbreviation = django_filters.CharFilter(lookup_expr='icontains')
-    contact_details = django_filters.CharFilter(lookup_expr='icontains')
+    query = django_filters.CharFilter(method="filter_query")
+    native_name = django_filters.CharFilter(lookup_expr="icontains")
+    abbreviation = django_filters.CharFilter(lookup_expr="icontains")
+    contact_details = django_filters.CharFilter(lookup_expr="icontains")
     division_uuid = django_filters.ModelMultipleChoiceFilter(
-        field_name='division__uuid',
-        label='division_uuid',
-        to_field_name='uuid',
+        field_name="division__uuid",
+        label="division_uuid",
+        to_field_name="uuid",
         queryset=models.Division.objects.all(),
     )
     division_name = django_filters.CharFilter(
-        field_name='division__name', lookup_expr='icontains'
+        field_name="division__name", lookup_expr="icontains"
     )
     division_type_uuid = django_filters.ModelMultipleChoiceFilter(
-        field_name='division__type__uuid',
-        label='division_type_uuid',
-        to_field_name='uuid',
+        field_name="division__type__uuid",
+        label="division_type_uuid",
+        to_field_name="uuid",
         queryset=models.DivisionType.objects.all(),
     )
 
     division_type_name = django_filters.CharFilter(
-        field_name='division__type__name', lookup_expr='icontains'
+        field_name="division__type__name", lookup_expr="icontains"
     )
 
     class Meta:
         model = models.Customer
         fields = [
-            'name',
-            'abbreviation',
-            'contact_details',
-            'native_name',
-            'registration_code',
-            'agreement_number',
-            'backend_id',
-            'archived',
+            "name",
+            "abbreviation",
+            "contact_details",
+            "native_name",
+            "registration_code",
+            "agreement_number",
+            "backend_id",
+            "archived",
         ]
 
     def filter_query(self, queryset, name, value):
@@ -116,7 +116,7 @@ class CustomerFilter(NameFilterSet):
 
 class OwnedByCurrentUserFilterBackend(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
-        value = request.query_params.get('owned_by_current_user')
+        value = request.query_params.get("owned_by_current_user")
         boolean_field = forms.NullBooleanField()
 
         try:
@@ -150,10 +150,10 @@ class CustomerAccountingStartDateFilter(BaseFilterBackend):
 
 
 def filter_by_accounting_is_running(request, queryset, query):
-    if not django_settings.WALDUR_CORE['ENABLE_ACCOUNTING_START_DATE']:
+    if not django_settings.WALDUR_CORE["ENABLE_ACCOUNTING_START_DATE"]:
         return queryset
 
-    value = request.query_params.get('accounting_is_running')
+    value = request.query_params.get("accounting_is_running")
     boolean_field = forms.NullBooleanField()
 
     try:
@@ -173,54 +173,54 @@ def filter_by_accounting_is_running(request, queryset, query):
 class ProjectTypeFilter(NameFilterSet):
     class Meta:
         model = models.ProjectType
-        fields = ['name']
+        fields = ["name"]
 
 
 class ProjectFilter(NameFilterSet):
     customer = django_filters.UUIDFilter(
-        field_name='customer__uuid',
+        field_name="customer__uuid",
         distinct=True,
     )
 
     customer_name = django_filters.CharFilter(
-        field_name='customer__name', distinct=True, lookup_expr='icontains'
+        field_name="customer__name", distinct=True, lookup_expr="icontains"
     )
 
     customer_native_name = django_filters.CharFilter(
-        field_name='customer__native_name', distinct=True, lookup_expr='icontains'
+        field_name="customer__native_name", distinct=True, lookup_expr="icontains"
     )
 
     customer_abbreviation = django_filters.CharFilter(
-        field_name='customer__abbreviation', distinct=True, lookup_expr='icontains'
+        field_name="customer__abbreviation", distinct=True, lookup_expr="icontains"
     )
 
-    description = django_filters.CharFilter(lookup_expr='icontains')
+    description = django_filters.CharFilter(lookup_expr="icontains")
 
-    query = django_filters.CharFilter(method='filter_query')
+    query = django_filters.CharFilter(method="filter_query")
 
     o = django_filters.OrderingFilter(
         fields=(
-            ('name', 'name'),
-            ('created', 'created'),
-            ('customer__name', 'customer_name'),
-            ('customer__native_name', 'customer_native_name'),
-            ('customer__abbreviation', 'customer_abbreviation'),
-            ('estimated_cost', 'estimated_cost'),
+            ("name", "name"),
+            ("created", "created"),
+            ("customer__name", "customer_name"),
+            ("customer__native_name", "customer_native_name"),
+            ("customer__abbreviation", "customer_abbreviation"),
+            ("estimated_cost", "estimated_cost"),
         )
     )
 
     class Meta:
         model = models.Project
         fields = [
-            'name',
-            'customer',
-            'customer_name',
-            'customer_native_name',
-            'customer_abbreviation',
-            'description',
-            'created',
-            'query',
-            'backend_id',
+            "name",
+            "customer",
+            "customer_name",
+            "customer_native_name",
+            "customer_abbreviation",
+            "description",
+            "created",
+            "query",
+            "backend_id",
         ]
 
     def filter_query(self, queryset, name, value):
@@ -242,7 +242,7 @@ class ProjectFilter(NameFilterSet):
 
 class CustomerUserFilter(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
-        customer_uuid = request.query_params.get('customer_uuid')
+        customer_uuid = request.query_params.get("customer_uuid")
         if not customer_uuid:
             return queryset
 
@@ -259,7 +259,7 @@ class CustomerUserFilter(BaseFilterBackend):
 
 class ProjectUserFilter(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
-        project_uuid = request.query_params.get('project_uuid')
+        project_uuid = request.query_params.get("project_uuid")
         if not project_uuid:
             return queryset
 
@@ -291,12 +291,12 @@ class UserFilterBackend(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
         user = request.user
 
-        if not django_settings.WALDUR_CORE.get('SHOW_ALL_USERS', False) and not (
+        if not django_settings.WALDUR_CORE.get("SHOW_ALL_USERS", False) and not (
             user.is_staff or user.is_support
         ):
             queryset = filter_visible_users(queryset, user, self.get_extra_q(user))
 
-        return queryset.order_by('username')
+        return queryset.order_by("username")
 
     _extra_query = []
 
@@ -319,16 +319,16 @@ class UserFilterBackend(BaseFilterBackend):
 
 class BaseUserFilter(django_filters.FilterSet):
     full_name = django_filters.CharFilter(
-        method='filter_by_full_name', label='Full name'
+        method="filter_by_full_name", label="Full name"
     )
     full_name_and_email = django_filters.CharFilter(
-        method='filter_by_full_name_and_email', label='Full name and email'
+        method="filter_by_full_name_and_email", label="Full name and email"
     )
     username = django_filters.CharFilter()
-    native_name = django_filters.CharFilter(lookup_expr='icontains')
-    organization = django_filters.CharFilter(lookup_expr='icontains')
-    job_title = django_filters.CharFilter(lookup_expr='icontains')
-    email = django_filters.CharFilter(lookup_expr='icontains')
+    native_name = django_filters.CharFilter(lookup_expr="icontains")
+    organization = django_filters.CharFilter(lookup_expr="icontains")
+    job_title = django_filters.CharFilter(lookup_expr="icontains")
+    email = django_filters.CharFilter(lookup_expr="icontains")
     is_active = django_filters.BooleanFilter(widget=BooleanWidget)
 
     def filter_by_full_name(self, queryset, name, value):
@@ -340,41 +340,41 @@ class BaseUserFilter(django_filters.FilterSet):
     class Meta:
         model = User
         fields = [
-            'full_name',
-            'full_name_and_email',
-            'native_name',
-            'organization',
-            'email',
-            'phone_number',
-            'description',
-            'job_title',
-            'username',
-            'civil_number',
-            'is_active',
-            'registration_method',
+            "full_name",
+            "full_name_and_email",
+            "native_name",
+            "organization",
+            "email",
+            "phone_number",
+            "description",
+            "job_title",
+            "username",
+            "civil_number",
+            "is_active",
+            "registration_method",
         ]
 
 
 class UserFilter(BaseUserFilter):
     is_staff = django_filters.BooleanFilter(widget=BooleanWidget)
     is_support = django_filters.BooleanFilter(widget=BooleanWidget)
-    username = django_filters.CharFilter(field_name='username', lookup_expr='exact')
-    query = django_filters.CharFilter(method='filter_query')
+    username = django_filters.CharFilter(field_name="username", lookup_expr="exact")
+    query = django_filters.CharFilter(method="filter_query")
 
     o = core_filters.ExtendedOrderingFilter(
         fields=(
-            (('first_name', 'last_name'), 'full_name'),
-            'native_name',
-            'email',
-            'phone_number',
-            'description',
-            'organization',
-            'job_title',
-            'username',
-            'is_active',
-            'registration_method',
-            'is_staff',
-            'is_support',
+            (("first_name", "last_name"), "full_name"),
+            "native_name",
+            "email",
+            "phone_number",
+            "description",
+            "organization",
+            "job_title",
+            "username",
+            "is_active",
+            "registration_method",
+            "is_staff",
+            "is_support",
         )
     )
 
@@ -399,49 +399,49 @@ class UserConcatenatedNameOrderingBackend(BaseFilterBackend):
         ).qs
 
     def _filter_queryset(self, request, queryset, view):
-        if 'o' not in request.query_params:
+        if "o" not in request.query_params:
             return queryset
-        if request.query_params['o'] == 'concatenated_name':
-            order_by = 'concatenated_name'
-        elif request.query_params['o'] == '-concatenated_name':
-            order_by = '-concatenated_name'
+        if request.query_params["o"] == "concatenated_name":
+            order_by = "concatenated_name"
+        elif request.query_params["o"] == "-concatenated_name":
+            order_by = "-concatenated_name"
         else:
             return queryset
         return queryset.annotate(
-            concatenated_name=Concat('first_name', 'last_name', 'username')
+            concatenated_name=Concat("first_name", "last_name", "username")
         ).order_by(order_by)
 
 
 class UserPermissionFilter(django_filters.FilterSet):
-    user = django_filters.UUIDFilter(field_name='user__uuid')
+    user = django_filters.UUIDFilter(field_name="user__uuid")
     user_url = core_filters.URLFilter(
-        view_name='user-detail',
-        field_name='user__uuid',
+        view_name="user-detail",
+        field_name="user__uuid",
     )
     username = django_filters.CharFilter(
-        field_name='user__username',
-        lookup_expr='exact',
+        field_name="user__username",
+        lookup_expr="exact",
     )
     full_name = django_filters.CharFilter(
-        method='filter_by_full_name', label='User full name contains'
+        method="filter_by_full_name", label="User full name contains"
     )
     native_name = django_filters.CharFilter(
-        field_name='user__native_name',
-        lookup_expr='icontains',
+        field_name="user__native_name",
+        lookup_expr="icontains",
     )
 
     def filter_by_full_name(self, queryset, name, value):
-        return core_filters.filter_by_full_name(queryset, value, 'user')
+        return core_filters.filter_by_full_name(queryset, value, "user")
 
     o = core_filters.ExtendedOrderingFilter(
         fields=(
-            ('user__username', 'username'),
-            (('user__first_name', 'user__last_name'), 'full_name'),
-            ('user__native_name', 'native_name'),
-            ('user__email', 'email'),
-            ('expiration_time', 'expiration_time'),
-            ('created', 'created'),
-            ('role', 'role'),
+            ("user__username", "username"),
+            (("user__first_name", "user__last_name"), "full_name"),
+            ("user__native_name", "native_name"),
+            ("user__email", "email"),
+            ("expiration_time", "expiration_time"),
+            ("created", "created"),
+            ("role", "role"),
         )
     )
 
@@ -451,9 +451,9 @@ class ProjectPermissionFilter(UserPermissionFilter):
         fields = []
         model = UserRole
 
-    customer = django_filters.UUIDFilter(method='filter_by_customer')
-    project = django_filters.UUIDFilter(method='filter_by_project')
-    role = django_filters.CharFilter(method='filter_by_role')
+    customer = django_filters.UUIDFilter(method="filter_by_customer")
+    project = django_filters.UUIDFilter(method="filter_by_project")
+    role = django_filters.CharFilter(method="filter_by_role")
 
     def filter_by_role(self, queryset, name, value):
         role_name = get_new_role_name(models.Project, value)
@@ -465,7 +465,7 @@ class ProjectPermissionFilter(UserPermissionFilter):
         except models.Customer.DoesNotExist:
             return queryset.none()
         return queryset.filter(
-            object_id__in=customer.projects.values_list('id', flat=True)
+            object_id__in=customer.projects.values_list("id", flat=True)
         )
 
     def filter_by_project(self, queryset, name, value):
@@ -481,8 +481,8 @@ class CustomerPermissionFilter(UserPermissionFilter):
         fields = []
         model = UserRole
 
-    customer = django_filters.UUIDFilter(method='filter_by_customer')
-    role = django_filters.CharFilter(method='filter_by_role')
+    customer = django_filters.UUIDFilter(method="filter_by_customer")
+    role = django_filters.CharFilter(method="filter_by_role")
 
     def filter_by_role(self, queryset, name, value):
         role_name = get_new_role_name(models.Customer, value)
@@ -497,31 +497,31 @@ class CustomerPermissionFilter(UserPermissionFilter):
 
 
 class CustomerPermissionReviewFilter(django_filters.FilterSet):
-    customer_uuid = django_filters.UUIDFilter(field_name='customer__uuid')
-    reviewer_uuid = django_filters.UUIDFilter(field_name='reviewer__uuid')
-    o = django_filters.OrderingFilter(fields=('created', 'closed'))
+    customer_uuid = django_filters.UUIDFilter(field_name="customer__uuid")
+    reviewer_uuid = django_filters.UUIDFilter(field_name="reviewer__uuid")
+    o = django_filters.OrderingFilter(fields=("created", "closed"))
 
     class Meta:
         model = models.CustomerPermissionReview
         fields = [
-            'is_pending',
+            "is_pending",
         ]
 
 
 class SshKeyFilter(NameFilterSet):
     uuid = django_filters.UUIDFilter()
-    user_uuid = django_filters.UUIDFilter(field_name='user__uuid')
+    user_uuid = django_filters.UUIDFilter(field_name="user__uuid")
 
-    o = django_filters.OrderingFilter(fields=('name',))
+    o = django_filters.OrderingFilter(fields=("name",))
 
     class Meta:
         model = core_models.SshPublicKey
         fields = [
-            'name',
-            'fingerprint',
-            'uuid',
-            'user_uuid',
-            'is_shared',
+            "name",
+            "fingerprint",
+            "uuid",
+            "user_uuid",
+            "is_shared",
         ]
 
 
@@ -534,18 +534,18 @@ class ServiceTypeFilter(django_filters.Filter):
 class ServiceSettingsFilter(NameFilterSet):
     type = ServiceTypeFilter()
     state = core_filters.StateFilter()
-    customer = django_filters.UUIDFilter(field_name='customer__uuid')
-    customer_uuid = django_filters.UUIDFilter(field_name='customer__uuid')
+    customer = django_filters.UUIDFilter(field_name="customer__uuid")
+    customer_uuid = django_filters.UUIDFilter(field_name="customer__uuid")
     scope_uuid = django_filters.UUIDFilter(
         method=core_filters.get_generic_field_filter(
             models.BaseResource.get_all_models()
         ),
-        label='Scope UUID',
+        label="Scope UUID",
     )
 
     class Meta:
         model = models.ServiceSettings
-        fields = ('name', 'type', 'state', 'shared', 'scope_uuid')
+        fields = ("name", "type", "state", "shared", "scope_uuid")
 
 
 class ServiceSettingsScopeFilterBackend(core_filters.GenericKeyFilterBackend):
@@ -553,45 +553,45 @@ class ServiceSettingsScopeFilterBackend(core_filters.GenericKeyFilterBackend):
         return models.BaseResource.get_all_models()
 
     def get_field_name(self):
-        return 'scope'
+        return "scope"
 
 
 class BaseResourceFilter(NameFilterSet):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.filters['o'] = django_filters.OrderingFilter(fields=self.ORDERING_FIELDS)
+        self.filters["o"] = django_filters.OrderingFilter(fields=self.ORDERING_FIELDS)
 
     # customer
-    customer = django_filters.UUIDFilter(field_name='project__customer__uuid')
-    customer_uuid = django_filters.UUIDFilter(field_name='project__customer__uuid')
+    customer = django_filters.UUIDFilter(field_name="project__customer__uuid")
+    customer_uuid = django_filters.UUIDFilter(field_name="project__customer__uuid")
     customer_name = django_filters.CharFilter(
-        field_name='project__customer__name',
-        lookup_expr='icontains',
+        field_name="project__customer__name",
+        lookup_expr="icontains",
     )
     customer_native_name = django_filters.CharFilter(
-        field_name='project__customer__native_name',
-        lookup_expr='icontains',
+        field_name="project__customer__native_name",
+        lookup_expr="icontains",
     )
     customer_abbreviation = django_filters.CharFilter(
-        field_name='project__customer__abbreviation',
-        lookup_expr='icontains',
+        field_name="project__customer__abbreviation",
+        lookup_expr="icontains",
     )
     # project
-    project = django_filters.UUIDFilter(field_name='project__uuid')
-    project_uuid = django_filters.UUIDFilter(field_name='project__uuid')
+    project = django_filters.UUIDFilter(field_name="project__uuid")
+    project_uuid = django_filters.UUIDFilter(field_name="project__uuid")
     project_name = django_filters.CharFilter(
-        field_name='project__name', lookup_expr='icontains'
+        field_name="project__name", lookup_expr="icontains"
     )
     # service settings
     service_settings_uuid = django_filters.UUIDFilter(
-        field_name='service_settings__uuid'
+        field_name="service_settings__uuid"
     )
     service_settings_name = django_filters.CharFilter(
-        field_name='service_settings__name',
-        lookup_expr='icontains',
+        field_name="service_settings__name",
+        lookup_expr="icontains",
     )
     # resource
-    description = django_filters.CharFilter(lookup_expr='icontains')
+    description = django_filters.CharFilter(lookup_expr="icontains")
     state = core_filters.MappedMultipleChoiceFilter(
         choices=[
             (representation, representation)
@@ -602,89 +602,89 @@ class BaseResourceFilter(NameFilterSet):
             for db_value, representation in core_models.StateMixin.States.CHOICES
         },
     )
-    uuid = django_filters.UUIDFilter(lookup_expr='exact')
-    backend_id = django_filters.CharFilter(field_name='backend_id', lookup_expr='exact')
+    uuid = django_filters.UUIDFilter(lookup_expr="exact")
+    backend_id = django_filters.CharFilter(field_name="backend_id", lookup_expr="exact")
     external_ip = core_filters.EmptyFilter()
 
     ORDERING_FIELDS = (
-        ('name', 'name'),
-        ('state', 'state'),
-        ('project__customer__name', 'customer_name'),
+        ("name", "name"),
+        ("state", "state"),
+        ("project__customer__name", "customer_name"),
         (
-            'project__customer__native_name',
-            'customer_native_name',
+            "project__customer__native_name",
+            "customer_native_name",
         ),
         (
-            'project__customer__abbreviation',
-            'customer_abbreviation',
+            "project__customer__abbreviation",
+            "customer_abbreviation",
         ),
-        ('project__name', 'project_name'),
-        ('service_settings__name', 'service_name'),
-        ('created', 'created'),
+        ("project__name", "project_name"),
+        ("service_settings__name", "service_name"),
+        ("created", "created"),
     )
 
     class Meta:
         model = models.BaseResource
         fields = (
             # customer
-            'customer',
-            'customer_uuid',
-            'customer_name',
-            'customer_native_name',
-            'customer_abbreviation',
+            "customer",
+            "customer_uuid",
+            "customer_name",
+            "customer_native_name",
+            "customer_abbreviation",
             # project
-            'project',
-            'project_uuid',
-            'project_name',
+            "project",
+            "project_uuid",
+            "project_name",
             # service settings
-            'service_settings_name',
-            'service_settings_uuid',
+            "service_settings_name",
+            "service_settings_uuid",
             # resource
-            'name',
-            'name_exact',
-            'description',
-            'state',
-            'uuid',
-            'backend_id',
+            "name",
+            "name_exact",
+            "description",
+            "state",
+            "uuid",
+            "backend_id",
         )
 
 
 class StartTimeFilter(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
         order_by = get_ordering(request)
-        if order_by not in ('start_time', '-start_time'):
+        if order_by not in ("start_time", "-start_time"):
             return queryset
         return order_with_nulls(queryset, order_by)
 
 
 class BaseServicePropertyFilter(NameFilterSet):
     class Meta:
-        fields = ('name',)
+        fields = ("name",)
 
 
 class ServicePropertySettingsFilter(BaseServicePropertyFilter):
-    settings_uuid = django_filters.UUIDFilter(field_name='settings__uuid')
+    settings_uuid = django_filters.UUIDFilter(field_name="settings__uuid")
     settings = core_filters.URLFilter(
-        view_name='servicesettings-detail', field_name='settings__uuid', distinct=True
+        view_name="servicesettings-detail", field_name="settings__uuid", distinct=True
     )
 
     class Meta(BaseServicePropertyFilter.Meta):
-        fields = BaseServicePropertyFilter.Meta.fields + ('settings',)
+        fields = BaseServicePropertyFilter.Meta.fields + ("settings",)
 
 
 class DivisionFilter(NameFilterSet):
-    type = django_filters.CharFilter(field_name='type__name', lookup_expr='iexact')
-    type_uuid = django_filters.UUIDFilter(field_name='type__uuid')
+    type = django_filters.CharFilter(field_name="type__name", lookup_expr="iexact")
+    type_uuid = django_filters.UUIDFilter(field_name="type__uuid")
     type_url = core_filters.URLFilter(
-        view_name='division-type-detail',
-        field_name='type__uuid',
+        view_name="division-type-detail",
+        field_name="type__uuid",
     )
-    parent = django_filters.UUIDFilter(field_name='parent__uuid')
+    parent = django_filters.UUIDFilter(field_name="parent__uuid")
 
     class Meta:
         model = models.Division
         fields = [
-            'name',
+            "name",
         ]
 
 
@@ -692,21 +692,21 @@ class DivisionTypesFilter(NameFilterSet):
     class Meta:
         model = models.DivisionType
         fields = [
-            'name',
+            "name",
         ]
 
 
 class UserRolesFilter(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
         customer = view.get_object()
-        project_roles = request.query_params.getlist('project_role')
-        organization_roles = request.query_params.getlist('organization_role')
+        project_roles = request.query_params.getlist("project_role")
+        organization_roles = request.query_params.getlist("organization_role")
 
         query = Q()
 
         if project_roles:
             # Filter project permissions by current customer
-            projects = customer.projects.values_list('id', flat=True)
+            projects = customer.projects.values_list("id", flat=True)
             project_roles = [
                 get_new_role_name(models.Project, role) for role in project_roles
             ]
@@ -727,37 +727,37 @@ class UserRolesFilter(BaseFilterBackend):
 class ProjectEstimatedCostFilter(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
         order_by = get_ordering(request)
-        if order_by not in ('estimated_cost', '-estimated_cost'):
+        if order_by not in ("estimated_cost", "-estimated_cost"):
             return queryset
 
         ct = ContentType.objects.get_for_model(models.Project)
         estimates = billing_models.PriceEstimate.objects.filter(
-            content_type=ct, object_id=OuterRef('pk')
+            content_type=ct, object_id=OuterRef("pk")
         )
         queryset = queryset.annotate(
-            estimated_cost=Subquery(estimates.values('total')[:1])
+            estimated_cost=Subquery(estimates.values("total")[:1])
         )
         return order_with_nulls(queryset, order_by)
 
 
 class NotificationTemplateFilter(NameFilterSet):
-    path = django_filters.CharFilter(lookup_expr='icontains')
-    path_exact = django_filters.CharFilter(field_name='path', lookup_expr='exact')
+    path = django_filters.CharFilter(lookup_expr="icontains")
+    path_exact = django_filters.CharFilter(field_name="path", lookup_expr="exact")
 
     class Meta:
         model = core_models.NotificationTemplate
         fields = [
-            'name',
-            'path',
+            "name",
+            "path",
         ]
 
 
 class NotificationFilter(NameFilterSet):
-    query = django_filters.CharFilter(method='filter_query')
+    query = django_filters.CharFilter(method="filter_query")
 
     class Meta:
         model = core_models.Notification
-        fields = ['key', 'description']
+        fields = ["key", "description"]
 
     def filter_query(self, queryset, name, value):
         query = queryset.filter(

@@ -7,7 +7,7 @@ from . import models
 
 class TestServiceSerializer(structure_serializers.ServiceOptionsSerializer):
     class Meta:
-        secret_fields = ('backend_url', 'username', 'password')
+        secret_fields = ("backend_url", "username", "password")
 
     backend_url = serializers.CharField(
         max_length=200,
@@ -18,13 +18,13 @@ class TestServiceSerializer(structure_serializers.ServiceOptionsSerializer):
     password = serializers.CharField(max_length=100)
 
     tenant_name = serializers.CharField(
-        source='options.tenant_name',
-        default='admin',
+        source="options.tenant_name",
+        default="admin",
         required=False,
     )
 
     availability_zone = serializers.CharField(
-        source='options.availability_zone',
+        source="options.availability_zone",
         required=False,
     )
 

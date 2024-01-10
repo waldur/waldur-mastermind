@@ -19,21 +19,21 @@ def get_structure_allocations(structure):
         return []
 
 
-@shared_task(name='waldur_slurm.add_user')
+@shared_task(name="waldur_slurm.add_user")
 def add_user(serialized_profile):
     profile = core_utils.deserialize_instance(serialized_profile)
     for allocation in utils.get_profile_allocations(profile):
         allocation.get_backend().add_user(allocation, profile.user, profile.username)
 
 
-@shared_task(name='waldur_slurm.delete_user')
+@shared_task(name="waldur_slurm.delete_user")
 def delete_user(serialized_profile):
     profile = core_utils.deserialize_instance(serialized_profile)
     for allocation in utils.get_profile_allocations(profile):
         allocation.get_backend().delete_user(allocation, profile.user, profile.username)
 
 
-@shared_task(name='waldur_slurm.process_role_granted')
+@shared_task(name="waldur_slurm.process_role_granted")
 def process_role_granted(serialized_profile, serialized_structure):
     profile = core_utils.deserialize_instance(serialized_profile)
     structure = core_utils.deserialize_instance(serialized_structure)
@@ -44,7 +44,7 @@ def process_role_granted(serialized_profile, serialized_structure):
         allocation.get_backend().add_user(allocation, profile.user, profile.username)
 
 
-@shared_task(name='waldur_slurm.process_role_revoked')
+@shared_task(name="waldur_slurm.process_role_revoked")
 def process_role_revoked(serialized_profile, serialized_structure):
     profile = core_utils.deserialize_instance(serialized_profile)
     structure = core_utils.deserialize_instance(serialized_structure)
@@ -55,7 +55,7 @@ def process_role_revoked(serialized_profile, serialized_structure):
         allocation.get_backend().delete_user(allocation, profile.user, profile.username)
 
 
-@shared_task(name='waldur_slurm.add_allocation_users')
+@shared_task(name="waldur_slurm.add_allocation_users")
 def add_allocation_users(serialized_allocation):
     allocation = core_utils.deserialize_instance(serialized_allocation)
     backend = allocation.get_backend()

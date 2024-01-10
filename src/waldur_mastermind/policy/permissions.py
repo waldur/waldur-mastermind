@@ -13,7 +13,7 @@ class StaffAndOwnerHaveFullPermissionsProjectTeamOnlyRead(BasePermission):
         if user.is_staff:
             return True
 
-        if view.action not in ['update', 'partial_update', 'destroy']:
+        if view.action not in ["update", "partial_update", "destroy"]:
             return True
 
         customer = view.get_object().project.customer

@@ -10,10 +10,10 @@ from waldur_mastermind.marketplace.models import Offering
 
 class ProjectUpdateRequest(UuidMixin, ReviewMixin):
     class Meta:
-        ordering = ['created']
+        ordering = ["created"]
 
-    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='+')
-    offering = models.ForeignKey(Offering, on_delete=models.CASCADE, related_name='+')
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="+")
+    offering = models.ForeignKey(Offering, on_delete=models.CASCADE, related_name="+")
     tracker = FieldTracker()
     old_name = models.CharField(max_length=PROJECT_NAME_LENGTH, blank=True)
     new_name = models.CharField(max_length=PROJECT_NAME_LENGTH, blank=True)
@@ -28,7 +28,7 @@ class ProjectUpdateRequest(UuidMixin, ReviewMixin):
     created_by = models.ForeignKey(
         on_delete=models.CASCADE,
         to=settings.AUTH_USER_MODEL,
-        related_name='+',
+        related_name="+",
         blank=True,
         null=True,
     )
@@ -40,5 +40,5 @@ class ProjectUpdateRequest(UuidMixin, ReviewMixin):
         return Project.OECD_FOS_2007_CODES_DICT.get(self.new_oecd_fos_2007_code)
 
     class Permissions:
-        customer_path = 'offering__customer'
-        project_path = 'project'
+        customer_path = "offering__customer"
+        project_path = "project"

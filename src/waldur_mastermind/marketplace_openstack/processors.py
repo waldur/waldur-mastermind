@@ -13,13 +13,13 @@ from . import utils
 class TenantCreateProcessor(processors.BaseCreateResourceProcessor):
     viewset = views.MarketplaceTenantViewSet
     fields = (
-        'name',
-        'description',
-        'user_username',
-        'user_password',
-        'subnet_cidr',
-        'skip_connection_extnet',
-        'availability_zone',
+        "name",
+        "description",
+        "user_username",
+        "user_password",
+        "subnet_cidr",
+        "skip_connection_extnet",
+        "availability_zone",
     )
 
     def get_post_data(self):
@@ -41,7 +41,7 @@ class TenantUpdateProcessor(processors.UpdateScopedResourceProcessor):
             signals.resource_limit_update_failed.send(
                 sender=self.order.resource.__class__,
                 order=self.order,
-                message=_('Limit updating is available only for tenants.'),
+                message=_("Limit updating is available only for tenants."),
             )
             return
 
@@ -60,23 +60,23 @@ class InstanceCreateProcessor(processors.BaseCreateResourceProcessor):
     viewset = tenant_views.MarketplaceInstanceViewSet
 
     fields = (
-        'name',
-        'description',
-        'flavor',
-        'image',
-        'security_groups',
-        'server_group',
-        'internal_ips_set',
-        'floating_ips',
-        'system_volume_size',
-        'system_volume_type',
-        'data_volume_size',
-        'data_volume_type',
-        'volumes',
-        'ssh_public_key',
-        'user_data',
-        'availability_zone',
-        'connect_directly_to_external_network',
+        "name",
+        "description",
+        "flavor",
+        "image",
+        "security_groups",
+        "server_group",
+        "internal_ips_set",
+        "floating_ips",
+        "system_volume_size",
+        "system_volume_type",
+        "data_volume_size",
+        "data_volume_type",
+        "volumes",
+        "ssh_public_key",
+        "user_data",
+        "availability_zone",
+        "connect_directly_to_external_network",
     )
 
 
@@ -88,12 +88,12 @@ class VolumeCreateProcessor(processors.BaseCreateResourceProcessor):
     viewset = tenant_views.MarketplaceVolumeViewSet
 
     fields = (
-        'name',
-        'description',
-        'image',
-        'size',
-        'availability_zone',
-        'type',
+        "name",
+        "description",
+        "image",
+        "size",
+        "availability_zone",
+        "type",
     )
 
 

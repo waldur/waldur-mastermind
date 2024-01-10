@@ -7,15 +7,15 @@ from waldur_slurm import models
 
 
 class SlurmServiceSettingsFactory(ServiceSettingsFactory):
-    type = 'SLURM'
+    type = "SLURM"
 
 
 class AllocationFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Allocation
 
-    name = factory.Sequence(lambda n: 'allocation%s' % n)
-    backend_id = factory.Sequence(lambda n: 'allocation-id%s' % n)
+    name = factory.Sequence(lambda n: "allocation%s" % n)
+    backend_id = factory.Sequence(lambda n: "allocation-id%s" % n)
     service_settings = factory.SubFactory(SlurmServiceSettingsFactory)
     project = factory.SubFactory(ProjectFactory)
 
@@ -28,14 +28,14 @@ class AllocationFactory(factory.django.DjangoModelFactory):
     def get_url(cls, allocation=None, action=None):
         if allocation is None:
             allocation = AllocationFactory()
-        url = 'http://testserver' + reverse(
-            'slurm-allocation-detail', kwargs={'uuid': allocation.uuid.hex}
+        url = "http://testserver" + reverse(
+            "slurm-allocation-detail", kwargs={"uuid": allocation.uuid.hex}
         )
-        return url if action is None else url + action + '/'
+        return url if action is None else url + action + "/"
 
     @classmethod
     def get_list_url(cls):
-        return 'http://testserver' + reverse('slurm-allocation-list')
+        return "http://testserver" + reverse("slurm-allocation-list")
 
 
 class AssociationFactory(factory.django.DjangoModelFactory):
@@ -48,10 +48,10 @@ class AssociationFactory(factory.django.DjangoModelFactory):
     def get_url(cls, association=None):
         if association is None:
             association = AssociationFactory()
-        return 'http://testserver' + reverse(
-            'slurm-association-detail', kwargs={'uuid': association.uuid.hex}
+        return "http://testserver" + reverse(
+            "slurm-association-detail", kwargs={"uuid": association.uuid.hex}
         )
 
     @classmethod
     def get_list_url(cls):
-        return 'http://testserver' + reverse('slurm-association-list')
+        return "http://testserver" + reverse("slurm-association-list")

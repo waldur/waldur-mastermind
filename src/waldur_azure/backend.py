@@ -137,13 +137,13 @@ class AzureBackend(ServiceBackend):
                 for image_wrapper in islice(
                     self.client.list_virtual_machine_images(
                         location.backend_id,
-                        ['MicrosoftSQLServer', 'Debian', 'Canonical'],
+                        ["MicrosoftSQLServer", "Debian", "Canonical"],
                     ),
                     10,
                 )
             }
         except HttpResponseError as e:
-            if e.error.code == 'NoRegisteredProviderFound':
+            if e.error.code == "NoRegisteredProviderFound":
                 backend_images = {}
             else:
                 raise AzureBackendError(e)
@@ -168,7 +168,7 @@ class AzureBackend(ServiceBackend):
                 publisher=backend_image.publisher_name,
                 sku=backend_image.sku_name,
                 version=backend_image.version_name,
-                name=f'{backend_image.offer_name} {backend_image.version_name}',
+                name=f"{backend_image.offer_name} {backend_image.version_name}",
                 settings=self.settings,
                 location=location,
             )
@@ -192,8 +192,8 @@ class AzureBackend(ServiceBackend):
                 for size in self.client.list_virtual_machine_sizes(location.backend_id)
             }
         except HttpResponseError as e:
-            if e.error.code == 'NoRegisteredProviderFound':
-                logger.warning('Unable to fetch sizes for Azure, %s', e)
+            if e.error.code == "NoRegisteredProviderFound":
+                logger.warning("Unable to fetch sizes for Azure, %s", e)
                 return
             else:
                 raise AzureBackendError(e)
@@ -236,7 +236,7 @@ class AzureBackend(ServiceBackend):
                 continue
             cached_zones = models.SizeAvailabilityZone.objects.filter(
                 size__name=size_name, location=location
-            ).values_list('zone', flat=True)
+            ).values_list("zone", flat=True)
             new_zones = set(backend_zones) - set(cached_zones)
             for zone in new_zones:
                 models.SizeAvailabilityZone.objects.create(
@@ -297,7 +297,7 @@ class AzureBackend(ServiceBackend):
         # Storage SDK does not support create_or_update logic, so reimplementing it
         exists = (
             not self.client.storage_client.storage_accounts.check_name_availability(
-                {'name': storage_account.name}
+                {"name": storage_account.name}
             ).name_available
         )
         if not exists:
@@ -370,10 +370,10 @@ class AzureBackend(ServiceBackend):
             size_name=vm.size.name,
             nic_id=vm.network_interface.backend_id,
             image_reference={
-                'sku': vm.image.sku,
-                'publisher': vm.image.publisher,
-                'version': vm.image.version,
-                'offer': vm.image.offer,
+                "sku": vm.image.sku,
+                "publisher": vm.image.publisher,
+                "version": vm.image.version,
+                "offer": vm.image.offer,
             },
             username=vm.username,
             password=vm.password,
@@ -383,7 +383,7 @@ class AzureBackend(ServiceBackend):
         backend_vm = poller.result()
         vm.backend_id = backend_vm.id
         vm.runtime_state = self.get_virtual_machine_runtime_state(backend_vm)
-        vm.save(update_fields=['backend_id', 'runtime_state'])
+        vm.save(update_fields=["backend_id", "runtime_state"])
 
     def start_virtual_machine(self, virtual_machine):
         poller = self.client.start_virtual_machine(
@@ -419,16 +419,16 @@ class AzureBackend(ServiceBackend):
     def get_importable_virtual_machines(self):
         virtual_machines = [
             {
-                'name': vm.name,
-                'backend_id': vm.id,
+                "name": vm.name,
+                "backend_id": vm.id,
             }
             for vm in self.client.list_all_virtual_machines()
         ]
         return self.get_importable_resources(models.VirtualMachine, virtual_machines)
 
     def import_virtual_machine(self, backend_id, project):
-        resource_group_name = backend_id.split('/')[4]
-        vm_name = backend_id.split('/')[-1]
+        resource_group_name = backend_id.split("/")[4]
+        vm_name = backend_id.split("/")[-1]
         backend_vm = self.client.get_virtual_machine(resource_group_name, vm_name)
 
         location = models.Location.objects.get(
@@ -480,14 +480,14 @@ class AzureBackend(ServiceBackend):
                 backend_id=network_interface_id,
             )
         except ObjectDoesNotExist:
-            network_interface_name = network_interface_id.split('/')[-1]
+            network_interface_name = network_interface_id.split("/")[-1]
             backend_interface = self.client.get_network_interface(
                 resource_group.name, network_interface_name
             )
 
             subnet_id = backend_interface.ip_configurations[0].subnet.id
-            subnet_name = subnet_id.split('/')[-1]
-            network_name = subnet_id.split('/')[-3]
+            subnet_name = subnet_id.split("/")[-1]
+            network_name = subnet_id.split("/")[-3]
 
             backend_network = self.client.get_network(resource_group.name, network_name)
             network = models.Network.objects.create(
@@ -516,7 +516,7 @@ class AzureBackend(ServiceBackend):
 
             public_ip_address_name = backend_interface.ip_configurations[
                 0
-            ].public_ip_address.id.split('/')[-1]
+            ].public_ip_address.id.split("/")[-1]
             backend_public_ip = self.client.get_public_ip(
                 resource_group.name, public_ip_address_name
             )
@@ -549,14 +549,14 @@ class AzureBackend(ServiceBackend):
         new_runtime_state = self.get_virtual_machine_runtime_state(backend_vm)
         if new_runtime_state != local_vm.runtime_state:
             local_vm.runtime_state = new_runtime_state
-            local_vm.save(update_fields=['runtime_state'])
+            local_vm.save(update_fields=["runtime_state"])
 
     def get_virtual_machine_runtime_state(self, backend_vm):
         if backend_vm.instance_view is None:
-            return ''
+            return ""
         for status in backend_vm.instance_view.statuses:
-            key, val = status.code.split('/')
-            if key == 'PowerState':
+            key, val = status.code.split("/")
+            if key == "PowerState":
                 return val
 
     def create_ssh_security_group(self, network_security_group):
@@ -605,10 +605,10 @@ class AzureBackend(ServiceBackend):
             password=server.password,
             storage_mb=server.storage_mb,
             sku={
-                'name': 'B_Gen5_1',
-                'tier': 'Basic',
-                'family': 'Gen5',
-                'capacity': 1,
+                "name": "B_Gen5_1",
+                "tier": "Basic",
+                "family": "Gen5",
+                "capacity": 1,
             },
         )
         server.backend_id = backend_server.id
@@ -618,9 +618,9 @@ class AzureBackend(ServiceBackend):
         self.client.create_sql_firewall_rule(
             resource_group_name=server.resource_group.name,
             server_name=server.name,
-            firewall_rule_name=f'firewall{server.name}',
-            start_ip_address='0.0.0.0',  # noqa: S104
-            end_ip_address='255.255.255.255',
+            firewall_rule_name=f"firewall{server.name}",
+            start_ip_address="0.0.0.0",  # noqa: S104
+            end_ip_address="255.255.255.255",
         )
 
     def delete_pgsql_server(self, server):

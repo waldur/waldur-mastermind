@@ -13,7 +13,7 @@ def get_factory(scope):
 
 def client_list_users(client, current_user, scope):
     client.force_authenticate(user=current_user)
-    url = get_factory(scope).get_url(scope) + 'list_users/'
+    url = get_factory(scope).get_url(scope) + "list_users/"
     return client.get(url)
 
 
@@ -22,11 +22,11 @@ def client_add_user(
 ):
     client.force_authenticate(user=current_user)
     return client.post(
-        get_factory(scope).get_url(scope) + 'add_user/',
+        get_factory(scope).get_url(scope) + "add_user/",
         {
-            'user': target_user.uuid,
-            'role': role.uuid,
-            'expiration_time': expiration_time,
+            "user": target_user.uuid,
+            "role": role.uuid,
+            "expiration_time": expiration_time,
         },
     )
 
@@ -36,11 +36,11 @@ def client_update_user(
 ):
     client.force_authenticate(user=current_user)
     return client.post(
-        get_factory(scope).get_url(scope) + 'update_user/',
+        get_factory(scope).get_url(scope) + "update_user/",
         {
-            'user': target_user.uuid,
-            'role': role.uuid,
-            'expiration_time': expiration_time,
+            "user": target_user.uuid,
+            "role": role.uuid,
+            "expiration_time": expiration_time,
         },
     )
 
@@ -48,9 +48,9 @@ def client_update_user(
 def client_delete_user(client, current_user, target_user, scope, role):
     client.force_authenticate(user=current_user)
     return client.post(
-        get_factory(scope).get_url(scope) + 'delete_user/',
+        get_factory(scope).get_url(scope) + "delete_user/",
         {
-            'user': target_user.uuid,
-            'role': role.uuid,
+            "user": target_user.uuid,
+            "role": role.uuid,
         },
     )

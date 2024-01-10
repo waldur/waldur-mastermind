@@ -59,11 +59,11 @@ class OfferingPullTask(BackgroundPullTask):
         self.sync_access_endpoints(local_offering, remote_offering)
 
     def sync_access_endpoints(self, local_offering, remote_offering):
-        if not remote_offering.get('endpoints'):
+        if not remote_offering.get("endpoints"):
             return
-        remote_endpoints = remote_offering['endpoints']
+        remote_endpoints = remote_offering["endpoints"]
         local_endpoints = local_offering.endpoints.all()
-        remote_endpoints_map = {item['url']: item for item in remote_endpoints}
+        remote_endpoints_map = {item["url"]: item for item in remote_endpoints}
         local_endpoint_urls = {item.url for item in local_endpoints}
 
         new_urls = set(remote_endpoints_map.keys()) - local_endpoint_urls
@@ -73,7 +73,7 @@ class OfferingPullTask(BackgroundPullTask):
         if stale_urls:
             local_offering.endpoints.filter(url__in=stale_urls).delete()
             logger.info(
-                'Endpoints %s of offering %s have been deleted',
+                "Endpoints %s of offering %s have been deleted",
                 stale_urls,
                 local_offering,
             )
@@ -81,7 +81,7 @@ class OfferingPullTask(BackgroundPullTask):
         for new_url in new_urls:
             models.OfferingAccessEndpoint.objects.create(
                 url=new_url,
-                name=remote_endpoints_map[new_url]['name'],
+                name=remote_endpoints_map[new_url]["name"],
                 offering=local_offering,
             )
 
@@ -89,16 +89,16 @@ class OfferingPullTask(BackgroundPullTask):
             endpoint: models.OfferingAccessEndpoint = local_offering.endpoints.get(
                 url=existing_url
             )
-            if endpoint.name != remote_endpoints_map[existing_url]['name']:
-                endpoint.name = remote_endpoints_map[existing_url]['name']
-                endpoint.save(update_fields=['name'])
+            if endpoint.name != remote_endpoints_map[existing_url]["name"]:
+                endpoint.name = remote_endpoints_map[existing_url]["name"]
+                endpoint.save(update_fields=["name"])
 
     def sync_offering_components(
         self, local_offering: models.Offering, remote_offering
     ):
-        remote_components = remote_offering['components']
+        remote_components = remote_offering["components"]
         local_components = local_offering.components.all()
-        remote_component_types_map = {item['type']: item for item in remote_components}
+        remote_component_types_map = {item["type"]: item for item in remote_components}
         local_component_types = [item.type for item in local_components]
 
         new_component_types = set(remote_component_types_map.keys()) - set(
@@ -113,7 +113,7 @@ class OfferingPullTask(BackgroundPullTask):
         if stale_component_types:
             local_offering.components.filter(type__in=stale_component_types).delete()
             logger.info(
-                'Components %s of offering %s have been deleted',
+                "Components %s of offering %s have been deleted",
                 stale_component_types,
                 local_offering,
             )
@@ -121,7 +121,7 @@ class OfferingPullTask(BackgroundPullTask):
         utils.import_offering_components(
             local_offering,
             {
-                'components': [
+                "components": [
                     comp
                     for comp_type, comp in remote_component_types_map.items()
                     if comp_type in new_component_types
@@ -136,7 +136,7 @@ class OfferingPullTask(BackgroundPullTask):
             )
             pull_fields(OFFERING_COMPONENT_FIELDS, local_component, remote_component)
             logger.info(
-                'Component %s for offering %s has been updated',
+                "Component %s for offering %s has been updated",
                 existing_component_type,
                 local_offering,
             )
@@ -146,10 +146,10 @@ class OfferingPullTask(BackgroundPullTask):
         Sync plans for an existing offering
         """
         local_plans = models.Plan.objects.filter(offering=local_offering)
-        remote_plans = remote_offering['plans']
+        remote_plans = remote_offering["plans"]
 
         local_plan_uuids = [item.backend_id for item in local_plans]
-        remote_plans_map = {item['uuid']: item for item in remote_plans}
+        remote_plans_map = {item["uuid"]: item for item in remote_plans}
 
         new_plans = set(remote_plans_map.keys()) - set(local_plan_uuids)
         stale_plans = set(local_plan_uuids) - set(remote_plans_map.keys())
@@ -159,7 +159,7 @@ class OfferingPullTask(BackgroundPullTask):
             stale_plan.archived = True
             stale_plan.save()
             logger.info(
-                'Plan %s of offering %s has been archived',
+                "Plan %s of offering %s has been archived",
                 stale_plan,
                 local_offering,
             )
@@ -168,8 +168,8 @@ class OfferingPullTask(BackgroundPullTask):
             item.type: item for item in local_offering.components.all()
         }
         new_remote_plans = {
-            'plans': [
-                item for item in remote_offering['plans'] if item['uuid'] in new_plans
+            "plans": [
+                item for item in remote_offering["plans"] if item["uuid"] in new_plans
             ]
         }
         utils.import_plans(local_offering, new_remote_plans, local_components_map)
@@ -185,7 +185,7 @@ class OfferingPullTask(BackgroundPullTask):
 
             if updated_fields:
                 logger.info(
-                    'Plan %s for offering %s has been updated',
+                    "Plan %s for offering %s has been updated",
                     local_plan.name,
                     local_offering,
                 )
@@ -198,10 +198,10 @@ class OfferingPullTask(BackgroundPullTask):
         local_offering = local_plan.offering
         local_offering_components = local_offering.components
         local_plan_components = set(
-            local_plan.components.all().values_list('component__type', flat=True)
+            local_plan.components.all().values_list("component__type", flat=True)
         )
-        remote_prices = remote_plan['prices']
-        remote_quotas = remote_plan['quotas']
+        remote_prices = remote_plan["prices"]
+        remote_quotas = remote_plan["quotas"]
         remote_plan_components = set(remote_prices.keys()) | set(remote_quotas.keys())
 
         new_plan_components = remote_plan_components - local_plan_components
@@ -216,7 +216,7 @@ class OfferingPullTask(BackgroundPullTask):
                 amount=remote_quotas[component_type],
             )
             logger.info(
-                'Plan component %s of offering %s has been created',
+                "Plan component %s of offering %s has been created",
                 plan_component,
                 local_plan.offering,
             )
@@ -229,24 +229,24 @@ class OfferingPullTask(BackgroundPullTask):
                 component=local_component
             )
             changed_fields = pull_fields(
-                ['price', 'amount'],
+                ["price", "amount"],
                 local_plan_component,
                 {
-                    'price': remote_prices[existing_plan_component],
-                    'amount': remote_quotas[existing_plan_component],
+                    "price": remote_prices[existing_plan_component],
+                    "amount": remote_quotas[existing_plan_component],
                 },
             )
 
             if changed_fields:
                 logger.info(
-                    'Plan component %s of offering %s has been updated',
+                    "Plan component %s of offering %s has been updated",
                     existing_plan_component,
                     local_offering,
                 )
 
 
 class OfferingListPullTask(BackgroundListPullTask):
-    name = 'waldur_mastermind.marketplace_remote.pull_offerings'
+    name = "waldur_mastermind.marketplace_remote.pull_offerings"
     pull_task = OfferingPullTask
 
     def get_pulled_objects(self):
@@ -257,9 +257,9 @@ class OfferingUserPullTask(BackgroundPullTask):
     def pull(self, local_offering):
         client = get_client_for_offering(local_offering)
         remote_offering_users = {
-            remote_offering_user['user_username']: remote_offering_user['username']
+            remote_offering_user["user_username"]: remote_offering_user["username"]
             for remote_offering_user in client.list_remote_offering_users(
-                {'offering_uuid': local_offering.backend_id}
+                {"offering_uuid": local_offering.backend_id}
             )
         }
         local_offering_users = {
@@ -278,8 +278,8 @@ class OfferingUserPullTask(BackgroundPullTask):
         for local_username in missing:
             if local_username not in user_map:
                 logger.debug(
-                    'Skipping missing offering user synchronization because user '
-                    'with username %s is not available in the local database.',
+                    "Skipping missing offering user synchronization because user "
+                    "with username %s is not available in the local database.",
                     local_username,
                 )
                 continue
@@ -308,11 +308,11 @@ class OfferingUserPullTask(BackgroundPullTask):
                 user=user, offering=local_offering
             )
             offering_user.username = remote_username
-            offering_user.save(update_fields=['username'])
+            offering_user.save(update_fields=["username"])
 
 
 class OfferingUserListPullTask(BackgroundListPullTask):
-    name = 'waldur_mastermind.marketplace_remote.pull_offering_users'
+    name = "waldur_mastermind.marketplace_remote.pull_offering_users"
     pull_task = OfferingUserPullTask
 
     def get_pulled_objects(self):
@@ -328,22 +328,22 @@ class ResourcePullTask(BackgroundPullTask):
             local_resource,
             remote_resource,
         )
-        if local_resource.effective_id != remote_resource['backend_id']:
-            local_resource.effective_id = remote_resource['backend_id']
-            local_resource.save(update_fields=['effective_id'])
+        if local_resource.effective_id != remote_resource["backend_id"]:
+            local_resource.effective_id = remote_resource["backend_id"]
+            local_resource.save(update_fields=["effective_id"])
         # When pulling resource, if remote state is different from local, import remote orders.
         utils.import_resource_orders(local_resource)
-        if utils.parse_resource_state(remote_resource['state']) != local_resource.state:
+        if utils.parse_resource_state(remote_resource["state"]) != local_resource.state:
             utils.pull_resource_state(local_resource)
 
 
 class ResourceListPullTask(BackgroundListPullTask):
-    name = 'waldur_mastermind.marketplace_remote.pull_resources'
+    name = "waldur_mastermind.marketplace_remote.pull_resources"
     pull_task = ResourcePullTask
 
     def get_pulled_objects(self):
         return models.Resource.objects.filter(offering__type=PLUGIN_NAME).exclude(
-            backend_id=''
+            backend_id=""
         )
 
 
@@ -362,17 +362,17 @@ class OrderPullTask(BackgroundPullTask):
         client = get_client_for_offering(local_order.offering)
         remote_order = client.get_order(local_order.backend_id)
 
-        if remote_order['state'] != local_order.get_state_display():
-            new_state = OrderInvertStates[remote_order['state']]
+        if remote_order["state"] != local_order.get_state_display():
+            new_state = OrderInvertStates[remote_order["state"]]
             sync_order_state(local_order, new_state)
 
         # resource_uuid is resource.backend_uuid
-        effective_id = remote_order.get('resource_uuid') or ''
+        effective_id = remote_order.get("resource_uuid") or ""
         if local_order.resource.effective_id != effective_id:
             local_order.resource.effective_id = effective_id
-            local_order.resource.save(update_fields=['effective_id'])
+            local_order.resource.save(update_fields=["effective_id"])
 
-        pull_fields(('error_message',), local_order, remote_order)
+        pull_fields(("error_message",), local_order, remote_order)
 
 
 class OrderStatePullTask(OrderPullTask):
@@ -384,14 +384,14 @@ class OrderStatePullTask(OrderPullTask):
 
 
 class OrderListPullTask(BackgroundListPullTask):
-    name = 'waldur_mastermind.marketplace_remote.pull_orders'
+    name = "waldur_mastermind.marketplace_remote.pull_orders"
     pull_task = OrderPullTask
 
     def get_pulled_objects(self):
         return (
             models.Order.objects.filter(offering__type=PLUGIN_NAME)
             .exclude(state__in=models.Order.States.TERMINAL_STATES)
-            .exclude(backend_id='')
+            .exclude(backend_id="")
         )
 
 
@@ -401,7 +401,7 @@ def pull_offering_orders(serialized_offering):
     orders = (
         models.Order.objects.filter(offering=offering)
         .exclude(state__in=models.Order.States.TERMINAL_STATES)
-        .exclude(backend_id='')
+        .exclude(backend_id="")
     )
     for order in orders:
         OrderPullTask().delay(serialize_instance(order))
@@ -413,7 +413,7 @@ class UsagePullTask(BackgroundPullTask):
 
         today = datetime.today()
         four_months_ago = month_start(today - relativedelta(months=4))
-        four_months_ago_str = four_months_ago.strftime('%Y-%m-%d')
+        four_months_ago_str = four_months_ago.strftime("%Y-%m-%d")
 
         remote_usages = client.list_component_usages(
             local_resource.backend_id,
@@ -423,27 +423,27 @@ class UsagePullTask(BackgroundPullTask):
         for remote_usage in remote_usages:
             try:
                 offering_component = models.OfferingComponent.objects.get(
-                    offering=local_resource.offering, type=remote_usage['type']
+                    offering=local_resource.offering, type=remote_usage["type"]
                 )
             except ObjectDoesNotExist:
                 continue
             defaults = {
-                'usage': remote_usage['usage'],
-                'description': remote_usage['description'],
-                'created': remote_usage['created'],
-                'date': remote_usage['date'],
-                'billing_period': remote_usage['billing_period'],
+                "usage": remote_usage["usage"],
+                "description": remote_usage["description"],
+                "created": remote_usage["created"],
+                "date": remote_usage["date"],
+                "billing_period": remote_usage["billing_period"],
             }
             models.ComponentUsage.objects.update_or_create(
                 resource=local_resource,
-                backend_id=remote_usage['uuid'],
+                backend_id=remote_usage["uuid"],
                 component=offering_component,
                 defaults=defaults,
             )
 
 
 class UsageListPullTask(BackgroundListPullTask):
-    name = 'waldur_mastermind.marketplace_remote.pull_usage'
+    name = "waldur_mastermind.marketplace_remote.pull_usage"
     pull_task = UsagePullTask
 
     def get_pulled_objects(self):
@@ -476,7 +476,7 @@ class ResourceInvoicePullTask(BackgroundPullTask):
             )
         except WaldurClientException as e:
             logger.info(
-                f'Unable to get remote invoice items for resource [id={local_resource.backend_id}]: {e}'
+                f"Unable to get remote invoice items for resource [id={local_resource.backend_id}]: {e}"
             )
             return
 
@@ -487,7 +487,7 @@ class ResourceInvoicePullTask(BackgroundPullTask):
         local_invoice_items.filter(backend_uuid=None).delete()
 
         local_item_ids = {item.backend_uuid.hex for item in local_invoice_items}
-        remote_item_ids = {item['uuid'] for item in remote_invoice_items}
+        remote_item_ids = {item["uuid"] for item in remote_invoice_items}
 
         new_item_ids = remote_item_ids - local_item_ids
         stale_item_ids = local_item_ids - remote_item_ids
@@ -496,60 +496,60 @@ class ResourceInvoicePullTask(BackgroundPullTask):
         if len(stale_item_ids) > 0:
             invoice_models.InvoiceItem.objects.filter(name__in=stale_item_ids).delete()
             logger.info(
-                f'The following invoice items for resource [uuid={local_resource.uuid}] have been deleted: {stale_item_ids}'
+                f"The following invoice items for resource [uuid={local_resource.uuid}] have been deleted: {stale_item_ids}"
             )
 
         new_invoice_items = [
-            item for item in remote_invoice_items if item['uuid'] in new_item_ids
+            item for item in remote_invoice_items if item["uuid"] in new_item_ids
         ]
         for item in new_invoice_items:
             invoice_models.InvoiceItem.objects.create(
-                backend_uuid=item['uuid'],
+                backend_uuid=item["uuid"],
                 resource=local_resource,
                 invoice=local_invoice,
-                start=dateparse.parse_datetime(item['start']),
-                end=dateparse.parse_datetime(item['end']),
-                name=item['name'],
+                start=dateparse.parse_datetime(item["start"]),
+                end=dateparse.parse_datetime(item["end"]),
+                name=item["name"],
                 project=local_resource.project,
-                unit=item['unit'],
-                measured_unit=item['measured_unit'],
-                article_code=item['article_code'],
-                unit_price=item['unit_price'],
-                details=item['details'],
-                quantity=item['quantity'],
+                unit=item["unit"],
+                measured_unit=item["measured_unit"],
+                article_code=item["article_code"],
+                unit_price=item["unit_price"],
+                details=item["details"],
+                quantity=item["quantity"],
             )
 
         existing_invoice_items = [
-            item for item in remote_invoice_items if item['uuid'] in existing_item_ids
+            item for item in remote_invoice_items if item["uuid"] in existing_item_ids
         ]
         for item in existing_invoice_items:
             local_item = local_invoice_items.get(
-                backend_uuid=item['uuid'],
+                backend_uuid=item["uuid"],
             )
-            local_item.start = dateparse.parse_datetime(item['start'])
-            local_item.end = dateparse.parse_datetime(item['end'])
-            local_item.measured_unit = item['measured_unit']
-            local_item.details = item['details']
-            local_item.quantity = item['quantity']
-            local_item.article_code = item['article_code']
-            local_item.unit_price = item['unit_price']
-            local_item.unit = item['unit']
+            local_item.start = dateparse.parse_datetime(item["start"])
+            local_item.end = dateparse.parse_datetime(item["end"])
+            local_item.measured_unit = item["measured_unit"]
+            local_item.details = item["details"]
+            local_item.quantity = item["quantity"]
+            local_item.article_code = item["article_code"]
+            local_item.unit_price = item["unit_price"]
+            local_item.unit = item["unit"]
             local_item.save(
                 update_fields=[
-                    'start',
-                    'end',
-                    'measured_unit',
-                    'details',
-                    'quantity',
-                    'article_code',
-                    'unit_price',
-                    'unit',
+                    "start",
+                    "end",
+                    "measured_unit",
+                    "details",
+                    "quantity",
+                    "article_code",
+                    "unit_price",
+                    "unit",
                 ]
             )
 
 
 class ResourceInvoiceListPullTask(BackgroundListPullTask):
-    name = 'waldur_mastermind.marketplace_remote.pull_invoices'
+    name = "waldur_mastermind.marketplace_remote.pull_invoices"
     pull_task = ResourceInvoicePullTask
 
     def get_pulled_objects(self):
@@ -562,12 +562,12 @@ class ResourceRobotAccountPullTask(BackgroundPullTask):
     def pull(self, local_resource: models.Resource):
         client = get_client_for_offering(local_resource.offering)
         remote_accounts = client.list_robot_account(
-            {'resource_uuid': local_resource.backend_id}
+            {"resource_uuid": local_resource.backend_id}
         )
         local_accounts = models.RobotAccount.objects.filter(resource=local_resource)
 
         local_ids = {item.backend_id for item in local_accounts}
-        remote_ids = {item['uuid'] for item in remote_accounts}
+        remote_ids = {item["uuid"] for item in remote_accounts}
 
         new_ids = remote_ids - local_ids
         stale_ids = local_ids - remote_ids
@@ -576,44 +576,44 @@ class ResourceRobotAccountPullTask(BackgroundPullTask):
         if stale_ids:
             local_accounts.filter(backend_id__in=stale_ids).delete()
             logger.info(
-                f'The following robot accounts for resource [uuid={local_resource.uuid}] have been deleted: {stale_ids}'
+                f"The following robot accounts for resource [uuid={local_resource.uuid}] have been deleted: {stale_ids}"
             )
 
         new_accounts = [
-            account for account in remote_accounts if account['uuid'] in new_ids
+            account for account in remote_accounts if account["uuid"] in new_ids
         ]
         for account in new_accounts:
             models.RobotAccount.objects.create(
                 resource=local_resource,
-                backend_id=account['uuid'],
-                type=account['type'],
-                username=account['username'],
-                keys=account['keys'],
+                backend_id=account["uuid"],
+                type=account["type"],
+                username=account["username"],
+                keys=account["keys"],
             )
 
         existing_accounts = [
-            account for account in remote_accounts if account['uuid'] in existing_ids
+            account for account in remote_accounts if account["uuid"] in existing_ids
         ]
         for account in existing_accounts:
             local_account = local_accounts.get(
-                backend_id=account['uuid'],
+                backend_id=account["uuid"],
             )
             modified = set()
-            if local_account.type != account['type']:
-                local_account.type = account['type']
-                modified.add('type')
-            if local_account.username != account['username']:
-                local_account.username = account['username']
-                modified.add('username')
-            if local_account.keys != account['keys']:
-                local_account.keys = account['keys']
-                modified.add('keys')
+            if local_account.type != account["type"]:
+                local_account.type = account["type"]
+                modified.add("type")
+            if local_account.username != account["username"]:
+                local_account.username = account["username"]
+                modified.add("username")
+            if local_account.keys != account["keys"]:
+                local_account.keys = account["keys"]
+                modified.add("keys")
             if modified:
                 local_account.save(update_fields=modified)
 
 
 class ResourceRobotAccountListPullTask(BackgroundListPullTask):
-    name = 'waldur_mastermind.marketplace_remote.pull_robot_accounts'
+    name = "waldur_mastermind.marketplace_remote.pull_robot_accounts"
     pull_task = ResourceRobotAccountPullTask
 
     def get_pulled_objects(self):
@@ -643,7 +643,7 @@ def pull_offering_invoices(serialized_offering):
 
 
 @shared_task(
-    name='waldur_mastermind.marketplace_remote.update_remote_project_permissions'
+    name="waldur_mastermind.marketplace_remote.update_remote_project_permissions"
 )
 def update_remote_project_permissions(
     serialized_project,
@@ -664,7 +664,7 @@ def update_remote_project_permissions(
 
 
 @shared_task(
-    name='waldur_mastermind.marketplace_remote.update_remote_customer_permissions'
+    name="waldur_mastermind.marketplace_remote.update_remote_customer_permissions"
 )
 def update_remote_customer_permissions(
     serialized_customer,
@@ -686,10 +686,10 @@ def update_remote_customer_permissions(
 
 
 @shared_task(
-    name='waldur_mastermind.marketplace_remote.sync_remote_project_permissions'
+    name="waldur_mastermind.marketplace_remote.sync_remote_project_permissions"
 )
 def sync_remote_project_permissions():
-    if not settings.WALDUR_AUTH_SOCIAL['ENABLE_EDUTEAMS_SYNC']:
+    if not settings.WALDUR_AUTH_SOCIAL["ENABLE_EDUTEAMS_SYNC"]:
         return
 
     for project, offerings in utils.get_projects_with_remote_offerings().items():
@@ -702,55 +702,55 @@ def sync_remote_project_permissions():
                 if not remote_project:
                     if not local_permissions:
                         logger.info(
-                            f'Skipping remote project {project} synchronization in '
-                            'offering {offering} because there are no users to be synced.'
+                            f"Skipping remote project {project} synchronization in "
+                            "offering {offering} because there are no users to be synced."
                         )
                     else:
                         remote_project = utils.create_remote_project(
                             offering, project, client
                         )
                         utils.push_project_users(
-                            offering, project, remote_project['uuid']
+                            offering, project, remote_project["uuid"]
                         )
                     continue
             except rf_exceptions.ValidationError as e:
                 logger.warning(
-                    f'Unable to fetch remote project {project} in offering {offering}: {e}'
+                    f"Unable to fetch remote project {project} in offering {offering}: {e}"
                 )
                 continue
             except WaldurClientException as e:
                 logger.warning(
-                    f'Unable to create remote project {project} in offering {offering}: {e}'
+                    f"Unable to create remote project {project} in offering {offering}: {e}"
                 )
                 continue
             else:
-                remote_project_uuid = remote_project['uuid']
+                remote_project_uuid = remote_project["uuid"]
 
             try:
                 remote_permissions = client.get_project_permissions(remote_project_uuid)
             except WaldurClientException as e:
                 logger.warning(
-                    f'Unable to get project permissions for project {project} in offering {offering}: {e}'
+                    f"Unable to get project permissions for project {project} in offering {offering}: {e}"
                 )
                 continue
 
             remote_user_roles = collections.defaultdict()
             for remote_permission in remote_permissions:
-                remote_expiration_time = remote_permission['expiration_time']
-                remote_user_roles[remote_permission['user_username']] = (
-                    remote_permission['role_name'],
+                remote_expiration_time = remote_permission["expiration_time"]
+                remote_user_roles[remote_permission["user_username"]] = (
+                    remote_permission["role_name"],
                     dateparse.parse_datetime(remote_expiration_time)
                     if remote_expiration_time
                     else remote_expiration_time,
-                    remote_permission['user_uuid'],
+                    remote_permission["user_uuid"],
                 )
 
             for username, (new_role, new_expiration_time) in local_permissions.items():
                 try:
-                    remote_user_uuid = client.get_remote_eduteams_user(username)['uuid']
+                    remote_user_uuid = client.get_remote_eduteams_user(username)["uuid"]
                 except WaldurClientException as e:
                     logger.warning(
-                        f'Unable to fetch remote user {username} in offering {offering}: {e}'
+                        f"Unable to fetch remote user {username} in offering {offering}: {e}"
                     )
                     continue
 
@@ -766,8 +766,8 @@ def sync_remote_project_permissions():
                         )
                     except WaldurClientException as e:
                         logger.warning(
-                            f'Unable to create permission for user [{remote_user_uuid}] with role {new_role} (until {new_expiration_time}) '
-                            f'and project [{remote_project_uuid}] in offering [{offering}]: {e}'
+                            f"Unable to create permission for user [{remote_user_uuid}] with role {new_role} (until {new_expiration_time}) "
+                            f"and project [{remote_project_uuid}] in offering [{offering}]: {e}"
                         )
                     continue
 
@@ -780,8 +780,8 @@ def sync_remote_project_permissions():
                         )
                     except WaldurClientException as e:
                         logger.warning(
-                            f'Unable to remove permission for user [{remote_user_uuid}] with role {old_role} '
-                            f'and project [{remote_project_uuid}] in offering [{offering}]: {e}'
+                            f"Unable to remove permission for user [{remote_user_uuid}] with role {old_role} "
+                            f"and project [{remote_project_uuid}] in offering [{offering}]: {e}"
                         )
                     try:
                         client.create_project_permission(
@@ -794,8 +794,8 @@ def sync_remote_project_permissions():
                         )
                     except WaldurClientException as e:
                         logger.warning(
-                            f'Unable to create permission for user [{remote_user_uuid}] with role {new_role} (until {new_expiration_time}) '
-                            f'and project [{remote_project_uuid}] in offering [{offering}]: {e}'
+                            f"Unable to create permission for user [{remote_user_uuid}] with role {new_role} (until {new_expiration_time}) "
+                            f"and project [{remote_project_uuid}] in offering [{offering}]: {e}"
                         )
                     continue
 
@@ -811,8 +811,8 @@ def sync_remote_project_permissions():
                         )
                     except WaldurClientException as e:
                         logger.warning(
-                            f'Unable to update permission for user [{remote_user_uuid}] with role {old_role} (until {new_expiration_time}) '
-                            f'and project [{remote_project_uuid}] in offering [{offering}]: {e}'
+                            f"Unable to update permission for user [{remote_user_uuid}] with role {old_role} (until {new_expiration_time}) "
+                            f"and project [{remote_project_uuid}] in offering [{offering}]: {e}"
                         )
 
             stale_usernames = set(remote_user_roles.keys()) - set(
@@ -826,7 +826,7 @@ def sync_remote_project_permissions():
                     )
                 except WaldurClientException as e:
                     logger.warning(
-                        f'Unable to remove permission [{role_name}] for user [{username}] in offering [{offering}]: {e}'
+                        f"Unable to remove permission [{role_name}] for user [{username}] in offering [{offering}]: {e}"
                     )
 
 
@@ -837,13 +837,13 @@ def sync_remote_project(serialized_request):
         utils.update_remote_project(request)
     except WaldurClientException:
         logger.exception(
-            f'Unable to update remote project {request.project} in offering {request.offering}'
+            f"Unable to update remote project {request.project} in offering {request.offering}"
         )
 
 
 @shared_task
 def delete_remote_project(serialized_project):
-    _, pk = serialized_project.split(':')
+    _, pk = serialized_project.split(":")
     try:
         local_project = structure_models.Project.objects.get(pk=pk)
     except structure_models.Project.DoesNotExist:
@@ -856,7 +856,7 @@ def delete_remote_project(serialized_project):
             project=local_project,
             offering__type=PLUGIN_NAME,
         )
-        .values_list('offering_id', flat=True)
+        .values_list("offering_id", flat=True)
         .distinct()
     )
     offerings = models.Offering.objects.filter(pk__in=offering_ids)
@@ -864,30 +864,30 @@ def delete_remote_project(serialized_project):
 
     for offering in offerings:
         if (
-            'api_url' not in offering.secret_options.keys()
-            or 'token' not in offering.secret_options.keys()
+            "api_url" not in offering.secret_options.keys()
+            or "token" not in offering.secret_options.keys()
         ):
             continue
 
-        clients[offering.secret_options['api_url']] = offering.secret_options['token']
+        clients[offering.secret_options["api_url"]] = offering.secret_options["token"]
 
     for api_url, token in clients.items():
         client = WaldurClient(api_url, token)
 
         try:
-            remote_project = client.list_projects({'backend_id': backend_id})
+            remote_project = client.list_projects({"backend_id": backend_id})
 
             if len(remote_project) != 1:
                 continue
 
         except WaldurClientException as e:
             logger.debug(
-                f'Unable to get remote project (backend_id: {backend_id}): {e}'
+                f"Unable to get remote project (backend_id: {backend_id}): {e}"
             )
             continue
 
         try:
-            client.delete_project(remote_project[0]['uuid'])
+            client.delete_project(remote_project[0]["uuid"])
         except WaldurClientException as e:
             logger.debug(
                 f'Unable to delete remote project {remote_project[0]["uuid"]} (api_url: {api_url}): {e}'
@@ -910,12 +910,12 @@ def clean_remote_projects():
         state__in=(models.Offering.States.ACTIVE, models.Offering.States.PAUSED),
     ):
         if (
-            'api_url' not in offering.secret_options.keys()
-            or 'token' not in offering.secret_options.keys()
+            "api_url" not in offering.secret_options.keys()
+            or "token" not in offering.secret_options.keys()
         ):
             continue
 
-        clients[offering.secret_options['api_url']] = offering.secret_options['token']
+        clients[offering.secret_options["api_url"]] = offering.secret_options["token"]
 
     for api_url, token in clients.items():
         client = WaldurClient(api_url, token)
@@ -923,13 +923,13 @@ def clean_remote_projects():
         try:
             remote_projects = client.list_projects()
         except WaldurClientException as e:
-            logger.debug(f'Unable to get remote projects (api_url: {api_url}): {e}')
+            logger.debug(f"Unable to get remote projects (api_url: {api_url}): {e}")
             continue
 
         for remote_project in remote_projects:
-            if remote_project['backend_id'] in projects_backend_ids:
+            if remote_project["backend_id"] in projects_backend_ids:
                 try:
-                    client.delete_project(remote_project['uuid'])
+                    client.delete_project(remote_project["uuid"])
                 except WaldurClientException as e:
                     logger.debug(
                         f'Unable to delete remote project '
@@ -945,7 +945,7 @@ def trigger_order_callback(serialized_order):
 
 
 @shared_task(
-    name='waldur_mastermind.marketplace_remote.notify_about_pending_project_update_requests'
+    name="waldur_mastermind.marketplace_remote.notify_about_pending_project_update_requests"
 )
 def notify_about_pending_project_update_requests():
     week_ago = datetime.now() - timedelta(weeks=1)
@@ -953,55 +953,55 @@ def notify_about_pending_project_update_requests():
         remote_models.ProjectUpdateRequest.objects.filter(
             state=ReviewStateMixin.States.PENDING
         )
-        .order_by('project_id')
-        .distinct('project_id')
+        .order_by("project_id")
+        .distinct("project_id")
         .filter(created__lte=week_ago)
     )
 
     for pending_project_update_request in pending_project_update_requests:
         mails = pending_project_update_request.project.customer.get_owner_mails()
         project_url = format_homeport_link(
-            'projects/{project_uuid}/marketplace-project-update-requests/',
+            "projects/{project_uuid}/marketplace-project-update-requests/",
             project_uuid=pending_project_update_request.project.uuid.hex,
         )
         context = {
-            'project_update_request': pending_project_update_request,
-            'project_url': project_url,
+            "project_update_request": pending_project_update_request,
+            "project_url": project_url,
         }
         broadcast_mail(
-            'marketplace_remote',
-            'notification_about_pending_project_updates',
+            "marketplace_remote",
+            "notification_about_pending_project_updates",
             context,
             mails,
         )
 
 
 @shared_task(
-    name='waldur_mastermind.marketplace_remote.notify_about_project_details_update'
+    name="waldur_mastermind.marketplace_remote.notify_about_project_details_update"
 )
 def notify_about_project_details_update(serialized_project_update):
     review_request = deserialize_instance(serialized_project_update)
 
     context = {}
     if review_request.new_description:
-        context['new_description'] = review_request.new_description
-        context['old_description'] = review_request.old_description
+        context["new_description"] = review_request.new_description
+        context["old_description"] = review_request.old_description
     if review_request.new_name:
-        context['new_name'] = review_request.new_name
-        context['old_name'] = review_request.old_name
+        context["new_name"] = review_request.new_name
+        context["old_name"] = review_request.old_name
     if review_request.new_end_date:
-        context['new_end_date'] = review_request.new_end_date
-        context['old_end_date'] = review_request.old_end_date
+        context["new_end_date"] = review_request.new_end_date
+        context["old_end_date"] = review_request.old_end_date
     if review_request.new_oecd_fos_2007_code:
-        context['new_oecd_fos_2007_code'] = review_request.new_oecd_fos_2007_code
-        context['old_oecd_fos_2007_code'] = review_request.old_oecd_fos_2007_code
+        context["new_oecd_fos_2007_code"] = review_request.new_oecd_fos_2007_code
+        context["old_oecd_fos_2007_code"] = review_request.old_oecd_fos_2007_code
     if review_request.new_is_industry:
-        context['new_is_industry'] = review_request.new_is_industry
-        context['old_is_industry'] = review_request.new_is_industry
+        context["new_is_industry"] = review_request.new_is_industry
+        context["old_is_industry"] = review_request.new_is_industry
 
-    context['reviewed_by'] = review_request.reviewed_by
-    context['project_url'] = format_homeport_link(
-        'projects/{project_uuid}/',
+    context["reviewed_by"] = review_request.reviewed_by
+    context["project_url"] = format_homeport_link(
+        "projects/{project_uuid}/",
         project_uuid=review_request.project.uuid.hex,
     )
     mails = [
@@ -1010,8 +1010,8 @@ def notify_about_project_details_update(serialized_project_update):
     ]
 
     broadcast_mail(
-        'marketplace_remote',
-        'notification_about_project_details_update',
+        "marketplace_remote",
+        "notification_about_project_details_update",
         context,
         mails,
     )
@@ -1023,7 +1023,7 @@ class RemoteProjectDataPushTask(BackgroundPullTask):
         project_ids = (
             models.Resource.objects.filter(offering=offering)
             .exclude(state=models.Resource.States.TERMINATED)
-            .values_list('project_id', flat=True)
+            .values_list("project_id", flat=True)
             .distinct()
         )
         for project in structure_models.Project.objects.filter(id__in=project_ids):
@@ -1044,7 +1044,7 @@ class RemoteProjectDataPushTask(BackgroundPullTask):
 
 
 class RemoteProjectDataListPushTask(BackgroundListPullTask):
-    name = 'waldur_mastermind.marketplace_remote.push_remote_project_data'
+    name = "waldur_mastermind.marketplace_remote.push_remote_project_data"
     pull_task = RemoteProjectDataPushTask
 
     def get_pulled_objects(self):

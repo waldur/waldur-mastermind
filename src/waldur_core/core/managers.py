@@ -18,11 +18,11 @@ class GenericKeyMixin:
 
     def __init__(
         self,
-        generic_key_field='scope',
-        object_id_field='object_id',
-        content_type_field='content_type',
+        generic_key_field="scope",
+        object_id_field="object_id",
+        content_type_field="content_type",
         available_models=(),
-        **kwargs
+        **kwargs,
     ):
         super().__init__(**kwargs)
         self.generic_key_field = generic_key_field
@@ -40,7 +40,7 @@ class GenericKeyMixin:
             # delete old kwarg that was related to generic key
             del kwargs[key]
             try:
-                suffix = key.split('__')[1]
+                suffix = key.split("__")[1]
             except IndexError:
                 suffix = None
             # add new kwargs that related to object_id and content_type fields
@@ -56,7 +56,7 @@ class GenericKeyMixin:
         return {
             key: value
             for key, value in initial_kwargs.items()
-            if key.startswith(self.generic_key_field + '__')
+            if key.startswith(self.generic_key_field + "__")
             or key == self.generic_key_field
         }
 
@@ -70,8 +70,8 @@ class GenericKeyMixin:
                 generic_key_value
             )
             kwargs[self.content_type_field] = generic_key_content_type
-        elif suffix == 'in':
-            kwargs[self.object_id_field + '__in'] = [
+        elif suffix == "in":
+            kwargs[self.object_id_field + "__in"] = [
                 obj.id for obj in generic_key_value
             ]
             content_type = (
@@ -80,9 +80,9 @@ class GenericKeyMixin:
                 else None
             )
             kwargs[self.content_type_field] = content_type
-        elif suffix == 'isnull':
-            kwargs[self.object_id_field + '__isnull'] = generic_key_value
-            kwargs[self.content_type_field + '__isnull'] = generic_key_value
+        elif suffix == "isnull":
+            kwargs[self.object_id_field + "__isnull"] = generic_key_value
+            kwargs[self.content_type_field + "__isnull"] = generic_key_value
         return kwargs
 
     def filter(self, *args, **kwargs):
@@ -164,7 +164,7 @@ class SummaryQuerySet:
         else:
             return itertools.chain(*[qs.iterator() for qs in self.querysets])
 
-    def _merge(self, subsequences, compared_attr='pk'):
+    def _merge(self, subsequences, compared_attr="pk"):
         @functools.total_ordering
         class Compared:
             """Order objects by their attributes, reverse ordering if <reverse> is True"""
@@ -202,7 +202,7 @@ class SummaryQuerySet:
                         else self.attr >= other.attr
                     )
 
-        reverse = compared_attr.startswith('-')
+        reverse = compared_attr.startswith("-")
         if reverse:
             compared_attr = compared_attr[1:]
 

@@ -28,7 +28,7 @@ class EventLoggerError(AttributeError):
 
 class BaseLogger:
     def __init__(self, logger_name=__name__):
-        self._meta = getattr(self, 'Meta', None)
+        self._meta = getattr(self, "Meta", None)
         self.supported_types = self.get_supported_types()
 
     def get_supported_types(self):
@@ -38,7 +38,7 @@ class BaseLogger:
         raise NotImplementedError
 
     def get_nullable_fields(self):
-        return getattr(self._meta, 'nullable_fields', [])
+        return getattr(self._meta, "nullable_fields", [])
 
     def get_field_model(self, model):
         if not isinstance(model, str):
@@ -48,8 +48,8 @@ class BaseLogger:
             return apps.get_model(model)
         except LookupError:
             try:
-                app_name, class_name = model.split('.')
-                module = importlib.import_module('waldur_core.%s.models' % app_name)
+                app_name, class_name = model.split(".")
+                module = importlib.import_module("waldur_core.%s.models" % app_name)
                 return getattr(module, class_name)
             except (ImportError, AttributeError, IndexError):
                 raise LoggerError("Can't find model %s" % model)
@@ -59,30 +59,32 @@ class BaseLogger:
             msg = str(message_template).format(**context)
         except KeyError as e:
             raise LoggerError(
-                "Cannot find %s context field. Choices are: %s"
-                % (str(e), ', '.join(context.keys()))
+                "Cannot find {} context field. Choices are: {}".format(
+                    str(e), ", ".join(context.keys())
+                )
             )
         return msg
 
     def validate_logging_type(self, logging_type):
         if self.supported_types and logging_type not in self.supported_types:
             raise EventLoggerError(
-                "Unsupported logging type '%s'. Choices are: %s"
-                % (logging_type, ', '.join(self.supported_types))
+                "Unsupported logging type '{}'. Choices are: {}".format(
+                    logging_type, ", ".join(self.supported_types)
+                )
             )
 
     @property
     def fields(self):
         # Get a list of fields here in order to be sure all models already loaded.
-        if not hasattr(self, '_fields'):
+        if not hasattr(self, "_fields"):
             self._fields = {
                 k: self.get_field_model(v)
                 for k, v in self.__class__.__dict__.items()
                 if (
-                    not k.startswith('_')
+                    not k.startswith("_")
                     and not isinstance(v, types.FunctionType)
                     and not isinstance(v, staticmethod)
-                    and k != 'Meta'
+                    and k != "Meta"
                 )
             }
         return self._fields
@@ -94,15 +96,15 @@ class BaseLogger:
             - set(kwargs.keys())
         )
         if missed:
-            raise LoggerError("Missed fields in event context: %s" % ', '.join(missed))
+            raise LoggerError("Missed fields in event context: %s" % ", ".join(missed))
 
         context = {}
 
         event_context = get_event_context()
         if event_context:
             context.update(event_context)
-            username = event_context.get('user_username')
-            if 'user' in self.fields and username:
+            username = event_context.get("user_username")
+            if "user" in self.fields and username:
                 logger.warning(
                     "User is passed directly to event context. "
                     "Currently authenticated user %s is ignored.",
@@ -116,8 +118,7 @@ class BaseLogger:
                     continue
                 if not isinstance(entity, entity_class):
                     raise LoggerError(
-                        "Field '%s' must be an instance of %s but %s received"
-                        % (
+                        "Field '{}' must be an instance of {} but {} received".format(
                             entity_name,
                             entity_class.__name__,
                             entity.__class__.__name__,
@@ -137,10 +138,10 @@ class BaseLogger:
                 context[entity_name] = entity
             elif entity is None:
                 pass
-            elif hasattr(self, entity_name + '_context_processor') and isinstance(
-                getattr(self, entity_name + '_context_processor'), types.FunctionType
+            elif hasattr(self, entity_name + "_context_processor") and isinstance(
+                getattr(self, entity_name + "_context_processor"), types.FunctionType
             ):
-                context_processor = getattr(self, entity_name + '_context_processor')
+                context_processor = getattr(self, entity_name + "_context_processor")
                 context_processor(context, entity)
             else:
                 context[entity_name] = str(entity)
@@ -194,10 +195,10 @@ class EventLogger(BaseLogger):
         self.logger = EventLoggerAdapter(logging.getLogger(logger_name))
 
     def get_supported_types(self):
-        return getattr(self._meta, 'event_types', tuple())
+        return getattr(self._meta, "event_types", tuple())
 
     def get_supported_groups(self):
-        return getattr(self._meta, 'event_groups', {})
+        return getattr(self._meta, "event_groups", {})
 
     @staticmethod
     def get_scopes(event_context):
@@ -209,19 +210,19 @@ class EventLogger(BaseLogger):
         return set()
 
     def info(self, *args, **kwargs):
-        self.process('info', *args, **kwargs)
+        self.process("info", *args, **kwargs)
 
     def error(self, *args, **kwargs):
-        self.process('error', *args, **kwargs)
+        self.process("error", *args, **kwargs)
 
     def warning(self, *args, **kwargs):
-        self.process('warning', *args, **kwargs)
+        self.process("warning", *args, **kwargs)
 
     def debug(self, *args, **kwargs):
-        self.process('debug', *args, **kwargs)
+        self.process("debug", *args, **kwargs)
 
     def process(
-        self, level, message_template, event_type='undefined', event_context=None
+        self, level, message_template, event_type="undefined", event_context=None
     ):
         self.validate_logging_type(event_type)
 
@@ -231,7 +232,7 @@ class EventLogger(BaseLogger):
         context = self.compile_context(**event_context)
         msg = self.compile_message(message_template, context)
         log = getattr(self.logger, level)
-        log(msg, extra={'event_type': event_type, 'event_context': context})
+        log(msg, extra={"event_type": event_type, "event_context": context})
 
         event = models.Event.objects.create(
             event_type=event_type,
@@ -250,7 +251,7 @@ class LoggableMixin:
     """
 
     def get_log_fields(self):
-        return ('uuid', 'name')
+        return ("uuid", "name")
 
     def _get_log_context(self, entity_name=None):
         context = {}
@@ -355,11 +356,11 @@ class CustomEventLogger(EventLogger):
     scope = LoggableMixin
 
     class Meta:
-        event_types = ('custom_notification',)
-        nullable_fields = ('scope',)
+        event_types = ("custom_notification",)
+        nullable_fields = ("scope",)
 
 
 # This global objects represent the default loggers registry
 event_logger = EventLoggerRegistry()
 
-event_logger.register('custom', CustomEventLogger)
+event_logger.register("custom", CustomEventLogger)

@@ -14,7 +14,7 @@ class SectionGetTest(test.APITransactionTestCase):
         self.section = factories.SectionFactory()
 
     @data(
-        'staff',
+        "staff",
     )
     def test_sections_should_be_visible_to_staff(self, user):
         user = getattr(self.fixture, user)
@@ -24,7 +24,7 @@ class SectionGetTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 1)
 
-    @data('owner', 'user', 'customer_support', 'admin', 'manager')
+    @data("owner", "user", "customer_support", "admin", "manager")
     def test_sections_should_not_be_visible_to_other_users(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
@@ -40,14 +40,14 @@ class SectionCreateTest(test.APITransactionTestCase):
         self.url = factories.SectionFactory.get_list_url()
 
     @data(
-        'staff',
+        "staff",
     )
     def test_user_can_create_section(self, user):
         response = self.create_section(user)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(models.Section.objects.count(), 1)
 
-    @data('user', 'customer_support', 'admin', 'manager')
+    @data("user", "customer_support", "admin", "manager")
     def test_user_can_not_create_section(self, user):
         response = self.create_section(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -58,9 +58,9 @@ class SectionCreateTest(test.APITransactionTestCase):
         return self.client.post(
             self.url,
             {
-                'key': 'key-section',
-                'title': 'title-section',
-                'category': factories.CategoryFactory.get_url(),
+                "key": "key-section",
+                "title": "title-section",
+                "category": factories.CategoryFactory.get_url(),
             },
         )
 
@@ -72,14 +72,14 @@ class SectionUpdateTest(test.APITransactionTestCase):
         self.section = factories.SectionFactory()
 
     @data(
-        'staff',
+        "staff",
     )
     def test_user_can_update_section(self, user):
         response, section = self.update_section(user)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertEqual(section.title, 'new_title')
+        self.assertEqual(section.title, "new_title")
 
-    @data('owner', 'user', 'customer_support', 'admin', 'manager')
+    @data("owner", "user", "customer_support", "admin", "manager")
     def test_user_can_not_update_section(self, user):
         response, section = self.update_section(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -89,7 +89,7 @@ class SectionUpdateTest(test.APITransactionTestCase):
         self.client.force_authenticate(user)
         url = factories.SectionFactory.get_url(section=self.section)
 
-        response = self.client.patch(url, {'title': 'new_title'})
+        response = self.client.patch(url, {"title": "new_title"})
         self.section.refresh_from_db()
 
         return response, self.section
@@ -102,7 +102,7 @@ class SectionDeleteTest(test.APITransactionTestCase):
         self.section = factories.SectionFactory()
 
     @data(
-        'staff',
+        "staff",
     )
     def test_user_can_delete_section(self, user):
         response = self.delete_section(user)
@@ -110,7 +110,7 @@ class SectionDeleteTest(test.APITransactionTestCase):
             response.status_code, status.HTTP_204_NO_CONTENT, response.data
         )
 
-    @data('owner', 'user', 'customer_support', 'admin', 'manager')
+    @data("owner", "user", "customer_support", "admin", "manager")
     def test_user_can_not_delete_section(self, user):
         response = self.delete_section(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

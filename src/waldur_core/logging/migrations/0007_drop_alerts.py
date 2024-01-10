@@ -4,19 +4,19 @@ from django.db import migrations
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('logging', '0006_event_feed'),
+        ("logging", "0006_event_feed"),
     ]
 
     operations = [
         migrations.AlterUniqueTogether(
-            name='alert',
+            name="alert",
             unique_together=set([]),
         ),
         migrations.RemoveField(
-            model_name='alert',
-            name='content_type',
+            model_name="alert",
+            name="content_type",
         ),
         migrations.DeleteModel(
-            name='Alert',
+            name="Alert",
         ),
     ]

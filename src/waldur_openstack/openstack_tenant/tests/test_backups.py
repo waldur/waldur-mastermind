@@ -15,14 +15,14 @@ class BackupDeleteTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackTenantFixture()
 
-    @data('staff', 'owner', 'manager', 'admin')
+    @data("staff", "owner", "manager", "admin")
     def test_user_can_delete_backup(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         url = factories.BackupFactory.get_url(self.fixture.backup)
         response = self.client.delete(url)
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
-    @data('global_support', 'customer_support')
+    @data("global_support", "customer_support")
     def test_user_can_not_delete_backup(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         url = factories.BackupFactory.get_url(self.fixture.backup)
@@ -47,13 +47,13 @@ class BackupListPermissionsTest(helpers.ListPermissionsTest):
 
         return [
             {
-                'user': user_with_view_permission,
-                'expected_results': [
-                    {'url': factories.BackupFactory.get_url(backup1)},
-                    {'url': factories.BackupFactory.get_url(backup2)},
+                "user": user_with_view_permission,
+                "expected_results": [
+                    {"url": factories.BackupFactory.get_url(backup1)},
+                    {"url": factories.BackupFactory.get_url(backup2)},
                 ],
             },
-            {'user': user_without_view_permission, 'expected_results': []},
+            {"user": user_without_view_permission, "expected_results": []},
         ]
 
 
@@ -70,7 +70,7 @@ class BackupPermissionsTest(helpers.PermissionsTest):
         )
 
     def get_users_with_permission(self, url, method):
-        if method == 'GET':
+        if method == "GET":
             return [self.fixture.staff, self.fixture.admin, self.fixture.manager]
         else:
             return [
@@ -84,12 +84,12 @@ class BackupPermissionsTest(helpers.PermissionsTest):
         return [self.fixture.user]
 
     def get_urls_configs(self):
-        yield {'url': factories.BackupFactory.get_url(self.backup), 'method': 'GET'}
-        yield {'url': factories.BackupFactory.get_url(self.backup), 'method': 'DELETE'}
+        yield {"url": factories.BackupFactory.get_url(self.backup), "method": "GET"}
+        yield {"url": factories.BackupFactory.get_url(self.backup), "method": "DELETE"}
 
     def test_permissions(self):
         with patch(
-            'waldur_openstack.openstack_tenant.executors.BackupDeleteExecutor.execute'
+            "waldur_openstack.openstack_tenant.executors.BackupDeleteExecutor.execute"
         ):
             super().test_permissions()
 
@@ -111,12 +111,12 @@ class BackupSourceFilterTest(test.APITransactionTestCase):
 
         response = self.client.get(
             factories.BackupFactory.get_list_url(),
-            data={'instance_uuid': instance1.uuid.hex},
+            data={"instance_uuid": instance1.uuid.hex},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(2, len(response.data))
         self.assertEqual(
-            factories.InstanceFactory.get_url(instance1), response.data[0]['instance']
+            factories.InstanceFactory.get_url(instance1), response.data[0]["instance"]
         )
 
 
@@ -127,15 +127,15 @@ class BackupRestorationTest(test.APITransactionTestCase):
 
         self.backup = factories.BackupFactory(state=models.Backup.States.OK)
         ss = self.backup.service_settings
-        ss.options = {'external_network_id': uuid.uuid4().hex}
+        ss.options = {"external_network_id": uuid.uuid4().hex}
         ss.save()
-        self.url = factories.BackupFactory.get_url(self.backup, 'restore')
+        self.url = factories.BackupFactory.get_url(self.backup, "restore")
 
         system_volume = self.backup.instance.volumes.get(bootable=True)
         self.disk_size = system_volume.size
 
         self.service_settings = self.backup.instance.service_settings
-        self.service_settings.options = {'external_network_id': uuid.uuid4().hex}
+        self.service_settings.options = {"external_network_id": uuid.uuid4().hex}
         self.service_settings.save()
         self.valid_flavor = factories.FlavorFactory(
             disk=self.disk_size + 10, settings=self.service_settings
@@ -160,95 +160,95 @@ class BackupRestorationTest(test.APITransactionTestCase):
         self.assertNotEqual(self.backup.service_settings, security_group.settings)
         payload = self._get_valid_payload(
             security_groups=[
-                {'url': factories.SecurityGroupFactory.get_url(security_group)}
+                {"url": factories.SecurityGroupFactory.get_url(security_group)}
             ]
         )
 
         response = self.client.post(self.url, payload)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('security_groups', response.data)
+        self.assertIn("security_groups", response.data)
 
     def test_security_group_has_been_associated_with_an_instance(self):
         security_group1 = factories.SecurityGroupFactory(settings=self.service_settings)
         payload = self._get_valid_payload(
             security_groups=[
-                {'url': factories.SecurityGroupFactory.get_url(security_group1)}
+                {"url": factories.SecurityGroupFactory.get_url(security_group1)}
             ]
         )
 
         response = self.client.post(self.url, payload)
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertIsNotNone(response.data['security_groups'])
+        self.assertIsNotNone(response.data["security_groups"])
         self.assertEqual(
-            response.data['security_groups'][0]['name'], security_group1.name
+            response.data["security_groups"][0]["name"], security_group1.name
         )
 
     def test_floating_ip_is_not_associated_with_an_instance_if_it_is_booked_already(
         self,
     ):
         floating_ip = factories.FloatingIPFactory(
-            is_booked=True, runtime_state='DOWN', settings=self.service_settings
+            is_booked=True, runtime_state="DOWN", settings=self.service_settings
         )
         subnet = factories.SubNetFactory(settings=self.service_settings)
         payload = self._get_valid_payload(
             floating_ips=[
                 {
-                    'url': factories.FloatingIPFactory.get_url(floating_ip),
-                    'subnet': factories.SubNetFactory.get_url(subnet),
+                    "url": factories.FloatingIPFactory.get_url(floating_ip),
+                    "subnet": factories.SubNetFactory.get_url(subnet),
                 }
             ],
-            internal_ips_set=[{'subnet': factories.SubNetFactory.get_url(subnet)}],
+            internal_ips_set=[{"subnet": factories.SubNetFactory.get_url(subnet)}],
         )
 
         response = self.client.post(self.url, payload)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('floating_ips', response.data)
+        self.assertIn("floating_ips", response.data)
 
     def test_floating_ip_is_not_associated_with_an_instance_if_it_belongs_to_different_settings(
         self,
     ):
-        floating_ip = factories.FloatingIPFactory(runtime_state='DOWN')
+        floating_ip = factories.FloatingIPFactory(runtime_state="DOWN")
         self.assertNotEqual(self.service_settings, floating_ip.settings)
         subnet = factories.SubNetFactory(settings=self.service_settings)
         payload = self._get_valid_payload(
             floating_ips=[
                 {
-                    'url': factories.FloatingIPFactory.get_url(floating_ip),
-                    'subnet': factories.SubNetFactory.get_url(subnet),
+                    "url": factories.FloatingIPFactory.get_url(floating_ip),
+                    "subnet": factories.SubNetFactory.get_url(subnet),
                 }
             ],
-            internal_ips_set=[{'subnet': factories.SubNetFactory.get_url(subnet)}],
+            internal_ips_set=[{"subnet": factories.SubNetFactory.get_url(subnet)}],
         )
 
         response = self.client.post(self.url, payload)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('floating_ips', response.data)
+        self.assertIn("floating_ips", response.data)
 
     def test_floating_ip_is_associated_with_an_instance_if_floating_ip_is_in_DOWN_state(
         self,
     ):
         floating_ip = factories.FloatingIPFactory(
-            settings=self.service_settings, runtime_state='ACTIVE'
+            settings=self.service_settings, runtime_state="ACTIVE"
         )
         subnet = factories.SubNetFactory(settings=self.service_settings)
         payload = self._get_valid_payload(
             floating_ips=[
                 {
-                    'url': factories.FloatingIPFactory.get_url(floating_ip),
-                    'subnet': factories.SubNetFactory.get_url(subnet),
+                    "url": factories.FloatingIPFactory.get_url(floating_ip),
+                    "subnet": factories.SubNetFactory.get_url(subnet),
                 }
             ],
-            internal_ips_set=[{'subnet': factories.SubNetFactory.get_url(subnet)}],
+            internal_ips_set=[{"subnet": factories.SubNetFactory.get_url(subnet)}],
         )
 
         response = self.client.post(self.url, payload)
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
-        self.assertIn('floating_ips', response.data)
+        self.assertIn("floating_ips", response.data)
 
     def test_floating_ip_is_not_valid_if_it_is_already_assigned(self):
         subnet = factories.SubNetFactory(settings=self.service_settings)
@@ -256,36 +256,36 @@ class BackupRestorationTest(test.APITransactionTestCase):
         floating_ip = factories.FloatingIPFactory(
             internal_ip=internal_ip,
             settings=self.service_settings,
-            runtime_state='ACTIVE',
+            runtime_state="ACTIVE",
         )
 
         payload = self._get_valid_payload(
             floating_ips=[
                 {
-                    'url': factories.FloatingIPFactory.get_url(floating_ip),
-                    'subnet': factories.SubNetFactory.get_url(subnet),
+                    "url": factories.FloatingIPFactory.get_url(floating_ip),
+                    "subnet": factories.SubNetFactory.get_url(subnet),
                 }
             ],
-            internal_ips_set=[{'subnet': factories.SubNetFactory.get_url(subnet)}],
+            internal_ips_set=[{"subnet": factories.SubNetFactory.get_url(subnet)}],
         )
 
         response = self.client.post(self.url, payload)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('floating_ips', response.data)
+        self.assertIn("floating_ips", response.data)
 
     def test_floating_ip_is_not_associated_with_an_instance_if_subnet_is_not_connected_to_the_instance(
         self,
     ):
         floating_ip = factories.FloatingIPFactory(
-            settings=self.service_settings, runtime_state='DOWN'
+            settings=self.service_settings, runtime_state="DOWN"
         )
         subnet = factories.SubNetFactory(settings=self.service_settings)
         payload = self._get_valid_payload(
             floating_ips=[
                 {
-                    'url': factories.FloatingIPFactory.get_url(floating_ip),
-                    'subnet': factories.SubNetFactory.get_url(subnet),
+                    "url": factories.FloatingIPFactory.get_url(floating_ip),
+                    "subnet": factories.SubNetFactory.get_url(subnet),
                 }
             ]
         )
@@ -293,17 +293,17 @@ class BackupRestorationTest(test.APITransactionTestCase):
         response = self.client.post(self.url, payload)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('floating_ips', response.data)
+        self.assertIn("floating_ips", response.data)
 
     def test_floating_ip_is_associated_with_an_instance(self):
         floating_ip = factories.FloatingIPFactory(
-            settings=self.service_settings, runtime_state='DOWN'
+            settings=self.service_settings, runtime_state="DOWN"
         )
         payload = self._get_valid_payload(
             floating_ips=[
                 {
-                    'url': factories.FloatingIPFactory.get_url(floating_ip),
-                    'subnet': factories.SubNetFactory.get_url(self.subnet),
+                    "url": factories.FloatingIPFactory.get_url(floating_ip),
+                    "subnet": factories.SubNetFactory.get_url(self.subnet),
                 }
             ],
         )
@@ -311,9 +311,9 @@ class BackupRestorationTest(test.APITransactionTestCase):
         response = self.client.post(self.url, payload)
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertIsNotNone(response.data['floating_ips'])
-        self.assertEqual(response.data['floating_ips'][0]['uuid'], floating_ip.uuid.hex)
-        instance = models.Instance.objects.get(name=payload['name'])
+        self.assertIsNotNone(response.data["floating_ips"])
+        self.assertEqual(response.data["floating_ips"][0]["uuid"], floating_ip.uuid.hex)
+        instance = models.Instance.objects.get(name=payload["name"])
         self.assertEqual(instance.floating_ips.count(), 1)
         self.assertEqual(instance.floating_ips.first().uuid.hex, floating_ip.uuid.hex)
 
@@ -322,13 +322,13 @@ class BackupRestorationTest(test.APITransactionTestCase):
     ):
         subnet = factories.SubNetFactory()
         payload = self._get_valid_payload(
-            internal_ips_set=[{'subnet': factories.SubNetFactory.get_url(subnet)}]
+            internal_ips_set=[{"subnet": factories.SubNetFactory.get_url(subnet)}]
         )
 
         response = self.client.post(self.url, payload)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('internal_ips_set', response.data)
+        self.assertIn("internal_ips_set", response.data)
 
     def test_internal_ips_have_been_associated_with_instance(self):
         payload = self._get_valid_payload()
@@ -336,7 +336,7 @@ class BackupRestorationTest(test.APITransactionTestCase):
         response = self.client.post(self.url, payload)
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        instance = models.Instance.objects.get(name=payload['name'])
+        instance = models.Instance.objects.get(name=payload["name"])
         self.assertEqual(instance.internal_ips_set.count(), 1)
         self.assertEqual(instance.subnets.count(), 1)
         self.assertEqual(instance.subnets.first().uuid.hex, self.subnet.uuid.hex)
@@ -351,16 +351,16 @@ class BackupRestorationTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertTrue(
             models.BackupRestoration.objects.filter(
-                instance__name=payload['name']
+                instance__name=payload["name"]
             ).exists
         )
 
     def _get_valid_payload(self, **options):
         payload = {
-            'name': 'instance name',
-            'flavor': factories.FlavorFactory.get_url(self.valid_flavor),
-            'internal_ips_set': [
-                {'subnet': factories.SubNetFactory.get_url(self.subnet)}
+            "name": "instance name",
+            "flavor": factories.FlavorFactory.get_url(self.valid_flavor),
+            "internal_ips_set": [
+                {"subnet": factories.SubNetFactory.get_url(self.subnet)}
             ],
         }
         payload.update(options)

@@ -6,8 +6,8 @@ class CreateAllocationProcessor(processors.BaseCreateResourceProcessor):
     viewset = slurm_views.AllocationViewSet
 
     fields = (
-        'name',
-        'description',
+        "name",
+        "description",
     )
 
 

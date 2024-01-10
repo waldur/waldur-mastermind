@@ -5,8 +5,8 @@ from . import models
 
 class ProjectEstimatedCostPolicyAdmin(admin.ModelAdmin):
     list_display = (
-        'project',
-        'limit_cost',
+        "project",
+        "limit_cost",
     )
 
 

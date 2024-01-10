@@ -5,18 +5,18 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('notifications', '0001_initial'),
+        ("notifications", "0001_initial"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='notification',
-            name='emails',
+            model_name="notification",
+            name="emails",
             field=models.JSONField(),
         ),
         migrations.AlterField(
-            model_name='notification',
-            name='query',
+            model_name="notification",
+            name="query",
             field=models.JSONField(),
         ),
     ]

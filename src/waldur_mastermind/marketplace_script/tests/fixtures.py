@@ -12,26 +12,26 @@ class ScriptFixture(marketplace_fixtures.MarketplaceFixture):
     def offering(self):
         return marketplace_factories.OfferingFactory(
             type=PLUGIN_NAME,
-            options={'order': []},
+            options={"order": []},
             secret_options={
-                'pull': "print('Resource got regular update')",
-                'create': "print('Hello world!')",
-                'delete': "print('Resource has been removed')",
-                'update': "print('Resource has been changed')",
-                'language': 'python',
+                "pull": "print('Resource got regular update')",
+                "create": "print('Hello world!')",
+                "delete": "print('Resource has been removed')",
+                "update": "print('Resource has been changed')",
+                "language": "python",
             },
         )
 
     @classmethod
     def get_dry_run_url(cls, offering):
-        url = 'http://testserver' + reverse(
-            'marketplace-script-dry-run-detail', kwargs={'uuid': offering.uuid.hex}
+        url = "http://testserver" + reverse(
+            "marketplace-script-dry-run-detail", kwargs={"uuid": offering.uuid.hex}
         )
-        return url + 'run/'
+        return url + "run/"
 
     @classmethod
     def get_async_dry_run_url(cls, offering):
-        url = 'http://testserver' + reverse(
-            'marketplace-script-dry-run-detail', kwargs={'uuid': offering.uuid.hex}
+        url = "http://testserver" + reverse(
+            "marketplace-script-dry-run-detail", kwargs={"uuid": offering.uuid.hex}
         )
-        return url + 'async_run/'
+        return url + "async_run/"

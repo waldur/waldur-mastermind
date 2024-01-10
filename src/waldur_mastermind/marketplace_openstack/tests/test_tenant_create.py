@@ -15,18 +15,18 @@ from waldur_openstack.openstack.tests import factories as openstack_factories
 class MarketplaceTenantCreateTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceOpenStackFixture()
-        self.view = views.MarketplaceTenantViewSet.as_view({'post': 'create'})
+        self.view = views.MarketplaceTenantViewSet.as_view({"post": "create"})
 
     def get_valid_payload(self):
         return {
-            'service_settings': openstack_factories.OpenStackServiceSettingsFactory.get_url(
+            "service_settings": openstack_factories.OpenStackServiceSettingsFactory.get_url(
                 self.fixture.openstack_service_settings
             ),
-            'project': ProjectFactory.get_url(self.fixture.project),
-            'name': 'test_tenant',
+            "project": ProjectFactory.get_url(self.fixture.project),
+            "name": "test_tenant",
         }
 
-    @data('staff')
+    @data("staff")
     @override_waldur_core_settings(ONLY_STAFF_MANAGES_SERVICES=True)
     def test_if_only_staff_manages_services_he_can_create_tenant(self, user):
         response = common_utils.create_request(
@@ -34,7 +34,7 @@ class MarketplaceTenantCreateTest(test.APITransactionTestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    @data('user', 'admin', 'owner')
+    @data("user", "admin", "owner")
     @override_waldur_core_settings(ONLY_STAFF_MANAGES_SERVICES=True)
     def test_if_only_staff_manages_services_other_user_can_not_create_tenant(
         self, user
@@ -44,14 +44,14 @@ class MarketplaceTenantCreateTest(test.APITransactionTestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @data('staff', 'owner', 'admin')
+    @data("staff", "owner", "admin")
     def test_user_can_create_tenant(self, user):
         response = common_utils.create_request(
             self.view, getattr(self.fixture, user), self.get_valid_payload()
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    @data('user')
+    @data("user")
     def test_user_cannot_create_tenant(self, user):
         response = common_utils.create_request(
             self.view, getattr(self.fixture, user), self.get_valid_payload()
@@ -75,13 +75,13 @@ class MarketplaceTenantCreateTest(test.APITransactionTestCase):
 
     def _request_with_skip_connection_extnet(self, skip_connection_extnet=False):
         payload = self.get_valid_payload()
-        payload['skip_connection_extnet'] = skip_connection_extnet
-        patch = mock.patch('waldur_mastermind.marketplace_openstack.views.executors')
+        payload["skip_connection_extnet"] = skip_connection_extnet
+        patch = mock.patch("waldur_mastermind.marketplace_openstack.views.executors")
         mock_executors = patch.start()
         common_utils.create_request(self.view, self.fixture.staff, payload)
         transmitted_skip = (
             mock_executors.MarketplaceTenantCreateExecutor.execute.call_args[1][
-                'skip_connection_extnet'
+                "skip_connection_extnet"
             ]
         )
         mock.patch.stopall()

@@ -38,7 +38,7 @@ def get_offering_category_for_tenant():
 
 
 def get_offering_name_for_instance(tenant):
-    return 'Virtual machine in %s' % tenant.name
+    return "Virtual machine in %s" % tenant.name
 
 
 def get_offering_category_for_instance():
@@ -46,7 +46,7 @@ def get_offering_category_for_instance():
 
 
 def get_offering_name_for_volume(tenant):
-    return 'Volume in %s' % tenant.name
+    return "Volume in %s" % tenant.name
 
 
 def get_offering_category_for_volume():
@@ -76,34 +76,34 @@ def create_offering_components(offering):
 def import_volume_metadata(resource):
     import_resource_metadata(resource)
     volume = resource.scope
-    resource.backend_metadata['size'] = volume.size
+    resource.backend_metadata["size"] = volume.size
 
     if volume.instance:
-        resource.backend_metadata['instance_uuid'] = volume.instance.uuid.hex
-        resource.backend_metadata['instance_name'] = volume.instance.name
+        resource.backend_metadata["instance_uuid"] = volume.instance.uuid.hex
+        resource.backend_metadata["instance_name"] = volume.instance.name
     else:
-        resource.backend_metadata['instance_uuid'] = None
-        resource.backend_metadata['instance_name'] = None
+        resource.backend_metadata["instance_uuid"] = None
+        resource.backend_metadata["instance_name"] = None
 
     if volume.type:
-        resource.backend_metadata['type_name'] = volume.type.name
+        resource.backend_metadata["type_name"] = volume.type.name
     else:
-        resource.backend_metadata['type_name'] = None
+        resource.backend_metadata["type_name"] = None
 
-    resource.save(update_fields=['backend_metadata'])
+    resource.save(update_fields=["backend_metadata"])
 
 
 def import_instance_metadata(resource: marketplace_models.Resource):
     import_resource_metadata(resource)
     instance: openstack_tenant_models.Instance = resource.scope
-    resource.backend_metadata['internal_ips'] = instance.internal_ips
-    resource.backend_metadata['external_ips'] = instance.external_ips
+    resource.backend_metadata["internal_ips"] = instance.internal_ips
+    resource.backend_metadata["external_ips"] = instance.external_ips
     bootable_volume = instance.volumes.filter(bootable=True).first()
     if bootable_volume and (bootable_volume.image or bootable_volume.image_name):
-        resource.backend_metadata['system_volume_image_name'] = (
+        resource.backend_metadata["system_volume_image_name"] = (
             bootable_volume.image_name or bootable_volume.image.name
         )
-    resource.save(update_fields=['backend_metadata'])
+    resource.save(update_fields=["backend_metadata"])
 
 
 def get_offering(offering_type, service_settings):
@@ -113,18 +113,18 @@ def get_offering(offering_type, service_settings):
         )
     except ObjectDoesNotExist:
         logger.warning(
-            'Marketplace offering is not found. ' 'ServiceSettings ID: %s',
+            "Marketplace offering is not found. " "ServiceSettings ID: %s",
             service_settings.id,
         )
     except MultipleObjectsReturned:
         logger.warning(
-            'Multiple marketplace offerings are found. ' 'ServiceSettings ID: %s',
+            "Multiple marketplace offerings are found. " "ServiceSettings ID: %s",
             service_settings.id,
         )
 
 
 def import_quotas(offering, source_values):
-    storage_mode = offering.plugin_options.get('storage_mode') or STORAGE_MODE_FIXED
+    storage_mode = offering.plugin_options.get("storage_mode") or STORAGE_MODE_FIXED
 
     result_values = {
         CORES_TYPE: source_values.get(TenantQuotas.vcpu.name, 0),
@@ -135,7 +135,7 @@ def import_quotas(offering, source_values):
         result_values[STORAGE_TYPE] = source_values.get(TenantQuotas.storage.name, 0)
     elif storage_mode == STORAGE_MODE_DYNAMIC:
         volume_type_values = {
-            k: v for (k, v) in source_values.items() if k.startswith('gigabytes_')
+            k: v for (k, v) in source_values.items() if k.startswith("gigabytes_")
         }
         result_values.update(volume_type_values)
 
@@ -154,7 +154,7 @@ def import_usage(resource):
         return
 
     resource.current_usages = import_quotas(resource.offering, tenant.quota_usages)
-    resource.save(update_fields=['current_usages'])
+    resource.save(update_fields=["current_usages"])
     import_current_usages(resource)
 
 
@@ -169,25 +169,25 @@ def import_limits(resource):
         return
 
     resource.limits = import_quotas(resource.offering, tenant.quota_limits)
-    resource.save(update_fields=['limits'])
+    resource.save(update_fields=["limits"])
 
 
 def tenant_limits_validator(limits):
     cores = limits.get(CORES_TYPE) or 0
     if not cores:
-        raise exceptions.ValidationError('CPU limit is mandatory.')
+        raise exceptions.ValidationError("CPU limit is mandatory.")
 
     ram = limits.get(RAM_TYPE) or 0
     if not ram:
-        raise exceptions.ValidationError('RAM limit is mandatory.')
+        raise exceptions.ValidationError("RAM limit is mandatory.")
 
     storage = sum(
         value
         for key, value in limits.items()
-        if key.startswith('gigabytes_') or key == STORAGE_TYPE
+        if key.startswith("gigabytes_") or key == STORAGE_TYPE
     )
     if not storage:
-        raise exceptions.ValidationError('Storage limit is mandatory.')
+        raise exceptions.ValidationError("Storage limit is mandatory.")
 
 
 def map_limits_to_quotas(limits, offering):
@@ -203,24 +203,24 @@ def map_limits_to_quotas(limits, offering):
     volume_type_quotas = dict(
         (key, value)
         for (key, value) in limits.items()
-        if key.startswith('gigabytes_') and value is not None
+        if key.startswith("gigabytes_") and value is not None
     )
 
     # Common storage quota should be equal to sum of all volume-type quotas.
     if volume_type_quotas:
-        if 'storage' in quotas:
+        if "storage" in quotas:
             raise exceptions.ValidationError(
-                'You should either specify general-purpose storage quota '
-                'or volume-type specific storage quota.'
+                "You should either specify general-purpose storage quota "
+                "or volume-type specific storage quota."
             )
 
         # Initialize volume type quotas as zero, otherwise they are treated as unlimited
         for volume_type in openstack_models.VolumeType.objects.filter(
             settings=offering.scope
         ):
-            volume_type_quotas.setdefault('gigabytes_' + volume_type.name, 0)
+            volume_type_quotas.setdefault("gigabytes_" + volume_type.name, 0)
 
-        quotas['storage'] = ServiceBackend.gb2mb(sum(list(volume_type_quotas.values())))
+        quotas["storage"] = ServiceBackend.gb2mb(sum(list(volume_type_quotas.values())))
         quotas.update(volume_type_quotas)
 
     # Convert quota value from float to integer because OpenStack API fails otherwise
@@ -247,7 +247,7 @@ def import_limits_when_storage_mode_is_switched(resource):
         return
 
     storage_mode = (
-        resource.offering.plugin_options.get('storage_mode') or STORAGE_MODE_FIXED
+        resource.offering.plugin_options.get("storage_mode") or STORAGE_MODE_FIXED
     )
 
     raw_limits = tenant.quota_limits
@@ -262,12 +262,12 @@ def import_limits_when_storage_mode_is_switched(resource):
         limits[STORAGE_TYPE] = raw_usages.get(TenantQuotas.storage.name, 0)
     elif storage_mode == STORAGE_MODE_DYNAMIC:
         volume_type_limits = {
-            k: v for (k, v) in raw_usages.items() if k.startswith('gigabytes_')
+            k: v for (k, v) in raw_usages.items() if k.startswith("gigabytes_")
         }
         limits.update(volume_type_limits)
 
     resource.limits = limits
-    resource.save(update_fields=['limits'])
+    resource.save(update_fields=["limits"])
 
 
 def push_tenant_limits(resource):
@@ -290,7 +290,7 @@ def restore_limits(resource):
                 marketplace_models.Order.Types.UPDATE,
             ],
         )
-        .order_by('-created')
+        .order_by("-created")
         .first()
     )
 
@@ -308,8 +308,8 @@ def get_tenant_backend_of_tenant(tenant):
         service_settings = structure_models.ServiceSettings.objects.get(scope=tenant)
     except structure_models.ServiceSettings.DoesNotExist:
         logger.error(
-            'An import of instances and volumes is impossible because service settings do not exist.'
-            'Tenant: %s' % tenant
+            "An import of instances and volumes is impossible because service settings do not exist."
+            "Tenant: %s" % tenant
         )
         return
 
@@ -324,13 +324,13 @@ def import_instances_and_volumes_of_tenant(tenant):
 
     for instance in tenant_backend.get_importable_instances():
         created_instance = tenant_backend.import_instance(
-            instance['backend_id'], tenant.project
+            instance["backend_id"], tenant.project
         )
         create_marketplace_resource_for_imported_resources(created_instance)
 
     for volume in tenant_backend.get_importable_volumes():
         created_volume = tenant_backend.import_volume(
-            volume['backend_id'], tenant.project
+            volume["backend_id"], tenant.project
         )
         create_marketplace_resource_for_imported_resources(created_volume)
 
@@ -366,7 +366,7 @@ def terminate_expired_instances_and_volumes_of_tenant(tenant):
 
 def create_offerings_for_volume_and_instance(tenant):
     if not settings.WALDUR_MARKETPLACE_OPENSTACK[
-        'AUTOMATICALLY_CREATE_PRIVATE_OFFERING'
+        "AUTOMATICALLY_CREATE_PRIVATE_OFFERING"
     ]:
         return
 
@@ -374,8 +374,8 @@ def create_offerings_for_volume_and_instance(tenant):
         resource = marketplace_models.Resource.objects.get(scope=tenant)
     except ObjectDoesNotExist:
         logger.debug(
-            'Skipping offering creation for tenant because order '
-            'item does not exist. OpenStack tenant ID: %s',
+            "Skipping offering creation for tenant because order "
+            "item does not exist. OpenStack tenant ID: %s",
             tenant.id,
         )
         return
@@ -387,8 +387,8 @@ def create_offerings_for_volume_and_instance(tenant):
         )
     except ObjectDoesNotExist:
         logger.debug(
-            'Skipping offering creation for tenant because service settings '
-            'object does not exist. OpenStack tenant ID: %s',
+            "Skipping offering creation for tenant because service settings "
+            "object does not exist. OpenStack tenant ID: %s",
             tenant.id,
         )
         return
@@ -401,8 +401,8 @@ def create_offerings_for_volume_and_instance(tenant):
             )
         except ObjectDoesNotExist:
             logger.warning(
-                'Skipping offering creation for tenant because category '
-                'for instances and volumes is not yet defined.'
+                "Skipping offering creation for tenant because category "
+                "for instances and volumes is not yet defined."
             )
             continue
         actual_customer = tenant.project.customer
@@ -420,14 +420,14 @@ def create_offerings_for_volume_and_instance(tenant):
         )
 
         fields = (
-            'state',
-            'attributes',
-            'thumbnail',
-            'vendor_details',
-            'getting_started',
-            'integration_guide',
-            'latitude',
-            'longitude',
+            "state",
+            "attributes",
+            "thumbnail",
+            "vendor_details",
+            "getting_started",
+            "integration_guide",
+            "latitude",
+            "longitude",
         )
         for field in fields:
             payload[field] = getattr(parent_offering, field)
@@ -440,8 +440,8 @@ def create_marketplace_resource_for_imported_resources(
 ):
     if marketplace_models.Resource.objects.filter(scope=instance).exists():
         logger.warning(
-            'Skipping creation of marketplace resource '
-            'for OpenStack instance with ID %s because it already exists.',
+            "Skipping creation of marketplace resource "
+            "for OpenStack instance with ID %s because it already exists.",
             instance.id,
         )
         return
@@ -449,7 +449,7 @@ def create_marketplace_resource_for_imported_resources(
         # backend_id is None if instance is being restored from backup because
         # on database level there's uniqueness constraint enforced for backend_id
         # but in marketplace resource backend_is not nullable
-        backend_id=instance.backend_id or '',
+        backend_id=instance.backend_id or "",
         project=instance.project,
         state=get_resource_state(instance.state),
         name=instance.name,

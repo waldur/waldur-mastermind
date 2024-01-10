@@ -2,8 +2,8 @@ from django.apps import AppConfig
 
 
 class MarketplaceVMwareConfig(AppConfig):
-    name = 'waldur_mastermind.marketplace_vmware'
-    verbose_name = 'Marketplace VMware'
+    name = "waldur_mastermind.marketplace_vmware"
+    verbose_name = "Marketplace VMware"
 
     def ready(self):
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
@@ -28,21 +28,21 @@ class MarketplaceVMwareConfig(AppConfig):
             can_update_limits=True,
             components=(
                 Component(
-                    type='cpu', name='CPU', measured_unit='vCPU', billing_type=LIMIT
+                    type="cpu", name="CPU", measured_unit="vCPU", billing_type=LIMIT
                 ),
                 # Price is stored per GiB but size is stored per MiB
                 # therefore we need to divide size by factor when price estimate is calculated.
                 Component(
-                    type='ram',
-                    name='RAM',
-                    measured_unit='GB',
+                    type="ram",
+                    name="RAM",
+                    measured_unit="GB",
                     billing_type=LIMIT,
                     factor=1024,
                 ),
                 Component(
-                    type='disk',
-                    name='Disk',
-                    measured_unit='GB',
+                    type="disk",
+                    name="Disk",
+                    measured_unit="GB",
                     billing_type=LIMIT,
                     factor=1024,
                 ),
@@ -51,6 +51,6 @@ class MarketplaceVMwareConfig(AppConfig):
 
         vmware_signals.vm_updated.connect(
             handlers.update_marketplace_resource_limits_when_vm_is_updated,
-            dispatch_uid='marketplace_vmware.handlers.'
-            'update_marketplace_resource_limits_when_vm_is_updated',
+            dispatch_uid="marketplace_vmware.handlers."
+            "update_marketplace_resource_limits_when_vm_is_updated",
         )

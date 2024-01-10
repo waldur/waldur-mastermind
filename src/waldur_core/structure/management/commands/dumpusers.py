@@ -15,14 +15,14 @@ User = get_user_model()
 USER_COLUMNS = OrderedDict(
     [
         # (Column name, User fields)
-        ('Full name, Civil number', ('full_name', 'civil_number')),
-        ('Email, Phone nr.', ('email', 'phone_number')),
-        ('Job title', ('job_title',)),
+        ("Full name, Civil number", ("full_name", "civil_number")),
+        ("Email, Phone nr.", ("email", "phone_number")),
+        ("Job title", ("job_title",)),
         (
-            'Staff, Support',
+            "Staff, Support",
             (
-                'is_staff',
-                'is_support',
+                "is_staff",
+                "is_support",
             ),
         ),
     ]
@@ -36,27 +36,27 @@ def format_string_to_column_size(string):
     if len(string) <= COLUMN_MAX_WIDTH:
         return string
 
-    formatted = '\n'.join(
+    formatted = "\n".join(
         string[i : i + COLUMN_MAX_WIDTH]
         for i in range(0, len(string), COLUMN_MAX_WIDTH)
     )
     if isinstance(formatted, str):
-        formatted = str(formatted, errors='replace')
+        formatted = str(formatted, errors="replace")
     return formatted
 
 
 def to_string(value):
     if isinstance(value, bool):
-        return 'Yes' if value else 'No'
+        return "Yes" if value else "No"
     elif isinstance(value, int):
         return str(value)
     elif isinstance(value, str):
         return format_string_to_column_size(value)
     elif isinstance(value, list):
         strings = [to_string(v) for v in value]
-        result = ', '.join(strings)
+        result = ", ".join(strings)
         if len(result) > COLUMN_MAX_WIDTH:
-            return '\n'.join(strings)
+            return "\n".join(strings)
         return result
 
     return format_string_to_column_size(str(value))
@@ -67,11 +67,11 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            '-o',
-            '--output',
-            dest='output',
+            "-o",
+            "--output",
+            dest="output",
             default=None,
-            help='Specifies file to which the output is written. The output will be printed to stdout by default.',
+            help="Specifies file to which the output is written. The output will be printed to stdout by default.",
         )
 
     def handle(self, *args, **options):
@@ -79,21 +79,21 @@ class Command(BaseCommand):
         users = User.objects.all()
 
         # build table
-        columns = list(USER_COLUMNS.keys()) + ['Organizations', 'Projects']
+        columns = list(USER_COLUMNS.keys()) + ["Organizations", "Projects"]
         table = prettytable.PrettyTable(columns, hrules=prettytable.ALL)
         for user in users:
             customers = models.Customer.objects.filter(
                 id__in=get_connected_customers(user)
-            ).values_list('name', flat=True)
+            ).values_list("name", flat=True)
             projects = models.Project.objects.filter(
                 id__in=get_connected_projects(user)
-            ).values_list('name', flat=True)
+            ).values_list("name", flat=True)
             row = [
                 to_string(
                     [
                         getattr(user, f)
                         for f in fields
-                        if getattr(user, f) not in ('', None)
+                        if getattr(user, f) not in ("", None)
                     ]
                 )
                 for fields in USER_COLUMNS.values()
@@ -101,9 +101,9 @@ class Command(BaseCommand):
             table.add_row(row)
 
         # output
-        if options['output'] is None:
+        if options["output"] is None:
             self.stdout.write(table.get_string())
             return
 
-        with open(options['output'], 'w') as output_file:
+        with open(options["output"], "w") as output_file:
             output_file.write(table.get_string())

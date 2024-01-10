@@ -15,7 +15,7 @@ from waldur_mastermind.marketplace import callbacks, models
 from waldur_mastermind.marketplace.tests import factories
 
 
-@freeze_time('2019-06-19')
+@freeze_time("2019-06-19")
 class PlanPeriodsTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
@@ -30,7 +30,7 @@ class PlanPeriodsTest(test.APITransactionTestCase):
             resource=self.resource, plan=self.plan
         )
         self.client.force_authenticate(self.fixture.staff)
-        self.url = factories.ResourceFactory.get_url(self.resource, 'plan_periods')
+        self.url = factories.ResourceFactory.get_url(self.resource, "plan_periods")
 
     def test_component_usages_are_filtered_by_current_month(self):
         models.ComponentUsage.objects.create(
@@ -38,11 +38,11 @@ class PlanPeriodsTest(test.APITransactionTestCase):
             plan_period=self.plan_period,
             component=self.component,
             usage=100,
-            date=parse_datetime('2019-05-10'),
-            billing_period=parse_datetime('2019-05-01'),
+            date=parse_datetime("2019-05-10"),
+            billing_period=parse_datetime("2019-05-01"),
         )
         response = self.client.get(self.url)
-        self.assertEqual(len(response.data[0]['components']), 0)
+        self.assertEqual(len(response.data[0]["components"]), 0)
 
     def test_component_usages_are_rendered_for_current_month(self):
         models.ComponentUsage.objects.create(
@@ -50,15 +50,15 @@ class PlanPeriodsTest(test.APITransactionTestCase):
             plan_period=self.plan_period,
             component=self.component,
             usage=100,
-            date=parse_datetime('2019-06-11'),
-            billing_period=parse_datetime('2019-06-01'),
+            date=parse_datetime("2019-06-11"),
+            billing_period=parse_datetime("2019-06-01"),
         )
         response = self.client.get(self.url)
-        self.assertEqual(response.data[0]['components'][0]['usage'], '100.00')
+        self.assertEqual(response.data[0]["components"][0]["usage"], "100.00")
 
 
 @ddt
-@freeze_time('2017-01-10')
+@freeze_time("2017-01-10")
 class SubmitUsageTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
@@ -71,12 +71,12 @@ class SubmitUsageTest(test.APITransactionTestCase):
         self.offering_component = factories.OfferingComponentFactory(
             offering=self.offering,
             billing_type=models.OfferingComponent.BillingTypes.USAGE,
-            type='cpu',
+            type="cpu",
         )
         self.offering_component2 = factories.OfferingComponentFactory(
             offering=self.offering,
             billing_type=models.OfferingComponent.BillingTypes.USAGE,
-            type='ram',
+            type="ram",
         )
         self.component = factories.PlanComponentFactory(
             plan=self.plan, component=self.offering_component
@@ -106,12 +106,12 @@ class SubmitUsageTest(test.APITransactionTestCase):
     def test_valid_signature(self):
         payload = self.get_valid_payload()
         response = self.client.post(
-            '/api/marketplace-public-api/check_signature/', payload
+            "/api/marketplace-public-api/check_signature/", payload
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_invalid_signature(self):
-        response = self.submit_usage(data='wrong_signature')
+        response = self.submit_usage(data="wrong_signature")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_create_usage(self):
@@ -131,9 +131,9 @@ class SubmitUsageTest(test.APITransactionTestCase):
     def test_set_recurring_to_false_for_other_usages_in_this_period(self):
         self.client.force_authenticate(self.fixture.staff)
         payload = self.get_usage_data()
-        payload['usages'][0]['recurring'] = True
+        payload["usages"][0]["recurring"] = True
         response = self.client.post(
-            '/api/marketplace-component-usages/set_usage/', payload
+            "/api/marketplace-component-usages/set_usage/", payload
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         date = timezone.now()
@@ -152,14 +152,14 @@ class SubmitUsageTest(test.APITransactionTestCase):
         self.plan_period = new_plan_period
         payload = self.get_usage_data()
         response = self.client.post(
-            '/api/marketplace-component-usages/set_usage/', payload
+            "/api/marketplace-component-usages/set_usage/", payload
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         usage.refresh_from_db()
         self.assertFalse(usage.recurring)
 
     def test_submit_usage_with_description(self):
-        description = 'My first usage report'
+        description = "My first usage report"
         response = self.submit_usage(**self.get_valid_payload(description=description))
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         report = models.ComponentUsage.objects.filter(resource=self.resource).first()
@@ -181,11 +181,11 @@ class SubmitUsageTest(test.APITransactionTestCase):
         )
         self.assertEqual(usage.plan_period, plan_period)
 
-    @data('staff', 'owner')
+    @data("staff", "owner")
     def test_authenticated_user_can_submit_usage_via_api(self, role):
         self.client.force_authenticate(getattr(self.fixture, role))
         response = self.client.post(
-            '/api/marketplace-component-usages/set_usage/', self.get_usage_data()
+            "/api/marketplace-component-usages/set_usage/", self.get_usage_data()
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         date = timezone.now()
@@ -207,13 +207,13 @@ class SubmitUsageTest(test.APITransactionTestCase):
             ).exists()
         )
         self.resource.refresh_from_db()
-        self.assertEqual(self.resource.current_usages, {'cpu': '5.00', 'ram': '5.00'})
+        self.assertEqual(self.resource.current_usages, {"cpu": "5.00", "ram": "5.00"})
 
-    @data('admin', 'manager', 'user')
+    @data("admin", "manager", "user")
     def test_other_user_can_not_submit_usage_via_api(self, role):
         self.client.force_authenticate(getattr(self.fixture, role))
         response = self.client.post(
-            '/api/marketplace-component-usages/set_usage/', self.get_usage_data()
+            "/api/marketplace-component-usages/set_usage/", self.get_usage_data()
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertFalse(
@@ -229,7 +229,7 @@ class SubmitUsageTest(test.APITransactionTestCase):
         self.resource.save()
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.post(
-            '/api/marketplace-component-usages/set_usage/', self.get_usage_data()
+            "/api/marketplace-component-usages/set_usage/", self.get_usage_data()
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -241,11 +241,11 @@ class SubmitUsageTest(test.APITransactionTestCase):
         self.resource.save()
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.post(
-            '/api/marketplace-component-usages/set_usage/', self.get_usage_data()
+            "/api/marketplace-component-usages/set_usage/", self.get_usage_data()
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @freeze_time('2019-06-19')
+    @freeze_time("2019-06-19")
     def test_component_usage_is_created_for_current_month_if_it_does_not_exist_yet(
         self,
     ):
@@ -254,13 +254,13 @@ class SubmitUsageTest(test.APITransactionTestCase):
             plan_period=self.plan_period,
             component=self.offering_component,
             usage=100,
-            date=parse_datetime('2019-05-11'),
-            billing_period=parse_datetime('2019-05-01'),
+            date=parse_datetime("2019-05-11"),
+            billing_period=parse_datetime("2019-05-01"),
         )
 
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(
-            '/api/marketplace-component-usages/set_usage/', self.get_usage_data()
+            "/api/marketplace-component-usages/set_usage/", self.get_usage_data()
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         component_usages = models.ComponentUsage.objects.filter(
@@ -275,20 +275,20 @@ class SubmitUsageTest(test.APITransactionTestCase):
         component_usage = component_usages.last()
         self.assertEqual(self.fixture.staff, component_usage.modified_by)
 
-    @freeze_time('2019-06-19')
+    @freeze_time("2019-06-19")
     def test_component_usage_is_updated_for_current_month_if_it_already_exists(self):
         models.ComponentUsage.objects.create(
             resource=self.resource,
             plan_period=self.plan_period,
             component=self.offering_component,
             usage=100,
-            date=parse_datetime('2019-06-21'),
-            billing_period=parse_datetime('2019-06-01'),
+            date=parse_datetime("2019-06-21"),
+            billing_period=parse_datetime("2019-06-01"),
         )
 
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(
-            '/api/marketplace-component-usages/set_usage/', self.get_usage_data()
+            "/api/marketplace-component-usages/set_usage/", self.get_usage_data()
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         component_usage = models.ComponentUsage.objects.filter(
@@ -318,7 +318,7 @@ class SubmitUsageTest(test.APITransactionTestCase):
         response = self.submit_usage()
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    @freeze_time('2019-06-19')
+    @freeze_time("2019-06-19")
     def test_total_amount_exceeds_annual_limit(self):
         self.offering_component.limit_period = (
             models.OfferingComponent.LimitPeriods.ANNUAL
@@ -330,14 +330,14 @@ class SubmitUsageTest(test.APITransactionTestCase):
             resource=self.resource,
             component=self.offering_component,
             usage=99,
-            date=parse_datetime('2019-05-11'),
-            billing_period=parse_datetime('2019-05-01'),
+            date=parse_datetime("2019-05-11"),
+            billing_period=parse_datetime("2019-05-01"),
         )
 
         response = self.submit_usage()
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @freeze_time('2019-06-19')
+    @freeze_time("2019-06-19")
     def test_total_amount_does_not_exceed_annual_limit(self):
         self.offering_component.limit_period = (
             models.OfferingComponent.LimitPeriods.ANNUAL
@@ -349,8 +349,8 @@ class SubmitUsageTest(test.APITransactionTestCase):
             resource=self.resource,
             component=self.offering_component,
             usage=99,
-            date=parse_datetime('2018-05-11'),
-            billing_period=parse_datetime('2018-05-01'),
+            date=parse_datetime("2018-05-11"),
+            billing_period=parse_datetime("2018-05-01"),
         )
 
         response = self.submit_usage()
@@ -379,7 +379,7 @@ class SubmitUsageTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_create_usage_if_component_not_exists(self):
-        response = self.submit_usage(**self.get_valid_payload(component_type='ram'))
+        response = self.submit_usage(**self.get_valid_payload(component_type="ram"))
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_update_usage_if_usage_exists(self):
@@ -391,7 +391,7 @@ class SubmitUsageTest(test.APITransactionTestCase):
         self.assertIsNone(usage.modified_by)
 
     def test_usage_is_not_updated_if_billing_period_is_closed(self):
-        self.plan_period.end = parse_datetime('2016-01-10')
+        self.plan_period.end = parse_datetime("2016-01-10")
         self.plan_period.save()
         response = self.submit_usage()
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -410,7 +410,7 @@ class SubmitUsageTest(test.APITransactionTestCase):
     def submit_usage(self, **extra):
         payload = self.get_valid_payload()
         payload.update(extra)
-        return self.client.post('/api/marketplace-public-api/set_usage/', payload)
+        return self.client.post("/api/marketplace-public-api/set_usage/", payload)
 
     def get_valid_payload(self, **kwargs):
         data = self.get_usage_data(**kwargs)
@@ -420,19 +420,19 @@ class SubmitUsageTest(test.APITransactionTestCase):
         )
         return payload
 
-    def get_usage_data(self, component_type='cpu', amount=5, description=''):
+    def get_usage_data(self, component_type="cpu", amount=5, description=""):
         return {
-            'plan_period': self.plan_period.uuid.hex,
-            'usages': [
+            "plan_period": self.plan_period.uuid.hex,
+            "usages": [
                 {
-                    'type': component_type,
-                    'amount': amount,
-                    'description': description,
+                    "type": component_type,
+                    "amount": amount,
+                    "description": description,
                 },
                 {
-                    'type': 'ram',
-                    'amount': amount,
-                    'description': description,
+                    "type": "ram",
+                    "amount": amount,
+                    "description": description,
                 },
             ],
         }

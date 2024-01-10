@@ -14,14 +14,14 @@ def log_backend_action(action=None):
     def decorator(func):
         @functools.wraps(func)
         def wrapped(self, instance, *args, **kwargs):
-            action_name = func.__name__.replace('_', ' ') if action is None else action
+            action_name = func.__name__.replace("_", " ") if action is None else action
 
             logger.debug(
-                'About to %s `%s` (PK: %s).', action_name, instance, instance.pk
+                "About to %s `%s` (PK: %s).", action_name, instance, instance.pk
             )
             result = func(self, instance, *args, **kwargs)
             logger.debug(
-                'Action `%s` was executed successfully for `%s` (PK: %s).',
+                "Action `%s` was executed successfully for `%s` (PK: %s).",
                 action_name,
                 instance,
                 instance.pk,
@@ -88,10 +88,10 @@ class ServiceBackend(ABC):
     def get_importable_resources(self, resource_model, remote_resources):
         local_backend_ids = resource_model.objects.filter(
             service_settings=self.settings
-        ).values_list('backend_id', flat=True)
+        ).values_list("backend_id", flat=True)
         result = []
         for remote_resource in remote_resources:
-            if remote_resource['backend_id'] in local_backend_ids:
+            if remote_resource["backend_id"] in local_backend_ids:
                 continue
             result.append(remote_resource)
         return result

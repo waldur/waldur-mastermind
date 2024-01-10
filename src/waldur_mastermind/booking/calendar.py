@@ -35,40 +35,40 @@ class SyncBookings:
         google_bookings = []
 
         for event in self.backend.get_events(calendar_id=self.calendar_id):
-            start = event.get('start')
+            start = event.get("start")
 
             if start:
-                start = start.get('dateTime', None) or start['date'] + 'T00:00:00'
+                start = start.get("dateTime", None) or start["date"] + "T00:00:00"
             else:
                 continue
 
-            end = event.get('end')
+            end = event.get("end")
 
             if end:
-                end = end.get('dateTime', None) or datetime.datetime.fromisoformat(
-                    end['date'] + 'T23:59:59'
+                end = end.get("dateTime", None) or datetime.datetime.fromisoformat(
+                    end["date"] + "T23:59:59"
                 ) - datetime.timedelta(days=1)
             else:
                 continue
 
-            if 'booking' not in event['id']:
+            if "booking" not in event["id"]:
                 busy_slots.append(
                     TimePeriod(
                         start,
                         end,
-                        event['id'],
+                        event["id"],
                         time_zone=self.backend.get_calendar_time_zone(self.calendar_id),
                     )
                 )
                 continue
 
             attendees = []
-            if event.get('attendees'):
-                for attendee in event.get('attendees'):
+            if event.get("attendees"):
+                for attendee in event.get("attendees"):
                     attendees.append(
                         {
-                            'displayName': attendee['displayName'],
-                            'email': attendee['email'],
+                            "displayName": attendee["displayName"],
+                            "email": attendee["email"],
                         }
                     )
 
@@ -76,8 +76,8 @@ class SyncBookings:
                 TimePeriod(
                     start,
                     end,
-                    event['id'],
-                    location=event.get('location'),
+                    event["id"],
+                    location=event.get("location"),
                     attendees=attendees,
                 )
             )
@@ -168,5 +168,5 @@ class SyncBookings:
         for event in self.backend.get_events(calendar_id=self.calendar_id):
             self.backend.delete_event(
                 calendar_id=self.calendar_id,
-                event_id=event['id'],
+                event_id=event["id"],
             )

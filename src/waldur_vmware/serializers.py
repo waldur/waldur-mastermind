@@ -12,57 +12,57 @@ from . import constants, models
 
 class VmwareServiceSerializer(structure_serializers.ServiceOptionsSerializer):
     class Meta:
-        secret_fields = ('backend_url', 'username', 'password')
+        secret_fields = ("backend_url", "username", "password")
 
     backend_url = serializers.CharField(
-        max_length=200, label=_('VMware auth URL'), validators=[BackendURLValidator]
+        max_length=200, label=_("VMware auth URL"), validators=[BackendURLValidator]
     )
 
-    username = serializers.CharField(max_length=100, label=_('VMware user username'))
+    username = serializers.CharField(max_length=100, label=_("VMware user username"))
 
-    password = serializers.CharField(max_length=100, label=_('VMware user password'))
+    password = serializers.CharField(max_length=100, label=_("VMware user password"))
 
     default_cluster_label = serializers.CharField(
-        source='options.default_cluster_label',
+        source="options.default_cluster_label",
         help_text=_(
-            'Label of VMware cluster that will be used for virtual machines provisioning'
+            "Label of VMware cluster that will be used for virtual machines provisioning"
         ),
         required=False,
     )
 
     max_cpu = core_serializers.UnicodeIntegerField(
         min_value=1,
-        source='options.max_cpu',
+        source="options.max_cpu",
         required=False,
-        help_text=_('Maximum vCPU for each VM'),
+        help_text=_("Maximum vCPU for each VM"),
     )
 
     max_cores_per_socket = core_serializers.UnicodeIntegerField(
         min_value=1,
-        source='options.max_cores_per_socket',
+        source="options.max_cores_per_socket",
         required=False,
-        help_text=_('Maximum number of cores per socket for each VM'),
+        help_text=_("Maximum number of cores per socket for each VM"),
     )
 
     max_ram = core_serializers.UnicodeIntegerField(
         min_value=1,
-        source='options.max_ram',
+        source="options.max_ram",
         required=False,
-        help_text=_('Maximum RAM for each VM, MiB'),
+        help_text=_("Maximum RAM for each VM, MiB"),
     )
 
     max_disk = core_serializers.UnicodeIntegerField(
         min_value=1,
-        source='options.max_disk',
+        source="options.max_disk",
         required=False,
-        help_text=_('Maximum capacity for each disk, MiB'),
+        help_text=_("Maximum capacity for each disk, MiB"),
     )
 
     max_disk_total = core_serializers.UnicodeIntegerField(
         min_value=1,
-        source='options.max_disk_total',
+        source="options.max_disk_total",
         required=False,
-        help_text=_('Maximum total size of the disk space per VM, MiB'),
+        help_text=_("Maximum total size of the disk space per VM, MiB"),
     )
 
 
@@ -83,11 +83,11 @@ def get_int_or_none(options, key):
 class LimitSerializer(serializers.Serializer):
     def to_representation(self, service_settings):
         fields = (
-            'max_cpu',
-            'max_cores_per_socket',
-            'max_ram',
-            'max_disk',
-            'max_disk_total',
+            "max_cpu",
+            "max_cores_per_socket",
+            "max_ram",
+            "max_disk",
+            "max_disk_total",
         )
         result = dict()
         for field in fields:
@@ -98,20 +98,20 @@ class LimitSerializer(serializers.Serializer):
 class NestedPortSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = models.Port
-        fields = ('url', 'uuid', 'name', 'mac_address', 'network')
-        read_only_fields = ('mac_address',)
+        fields = ("url", "uuid", "name", "mac_address", "network")
+        read_only_fields = ("mac_address",)
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid', 'view_name': 'vmware-port-detail'},
-            'network': {'lookup_field': 'uuid', 'view_name': 'vmware-network-detail'},
+            "url": {"lookup_field": "uuid", "view_name": "vmware-port-detail"},
+            "network": {"lookup_field": "uuid", "view_name": "vmware-network-detail"},
         }
 
 
 class NestedDiskSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = models.Disk
-        fields = ('url', 'uuid', 'size')
+        fields = ("url", "uuid", "size")
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid', 'view_name': 'vmware-disk-detail'},
+            "url": {"lookup_field": "uuid", "view_name": "vmware-disk-detail"},
         }
 
 
@@ -121,9 +121,9 @@ class NestedNetworkSerializer(
 ):
     class Meta:
         model = models.Network
-        fields = ('uuid', 'url', 'name', 'type')
+        fields = ("uuid", "url", "name", "type")
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
+            "url": {"lookup_field": "uuid"},
         }
 
 
@@ -138,48 +138,48 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
 
     disks = NestedDiskSerializer(many=True, read_only=True)
 
-    ports = NestedPortSerializer(many=True, read_only=True, source='port_set')
+    ports = NestedPortSerializer(many=True, read_only=True, source="port_set")
 
     template = serializers.HyperlinkedRelatedField(
-        view_name='vmware-template-detail',
-        lookup_field='uuid',
+        view_name="vmware-template-detail",
+        lookup_field="uuid",
         queryset=models.Template.objects.all(),
         allow_null=True,
         required=False,
         write_only=True,
     )
 
-    template_name = serializers.ReadOnlyField(source='template.name')
+    template_name = serializers.ReadOnlyField(source="template.name")
 
     cluster = serializers.HyperlinkedRelatedField(
-        view_name='vmware-cluster-detail',
-        lookup_field='uuid',
+        view_name="vmware-cluster-detail",
+        lookup_field="uuid",
         queryset=models.Cluster.objects.all(),
         allow_null=True,
         required=False,
     )
 
-    cluster_name = serializers.ReadOnlyField(source='cluster.name')
+    cluster_name = serializers.ReadOnlyField(source="cluster.name")
 
     datastore = serializers.HyperlinkedRelatedField(
-        view_name='vmware-datastore-detail',
-        lookup_field='uuid',
+        view_name="vmware-datastore-detail",
+        lookup_field="uuid",
         queryset=models.Datastore.objects.all(),
         allow_null=True,
         required=False,
     )
 
-    datastore_name = serializers.ReadOnlyField(source='datastore.name')
+    datastore_name = serializers.ReadOnlyField(source="datastore.name")
 
     folder = serializers.HyperlinkedRelatedField(
-        view_name='vmware-folder-detail',
-        lookup_field='uuid',
+        view_name="vmware-folder-detail",
+        lookup_field="uuid",
         queryset=models.Folder.objects.all(),
         allow_null=True,
         required=False,
     )
 
-    folder_name = serializers.ReadOnlyField(source='folder.name')
+    folder_name = serializers.ReadOnlyField(source="folder.name")
 
     networks = NestedNetworkSerializer(
         queryset=models.Network.objects.all(),
@@ -190,7 +190,7 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
 
     runtime_state = serializers.SerializerMethodField()
 
-    tools_state = serializers.ReadOnlyField(source='get_tools_state_display')
+    tools_state = serializers.ReadOnlyField(source="get_tools_state_display")
 
     def get_runtime_state(self, vm):
         return dict(models.VirtualMachine.RuntimeStates.CHOICES).get(vm.runtime_state)
@@ -201,55 +201,55 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.VirtualMachine
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
-            'guest_os',
-            'guest_os_name',
-            'cores',
-            'cores_per_socket',
-            'ram',
-            'disk',
-            'disks',
-            'runtime_state',
-            'template',
-            'cluster',
-            'networks',
-            'datastore',
-            'folder',
-            'template_name',
-            'cluster_name',
-            'datastore_name',
-            'folder_name',
-            'ports',
-            'guest_power_state',
-            'tools_state',
-            'tools_installed',
+            "guest_os",
+            "guest_os_name",
+            "cores",
+            "cores_per_socket",
+            "ram",
+            "disk",
+            "disks",
+            "runtime_state",
+            "template",
+            "cluster",
+            "networks",
+            "datastore",
+            "folder",
+            "template_name",
+            "cluster_name",
+            "datastore_name",
+            "folder_name",
+            "ports",
+            "guest_power_state",
+            "tools_state",
+            "tools_installed",
         )
         protected_fields = (
             structure_serializers.BaseResourceSerializer.Meta.protected_fields
             + (
-                'guest_os',
-                'template',
-                'cluster',
-                'networks',
-                'datastore',
-                'folder',
-                'ports',
-                'name',
+                "guest_os",
+                "template",
+                "cluster",
+                "networks",
+                "datastore",
+                "folder",
+                "ports",
+                "name",
             )
         )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
             + (
-                'disk',
-                'runtime_state',
-                'guest_power_state',
-                'tools_installed',
+                "disk",
+                "runtime_state",
+                "guest_power_state",
+                "tools_installed",
             )
         )
         extra_kwargs = dict(
-            cores={'required': False},
-            cores_per_socket={'required': False},
-            ram={'required': False},
-            **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs
+            cores={"required": False},
+            cores_per_socket={"required": False},
+            ram={"required": False},
+            **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs,
         )
 
     def get_fields(self):
@@ -259,81 +259,81 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         """
         fields = super().get_fields()
 
-        if 'ram' in fields:
-            fields['ram'].factor = 1024
-            fields['ram'].units = 'GB'
-            fields['ram'].min_value = 1024
+        if "ram" in fields:
+            fields["ram"].factor = 1024
+            fields["ram"].units = "GB"
+            fields["ram"].min_value = 1024
 
-        if 'disk' in fields:
-            fields['disk'].factor = 1024
-            fields['disk'].units = 'GB'
+        if "disk" in fields:
+            fields["disk"].factor = 1024
+            fields["disk"].units = "GB"
 
-        if 'cores' in fields:
-            fields['cores'].min_value = 1
+        if "cores" in fields:
+            fields["cores"].min_value = 1
 
-        if 'cores_per_socket' in fields:
-            fields['cores_per_socket'].min_value = 1
+        if "cores_per_socket" in fields:
+            fields["cores_per_socket"].min_value = 1
 
         if isinstance(self.instance, models.VirtualMachine):
             options = self.instance.service_settings.options
 
-            if 'cores' in fields:
-                fields['cores'].max_value = options.get('max_cpu')
+            if "cores" in fields:
+                fields["cores"].max_value = options.get("max_cpu")
 
-            if 'ram' in fields and 'max_ram' in options:
-                fields['ram'].max_value = options.get('max_ram')
+            if "ram" in fields and "max_ram" in options:
+                fields["ram"].max_value = options.get("max_ram")
 
-            if 'cores_per_socket' in fields and 'max_cores_per_socket' in options:
-                fields['cores_per_socket'].max_value = options.get(
-                    'max_cores_per_socket'
+            if "cores_per_socket" in fields and "max_cores_per_socket" in options:
+                fields["cores_per_socket"].max_value = options.get(
+                    "max_cores_per_socket"
                 )
 
-            if 'disk' in fields and 'max_disk' in options:
-                fields['disk'].max_value = get_int_or_none(options, 'max_disk')
+            if "disk" in fields and "max_disk" in options:
+                fields["disk"].max_value = get_int_or_none(options, "max_disk")
 
-            if 'disk' in fields and 'max_disk_total' in options:
-                if fields['disk'].max_value:
-                    fields['disk'].max_value = min(
-                        get_int_or_none(options, 'max_disk_total'),
-                        get_int_or_none(options, 'max_disk'),
+            if "disk" in fields and "max_disk_total" in options:
+                if fields["disk"].max_value:
+                    fields["disk"].max_value = min(
+                        get_int_or_none(options, "max_disk_total"),
+                        get_int_or_none(options, "max_disk"),
                     )
                 else:
-                    fields['disk'].max_value = get_int_or_none(
-                        options, 'max_disk_total'
+                    fields["disk"].max_value = get_int_or_none(
+                        options, "max_disk_total"
                     )
 
         if not is_basic_mode():
             return fields
 
         try:
-            method = self.context['view'].request.method
+            method = self.context["view"].request.method
         except (KeyError, AttributeError):
             return fields
 
-        if method == 'POST':
-            read_only_fields = 'cluster', 'networks', 'datastore', 'folder'
+        if method == "POST":
+            read_only_fields = "cluster", "networks", "datastore", "folder"
             for field in read_only_fields:
                 fields[field].read_only = True
 
         return fields
 
     def _validate_attributes(self, attrs):
-        template_attrs = {'cores', 'cores_per_socket', 'ram', 'disk', 'guest_os'}
-        template = attrs.get('template')
-        missing_attributes = template_attrs - set(attrs.keys()) - {'disk'}
+        template_attrs = {"cores", "cores_per_socket", "ram", "disk", "guest_os"}
+        template = attrs.get("template")
+        missing_attributes = template_attrs - set(attrs.keys()) - {"disk"}
         if template:
-            if attrs.get('guest_os'):
+            if attrs.get("guest_os"):
                 raise serializers.ValidationError(
-                    'It is not possible to customize guest OS when template is used.'
+                    "It is not possible to customize guest OS when template is used."
                 )
             for attr in template_attrs:
                 old_value = attrs.get(attr)
                 if not old_value:
                     attrs[attr] = getattr(template, attr)
         elif missing_attributes:
-            attr_list = ', '.join(missing_attributes)
+            attr_list = ", ".join(missing_attributes)
             raise serializers.ValidationError(
-                'These fields are required when template is not used: %s.' % attr_list
+                "These fields are required when template is not used: %s." % attr_list
             )
         return attrs
 
@@ -341,59 +341,59 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         """
         Validate vCPU specification against service limits.
         """
-        actual_cpu = attrs.get('cores')
-        max_cpu = options.get('max_cpu')
+        actual_cpu = attrs.get("cores")
+        max_cpu = options.get("max_cpu")
         if actual_cpu and max_cpu and actual_cpu > max_cpu:
             raise serializers.ValidationError(
-                'Requested amount of CPU exceeds offering limit.'
+                "Requested amount of CPU exceeds offering limit."
             )
 
-        cores_per_socket = attrs.get('cores_per_socket')
+        cores_per_socket = attrs.get("cores_per_socket")
         if cores_per_socket and actual_cpu % cores_per_socket != 0:
             raise serializers.ValidationError(
-                'Number of CPU cores should be multiple of cores per socket.'
+                "Number of CPU cores should be multiple of cores per socket."
             )
 
-        max_cores_per_socket = options.get('max_cores_per_socket')
+        max_cores_per_socket = options.get("max_cores_per_socket")
         if (
             cores_per_socket
             and max_cores_per_socket
             and cores_per_socket > max_cores_per_socket
         ):
             raise serializers.ValidationError(
-                'Requested amount of cores per socket exceeds offering limit.'
+                "Requested amount of cores per socket exceeds offering limit."
             )
 
     def _validate_ram(self, attrs, options):
         """
         Validate RAM specification against service limits.
         """
-        actual_ram = attrs.get('ram')
-        max_ram = options.get('max_ram')
+        actual_ram = attrs.get("ram")
+        max_ram = options.get("max_ram")
         if actual_ram and actual_ram < 1024:
-            raise serializers.ValidationError('Requested amount of RAM is too small.')
+            raise serializers.ValidationError("Requested amount of RAM is too small.")
 
         if actual_ram and max_ram and actual_ram > max_ram:
             raise serializers.ValidationError(
-                'Requested amount of RAM exceeds offering limit.'
+                "Requested amount of RAM exceeds offering limit."
             )
 
     def _validate_disk(self, attrs, options):
         """
         Validate storage specification against service limits.
         """
-        template = attrs.get('template')
-        max_disk = get_int_or_none(options, 'max_disk')
+        template = attrs.get("template")
+        max_disk = get_int_or_none(options, "max_disk")
         actual_disk = template.disk if template else 0
         if actual_disk and max_disk and actual_disk > max_disk:
             raise serializers.ValidationError(
-                'Requested amount of disk exceeds offering limit.'
+                "Requested amount of disk exceeds offering limit."
             )
 
-        max_disk_total = get_int_or_none(options, 'max_disk_total')
+        max_disk_total = get_int_or_none(options, "max_disk_total")
         if actual_disk and max_disk_total and actual_disk > max_disk_total:
             raise serializers.ValidationError(
-                'Requested amount of disk exceeds offering limit.'
+                "Requested amount of disk exceeds offering limit."
             )
 
     def _validate_limits(self, attrs):
@@ -403,7 +403,7 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         if self.instance:
             service_settings = self.instance.service_settings
         else:
-            service_settings = attrs['service_settings']
+            service_settings = attrs["service_settings"]
 
         options = service_settings.options
         self._validate_cpu(attrs, options)
@@ -417,8 +417,8 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         Otherwise use cluster provided by user if it is allowed.
         Finally, use default cluster from service settings.
         """
-        service_settings = attrs['service_settings']
-        project = attrs['project']
+        service_settings = attrs["service_settings"]
+        project = attrs["project"]
 
         if is_basic_mode():
             customer = project.customer
@@ -430,46 +430,46 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
                 return self._fallback_to_default_cluster(attrs)
             except MultipleObjectsReturned:
                 raise serializers.ValidationError(
-                    'There are multiple clusters assigned to the current customer.'
+                    "There are multiple clusters assigned to the current customer."
                 )
             else:
-                attrs['cluster'] = cluster
+                attrs["cluster"] = cluster
             return attrs
 
-        cluster = attrs.get('cluster')
+        cluster = attrs.get("cluster")
 
         if cluster:
             if cluster.settings != service_settings:
                 raise serializers.ValidationError(
-                    'This cluster is not available for this service.'
+                    "This cluster is not available for this service."
                 )
 
             if not cluster.customercluster_set.filter(
                 customer=project.customer
             ).exists():
                 raise serializers.ValidationError(
-                    'This cluster is not available for this customer.'
+                    "This cluster is not available for this customer."
                 )
         else:
             return self._fallback_to_default_cluster(attrs)
         return attrs
 
     def _fallback_to_default_cluster(self, attrs):
-        service_settings = attrs['service_settings']
-        default_cluster_label = service_settings.options.get('default_cluster_label')
+        service_settings = attrs["service_settings"]
+        default_cluster_label = service_settings.options.get("default_cluster_label")
 
         if not default_cluster_label:
             raise serializers.ValidationError(
-                'Default cluster is not defined for this service.'
+                "Default cluster is not defined for this service."
             )
         try:
-            attrs['cluster'] = models.Cluster.objects.filter(
+            attrs["cluster"] = models.Cluster.objects.filter(
                 settings=service_settings, name=default_cluster_label
             ).get()
             return attrs
         except models.Cluster.DoesNotExist:
             raise serializers.ValidationError(
-                'Default cluster is not defined for this service.'
+                "Default cluster is not defined for this service."
             )
 
     def _validate_folder(self, attrs):
@@ -477,8 +477,8 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         If basic mode is activated, match folder by customer and service.
         Otherwise use folder provided by user if it is allowed.
         """
-        service_settings = attrs['service_settings']
-        project = attrs['project']
+        service_settings = attrs["service_settings"]
+        project = attrs["project"]
 
         if is_basic_mode():
             customer = project.customer
@@ -488,27 +488,27 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
                 ).get()
             except ObjectDoesNotExist:
                 raise serializers.ValidationError(
-                    'There is no folder assigned to the current customer.'
+                    "There is no folder assigned to the current customer."
                 )
             except MultipleObjectsReturned:
                 raise serializers.ValidationError(
-                    'There are multiple folders assigned to the current customer.'
+                    "There are multiple folders assigned to the current customer."
                 )
             else:
-                attrs['folder'] = folder
+                attrs["folder"] = folder
             return attrs
 
-        folder = attrs.get('folder')
+        folder = attrs.get("folder")
 
         if folder:
             if folder.settings != service_settings:
                 raise serializers.ValidationError(
-                    'This folder is not available for this service.'
+                    "This folder is not available for this service."
                 )
 
             if not folder.customerfolder_set.filter(customer=project.customer).exists():
                 raise serializers.ValidationError(
-                    'This folder is not available for this customer.'
+                    "This folder is not available for this customer."
                 )
         return attrs
 
@@ -517,9 +517,9 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         If basic mode is activated, match datastore by customer and service.
         Otherwise use datastore provided by user if it is valid with respect to its size.
         """
-        service_settings = attrs['service_settings']
-        project = attrs['project']
-        template = attrs.get('template')
+        service_settings = attrs["service_settings"]
+        project = attrs["project"]
+        template = attrs.get("template")
 
         if is_basic_mode():
             customer = project.customer
@@ -527,39 +527,39 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
                 models.Datastore.objects.filter(
                     settings=service_settings, customerdatastore__customer=customer
                 )
-                .order_by('-free_space')
+                .order_by("-free_space")
                 .first()
             )
             if not datastore:
                 raise serializers.ValidationError(
-                    'There is no datastore assigned to the current customer.'
+                    "There is no datastore assigned to the current customer."
                 )
             elif template and template.disk > datastore.free_space:
                 raise serializers.ValidationError(
-                    'There is no datastore with enough free space available for current customer.'
+                    "There is no datastore with enough free space available for current customer."
                 )
             else:
-                attrs['datastore'] = datastore
+                attrs["datastore"] = datastore
             return attrs
 
-        datastore = attrs.get('datastore')
+        datastore = attrs.get("datastore")
 
         if datastore:
             if datastore.settings != service_settings:
                 raise serializers.ValidationError(
-                    'This datastore is not available for this service.'
+                    "This datastore is not available for this service."
                 )
 
             if not datastore.customerdatastore_set.filter(
                 customer=project.customer
             ).exists():
                 raise serializers.ValidationError(
-                    'This datastore is not available for this customer.'
+                    "This datastore is not available for this customer."
                 )
 
             if template and template.disk > datastore.free_space:
                 raise serializers.ValidationError(
-                    'There is no datastore with enough free space available for current customer.'
+                    "There is no datastore with enough free space available for current customer."
                 )
         return attrs
 
@@ -568,8 +568,8 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         If basic mode is activated, match network by customer and service.
         Otherwise use networks provided by user if it is valid with respect to its size.
         """
-        service_settings = attrs['service_settings']
-        project = attrs['project']
+        service_settings = attrs["service_settings"]
+        project = attrs["project"]
 
         if is_basic_mode():
             customer = project.customer
@@ -579,29 +579,29 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
                 ).get()
             except ObjectDoesNotExist:
                 raise serializers.ValidationError(
-                    'There is no network assigned to the current customer.'
+                    "There is no network assigned to the current customer."
                 )
             except MultipleObjectsReturned:
                 raise serializers.ValidationError(
-                    'There are multiple networks assigned to the current customer.'
+                    "There are multiple networks assigned to the current customer."
                 )
             else:
-                attrs['networks'] = [network]
+                attrs["networks"] = [network]
             return attrs
 
-        networks = attrs.get('networks', [])
+        networks = attrs.get("networks", [])
 
         for network in networks:
             if network.settings != service_settings:
                 raise serializers.ValidationError(
-                    'This network is not available for this service.'
+                    "This network is not available for this service."
                 )
 
             if not network.customernetwork_set.filter(
                 customer=project.customer
             ).exists():
                 raise serializers.ValidationError(
-                    'This network is not available for this customer.'
+                    "This network is not available for this customer."
                 )
 
         return attrs
@@ -627,7 +627,7 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
         return attrs
 
     def create(self, validated_data):
-        networks = validated_data.pop('networks', [])
+        networks = validated_data.pop("networks", [])
         vm = super().create(validated_data)
         vm.networks.add(*networks)
         return vm
@@ -635,55 +635,55 @@ class VirtualMachineSerializer(structure_serializers.BaseResourceSerializer):
 
 class PortSerializer(structure_serializers.BaseResourceSerializer):
     service_settings = serializers.HyperlinkedRelatedField(
-        view_name='servicesettings-detail',
-        lookup_field='uuid',
+        view_name="servicesettings-detail",
+        lookup_field="uuid",
         read_only=True,
     )
 
     project = serializers.HyperlinkedRelatedField(
-        view_name='project-detail',
-        lookup_field='uuid',
+        view_name="project-detail",
+        lookup_field="uuid",
         read_only=True,
     )
 
-    vm_name = serializers.ReadOnlyField(source='vm.name')
-    vm_uuid = serializers.ReadOnlyField(source='vm.uuid')
-    network_name = serializers.ReadOnlyField(source='network.name')
+    vm_name = serializers.ReadOnlyField(source="vm.name")
+    vm_uuid = serializers.ReadOnlyField(source="vm.uuid")
+    network_name = serializers.ReadOnlyField(source="network.name")
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Port
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
-            'mac_address',
-            'vm',
-            'vm_uuid',
-            'vm_name',
-            'network',
-            'network_name',
+            "mac_address",
+            "vm",
+            "vm_uuid",
+            "vm_name",
+            "network",
+            "network_name",
         )
         # Virtual Ethernet adapter name is generated automatically by VMware itself,
         # therefore it's not editable by user
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
             + (
-                'name',
-                'vm',
-                'mac_address',
+                "name",
+                "vm",
+                "mac_address",
             )
         )
         protected_fields = (
             structure_serializers.BaseResourceSerializer.Meta.protected_fields
-            + ('network',)
+            + ("network",)
         )
         extra_kwargs = dict(
             vm={
-                'view_name': 'vmware-virtual-machine-detail',
-                'lookup_field': 'uuid',
+                "view_name": "vmware-virtual-machine-detail",
+                "lookup_field": "uuid",
             },
             network={
-                'view_name': 'vmware-network-detail',
-                'lookup_field': 'uuid',
+                "view_name": "vmware-network-detail",
+                "lookup_field": "uuid",
             },
-            **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs
+            **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs,
         )
 
     def validate(self, attrs):
@@ -691,118 +691,118 @@ class PortSerializer(structure_serializers.BaseResourceSerializer):
         if self.instance:
             return attrs
 
-        vm = self.context['view'].get_object()
-        attrs['vm'] = vm
-        attrs['service_settings'] = vm.service_settings
-        attrs['project'] = vm.project
+        vm = self.context["view"].get_object()
+        attrs["vm"] = vm
+        attrs["service_settings"] = vm.service_settings
+        attrs["project"] = vm.project
 
         if not models.CustomerNetworkPair.objects.filter(
             customer=vm.customer,
-            network=attrs['network'],
+            network=attrs["network"],
         ).exists():
             raise serializers.ValidationError(
-                'This network is not available for this customer.'
+                "This network is not available for this customer."
             )
 
         return super().validate(attrs)
 
     def create(self, validated_data):
         # Virtual Adapter is updated with actual name when pulling is performed
-        validated_data['name'] = 'New virtual Adapter'
+        validated_data["name"] = "New virtual Adapter"
         return super().create(validated_data)
 
 
 class DiskSerializer(structure_serializers.BaseResourceSerializer):
     service_settings = serializers.HyperlinkedRelatedField(
-        view_name='servicesettings-detail',
-        lookup_field='uuid',
+        view_name="servicesettings-detail",
+        lookup_field="uuid",
         read_only=True,
     )
 
     project = serializers.HyperlinkedRelatedField(
-        view_name='project-detail',
-        lookup_field='uuid',
+        view_name="project-detail",
+        lookup_field="uuid",
         read_only=True,
     )
 
-    vm_uuid = serializers.ReadOnlyField(source='vm.uuid')
-    vm_name = serializers.ReadOnlyField(source='vm.name')
+    vm_uuid = serializers.ReadOnlyField(source="vm.uuid")
+    vm_name = serializers.ReadOnlyField(source="vm.name")
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Disk
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
-            'size',
-            'vm',
-            'vm_uuid',
-            'vm_name',
+            "size",
+            "vm",
+            "vm_uuid",
+            "vm_name",
         )
         protected_fields = (
             structure_serializers.BaseResourceSerializer.Meta.protected_fields
-            + ('size', 'name')
+            + ("size", "name")
         )
         # Virtual disk name is generated automatically by VMware itself,
         # therefore it's not editable by user
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
             + (
-                'name',
-                'vm',
+                "name",
+                "vm",
             )
         )
         extra_kwargs = dict(
             vm={
-                'view_name': 'vmware-virtual-machine-detail',
-                'lookup_field': 'uuid',
+                "view_name": "vmware-virtual-machine-detail",
+                "lookup_field": "uuid",
             },
-            **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs
+            **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs,
         )
 
     def get_fields(self):
         fields = super().get_fields()
-        fields['size'].factor = 1024
-        fields['size'].units = 'GB'
-        fields['size'].min_value = 1024
+        fields["size"].factor = 1024
+        fields["size"].units = "GB"
+        fields["size"].min_value = 1024
 
         if isinstance(self.instance, models.VirtualMachine):
             options = self.instance.service_settings.options
 
-            max_disk = get_int_or_none(options, 'max_disk')
+            max_disk = get_int_or_none(options, "max_disk")
             if max_disk:
-                fields['size'].max_value = max_disk
+                fields["size"].max_value = max_disk
 
-            max_disk_total = get_int_or_none(options, 'max_disk_total')
+            max_disk_total = get_int_or_none(options, "max_disk_total")
             if max_disk_total:
                 remaining_quota = max_disk_total - self.instance.total_disk
-                if fields['size'].max_value:
-                    fields['size'].max_value = min(max_disk, remaining_quota)
+                if fields["size"].max_value:
+                    fields["size"].max_value = min(max_disk, remaining_quota)
                 else:
-                    fields['size'].max_value = remaining_quota
+                    fields["size"].max_value = remaining_quota
         return fields
 
     def _validate_size(self, vm, attrs):
         options = vm.service_settings.options
 
-        actual_disk = attrs.get('size')
+        actual_disk = attrs.get("size")
         if actual_disk < 1024:
-            raise serializers.ValidationError('Requested amount of disk is too small.')
+            raise serializers.ValidationError("Requested amount of disk is too small.")
 
-        max_disk = get_int_or_none(options, 'max_disk')
+        max_disk = get_int_or_none(options, "max_disk")
         if actual_disk and max_disk and actual_disk > max_disk:
             raise serializers.ValidationError(
-                'Requested amount of disk exceeds offering limit.'
+                "Requested amount of disk exceeds offering limit."
             )
 
-        max_disk_total = get_int_or_none(options, 'max_disk_total')
+        max_disk_total = get_int_or_none(options, "max_disk_total")
         if actual_disk and max_disk_total:
             remaining_quota = max_disk_total - vm.total_disk
             if actual_disk > remaining_quota:
                 raise serializers.ValidationError(
-                    'Requested amount of disk exceeds offering limit.'
+                    "Requested amount of disk exceeds offering limit."
                 )
 
     def create(self, validated_data):
         # Virtual disk is updated with actual name when pulling is performed
-        validated_data['name'] = 'New disk'
+        validated_data["name"] = "New disk"
         return super().create(validated_data)
 
     def validate(self, attrs):
@@ -810,64 +810,64 @@ class DiskSerializer(structure_serializers.BaseResourceSerializer):
         if self.instance:
             return attrs
 
-        vm = self.context['view'].get_object()
+        vm = self.context["view"].get_object()
         self._validate_size(vm, attrs)
-        attrs['vm'] = vm
-        attrs['service_settings'] = vm.service_settings
-        attrs['project'] = vm.project
+        attrs["vm"] = vm
+        attrs["service_settings"] = vm.service_settings
+        attrs["project"] = vm.project
         return super().validate(attrs)
 
 
 class DiskExtendSerializer(serializers.ModelSerializer):
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Disk
-        fields = ('size',)
+        fields = ("size",)
 
     def get_fields(self):
         fields = super().get_fields()
-        fields['size'].factor = 1024
-        fields['size'].units = 'GB'
+        fields["size"].factor = 1024
+        fields["size"].units = "GB"
 
         if isinstance(self.instance, models.Disk):
-            fields['size'].min_value = self.instance.size + 1024
+            fields["size"].min_value = self.instance.size + 1024
             options = self.instance.service_settings.options
-            max_disk = get_int_or_none(options, 'max_disk')
+            max_disk = get_int_or_none(options, "max_disk")
             if max_disk:
-                fields['size'].max_value = max_disk
+                fields["size"].max_value = max_disk
 
-            max_disk_total = get_int_or_none(options, 'max_disk_total')
+            max_disk_total = get_int_or_none(options, "max_disk_total")
             if max_disk_total:
                 remaining_quota = (
                     max_disk_total - self.instance.vm.total_disk + self.instance.size
                 )
                 if max_disk:
-                    fields['size'].max_value = min(max_disk, remaining_quota)
+                    fields["size"].max_value = min(max_disk, remaining_quota)
                 else:
-                    fields['size'].max_value = remaining_quota
+                    fields["size"].max_value = remaining_quota
 
         return fields
 
     def validate_size(self, value):
         if value <= self.instance.size:
             raise serializers.ValidationError(
-                _('Disk size should be greater than %s') % self.instance.size
+                _("Disk size should be greater than %s") % self.instance.size
             )
 
         options = self.instance.service_settings.options
-        max_disk = get_int_or_none(options, 'max_disk')
+        max_disk = get_int_or_none(options, "max_disk")
         if max_disk and value > max_disk:
             raise serializers.ValidationError(
-                'Requested amount of disk exceeds offering limit.'
+                "Requested amount of disk exceeds offering limit."
             )
 
-        max_disk_total = get_int_or_none(options, 'max_disk_total')
+        max_disk_total = get_int_or_none(options, "max_disk_total")
         if max_disk_total:
             remaining_quota = (
                 max_disk_total - self.instance.vm.total_disk + self.instance.size
             )
             if value > remaining_quota:
                 raise serializers.ValidationError(
-                    'Requested amount of disk exceeds offering limit.'
+                    "Requested amount of disk exceeds offering limit."
                 )
 
         return value
@@ -877,21 +877,21 @@ class TemplateSerializer(structure_serializers.BasePropertySerializer):
     class Meta(structure_serializers.BasePropertySerializer.Meta):
         model = models.Template
         fields = (
-            'url',
-            'uuid',
-            'name',
-            'description',
-            'created',
-            'modified',
-            'guest_os',
-            'guest_os_name',
-            'cores',
-            'cores_per_socket',
-            'ram',
-            'disk',
+            "url",
+            "uuid",
+            "name",
+            "description",
+            "created",
+            "modified",
+            "guest_os",
+            "guest_os_name",
+            "cores",
+            "cores_per_socket",
+            "ram",
+            "disk",
         )
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
+            "url": {"lookup_field": "uuid"},
         }
 
     guest_os_name = serializers.SerializerMethodField()
@@ -904,12 +904,12 @@ class ClusterSerializer(structure_serializers.BasePropertySerializer):
     class Meta(structure_serializers.BasePropertySerializer.Meta):
         model = models.Cluster
         fields = (
-            'url',
-            'uuid',
-            'name',
+            "url",
+            "uuid",
+            "name",
         )
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
+            "url": {"lookup_field": "uuid"},
         }
 
 
@@ -917,22 +917,22 @@ class NetworkSerializer(structure_serializers.BasePropertySerializer):
     class Meta(structure_serializers.BasePropertySerializer.Meta):
         model = models.Network
         fields = (
-            'url',
-            'uuid',
-            'name',
-            'type',
+            "url",
+            "uuid",
+            "name",
+            "type",
         )
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
+            "url": {"lookup_field": "uuid"},
         }
 
 
 class DatastoreSerializer(structure_serializers.BasePropertySerializer):
     class Meta(structure_serializers.BasePropertySerializer.Meta):
         model = models.Datastore
-        fields = ('url', 'uuid', 'name', 'type', 'capacity', 'free_space')
+        fields = ("url", "uuid", "name", "type", "capacity", "free_space")
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
+            "url": {"lookup_field": "uuid"},
         }
 
 
@@ -940,10 +940,10 @@ class FolderSerializer(structure_serializers.BasePropertySerializer):
     class Meta(structure_serializers.BasePropertySerializer.Meta):
         model = models.Folder
         fields = (
-            'url',
-            'uuid',
-            'name',
+            "url",
+            "uuid",
+            "name",
         )
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
+            "url": {"lookup_field": "uuid"},
         }

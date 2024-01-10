@@ -32,63 +32,63 @@ class ServiceSettingAdminTest(TestCase):
             backend_url = rf_serializers.CharField()
 
         self.assertTrue(
-            self.form_is_valid(ServiceOptionsSerializer, backend_url='http://test.net')
+            self.form_is_valid(ServiceOptionsSerializer, backend_url="http://test.net")
         )
 
-    @unittest.skip('TODO: fails randomly')
+    @unittest.skip("TODO: fails randomly")
     def test_if_required_extra_field_value_is_provided_form_is_valid(self):
         class ServiceOptionsSerializer(rf_serializers.Serializer):
-            tenant = rf_serializers.CharField(source='options.tenant')
+            tenant = rf_serializers.CharField(source="options.tenant")
 
         self.assertTrue(
             self.form_is_valid(
-                ServiceOptionsSerializer, options=json.dumps({'tenant': 1})
+                ServiceOptionsSerializer, options=json.dumps({"tenant": 1})
             )
         )
 
     def test_if_required_extra_field_value_is_not_provided_form_is_invalid(self):
         class ServiceOptionsSerializer(rf_serializers.Serializer):
-            tenant = rf_serializers.CharField(source='options.tenant')
+            tenant = rf_serializers.CharField(source="options.tenant")
 
         self.assertFalse(self.form_is_valid(ServiceOptionsSerializer))
 
     def test_if_options_is_not_valid_json_form_is_invalid(self):
         class ServiceOptionsSerializer(rf_serializers.Serializer):
-            tenant = rf_serializers.CharField(source='options.tenant')
+            tenant = rf_serializers.CharField(source="options.tenant")
 
         self.assertFalse(
-            self.form_is_valid(ServiceOptionsSerializer, options='INVALID')
+            self.form_is_valid(ServiceOptionsSerializer, options="INVALID")
         )
 
-    @unittest.skip('TODO: fails randomly')
+    @unittest.skip("TODO: fails randomly")
     def test_if_required_field_is_not_filled_but_it_has_got_default_value_form_is_valid(
         self,
     ):
         class ServiceOptionsSerializer(rf_serializers.Serializer):
-            tenant = rf_serializers.CharField(source='options.tenant', default='admin')
+            tenant = rf_serializers.CharField(source="options.tenant", default="admin")
 
         self.assertTrue(self.form_is_valid(ServiceOptionsSerializer))
 
     def form_is_valid(self, serializer_class, **kwargs):
         data = {
-            'type': 'Test',
-            'name': 'test',
-            'state': 1,
-            'username': 'test',
-            'password': 'xxx',
-            'options': json.dumps({}),
+            "type": "Test",
+            "name": "test",
+            "state": 1,
+            "username": "test",
+            "password": "xxx",
+            "options": json.dumps({}),
         }
         data.update(kwargs)
         with mock.patch(
-            'waldur_core.structure.admin.get_options_serializer_class'
+            "waldur_core.structure.admin.get_options_serializer_class"
         ) as mock_class:
             with mock.patch(
-                'waldur_core.structure.serializers.ServiceOptionsSerializer.get_subclasses'
+                "waldur_core.structure.serializers.ServiceOptionsSerializer.get_subclasses"
             ) as mock_subclasses:
                 with mock.patch(
-                    'waldur_core.structure.admin.get_service_type'
+                    "waldur_core.structure.admin.get_service_type"
                 ) as mock_key:
-                    mock_key.return_value = 'Test'
+                    mock_key.return_value = "Test"
                     mock_class.return_value = serializer_class
                     mock_subclasses.return_value = [serializer_class]
                     site = AdminSite()

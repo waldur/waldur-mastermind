@@ -8,52 +8,52 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace', '0079_componentusage_modified_by'),
-        ('booking', '0002_busyslot'),
+        ("marketplace", "0079_componentusage_modified_by"),
+        ("booking", "0002_busyslot"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='BookingSlot',
+            name="BookingSlot",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
-                ('start', models.DateTimeField()),
-                ('end', models.DateTimeField()),
-                ('backend_id', models.CharField(max_length=255)),
+                ("start", models.DateTimeField()),
+                ("end", models.DateTimeField()),
+                ("backend_id", models.CharField(max_length=255)),
                 (
-                    'resource',
+                    "resource",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='marketplace.resource',
+                        to="marketplace.resource",
                     ),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
     ]

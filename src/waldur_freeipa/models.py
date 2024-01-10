@@ -11,46 +11,46 @@ from waldur_core.core import models as core_models
 
 
 def validate_username(value):
-    if value in settings.WALDUR_FREEIPA['BLACKLISTED_USERNAMES']:
+    if value in settings.WALDUR_FREEIPA["BLACKLISTED_USERNAMES"]:
         raise exceptions.ValidationError(
-            _('%(value)s is not valid FreeIPA username.'),
-            params={'value': value},
+            _("%(value)s is not valid FreeIPA username."),
+            params={"value": value},
         )
 
 
 class Profile(core_models.UuidMixin, models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     username = models.CharField(
-        _('username'),
+        _("username"),
         max_length=32,
         unique=True,
-        help_text=_('Letters, numbers and ./+/-/_ characters'),
+        help_text=_("Letters, numbers and ./+/-/_ characters"),
         validators=[
             validate_username,
             validators.RegexValidator(
                 re.compile(core_models.USERNAME_REGEX),
-                _('Enter a valid username.'),
-                'invalid',
+                _("Enter a valid username."),
+                "invalid",
             ),
         ],
     )
     agreement_date = models.DateTimeField(
-        _('agreement date'),
+        _("agreement date"),
         default=timezone.now,
-        help_text=_('Indicates when the user has agreed with the policy.'),
+        help_text=_("Indicates when the user has agreed with the policy."),
     )
-    is_active = models.BooleanField(_('active'), default=False)
+    is_active = models.BooleanField(_("active"), default=False)
     tracker = FieldTracker()
 
     @property
     def gecos(self):
         param = []
-        for field in ['full_name', 'email', 'phone_number']:
+        for field in ["full_name", "email", "phone_number"]:
             value = getattr(self.user, field, None)
             if value:
                 param.append(value)
 
-        return ','.join(param)
+        return ",".join(param)
 
     def __str__(self):
         return self.username

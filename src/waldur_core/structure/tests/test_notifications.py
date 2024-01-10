@@ -10,17 +10,17 @@ from waldur_core.structure.tests import factories, fixtures
 class NotificationList(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.UserFixture()
-        self.notification_1 = factories.NotificationFactory(key='app_name.event_name')
-        self.notification_2 = factories.NotificationFactory(key='app_name.event_name2')
+        self.notification_1 = factories.NotificationFactory(key="app_name.event_name")
+        self.notification_2 = factories.NotificationFactory(key="app_name.event_name2")
         self.url = factories.NotificationFactory.get_list_url()
-        Template.objects.create(name='app_name/event_name_message.html')
-        Template.objects.create(name='app_name/event_name_message.txt')
-        Template.objects.create(name='app_name/event_name_subject.txt')
-        Template.objects.create(name='app_name/event_name2_message.html')
-        Template.objects.create(name='app_name/event_name2_message.txt')
-        Template.objects.create(name='app_name/event_name2_subject.txt')
+        Template.objects.create(name="app_name/event_name_message.html")
+        Template.objects.create(name="app_name/event_name_message.txt")
+        Template.objects.create(name="app_name/event_name_subject.txt")
+        Template.objects.create(name="app_name/event_name2_message.html")
+        Template.objects.create(name="app_name/event_name2_message.txt")
+        Template.objects.create(name="app_name/event_name2_subject.txt")
 
-    @data('staff')
+    @data("staff")
     def test_admin_user_can_list_notifications(self, user):
         if user:
             self.client.force_authenticate(user=getattr(self.fixture, user))
@@ -29,7 +29,7 @@ class NotificationList(test.APITransactionTestCase):
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.assertEqual(len(response.data), 2)
 
-    @data('user')
+    @data("user")
     def test_other_can_not_list_notifications(self, user):
         if user:
             self.client.force_authenticate(user=getattr(self.fixture, user))
@@ -43,10 +43,10 @@ class NotificationChangeTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.UserFixture()
         self.notification_1 = factories.NotificationFactory(
-            key='app_name.event_name', enabled=False
+            key="app_name.event_name", enabled=False
         )
         self.notification_2 = factories.NotificationFactory(
-            key='app_name.event_name2', enabled=True
+            key="app_name.event_name2", enabled=True
         )
         self.url = factories.NotificationFactory.get_url(self.notification_1)
         self.disable_url = factories.NotificationFactory.get_url(
@@ -55,28 +55,28 @@ class NotificationChangeTest(test.APITransactionTestCase):
         self.enable_url = factories.NotificationFactory.get_url(
             self.notification_1, action="enable"
         )
-        Template.objects.create(name='app_name/event_name_message.html')
-        Template.objects.create(name='app_name/event_name_message.txt')
-        Template.objects.create(name='app_name/event_name_subject.txt')
+        Template.objects.create(name="app_name/event_name_message.html")
+        Template.objects.create(name="app_name/event_name_message.txt")
+        Template.objects.create(name="app_name/event_name_subject.txt")
 
-    @data('staff')
+    @data("staff")
     def test_staff_can_change_notifications(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
-        valid_data = {'key': 'appname.template_name'}
+        valid_data = {"key": "appname.template_name"}
 
         response = self.client.put(self.url, valid_data)
         print(f"{response=}")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    @data('user')
+    @data("user")
     def test_other_can_not_change_customer_division(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
-        valid_data = {'key': 'appname.template_name'}
+        valid_data = {"key": "appname.template_name"}
 
         response = self.client.put(self.url, valid_data)
         self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
 
-    @data('staff')
+    @data("staff")
     def test_staff_can_disable_notifications(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
         response = self.client.post(self.disable_url)
@@ -84,7 +84,7 @@ class NotificationChangeTest(test.APITransactionTestCase):
         self.notification_2.refresh_from_db()
         self.assertEqual(self.notification_2.enabled, False)
 
-    @data('staff')
+    @data("staff")
     def test_staff_can_enable_notifications(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
         response = self.client.post(self.enable_url)
@@ -92,7 +92,7 @@ class NotificationChangeTest(test.APITransactionTestCase):
         self.notification_1.refresh_from_db()
         self.assertEqual(self.notification_1.enabled, True)
 
-    @data('user')
+    @data("user")
     def test_other_can_not_disable_notifications(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
         response = self.client.post(self.disable_url)
@@ -100,7 +100,7 @@ class NotificationChangeTest(test.APITransactionTestCase):
         self.notification_2.refresh_from_db()
         self.assertEqual(self.notification_2.enabled, True)
 
-    @data('user')
+    @data("user")
     def test_other_can_not_enable_notifications(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
         response = self.client.post(self.enable_url)
@@ -114,7 +114,7 @@ class NotificationTemplateListTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.notification_template_1 = factories.NotificationTemplateFactory(
-            path='marketplace/marketplace_plan_template.txt'
+            path="marketplace/marketplace_plan_template.txt"
         )
         self.url = factories.NotificationTemplateFactory.get_list_url()
         self.override_url = factories.NotificationTemplateFactory.get_url(
@@ -125,7 +125,7 @@ class NotificationTemplateListTest(test.APITransactionTestCase):
         super().tearDown()
         Template.objects.all().delete()
 
-    @data('staff', 'user', 'manager', 'admin')
+    @data("staff", "user", "manager", "admin")
     def test_everyone_can_list_notification_templates(self, user):
         if user:
             self.client.force_authenticate(user=getattr(self.fixture, user))
@@ -136,19 +136,19 @@ class NotificationTemplateListTest(test.APITransactionTestCase):
         response = self.client.get(self.url)
 
         self.assertEqual(status.HTTP_200_OK, response.status_code)
-        self.assertEqual(response.data[0]['path'], self.notification_template_1.path)
-        self.assertEqual(response.data[0]['name'], self.notification_template_1.name)
-        self.assertEqual(response.data[0]['content'], expected_template_content)
+        self.assertEqual(response.data[0]["path"], self.notification_template_1.path)
+        self.assertEqual(response.data[0]["name"], self.notification_template_1.name)
+        self.assertEqual(response.data[0]["content"], expected_template_content)
 
     @data(
-        'staff',
+        "staff",
     )
     def test_staff_can_override_notification_templates(self, user):
         if user:
             self.client.force_authenticate(user=getattr(self.fixture, user))
 
         Template.objects.create(name=self.notification_template_1.path)
-        new_content = {'content': 'new_content'}
+        new_content = {"content": "new_content"}
         response = self.client.post(self.override_url, new_content)
 
         self.assertEqual(status.HTTP_200_OK, response.status_code)
@@ -158,20 +158,20 @@ class NotificationTemplateListTest(test.APITransactionTestCase):
         ).template.source
 
         response = self.client.get(self.url)
-        self.assertEqual(response.data[0]['content'], updated_template_content)
+        self.assertEqual(response.data[0]["content"], updated_template_content)
 
-    @data('user', 'manager', 'admin', 'owner')
+    @data("user", "manager", "admin", "owner")
     def test_other_can_not_override_notification_templates(self, user):
         if user:
             self.client.force_authenticate(user=getattr(self.fixture, user))
 
-        new_content = {'content': 'new_content'}
+        new_content = {"content": "new_content"}
         response = self.client.post(self.override_url, new_content)
 
         self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
 
     @data(
-        'staff',
+        "staff",
     )
     def test_staff_can_not_override_notification_templates_that_does_not_exist(
         self, user
@@ -179,7 +179,7 @@ class NotificationTemplateListTest(test.APITransactionTestCase):
         if user:
             self.client.force_authenticate(user=getattr(self.fixture, user))
 
-        new_content = {'content': 'new_content'}
+        new_content = {"content": "new_content"}
         response = self.client.post(self.override_url, new_content)
 
         self.assertEqual(status.HTTP_404_NOT_FOUND, response.status_code)
@@ -190,15 +190,15 @@ class NotificationTemplateFilterTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.UserFixture()
         self.notification_template_1 = factories.NotificationTemplateFactory(
-            name='invitation_approved', path='users/invitation_approved_message.txt'
+            name="invitation_approved", path="users/invitation_approved_message.txt"
         )
         self.notification_template_2 = factories.NotificationTemplateFactory(
-            name='invitation_rejected', path='users/invitation_rejected_message.txt'
+            name="invitation_rejected", path="users/invitation_rejected_message.txt"
         )
         self.url = factories.NotificationTemplateFactory.get_list_url()
 
     @data(
-        'staff',
+        "staff",
     )
     def test_notification_template_name_filter(self, user):
         if user:
@@ -207,12 +207,12 @@ class NotificationTemplateFilterTest(test.APITransactionTestCase):
         self.assertEqual(len(response.json()), 2)
         response = self.client.get(
             self.url,
-            {'name': 'invitation'},
+            {"name": "invitation"},
         )
         self.assertEqual(len(response.json()), 2)
 
     @data(
-        'staff',
+        "staff",
     )
     def test_notification_template_name_exact_filter(self, user):
         if user:
@@ -221,6 +221,6 @@ class NotificationTemplateFilterTest(test.APITransactionTestCase):
         self.assertEqual(len(response.json()), 2)
         response = self.client.get(
             self.url,
-            {'name_exact': 'invitation_approved'},
+            {"name_exact": "invitation_approved"},
         )
         self.assertEqual(len(response.json()), 1)

@@ -23,5 +23,5 @@ class HandlersTest(test.APITransactionTestCase):
 
         # Assert
         self.resource.refresh_from_db()
-        self.assertEqual(self.resource.limits['cpu'], self.vm.cores)
-        self.assertEqual(self.resource.limits['ram'], self.vm.ram)
+        self.assertEqual(self.resource.limits["cpu"], self.vm.cores)
+        self.assertEqual(self.resource.limits["ram"], self.vm.ram)

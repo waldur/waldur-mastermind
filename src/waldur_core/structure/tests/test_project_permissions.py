@@ -367,7 +367,7 @@ class ProjectPermissionExpirationTest(ProjectPermissionBaseTest):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(
-            response.data['expiration_time'], expiration_time, response.data
+            response.data["expiration_time"], expiration_time, response.data
         )
 
     def test_owner_can_update_permission_for_admin(self):
@@ -378,7 +378,7 @@ class ProjectPermissionExpirationTest(ProjectPermissionBaseTest):
         response = self.update_expiration_time(owner, expiration_time)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(
-            response.data['expiration_time'], expiration_time, response.data
+            response.data["expiration_time"], expiration_time, response.data
         )
 
     def test_user_can_not_set_permission_expiration_time_lower_than_current(self):
@@ -400,7 +400,7 @@ class ProjectPermissionExpirationTest(ProjectPermissionBaseTest):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(
-            response.data['expiration_time'], expiration_time, response.data
+            response.data["expiration_time"], expiration_time, response.data
         )
 
     def test_user_cannot_grant_permissions_with_greater_expiration_time(self):

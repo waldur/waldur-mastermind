@@ -45,7 +45,7 @@ class ClusterGetTest(test.APITransactionTestCase):
     def test_filter_cluster_list(self):
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.get(
-            self.url, {'customer_uuid': self.fixture.customer.uuid.hex}
+            self.url, {"customer_uuid": self.fixture.customer.uuid.hex}
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(list(response.data)), 2)
@@ -56,7 +56,7 @@ class ClusterPullTest(test.APITransactionTestCase):
         super().setUp()
         self.settings = factories.VMwareServiceSettingsFactory()
         self.backend = backend.VMwareBackend(self.settings)
-        self.patcher = mock.patch('waldur_vmware.backend.VMwareClient')
+        self.patcher = mock.patch("waldur_vmware.backend.VMwareClient")
         self.mock_client = self.patcher.start()
 
     def tearDown(self):
@@ -81,8 +81,8 @@ class ClusterPullTest(test.APITransactionTestCase):
         clusters = []
         for i in range(count):
             backend_cluster = {
-                'name': 'cluster_%s' % i,
-                'cluster': 'cluster_%s' % i,
+                "name": "cluster_%s" % i,
+                "cluster": "cluster_%s" % i,
             }
             clusters.append(backend_cluster)
 

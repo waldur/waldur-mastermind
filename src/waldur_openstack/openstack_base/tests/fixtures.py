@@ -15,7 +15,7 @@ class OpenStackFixture(ProjectFixture):
         return structure_factories.ServiceSettingsFactory(
             type=openstack_apps.OpenStackConfig.service_name,
             shared=True,
-            options={'external_network_id': 'test_network_id'},
+            options={"external_network_id": "test_network_id"},
             state=structure_models.ServiceSettings.States.OK,
         )
 

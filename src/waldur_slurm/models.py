@@ -10,7 +10,7 @@ from waldur_core.core import models as core_models
 from waldur_core.structure import models as structure_models
 from waldur_slurm import utils
 
-SLURM_ALLOCATION_REGEX = 'a-zA-Z0-9-_'
+SLURM_ALLOCATION_REGEX = "a-zA-Z0-9-_"
 SLURM_ALLOCATION_NAME_MAX_LEN = 34
 
 
@@ -33,7 +33,7 @@ class Allocation(UsageMixin, structure_models.BaseResource):
 
     @classmethod
     def get_url_name(cls):
-        return 'slurm-allocation'
+        return "slurm-allocation"
 
     def usage_changed(self):
         return any(self.tracker.has_changed(field) for field in utils.FIELD_NAMES)
@@ -41,29 +41,29 @@ class Allocation(UsageMixin, structure_models.BaseResource):
     @classmethod
     def get_backend_fields(cls):
         return super().get_backend_fields() + (
-            'cpu_usage',
-            'gpu_usage',
-            'ram_usage',
+            "cpu_usage",
+            "gpu_usage",
+            "ram_usage",
         )
 
 
 class Association(core_models.UuidMixin):
     allocation = models.ForeignKey(
-        to=Allocation, on_delete=models.CASCADE, related_name='associations'
+        to=Allocation, on_delete=models.CASCADE, related_name="associations"
     )
     username = models.CharField(
         max_length=128,
         validators=[
             RegexValidator(
                 re.compile(core_models.USERNAME_REGEX),
-                _('Enter a valid username.'),
-                'invalid',
+                _("Enter a valid username."),
+                "invalid",
             ),
         ],
     )
 
     def __str__(self):
-        return f'{self.allocation.name} <-> {self.username}'
+        return f"{self.allocation.name} <-> {self.username}"
 
 
 class AllocationUserUsage(UsageMixin):

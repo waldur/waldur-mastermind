@@ -33,10 +33,10 @@ def create_offering_from_tenant(sender, instance, created=False, **kwargs):
     if created:
         return
 
-    if not instance.tracker.has_changed('state'):
+    if not instance.tracker.has_changed("state"):
         return
 
-    if instance.tracker.previous('state') != instance.States.CREATING:
+    if instance.tracker.previous("state") != instance.States.CREATING:
         return
 
     if instance.state != instance.States.OK:
@@ -62,9 +62,9 @@ def archive_offering(sender, instance, **kwargs):
 def synchronize_volume_metadata(sender, instance, created=False, **kwargs):
     volume = instance
     if not created and not set(volume.tracker.changed()) & {
-        'size',
-        'instance_id',
-        'type_id',
+        "size",
+        "instance_id",
+        "type_id",
     }:
         return
 
@@ -72,9 +72,9 @@ def synchronize_volume_metadata(sender, instance, created=False, **kwargs):
         resource = marketplace_models.Resource.objects.get(scope=volume)
     except ObjectDoesNotExist:
         logger.debug(
-            'Skipping resource synchronization for OpenStack volume '
-            'because marketplace resource does not exist. '
-            'Resource ID: %s',
+            "Skipping resource synchronization for OpenStack volume "
+            "because marketplace resource does not exist. "
+            "Resource ID: %s",
             instance.id,
         )
         return
@@ -87,7 +87,7 @@ def synchronize_instance_hypervisor_hostname(sender, instance, created=False, **
         return
 
     if not created and not set(instance.tracker.changed()) & {
-        'hypervisor_hostname',
+        "hypervisor_hostname",
     }:
         return
 
@@ -95,19 +95,19 @@ def synchronize_instance_hypervisor_hostname(sender, instance, created=False, **
         resource = marketplace_models.Resource.objects.get(scope=instance)
     except ObjectDoesNotExist:
         logger.debug(
-            'Skipping resource synchronization for OpenStack instance '
-            'because marketplace resource does not exist. '
-            'Resource ID: %s',
+            "Skipping resource synchronization for OpenStack instance "
+            "because marketplace resource does not exist. "
+            "Resource ID: %s",
             instance.id,
         )
         return
 
-    resource.backend_metadata['hypervisor_hostname'] = instance.hypervisor_hostname
+    resource.backend_metadata["hypervisor_hostname"] = instance.hypervisor_hostname
     resource.save()
 
 
 def synchronize_instance_name(sender, instance, created=False, **kwargs):
-    if not created and not set(instance.tracker.changed()) & {'name'}:
+    if not created and not set(instance.tracker.changed()) & {"name"}:
         return
 
     for volume in instance.volumes.all():
@@ -115,21 +115,21 @@ def synchronize_instance_name(sender, instance, created=False, **kwargs):
             resource = marketplace_models.Resource.objects.get(scope=volume)
         except ObjectDoesNotExist:
             logger.debug(
-                'Skipping resource synchronization for OpenStack volume '
-                'because marketplace resource does not exist. '
-                'Resource ID: %s',
+                "Skipping resource synchronization for OpenStack volume "
+                "because marketplace resource does not exist. "
+                "Resource ID: %s",
                 instance.id,
             )
             continue
 
-        resource.backend_metadata['instance_name'] = volume.instance.name
-        resource.save(update_fields=['backend_metadata'])
+        resource.backend_metadata["instance_name"] = volume.instance.name
+        resource.save(update_fields=["backend_metadata"])
 
 
 def synchronize_instance_after_pull(sender, instance, **kwargs):
     if (
-        instance.tracker.has_changed('action')
-        and instance.tracker.previous('action') == 'Pull'
+        instance.tracker.has_changed("action")
+        and instance.tracker.previous("action") == "Pull"
     ):
         try:
             resource = marketplace_models.Resource.objects.get(scope=instance)
@@ -140,7 +140,7 @@ def synchronize_instance_after_pull(sender, instance, **kwargs):
 
 def synchronize_directly_connected_ips(sender, instance, created=False, **kwargs):
     if not created and not set(instance.tracker.changed()) & {
-        'directly_connected_ips',
+        "directly_connected_ips",
     }:
         return
 
@@ -148,9 +148,9 @@ def synchronize_directly_connected_ips(sender, instance, created=False, **kwargs
         resource = marketplace_models.Resource.objects.get(scope=instance)
     except ObjectDoesNotExist:
         logger.debug(
-            'Skipping resource synchronization for OpenStack instance '
-            'because marketplace resource does not exist. '
-            'Resource ID: %s',
+            "Skipping resource synchronization for OpenStack instance "
+            "because marketplace resource does not exist. "
+            "Resource ID: %s",
             instance,
         )
         return
@@ -161,14 +161,14 @@ def synchronize_directly_connected_ips(sender, instance, created=False, **kwargs
 def synchronize_internal_ips(sender, instance, created=False, **kwargs):
     internal_ip = instance
     if not created and not set(internal_ip.tracker.changed()) & {
-        'fixed_ips',
-        'instance_id',
+        "fixed_ips",
+        "instance_id",
     }:
         return
 
     vms = {
         vm
-        for vm in (internal_ip.instance_id, internal_ip.tracker.previous('instance_id'))
+        for vm in (internal_ip.instance_id, internal_ip.tracker.previous("instance_id"))
         if vm
     }
 
@@ -178,9 +178,9 @@ def synchronize_internal_ips(sender, instance, created=False, **kwargs):
             resource = marketplace_models.Resource.objects.get(scope=scope)
         except ObjectDoesNotExist:
             logger.debug(
-                'Skipping resource synchronization for OpenStack instance '
-                'because marketplace resource does not exist. '
-                'Resource ID: %s',
+                "Skipping resource synchronization for OpenStack instance "
+                "because marketplace resource does not exist. "
+                "Resource ID: %s",
                 vm,
             )
             continue
@@ -191,8 +191,8 @@ def synchronize_internal_ips(sender, instance, created=False, **kwargs):
 def synchronize_floating_ips(sender, instance, created=False, **kwargs):
     floating_ip = instance
     if not created and not set(instance.tracker.changed()) & {
-        'address',
-        'internal_ip_id',
+        "address",
+        "internal_ip_id",
     }:
         return
 
@@ -200,7 +200,7 @@ def synchronize_floating_ips(sender, instance, created=False, **kwargs):
         ip
         for ip in (
             floating_ip.internal_ip_id,
-            floating_ip.tracker.previous('internal_ip_id'),
+            floating_ip.tracker.previous("internal_ip_id"),
         )
         if ip
     }
@@ -212,9 +212,9 @@ def synchronize_floating_ips(sender, instance, created=False, **kwargs):
             resource = marketplace_models.Resource.objects.get(scope=scope)
         except ObjectDoesNotExist:
             logger.debug(
-                'Skipping resource synchronization for OpenStack instance '
-                'because marketplace resource does not exist. '
-                'Resource ID: %s',
+                "Skipping resource synchronization for OpenStack instance "
+                "because marketplace resource does not exist. "
+                "Resource ID: %s",
                 ip_id,
             )
             continue
@@ -230,9 +230,9 @@ def import_instance_metadata(vm):
     # AttributeError can be raised by generic foreign key, WAL-2662
     except (ObjectDoesNotExist, AttributeError):
         logger.debug(
-            'Skipping resource synchronization for OpenStack instance '
-            'because marketplace resource does not exist. '
-            'Virtual machine ID: %s',
+            "Skipping resource synchronization for OpenStack instance "
+            "because marketplace resource does not exist. "
+            "Virtual machine ID: %s",
             vm.id,
         )
     else:
@@ -258,7 +258,7 @@ def create_resource_of_volume_if_instance_created(
 ):
     resource: marketplace_models.Resource = instance
 
-    if not resource.scope or not getattr(resource.offering, 'scope', None):
+    if not resource.scope or not getattr(resource.offering, "scope", None):
         return
 
     if resource.offering.type != INSTANCE_TYPE:
@@ -267,7 +267,7 @@ def create_resource_of_volume_if_instance_created(
     instance = resource.scope
 
     volume_offering = utils.get_offering(
-        VOLUME_TYPE, getattr(resource.offering, 'scope', None)
+        VOLUME_TYPE, getattr(resource.offering, "scope", None)
     )
     if not volume_offering:
         return
@@ -326,8 +326,8 @@ def update_openstack_tenant_usages(sender, instance, created=False, **kwargs):
         resource = marketplace_models.Resource.objects.get(scope=tenant)
     except ObjectDoesNotExist:
         logger.debug(
-            'Skipping usages synchronization for tenant because '
-            'resource does not exist. OpenStack tenant ID: %s',
+            "Skipping usages synchronization for tenant because "
+            "resource does not exist. OpenStack tenant ID: %s",
             tenant.id,
         )
         return
@@ -344,19 +344,19 @@ def create_offering_component_for_volume_type(
         offering = marketplace_models.Offering.objects.get(scope=volume_type.settings)
     except marketplace_models.Offering.DoesNotExist:
         logger.warning(
-            'Skipping synchronization of volume type with '
-            'marketplace because offering for service settings is not have found. '
-            'Settings ID: %s',
+            "Skipping synchronization of volume type with "
+            "marketplace because offering for service settings is not have found. "
+            "Settings ID: %s",
             instance.settings.id,
         )
         return
 
-    storage_mode = offering.plugin_options.get('storage_mode') or STORAGE_MODE_FIXED
+    storage_mode = offering.plugin_options.get("storage_mode") or STORAGE_MODE_FIXED
     if storage_mode == STORAGE_MODE_FIXED:
         logger.debug(
-            'Skipping synchronization of volume type with '
-            'marketplace because offering has fixed storage mode enabled. '
-            'Offering ID: %s',
+            "Skipping synchronization of volume type with "
+            "marketplace because offering has fixed storage mode enabled. "
+            "Offering ID: %s",
             offering.id,
         )
         return
@@ -369,11 +369,11 @@ def create_offering_component_for_volume_type(
         content_type=content_type,
         defaults=dict(
             offering=offering,
-            name='Storage (%s)' % instance.name,
+            name="Storage (%s)" % instance.name,
             # It is expected that internal name of offering component related to volume type
             # matches storage quota name generated in OpenStack
-            type='gigabytes_' + instance.name,
-            measured_unit='GB',
+            type="gigabytes_" + instance.name,
+            measured_unit="GB",
             description=instance.description,
             billing_type=marketplace_models.OfferingComponent.BillingTypes.LIMIT,
             limit_period=marketplace_models.OfferingComponent.LimitPeriods.MONTH,
@@ -396,27 +396,27 @@ def synchronize_limits_when_storage_mode_is_switched(
     if offering.type != TENANT_TYPE:
         return
 
-    if not offering.tracker.has_changed('plugin_options'):
+    if not offering.tracker.has_changed("plugin_options"):
         return
 
-    old_mode = (offering.tracker.previous('plugin_options') or {}).get('storage_mode')
-    new_mode = (offering.plugin_options or {}).get('storage_mode')
+    old_mode = (offering.tracker.previous("plugin_options") or {}).get("storage_mode")
+    new_mode = (offering.plugin_options or {}).get("storage_mode")
 
     if not new_mode:
         logger.debug(
-            'Skipping OpenStack tenant synchronization because new storage mode is not defined'
+            "Skipping OpenStack tenant synchronization because new storage mode is not defined"
         )
         return
 
     if old_mode == new_mode:
         logger.debug(
-            'Skipping OpenStack tenant synchronization because storage mode is not changed.'
+            "Skipping OpenStack tenant synchronization because storage mode is not changed."
         )
         return
 
     logger.info(
-        'Synchronizing OpenStack tenant limits because storage mode is switched '
-        'from %s to %s',
+        "Synchronizing OpenStack tenant limits because storage mode is switched "
+        "from %s to %s",
         (old_mode, new_mode),
     )
 
@@ -446,7 +446,7 @@ def import_instances_and_volumes_if_tenant_has_been_imported(
         ).exists()
     ):
         logger.info(
-            'An import of instances and volumes is impossible because categories for them are not setted.'
+            "An import of instances and volumes is impossible because categories for them are not setted."
         )
         return
 
@@ -459,7 +459,7 @@ def import_instances_and_volumes_if_tenant_has_been_imported(
 def synchronize_tenant_name(sender, instance, offering=None, plan=None, **kwargs):
     tenant = instance
 
-    if not instance.tracker.has_changed('name'):
+    if not instance.tracker.has_changed("name"):
         return
 
     service_settings = structure_models.ServiceSettings.objects.filter(
@@ -473,11 +473,11 @@ def synchronize_tenant_name(sender, instance, offering=None, plan=None, **kwargs
 
         for offering in offerings.filter(type=INSTANCE_TYPE):
             offering.name = utils.get_offering_name_for_instance(tenant)
-            offering.save(update_fields=['name'])
+            offering.save(update_fields=["name"])
 
         for offering in offerings.filter(type=VOLUME_TYPE):
             offering.name = utils.get_offering_name_for_volume(tenant)
-            offering.save(update_fields=['name'])
+            offering.save(update_fields=["name"])
 
 
 def update_usage_when_instance_configuration_is_updated(
@@ -486,10 +486,10 @@ def update_usage_when_instance_configuration_is_updated(
     if instance.offering.type != SHARED_INSTANCE_TYPE:
         return
 
-    if not created and not instance.tracker.has_changed('attributes'):
+    if not created and not instance.tracker.has_changed("attributes"):
         return
 
-    flavor_url = instance.attributes.get('flavor')
+    flavor_url = instance.attributes.get("flavor")
     if not flavor_url:
         return
 
@@ -497,22 +497,22 @@ def update_usage_when_instance_configuration_is_updated(
         flavor = core_utils.instance_from_url(flavor_url)
     except ObjectDoesNotExist:
         logger.warning(
-            'Skipping OpenStack instance usage synchronization because flavor is not found.'
-            'Resource ID: %s',
+            "Skipping OpenStack instance usage synchronization because flavor is not found."
+            "Resource ID: %s",
             instance.id,
         )
         return
 
     if not isinstance(flavor, openstack_tenant_models.Flavor):
         logger.warning(
-            'Skipping OpenStack instance usage synchronization because flavor is not found.'
-            'Resource ID: %s',
+            "Skipping OpenStack instance usage synchronization because flavor is not found."
+            "Resource ID: %s",
             instance.id,
         )
         return
 
-    data_volume_size = instance.attributes.get('data_volume_size', 0)
-    system_volume_size = instance.attributes.get('system_volume_size', 0)
+    data_volume_size = instance.attributes.get("data_volume_size", 0)
+    system_volume_size = instance.attributes.get("system_volume_size", 0)
 
     try:
         plan_period = marketplace_models.ResourcePlanPeriod.objects.get(
@@ -520,8 +520,8 @@ def update_usage_when_instance_configuration_is_updated(
         )
     except (ObjectDoesNotExist, MultipleObjectsReturned):
         logger.warning(
-            'Skipping OpenStack instance usage synchronization because valid '
-            'ResourcePlanPeriod is not found. Resource ID: %s',
+            "Skipping OpenStack instance usage synchronization because valid "
+            "ResourcePlanPeriod is not found. Resource ID: %s",
             instance.id,
         )
         return
@@ -538,8 +538,8 @@ def update_usage_when_instance_configuration_is_updated(
         )
     except marketplace_models.OfferingComponent.DoesNotExist:
         logger.warning(
-            'Skipping OpenStack instance usage synchronization because related offering component is not found.'
-            'Resource ID: %s',
+            "Skipping OpenStack instance usage synchronization because related offering component is not found."
+            "Resource ID: %s",
             instance.id,
         )
         return
@@ -558,7 +558,7 @@ def update_usage_when_instance_configuration_is_updated(
             component=component,
             billing_period=billing_period,
             plan_period=plan_period,
-            defaults={'usage': usage, 'date': current_date},
+            defaults={"usage": usage, "date": current_date},
         )
 
 
@@ -566,7 +566,7 @@ def synchronize_router_backend_metadata(sender, instance, created=False, **kwarg
     router = instance
 
     if not created and not set(router.tracker.changed()) & {
-        'fixed_ips',
+        "fixed_ips",
     }:
         return
 
@@ -574,24 +574,24 @@ def synchronize_router_backend_metadata(sender, instance, created=False, **kwarg
         resource = marketplace_models.Resource.objects.get(scope=router.tenant)
     except ObjectDoesNotExist:
         logger.debug(
-            'Skipping resource synchronization for OpenStack router '
-            'because marketplace resource does not exist. '
-            'Resource ID: %s',
+            "Skipping resource synchronization for OpenStack router "
+            "because marketplace resource does not exist. "
+            "Resource ID: %s",
             router.id,
         )
         return
 
     metadata_router_ips = set(
-        resource.backend_metadata.get('routers', {}).get(router.uuid.hex, [])
+        resource.backend_metadata.get("routers", {}).get(router.uuid.hex, [])
     )
-    metadata_all_ips = set(resource.backend_metadata.get('router_fixed_ips', []))
+    metadata_all_ips = set(resource.backend_metadata.get("router_fixed_ips", []))
     new_ips = (metadata_all_ips - metadata_router_ips) | set(router.fixed_ips)
-    resource.backend_metadata['router_fixed_ips'] = list(new_ips)
+    resource.backend_metadata["router_fixed_ips"] = list(new_ips)
 
-    if 'routers' in resource.backend_metadata.keys():
-        resource.backend_metadata['routers'][router.uuid.hex] = router.fixed_ips
+    if "routers" in resource.backend_metadata.keys():
+        resource.backend_metadata["routers"][router.uuid.hex] = router.fixed_ips
     else:
-        resource.backend_metadata['routers'] = {}
-        resource.backend_metadata['routers'][router.uuid.hex] = router.fixed_ips
+        resource.backend_metadata["routers"] = {}
+        resource.backend_metadata["routers"][router.uuid.hex] = router.fixed_ips
 
     resource.save()

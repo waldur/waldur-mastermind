@@ -10,10 +10,10 @@ from waldur_rancher.models import Cluster
 logger = logging.getLogger(__name__)
 
 
-@shared_task(name='waldur_keycloak_rancher.sync_groups')
+@shared_task(name="waldur_keycloak_rancher.sync_groups")
 def sync_groups():
-    if not settings.WALDUR_KEYCLOAK['ENABLED']:
-        logger.debug('Skipping Keycloak synchronization because plugin is disabled.')
+    if not settings.WALDUR_KEYCLOAK["ENABLED"]:
+        logger.debug("Skipping Keycloak synchronization because plugin is disabled.")
         return
 
     for project_group in ProjectGroup.objects.all():
@@ -22,13 +22,13 @@ def sync_groups():
             backend = cluster.get_backend()
             try:
                 backend.get_or_create_cluster_group_role(
-                    f'keycloakoidc_group://{project.name}',
+                    f"keycloakoidc_group://{project.name}",
                     cluster.backend_id,
                     ClusterRoles.cluster_member,
                 )
             except Exception:
                 logger.warning(
-                    'Unable to create cluster group for project %s and cluster %s',
+                    "Unable to create cluster group for project %s and cluster %s",
                     project,
                     cluster,
                 )

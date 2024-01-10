@@ -41,7 +41,7 @@ class MarketplaceTenantCreateExecutor(core_executors.BaseExecutor):
         service_settings = structure_models.ServiceSettings.objects.get(scope=tenant)
         serialized_service_settings = core_utils.serialize_instance(service_settings)
         return core_tasks.StateTransitionTask().si(
-            serialized_service_settings, state_transition='set_ok'
+            serialized_service_settings, state_transition="set_ok"
         )
 
     @classmethod

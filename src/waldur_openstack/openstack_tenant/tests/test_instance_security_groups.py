@@ -12,26 +12,26 @@ def _instance_data(user, instance=None):
     if instance is None:
         instance = factories.InstanceFactory()
     factories.FloatingIPFactory(
-        settings=instance.service_settings, runtime_state='DOWN'
+        settings=instance.service_settings, runtime_state="DOWN"
     )
     image = factories.ImageFactory(settings=instance.service_settings)
     flavor = factories.FlavorFactory(settings=instance.service_settings)
     ssh_public_key = structure_factories.SshPublicKeyFactory(user=user)
     subnet = factories.SubNetFactory(settings=instance.service_settings)
     return {
-        'name': 'test-host',
-        'description': 'test description',
-        'flavor': factories.FlavorFactory.get_url(flavor),
-        'image': factories.ImageFactory.get_url(image),
-        'service_settings': factories.OpenStackTenantServiceSettingsFactory.get_url(
+        "name": "test-host",
+        "description": "test description",
+        "flavor": factories.FlavorFactory.get_url(flavor),
+        "image": factories.ImageFactory.get_url(image),
+        "service_settings": factories.OpenStackTenantServiceSettingsFactory.get_url(
             instance.service_settings
         ),
-        'project': structure_factories.ProjectFactory.get_url(instance.project),
-        'ssh_public_key': structure_factories.SshPublicKeyFactory.get_url(
+        "project": structure_factories.ProjectFactory.get_url(instance.project),
+        "ssh_public_key": structure_factories.SshPublicKeyFactory.get_url(
             ssh_public_key
         ),
-        'system_volume_size': max(image.min_disk, 1024),
-        'internal_ips_set': [{'subnet': factories.SubNetFactory.get_url(subnet)}],
+        "system_volume_size": max(image.min_disk, 1024),
+        "internal_ips_set": [{"subnet": factories.SubNetFactory.get_url(subnet)}],
     }
 
 
@@ -50,7 +50,7 @@ class InstanceSecurityGroupsTest(test.APITransactionTestCase):
 
     def create_instance(self, post_data=None):
         user = self.admin
-        view = views.MarketplaceInstanceViewSet.as_view({'post': 'create'})
+        view = views.MarketplaceInstanceViewSet.as_view({"post": "create"})
         response = common_utils.create_request(view, user, post_data)
         return response
 
@@ -58,15 +58,15 @@ class InstanceSecurityGroupsTest(test.APITransactionTestCase):
         response = self.client.get(factories.InstanceFactory.get_url(self.instance))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        fields = ('name',)
+        fields = ("name",)
         for field in fields:
             expected = sorted([getattr(g, field) for g in self.security_groups])
-            actual = sorted([g[field] for g in response.data['security_groups']])
+            actual = sorted([g[field] for g in response.data["security_groups"]])
             self.assertEqual(expected, actual)
 
     def test_add_instance_with_security_groups(self):
         data = _instance_data(self.admin, self.instance)
-        data['security_groups'] = [
+        data["security_groups"] = [
             self._get_valid_security_group_payload(sg) for sg in self.security_groups
         ]
 
@@ -78,23 +78,23 @@ class InstanceSecurityGroupsTest(test.APITransactionTestCase):
         self.assertEqual(reread_security_groups, self.security_groups)
 
     @patch(
-        'waldur_openstack.openstack_tenant.executors.InstanceUpdateSecurityGroupsExecutor.execute'
+        "waldur_openstack.openstack_tenant.executors.InstanceUpdateSecurityGroupsExecutor.execute"
     )
     def test_change_instance_security_groups_single_field(self, mocked_execute_method):
         new_security_group = factories.SecurityGroupFactory(
-            name='test-group',
+            name="test-group",
             settings=self.settings,
         )
 
         data = {
-            'security_groups': [
+            "security_groups": [
                 self._get_valid_security_group_payload(new_security_group),
             ]
         }
 
         response = self.client.post(
             factories.InstanceFactory.get_url(
-                self.instance, action='update_security_groups'
+                self.instance, action="update_security_groups"
             ),
             data=data,
         )
@@ -106,12 +106,12 @@ class InstanceSecurityGroupsTest(test.APITransactionTestCase):
         self.assertEqual(
             reread_security_groups,
             [new_security_group],
-            'Security groups should have changed',
+            "Security groups should have changed",
         )
         mocked_execute_method.assert_called_once()
 
     @patch(
-        'waldur_openstack.openstack_tenant.executors.InstanceUpdateSecurityGroupsExecutor.execute'
+        "waldur_openstack.openstack_tenant.executors.InstanceUpdateSecurityGroupsExecutor.execute"
     )
     def test_change_instance_security_groups(self, mocked_execute_method):
         response = self.client.get(factories.InstanceFactory.get_url(self.instance))
@@ -119,12 +119,12 @@ class InstanceSecurityGroupsTest(test.APITransactionTestCase):
 
         security_group = factories.SecurityGroupFactory(settings=self.settings)
         data = {
-            'security_groups': [self._get_valid_security_group_payload(security_group)]
+            "security_groups": [self._get_valid_security_group_payload(security_group)]
         }
 
         response = self.client.post(
             factories.InstanceFactory.get_url(
-                self.instance, action='update_security_groups'
+                self.instance, action="update_security_groups"
             ),
             data=data,
         )
@@ -138,10 +138,10 @@ class InstanceSecurityGroupsTest(test.APITransactionTestCase):
 
     def test_security_groups_is_not_required(self):
         data = _instance_data(self.admin, self.instance)
-        self.assertNotIn('security_groups', data)
+        self.assertNotIn("security_groups", data)
         response = self.create_instance(data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     # Helper methods
     def _get_valid_security_group_payload(self, security_group=None):
-        return {'url': factories.SecurityGroupFactory.get_url(security_group)}
+        return {"url": factories.SecurityGroupFactory.get_url(security_group)}

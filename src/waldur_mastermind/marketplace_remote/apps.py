@@ -3,8 +3,8 @@ from django.db.models import signals
 
 
 class MarketplaceRemoteConfig(AppConfig):
-    name = 'waldur_mastermind.marketplace_remote'
-    verbose_name = 'Remote Marketplace'
+    name = "waldur_mastermind.marketplace_remote"
+    verbose_name = "Remote Marketplace"
 
     def ready(self):
         from waldur_core.permissions import signals as permission_signals
@@ -18,7 +18,7 @@ class MarketplaceRemoteConfig(AppConfig):
 
         from . import handlers
 
-        ProjectUpdateRequest = self.get_model('ProjectUpdateRequest')
+        ProjectUpdateRequest = self.get_model("ProjectUpdateRequest")
 
         plugins.manager.register(
             offering_type=PLUGIN_NAME,
@@ -33,51 +33,51 @@ class MarketplaceRemoteConfig(AppConfig):
 
         permission_signals.role_granted.connect(
             handlers.sync_permission_with_remote,
-            dispatch_uid='marketplace_remote.sync_permission_when_role_granted',
+            dispatch_uid="marketplace_remote.sync_permission_when_role_granted",
         )
 
         permission_signals.role_revoked.connect(
             handlers.sync_permission_with_remote,
-            dispatch_uid='marketplace_remote.sync_permission_when_role_revoked',
+            dispatch_uid="marketplace_remote.sync_permission_when_role_revoked",
         )
 
         permission_signals.role_updated.connect(
             handlers.sync_permission_with_remote,
-            dispatch_uid='marketplace_remote.sync_permission_when_role_updated',
+            dispatch_uid="marketplace_remote.sync_permission_when_role_updated",
         )
 
         signals.post_save.connect(
             handlers.create_request_when_project_is_updated,
             sender=Project,
-            dispatch_uid='marketplace_remote.create_request_when_project_is_updated',
+            dispatch_uid="marketplace_remote.create_request_when_project_is_updated",
         )
 
         signals.post_save.connect(
             handlers.sync_remote_project_when_request_is_approved,
             sender=ProjectUpdateRequest,
-            dispatch_uid='marketplace_remote.sync_remote_project_when_request_is_approved',
+            dispatch_uid="marketplace_remote.sync_remote_project_when_request_is_approved",
         )
 
         signals.post_save.connect(
             handlers.log_request_events,
             sender=ProjectUpdateRequest,
-            dispatch_uid='marketplace_remote.log_request_events',
+            dispatch_uid="marketplace_remote.log_request_events",
         )
 
         signals.post_save.connect(
             handlers.notify_about_project_details_update,
             sender=ProjectUpdateRequest,
-            dispatch_uid='marketplace_remote.notify_about_project_details_update',
+            dispatch_uid="marketplace_remote.notify_about_project_details_update",
         )
 
         signals.post_delete.connect(
             handlers.delete_remote_project,
             sender=Project,
-            dispatch_uid='marketplace_remote.delete_remote_project',
+            dispatch_uid="marketplace_remote.delete_remote_project",
         )
 
         signals.post_save.connect(
             handlers.trigger_order_callback,
             sender=models.Order,
-            dispatch_uid='marketplace_remote.trigger_order_notification',
+            dispatch_uid="marketplace_remote.trigger_order_notification",
         )

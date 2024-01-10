@@ -15,11 +15,11 @@ class DropletCreateExecutor(executors.CreateExecutor):
         return chain(
             BackendMethodTask().si(
                 serialized_droplet,
-                'create_droplet',
-                state_transition='begin_creating',
-                runtime_state='provisioning',
+                "create_droplet",
+                state_transition="begin_creating",
+                runtime_state="provisioning",
                 success_runtime_state=RuntimeStateMixin.RuntimeStates.ONLINE,
-                **kwargs
+                **kwargs,
             ),
             tasks.wait_for_action_complete.s(serialized_droplet).set(countdown=30),
         )
@@ -30,11 +30,11 @@ class DropletDeleteExecutor(executors.DeleteExecutor):
     def get_task_signature(cls, droplet, serialized_droplet, **kwargs):
         if droplet.backend_id:
             return BackendMethodTask().si(
-                serialized_droplet, 'destroy', state_transition='begin_deleting'
+                serialized_droplet, "destroy", state_transition="begin_deleting"
             )
         else:
             return StateTransitionTask().si(
-                serialized_droplet, state_transition='begin_deleting'
+                serialized_droplet, state_transition="begin_deleting"
             )
 
 
@@ -44,8 +44,8 @@ class DropletStopExecutor(executors.ActionExecutor):
         return chain(
             BackendMethodTask().si(
                 serialized_droplet,
-                'stop',
-                state_transition='begin_updating',
+                "stop",
+                state_transition="begin_updating",
                 success_runtime_state=models.Droplet.RuntimeStates.OFFLINE,
             ),
             tasks.wait_for_action_complete.s(serialized_droplet).set(countdown=10),
@@ -58,8 +58,8 @@ class DropletStartExecutor(executors.ActionExecutor):
         return chain(
             BackendMethodTask().si(
                 serialized_droplet,
-                'start',
-                state_transition='begin_updating',
+                "start",
+                state_transition="begin_updating",
                 success_runtime_state=models.Droplet.RuntimeStates.ONLINE,
             ),
             tasks.wait_for_action_complete.s(serialized_droplet).set(countdown=10),
@@ -72,8 +72,8 @@ class DropletRestartExecutor(executors.ActionExecutor):
         return chain(
             BackendMethodTask().si(
                 serialized_droplet,
-                'restart',
-                state_transition='begin_updating',
+                "restart",
+                state_transition="begin_updating",
                 success_runtime_state=models.Droplet.RuntimeStates.ONLINE,
             ),
             tasks.wait_for_action_complete.s(serialized_droplet).set(countdown=10),
@@ -83,14 +83,14 @@ class DropletRestartExecutor(executors.ActionExecutor):
 class DropletResizeExecutor(executors.UpdateExecutor):
     @classmethod
     def get_task_signature(cls, droplet, serialized_droplet, **kwargs):
-        size = kwargs.pop('size')
-        disk = kwargs.pop('disk')
+        size = kwargs.pop("size")
+        disk = kwargs.pop("disk")
         return chain(
             BackendMethodTask().si(
                 serialized_droplet,
-                'resize',
-                state_transition='begin_updating',
-                runtime_state='resizing',
+                "resize",
+                state_transition="begin_updating",
+                runtime_state="resizing",
                 success_runtime_state=models.Droplet.RuntimeStates.ONLINE,
                 backend_size_id=size.backend_id,
                 disk=disk,

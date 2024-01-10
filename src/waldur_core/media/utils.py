@@ -19,15 +19,15 @@ from waldur_core.structure.managers import filter_queryset_for_user
 
 
 def encode_attachment_token(user_uuid, obj, field):
-    max_age = settings.WALDUR_CORE['ATTACHMENT_LINK_MAX_AGE']
+    max_age = settings.WALDUR_CORE["ATTACHMENT_LINK_MAX_AGE"]
     dt = datetime.utcnow() + max_age
     expires_at = timegm(dt.utctimetuple())
     payload = {
-        'usr': user_uuid,
-        'ct': str(obj._meta),
-        'id': obj.uuid.hex,
-        'field': field,
-        'exp': expires_at,
+        "usr": user_uuid,
+        "ct": str(obj._meta),
+        "id": obj.uuid.hex,
+        "field": field,
+        "exp": expires_at,
     }
     return utils.encode_jwt_token(payload)
 
@@ -36,27 +36,27 @@ def decode_attachment_token(token):
     try:
         data = utils.decode_jwt_token(token)
     except jwt.exceptions.InvalidTokenError:
-        raise ValidationError('Bad signature.')
+        raise ValidationError("Bad signature.")
 
     if not isinstance(data, dict):
-        raise ValidationError('Bad token data.')
+        raise ValidationError("Bad token data.")
 
-    user_uuid = data.get('usr')
-    content_type = data.get('ct')
-    object_uuid = data.get('id')
-    field = data.get('field')
+    user_uuid = data.get("usr")
+    content_type = data.get("ct")
+    object_uuid = data.get("id")
+    field = data.get("field")
 
     if not user_uuid:
-        raise ValidationError('User UUID is not provided.')
+        raise ValidationError("User UUID is not provided.")
 
     if not content_type:
-        raise ValidationError('Content type is not provided.')
+        raise ValidationError("Content type is not provided.")
 
     if not object_uuid:
-        raise ValidationError('Object UUID is not provided.')
+        raise ValidationError("Object UUID is not provided.")
 
     if not field:
-        raise ValidationError('Field is not provided.')
+        raise ValidationError("Field is not provided.")
 
     return user_uuid, content_type, object_uuid, field
 
@@ -73,16 +73,16 @@ def encode_protected_url(obj, field, request=None, user_uuid=None):
     if not user_uuid:
         user_uuid = request.user.uuid.hex
     token = encode_attachment_token(user_uuid, obj, field)
-    return reverse('media-download', request=request, kwargs={'token': token})
+    return reverse("media-download", request=request, kwargs={"token": token})
 
 
 def get_file_from_token(token):
     user_uuid, content_type, object_uuid, field = decode_attachment_token(token)
     user = get_object_or_404(User, uuid=user_uuid)
     if not user.is_active:
-        raise ValidationError('User is not active.')
+        raise ValidationError("User is not active.")
     queryset = apps.get_model(content_type).objects.all()
-    if hasattr(queryset, 'filter_for_user'):
+    if hasattr(queryset, "filter_for_user"):
         queryset = queryset.filter_for_user(user)
     else:
         queryset = filter_queryset_for_user(queryset, user)
@@ -91,33 +91,33 @@ def get_file_from_token(token):
 
 
 def format_content_disposition(filename):
-    filename = filename.replace(',', '_')
+    filename = filename.replace(",", "_")
     return f'attachment; filename="{filename}"'
 
 
 def send_file(file):
     _, file_name = os.path.split(file.name)
     response = HttpResponse()
-    response['Content-Disposition'] = format_content_disposition(file_name)
-    response['X-Accel-Redirect'] = file.url
+    response["Content-Disposition"] = format_content_disposition(file_name)
+    response["X-Accel-Redirect"] = file.url
     return response
 
 
-def dummy_image(filetype='gif'):
+def dummy_image(filetype="gif"):
     """Generate empty image in temporary file for testing"""
     # 1x1px Transparent GIF
-    GIF = 'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
-    tmp_file = tempfile.NamedTemporaryFile(suffix='.%s' % filetype)
+    GIF = "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+    tmp_file = tempfile.NamedTemporaryFile(suffix=".%s" % filetype)
     tmp_file.write(base64.b64decode(GIF))
-    return open(tmp_file.name, 'rb')
+    return open(tmp_file.name, "rb")
 
 
 def guess_image_extension(content: bytes) -> str:
     mime_type = magic.from_buffer(content[:1024], mime=True)
     return {
-        'image/svg': 'svg',
-        'image/svg+xml': 'svg',
-        'image/png': 'png',
-        'image/jpeg': 'jpeg',
-        'image/webp': 'webp',
+        "image/svg": "svg",
+        "image/svg+xml": "svg",
+        "image/png": "png",
+        "image/jpeg": "jpeg",
+        "image/webp": "webp",
     }.get(mime_type)

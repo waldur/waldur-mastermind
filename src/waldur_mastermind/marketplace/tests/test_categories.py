@@ -16,7 +16,7 @@ class CategoryGetTest(test.APITransactionTestCase):
         self.category = factories.CategoryFactory()
         self.category_url = factories.CategoryFactory.get_url(self.category)
 
-    @data('staff', 'owner', 'user', 'customer_support', 'admin', 'manager')
+    @data("staff", "owner", "user", "customer_support", "admin", "manager")
     def test_category_should_be_visible_to_all_authenticated_users(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
@@ -60,7 +60,7 @@ class CategoryOfferingCountTest(test.APITransactionTestCase):
     def check_counts(self, offering_count):
         response = self.client.get(self.category_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['offering_count'], offering_count)
+        self.assertEqual(response.data["offering_count"], offering_count)
 
     def _create_plan(self, offering_count):
         self.plan = factories.PlanFactory(offering=self.private_offering)
@@ -90,7 +90,7 @@ class CategoryOfferingCountTest(test.APITransactionTestCase):
         )
         self.check_counts(offering_count)
 
-    @data('staff', 'global_support')
+    @data("staff", "global_support")
     def test_counts_for_staff(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
@@ -102,7 +102,7 @@ class CategoryOfferingCountTest(test.APITransactionTestCase):
         self._match_project_with_division(offering_count=2)
         self._create_offering_for_owner(offering_count=2)
 
-    @data('owner', 'admin', 'manager')
+    @data("owner", "admin", "manager")
     def test_counts_for_authorized_user(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
@@ -159,14 +159,14 @@ class CategoryCreateTest(test.APITransactionTestCase):
         self.fixture = fixtures.ProjectFixture()
 
     @data(
-        'staff',
+        "staff",
     )
     def test_authorized_user_can_create_category(self, user):
         response = self.create_category(user)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(models.Category.objects.filter(title='category').exists())
+        self.assertTrue(models.Category.objects.filter(title="category").exists())
 
-    @data('owner', 'user', 'customer_support', 'admin', 'manager')
+    @data("owner", "user", "customer_support", "admin", "manager")
     def test_unauthorized_user_can_not_create_category(self, user):
         response = self.create_category(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -177,7 +177,7 @@ class CategoryCreateTest(test.APITransactionTestCase):
         url = factories.CategoryFactory.get_list_url()
 
         payload = {
-            'title': 'category',
+            "title": "category",
         }
 
         return self.client.post(url, payload)
@@ -189,15 +189,15 @@ class CategoryUpdateTest(test.APITransactionTestCase):
         self.fixture = fixtures.ProjectFixture()
 
     @data(
-        'staff',
+        "staff",
     )
     def test_authorized_user_can_update_category(self, user):
         response, category = self.update_category(user)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertEqual(category.title, 'new_category')
-        self.assertTrue(models.Category.objects.filter(title='new_category').exists())
+        self.assertEqual(category.title, "new_category")
+        self.assertTrue(models.Category.objects.filter(title="new_category").exists())
 
-    @data('owner', 'user', 'customer_support', 'admin', 'manager')
+    @data("owner", "user", "customer_support", "admin", "manager")
     def test_unauthorized_user_can_not_update_category(self, user):
         response, category = self.update_category(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -208,7 +208,7 @@ class CategoryUpdateTest(test.APITransactionTestCase):
         self.client.force_authenticate(user)
         url = factories.CategoryFactory.get_url(category)
 
-        response = self.client.patch(url, {'title': 'new_category'})
+        response = self.client.patch(url, {"title": "new_category"})
         category.refresh_from_db()
 
         return response, category
@@ -218,23 +218,23 @@ class CategoryUpdateTest(test.APITransactionTestCase):
 class CategoryDeleteTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
-        self.category = factories.CategoryFactory(title='category')
+        self.category = factories.CategoryFactory(title="category")
 
     @data(
-        'staff',
+        "staff",
     )
     def test_authorized_user_can_delete_category(self, user):
         response = self.delete_category(user)
         self.assertEqual(
             response.status_code, status.HTTP_204_NO_CONTENT, response.data
         )
-        self.assertFalse(models.Category.objects.filter(title='category').exists())
+        self.assertFalse(models.Category.objects.filter(title="category").exists())
 
-    @data('owner', 'user', 'customer_support', 'admin', 'manager')
+    @data("owner", "user", "customer_support", "admin", "manager")
     def test_unauthorized_user_can_not_delete_category(self, user):
         response = self.delete_category(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertTrue(models.Category.objects.filter(title='category').exists())
+        self.assertTrue(models.Category.objects.filter(title="category").exists())
 
     def delete_category(self, user):
         user = getattr(self.fixture, user)

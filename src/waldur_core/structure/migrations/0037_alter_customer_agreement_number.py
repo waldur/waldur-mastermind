@@ -7,11 +7,11 @@ MARKER = 999999999
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('structure', '0001_squashed_0036'),
+        ("structure", "0001_squashed_0036"),
     ]
 
     def add_placeholder_values(apps, schema_editor):
-        Customer = apps.get_model('structure', 'Customer')
+        Customer = apps.get_model("structure", "Customer")
         Customer.objects.filter(agreement_number__isnull=True).update(
             agreement_number=MARKER
         )
@@ -19,8 +19,8 @@ class Migration(migrations.Migration):
     operations = [
         migrations.RunPython(add_placeholder_values),
         migrations.AlterField(
-            model_name='customer',
-            name='agreement_number',
-            field=models.CharField(blank=True, default='', max_length=160),
+            model_name="customer",
+            name="agreement_number",
+            field=models.CharField(blank=True, default="", max_length=160),
         ),
     ]

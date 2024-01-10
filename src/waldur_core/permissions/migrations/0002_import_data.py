@@ -4,19 +4,19 @@ from waldur_core.permissions.enums import RoleEnum
 
 
 def fill_system_roles(apps, schema_editor):
-    ContentType = apps.get_model('contenttypes', 'ContentType')
+    ContentType = apps.get_model("contenttypes", "ContentType")
 
-    Role = apps.get_model('permissions', 'Role')
-    UserRole = apps.get_model('permissions', 'UserRole')
+    Role = apps.get_model("permissions", "Role")
+    UserRole = apps.get_model("permissions", "UserRole")
 
-    Customer = apps.get_model('structure', 'Customer')
-    CustomerPermission = apps.get_model('structure', 'CustomerPermission')
+    Customer = apps.get_model("structure", "Customer")
+    CustomerPermission = apps.get_model("structure", "CustomerPermission")
 
-    Project = apps.get_model('structure', 'Project')
-    ProjectPermission = apps.get_model('structure', 'ProjectPermission')
+    Project = apps.get_model("structure", "Project")
+    ProjectPermission = apps.get_model("structure", "ProjectPermission")
 
-    Offering = apps.get_model('marketplace', 'Offering')
-    OfferingPermission = apps.get_model('marketplace', 'OfferingPermission')
+    Offering = apps.get_model("marketplace", "Offering")
+    OfferingPermission = apps.get_model("marketplace", "OfferingPermission")
 
     customer_ct = ContentType.objects.get_for_model(Customer)
     project_ct = ContentType.objects.get_for_model(Project)
@@ -24,31 +24,31 @@ def fill_system_roles(apps, schema_editor):
 
     customer_owner = Role.objects.create(
         name=RoleEnum.CUSTOMER_OWNER,
-        description='Organization owner',
+        description="Organization owner",
     )
     customer_support = Role.objects.create(
         name=RoleEnum.CUSTOMER_SUPPORT,
-        description='Organization support',
+        description="Organization support",
     )
     customer_manager = Role.objects.create(
         name=RoleEnum.CUSTOMER_MANAGER,
-        description='Organization service manager',
+        description="Organization service manager",
     )
     project_admin = Role.objects.create(
         name=RoleEnum.PROJECT_ADMIN,
-        description='Project administator',
+        description="Project administator",
     )
     project_manager = Role.objects.create(
         name=RoleEnum.PROJECT_MANAGER,
-        description='Project manager',
+        description="Project manager",
     )
     project_member = Role.objects.create(
         name=RoleEnum.PROJECT_MEMBER,
-        description='Project member',
+        description="Project member",
     )
     offering_manager = Role.objects.create(
         name=RoleEnum.OFFERING_MANAGER,
-        description='Offering manager',
+        description="Offering manager",
     )
 
     def create_user_role(permission, **kwargs):
@@ -58,16 +58,16 @@ def fill_system_roles(apps, schema_editor):
             created=permission.created,
             expiration_time=permission.expiration_time,
             is_active=permission.is_active,
-            **kwargs
+            **kwargs,
         )
 
     for permission in CustomerPermission.objects.all():
         role = None
-        if permission.role == 'owner':
+        if permission.role == "owner":
             role = customer_owner
-        elif permission.role == 'support':
+        elif permission.role == "support":
             role = customer_support
-        elif permission.role == 'service_manager':
+        elif permission.role == "service_manager":
             role = customer_manager
         create_user_role(
             permission,
@@ -78,11 +78,11 @@ def fill_system_roles(apps, schema_editor):
 
     for permission in ProjectPermission.objects.all():
         role = None
-        if permission.role == 'admin':
+        if permission.role == "admin":
             role = project_admin
-        elif permission.role == 'manager':
+        elif permission.role == "manager":
             role = project_manager
-        elif permission.role == 'member':
+        elif permission.role == "member":
             role = project_member
         create_user_role(
             permission,
@@ -102,9 +102,9 @@ def fill_system_roles(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('permissions', '0001_initial'),
-        ('structure', '0001_squashed_0036'),
-        ('marketplace', '0001_squashed_0076'),
+        ("permissions", "0001_initial"),
+        ("structure", "0001_squashed_0036"),
+        ("marketplace", "0001_squashed_0076"),
     ]
 
     operations = [migrations.RunPython(fill_system_roles)]

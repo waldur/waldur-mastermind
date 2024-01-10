@@ -14,16 +14,16 @@ from . import managers
 
 class PriceEstimate(core_models.UuidMixin, models.Model):
     content_type = models.ForeignKey(
-        on_delete=models.CASCADE, to=ContentType, null=True, related_name='+'
+        on_delete=models.CASCADE, to=ContentType, null=True, related_name="+"
     )
     object_id = models.PositiveIntegerField(null=True)
-    scope = GenericForeignKey('content_type', 'object_id')
+    scope = GenericForeignKey("content_type", "object_id")
 
-    objects = managers.PriceEstimateManager('scope')
+    objects = managers.PriceEstimateManager("scope")
     tracker = FieldTracker()
 
     total = models.FloatField(
-        default=0, help_text=_('Predicted price for scope for current month.')
+        default=0, help_text=_("Predicted price for scope for current month.")
     )
 
     @classmethod
@@ -43,10 +43,10 @@ class PriceEstimate(core_models.UuidMixin, models.Model):
         return sum(getattr(item, field) for item in items)
 
     def get_total(self, year, month, current=False):
-        return self._get_sum(year, month, current and 'price_current' or 'price')
+        return self._get_sum(year, month, current and "price_current" or "price")
 
     def get_tax(self, year, month, current=False):
-        return self._get_sum(year, month, current and 'tax_current' or 'tax')
+        return self._get_sum(year, month, current and "tax_current" or "tax")
 
     def update_total(self):
         current_year = invoices_utils.get_current_year()

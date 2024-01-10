@@ -7,27 +7,27 @@ import waldur_core.core.fields
 
 
 def gen_uuid(apps, schema_editor):
-    CategoryComponent = apps.get_model('marketplace', 'CategoryComponent')
+    CategoryComponent = apps.get_model("marketplace", "CategoryComponent")
     for row in CategoryComponent.objects.all():
         row.uuid = uuid.uuid4().hex
-        row.save(update_fields=['uuid'])
+        row.save(update_fields=["uuid"])
 
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace', '0100_alter_resource_unique_together'),
+        ("marketplace", "0100_alter_resource_unique_together"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='categorycomponent',
-            name='uuid',
+            model_name="categorycomponent",
+            name="uuid",
             field=models.UUIDField(null=True),
         ),
         migrations.RunPython(gen_uuid, elidable=True),
         migrations.AlterField(
-            model_name='categorycomponent',
-            name='uuid',
+            model_name="categorycomponent",
+            name="uuid",
             field=waldur_core.core.fields.UUIDField(),
         ),
     ]

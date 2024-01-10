@@ -8,18 +8,18 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('structure', '0038_cleanup_agreement_number_placeholder'),
+        ("structure", "0038_cleanup_agreement_number_placeholder"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='project',
-            name='end_date_requested_by',
+            model_name="project",
+            name="end_date_requested_by",
             field=models.ForeignKey(
                 blank=True,
                 null=True,
                 on_delete=django.db.models.deletion.SET_NULL,
-                related_name='+',
+                related_name="+",
                 to=settings.AUTH_USER_MODEL,
             ),
         ),

@@ -6,35 +6,35 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('waldur_azure', '0019_add_offer_field'),
+        ("waldur_azure", "0019_add_offer_field"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='SizeAvailabilityZone',
+            name="SizeAvailabilityZone",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('zone', models.PositiveSmallIntegerField()),
+                ("zone", models.PositiveSmallIntegerField()),
                 (
-                    'location',
+                    "location",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='waldur_azure.Location',
+                        to="waldur_azure.Location",
                     ),
                 ),
                 (
-                    'size',
+                    "size",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='waldur_azure.Size',
+                        to="waldur_azure.Size",
                     ),
                 ),
             ],

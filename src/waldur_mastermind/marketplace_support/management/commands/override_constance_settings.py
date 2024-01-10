@@ -20,16 +20,16 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         super().add_arguments(parser)
         parser.add_argument(
-            'constance_settings_file',
-            help='Specifies location of file in YAML format containing new settings',
+            "constance_settings_file",
+            help="Specifies location of file in YAML format containing new settings",
         )
 
     def handle(self, *args, **options):
-        with open(options['constance_settings_file']) as constance_settings_file:
+        with open(options["constance_settings_file"]) as constance_settings_file:
             constance_settings = yaml.safe_load(constance_settings_file)
 
         if constance_settings is None:
-            self.stdout.write(self.style.ERROR('Constance settings file is empty.'))
+            self.stdout.write(self.style.ERROR("Constance settings file is empty."))
             return
 
         for setting_key, setting_value in constance_settings.items():
@@ -38,5 +38,5 @@ class Command(BaseCommand):
 
             setattr(config, setting_key, setting_value)
             self.stdout.write(
-                self.style.SUCCESS(f'{setting_key} has been set to {setting_value}.')
+                self.style.SUCCESS(f"{setting_key} has been set to {setting_value}.")
             )

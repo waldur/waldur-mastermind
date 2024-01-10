@@ -13,26 +13,26 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            '--offering',
-            help='Target marketplace offering name where leftover projects are located.',
+            "--offering",
+            help="Target marketplace offering name where leftover projects are located.",
         )
         parser.add_argument(
-            '--dry-run',
-            action='store_true',
-            help='Don\'t make any changes, instead show what projects would be deleted.',
+            "--dry-run",
+            action="store_true",
+            help="Don't make any changes, instead show what projects would be deleted.",
         )
         parser.add_argument(
-            '--fuzzy-matching',
-            action='store_true',
-            help='Try to detect leftovers by name.',
+            "--fuzzy-matching",
+            action="store_true",
+            help="Try to detect leftovers by name.",
         )
 
     def collect_leftovers_by_id(self, offering, remote_projects):
         remote_project_ids = {project.id for project in remote_projects}
         local_project_ids = set(
             Resource.objects.filter(offering=offering, state=Resource.States.TERMINATED)
-            .exclude(backend_id='')
-            .values_list('backend_id', flat=True)
+            .exclude(backend_id="")
+            .values_list("backend_id", flat=True)
         )
         return local_project_ids & remote_project_ids
 
@@ -46,10 +46,10 @@ class Command(BaseCommand):
         local_resources = Resource.objects.filter(
             offering=offering, state=Resource.States.TERMINATED
         )
-        local_project_names = set(local_resources.values_list('name', flat=True)) - set(
+        local_project_names = set(local_resources.values_list("name", flat=True)) - set(
             Resource.objects.filter(
                 offering=offering, state=Resource.States.OK
-            ).values_list('name', flat=True)
+            ).values_list("name", flat=True)
         )
         leftovers = set()
         remote_project_names = {project.name for project in remote_projects}
@@ -68,17 +68,17 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         try:
-            offering = Offering.objects.get(name=options['offering'])
+            offering = Offering.objects.get(name=options["offering"])
         except Offering.DoesNotExist:
             self.stdout.write(
-                self.style.ERROR('Offering with given name is not found.')
+                self.style.ERROR("Offering with given name is not found.")
             )
             return
 
         backend = offering.scope.get_backend()
         if not backend.ping():
             self.stdout.write(
-                self.style.ERROR('Remote OpenStack API does not respond.')
+                self.style.ERROR("Remote OpenStack API does not respond.")
             )
             return
 
@@ -86,14 +86,14 @@ class Command(BaseCommand):
         remote_projects = keystone.projects.list()
 
         leftovers = self.collect_leftovers_by_id(offering, remote_projects)
-        if options['fuzzy_matching']:
+        if options["fuzzy_matching"]:
             leftovers |= self.collect_leftovers_by_name(offering, remote_projects)
 
         if leftovers:
             self.stdout.write(
-                'Projects with following IDs are going to be deleted %s'
-                % ', '.join(leftovers)
+                "Projects with following IDs are going to be deleted %s"
+                % ", ".join(leftovers)
             )
-            if not options['dry_run']:
+            if not options["dry_run"]:
                 for project_id in leftovers:
                     keystone.projects.delete(project_id)

@@ -5,43 +5,43 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('logging', '0010_long_email'),
+        ("logging", "0010_long_email"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='emailhook',
-            name='event_groups',
-            field=models.JSONField(default=list, verbose_name='List of event groups'),
+            model_name="emailhook",
+            name="event_groups",
+            field=models.JSONField(default=list, verbose_name="List of event groups"),
         ),
         migrations.AlterField(
-            model_name='emailhook',
-            name='event_types',
-            field=models.JSONField(verbose_name='List of event types'),
+            model_name="emailhook",
+            name="event_types",
+            field=models.JSONField(verbose_name="List of event types"),
         ),
         migrations.AlterField(
-            model_name='event',
-            name='context',
+            model_name="event",
+            name="context",
             field=models.JSONField(blank=True),
         ),
         migrations.AlterField(
-            model_name='systemnotification',
-            name='event_groups',
-            field=models.JSONField(default=list, verbose_name='List of event groups'),
+            model_name="systemnotification",
+            name="event_groups",
+            field=models.JSONField(default=list, verbose_name="List of event groups"),
         ),
         migrations.AlterField(
-            model_name='systemnotification',
-            name='event_types',
-            field=models.JSONField(verbose_name='List of event types'),
+            model_name="systemnotification",
+            name="event_types",
+            field=models.JSONField(verbose_name="List of event types"),
         ),
         migrations.AlterField(
-            model_name='webhook',
-            name='event_groups',
-            field=models.JSONField(default=list, verbose_name='List of event groups'),
+            model_name="webhook",
+            name="event_groups",
+            field=models.JSONField(default=list, verbose_name="List of event groups"),
         ),
         migrations.AlterField(
-            model_name='webhook',
-            name='event_types',
-            field=models.JSONField(verbose_name='List of event types'),
+            model_name="webhook",
+            name="event_types",
+            field=models.JSONField(verbose_name="List of event types"),
         ),
     ]

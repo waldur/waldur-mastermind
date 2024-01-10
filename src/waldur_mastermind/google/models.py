@@ -15,11 +15,11 @@ class GoogleCredentials(models.Model):
     calendar_refresh_token = models.CharField(max_length=255, blank=True)
 
     class Permissions:
-        customer_path = 'service_provider__customer'
+        customer_path = "service_provider__customer"
 
     class Meta:
-        verbose_name = _('Google credentials')
-        verbose_name_plural = _('Google credentials')
+        verbose_name = _("Google credentials")
+        verbose_name_plural = _("Google credentials")
 
 
 class GoogleCalendar(core_models.StateMixin):
@@ -32,16 +32,16 @@ class GoogleCalendar(core_models.StateMixin):
     @property
     def http_link(self):
         if self.public:
-            return 'https://calendar.google.com/calendar/embed?%s' % urlencode(
-                {'src': self.backend_id}
+            return "https://calendar.google.com/calendar/embed?%s" % urlencode(
+                {"src": self.backend_id}
             )
 
     class Permissions:
-        customer_path = 'offering__customer'
+        customer_path = "offering__customer"
 
     class Meta:
-        verbose_name = _('Google calendar')
-        verbose_name_plural = _('Google calendars')
+        verbose_name = _("Google calendar")
+        verbose_name_plural = _("Google calendars")
 
     def __str__(self):
-        return f'{self.offering} ({self.public})'
+        return f"{self.offering} ({self.public})"

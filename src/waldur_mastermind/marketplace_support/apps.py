@@ -3,8 +3,8 @@ from django.db.models import signals
 
 
 class MarketplaceSupportConfig(AppConfig):
-    name = 'waldur_mastermind.marketplace_support'
-    verbose_name = 'Marketplace supports'
+    name = "waldur_mastermind.marketplace_support"
+    verbose_name = "Marketplace supports"
 
     def ready(self):
         from waldur_core.core import signals as core_signals
@@ -21,13 +21,13 @@ class MarketplaceSupportConfig(AppConfig):
         signals.post_save.connect(
             handlers.update_order_if_issue_was_complete,
             sender=support_models.Issue,
-            dispatch_uid='waldur_mastermind.marketplace_support.update_order_if_issue_was_complete',
+            dispatch_uid="waldur_mastermind.marketplace_support.update_order_if_issue_was_complete",
         )
 
         signals.post_save.connect(
             handlers.notify_about_request_based_item_creation,
             sender=support_models.Issue,
-            dispatch_uid='waldur_mastermind.marketplace_support.notify_about_request_based_item_creation',
+            dispatch_uid="waldur_mastermind.marketplace_support.notify_about_request_based_item_creation",
         )
 
         manager.register(

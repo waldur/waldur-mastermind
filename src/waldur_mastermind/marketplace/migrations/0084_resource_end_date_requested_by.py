@@ -8,18 +8,18 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('marketplace', '0083_offeringuser_backend_metadata'),
+        ("marketplace", "0083_offeringuser_backend_metadata"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='resource',
-            name='end_date_requested_by',
+            model_name="resource",
+            name="end_date_requested_by",
             field=models.ForeignKey(
                 blank=True,
                 null=True,
                 on_delete=django.db.models.deletion.SET_NULL,
-                related_name='+',
+                related_name="+",
                 to=settings.AUTH_USER_MODEL,
             ),
         ),

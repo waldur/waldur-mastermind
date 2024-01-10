@@ -79,14 +79,14 @@ class SupportFixture(structure_fixtures.ProjectFixture):
     @cached_property
     def offering(self):
         return marketplace_factories.OfferingFactory(
-            type=PLUGIN_NAME, options={'order': []}
+            type=PLUGIN_NAME, options={"order": []}
         )
 
     @cached_property
     def plan(self):
         plan = marketplace_factories.PlanFactory(
             offering=self.offering,
-            name='Standard plan',
+            name="Standard plan",
             unit_price=0,
             unit=marketplace_models.Plan.Units.PER_MONTH,
         )
@@ -115,7 +115,7 @@ class SupportFixture(structure_fixtures.ProjectFixture):
         return marketplace_factories.OrderFactory(
             project=self.project,
             offering=self.offering,
-            attributes={'name': 'item_name', 'description': 'Description'},
+            attributes={"name": "item_name", "description": "Description"},
             plan=self.plan,
         )
 
@@ -131,7 +131,7 @@ class SupportFixture(structure_fixtures.ProjectFixture):
         return marketplace_factories.OfferingComponentFactory(
             offering=self.offering,
             billing_type=marketplace_models.OfferingComponent.BillingTypes.FIXED,
-            type='ram',
+            type="ram",
         )
 
     @cached_property
@@ -139,7 +139,7 @@ class SupportFixture(structure_fixtures.ProjectFixture):
         new_plan = marketplace_factories.PlanFactory(
             offering=self.offering,
             unit_price=0,
-            name='Small plan',
+            name="Small plan",
             unit=marketplace_models.Plan.Units.PER_MONTH,
         )
         return new_plan
@@ -161,7 +161,7 @@ class SupportFixture(structure_fixtures.ProjectFixture):
         return marketplace_factories.OrderFactory(
             offering=self.offering,
             project=self.project,
-            attributes={'name': 'item_name_2', 'description': 'Description_2'},
+            attributes={"name": "item_name_2", "description": "Description_2"},
             plan=self.plan,
         )
 
@@ -169,7 +169,7 @@ class SupportFixture(structure_fixtures.ProjectFixture):
     def service_provider(self):
         return marketplace_factories.ServiceProviderFactory(
             customer=self.order.offering.customer,
-            description='ServiceProvider\'s description',
+            description="ServiceProvider's description",
         )
 
     @cached_property
@@ -179,11 +179,11 @@ class SupportFixture(structure_fixtures.ProjectFixture):
         return owner
 
     def update_plan_prices(self):
-        self._update_plan_price('plan')
-        self._update_plan_price('new_plan')
+        self._update_plan_price("plan")
+        self._update_plan_price("new_plan")
 
     def _update_plan_price(self, plan_name):
         plan = getattr(self, plan_name)
-        fixed_components = plan.components.filter(component__billing_type='fixed')
+        fixed_components = plan.components.filter(component__billing_type="fixed")
         plan.unit_price = sum(comp.amount * comp.price for comp in fixed_components)
         plan.save()

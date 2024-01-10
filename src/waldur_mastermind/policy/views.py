@@ -10,7 +10,7 @@ from . import filters, models, permissions, serializers
 
 
 class ProjectEstimatedCostPolicyViewSet(ActionsViewSet):
-    queryset = models.ProjectEstimatedCostPolicy.objects.all().order_by('-created')
+    queryset = models.ProjectEstimatedCostPolicy.objects.all().order_by("-created")
     serializer_class = serializers.ProjectEstimatedCostPolicySerializer
     permission_classes = [
         permissions.StaffAndOwnerHaveFullPermissionsProjectTeamOnlyRead
@@ -20,9 +20,9 @@ class ProjectEstimatedCostPolicyViewSet(ActionsViewSet):
         structure_filters.GenericRoleFilter,
     ]
     filterset_class = filters.ProjectEstimatedCostPolicyFilter
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=["get"])
     def actions(self, request, *args, **kwargs):
         data = [
             action.__name__

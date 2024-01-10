@@ -29,11 +29,11 @@ class JiraBackendError(ServiceBackendError):
 def check_captcha(e):
     if e.response is None:
         return False
-    if not hasattr(e.response, 'headers'):
+    if not hasattr(e.response, "headers"):
         return False
-    if 'X-Seraph-LoginReason' not in e.response.headers:
+    if "X-Seraph-LoginReason" not in e.response.headers:
         return False
-    return e.response.headers['X-Seraph-LoginReason'] == 'AUTHENTICATED_FAILED'
+    return e.response.headers["X-Seraph-LoginReason"] == "AUTHENTICATED_FAILED"
 
 
 def reraise_exceptions(func):
@@ -71,7 +71,7 @@ class JiraBackend(ServiceBackend):
     def __init__(self, settings, project=None):
         self.settings = settings
         self.project = project
-        self.verify = django_settings.WALDUR_JIRA['VERIFY_SSL']
+        self.verify = django_settings.WALDUR_JIRA["VERIFY_SSL"]
 
     def pull_service_properties(self):
         self.pull_project_templates()
@@ -102,7 +102,7 @@ class JiraBackend(ServiceBackend):
     @cached_property
     def manager(self):
         if self.settings.token:
-            if getattr(self.settings, 'email', None):
+            if getattr(self.settings, "email", None):
                 basic_auth = (self.settings.email, self.settings.token)
             else:
                 basic_auth = (self.settings.username, self.settings.token)
@@ -112,14 +112,14 @@ class JiraBackend(ServiceBackend):
         try:
             return JIRA(
                 server=self.settings.backend_url,
-                options={'verify': self.verify},
+                options={"verify": self.verify},
                 basic_auth=basic_auth,
                 validate=False,
             )
         except JIRAError as e:
             if check_captcha(e):
                 raise JiraBackendError(
-                    'JIRA CAPTCHA is triggered. Please reset credentials.'
+                    "JIRA CAPTCHA is triggered. Please reset credentials."
                 )
             raise JiraBackendError(e)
 
@@ -128,18 +128,18 @@ class JiraBackend(ServiceBackend):
         if not field_name:
             return None
         try:
-            fields = getattr(self, '_fields')
+            fields = getattr(self, "_fields")
         except AttributeError:
             fields = self._fields = self.manager.fields()
         try:
-            return next(f['id'] for f in fields if field_name in f['clauseNames'])
+            return next(f["id"] for f in fields if field_name in f["clauseNames"])
         except StopIteration:
             raise JiraBackendError("Can't find custom field %s" % field_name)
 
     @reraise_exceptions
     def get_project_templates(self):
         url = (
-            self.manager._options['server'] + '/rest/project-templates/latest/templates'
+            self.manager._options["server"] + "/rest/project-templates/latest/templates"
         )
 
         response = self.manager._session.get(url)
@@ -151,14 +151,14 @@ class JiraBackend(ServiceBackend):
         backend_templates = self.get_project_templates()
         with transaction.atomic():
             for template in backend_templates:
-                backend_id = template['projectTemplateModuleCompleteKey']
-                icon_url = self.manager._options['server'] + template['iconUrl']
+                backend_id = template["projectTemplateModuleCompleteKey"]
+                icon_url = self.manager._options["server"] + template["iconUrl"]
                 models.ProjectTemplate.objects.update_or_create(
                     backend_id=backend_id,
                     defaults={
-                        'name': template['name'],
-                        'description': template['description'],
-                        'icon_url': icon_url,
+                        "name": template["name"],
+                        "description": template["description"],
+                        "icon_url": icon_url,
                     },
                 )
 
@@ -185,9 +185,9 @@ class JiraBackend(ServiceBackend):
                     backend_id=priority.id,
                     settings=self.settings,
                     defaults={
-                        'name': priority.name,
-                        'description': priority.description,
-                        'icon_url': priority.iconUrl,
+                        "name": priority.name,
+                        "description": priority.description,
+                        "icon_url": priority.iconUrl,
                     },
                 )
 
@@ -197,7 +197,7 @@ class JiraBackend(ServiceBackend):
             backend_id=priority.id,
             settings=self.settings,
             name=priority.name,
-            description=getattr(property, 'description', ''),
+            description=getattr(property, "description", ""),
             icon_url=priority.iconUrl,
         )
 
@@ -211,7 +211,7 @@ class JiraBackend(ServiceBackend):
         # But create project endpoint does not accept email.
         # Therefore we need to get username for the logged in user.
         user = self.manager.myself()
-        return user['name']
+        return user["name"]
 
     @reraise_exceptions
     def create_project(self, project):
@@ -264,7 +264,7 @@ class JiraBackend(ServiceBackend):
             update_pulled_fields(
                 issue_type,
                 imported_issue_type,
-                ('name', 'description', 'icon_url', 'subtask'),
+                ("name", "description", "icon_url", "subtask"),
             )
 
     def import_issue_type(self, backend_issue_type):
@@ -297,8 +297,8 @@ class JiraBackend(ServiceBackend):
         backend_issue = self.get_backend_issue(key)
         if not backend_issue:
             logger.debug(
-                'Unable to create issue with key=%s, '
-                'because it has already been deleted on backend.',
+                "Unable to create issue with key=%s, "
+                "because it has already been deleted on backend.",
                 key,
             )
             return
@@ -311,8 +311,8 @@ class JiraBackend(ServiceBackend):
             issue.save()
         except IntegrityError:
             logger.debug(
-                'Unable to create issue with key=%s, '
-                'because it has been created in another thread.',
+                "Unable to create issue with key=%s, "
+                "because it has been created in another thread.",
                 key,
             )
 
@@ -320,8 +320,8 @@ class JiraBackend(ServiceBackend):
         backend_issue = self.get_backend_issue(issue.backend_id)
         if not backend_issue:
             logger.debug(
-                'Unable to update issue with key=%s, '
-                'because it has already been deleted on backend.',
+                "Unable to update issue with key=%s, "
+                "because it has already been deleted on backend.",
                 issue.backend_id,
             )
             return
@@ -334,8 +334,8 @@ class JiraBackend(ServiceBackend):
         backend_issue = self.get_backend_issue(issue.backend_id)
         if not backend_issue:
             logger.debug(
-                'Unable to update issue with key=%s, '
-                'because it has already been deleted on backend.',
+                "Unable to update issue with key=%s, "
+                "because it has already been deleted on backend.",
                 issue.backend_id,
             )
             return
@@ -344,8 +344,8 @@ class JiraBackend(ServiceBackend):
 
         if issue.modified > start_time:
             logger.debug(
-                'Skipping issue update with key=%s, '
-                'because it has been updated from other thread.',
+                "Skipping issue update with key=%s, "
+                "because it has been updated from other thread.",
                 issue.backend_id,
             )
             return
@@ -359,8 +359,8 @@ class JiraBackend(ServiceBackend):
             backend_issue.delete()
         else:
             logger.debug(
-                'Unable to delete issue with key=%s, '
-                'because it has already been deleted on backend.',
+                "Unable to delete issue with key=%s, "
+                "because it has already been deleted on backend.",
                 issue.backend_id,
             )
 
@@ -370,8 +370,8 @@ class JiraBackend(ServiceBackend):
             issue.delete()
         else:
             logger.debug(
-                'Skipping issue deletion with key=%s, '
-                'because it still exists on backend.',
+                "Skipping issue deletion with key=%s, "
+                "because it still exists on backend.",
                 issue.backend_id,
             )
 
@@ -381,14 +381,14 @@ class JiraBackend(ServiceBackend):
             comment.issue.backend_id, comment.prepare_message()
         )
         comment.backend_id = backend_comment.id
-        comment.save(update_fields=['backend_id'])
+        comment.save(update_fields=["backend_id"])
 
     def create_comment_from_jira(self, issue, comment_backend_id):
         backend_comment = self.get_backend_comment(issue.backend_id, comment_backend_id)
         if not backend_comment:
             logger.debug(
-                'Unable to create comment with id=%s, '
-                'because it has already been deleted on backend.',
+                "Unable to create comment with id=%s, "
+                "because it has already been deleted on backend.",
                 comment_backend_id,
             )
             return
@@ -402,8 +402,8 @@ class JiraBackend(ServiceBackend):
             comment.save()
         except IntegrityError:
             logger.debug(
-                'Unable to create comment issue_id=%s, backend_id=%s, '
-                'because it already exists  n Waldur.',
+                "Unable to create comment issue_id=%s, backend_id=%s, "
+                "because it already exists  n Waldur.",
                 issue.id,
                 comment_backend_id,
             )
@@ -414,8 +414,8 @@ class JiraBackend(ServiceBackend):
         )
         if not backend_comment:
             logger.debug(
-                'Unable to update comment with id=%s, '
-                'because it has already been deleted on backend.',
+                "Unable to update comment with id=%s, "
+                "because it has already been deleted on backend.",
                 comment.id,
             )
             return
@@ -428,8 +428,8 @@ class JiraBackend(ServiceBackend):
         )
         if not backend_comment:
             logger.debug(
-                'Unable to update comment with id=%s, '
-                'because it has already been deleted on backend.',
+                "Unable to update comment with id=%s, "
+                "because it has already been deleted on backend.",
                 comment.id,
             )
             return
@@ -447,8 +447,8 @@ class JiraBackend(ServiceBackend):
             backend_comment.delete()
         else:
             logger.debug(
-                'Unable to delete comment with id=%s, '
-                'because it has already been deleted on backend.',
+                "Unable to delete comment with id=%s, "
+                "because it has already been deleted on backend.",
                 comment.id,
             )
 
@@ -460,8 +460,8 @@ class JiraBackend(ServiceBackend):
             comment.delete()
         else:
             logger.debug(
-                'Skipping comment deletion with id=%s, '
-                'because it still exists on backend.',
+                "Skipping comment deletion with id=%s, "
+                "because it still exists on backend.",
                 comment.id,
             )
 
@@ -470,8 +470,8 @@ class JiraBackend(ServiceBackend):
         backend_issue = self.get_backend_issue(attachment.issue.backend_id)
         if not backend_issue:
             logger.debug(
-                'Unable to add attachment to issue with id=%s, '
-                'because it has already been deleted on backend.',
+                "Unable to add attachment to issue with id=%s, "
+                "because it has already been deleted on backend.",
                 attachment.issue.id,
             )
             return
@@ -480,9 +480,9 @@ class JiraBackend(ServiceBackend):
             backend_issue, attachment.file
         )
         attachment.backend_id = backend_attachment.id
-        attachment.mime_type = getattr(backend_attachment, 'mimeType', '')
+        attachment.mime_type = getattr(backend_attachment, "mimeType", "")
         attachment.file_size = backend_attachment.size
-        attachment.save(update_fields=['backend_id', 'mime_type', 'file_size'])
+        attachment.save(update_fields=["backend_id", "mime_type", "file_size"])
 
     @reraise_exceptions
     def delete_attachment(self, attachment):
@@ -491,8 +491,8 @@ class JiraBackend(ServiceBackend):
             backend_attachment.delete()
         else:
             logger.debug(
-                'Unable to remove attachment with id=%s, '
-                'because it has already been deleted on backend.',
+                "Unable to remove attachment with id=%s, "
+                "because it has already been deleted on backend.",
                 attachment.id,
             )
 
@@ -501,21 +501,21 @@ class JiraBackend(ServiceBackend):
         waldur_issues = list(
             self.model_issue.objects.filter(
                 project=project, backend_id__isnull=False
-            ).values_list('backend_id', flat=True)
+            ).values_list("backend_id", flat=True)
         )
 
-        jql = 'project=%s' % project.backend_id
+        jql = "project=%s" % project.backend_id
         if order:
-            jql += ' ORDER BY %s' % order
+            jql += " ORDER BY %s" % order
 
         for backend_issue in self.manager.search_issues(
-            jql, startAt=start_at, maxResults=max_results, fields='*all'
+            jql, startAt=start_at, maxResults=max_results, fields="*all"
         ):
             key = backend_issue.key
             if key in waldur_issues:
                 logger.debug(
-                    'Skipping import of issue with key=%s, '
-                    'because it already exists in Waldur.',
+                    "Skipping import of issue with key=%s, "
+                    "because it already exists in Waldur.",
                     key,
                 )
                 continue
@@ -570,26 +570,26 @@ class JiraBackend(ServiceBackend):
         return project
 
     def import_project_batch(self, project):
-        max_results = django_settings.WALDUR_JIRA.get('ISSUE_IMPORT_LIMIT')
-        start_at = project.action_details.get('current_issue', 0)
+        max_results = django_settings.WALDUR_JIRA.get("ISSUE_IMPORT_LIMIT")
+        start_at = project.action_details.get("current_issue", 0)
         self.import_project_issues(
-            project, order='id', start_at=start_at, max_results=max_results
+            project, order="id", start_at=start_at, max_results=max_results
         )
 
-        total_added = project.action_details.get('current_issue', 0) + max_results
+        total_added = project.action_details.get("current_issue", 0) + max_results
 
-        if total_added >= project.action_details.get('issues_count', 0):
-            project.action_details['current_issue'] = project.action_details.get(
-                'issues_count', 0
+        if total_added >= project.action_details.get("issues_count", 0):
+            project.action_details["current_issue"] = project.action_details.get(
+                "issues_count", 0
             )
-            project.action_details['percentage'] = 100
-            project.runtime_state = 'success'
+            project.action_details["percentage"] = 100
+            project.runtime_state = "success"
         else:
-            project.action_details['current_issue'] = total_added
-            project.action_details['percentage'] = int(
+            project.action_details["current_issue"] = total_added
+            project.action_details["percentage"] = int(
                 (
-                    project.action_details['current_issue']
-                    / project.action_details['issues_count']
+                    project.action_details["current_issue"]
+                    / project.action_details["issues_count"]
                 )
                 * 100
             )
@@ -598,13 +598,13 @@ class JiraBackend(ServiceBackend):
         return max_results
 
     def get_backend_comment(self, issue_backend_id, comment_backend_id):
-        return self._get_backend_obj('comment')(issue_backend_id, comment_backend_id)
+        return self._get_backend_obj("comment")(issue_backend_id, comment_backend_id)
 
     def get_backend_issue(self, issue_backend_id):
-        return self._get_backend_obj('issue')(issue_backend_id)
+        return self._get_backend_obj("issue")(issue_backend_id)
 
     def get_backend_attachment(self, attachment_backend_id):
-        return self._get_backend_obj('attachment')(attachment_backend_id)
+        return self._get_backend_obj("attachment")(attachment_backend_id)
 
     def update_attachment_from_jira(self, issue):
         backend_issue = self.get_backend_issue(issue.backend_id)
@@ -623,9 +623,7 @@ class JiraBackend(ServiceBackend):
             except JIRAError as e:
                 if e.status_code == status.HTTP_404_NOT_FOUND:
                     logger.debug(
-                        'Jira object {} has been already deleted on backend'.format(
-                            method
-                        )
+                        f"Jira object {method} has been already deleted on backend"
                     )
                     return
                 else:
@@ -643,26 +641,26 @@ class JiraBackend(ServiceBackend):
         )
         resolution_sla = self._get_resolution_sla(backend_issue)
 
-        for obj in ['assignee', 'creator', 'reporter']:
+        for obj in ["assignee", "creator", "reporter"]:
             backend_obj = getattr(backend_issue.fields, obj, None)
             fields = [
-                ['name', 'displayName'],
-                ['username', 'name'],
-                ['email', 'emailAddress'],
+                ["name", "displayName"],
+                ["username", "name"],
+                ["email", "emailAddress"],
             ]
 
             for waldur_key, backend_key in fields:
-                value = getattr(backend_obj, backend_key, '')
-                setattr(issue, obj + '_' + waldur_key, value)
+                value = getattr(backend_obj, backend_key, "")
+                setattr(issue, obj + "_" + waldur_key, value)
 
         issue.priority = priority
         issue.summary = backend_issue.fields.summary
-        issue.description = backend_issue.fields.description or ''
+        issue.description = backend_issue.fields.description or ""
         issue.type = issue_type
-        issue.status = backend_issue.fields.status.name or ''
+        issue.status = backend_issue.fields.status.name or ""
         issue.resolution = (
             backend_issue.fields.resolution and backend_issue.fields.resolution.name
-        ) or ''
+        ) or ""
         issue.resolution_date = backend_issue.fields.resolutiondate
         issue.resolution_sla = resolution_sla
         issue.backend_id = backend_issue.key
@@ -701,11 +699,11 @@ class JiraBackend(ServiceBackend):
         return issue_type
 
     def _get_resolution_sla(self, backend_issue):
-        issue_settings = django_settings.WALDUR_JIRA.get('ISSUE')
-        field_name = self.get_field_id_by_name(issue_settings['resolution_sla_field'])
+        issue_settings = django_settings.WALDUR_JIRA.get("ISSUE")
+        field_name = self.get_field_id_by_name(issue_settings["resolution_sla_field"])
         value = getattr(backend_issue.fields, field_name, None)
 
-        if value and hasattr(value, 'ongoingCycle'):
+        if value and hasattr(value, "ongoingCycle"):
             milliseconds = value.ongoingCycle.remainingTime.millis
             if milliseconds:
                 resolution_sla = milliseconds / 1000
@@ -718,36 +716,36 @@ class JiraBackend(ServiceBackend):
             project=issue.project.backend_id,
             summary=issue.summary,
             description=issue.get_description(),
-            issuetype={'name': issue.type.name},
+            issuetype={"name": issue.type.name},
         )
 
         if issue.priority:
-            args['priority'] = {'name': issue.priority.name}
+            args["priority"] = {"name": issue.priority.name}
 
         if issue.parent:
-            args['parent'] = {'key': issue.parent.backend_id}
+            args["parent"] = {"key": issue.parent.backend_id}
 
         return args
 
     def _get_property(self, object_name, object_id, property_name):
         url = self.manager._get_url(
-            f'{object_name}/{object_id}/properties/{property_name}'
+            f"{object_name}/{object_id}/properties/{property_name}"
         )
         response = self.manager._session.get(url)
         return response.json()
 
     def get_issues_count(self, project_key):
-        base = '{server}/rest/{rest_path}/{rest_api_version}/{path}'
+        base = "{server}/rest/{rest_path}/{rest_api_version}/{path}"
         page_params = {
-            'jql': 'project=%s' % project_key,
-            'validateQuery': True,
-            'startAt': 0,
-            'fields': [],
-            'maxResults': 0,
-            'expand': None,
+            "jql": "project=%s" % project_key,
+            "validateQuery": True,
+            "startAt": 0,
+            "fields": [],
+            "maxResults": 0,
+            "expand": None,
         }
-        result = self.manager._get_json('search', params=page_params, base=base)
-        return result['total']
+        result = self.manager._get_json("search", params=page_params, base=base)
+        return result["total"]
 
 
 class AttachmentSynchronizer:
@@ -819,7 +817,7 @@ class AttachmentSynchronizer:
         Attachment is considered updated if its thumbnail just has been created.
         """
 
-        if not getattr(self.get_backend_attachment(attachment_id), 'thumbnail', False):
+        if not getattr(self.get_backend_attachment(attachment_id), "thumbnail", False):
             return False
 
         if attachment_id not in self.current_attachments_ids:
@@ -845,8 +843,8 @@ class AttachmentSynchronizer:
         attachment = self.backend.model_attachment(
             issue=issue, backend_id=backend_attachment.id, state=StateMixin.States.OK
         )
-        thumbnail = getattr(backend_attachment, 'thumbnail', False) and getattr(
-            attachment, 'thumbnail', False
+        thumbnail = getattr(backend_attachment, "thumbnail", False) and getattr(
+            attachment, "thumbnail", False
         )
 
         try:
@@ -856,9 +854,7 @@ class AttachmentSynchronizer:
 
         except JIRAError as error:
             logger.error(
-                'Unable to load attachment for issue with backend id {backend_id}. Error: {error}).'.format(
-                    backend_id=issue.backend_id, error=error
-                )
+                f"Unable to load attachment for issue with backend id {issue.backend_id}. Error: {error})."
             )
             return
 
@@ -868,8 +864,8 @@ class AttachmentSynchronizer:
             attachment.save()
         except IntegrityError:
             logger.debug(
-                'Unable to create attachment issue_id=%s, backend_id=%s, '
-                'because it already exists in Waldur.',
+                "Unable to create attachment issue_id=%s, backend_id=%s, "
+                "because it already exists in Waldur.",
                 issue.id,
                 backend_attachment.id,
             )
@@ -886,9 +882,7 @@ class AttachmentSynchronizer:
             content = self._download_file(backend_attachment.thumbnail)
         except JIRAError as error:
             logger.error(
-                'Unable to load attachment thumbnail for issue with backend id {backend_id}. Error: {error}).'.format(
-                    backend_id=issue.backend_id, error=error
-                )
+                f"Unable to load attachment thumbnail for issue with backend id {issue.backend_id}. Error: {error})."
             )
             return
 

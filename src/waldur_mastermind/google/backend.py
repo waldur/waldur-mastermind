@@ -27,15 +27,15 @@ def reraise_exceptions(func):
     return wrapped
 
 
-SCOPES = ['https://www.googleapis.com/auth/calendar']
-CLIENT_ID = settings.WALDUR_GOOGLE['CLIENT_ID']
-CLIENT_SECRET = settings.WALDUR_GOOGLE['CLIENT_SECRET']
+SCOPES = ["https://www.googleapis.com/auth/calendar"]
+CLIENT_ID = settings.WALDUR_GOOGLE["CLIENT_ID"]
+CLIENT_SECRET = settings.WALDUR_GOOGLE["CLIENT_SECRET"]
 
 
 class GoogleAuthorize:
-    '''
+    """
     https://developers.google.com/identity/protocols/oauth2/web-server
-    '''
+    """
 
     def __init__(
         self,
@@ -61,7 +61,7 @@ class GoogleAuthorize:
 
     def get_authorization_url(self, service_provider_uuid):
         auth_url, _ = self.flow.authorization_url(
-            prompt='consent', state=service_provider_uuid
+            prompt="consent", state=service_provider_uuid
         )
         return auth_url
 
@@ -70,16 +70,16 @@ class GoogleAuthorize:
         google_models.GoogleCredentials.objects.update_or_create(
             service_provider=self.service_provider,
             defaults=dict(
-                calendar_token=tokens.get('access_token'),
-                calendar_refresh_token=tokens.get('refresh_token'),
+                calendar_token=tokens.get("access_token"),
+                calendar_refresh_token=tokens.get("refresh_token"),
             ),
         )
 
 
 class GoogleCalendar:
-    '''
+    """
     API docs: https://developers.google.com/calendar/v3/reference/
-    '''
+    """
 
     def __init__(self, tokens):
         self.tokens = tokens
@@ -88,7 +88,7 @@ class GoogleCalendar:
     def credentials(self):
         return Credentials(
             token=self.tokens.calendar_token,
-            token_uri='https://oauth2.googleapis.com/token',
+            token_uri="https://oauth2.googleapis.com/token",
             client_id=CLIENT_ID,
             client_secret=CLIENT_SECRET,
             scopes=SCOPES,
@@ -99,16 +99,16 @@ class GoogleCalendar:
     @property
     def service(self):
         return build(
-            'calendar', 'v3', credentials=self.credentials, cache_discovery=False
+            "calendar", "v3", credentials=self.credentials, cache_discovery=False
         )
 
     @reraise_exceptions
-    def get_events(self, calendar_id='primary'):
+    def get_events(self, calendar_id="primary"):
         return (
             self.service.events()
             .list(calendarId=calendar_id)
             .execute()
-            .get('items', [])
+            .get("items", [])
         )
 
     @reraise_exceptions
@@ -118,8 +118,8 @@ class GoogleCalendar:
         event_id,
         start,
         end,
-        time_zone='GMT',
-        calendar_id='primary',
+        time_zone="GMT",
+        calendar_id="primary",
         location=None,
         attendees=None,
     ):
@@ -143,17 +143,17 @@ class GoogleCalendar:
             pass
 
         event_body = {
-            'summary': summary,
-            'id': event_id,
-            'start': {'dateTime': start.isoformat(), 'timeZone': time_zone},
-            'end': {'dateTime': end.isoformat(), 'timeZone': time_zone},
-            'location': location,
-            'attendees': attendees or [],
+            "summary": summary,
+            "id": event_id,
+            "start": {"dateTime": start.isoformat(), "timeZone": time_zone},
+            "end": {"dateTime": end.isoformat(), "timeZone": time_zone},
+            "location": location,
+            "attendees": attendees or [],
         }
         self.service.events().insert(calendarId=calendar_id, body=event_body).execute()
 
     @reraise_exceptions
-    def delete_event(self, event_id, calendar_id='primary'):
+    def delete_event(self, event_id, calendar_id="primary"):
         self.service.events().delete(calendarId=calendar_id, eventId=event_id).execute()
 
     @reraise_exceptions
@@ -163,28 +163,28 @@ class GoogleCalendar:
         event_id,
         start,
         end,
-        time_zone='GMT',
-        calendar_id='primary',
+        time_zone="GMT",
+        calendar_id="primary",
         location=None,
         attendees=None,
     ):
         event_body = {
-            'summary': summary,
-            'start': {'dateTime': start.isoformat(), 'timeZone': time_zone},
-            'end': {'dateTime': end.isoformat(), 'timeZone': time_zone},
-            'status': 'confirmed',
-            'location': location,
-            'attendees': attendees or [],
+            "summary": summary,
+            "start": {"dateTime": start.isoformat(), "timeZone": time_zone},
+            "end": {"dateTime": end.isoformat(), "timeZone": time_zone},
+            "status": "confirmed",
+            "location": location,
+            "attendees": attendees or [],
         }
         self.service.events().update(
             calendarId=calendar_id, eventId=event_id, body=event_body
         ).execute()
 
     @reraise_exceptions
-    def create_calendar(self, calendar_name, time_zone='GMT'):
-        body = {'summary': calendar_name, 'timeZone': time_zone}
+    def create_calendar(self, calendar_name, time_zone="GMT"):
+        body = {"summary": calendar_name, "timeZone": time_zone}
         calendar = self.service.calendars().insert(body=body).execute()
-        return calendar['id']
+        return calendar["id"]
 
     @reraise_exceptions
     def delete_calendar(self, calendar_id):
@@ -195,26 +195,26 @@ class GoogleCalendar:
         body = {}
 
         if summary:
-            body['summary'] = summary
+            body["summary"] = summary
 
         if time_zone:
-            body['timeZone'] = time_zone
+            body["timeZone"] = time_zone
 
         if location:
-            body['location'] = location
+            body["location"] = location
 
         if body:
             self.service.calendars().update(calendarId=calendar_id, body=body).execute()
 
     @reraise_exceptions
     def share_calendar(self, calendar_id):
-        rule = {'scope': {'type': 'default'}, 'role': 'reader'}
+        rule = {"scope": {"type": "default"}, "role": "reader"}
 
         self.service.acl().insert(calendarId=calendar_id, body=rule).execute()
 
     @reraise_exceptions
     def unshare_calendar(self, calendar_id):
-        self.service.acl().delete(calendarId=calendar_id, ruleId='default').execute()
+        self.service.acl().delete(calendarId=calendar_id, ruleId="default").execute()
 
     @reraise_exceptions
     def get_calendar(self, calendar_id):
@@ -223,4 +223,4 @@ class GoogleCalendar:
     @reraise_exceptions
     def get_calendar_time_zone(self, calendar_id):
         calendar = self.get_calendar(calendar_id)
-        return pytz.timezone(calendar['timeZone'])
+        return pytz.timezone(calendar["timeZone"])

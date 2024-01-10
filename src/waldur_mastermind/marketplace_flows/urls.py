@@ -3,31 +3,31 @@ from . import views
 
 def register_in(router):
     router.register(
-        r'marketplace-customer-creation-requests',
+        r"marketplace-customer-creation-requests",
         views.CustomerCreateRequestViewSet,
-        basename='marketplace-customer-creation-request',
+        basename="marketplace-customer-creation-request",
     )
 
     router.register(
-        r'marketplace-project-creation-requests',
+        r"marketplace-project-creation-requests",
         views.ProjectCreateRequestViewSet,
-        basename='marketplace-project-creation-request',
+        basename="marketplace-project-creation-request",
     )
 
     router.register(
-        r'marketplace-resource-creation-requests',
+        r"marketplace-resource-creation-requests",
         views.ResourceCreateRequestViewSet,
-        basename='marketplace-resource-creation-request',
+        basename="marketplace-resource-creation-request",
     )
 
     router.register(
-        r'marketplace-resource-creation-flows',
+        r"marketplace-resource-creation-flows",
         views.FlowViewSet,
-        basename='marketplace-resource-creation-flow',
+        basename="marketplace-resource-creation-flow",
     )
 
     router.register(
-        r'marketplace-offering-activate-requests',
+        r"marketplace-offering-activate-requests",
         views.OfferingActivateRequestViewSet,
-        basename='marketplace-offering-activate-request',
+        basename="marketplace-offering-activate-request",
     )

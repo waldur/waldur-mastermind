@@ -28,8 +28,8 @@ class UsersFilterTest(test.APITransactionTestCase):
         manager = self.fixture.manager
         users = get_users_for_query(
             {
-                'customers': [self.fixture.customer],
-                'offerings': [self.offering],
+                "customers": [self.fixture.customer],
+                "offerings": [self.offering],
             }
         )
         self.assertIn(owner, users)
@@ -40,7 +40,7 @@ class UsersFilterTest(test.APITransactionTestCase):
         manager = self.fixture.manager
         users = get_users_for_query(
             {
-                'all_users': True,
+                "all_users": True,
             }
         )
         self.assertIn(owner, users)
@@ -49,19 +49,19 @@ class UsersFilterTest(test.APITransactionTestCase):
 
 class TaskTest(test.APITransactionTestCase):
     def setUp(self):
-        self.emails_1 = ['email_%s@gmail.com' % i for i in range(1, 51)]
-        self.emails_2 = ['email_%s@gmail.com' % i for i in range(51, 101)]
-        self.emails_3 = ['email_%s@gmail.com' % i for i in range(101, 110)]
+        self.emails_1 = ["email_%s@gmail.com" % i for i in range(1, 51)]
+        self.emails_2 = ["email_%s@gmail.com" % i for i in range(51, 101)]
+        self.emails_3 = ["email_%s@gmail.com" % i for i in range(101, 110)]
         self.broadcast = notifications_factories.BroadcastMessageFactory(
-            query='', emails=self.emails_1 + self.emails_2 + self.emails_3
+            query="", emails=self.emails_1 + self.emails_2 + self.emails_3
         )
 
-    @mock.patch('waldur_mastermind.notifications.tasks.send_mail')
+    @mock.patch("waldur_mastermind.notifications.tasks.send_mail")
     def test_send_broadcast_message_email(self, send_mail_mock):
         notifications_tasks.send_broadcast_message_email(self.broadcast.uuid.hex)
         self.assertEqual(send_mail_mock.call_count, 3)
-        self.assertEqual(send_mail_mock.call_args_list[0].kwargs['bcc'], self.emails_1)
+        self.assertEqual(send_mail_mock.call_args_list[0].kwargs["bcc"], self.emails_1)
 
-        self.assertEqual(send_mail_mock.call_args_list[1].kwargs['bcc'], self.emails_2)
+        self.assertEqual(send_mail_mock.call_args_list[1].kwargs["bcc"], self.emails_2)
 
-        self.assertEqual(send_mail_mock.call_args_list[2].kwargs['bcc'], self.emails_3)
+        self.assertEqual(send_mail_mock.call_args_list[2].kwargs["bcc"], self.emails_3)

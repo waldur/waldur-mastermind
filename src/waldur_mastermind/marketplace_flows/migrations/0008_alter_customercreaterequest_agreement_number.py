@@ -5,13 +5,13 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace_flows', '0007_projectcreaterequest_is_industry'),
+        ("marketplace_flows", "0007_projectcreaterequest_is_industry"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='customercreaterequest',
-            name='agreement_number',
-            field=models.CharField(blank=True, default='', max_length=160),
+            model_name="customercreaterequest",
+            name="agreement_number",
+            field=models.CharField(blank=True, default="", max_length=160),
         ),
     ]

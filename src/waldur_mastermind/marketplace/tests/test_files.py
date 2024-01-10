@@ -14,7 +14,7 @@ class OfferingFileGetTest(test.APITransactionTestCase):
         self.fixture = fixtures.ProjectFixture()
         self.offering_file = factories.OfferingFileFactory()
 
-    @data('staff', 'owner', 'user', 'customer_support', 'admin', 'manager')
+    @data("staff", "owner", "user", "customer_support", "admin", "manager")
     def test_offering_file_should_be_visible_to_all_authenticated_users(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
@@ -28,7 +28,7 @@ class OfferingFileGetTest(test.APITransactionTestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    @data('staff', 'owner', 'user', 'customer_support', 'admin', 'manager')
+    @data("staff", "owner", "user", "customer_support", "admin", "manager")
     def test_offering_file_of_offering_should_be_visible_to_all_authenticated_users(
         self, user
     ):
@@ -36,7 +36,7 @@ class OfferingFileGetTest(test.APITransactionTestCase):
         self.client.force_authenticate(user)
         offering = self.offering_file.offering
         url = factories.OfferingFileFactory.get_list_url()
-        response = self.client.get(url, {'offering_uuid': offering.uuid.hex})
+        response = self.client.get(url, {"offering_uuid": offering.uuid.hex})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 1)
 
@@ -47,7 +47,7 @@ class OfferingFileCreateTest(test.APITransactionTestCase):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
 
-    @data('staff', 'owner')
+    @data("staff", "owner")
     def test_staff_and_owner_can_create_offering_file(self, user):
         response = self.create_offering_file(user)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -57,7 +57,7 @@ class OfferingFileCreateTest(test.APITransactionTestCase):
             ).exists()
         )
 
-    @data('user', 'customer_support', 'admin', 'manager')
+    @data("user", "customer_support", "admin", "manager")
     def test_other_users_can_not_create_offering_file(self, user):
         response = self.create_offering_file(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -70,12 +70,12 @@ class OfferingFileCreateTest(test.APITransactionTestCase):
         self.offering = factories.OfferingFactory(customer=self.customer)
 
         payload = {
-            'name': 'offering_file_1',
-            'offering': factories.OfferingFactory.get_url(offering=self.offering),
-            'file': dummy_image(),
+            "name": "offering_file_1",
+            "offering": factories.OfferingFactory.get_url(offering=self.offering),
+            "file": dummy_image(),
         }
 
-        return self.client.post(url, payload, format='multipart')
+        return self.client.post(url, payload, format="multipart")
 
 
 @ddt
@@ -87,7 +87,7 @@ class OfferingFileDeleteTest(test.APITransactionTestCase):
         self.offering = factories.OfferingFactory(customer=self.customer)
         self.offering_file = factories.OfferingFileFactory(offering=self.offering)
 
-    @data('staff', 'owner')
+    @data("staff", "owner")
     def test_staff_and_owner_can_delete_offering_file(self, user):
         response = self.delete_offering_file(user)
         self.assertEqual(
@@ -99,7 +99,7 @@ class OfferingFileDeleteTest(test.APITransactionTestCase):
             ).exists()
         )
 
-    @data('user', 'customer_support', 'admin', 'manager')
+    @data("user", "customer_support", "admin", "manager")
     def test_other_users_can_not_delete_offering_file(self, user):
         response = self.delete_offering_file(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

@@ -23,7 +23,7 @@ class Command(BaseCommand):
             else:
                 backend_user = backend.create_user(support_customer.user)
 
-            support_customer.backend_id = getattr(backend_user, 'key', None) or getattr(
-                backend_user, 'accountId', None
+            support_customer.backend_id = getattr(backend_user, "key", None) or getattr(
+                backend_user, "accountId", None
             )
             support_customer.save()

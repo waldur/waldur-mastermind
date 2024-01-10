@@ -22,15 +22,15 @@ User = get_user_model()
 
 def can_destroy_role(role):
     if role.is_system_role:
-        raise ValidationError('Destroying of system role is not available.')
+        raise ValidationError("Destroying of system role is not available.")
     if models.UserRole.objects.filter(is_active=True, role=role).exists():
-        raise ValidationError('Role is still used.')
+        raise ValidationError("Role is still used.")
 
 
 class RoleViewSet(ActionsViewSet):
     queryset = models.Role.objects.all()
     serializer_class = serializers.RoleDetailsSerializer
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
     permission_classes = [IsAdminOrReadOnly]
 
     destroy_validators = [can_destroy_role]
@@ -52,10 +52,10 @@ class RoleViewSet(ActionsViewSet):
 
 
 class UserRoleMixin:
-    @action(detail=True, methods=['GET'])
+    @action(detail=True, methods=["GET"])
     def list_users(self, request, uuid=None):
         scope = self.get_object()
-        user_uuid = request.query_params.get('user')
+        user_uuid = request.query_params.get("user")
         user = None
         if user_uuid and is_uuid_like(user_uuid):
             try:
@@ -63,8 +63,8 @@ class UserRoleMixin:
             except User.DoesNotExist:
                 pass
         queryset = get_permissions(scope, user)
-        role = request.query_params.get('role')
-        search_string = request.query_params.get('search_string')
+        role = request.query_params.get("role")
+        search_string = request.query_params.get("search_string")
         if search_string:
             queryset = queryset.filter(
                 Q(user__first_name__icontains=search_string)
@@ -80,16 +80,16 @@ class UserRoleMixin:
         serializer = serializers.UserRoleDetailsSerializer(queryset, many=True)
         return self.get_paginated_response(serializer.data)
 
-    @action(detail=True, methods=['POST'])
+    @action(detail=True, methods=["POST"])
     def add_user(self, request, uuid=None):
         scope = self.get_object()
         serializer = serializers.UserRoleCreateSerializer(
-            data=request.data, context={'scope': scope, 'request': request}
+            data=request.data, context={"scope": scope, "request": request}
         )
         serializer.is_valid(raise_exception=True)
-        target_user = serializer.validated_data['user']
-        role = serializer.validated_data['role']
-        expiration_time = serializer.validated_data.get('expiration_time')
+        target_user = serializer.validated_data["user"]
+        role = serializer.validated_data["role"]
+        expiration_time = serializer.validated_data.get("expiration_time")
 
         perm = add_user(
             scope,
@@ -100,19 +100,19 @@ class UserRoleMixin:
         )
         return Response(
             status=status.HTTP_201_CREATED,
-            data={'expiration_time': perm.expiration_time},
+            data={"expiration_time": perm.expiration_time},
         )
 
-    @action(detail=True, methods=['POST'])
+    @action(detail=True, methods=["POST"])
     def update_user(self, request, uuid=None):
         scope = self.get_object()
         serializer = serializers.UserRoleUpdateSerializer(
-            data=request.data, context={'scope': scope, 'request': request}
+            data=request.data, context={"scope": scope, "request": request}
         )
         serializer.is_valid(raise_exception=True)
-        target_user = serializer.validated_data['user']
-        role = serializer.validated_data['role']
-        expiration_time = serializer.validated_data.get('expiration_time')
+        target_user = serializer.validated_data["user"]
+        role = serializer.validated_data["role"]
+        expiration_time = serializer.validated_data.get("expiration_time")
 
         perm = update_user(
             scope,
@@ -122,19 +122,19 @@ class UserRoleMixin:
             current_user=request.user,
         )
         return Response(
-            status=status.HTTP_200_OK, data={'expiration_time': perm.expiration_time}
+            status=status.HTTP_200_OK, data={"expiration_time": perm.expiration_time}
         )
 
-    @action(detail=True, methods=['POST'])
+    @action(detail=True, methods=["POST"])
     def delete_user(self, request, uuid=None):
         scope = self.get_object()
         serializer = serializers.UserRoleDeleteSerializer(
-            data=request.data, context={'scope': scope, 'request': request}
+            data=request.data, context={"scope": scope, "request": request}
         )
         serializer.is_valid(raise_exception=True)
 
-        target_user = serializer.validated_data['user']
-        role = serializer.validated_data['role']
+        target_user = serializer.validated_data["user"]
+        role = serializer.validated_data["role"]
 
         delete_user(
             scope,

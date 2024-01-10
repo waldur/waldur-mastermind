@@ -8,15 +8,15 @@ class QuotasConfig(AppConfig):
     Quotas limits can be editable by users.
     """
 
-    name = 'waldur_core.quotas'
-    verbose_name = 'Quotas'
+    name = "waldur_core.quotas"
+    verbose_name = "Quotas"
 
     def ready(self):
         from waldur_core.quotas import handlers, utils
         from waldur_core.structure import models as structure_models
         from waldur_core.structure import signals as structure_signals
 
-        QuotaUsage = self.get_model('QuotaUsage')
+        QuotaUsage = self.get_model("QuotaUsage")
 
         # new quotas
         from waldur_core.quotas import fields
@@ -34,26 +34,26 @@ class QuotasConfig(AppConfig):
             signals.pre_delete.connect(
                 handlers.delete_quotas_when_model_is_deleted,
                 sender=model,
-                dispatch_uid='waldur_core.quotas.delete_quotas_when_model_is_deleted',
+                dispatch_uid="waldur_core.quotas.delete_quotas_when_model_is_deleted",
             )
 
         # Aggregator quotas signals
         signals.post_save.connect(
             handlers.handle_aggregated_quotas,
             sender=QuotaUsage,
-            dispatch_uid='waldur_core.quotas.handle_aggregated_quotas_post_save',
+            dispatch_uid="waldur_core.quotas.handle_aggregated_quotas_post_save",
         )
 
         signals.pre_delete.connect(
             handlers.handle_aggregated_quotas,
             sender=QuotaUsage,
-            dispatch_uid='waldur_core.quotas.handle_aggregated_quotas_pre_delete',
+            dispatch_uid="waldur_core.quotas.handle_aggregated_quotas_pre_delete",
         )
 
         structure_signals.project_moved.connect(
             handlers.projects_customer_has_been_changed,
             sender=structure_models.Project,
-            dispatch_uid='waldur_core.quotas.projects_customer_has_been_changed',
+            dispatch_uid="waldur_core.quotas.projects_customer_has_been_changed",
         )
 
     @staticmethod
@@ -65,8 +65,7 @@ class QuotasConfig(AppConfig):
                 handlers.count_quota_handler_factory(counter_field),
                 sender=target_model,
                 weak=False,  # saves handler from garbage collector
-                dispatch_uid='waldur_core.quotas.increase_counter_quota_%s_%s_%s_%s_%s'
-                % (
+                dispatch_uid="waldur_core.quotas.increase_counter_quota_{}_{}_{}_{}_{}".format(
                     model.__name__,
                     model._meta.app_label,
                     counter_field.name,
@@ -79,8 +78,7 @@ class QuotasConfig(AppConfig):
                 handlers.count_quota_handler_factory(counter_field),
                 sender=target_model,
                 weak=False,  # saves handler from garbage collector
-                dispatch_uid='waldur_core.quotas.decrease_counter_quota_%s_%s_%s_%s_%s'
-                % (
+                dispatch_uid="waldur_core.quotas.decrease_counter_quota_{}_{}_{}_{}_{}".format(
                     model.__name__,
                     model._meta.app_label,
                     counter_field.name,

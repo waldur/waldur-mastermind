@@ -48,14 +48,14 @@ class OrderGetTest(test.APITransactionTestCase):
         self.fixture = MarketplaceFixture()
 
     def test_get_resource_list(self):
-        url = reverse('booking-resource-list')
+        url = reverse("booking-resource-list")
         self.fixture.order
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.get(url)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(
             marketplace_models.Offering.objects.get(
-                uuid=response.data[0]['offering_uuid']
+                uuid=response.data[0]["offering_uuid"]
             ).customer.get_owners()[0],
             self.fixture.owner,
         )
@@ -63,22 +63,22 @@ class OrderGetTest(test.APITransactionTestCase):
     def test_get_specific_fields(self):
         self.fixture.order.consumer_reviewed_by = self.fixture.staff
         self.fixture.order.save()
-        self.fixture.resource.attributes['description'] = 'Description'
+        self.fixture.resource.attributes["description"] = "Description"
         self.fixture.resource.save()
         self.client.force_authenticate(self.fixture.owner)
         url = reverse(
-            'booking-resource-detail',
-            kwargs={'uuid': self.fixture.resource.uuid.hex},
+            "booking-resource-detail",
+            kwargs={"uuid": self.fixture.resource.uuid.hex},
         )
         response = self.client.get(url)
         self.assertTrue(
-            self.fixture.order.created_by.uuid.hex in response.data['created_by']
+            self.fixture.order.created_by.uuid.hex in response.data["created_by"]
         )
         self.assertTrue(
             self.fixture.order.consumer_reviewed_by.uuid.hex
-            in response.data['consumer_reviewed_by']
+            in response.data["consumer_reviewed_by"]
         )
-        self.assertEqual('Description', response.data['description'])
+        self.assertEqual("Description", response.data["description"])
 
 
 @ddt
@@ -94,13 +94,13 @@ class OrderAcceptTest(test.APITransactionTestCase):
     def accept(self, resource, user=None):
         user = user or self.fixture.owner
         self.client.force_authenticate(user)
-        url = '{}{}/accept/'.format(
-            reverse('booking-resource-list'),
+        url = "{}{}/accept/".format(
+            reverse("booking-resource-list"),
             resource.uuid.hex,
         )
         return self.client.post(url)
 
-    @data('staff', 'owner', 'offering_owner', 'offering_service_manager')
+    @data("staff", "owner", "offering_owner", "offering_service_manager")
     def test_user_can_accept_his_resource(self, user):
         response = self.accept(self.fixture.resource, user=getattr(self.fixture, user))
         self.assertEqual(status.HTTP_200_OK, response.status_code, response.data)
@@ -141,8 +141,8 @@ class OrderRejectTest(test.APITransactionTestCase):
     def reject(self, resource, user=None):
         user = user or self.fixture.owner
         self.client.force_authenticate(user)
-        url = '{}{}/reject/'.format(
-            reverse('booking-resource-list'),
+        url = "{}{}/reject/".format(
+            reverse("booking-resource-list"),
             resource.uuid.hex,
         )
         return self.client.post(url)
@@ -193,53 +193,53 @@ class ResourceGetTest(test.APITransactionTestCase):
         self.fixture_3 = fixtures.BookingFixture()
         self.resource_3 = self.fixture_3.resource
         self.resource_1.attributes = {
-            'schedules': [
+            "schedules": [
                 {
-                    'start': '2020-01-12T02:00:00+03:00',
-                    'end': '2020-01-15T02:00:00+03:00',
-                    'id': '1',
+                    "start": "2020-01-12T02:00:00+03:00",
+                    "end": "2020-01-15T02:00:00+03:00",
+                    "id": "1",
                 }
             ]
         }
         self.resource_1.save()
 
         self.resource_2.attributes = {
-            'schedules': [
+            "schedules": [
                 {
-                    'start': '2020-02-12T02:00:00+03:00',
-                    'end': '2020-02-15T02:00:00+03:00',
-                    'id': '2',
+                    "start": "2020-02-12T02:00:00+03:00",
+                    "end": "2020-02-15T02:00:00+03:00",
+                    "id": "2",
                 }
             ]
         }
         self.resource_2.save()
 
         self.resource_3.attributes = {
-            'schedules': [
+            "schedules": [
                 {
-                    'start': '2020-03-12T02:00:00+03:00',
-                    'end': '2020-03-15T02:00:00+03:00',
-                    'id': '3',
+                    "start": "2020-03-12T02:00:00+03:00",
+                    "end": "2020-03-15T02:00:00+03:00",
+                    "id": "3",
                 }
             ]
         }
         self.resource_3.save()
-        self.url = reverse('booking-resource-list')
+        self.url = reverse("booking-resource-list")
 
     def test_ordering_by_schedules(self):
         self.client.force_authenticate(self.fixture.staff)
-        response = self.client.get(self.url + '?o=schedules')
+        response = self.client.get(self.url + "?o=schedules")
         self.assertEqual(len(response.data), 3)
-        self.assertEqual(response.data[0]['uuid'], self.resource_1.uuid.hex)
-        self.assertEqual(response.data[2]['uuid'], self.resource_3.uuid.hex)
+        self.assertEqual(response.data[0]["uuid"], self.resource_1.uuid.hex)
+        self.assertEqual(response.data[2]["uuid"], self.resource_3.uuid.hex)
 
-        response = self.client.get(self.url + '?o=-schedules')
+        response = self.client.get(self.url + "?o=-schedules")
         self.assertEqual(len(response.data), 3)
-        self.assertEqual(response.data[0]['uuid'], self.resource_3.uuid.hex)
-        self.assertEqual(response.data[2]['uuid'], self.resource_1.uuid.hex)
+        self.assertEqual(response.data[0]["uuid"], self.resource_3.uuid.hex)
+        self.assertEqual(response.data[2]["uuid"], self.resource_1.uuid.hex)
 
     @data(
-        'staff',
+        "staff",
     )
     def test_user_can_get_all_resources(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
@@ -247,7 +247,7 @@ class ResourceGetTest(test.APITransactionTestCase):
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.assertEqual(3, len(response.data))
 
-    @data('offering_owner', 'offering_service_manager')
+    @data("offering_owner", "offering_service_manager")
     def test_user_can_get_only_his_resources(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(self.url)
@@ -255,7 +255,7 @@ class ResourceGetTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 1)
 
     @data(
-        'admin',
+        "admin",
     )
     def test_user_cannot_get_resources(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
@@ -267,21 +267,21 @@ class ResourceGetTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.get(
             self.url,
-            {'connected_customer_uuid': self.resource_1.offering.customer.uuid.hex},
+            {"connected_customer_uuid": self.resource_1.offering.customer.uuid.hex},
         )
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.assertEqual(1, len(response.data))
-        self.assertEqual(self.resource_1.uuid.hex, response.data[0]['uuid'])
+        self.assertEqual(self.resource_1.uuid.hex, response.data[0]["uuid"])
         self.assertEqual(
-            self.resource_1.offering.customer.uuid, response.data[0]['provider_uuid']
+            self.resource_1.offering.customer.uuid, response.data[0]["provider_uuid"]
         )
 
         response = self.client.get(
             self.url,
-            {'connected_customer_uuid': self.resource_3.project.customer.uuid.hex},
+            {"connected_customer_uuid": self.resource_3.project.customer.uuid.hex},
         )
         self.assertEqual(1, len(response.data))
-        self.assertEqual(self.resource_3.uuid.hex, response.data[0]['uuid'])
+        self.assertEqual(self.resource_3.uuid.hex, response.data[0]["uuid"])
         self.assertEqual(
-            self.resource_3.project.customer.uuid, response.data[0]['customer_uuid']
+            self.resource_3.project.customer.uuid, response.data[0]["customer_uuid"]
         )

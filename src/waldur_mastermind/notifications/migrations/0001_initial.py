@@ -20,41 +20,41 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.CreateModel(
-            name='Notification',
+            name="Notification",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now, editable=False
                     ),
                 ),
                 (
-                    'subject',
+                    "subject",
                     models.CharField(
                         max_length=1000,
                         validators=[waldur_core.core.validators.validate_name],
                     ),
                 ),
                 (
-                    'body',
+                    "body",
                     models.TextField(
                         validators=[waldur_core.core.validators.validate_name]
                     ),
                 ),
-                ('query', django.contrib.postgres.fields.jsonb.JSONField()),
-                ('emails', django.contrib.postgres.fields.jsonb.JSONField()),
+                ("query", django.contrib.postgres.fields.jsonb.JSONField()),
+                ("emails", django.contrib.postgres.fields.jsonb.JSONField()),
                 (
-                    'author',
+                    "author",
                     models.ForeignKey(
                         null=True,
                         on_delete=django.db.models.deletion.SET_NULL,
@@ -63,7 +63,7 @@ class Migration(migrations.Migration):
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
     ]

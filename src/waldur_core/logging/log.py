@@ -7,37 +7,37 @@ from celery import current_app
 
 class EventFormatter(logging.Formatter):
     def format_timestamp(self, time):
-        return datetime.datetime.utcfromtimestamp(time).isoformat() + 'Z'
+        return datetime.datetime.utcfromtimestamp(time).isoformat() + "Z"
 
     def levelname_to_importance(self, levelname):
-        if levelname == 'DEBUG':
-            return 'low'
-        elif levelname == 'INFO':
-            return 'normal'
-        elif levelname == 'WARNING':
-            return 'high'
-        elif levelname == 'ERROR':
-            return 'very high'
+        if levelname == "DEBUG":
+            return "low"
+        elif levelname == "INFO":
+            return "normal"
+        elif levelname == "WARNING":
+            return "high"
+        elif levelname == "ERROR":
+            return "very high"
         else:
-            return 'critical'
+            return "critical"
 
     def format(self, record):
         message = {
             # basic
-            '@timestamp': self.format_timestamp(record.created),
-            '@version': 1,
-            'message': record.getMessage(),
+            "@timestamp": self.format_timestamp(record.created),
+            "@version": 1,
+            "message": record.getMessage(),
             # logging details
-            'levelname': record.levelname,
-            'logger': record.name,
-            'importance': self.levelname_to_importance(record.levelname),
-            'importance_code': record.levelno,
+            "levelname": record.levelname,
+            "logger": record.name,
+            "importance": self.levelname_to_importance(record.levelname),
+            "importance_code": record.levelno,
         }
 
-        if hasattr(record, 'event_type'):
-            message['event_type'] = record.event_type
+        if hasattr(record, "event_type"):
+            message["event_type"] = record.event_type
 
-        if hasattr(record, 'event_context'):
+        if hasattr(record, "event_context"):
             message.update(record.event_context)
 
         return json.dumps(message)
@@ -48,10 +48,10 @@ class EventLoggerAdapter(logging.LoggerAdapter):
         super().__init__(logger, {})
 
     def process(self, msg, kwargs):
-        if 'extra' in kwargs:
-            kwargs['extra']['event'] = True
+        if "extra" in kwargs:
+            kwargs["extra"]["event"] = True
         else:
-            kwargs['extra'] = {'event': True}
+            kwargs["extra"] = {"event": True}
         return msg, kwargs
 
 
@@ -59,14 +59,14 @@ class RequireEvent(logging.Filter):
     """A filter that allows only event records."""
 
     def filter(self, record):
-        return getattr(record, 'event', False)
+        return getattr(record, "event", False)
 
 
 class RequireNotEvent(logging.Filter):
     """A filter that allows only non-event records."""
 
     def filter(self, record):
-        return not getattr(record, 'event', False)
+        return not getattr(record, "event", False)
 
 
 class RequireNotBackgroundTask(logging.Filter):
@@ -74,18 +74,18 @@ class RequireNotBackgroundTask(logging.Filter):
 
     def filter(self, record):
         try:
-            name = getattr(record, 'data', {})['name']
+            name = getattr(record, "data", {})["name"]
             task = current_app.tasks[name]
         except KeyError:
             return True
-        is_background = getattr(task, 'is_background', False)
+        is_background = getattr(task, "is_background", False)
         return not is_background
 
 
 class TCPEventHandler(logging.handlers.SocketHandler):
-    def __init__(self, host='localhost', port=5959):
+    def __init__(self, host="localhost", port=5959):
         super().__init__(host, int(port))
         self.formatter = EventFormatter()
 
     def makePickle(self, record):
-        return self.formatter.format(record).encode('utf-8') + b'\n'
+        return self.formatter.format(record).encode("utf-8") + b"\n"

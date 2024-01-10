@@ -7,7 +7,7 @@ class BookingExtension(WaldurExtension):
 
     @staticmethod
     def django_app():
-        return 'waldur_mastermind.booking'
+        return "waldur_mastermind.booking"
 
     @staticmethod
     def is_assembly():
@@ -30,14 +30,14 @@ class BookingExtension(WaldurExtension):
         from celery.schedules import crontab
 
         return {
-            'waldur-mastermind-send-notifications-about-upcoming-bookings': {
-                'task': 'waldur_mastermind.booking.send_notifications_about_upcoming_bookings',
-                'schedule': crontab(minute=0, hour=9),
-                'args': (),
+            "waldur-mastermind-send-notifications-about-upcoming-bookings": {
+                "task": "waldur_mastermind.booking.send_notifications_about_upcoming_bookings",
+                "schedule": crontab(minute=0, hour=9),
+                "args": (),
             },
-            'waldur-mastermind-reject-past-bookings': {
-                'task': 'waldur_mastermind.booking.reject_past_bookings',
-                'schedule': crontab(minute=0, hour=10),
-                'args': (),
+            "waldur-mastermind-reject-past-bookings": {
+                "task": "waldur_mastermind.booking.reject_past_bookings",
+                "schedule": crontab(minute=0, hour=10),
+                "args": (),
             },
         }

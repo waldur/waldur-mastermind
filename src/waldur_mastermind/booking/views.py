@@ -24,33 +24,33 @@ from . import PLUGIN_NAME, executors, filters, permissions, serializers
 
 class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
     queryset = models.Resource.objects.filter(offering__type=PLUGIN_NAME).order_by(
-        'name'
+        "name"
     )
     filter_backends = (
         DjangoFilterBackend,
         filters.ResourceOwnerOrCreatorFilterBackend,
     )
     filterset_class = filters.BookingResourceFilter
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
     serializer_class = serializers.BookingResourceSerializer
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def reject(self, request, uuid=None):
         resource = self.get_object()
 
         with transaction.atomic():
             order = resource_creation_canceled(resource, validate=True)
 
-        return Response({'order_uuid': order.uuid.hex}, status=status.HTTP_200_OK)
+        return Response({"order_uuid": order.uuid.hex}, status=status.HTTP_200_OK)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def accept(self, request, uuid=None):
         resource = self.get_object()
 
         with transaction.atomic():
             order = resource_creation_succeeded(resource, validate=True)
 
-        return Response({'order_uuid': order.uuid.hex}, status=status.HTTP_200_OK)
+        return Response({"order_uuid": order.uuid.hex}, status=status.HTTP_200_OK)
 
     reject_validators = accept_validators = [
         core_validators.StateValidator(models.Resource.States.CREATING)
@@ -59,7 +59,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
     accept_permissions = [
         permission_factory(
             PermissionEnum.ACCEPT_BOOKING_REQUEST,
-            ['project.customer', 'offering', 'offering.customer'],
+            ["project.customer", "offering", "offering.customer"],
         )
     ]
 
@@ -67,15 +67,15 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
 
 
 class OfferingViewSet(core_views.ReadOnlyActionsViewSet):
-    queryset = models.Offering.objects.filter(type=PLUGIN_NAME).order_by('name')
+    queryset = models.Offering.objects.filter(type=PLUGIN_NAME).order_by("name")
     filter_backends = (
         DjangoFilterBackend,
         filters.CustomersFilterBackend,
     )
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
     serializer_class = serializers.OfferingSerializer
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def google_calendar_sync(self, request, uuid=None):
         offering = self.get_object()
         self._get_or_create_google_calendar(offering)
@@ -84,39 +84,39 @@ class OfferingViewSet(core_views.ReadOnlyActionsViewSet):
                 offering.googlecalendar, updated_fields=None
             )
         )
-        return Response('OK', status=status.HTTP_202_ACCEPTED)
+        return Response("OK", status=status.HTTP_202_ACCEPTED)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def share_google_calendar(self, request, uuid=None):
         offering = self.get_object()
         self._get_or_create_google_calendar(offering)
         transaction.on_commit(
             lambda: executors.GoogleCalendarShareExecutor.execute(
-                offering.googlecalendar, updated_fields=['public']
+                offering.googlecalendar, updated_fields=["public"]
             )
         )
-        return Response('OK', status=status.HTTP_202_ACCEPTED)
+        return Response("OK", status=status.HTTP_202_ACCEPTED)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def unshare_google_calendar(self, request, uuid=None):
         offering = self.get_object()
         self._get_or_create_google_calendar(offering)
         transaction.on_commit(
             lambda: executors.GoogleCalendarUnShareExecutor.execute(
-                offering.googlecalendar, updated_fields=['public']
+                offering.googlecalendar, updated_fields=["public"]
             )
         )
-        return Response('OK', status=status.HTTP_202_ACCEPTED)
+        return Response("OK", status=status.HTTP_202_ACCEPTED)
 
     def validate_google_credential(offering):
-        service_provider = getattr(offering.customer, 'serviceprovider', None)
-        credentials = getattr(service_provider, 'googlecredentials', None)
+        service_provider = getattr(offering.customer, "serviceprovider", None)
+        credentials = getattr(service_provider, "googlecredentials", None)
         if (
             not credentials
             or not credentials.calendar_token
             or not credentials.calendar_refresh_token
         ):
-            raise ValidationError(_('Google credentials do not exist.'))
+            raise ValidationError(_("Google credentials do not exist."))
 
     def validate_google_calendar_state(offering):
         try:
@@ -128,7 +128,7 @@ class OfferingViewSet(core_views.ReadOnlyActionsViewSet):
                 google_models.GoogleCalendar.States.OK,
                 google_models.GoogleCalendar.States.ERRED,
             ):
-                raise ValidationError(_('The calendar cannot be updated.'))
+                raise ValidationError(_("The calendar cannot be updated."))
         except google_models.GoogleCalendar.DoesNotExist:
             # a calendar will be created in waldur later
             pass
@@ -140,7 +140,7 @@ class OfferingViewSet(core_views.ReadOnlyActionsViewSet):
             )
 
             if google_calendar.public:
-                raise ValidationError(_('The calendar is public already.'))
+                raise ValidationError(_("The calendar is public already."))
         except google_models.GoogleCalendar.DoesNotExist:
             # a calendar will be created in waldur later
             pass
@@ -152,9 +152,9 @@ class OfferingViewSet(core_views.ReadOnlyActionsViewSet):
             )
 
             if not google_calendar.public:
-                raise ValidationError(_('The calendar is private already.'))
+                raise ValidationError(_("The calendar is private already."))
         except google_models.GoogleCalendar.DoesNotExist:
-            raise ValidationError(_('The calendar does not exist.'))
+            raise ValidationError(_("The calendar does not exist."))
 
     google_calendar_sync_validators = [
         validate_google_credential,
@@ -188,6 +188,6 @@ class OfferingBookingsViewSet(views.APIView):
         offering = get_object_or_404(offerings, uuid=uuid)
         bookings = get_offering_bookings_and_busy_slots(offering)
         serializer = serializers.BookingSerializer(
-            instance=bookings, many=True, context={'request': request}
+            instance=bookings, many=True, context={"request": request}
         )
         return Response(serializer.data, status=status.HTTP_200_OK)

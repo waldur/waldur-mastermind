@@ -15,7 +15,7 @@ class FlavorListRetrieveTestCase(test.APITransactionTestCase):
         )
         self.url = factories.FlavorFactory.get_list_url()
 
-    @data('staff', 'owner', 'service_manager', 'admin', 'manager', 'user')
+    @data("staff", "owner", "service_manager", "admin", "manager", "user")
     def test_user_can_get_flavors_list(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(self.url)
@@ -29,22 +29,22 @@ class FlavorCreateTestCase(test.APITransactionTestCase):
         self.fixture = fixtures.OpenStackFixture()
         self.url = factories.FlavorFactory.get_list_url()
         self.data = {
-            'name': 'flavor-1',
-            'settings': factories.OpenStackServiceSettingsFactory.get_url(
+            "name": "flavor-1",
+            "settings": factories.OpenStackServiceSettingsFactory.get_url(
                 self.fixture.openstack_service_settings
             ),
-            'ram': 512,
-            'disk': 1024,
-            'cores': 1,
+            "ram": 512,
+            "disk": 1024,
+            "cores": 1,
         }
 
-    @data('staff', 'owner', 'service_manager')
+    @data("staff", "owner", "service_manager")
     def test_user_can_create_flavor(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.post(self.url, self.data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    @data('admin', 'manager', 'user')
+    @data("admin", "manager", "user")
     def test_user_can_not_create_flavor(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.post(self.url, self.data)
@@ -61,13 +61,13 @@ class FlavorDeleteTestCase(test.APITransactionTestCase):
         )
         self.url = factories.FlavorFactory.get_url(self.flavor)
 
-    @data('staff', 'owner', 'service_manager')
+    @data("staff", "owner", "service_manager")
     def test_user_can_delete_flavor(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.delete(self.url)
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
-    @data('admin', 'manager', 'user')
+    @data("admin", "manager", "user")
     def test_user_can_not_delete_flavor(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.delete(self.url)

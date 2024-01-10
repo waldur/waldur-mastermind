@@ -23,26 +23,26 @@ class AssociationCreateTest(test.APITransactionTestCase):
         self.resource.save()
         offering = self.resource.offering
         offering.type = PLUGIN_NAME
-        offering.secret_options = {'service_provider_can_create_offering_user': True}
-        offering.plugin_options = {'username_generation_policy': 'waldur_username'}
+        offering.secret_options = {"service_provider_can_create_offering_user": True}
+        offering.plugin_options = {"username_generation_policy": "waldur_username"}
         offering.save()
 
         self.user = self.fixture.admin
         self.url = (
-            'http://testserver'
+            "http://testserver"
             + reverse(
-                'marketplace-slurm-remote-detail',
-                kwargs={'uuid': self.resource.uuid.hex},
+                "marketplace-slurm-remote-detail",
+                kwargs={"uuid": self.resource.uuid.hex},
             )
-            + 'create_association'
-            + '/'
+            + "create_association"
+            + "/"
         )
         self.profile = freeipa_factories.ProfileFactory(
             user=self.user, username=self.user.username
         )
         self.username = self.profile.username
 
-    @data('staff', 'offering_owner', 'service_manager')
+    @data("staff", "offering_owner", "service_manager")
     def test_association_creation_is_allowed(self, user):
         offering_user = marketplace_models.OfferingUser.objects.get(
             offering=self.resource.offering, user=self.user, propagation_date=None
@@ -56,7 +56,7 @@ class AssociationCreateTest(test.APITransactionTestCase):
         response = self.client.post(
             self.url,
             {
-                'username': self.username,
+                "username": self.username,
             },
         )
         self.assertEqual(201, response.status_code)
@@ -70,7 +70,7 @@ class AssociationCreateTest(test.APITransactionTestCase):
             offering_user.propagation_date, offering_user.propagation_date
         )
 
-    @data('owner', 'admin', 'manager', 'member')
+    @data("owner", "admin", "manager", "member")
     def test_association_creation_is_forbidden(self, user):
         self.assertFalse(
             slurm_models.Association.objects.filter(
@@ -81,7 +81,7 @@ class AssociationCreateTest(test.APITransactionTestCase):
         response = self.client.post(
             self.url,
             {
-                'username': self.username,
+                "username": self.username,
             },
         )
         self.assertEqual(403, response.status_code)
@@ -113,22 +113,22 @@ class AssociationDeleteTest(test.APITransactionTestCase):
         offering.save()
 
         self.url = (
-            'http://testserver'
+            "http://testserver"
             + reverse(
-                'marketplace-slurm-remote-detail',
-                kwargs={'uuid': self.resource.uuid.hex},
+                "marketplace-slurm-remote-detail",
+                kwargs={"uuid": self.resource.uuid.hex},
             )
-            + 'delete_association'
-            + '/'
+            + "delete_association"
+            + "/"
         )
 
-    @data('staff', 'offering_owner', 'service_manager')
+    @data("staff", "offering_owner", "service_manager")
     def test_association_deletion_is_allowed(self, user):
         self.client.force_login(getattr(self.fixture, user))
         response = self.client.post(
             self.url,
             {
-                'username': self.username,
+                "username": self.username,
             },
         )
         self.assertEqual(200, response.status_code)
@@ -138,13 +138,13 @@ class AssociationDeleteTest(test.APITransactionTestCase):
             ).exists()
         )
 
-    @data('owner', 'admin', 'manager', 'member')
+    @data("owner", "admin", "manager", "member")
     def test_association_creation_is_forbidden(self, user):
         self.client.force_login(getattr(self.fixture, user))
         response = self.client.post(
             self.url,
             {
-                'username': self.username,
+                "username": self.username,
             },
         )
         self.assertEqual(403, response.status_code)

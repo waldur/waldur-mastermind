@@ -22,7 +22,7 @@ class TotalCustomerCostView(views.APIView):
             request, customers, self
         )
 
-        name = request.query_params.get('name', '')
+        name = request.query_params.get("name", "")
         if name:
             customers = customers.filter(name__icontains=name)
 
@@ -33,14 +33,14 @@ class TotalCustomerCostView(views.APIView):
         total = sum(invoice.total for invoice in invoices)
         price = sum(invoice.price for invoice in invoices)
         return response.Response(
-            {'total': total, 'price': price}, status=status.HTTP_200_OK
+            {"total": total, "price": price}, status=status.HTTP_200_OK
         )
 
 
 class FinancialReportView(core_views.ReadOnlyActionsViewSet):
     queryset = structure_models.Customer.objects.all()
     serializer_class = serializers.FinancialReportSerializer
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
     filter_backends = (
         filters.CustomerTotalCostFilter,
         filters.CustomerEstimatedCostFilter,
@@ -51,11 +51,11 @@ class FinancialReportView(core_views.ReadOnlyActionsViewSet):
     )
     filterset_class = structure_filters.CustomerFilter
     ordering_fields = (
-        'abbreviation',
-        'accounting_start_date',
-        'agreement_number',
-        'created',
-        'name',
-        'native_name',
-        'registration_code',
+        "abbreviation",
+        "accounting_start_date",
+        "agreement_number",
+        "created",
+        "name",
+        "native_name",
+        "registration_code",
     )

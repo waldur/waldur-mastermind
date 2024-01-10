@@ -20,17 +20,17 @@ def schedule_sync():
     """
     if utils.is_syncing():
         logger.debug(
-            'Skipping FreeIPA synchronization because synchronization is already in progress.'
+            "Skipping FreeIPA synchronization because synchronization is already in progress."
         )
         return
 
-    if not settings.WALDUR_FREEIPA['ENABLED']:
-        logger.debug('Skipping FreeIPA synchronization because plugin is disabled.')
+    if not settings.WALDUR_FREEIPA["ENABLED"]:
+        logger.debug("Skipping FreeIPA synchronization because plugin is disabled.")
         return
 
-    if not settings.WALDUR_FREEIPA['GROUP_SYNCHRONIZATION_ENABLED']:
+    if not settings.WALDUR_FREEIPA["GROUP_SYNCHRONIZATION_ENABLED"]:
         logger.debug(
-            'Skipping FreeIPA group synchronization because this feature is disabled.'
+            "Skipping FreeIPA group synchronization because this feature is disabled."
         )
         return
 
@@ -38,13 +38,13 @@ def schedule_sync():
     _sync_groups.apply_async(countdown=10)
 
 
-@shared_task(name='waldur_freeipa.sync_groups')
+@shared_task(name="waldur_freeipa.sync_groups")
 def sync_groups():
     """
     This task is used by Celery beat in order to periodically
     schedule FreeIPA group synchronization.
     """
-    if not settings.WALDUR_FREEIPA['ENABLED']:
+    if not settings.WALDUR_FREEIPA["ENABLED"]:
         return
 
     schedule_sync()
@@ -63,9 +63,9 @@ def schedule_sync_names():
     sync_names.apply_async(countdown=10)
 
 
-@shared_task(name='waldur_freeipa.sync_names')
+@shared_task(name="waldur_freeipa.sync_names")
 def sync_names():
-    if not settings.WALDUR_FREEIPA['ENABLED']:
+    if not settings.WALDUR_FREEIPA["ENABLED"]:
         return
 
     FreeIPABackend().synchronize_names()
@@ -85,14 +85,14 @@ def _sync_gecos():
     FreeIPABackend().synchronize_gecos()
 
 
-@shared_task(name='waldur_freeipa.sync_profile_ssh_keys')
+@shared_task(name="waldur_freeipa.sync_profile_ssh_keys")
 def sync_profile_ssh_keys(profile_id):
     try:
         profile = models.Profile.objects.get(id=profile_id)
     except ObjectDoesNotExist:
         logger.debug(
-            'Skipping SSH key synchronization because FreeIPA profile has been deleted. '
-            'Profile ID: %s',
+            "Skipping SSH key synchronization because FreeIPA profile has been deleted. "
+            "Profile ID: %s",
             profile_id,
         )
         return
@@ -101,17 +101,17 @@ def sync_profile_ssh_keys(profile_id):
         FreeIPABackend().update_ssh_keys(profile)
     except freeipa_exceptions.NotFound:
         logger.warning(
-            'Skipping SSH key synchronization because '
-            'FreeIPA profile has been removed on backend. '
-            'Profile ID: %s',
+            "Skipping SSH key synchronization because "
+            "FreeIPA profile has been removed on backend. "
+            "Profile ID: %s",
             profile.id,
         )
         return
 
 
-@shared_task(name='waldur_freeipa.disable_accounts_without_allocations')
+@shared_task(name="waldur_freeipa.disable_accounts_without_allocations")
 def disable_accounts_without_allocations():
-    if not settings.WALDUR_FREEIPA['ENABLED']:
+    if not settings.WALDUR_FREEIPA["ENABLED"]:
         return
 
     has_changed = False
@@ -119,7 +119,7 @@ def disable_accounts_without_allocations():
         new_is_active = utils.is_profile_active_for_user(profile.user)
         if new_is_active != profile.is_active:
             profile.is_active = new_is_active
-            profile.save(update_fields=['is_active'])
+            profile.save(update_fields=["is_active"])
             has_changed = True
     if has_changed:
         schedule_sync()

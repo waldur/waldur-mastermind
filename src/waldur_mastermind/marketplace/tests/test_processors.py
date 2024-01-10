@@ -25,4 +25,4 @@ class ProcessorsTest(test.APITransactionTestCase):
             else:
                 success.append(offering_type)
 
-        self.assertFalse(failed, f'failed: {failed}, success {success}')
+        self.assertFalse(failed, f"failed: {failed}, success {success}")

@@ -12,7 +12,7 @@ from waldur_mastermind.marketplace.tests.factories import ResourceFactory
 from . import fixtures
 
 
-@freeze_time('2020-11-01')
+@freeze_time("2020-11-01")
 class InvoiceTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
@@ -31,7 +31,7 @@ class InvoiceTest(test.APITransactionTestCase):
             1,
         )
 
-    @freeze_time('2020-11-02')
+    @freeze_time("2020-11-02")
     def test_handler_if_resource_has_been_terminated(self):
         self.resource.set_state_ok()
         self.resource.save()
@@ -48,7 +48,7 @@ class InvoiceTest(test.APITransactionTestCase):
         item.refresh_from_db()
         self.assertEqual(item.end, timezone.now())
 
-    @freeze_time('2020-12-01')
+    @freeze_time("2020-12-01")
     def test_create_monthly_invoices(self):
         self.resource.set_state_ok()
         self.resource.save()
@@ -64,7 +64,7 @@ class InvoiceTest(test.APITransactionTestCase):
         )
 
 
-@freeze_time('2020-11-01')
+@freeze_time("2020-11-01")
 class TotalLimitTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
@@ -99,7 +99,7 @@ class TotalLimitTest(test.APITransactionTestCase):
     def test_when_monthly_invoice_is_created_for_provisioned_resource_invoice_item_is_not_created(
         self,
     ):
-        with freeze_time('2020-12-01'):
+        with freeze_time("2020-12-01"):
             create_monthly_invoices()
         items = self.get_invoice_items(year=2020, month=12)
         self.assertEqual(items.count(), 0)
@@ -124,7 +124,7 @@ class TotalLimitTest(test.APITransactionTestCase):
 
 
 @ddt
-@freeze_time('2020-11-01')
+@freeze_time("2020-11-01")
 class InvoiceItemsTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
@@ -140,29 +140,29 @@ class InvoiceItemsTest(test.APITransactionTestCase):
         other_resource.set_state_ok()
         other_resource.save()
 
-        self.url = reverse('provider-invoice-items-list')
+        self.url = reverse("provider-invoice-items-list")
 
-    @data('staff')
+    @data("staff")
     def test_user_can_get_all_invoice_items(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(self.url)
         self.assertEqual(len(response.data), 2)
 
-    @data('offering_owner', 'service_manager')
+    @data("offering_owner", "service_manager")
     def test_user_can_get_his_invoice_items(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(self.url)
         self.assertEqual(len(response.data), 1)
 
     @data(
-        'admin',
-        'manager',
-        'member',
-        'customer_support',
-        'customer_support',
-        'owner',
-        'user',
-        'global_support',
+        "admin",
+        "manager",
+        "member",
+        "customer_support",
+        "customer_support",
+        "owner",
+        "user",
+        "global_support",
     )
     def test_user_can_not_get_invoice_items(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))

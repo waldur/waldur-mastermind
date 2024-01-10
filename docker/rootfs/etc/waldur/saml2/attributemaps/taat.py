@@ -7,4 +7,4 @@ from saml2.attributemaps.saml_uri import MAP as __URI_MAP__
 
 BASIC_MAP = __BASIC_MAP__
 
-URI_MAP = {**__URI_MAP__, 'fro': {**__URI_MAP__['fro'], **__BASIC_MAP__['fro']}}
+URI_MAP = {**__URI_MAP__, "fro": {**__URI_MAP__["fro"], **__BASIC_MAP__["fro"]}}

@@ -12,7 +12,7 @@ class JiraFixture(structure_fixtures.ProjectFixture):
     def service_settings(self):
         return structure_factories.ServiceSettingsFactory(
             type=JiraConfig.service_name,
-            backend_url='http://jira/',
+            backend_url="http://jira/",
             customer=self.customer,
         )
 

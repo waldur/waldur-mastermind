@@ -13,9 +13,9 @@ from . import signals
 
 
 class RoleManager(models.Manager):
-    def get_system_role(self, name: str, content_type) -> 'Role':
+    def get_system_role(self, name: str, content_type) -> "Role":
         role, _ = self.get_or_create(
-            name=name, defaults={'is_system_role': True, 'content_type': content_type}
+            name=name, defaults={"is_system_role": True, "content_type": content_type}
         )
         return role
 
@@ -30,17 +30,17 @@ class Role(DescribableMixin, UuidMixin):
         on_delete=models.CASCADE,
         null=False,
         blank=False,
-        related_name='+',
+        related_name="+",
     )
 
     class Meta:
-        ordering = ['name']
+        ordering = ["name"]
 
     def add_permission(self, name):
         RolePermission.objects.get_or_create(role=self, permission=name)
 
     def __str__(self):
-        return f'{self.name}'
+        return f"{self.name}"
 
 
 class UserRoleManager(GenericKeyMixin, models.Manager):
@@ -57,17 +57,17 @@ class UserRole(ScopeMixin, UuidMixin):
         to=settings.AUTH_USER_MODEL,
         null=True,
         blank=True,
-        related_name='+',
+        related_name="+",
     )
     created = AutoCreatedField()
     expiration_time = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(null=True, default=True, db_index=True)
-    tracker = FieldTracker(fields=['expiration_time'])
+    tracker = FieldTracker(fields=["expiration_time"])
     objects = UserRoleManager()
 
     def set_expiration_time(self, expiration_time, current_user=None):
         self.expiration_time = expiration_time
-        self.save(update_fields=['expiration_time'])
+        self.save(update_fields=["expiration_time"])
         signals.role_updated.send(
             sender=self.__class__,
             instance=self,
@@ -77,7 +77,7 @@ class UserRole(ScopeMixin, UuidMixin):
     def revoke(self, current_user=None):
         self.is_active = False
         self.expiration_time = timezone.now()
-        self.save(update_fields=['is_active', 'expiration_time'])
+        self.save(update_fields=["is_active", "expiration_time"])
         signals.role_revoked.send(
             sender=self.__class__,
             instance=self,
@@ -87,9 +87,9 @@ class UserRole(ScopeMixin, UuidMixin):
 
 class RolePermission(models.Model):
     role = models.ForeignKey(
-        on_delete=models.CASCADE, to=Role, db_index=True, related_name='permissions'
+        on_delete=models.CASCADE, to=Role, db_index=True, related_name="permissions"
     )
     permission = models.CharField(max_length=100, db_index=True)
 
     class Meta:
-        unique_together = ('role', 'permission')
+        unique_together = ("role", "permission")

@@ -35,15 +35,15 @@ class WaldurEndpointInspector(EndpointEnumerator):
         """
         Return a list of the valid HTTP methods for this endpoint.
         """
-        if hasattr(callback, 'actions'):
+        if hasattr(callback, "actions"):
             return [
-                method.upper() for method in callback.actions.keys() if method != 'head'
+                method.upper() for method in callback.actions.keys() if method != "head"
             ]
 
         return [
             method
             for method in callback.cls().allowed_methods
-            if method not in ('OPTIONS', 'HEAD')
+            if method not in ("OPTIONS", "HEAD")
         ]
 
 
@@ -55,15 +55,15 @@ def get_entity_description(entity):
     """
 
     try:
-        entity_name = entity.__name__.strip('_')
+        entity_name = entity.__name__.strip("_")
     except AttributeError:
         # entity is a class instance
         entity_name = entity.__class__.__name__
 
-    label = '* %s' % formatting.camelcase_to_spaces(entity_name)
+    label = "* %s" % formatting.camelcase_to_spaces(entity_name)
     if entity.__doc__ is not None:
-        entity_docstring = formatting.dedent(str(entity.__doc__)).replace('\n', '\n\t')
-        return f'{label}\n * {entity_docstring}'
+        entity_docstring = formatting.dedent(str(entity.__doc__)).replace("\n", "\n\t")
+        return f"{label}\n * {entity_docstring}"
 
     return label
 
@@ -77,19 +77,19 @@ def get_validators_description(view):
     * validator2 name
      * validator2 docstring
     """
-    action = getattr(view, 'action', None)
+    action = getattr(view, "action", None)
     if action is None:
-        return ''
+        return ""
 
-    description = ''
-    validators = getattr(view, action + '_validators', [])
+    description = ""
+    validators = getattr(view, action + "_validators", [])
     for validator in validators:
         validator_description = get_entity_description(validator)
         description += (
-            '\n' + validator_description if description else validator_description
+            "\n" + validator_description if description else validator_description
         )
 
-    return '### Validators:\n' + description if description else ''
+    return "### Validators:\n" + description if description else ""
 
 
 def get_actions_permission_description(view, method):
@@ -100,24 +100,24 @@ def get_actions_permission_description(view, method):
     * permission2 name
      * permission2 docstring
     """
-    action = getattr(view, 'action', None)
+    action = getattr(view, "action", None)
     if action is None:
-        return ''
+        return ""
 
-    if hasattr(view, action + '_permissions'):
+    if hasattr(view, action + "_permissions"):
         permission_types = (action,)
     elif method in SAFE_METHODS:
-        permission_types = ('safe_methods', '%s_extra' % action)
+        permission_types = ("safe_methods", "%s_extra" % action)
     else:
-        permission_types = ('unsafe_methods', '%s_extra' % action)
+        permission_types = ("unsafe_methods", "%s_extra" % action)
 
-    description = ''
+    description = ""
     for permission_type in permission_types:
-        action_perms = getattr(view, permission_type + '_permissions', [])
+        action_perms = getattr(view, permission_type + "_permissions", [])
         for permission in action_perms:
             action_perm_description = get_entity_description(permission)
             description += (
-                '\n' + action_perm_description
+                "\n" + action_perm_description
                 if description
                 else action_perm_description
             )
@@ -134,24 +134,24 @@ def get_permissions_description(view, method):
     * permission2 name
      * permission2 docstring
     """
-    if not hasattr(view, 'permission_classes'):
-        return ''
+    if not hasattr(view, "permission_classes"):
+        return ""
 
-    description = ''
+    description = ""
     for permission_class in view.permission_classes:
         if permission_class == core_permissions.ActionsPermission:
             actions_perm_description = get_actions_permission_description(view, method)
             if actions_perm_description:
                 description += (
-                    '\n' + actions_perm_description
+                    "\n" + actions_perm_description
                     if description
                     else actions_perm_description
                 )
             continue
         perm_description = get_entity_description(permission_class)
-        description += '\n' + perm_description if description else perm_description
+        description += "\n" + perm_description if description else perm_description
 
-    return '### Permissions:\n' + description if description else ''
+    return "### Permissions:\n" + description if description else ""
 
 
 def get_validation_description(view, method):
@@ -164,48 +164,48 @@ def get_validation_description(view, method):
     * field2 name
      * field2 validation docstring
     """
-    if method not in ('PUT', 'PATCH', 'POST') or not hasattr(view, 'get_serializer'):
-        return ''
+    if method not in ("PUT", "PATCH", "POST") or not hasattr(view, "get_serializer"):
+        return ""
 
     serializer = view.get_serializer()
-    description = ''
-    if hasattr(serializer, 'validate') and serializer.validate.__doc__ is not None:
+    description = ""
+    if hasattr(serializer, "validate") and serializer.validate.__doc__ is not None:
         description += formatting.dedent(str(serializer.validate.__doc__))
 
     for field in serializer.fields.values():
-        if not hasattr(serializer, 'validate_' + field.field_name):
+        if not hasattr(serializer, "validate_" + field.field_name):
             continue
 
-        field_validation = getattr(serializer, 'validate_' + field.field_name)
+        field_validation = getattr(serializer, "validate_" + field.field_name)
 
         if field_validation.__doc__ is not None:
             docstring = formatting.dedent(str(field_validation.__doc__)).replace(
-                '\n', '\n\t'
+                "\n", "\n\t"
             )
-            field_description = f'* {field.field_name}\n * {docstring}'
+            field_description = f"* {field.field_name}\n * {docstring}"
             description += (
-                '\n' + field_description if description else field_description
+                "\n" + field_description if description else field_description
             )
 
-    return '### Validation:\n' + description if description else ''
+    return "### Validation:\n" + description if description else ""
 
 
 FIELDS = {
-    'Boolean': 'boolean',
-    'Char': 'string',
-    'Timestamp': 'UNIX timestamp',
-    'DateTime': 'DateTime',
-    'URL': 'link',
-    'Number': 'float',
-    'UUID': 'string',
-    'ContentType': 'string in form app_label.model_name',
-    'Decimal': 'float',
-    'Float': 'float',
-    'File': 'file',
-    'Email': 'email',
-    'Integer': 'integer',
-    'IPAddress': 'IP address',
-    'HyperlinkedRelated': 'link',
+    "Boolean": "boolean",
+    "Char": "string",
+    "Timestamp": "UNIX timestamp",
+    "DateTime": "DateTime",
+    "URL": "link",
+    "Number": "float",
+    "UUID": "string",
+    "ContentType": "string in form app_label.model_name",
+    "Decimal": "float",
+    "Float": "float",
+    "File": "file",
+    "Email": "email",
+    "Integer": "integer",
+    "IPAddress": "IP address",
+    "HyperlinkedRelated": "link",
 }
 
 
@@ -214,20 +214,20 @@ def get_field_type(field):
     Returns field type/possible values.
     """
     if isinstance(field, core_filters.MappedMultipleChoiceFilter):
-        return ' | '.join(['"%s"' % f for f in sorted(field.mapped_to_model)])
+        return " | ".join(['"%s"' % f for f in sorted(field.mapped_to_model)])
     if isinstance(field, OrderingFilter) or isinstance(field, ChoiceFilter):
-        return ' | '.join(['"%s"' % f[0] for f in field.extra['choices']])
+        return " | ".join(['"%s"' % f[0] for f in field.extra["choices"]])
     if isinstance(field, ChoiceField):
-        return ' | '.join(['"%s"' % f for f in sorted(field.choices)])
+        return " | ".join(['"%s"' % f for f in sorted(field.choices)])
     if isinstance(field, HyperlinkedRelatedField):
-        if field.view_name.endswith('detail'):
-            return 'link to %s' % reverse(
+        if field.view_name.endswith("detail"):
+            return "link to %s" % reverse(
                 field.view_name,
-                kwargs={'%s' % field.lookup_field: "'%s'" % field.lookup_field},
+                kwargs={"%s" % field.lookup_field: "'%s'" % field.lookup_field},
             )
         return reverse(field.view_name)
     if isinstance(field, structure_filters.ServiceTypeFilter):
-        return ' | '.join(
+        return " | ".join(
             ['"%s"' % f for f in SupportedServices.get_filter_mapping().keys()]
         )
     if isinstance(field, core_serializers.GenericRelatedField):
@@ -236,29 +236,29 @@ def get_field_type(field):
             detail_view_name = core_utils.get_detail_view_name(model)
             for f in field.lookup_fields:
                 try:
-                    link = reverse(detail_view_name, kwargs={'%s' % f: "'%s'" % f})
+                    link = reverse(detail_view_name, kwargs={"%s" % f: "'%s'" % f})
                 except NoReverseMatch:
                     pass
                 else:
                     links.append(link)
                     break
-        path = ', '.join(links)
+        path = ", ".join(links)
         if path:
-            return 'link to any: %s' % path
+            return "link to any: %s" % path
     if isinstance(field, core_filters.ContentTypeFilter):
         return "string in form 'app_label'.'model_name'"
     if isinstance(field, ModelMultipleChoiceFilter):
         return get_field_type(field.field)
     if isinstance(field, ListSerializer):
-        return 'list of [%s]' % get_field_type(field.child)
+        return "list of [%s]" % get_field_type(field.child)
     if isinstance(field, ManyRelatedField):
-        return 'list of [%s]' % get_field_type(field.child_relation)
+        return "list of [%s]" % get_field_type(field.child_relation)
     if isinstance(field, ModelField):
         return get_field_type(field.model_field)
 
     name = field.__class__.__name__
-    for w in ('Filter', 'Field', 'Serializer'):
-        name = name.replace(w, '')
+    for w in ("Filter", "Field", "Serializer"):
+        name = name.replace(w, "")
     return FIELDS.get(name, name)
 
 
@@ -269,7 +269,7 @@ def is_disabled_action(view):
     if not isinstance(view, core_views.ActionsViewSet):
         return False
 
-    action = getattr(view, 'action', None)
+    action = getattr(view, "action", None)
     return action in view.disabled_actions if action is not None else False
 
 
@@ -296,7 +296,7 @@ class WaldurSchemaGenerator(schemas.SchemaGenerator):
         view_endpoints = []
 
         if not self.group:
-            group_endpoint_prefixes = ['']
+            group_endpoint_prefixes = [""]
         else:
             group_endpoint_prefixes = API_GROUPS[self.group]
 
@@ -328,7 +328,7 @@ class WaldurSchemaGenerator(schemas.SchemaGenerator):
         permissions_description = get_permissions_description(view, method)
         if permissions_description:
             description += (
-                '\n\n' + permissions_description
+                "\n\n" + permissions_description
                 if description
                 else permissions_description
             )
@@ -337,7 +337,7 @@ class WaldurSchemaGenerator(schemas.SchemaGenerator):
             validators_description = get_validators_description(view)
             if validators_description:
                 description += (
-                    '\n\n' + validators_description
+                    "\n\n" + validators_description
                     if description
                     else validators_description
                 )
@@ -345,7 +345,7 @@ class WaldurSchemaGenerator(schemas.SchemaGenerator):
         validation_description = get_validation_description(view, method)
         if validation_description:
             description += (
-                '\n\n' + validation_description
+                "\n\n" + validation_description
                 if description
                 else validation_description
             )
@@ -356,13 +356,13 @@ class WaldurSchemaGenerator(schemas.SchemaGenerator):
         if not schemas.is_list_view(path, method, view):
             return []
 
-        if not getattr(view, 'filter_backends', None):
+        if not getattr(view, "filter_backends", None):
             return []
 
         fields = []
         for filter_backend in view.filter_backends:
             backend = filter_backend()
-            if not hasattr(backend, 'get_filterset_class'):
+            if not hasattr(backend, "get_filterset_class"):
                 fields += filter_backend().get_schema_fields(view)
                 continue
 
@@ -388,12 +388,12 @@ class WaldurSchemaGenerator(schemas.SchemaGenerator):
         Return a list of `coreapi.Field` instances corresponding to any
         request body input, as determined by the serializer class.
         """
-        if method not in ('PUT', 'PATCH', 'POST'):
+        if method not in ("PUT", "PATCH", "POST"):
             return []
 
         view = self.view
 
-        if not hasattr(view, 'get_serializer'):
+        if not hasattr(view, "get_serializer"):
             return []
 
         serializer = view.get_serializer()
@@ -405,13 +405,13 @@ class WaldurSchemaGenerator(schemas.SchemaGenerator):
             if field.read_only or isinstance(field, HiddenField):
                 continue
 
-            required = field.required and method != 'PATCH'
-            description = str(field.help_text) if field.help_text else ''
+            required = field.required and method != "PATCH"
+            description = str(field.help_text) if field.help_text else ""
             field_type = get_field_type(field)
-            description += '; ' + field_type if description else field_type
+            description += "; " + field_type if description else field_type
             field = coreapi.Field(
                 name=field.field_name,
-                location='form',
+                location="form",
                 required=required,
                 description=description,
                 schema=schemas.field_to_schema(field),
@@ -429,12 +429,12 @@ class WaldurSchemaView(APIView):
         if request.user.is_anonymous:
             request.user = User(
                 id=0,
-                username='API docs user',
-                email='api_docs_user@example.com',
+                username="API docs user",
+                email="api_docs_user@example.com",
                 is_staff=True,
             )
         url = urlparse(request.get_full_path())
-        group = url.path.split('/')[2]
+        group = url.path.split("/")[2]
         if group and group not in API_GROUPS:
             raise Http404
 
@@ -443,7 +443,7 @@ class WaldurSchemaView(APIView):
 
         if not schema:
             raise exceptions.ValidationError(
-                'The schema generator did not return a schema Document'
+                "The schema generator did not return a schema Document"
             )
 
         return Response(schema)

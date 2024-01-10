@@ -8,57 +8,57 @@ import waldur_core.core.fields
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('logging', '0004_json_field'),
+        ("logging", "0004_json_field"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Report',
+            name="Report",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('file', models.FileField(upload_to='logging_reports')),
-                ('file_size', models.PositiveIntegerField(null=True)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("file", models.FileField(upload_to="logging_reports")),
+                ("file_size", models.PositiveIntegerField(null=True)),
                 (
-                    'state',
+                    "state",
                     models.CharField(
                         choices=[
-                            ('pending', 'Pending'),
-                            ('done', 'Done'),
-                            ('erred', 'Erred'),
+                            ("pending", "Pending"),
+                            ("done", "Done"),
+                            ("erred", "Erred"),
                         ],
-                        default='pending',
+                        default="pending",
                         max_length=10,
                     ),
                 ),
-                ('error_message', models.TextField(blank=True)),
+                ("error_message", models.TextField(blank=True)),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
     ]

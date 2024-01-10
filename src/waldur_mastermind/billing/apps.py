@@ -3,8 +3,8 @@ from django.db.models import signals
 
 
 class BillingConfig(AppConfig):
-    name = 'waldur_mastermind.billing'
-    verbose_name = 'Billing'
+    name = "waldur_mastermind.billing"
+    verbose_name = "Billing"
 
     def ready(self):
         from waldur_core.core import signals as core_signals
@@ -19,29 +19,29 @@ class BillingConfig(AppConfig):
             signals.post_save.connect(
                 handlers.create_price_estimate,
                 sender=model,
-                dispatch_uid='waldur_mastermind.billing.'
-                'create_price_estimate_{}_{}'.format(index, model.__class__),
+                dispatch_uid="waldur_mastermind.billing."
+                f"create_price_estimate_{index}_{model.__class__}",
             )
 
         for index, model in enumerate(models.PriceEstimate.get_estimated_models()):
             signals.pre_delete.connect(
                 handlers.delete_stale_price_estimate,
                 sender=model,
-                dispatch_uid='waldur_mastermind.billing.'
-                'delete_stale_price_estimate_{}_{}'.format(index, model.__class__),
+                dispatch_uid="waldur_mastermind.billing."
+                f"delete_stale_price_estimate_{index}_{model.__class__}",
             )
 
         signals.post_save.connect(
             handlers.update_estimate_when_invoice_is_created,
             sender=invoices_models.Invoice,
-            dispatch_uid='waldur_mastermind.billing.'
-            'update_estimate_when_invoice_is_created',
+            dispatch_uid="waldur_mastermind.billing."
+            "update_estimate_when_invoice_is_created",
         )
 
         signals.post_save.connect(
             handlers.process_invoice_item,
             sender=invoices_models.InvoiceItem,
-            dispatch_uid='waldur_mastermind.billing.process_invoice_item',
+            dispatch_uid="waldur_mastermind.billing.process_invoice_item",
         )
 
         core_signals.pre_serializer_fields.connect(

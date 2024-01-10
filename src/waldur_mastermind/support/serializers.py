@@ -30,28 +30,28 @@ User = get_user_model()
 
 def render_issue_template(config_name, template_name, issue):
     try:
-        template = get_template('support/' + template_name + '.txt').template
+        template = get_template("support/" + template_name + ".txt").template
     except template_exceptions.TemplateDoesNotExist:
         raw = getattr(config, config_name)
         template = Template(raw)
 
     return template.render(
-        Context({'issue': issue, 'settings': settings}, autoescape=False)
+        Context({"issue": issue, "settings": settings}, autoescape=False)
     )
 
 
 class NestedFeedbackSerializer(serializers.HyperlinkedModelSerializer):
-    state = serializers.ReadOnlyField(source='get_state_display')
-    evaluation = serializers.ReadOnlyField(source='get_evaluation_display')
-    evaluation_number = serializers.ReadOnlyField(source='evaluation')
+    state = serializers.ReadOnlyField(source="get_state_display")
+    evaluation = serializers.ReadOnlyField(source="get_evaluation_display")
+    evaluation_number = serializers.ReadOnlyField(source="evaluation")
 
     class Meta:
         model = models.Feedback
         fields = (
-            'evaluation',
-            'evaluation_number',
-            'comment',
-            'state',
+            "evaluation",
+            "evaluation_number",
+            "comment",
+            "state",
         )
 
 
@@ -64,34 +64,34 @@ class IssueSerializer(
         required=False,
     )
     caller = serializers.HyperlinkedRelatedField(
-        view_name='user-detail',
-        lookup_field='uuid',
+        view_name="user-detail",
+        lookup_field="uuid",
         queryset=User.objects.all(),
         required=False,
         allow_null=True,
     )
     reporter = serializers.HyperlinkedRelatedField(
-        view_name='support-user-detail', lookup_field='uuid', read_only=True
+        view_name="support-user-detail", lookup_field="uuid", read_only=True
     )
     assignee = serializers.HyperlinkedRelatedField(
-        view_name='support-user-detail',
-        lookup_field='uuid',
+        view_name="support-user-detail",
+        lookup_field="uuid",
         queryset=models.SupportUser.objects.all(),
         required=False,
         allow_null=True,
     )
     template = serializers.HyperlinkedRelatedField(
-        view_name='support-template-detail',
-        lookup_field='uuid',
+        view_name="support-template-detail",
+        lookup_field="uuid",
         queryset=models.Template.objects.all(),
         required=False,
         allow_null=True,
     )
     resource_type = serializers.SerializerMethodField()
-    resource_name = serializers.ReadOnlyField(source='resource.name')
+    resource_name = serializers.ReadOnlyField(source="resource.name")
     type = serializers.ChoiceField(
         choices=[
-            (t.strip(), t.strip()) for t in config.ATLASSIAN_ISSUE_TYPES.split(',')
+            (t.strip(), t.strip()) for t in config.ATLASSIAN_ISSUE_TYPES.split(",")
         ],
         initial=utils.get_atlassian_issue_type(),
         default=utils.get_atlassian_issue_type(),
@@ -100,7 +100,7 @@ class IssueSerializer(
         initial=False,
         default=False,
         write_only=True,
-        help_text=_('Set true if issue is created by regular user via portal.'),
+        help_text=_("Set true if issue is created by regular user via portal."),
     )
     feedback = NestedFeedbackSerializer(required=False, read_only=True)
     update_is_available = serializers.SerializerMethodField()
@@ -109,92 +109,92 @@ class IssueSerializer(
     class Meta:
         model = models.Issue
         fields = (
-            'url',
-            'uuid',
-            'type',
-            'key',
-            'backend_id',
-            'backend_name',
-            'remote_id',
-            'link',
-            'summary',
-            'description',
-            'status',
-            'resolution',
-            'priority',
-            'caller',
-            'caller_uuid',
-            'caller_full_name',
-            'reporter',
-            'reporter_uuid',
-            'reporter_name',
-            'assignee',
-            'assignee_uuid',
-            'assignee_name',
-            'customer',
-            'customer_uuid',
-            'customer_name',
-            'project',
-            'project_uuid',
-            'project_name',
-            'resource',
-            'resource_type',
-            'resource_name',
-            'created',
-            'modified',
-            'is_reported_manually',
-            'first_response_sla',
-            'template',
-            'feedback',
-            'resolved',
-            'update_is_available',
-            'destroy_is_available',
+            "url",
+            "uuid",
+            "type",
+            "key",
+            "backend_id",
+            "backend_name",
+            "remote_id",
+            "link",
+            "summary",
+            "description",
+            "status",
+            "resolution",
+            "priority",
+            "caller",
+            "caller_uuid",
+            "caller_full_name",
+            "reporter",
+            "reporter_uuid",
+            "reporter_name",
+            "assignee",
+            "assignee_uuid",
+            "assignee_name",
+            "customer",
+            "customer_uuid",
+            "customer_name",
+            "project",
+            "project_uuid",
+            "project_name",
+            "resource",
+            "resource_type",
+            "resource_name",
+            "created",
+            "modified",
+            "is_reported_manually",
+            "first_response_sla",
+            "template",
+            "feedback",
+            "resolved",
+            "update_is_available",
+            "destroy_is_available",
         )
         read_only_fields = (
-            'key',
-            'status',
-            'resolution',
-            'backend_id',
-            'backend_name',
-            'link',
-            'first_response_sla',
-            'feedback',
+            "key",
+            "status",
+            "resolution",
+            "backend_id",
+            "backend_name",
+            "link",
+            "first_response_sla",
+            "feedback",
         )
         protected_fields = (
-            'customer',
-            'project',
-            'resource',
-            'type',
-            'caller',
-            'template',
-            'priority',
-            'remote_id',
+            "customer",
+            "project",
+            "resource",
+            "type",
+            "caller",
+            "template",
+            "priority",
+            "remote_id",
         )
         extra_kwargs = dict(
-            url={'lookup_field': 'uuid'},
-            customer={'lookup_field': 'uuid', 'view_name': 'customer-detail'},
-            project={'lookup_field': 'uuid', 'view_name': 'project-detail'},
+            url={"lookup_field": "uuid"},
+            customer={"lookup_field": "uuid", "view_name": "customer-detail"},
+            project={"lookup_field": "uuid", "view_name": "project-detail"},
         )
         related_paths = dict(
             caller=(
-                'uuid',
-                'full_name',
+                "uuid",
+                "full_name",
             ),
             reporter=(
-                'uuid',
-                'name',
+                "uuid",
+                "name",
             ),
             assignee=(
-                'uuid',
-                'name',
+                "uuid",
+                "name",
             ),
             customer=(
-                'uuid',
-                'name',
+                "uuid",
+                "name",
             ),
             project=(
-                'uuid',
-                'name',
+                "uuid",
+                "name",
             ),
         )
 
@@ -202,13 +202,13 @@ class IssueSerializer(
         fields = super().get_fields()
 
         if (
-            'view' not in self.context
+            "view" not in self.context
         ):  # On docs generation context does not contain "view".
             return fields
 
-        user = self.context['view'].request.user
+        user = self.context["view"].request.user
         if not user.is_staff and not user.is_support:
-            del fields['link']
+            del fields["link"]
 
         return fields
 
@@ -216,7 +216,7 @@ class IssueSerializer(
         if isinstance(obj.resource, structure_models.BaseResource):
             return get_resource_type(obj.resource_content_type.model_class())
         if isinstance(obj.resource, marketplace_models.Resource):
-            return 'Marketplace.Resource'
+            return "Marketplace.Resource"
 
     def get_update_is_available(self, obj):
         return backend.get_active_backend().comment_update_is_available(obj)
@@ -227,22 +227,22 @@ class IssueSerializer(
     def validate(self, attrs):
         if self.instance is not None:
             return attrs
-        request_user = self.context['request'].user
-        if attrs.pop('is_reported_manually'):
-            attrs['caller'] = request_user
-            if attrs.get('assignee'):
+        request_user = self.context["request"].user
+        if attrs.pop("is_reported_manually"):
+            attrs["caller"] = request_user
+            if attrs.get("assignee"):
                 raise serializers.ValidationError(
                     {
-                        'assignee': _(
-                            'Assignee cannot be defined if issue is reported manually.'
+                        "assignee": _(
+                            "Assignee cannot be defined if issue is reported manually."
                         )
                     }
                 )
         else:
             # create a request on behalf of an agent
-            if not attrs.get('caller'):
+            if not attrs.get("caller"):
                 raise serializers.ValidationError(
-                    {'caller': _('This field is required.')}
+                    {"caller": _("This field is required.")}
                 )
             # if change of reporter is supported, use it
             if config.ATLASSIAN_MAP_WALDUR_USERS_TO_SERVICEDESK_AGENTS:
@@ -254,16 +254,15 @@ class IssueSerializer(
                 if not reporter:
                     raise serializers.ValidationError(
                         _(
-                            'You cannot report issues because your help desk account is not connected to profile.'
+                            "You cannot report issues because your help desk account is not connected to profile."
                         )
                     )
-                attrs['reporter'] = reporter
+                attrs["reporter"] = reporter
             else:
                 # leave a mark about reporter in the description field
-                attrs[
-                    'description'
-                ] = f'Reported by {request_user.full_name}.\n\n' + attrs.get(
-                    'description', ''
+                attrs["description"] = (
+                    f"Reported by {request_user.full_name}.\n\n"
+                    + attrs.get("description", "")
                 )
 
         return attrs
@@ -278,7 +277,7 @@ class IssueSerializer(
         """User has to be customer owner, staff or global support"""
         if not customer:
             return customer
-        user = self.context['request'].user
+        user = self.context["request"].user
         if (
             not customer
             or user.is_staff
@@ -287,13 +286,13 @@ class IssueSerializer(
         ):
             return customer
         raise serializers.ValidationError(
-            _('Only customer owner, staff or support can report customer issues.')
+            _("Only customer owner, staff or support can report customer issues.")
         )
 
     def validate_project(self, project):
         if not project:
             return project
-        user = self.context['request'].user
+        user = self.context["request"].user
         if (
             not project
             or user.is_staff
@@ -306,7 +305,7 @@ class IssueSerializer(
             return project
         raise serializers.ValidationError(
             _(
-                'Only customer owner, project manager, project admin, project support, staff or support can report such issue.'
+                "Only customer owner, project manager, project admin, project support, staff or support can report such issue."
             )
         )
 
@@ -316,40 +315,40 @@ class IssueSerializer(
         return resource
 
     def validate_priority(self, priority):
-        user = self.context['request'].user
+        user = self.context["request"].user
         if not user.is_staff and not user.is_support:
             raise serializers.ValidationError(
-                _('Only staff or support can specify issue priority.')
+                _("Only staff or support can specify issue priority.")
             )
         try:
             models.Priority.objects.get(name=priority)
         except (models.Priority.DoesNotExist, models.Priority.MultipleObjectsReturned):
             raise serializers.ValidationError(
-                _('Priority with requested name does not exist.')
+                _("Priority with requested name does not exist.")
             )
         return priority
 
     @transaction.atomic()
     def create(self, validated_data):
-        resource = validated_data.get('resource')
+        resource = validated_data.get("resource")
         if resource:
-            validated_data['project'] = resource.project
-        project = validated_data.get('project')
+            validated_data["project"] = resource.project
+        project = validated_data.get("project")
         if project:
-            validated_data['customer'] = project.customer
+            validated_data["customer"] = project.customer
 
-        validated_data['description'] = render_issue_template(
-            'ATLASSIAN_DESCRIPTION_TEMPLATE', 'description', validated_data
+        validated_data["description"] = render_issue_template(
+            "ATLASSIAN_DESCRIPTION_TEMPLATE", "description", validated_data
         )
-        validated_data['summary'] = render_issue_template(
-            'ATLASSIAN_SUMMARY_TEMPLATE', 'summary', validated_data
+        validated_data["summary"] = render_issue_template(
+            "ATLASSIAN_SUMMARY_TEMPLATE", "summary", validated_data
         )
         return super().create(validated_data)
 
     def _render_template(self, config_name, issue):
         raw = self.issue_settings[config_name]
         template = Template(raw)
-        return template.render(Context({'issue': issue}))
+        return template.render(Context({"issue": issue}))
 
 
 class PrioritySerializer(
@@ -357,9 +356,9 @@ class PrioritySerializer(
 ):
     class Meta:
         model = models.Priority
-        fields = ('url', 'uuid', 'name', 'description', 'icon_url')
+        fields = ("url", "uuid", "name", "description", "icon_url")
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
+            "url": {"lookup_field": "uuid"},
         }
 
 
@@ -368,49 +367,49 @@ class CommentSerializer(
 ):
     # should be initialized with issue in context on creation
     author_user = serializers.HyperlinkedRelatedField(
-        source='author.user',
-        view_name='user-detail',
-        lookup_field='uuid',
+        source="author.user",
+        view_name="user-detail",
+        lookup_field="uuid",
         read_only=True,
     )
 
-    author_uuid = serializers.ReadOnlyField(source='author.user.uuid')
-    author_email = serializers.ReadOnlyField(source='author.user.email')
+    author_uuid = serializers.ReadOnlyField(source="author.user.uuid")
+    author_email = serializers.ReadOnlyField(source="author.user.email")
     update_is_available = serializers.SerializerMethodField()
     destroy_is_available = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Comment
         fields = (
-            'url',
-            'uuid',
-            'issue',
-            'issue_key',
-            'description',
-            'is_public',
-            'author_name',
-            'author_uuid',
-            'author_user',
-            'author_email',
-            'backend_id',
-            'remote_id',
-            'created',
-            'update_is_available',
-            'destroy_is_available',
+            "url",
+            "uuid",
+            "issue",
+            "issue_key",
+            "description",
+            "is_public",
+            "author_name",
+            "author_uuid",
+            "author_user",
+            "author_email",
+            "backend_id",
+            "remote_id",
+            "created",
+            "update_is_available",
+            "destroy_is_available",
         )
         read_only_fields = (
-            'issue',
-            'backend_id',
+            "issue",
+            "backend_id",
         )
         extra_kwargs = dict(
-            url={'lookup_field': 'uuid'},
-            issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
+            url={"lookup_field": "uuid"},
+            issue={"lookup_field": "uuid", "view_name": "support-issue-detail"},
         )
         related_paths = dict(
-            author=('name',),
-            issue=('key',),
+            author=("name",),
+            issue=("key",),
         )
-        protected_fields = ('remote_id',)
+        protected_fields = ("remote_id",)
 
     def get_update_is_available(self, obj):
         return backend.get_active_backend().comment_update_is_available(obj)
@@ -420,12 +419,12 @@ class CommentSerializer(
 
     @transaction.atomic()
     def create(self, validated_data):
-        author_user = self.context['request'].user
+        author_user = self.context["request"].user
         (
-            validated_data['author'],
+            validated_data["author"],
             _,
         ) = models.SupportUser.objects.get_or_create_from_user(author_user)
-        validated_data['issue'] = self.context['view'].get_object()
+        validated_data["issue"] = self.context["view"].get_object()
         return super().create(validated_data)
 
 
@@ -434,10 +433,10 @@ class SupportUserSerializer(
 ):
     class Meta:
         model = models.SupportUser
-        fields = ('url', 'uuid', 'name', 'backend_id', 'user', 'backend_name')
+        fields = ("url", "uuid", "name", "backend_id", "user", "backend_name")
         extra_kwargs = dict(
-            url={'lookup_field': 'uuid'},
-            user={'lookup_field': 'uuid', 'view_name': 'user-detail'},
+            url={"lookup_field": "uuid"},
+            user={"lookup_field": "uuid", "view_name": "user-detail"},
         )
 
 
@@ -457,7 +456,7 @@ class WebHookReceiverSerializer(jira_serializers.WebHookReceiverSerializer):
         except models.Issue.DoesNotExist:
             if not create:
                 raise serializers.ValidationError(
-                    'Issue with id %s does not exist.' % key
+                    "Issue with id %s does not exist." % key
                 )
 
         return issue
@@ -470,13 +469,13 @@ class WebHookReceiverSerializer(jira_serializers.WebHookReceiverSerializer):
         except models.Comment.DoesNotExist:
             if not create:
                 raise serializers.ValidationError(
-                    'Comment with id %s does not exist.' % key
+                    "Comment with id %s does not exist." % key
                 )
 
         return comment
 
 
-WebHookReceiverSerializer.remove_event(['jira:issue_created'])
+WebHookReceiverSerializer.remove_event(["jira:issue_created"])
 
 
 class AttachmentSerializer(
@@ -491,32 +490,32 @@ class AttachmentSerializer(
     class Meta:
         model = models.Attachment
         fields = (
-            'url',
-            'uuid',
-            'issue',
-            'issue_key',
-            'created',
-            'file',
-            'mime_type',
-            'file_size',
-            'file_name',
-            'thumbnail',
-            'backend_id',
-            'destroy_is_available',
+            "url",
+            "uuid",
+            "issue",
+            "issue_key",
+            "created",
+            "file",
+            "mime_type",
+            "file_size",
+            "file_name",
+            "thumbnail",
+            "backend_id",
+            "destroy_is_available",
         )
         read_only_fields = (
-            'mime_type',
-            'file_size',
-            'file_name',
-            'thumbnail',
-            'backend_id',
+            "mime_type",
+            "file_size",
+            "file_name",
+            "thumbnail",
+            "backend_id",
         )
         extra_kwargs = dict(
-            url={'lookup_field': 'uuid'},
-            issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
+            url={"lookup_field": "uuid"},
+            issue={"lookup_field": "uuid", "view_name": "support-issue-detail"},
         )
         related_paths = dict(
-            issue=('key',),
+            issue=("key",),
         )
 
     def get_file_name(self, attachment):
@@ -527,19 +526,19 @@ class AttachmentSerializer(
         return backend.get_active_backend().attachment_destroy_is_available(obj)
 
     def validate(self, attrs):
-        filename, file_extension = os.path.splitext(attrs['file'].name)
+        filename, file_extension = os.path.splitext(attrs["file"].name)
 
         if file_extension in config.ATLASSIAN_EXCLUDED_ATTACHMENT_TYPES:
-            raise serializers.ValidationError(_('Invalid file extension'))
+            raise serializers.ValidationError(_("Invalid file extension"))
 
-        user = self.context['request'].user
-        author_user = self.context['request'].user
+        user = self.context["request"].user
+        author_user = self.context["request"].user
         (
-            attrs['author'],
+            attrs["author"],
             created,
         ) = models.SupportUser.objects.get_or_create_from_user(author_user)
 
-        issue = attrs['issue']
+        issue = attrs["issue"]
         if (
             user.is_staff
             or (
@@ -558,7 +557,7 @@ class TemplateAttachmentSerializer(
 ):
     class Meta:
         model = models.TemplateAttachment
-        fields = ('name', 'file')
+        fields = ("name", "file")
 
 
 class TemplateSerializer(serializers.HyperlinkedModelSerializer):
@@ -567,24 +566,24 @@ class TemplateSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = models.Template
         fields = (
-            'url',
-            'uuid',
-            'name',
-            'native_name',
-            'description',
-            'native_description',
-            'issue_type',
-            'attachments',
+            "url",
+            "uuid",
+            "name",
+            "native_name",
+            "description",
+            "native_description",
+            "issue_type",
+            "attachments",
         )
         extra_kwargs = dict(
-            url={'lookup_field': 'uuid', 'view_name': 'support-template-detail'},
+            url={"lookup_field": "uuid", "view_name": "support-template-detail"},
         )
 
     def get_fields(self):
         fields = super().get_fields()
-        if not settings.WALDUR_CORE['NATIVE_NAME_ENABLED']:
-            del fields['native_name']
-            del fields['native_description']
+        if not settings.WALDUR_CORE["NATIVE_NAME_ENABLED"]:
+            del fields["native_name"]
+            del fields["native_description"]
         return fields
 
 
@@ -594,20 +593,20 @@ class CreateFeedbackSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = models.Feedback
         fields = (
-            'uuid',
-            'issue',
-            'comment',
-            'evaluation',
-            'token',
+            "uuid",
+            "issue",
+            "comment",
+            "evaluation",
+            "token",
         )
 
-        read_only_fields = ('issue',)
+        read_only_fields = ("issue",)
         extra_kwargs = dict(
-            issue={'lookup_field': 'uuid', 'view_name': 'support-issue-detail'},
+            issue={"lookup_field": "uuid", "view_name": "support-issue-detail"},
         )
 
     def validate(self, attrs):
-        token = attrs.pop('token')
+        token = attrs.pop("token")
         signer = signing.TimestampSigner()
         try:
             issue_uuid = signer.unsign(
@@ -616,41 +615,41 @@ class CreateFeedbackSerializer(serializers.HyperlinkedModelSerializer):
 
             if not is_uuid_like(issue_uuid):
                 raise serializers.ValidationError(
-                    {'token': _('UUID:%s is not valid.') % issue_uuid}
+                    {"token": _("UUID:%s is not valid.") % issue_uuid}
                 )
 
             issue = models.Issue.objects.get(uuid=issue_uuid)
 
             if models.Feedback.objects.filter(issue=issue).exists():
                 raise serializers.ValidationError(
-                    _('Feedback for this issue already exists.')
+                    _("Feedback for this issue already exists.")
                 )
         except signing.BadSignature:
-            raise serializers.ValidationError({'token': _('Token is wrong.')})
+            raise serializers.ValidationError({"token": _("Token is wrong.")})
         except models.Issue.DoesNotExist:
-            raise serializers.ValidationError(_('An issue is not found.'))
+            raise serializers.ValidationError(_("An issue is not found."))
 
-        attrs['issue'] = issue
+        attrs["issue"] = issue
         return attrs
 
 
 class FeedbackSerializer(serializers.HyperlinkedModelSerializer):
-    issue_uuid = serializers.ReadOnlyField(source='issue.uuid')
-    issue_key = serializers.ReadOnlyField(source='issue.key')
-    user_full_name = serializers.ReadOnlyField(source='issue.caller.full_name')
-    issue_summary = serializers.ReadOnlyField(source='issue.summary')
+    issue_uuid = serializers.ReadOnlyField(source="issue.uuid")
+    issue_key = serializers.ReadOnlyField(source="issue.key")
+    user_full_name = serializers.ReadOnlyField(source="issue.caller.full_name")
+    issue_summary = serializers.ReadOnlyField(source="issue.summary")
 
     class Meta:
         model = models.Feedback
         fields = (
-            'uuid',
-            'created',
-            'modified',
-            'state',
-            'evaluation',
-            'comment',
-            'issue_uuid',
-            'user_full_name',
-            'issue_key',
-            'issue_summary',
+            "uuid",
+            "created",
+            "modified",
+            "state",
+            "evaluation",
+            "comment",
+            "issue_uuid",
+            "user_full_name",
+            "issue_key",
+            "issue_summary",
         )

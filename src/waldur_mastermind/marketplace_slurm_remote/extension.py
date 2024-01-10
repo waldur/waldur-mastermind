@@ -4,7 +4,7 @@ from waldur_core.core import WaldurExtension
 class MarketplaceSlurmRemoteExtension(WaldurExtension):
     @staticmethod
     def django_app():
-        return 'waldur_mastermind.marketplace_slurm_remote'
+        return "waldur_mastermind.marketplace_slurm_remote"
 
     @staticmethod
     def rest_urls():
@@ -21,9 +21,9 @@ class MarketplaceSlurmRemoteExtension(WaldurExtension):
         from datetime import timedelta
 
         return {
-            'waldur-create-offering-users-for-remote-slurm-offerings': {
-                'task': 'waldur_mastermind.marketplace_slurm_remote.sync_offering_users',
-                'schedule': timedelta(days=1),
-                'args': (),
+            "waldur-create-offering-users-for-remote-slurm-offerings": {
+                "task": "waldur_mastermind.marketplace_slurm_remote.sync_offering_users",
+                "schedule": timedelta(days=1),
+                "args": (),
             },
         }

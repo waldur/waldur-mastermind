@@ -22,22 +22,22 @@ class AllocationSetLimits(test.APITransactionTestCase):
         offering.save()
 
         self.url = (
-            'http://testserver'
+            "http://testserver"
             + reverse(
-                'marketplace-slurm-remote-detail',
-                kwargs={'uuid': self.resource.uuid.hex},
+                "marketplace-slurm-remote-detail",
+                kwargs={"uuid": self.resource.uuid.hex},
             )
-            + 'set_limits'
-            + '/'
+            + "set_limits"
+            + "/"
         )
 
         self.new_limits = {
-            'cpu_limit': 1,
-            'gpu_limit': 2,
-            'ram_limit': 3,
+            "cpu_limit": 1,
+            "gpu_limit": 2,
+            "ram_limit": 3,
         }
 
-    @data('staff', 'offering_owner', 'service_manager')
+    @data("staff", "offering_owner", "service_manager")
     def test_limits_setting_is_allowed(self, user):
         self.client.force_login(getattr(self.fixture, user))
         response = self.client.post(self.url, self.new_limits)
@@ -48,7 +48,7 @@ class AllocationSetLimits(test.APITransactionTestCase):
             self.resource.limits,
         )
 
-    @data('owner', 'admin', 'manager', 'member')
+    @data("owner", "admin", "manager", "member")
     def test_limits_setting_is_forbidden(self, user):
         self.client.force_login(getattr(self.fixture, user))
         response = self.client.post(self.url, self.new_limits)

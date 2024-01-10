@@ -11,41 +11,41 @@ import waldur_core.media.models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('structure', '0040_useragreement_uuid'),
-        ('proposal', '0001_initial'),
+        ("structure", "0040_useragreement_uuid"),
+        ("proposal", "0001_initial"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='CallManager',
+            name="CallManager",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'image',
+                    "image",
                     models.ImageField(
                         blank=True,
                         null=True,
@@ -53,22 +53,22 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=2000, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name="description"
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'customer',
+                    "customer",
                     models.OneToOneField(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='structure.customer',
+                        to="structure.customer",
                     ),
                 ),
             ],
             options={
-                'verbose_name': 'Call manager',
+                "verbose_name": "Call manager",
             },
         ),
     ]

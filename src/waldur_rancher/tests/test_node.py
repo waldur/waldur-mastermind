@@ -38,20 +38,20 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         super().setUp()
         self.node_url = factories.NodeFactory.get_list_url()
         self.payload = {
-            'cluster': factories.ClusterFactory.get_url(self.fixture.cluster),
-            'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
-            'system_volume_size': 1024,
-            'memory': 1,
-            'cpu': 1,
-            'roles': ['controlplane', 'etcd', 'worker'],
+            "cluster": factories.ClusterFactory.get_url(self.fixture.cluster),
+            "subnet": openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
+            "system_volume_size": 1024,
+            "memory": 1,
+            "cpu": 1,
+            "roles": ["controlplane", "etcd", "worker"],
         }
 
-    @mock.patch('waldur_rancher.views.executors')
+    @mock.patch("waldur_rancher.views.executors")
     def test_create_node_if_cluster_has_been_created(self, mock_executors):
         self.client.force_authenticate(self.fixture.owner)
-        response = self._create_request_(name='name')
+        response = self._create_request_(name="name")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        cluster = models.Cluster.objects.get(name='name')
+        cluster = models.Cluster.objects.get(name="name")
         self.assertTrue(mock_executors.ClusterCreateExecutor.execute.called)
         create_node_task = tasks.CreateNodeTask()
         create_node_task.execute(
@@ -59,7 +59,7 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
                 0
             ].node_set.first(),
             user_id=mock_executors.ClusterCreateExecutor.execute.mock_calls[0][2][
-                'user'
+                "user"
             ].id,
         )
         self.assertTrue(cluster.node_set.filter(cluster=cluster).exists())
@@ -68,31 +68,31 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         self.client.force_authenticate(user)
         return self.client.post(self.node_url, self.payload)
 
-    @mock.patch('waldur_rancher.executors.tasks')
+    @mock.patch("waldur_rancher.executors.tasks")
     def test_staff_can_create_node(self, mock_tasks):
         response = self.create_node(self.fixture.staff)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(mock_tasks.CreateNodeTask.return_value.si.call_count, 1)
 
-    @mock.patch('waldur_rancher.executors.tasks')
+    @mock.patch("waldur_rancher.executors.tasks")
     def test_use_data_volumes(self, mock_tasks):
         volume_type = openstack_tenant_factories.VolumeTypeFactory(
             settings=self.fixture.tenant_settings
         )
         self.payload = {
-            'cluster': factories.ClusterFactory.get_url(self.fixture.cluster),
-            'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
-            'system_volume_size': 1024,
-            'memory': 1,
-            'cpu': 1,
-            'roles': ['controlplane', 'etcd', 'worker'],
-            'data_volumes': [
+            "cluster": factories.ClusterFactory.get_url(self.fixture.cluster),
+            "subnet": openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
+            "system_volume_size": 1024,
+            "memory": 1,
+            "cpu": 1,
+            "roles": ["controlplane", "etcd", "worker"],
+            "data_volumes": [
                 {
-                    'size': 12 * 1024,
-                    'volume_type': openstack_tenant_factories.VolumeTypeFactory.get_url(
+                    "size": 12 * 1024,
+                    "volume_type": openstack_tenant_factories.VolumeTypeFactory.get_url(
                         volume_type
                     ),
-                    'mount_point': '/var/lib/etcd',
+                    "mount_point": "/var/lib/etcd",
                 }
             ],
         }
@@ -100,27 +100,27 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(self.fixture.cluster.node_set.count(), 2)
         node = self.fixture.cluster.node_set.filter(
-            name='my-cluster-rancher-node-1'
+            name="my-cluster-rancher-node-1"
         ).get()
-        self.assertEqual(len(node.initial_data['data_volumes']), 1)
+        self.assertEqual(len(node.initial_data["data_volumes"]), 1)
 
     @utils.override_plugin_settings(MOUNT_POINT_CHOICE_IS_MANDATORY=False)
-    @mock.patch('waldur_rancher.executors.tasks')
+    @mock.patch("waldur_rancher.executors.tasks")
     def test_use_data_volumes_without_mount_point(self, mock_tasks):
         volume_type = openstack_tenant_factories.VolumeTypeFactory(
             settings=self.fixture.tenant_settings
         )
         self.payload = {
-            'cluster': factories.ClusterFactory.get_url(self.fixture.cluster),
-            'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
-            'system_volume_size': 1024,
-            'memory': 1,
-            'cpu': 1,
-            'roles': ['controlplane', 'etcd', 'worker'],
-            'data_volumes': [
+            "cluster": factories.ClusterFactory.get_url(self.fixture.cluster),
+            "subnet": openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
+            "system_volume_size": 1024,
+            "memory": 1,
+            "cpu": 1,
+            "roles": ["controlplane", "etcd", "worker"],
+            "data_volumes": [
                 {
-                    'size': 12 * 1024,
-                    'volume_type': openstack_tenant_factories.VolumeTypeFactory.get_url(
+                    "size": 12 * 1024,
+                    "volume_type": openstack_tenant_factories.VolumeTypeFactory.get_url(
                         volume_type
                     ),
                 }
@@ -130,27 +130,27 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(self.fixture.cluster.node_set.count(), 2)
         node = self.fixture.cluster.node_set.filter(
-            name='my-cluster-rancher-node-1'
+            name="my-cluster-rancher-node-1"
         ).get()
-        self.assertEqual(len(node.initial_data['data_volumes']), 1)
+        self.assertEqual(len(node.initial_data["data_volumes"]), 1)
 
     @utils.override_plugin_settings(MOUNT_POINT_CHOICE_IS_MANDATORY=True)
-    @mock.patch('waldur_rancher.executors.tasks')
+    @mock.patch("waldur_rancher.executors.tasks")
     def test_if_mount_point_is_required(self, mock_tasks):
         volume_type = openstack_tenant_factories.VolumeTypeFactory(
             settings=self.fixture.tenant_settings
         )
         self.payload = {
-            'cluster': factories.ClusterFactory.get_url(self.fixture.cluster),
-            'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
-            'system_volume_size': 1024,
-            'memory': 1,
-            'cpu': 1,
-            'roles': ['controlplane', 'etcd', 'worker'],
-            'data_volumes': [
+            "cluster": factories.ClusterFactory.get_url(self.fixture.cluster),
+            "subnet": openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
+            "system_volume_size": 1024,
+            "memory": 1,
+            "cpu": 1,
+            "roles": ["controlplane", "etcd", "worker"],
+            "data_volumes": [
                 {
-                    'size': 12 * 1024,
-                    'volume_type': openstack_tenant_factories.VolumeTypeFactory.get_url(
+                    "size": 12 * 1024,
+                    "volume_type": openstack_tenant_factories.VolumeTypeFactory.get_url(
                         volume_type
                     ),
                 }
@@ -159,7 +159,7 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         response = self.create_node(self.fixture.staff)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @mock.patch('waldur_rancher.executors.tasks')
+    @mock.patch("waldur_rancher.executors.tasks")
     def test_poll_node_after_it_has_been_created(self, mock_tasks):
         response = self.create_node(self.fixture.staff)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -167,27 +167,27 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
             mock_tasks.PollRuntimeStateNodeTask.return_value.si.call_count, 1
         )
 
-    @mock.patch('waldur_rancher.backend.RancherBackend.pull_node')
-    @mock.patch('waldur_rancher.backend.RancherBackend.client')
-    @mock.patch('waldur_rancher.tasks.PollRuntimeStateNodeTask.retry')
+    @mock.patch("waldur_rancher.backend.RancherBackend.pull_node")
+    @mock.patch("waldur_rancher.backend.RancherBackend.client")
+    @mock.patch("waldur_rancher.tasks.PollRuntimeStateNodeTask.retry")
     def test_not_pulling_if_node_has_been_created(
         self, mock_retry, mock_client, mock_pull_node
     ):
         backend_node = json.loads(
-            pkg_resources.resource_stream(__name__, 'backend_node.json').read().decode()
+            pkg_resources.resource_stream(__name__, "backend_node.json").read().decode()
         )
-        self.fixture.node.backend_id = ''
-        self.fixture.node.name = backend_node['requestedHostname']
+        self.fixture.node.backend_id = ""
+        self.fixture.node.name = backend_node["requestedHostname"]
         self.fixture.node.runtime_state = models.Node.RuntimeStates.ACTIVE
         self.fixture.node.save()
         mock_client.get_cluster_nodes.return_value = [backend_node]
         tasks.PollRuntimeStateNodeTask().execute(self.fixture.node)
         self.assertEqual(mock_retry.call_count, 0)
         self.fixture.node.refresh_from_db()
-        self.assertEqual(self.fixture.node.backend_id, backend_node['id'])
+        self.assertEqual(self.fixture.node.backend_id, backend_node["id"])
 
-    @mock.patch('waldur_rancher.tasks.pull_cluster_nodes')
-    @mock.patch('waldur_rancher.tasks.PollRuntimeStateNodeTask.retry')
+    @mock.patch("waldur_rancher.tasks.pull_cluster_nodes")
+    @mock.patch("waldur_rancher.tasks.PollRuntimeStateNodeTask.retry")
     def test_pulling_if_node_has_not_been_created(self, mock_retry, mock_update_nodes):
         tasks.PollRuntimeStateNodeTask().execute(self.fixture.node)
         self.assertEqual(mock_retry.call_count, 1)
@@ -197,30 +197,30 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_staff_cannot_create_node_if_cpu_has_not_been_specified(self):
-        del self.payload['cpu']
+        del self.payload["cpu"]
         response = self.create_node(self.fixture.staff)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @mock.patch('waldur_rancher.executors.tasks')
+    @mock.patch("waldur_rancher.executors.tasks")
     def test_create_node_if_flavor_has_been_specified(self, mock_tasks):
-        del self.payload['cpu']
-        del self.payload['memory']
-        self.payload['flavor'] = openstack_tenant_factories.FlavorFactory.get_url(
+        del self.payload["cpu"]
+        del self.payload["memory"]
+        self.payload["flavor"] = openstack_tenant_factories.FlavorFactory.get_url(
             self.flavor
         )
         response = self.create_node(self.fixture.staff)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(mock_tasks.CreateNodeTask.return_value.si.call_count, 1)
 
-    @mock.patch('waldur_rancher.executors.tasks')
+    @mock.patch("waldur_rancher.executors.tasks")
     def test_do_not_create_node_if_flavor_does_not_meet_requirements(self, mock_tasks):
         self.flavor.cores = 1
         self.flavor.ram = 1024
         self.flavor.save()
 
-        del self.payload['cpu']
-        del self.payload['memory']
-        self.payload['flavor'] = openstack_tenant_factories.FlavorFactory.get_url(
+        del self.payload["cpu"]
+        del self.payload["memory"]
+        self.payload["flavor"] = openstack_tenant_factories.FlavorFactory.get_url(
             self.flavor
         )
         response = self.create_node(self.fixture.staff)
@@ -230,31 +230,31 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
     @utils.override_plugin_settings(READ_ONLY_MODE=True)
     def test_create_is_disabled_in_read_only_mode(self):
         self.client.force_authenticate(self.fixture.owner)
-        response = self._create_request_(name='name')
+        response = self._create_request_(name="name")
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
-    @mock.patch('waldur_rancher.executors.tasks')
+    @mock.patch("waldur_rancher.executors.tasks")
     def test_use_ssh_public_key(self, mock_tasks):
         ssh_public_key = SshPublicKeyFactory(user=self.fixture.owner)
         self.payload = {
-            'cluster': factories.ClusterFactory.get_url(self.fixture.cluster),
-            'subnet': openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
-            'system_volume_size': 1024,
-            'memory': 1,
-            'cpu': 1,
-            'roles': ['controlplane', 'etcd', 'worker'],
-            'ssh_public_key': SshPublicKeyFactory.get_url(ssh_public_key),
+            "cluster": factories.ClusterFactory.get_url(self.fixture.cluster),
+            "subnet": openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
+            "system_volume_size": 1024,
+            "memory": 1,
+            "cpu": 1,
+            "roles": ["controlplane", "etcd", "worker"],
+            "ssh_public_key": SshPublicKeyFactory.get_url(ssh_public_key),
         }
         response = self.create_node(self.fixture.staff)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(self.fixture.cluster.node_set.count(), 2)
         node = self.fixture.cluster.node_set.filter(
-            name='my-cluster-rancher-node-1'
+            name="my-cluster-rancher-node-1"
         ).get()
-        self.assertEqual(node.initial_data['ssh_public_key'], ssh_public_key.uuid.hex)
+        self.assertEqual(node.initial_data["ssh_public_key"], ssh_public_key.uuid.hex)
 
     def test_node_config_formatting(self):
-        template = '''
+        template = """
                 #cloud-config
                   packages:
                     - curl
@@ -263,15 +263,15 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
                     - sudo systemctl start docker
                     - sudo systemctl enable docker
                     - [ sh, -c, "{command}" ]
-                '''
+                """
         service_settings = factories.RancherServiceSettingsFactory(
-            options={'cloud_init_template': template}
+            options={"cloud_init_template": template}
         )
         cluster = factories.ClusterFactory(
             settings=self.fixture.settings, service_settings=service_settings
         )
         node = factories.NodeFactory(
-            cluster=cluster, initial_data={'data_volumes': [{'mount_point': 'path'}]}
+            cluster=cluster, initial_data={"data_volumes": [{"mount_point": "path"}]}
         )
         result = rancher_utils.format_node_cloud_config(node)
         expected_config = """
@@ -299,7 +299,7 @@ class NodePullTest(test.APITransactionTestCase):
     def setUp(self):
         super().setUp()
         self.fixture = fixtures.RancherFixture()
-        self.url = factories.NodeFactory.get_url(self.fixture.node, action='pull')
+        self.url = factories.NodeFactory.get_url(self.fixture.node, action="pull")
 
     @utils.override_plugin_settings(READ_ONLY_MODE=True)
     def test_pull_is_enabled_for_staff_in_read_only_mode(self):
@@ -346,30 +346,30 @@ class NodePullBackendTest(test.APITransactionTestCase):
     def setUp(self):
         super().setUp()
         self.fixture = fixtures.RancherFixture()
-        self.fixture.node.backend_id = 'backend_id'
+        self.fixture.node.backend_id = "backend_id"
         self.fixture.node.save()
 
-        self.patcher_client = mock.patch('waldur_rancher.backend.RancherBackend.client')
+        self.patcher_client = mock.patch("waldur_rancher.backend.RancherBackend.client")
         self.mock_client = self.patcher_client.start()
 
         self.mock_client.get_node.return_value = json.loads(
-            pkg_resources.resource_stream(__name__, 'backend_node.json').read().decode()
+            pkg_resources.resource_stream(__name__, "backend_node.json").read().decode()
         )
         self.mock_client.get_cluster.return_value = json.loads(
-            pkg_resources.resource_stream(__name__, 'backend_cluster.json')
+            pkg_resources.resource_stream(__name__, "backend_cluster.json")
             .read()
             .decode()
         )
         self.mock_client.get_cluster_nodes.return_value = [
             json.loads(
-                pkg_resources.resource_stream(__name__, 'backend_node.json').read()
+                pkg_resources.resource_stream(__name__, "backend_node.json").read()
             )
         ]
 
     def _check_node_fields(self, node):
         node.refresh_from_db()
-        self.assertEqual(node.docker_version, '19.3.4')
-        self.assertEqual(node.k8s_version, 'v1.14.6')
+        self.assertEqual(node.docker_version, "19.3.4")
+        self.assertEqual(node.k8s_version, "v1.14.6")
         self.assertEqual(node.cpu_allocated, 0.38)
         self.assertEqual(node.cpu_total, 1)
         self.assertEqual(node.ram_allocated, 8002)
@@ -380,9 +380,9 @@ class NodePullBackendTest(test.APITransactionTestCase):
 
     def test_update_node_if_key_does_not_exists(self):
         backend_node = json.loads(
-            pkg_resources.resource_stream(__name__, 'backend_node.json').read().decode()
+            pkg_resources.resource_stream(__name__, "backend_node.json").read().decode()
         )
-        backend_node.pop('annotations')
+        backend_node.pop("annotations")
         self.mock_client.get_node.return_value = backend_node
         tasks.pull_cluster_nodes(self.fixture.cluster.id)
         self._check_node_fields(self.fixture.node)
@@ -391,21 +391,21 @@ class NodePullBackendTest(test.APITransactionTestCase):
         backend = self.fixture.node.cluster.get_backend()
         backend.pull_cluster(self.fixture.node.cluster)
         self.assertEqual(self.fixture.cluster.node_set.count(), 2)
-        node = self.fixture.cluster.node_set.get(name='k8s-node')
+        node = self.fixture.cluster.node_set.get(name="k8s-node")
         self._check_node_fields(node)
 
     def test_pull_cluster_update_node(self):
         backend = self.fixture.node.cluster.get_backend()
-        self.fixture.node.name = 'k8s-node'
-        self.fixture.node.backend_id = ''
+        self.fixture.node.name = "k8s-node"
+        self.fixture.node.backend_id = ""
         self.fixture.node.save()
         backend.pull_cluster(self.fixture.node.cluster)
         self._check_node_fields(self.fixture.node)
 
     def test_pull_node(self):
         backend = self.fixture.node.get_backend()
-        self.fixture.node.name = 'k8s-node'
-        self.fixture.node.backend_id = 'backend_id'
+        self.fixture.node.name = "k8s-node"
+        self.fixture.node.backend_id = "backend_id"
         self.fixture.node.save()
         backend.pull_node(self.fixture.node)
         self._check_node_fields(self.fixture.node)
@@ -417,7 +417,7 @@ class NodeLinkTest(test_cluster.BaseClusterCreateTest):
         self.settings = factories.RancherServiceSettingsFactory()
         self.cluster = factories.ClusterFactory(settings=self.settings)
         self.node = factories.NodeFactory(cluster=self.cluster)
-        self.url = factories.NodeFactory.get_url(self.node, 'link_openstack')
+        self.url = factories.NodeFactory.get_url(self.node, "link_openstack")
         self.instance = openstack_tenant_factories.InstanceFactory()
         self.instance_url = openstack_tenant_factories.InstanceFactory.get_url(
             self.instance
@@ -425,33 +425,33 @@ class NodeLinkTest(test_cluster.BaseClusterCreateTest):
 
     def test_link_is_enabled_when_read_only_mode_is_disabled(self):
         self.client.force_authenticate(self.fixture.staff)
-        response = self.client.post(self.url, {'instance': self.instance_url})
+        response = self.client.post(self.url, {"instance": self.instance_url})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.node.refresh_from_db()
         self.assertEqual(self.node.instance, self.instance)
 
     def test_link_is_disabled_when_user_is_not_staff(self):
         self.client.force_authenticate(self.fixture.owner)
-        response = self.client.post(self.url, {'instance': self.instance_url})
+        response = self.client.post(self.url, {"instance": self.instance_url})
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_link_is_disabled_when_node_is_already_linked(self):
         self.node.instance = self.instance
         self.node.save()
         self.client.force_authenticate(self.fixture.staff)
-        response = self.client.post(self.url, {'instance': self.instance_url})
+        response = self.client.post(self.url, {"instance": self.instance_url})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_link_is_disabled_when_instance_is_already_linked(self):
         factories.NodeFactory(cluster=self.cluster, instance=self.instance)
         self.client.force_authenticate(self.fixture.staff)
-        response = self.client.post(self.url, {'instance': self.instance_url})
+        response = self.client.post(self.url, {"instance": self.instance_url})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     @utils.override_plugin_settings(READ_ONLY_MODE=True)
     def test_link_is_disabled_when_read_only_mode_is_enabled(self):
         self.client.force_authenticate(self.fixture.staff)
-        response = self.client.post(self.url, {'instance': self.instance_url})
+        response = self.client.post(self.url, {"instance": self.instance_url})
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
 
@@ -462,7 +462,7 @@ class NodeUnlinkTest(test_cluster.BaseClusterCreateTest):
         self.cluster = factories.ClusterFactory(settings=self.settings)
         self.instance = openstack_tenant_factories.InstanceFactory()
         self.node = factories.NodeFactory(cluster=self.cluster, instance=self.instance)
-        self.url = factories.NodeFactory.get_url(self.node, 'unlink_openstack')
+        self.url = factories.NodeFactory.get_url(self.node, "unlink_openstack")
 
     def test_unlink_is_enabled_when_read_only_mode_is_disabled(self):
         self.client.force_authenticate(self.fixture.staff)
@@ -497,13 +497,13 @@ class NodeActionsTest(test.APITransactionTestCase):
 
         self.url = factories.NodeFactory.get_url(self.node, action=self.action)
         self.mock_path = mock.patch(
-            'waldur_openstack.openstack_tenant.backend.OpenStackTenantBackend.%s'
+            "waldur_openstack.openstack_tenant.backend.OpenStackTenantBackend.%s"
             % self.backend_method
         )
         self.mock_console = self.mock_path.start()
         self.mock_console.return_value = self.backend_return_value
 
-        mock_path = mock.patch('waldur_rancher.utils.InstanceViewSet')
+        mock_path = mock.patch("waldur_rancher.utils.InstanceViewSet")
         mock_instance_view_set = mock_path.start()
         self.mock_check_permissions = mock.MagicMock()
         mock_instance_view_set.console_permissions = [self.mock_check_permissions]
@@ -515,9 +515,9 @@ class NodeActionsTest(test.APITransactionTestCase):
 
 
 class NodeConsoleTest(NodeActionsTest):
-    action = 'console'
-    backend_method = 'get_console_url'
-    backend_return_value = 'url'
+    action = "console"
+    backend_method = "get_console_url"
+    backend_return_value = "url"
 
     def test_check_of_permissions_is_the_same_as_openstack_tenant_view(self):
         self.client.force_authenticate(user=self.fixture.staff)
@@ -527,9 +527,9 @@ class NodeConsoleTest(NodeActionsTest):
 
 
 class NodeConsoleLogTest(NodeActionsTest):
-    action = 'console_log'
-    backend_method = 'get_console_output'
-    backend_return_value = 'openstack-vm login: '
+    action = "console_log"
+    backend_method = "get_console_output"
+    backend_return_value = "openstack-vm login: "
 
     def test_check_of_permissions_is_the_same_as_openstack_tenant_view(self):
         self.client.force_authenticate(user=self.fixture.staff)
