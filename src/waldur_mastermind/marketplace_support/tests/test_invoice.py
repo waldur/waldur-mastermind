@@ -3,7 +3,6 @@ from decimal import Decimal
 
 import pytest
 from ddt import data, ddt
-from django.db.models import Q
 from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import test
@@ -307,13 +306,7 @@ class UsagesTest(InvoicesBaseTest):
 
     def _create_usage(self, date=None, **kwargs):
         date = date or datetime.date.today()
-        plan_period = (
-            marketplace_models.ResourcePlanPeriod.objects.filter(
-                Q(start__lte=date) | Q(start__isnull=True)
-            )
-            .filter(Q(end__gt=date) | Q(end__isnull=True))
-            .get(resource=self.resource)
-        )
+        plan_period = marketplace_utils.get_plan_period(self.resource, date)
         option = dict(
             resource=self.resource,
             component=self.fixture.offering_component_cpu,

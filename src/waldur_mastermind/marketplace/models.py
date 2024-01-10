@@ -5,6 +5,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
 from django.db import models
+from django.db.models.constraints import UniqueConstraint
 from django.utils import timezone
 from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy as _
@@ -1387,7 +1388,17 @@ class ComponentUsage(
     tracker = FieldTracker()
 
     class Meta:
-        unique_together = ("resource", "component", "plan_period", "billing_period")
+        constraints = [
+            UniqueConstraint(
+                fields=["resource", "component", "plan_period", "billing_period"],
+                name="unique_with_optional",
+            ),
+            UniqueConstraint(
+                fields=["resource", "component", "billing_period"],
+                condition=models.Q(plan_period=None),
+                name="unique_without_optional",
+            ),
+        ]
 
     def __str__(self):
         return f"resource: {self.resource.name}, component: {self.component.name}"

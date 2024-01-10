@@ -851,6 +851,16 @@ def get_service_provider_user_ids(user, service_provider, customer=None):
     return qs.values_list("user_id", flat=True).distinct()
 
 
+def get_plan_period(resource, date):
+    return (
+        models.ResourcePlanPeriod.objects.filter(
+            Q(start__lte=date) | Q(start__isnull=True)
+        )
+        .filter(Q(end__gt=date) | Q(end__isnull=True))
+        .get(resource=resource)
+    )
+
+
 def import_current_usages(resource):
     date = datetime.date.today()
 
@@ -869,13 +879,7 @@ def import_current_usages(resource):
             continue
 
         try:
-            plan_period = (
-                models.ResourcePlanPeriod.objects.filter(
-                    Q(start__lte=date) | Q(start__isnull=True)
-                )
-                .filter(Q(end__gt=date) | Q(end__isnull=True))
-                .get(resource=resource)
-            )
+            plan_period = get_plan_period(resource, date)
         except models.ResourcePlanPeriod.DoesNotExist:
             logger.warning(
                 "Skipping current usage synchronization because related "

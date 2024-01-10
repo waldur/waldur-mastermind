@@ -21,11 +21,13 @@ from waldur_core.core.utils import (
 )
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tasks import BackgroundListPullTask, BackgroundPullTask
+from waldur_mastermind.common.utils import parse_date
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices.registrators import RegistrationManager
 from waldur_mastermind.invoices.utils import get_previous_month
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.callbacks import sync_order_state
+from waldur_mastermind.marketplace.utils import get_plan_period
 from waldur_mastermind.marketplace_remote import models as remote_models
 from waldur_mastermind.marketplace_remote.constants import (
     OFFERING_COMPONENT_FIELDS,
@@ -427,17 +429,21 @@ class UsagePullTask(BackgroundPullTask):
                 )
             except ObjectDoesNotExist:
                 continue
+            usage_date = parse_date(remote_usage["date"])
             defaults = {
                 "usage": remote_usage["usage"],
                 "description": remote_usage["description"],
                 "created": remote_usage["created"],
-                "date": remote_usage["date"],
-                "billing_period": remote_usage["billing_period"],
+                "date": usage_date,
+                "recurring": remote_usage["recurring"],
+                "backend_id": remote_usage["uuid"],
             }
+            plan_period = get_plan_period(local_resource, usage_date)
             models.ComponentUsage.objects.update_or_create(
                 resource=local_resource,
-                backend_id=remote_usage["uuid"],
                 component=offering_component,
+                plan_period=plan_period,
+                billing_period=remote_usage["billing_period"],
                 defaults=defaults,
             )
 
