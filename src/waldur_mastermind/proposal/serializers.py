@@ -119,7 +119,7 @@ class NestedRoundSerializer(serializers.HyperlinkedModelSerializer):
         fields = [
             'uuid',
             'start_time',
-            'end_time',
+            'cutoff_time',
             'review_strategy',
             'deciding_entity',
             'allocation_time',
@@ -334,11 +334,11 @@ class RoundSerializer(core_serializers.AugmentedSerializerMixin, NestedRoundSeri
 
     def validate(self, attrs):
         start_time = attrs.get('start_time')
-        end_time = attrs.get('end_time')
+        cutoff_time = attrs.get('cutoff_time')
 
-        if start_time and end_time and end_time <= start_time:
+        if start_time and cutoff_time and cutoff_time <= start_time:
             raise serializers.ValidationError(
-                {'start_time': _('Start time must be grow then end time.')}
+                {'start_time': _('Cutoff time must be later than start time.')}
             )
 
         return attrs

@@ -61,7 +61,7 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
         return proposal_factories.RoundFactory(
             call=self.call,
             start_time=datetime.date.today(),
-            end_time=datetime.date.today() + datetime.timedelta(days=10),
+            cutoff_time=datetime.date.today() + datetime.timedelta(days=10),
         )
 
     @cached_property
@@ -69,7 +69,7 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
         return proposal_factories.RoundFactory(
             call=self.call,
             start_time=datetime.date.today(),
-            end_time=datetime.date.today() + datetime.timedelta(days=10),
+            cutoff_time=datetime.date.today() + datetime.timedelta(days=10),
         )
 
     @cached_property

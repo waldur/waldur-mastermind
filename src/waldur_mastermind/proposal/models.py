@@ -178,14 +178,14 @@ class Round(
     max_allocations = models.PositiveIntegerField(null=True, blank=True)
     allocation_date = models.DateTimeField(null=True, blank=True)
     start_time = models.DateTimeField()
-    end_time = models.DateTimeField()
+    cutoff_time = models.DateTimeField()
     call = models.ForeignKey(Call, on_delete=models.PROTECT)
 
     class Permissions:
         customer_path = 'call__manager__customer'
 
     def __str__(self):
-        return f'{self.call.name} | {self.start_time} - {self.end_time}'
+        return f'{self.call.name} | {self.start_time} - {self.cutoff_time}'
 
 
 class Proposal(
@@ -242,7 +242,7 @@ class Proposal(
         customer_path = 'round__call__manager__customer'
 
     def __str__(self):
-        return f'{self.name} | {self.round.start_time} - {self.round.end_time} | {self.round.call}'
+        return f'{self.name} | {self.round.start_time} - {self.round.cutoff_time} | {self.round.call}'
 
     @classmethod
     def get_url_name(cls):
