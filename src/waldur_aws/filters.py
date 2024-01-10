@@ -8,17 +8,17 @@ from . import models
 class ImageFilter(structure_filters.BaseServicePropertyFilter):
     class Meta:
         model = models.Image
-        fields = structure_filters.BaseServicePropertyFilter.Meta.fields + ('region',)
+        fields = structure_filters.BaseServicePropertyFilter.Meta.fields + ("region",)
 
-    region = django_filters.UUIDFilter(field_name='region__uuid')
+    region = django_filters.UUIDFilter(field_name="region__uuid")
 
 
 class SizeFilter(structure_filters.BaseServicePropertyFilter):
     class Meta:
         model = models.Size
-        fields = structure_filters.BaseServicePropertyFilter.Meta.fields + ('region',)
+        fields = structure_filters.BaseServicePropertyFilter.Meta.fields + ("region",)
 
-    region = django_filters.UUIDFilter(field_name='regions__uuid')
+    region = django_filters.UUIDFilter(field_name="regions__uuid")
 
 
 class RegionFilter(structure_filters.BaseServicePropertyFilter):
@@ -27,7 +27,7 @@ class RegionFilter(structure_filters.BaseServicePropertyFilter):
 
 
 class InstanceFilter(structure_filters.BaseResourceFilter):
-    external_ip = django_filters.CharFilter(field_name='public_ips')
+    external_ip = django_filters.CharFilter(field_name="public_ips")
 
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.Instance

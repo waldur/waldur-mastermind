@@ -15,15 +15,15 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            '--path',
-            '-p',
-            dest='path',
-            default='waldur.json',
-            help='Path to dumped database.',
+            "--path",
+            "-p",
+            dest="path",
+            default="waldur.json",
+            help="Path to dumped database.",
         )
 
     def handle(self, *args, **options):
-        path = options.get('path')
+        path = options.get("path")
         for signal in [
             pre_save,
             pre_init,
@@ -33,4 +33,4 @@ class Command(BaseCommand):
             post_init,
         ]:
             signal.receivers = []
-        call_command('loaddata', path)
+        call_command("loaddata", path)

@@ -16,8 +16,8 @@ class AbstractBaseUser(models.Model):
     is_active is removed
     """
 
-    password = models.CharField(_('password'), max_length=128)
-    last_login = models.DateTimeField(_('last login'), blank=True, null=True)
+    password = models.CharField(_("password"), max_length=128)
+    last_login = models.DateTimeField(_("last login"), blank=True, null=True)
 
     REQUIRED_FIELDS = []
 
@@ -103,12 +103,12 @@ class AbstractBaseUser(models.Model):
         try:
             return cls.EMAIL_FIELD
         except AttributeError:
-            return 'email'
+            return "email"
 
     @classmethod
     def normalize_username(cls, username):
         return (
-            unicodedata.normalize('NFKC', username)
+            unicodedata.normalize("NFKC", username)
             if isinstance(username, str)
             else username
         )

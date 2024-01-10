@@ -4,7 +4,7 @@ from waldur_core.core import WaldurExtension
 class AuthSocialExtension(WaldurExtension):
     @staticmethod
     def django_app():
-        return 'waldur_auth_social'
+        return "waldur_auth_social"
 
     @staticmethod
     def django_urls():
@@ -23,14 +23,14 @@ class AuthSocialExtension(WaldurExtension):
         from datetime import timedelta
 
         return {
-            'waldur-pull-remote-eduteams-users': {
-                'task': 'waldur_auth_social.pull_remote_eduteams_users',
-                'schedule': timedelta(minutes=5),
-                'args': (),
+            "waldur-pull-remote-eduteams-users": {
+                "task": "waldur_auth_social.pull_remote_eduteams_users",
+                "schedule": timedelta(minutes=5),
+                "args": (),
             },
-            'waldur-pull-remote-eduteams-ssh-keys': {
-                'task': 'waldur_auth_social.pull_remote_eduteams_ssh_keys',
-                'schedule': timedelta(minutes=3),
-                'args': (),
+            "waldur-pull-remote-eduteams-ssh-keys": {
+                "task": "waldur_auth_social.pull_remote_eduteams_ssh_keys",
+                "schedule": timedelta(minutes=3),
+                "args": (),
             },
         }

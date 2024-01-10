@@ -7,7 +7,7 @@ from waldur_core.structure.exceptions import ServiceBackendNotImplemented
 
 
 def get_resource_type(model):
-    return f'{get_service_type(model)}.{model._meta.object_name}'
+    return f"{get_service_type(model)}.{model._meta.object_name}"
 
 
 def get_service_type(model):
@@ -16,7 +16,7 @@ def get_service_type(model):
     except AttributeError:
         pass
     app_config = apps.get_containing_app_config(model.__module__)
-    return getattr(app_config, 'service_name', None)
+    return getattr(app_config, "service_name", None)
 
 
 class SupportedServices:
@@ -30,8 +30,8 @@ class SupportedServices:
     def register_backend(cls, backend_class):
         key = get_service_type(backend_class)
         cls._registry[key] = backend_class
-        modname, _, clsname = backend_class.__module__.rpartition('.')
-        importlib.import_module(modname + '.serializers')
+        modname, _, clsname = backend_class.__module__.rpartition(".")
+        importlib.import_module(modname + ".serializers")
 
     @classmethod
     def get_service_backend(cls, key):

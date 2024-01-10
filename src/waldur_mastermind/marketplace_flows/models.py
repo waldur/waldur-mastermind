@@ -51,12 +51,12 @@ class CustomerCreateRequest(ReviewMixin, CustomerDetailsMixin):
 
 class ProjectCreateRequest(ReviewMixin, ProjectDetailsMixin):
     class Permissions:
-        customer_path = 'flow__customer'
+        customer_path = "flow__customer"
 
 
 class ResourceCreateRequest(ReviewMixin, ResourceDetailsMixin):
     class Permissions:
-        customer_path = 'offering__customer'
+        customer_path = "offering__customer"
 
 
 class FlowTracker(ReviewStateMixin, TimeStampedModel, UuidMixin):
@@ -66,36 +66,36 @@ class FlowTracker(ReviewStateMixin, TimeStampedModel, UuidMixin):
     Order is created when service provider approves resource creation request.
     """
 
-    requested_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='+')
+    requested_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name="+")
 
     customer_create_request = models.OneToOneField(
         CustomerCreateRequest,
         null=True,
         blank=True,
         on_delete=models.CASCADE,
-        related_name='flow',
+        related_name="flow",
     )
     project_create_request = models.OneToOneField(
         ProjectCreateRequest,
         on_delete=models.CASCADE,
-        related_name='flow',
+        related_name="flow",
     )
     resource_create_request = models.OneToOneField(
         ResourceCreateRequest,
         on_delete=models.CASCADE,
-        related_name='flow',
+        related_name="flow",
     )
 
     customer = models.ForeignKey(
-        Customer, null=True, blank=True, on_delete=models.CASCADE, related_name='+'
+        Customer, null=True, blank=True, on_delete=models.CASCADE, related_name="+"
     )
     order = models.ForeignKey(
-        Order, null=True, blank=True, on_delete=models.CASCADE, related_name='+'
+        Order, null=True, blank=True, on_delete=models.CASCADE, related_name="+"
     )
     tracker = FieldTracker()
 
     class Meta:
-        ordering = ['-created']
+        ordering = ["-created"]
 
     @transaction.atomic
     def submit(self):
@@ -115,13 +115,13 @@ class FlowTracker(ReviewStateMixin, TimeStampedModel, UuidMixin):
 
     def reject(self):
         self.state = self.States.REJECTED
-        self.save(update_fields=['state'])
+        self.save(update_fields=["state"])
 
     def approve(self):
         requests = (
-            'customer_create_request',
-            'project_create_request',
-            'resource_create_request',
+            "customer_create_request",
+            "project_create_request",
+            "resource_create_request",
         )
         if all(
             not getattr(self, request)
@@ -166,24 +166,24 @@ class FlowTracker(ReviewStateMixin, TimeStampedModel, UuidMixin):
             self.order.init_cost()
             self.order.save()
             self.state = self.States.APPROVED
-            self.save(update_fields=['customer', 'order', 'state'])
+            self.save(update_fields=["customer", "order", "state"])
 
 
 class OfferingStateRequest(CoreReviewMixin, UuidMixin):
-    requested_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='+')
+    requested_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name="+")
     offering = models.ForeignKey(
-        on_delete=models.CASCADE, to=Offering, null=True, blank=True, related_name='+'
+        on_delete=models.CASCADE, to=Offering, null=True, blank=True, related_name="+"
     )
     issue = models.OneToOneField(
         on_delete=models.SET_NULL,
         to=support_models.Issue,
         null=True,
         blank=True,
-        related_name='+',
+        related_name="+",
     )
 
     class Meta:
-        ordering = ['-created']
+        ordering = ["-created"]
 
     @transaction.atomic
     def approve(self, user=None, comment=None):
@@ -192,10 +192,10 @@ class OfferingStateRequest(CoreReviewMixin, UuidMixin):
         self.reviewed_at = timezone.now()
         self.state = self.States.APPROVED
         self.save(
-            update_fields=['reviewed_by', 'reviewed_at', 'review_comment', 'state']
+            update_fields=["reviewed_by", "reviewed_at", "review_comment", "state"]
         )
         self.offering.activate()
-        self.offering.save(update_fields=['state'])
+        self.offering.save(update_fields=["state"])
 
     @transaction.atomic
     def reject(self, user=None, comment=None):
@@ -204,9 +204,9 @@ class OfferingStateRequest(CoreReviewMixin, UuidMixin):
         self.reviewed_at = timezone.now()
         self.state = self.States.REJECTED
         self.save(
-            update_fields=['reviewed_by', 'reviewed_at', 'review_comment', 'state']
+            update_fields=["reviewed_by", "reviewed_at", "review_comment", "state"]
         )
 
     @classmethod
     def get_url_name(cls):
-        return 'marketplace-offering-activate-request'
+        return "marketplace-offering-activate-request"

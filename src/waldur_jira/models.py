@@ -20,13 +20,13 @@ class ProjectTemplate(
 ):
     @classmethod
     def get_url_name(cls):
-        return 'jira-project-templates'
+        return "jira-project-templates"
 
     @classmethod
     def get_backend_fields(cls):
         return super().get_backend_fields() + (
-            'icon_url',
-            'description',
+            "icon_url",
+            "description",
         )
 
 
@@ -45,18 +45,18 @@ class Project(structure_models.BaseResource, core_models.RuntimeStateMixin):
 
     def get_access_url(self):
         base_url = self.service_settings.backend_url
-        return urljoin(base_url, 'projects/' + self.backend_id)
+        return urljoin(base_url, "projects/" + self.backend_id)
 
     @classmethod
     def get_url_name(cls):
-        return 'jira-projects'
+        return "jira-projects"
 
     @property
     def priorities(self):
         return Priority.objects.filter(settings=self.service_settings)
 
     class Meta:
-        ordering = ['-created']
+        ordering = ["-created"]
 
 
 class JiraPropertyIssue(
@@ -68,24 +68,24 @@ class JiraPropertyIssue(
     backend_id = models.CharField(max_length=255, null=True)
 
     class Permissions:
-        customer_path = 'project__project__customer'
-        project_path = 'project__project'
+        customer_path = "project__project__customer"
+        project_path = "project__project"
 
     class Meta:
         abstract = True
 
 
 class IssueType(core_models.UiDescribableMixin, structure_models.ServiceProperty):
-    projects = models.ManyToManyField(Project, related_name='issue_types')
+    projects = models.ManyToManyField(Project, related_name="issue_types")
     subtask = models.BooleanField(default=False)
 
     class Meta(structure_models.ServiceProperty.Meta):
-        verbose_name = _('Issue type')
-        verbose_name_plural = _('Issue types')
+        verbose_name = _("Issue type")
+        verbose_name_plural = _("Issue types")
 
     @classmethod
     def get_url_name(cls):
-        return 'jira-issue-types'
+        return "jira-issue-types"
 
     def __str__(self):
         return self.name
@@ -93,37 +93,37 @@ class IssueType(core_models.UiDescribableMixin, structure_models.ServiceProperty
     @classmethod
     def get_backend_fields(cls):
         return super().get_backend_fields() + (
-            'icon_url',
-            'description',
-            'subtask',
-            'projects',
+            "icon_url",
+            "description",
+            "subtask",
+            "projects",
         )
 
 
 class Priority(core_models.UiDescribableMixin, structure_models.ServiceProperty):
     class Meta(structure_models.ServiceProperty.Meta):
-        verbose_name = _('Priority')
-        verbose_name_plural = _('Priorities')
+        verbose_name = _("Priority")
+        verbose_name_plural = _("Priorities")
 
     @classmethod
     def get_url_name(cls):
-        return 'jira-priorities'
+        return "jira-priorities"
 
     def __str__(self):
         return self.name
 
     @classmethod
     def get_backend_fields(cls):
-        return super().get_backend_fields() + ('icon_url', 'description')
+        return super().get_backend_fields() + ("icon_url", "description")
 
 
 class Issue(structure_models.StructureLoggableMixin, JiraPropertyIssue):
     type = models.ForeignKey(on_delete=models.CASCADE, to=IssueType)
     parent = models.ForeignKey(
-        on_delete=models.CASCADE, to='Issue', blank=True, null=True
+        on_delete=models.CASCADE, to="Issue", blank=True, null=True
     )
     project = models.ForeignKey(
-        on_delete=models.CASCADE, to=Project, related_name='issues'
+        on_delete=models.CASCADE, to=Project, related_name="issues"
     )
     summary = models.CharField(max_length=255)
     description = models.TextField(blank=True)
@@ -147,29 +147,29 @@ class Issue(structure_models.StructureLoggableMixin, JiraPropertyIssue):
         to=ContentType,
         blank=True,
         null=True,
-        related_name='jira_issues',
+        related_name="jira_issues",
     )
     resource_object_id = models.PositiveIntegerField(blank=True, null=True)
-    resource = GenericForeignKey('resource_content_type', 'resource_object_id')
+    resource = GenericForeignKey("resource_content_type", "resource_object_id")
 
     resolution_sla = models.IntegerField(blank=True, null=True)
 
     tracker = FieldTracker()
 
     class Meta:
-        unique_together = ('project', 'backend_id')
-        ordering = ['-created']
+        unique_together = ("project", "backend_id")
+        ordering = ["-created"]
 
     def get_backend(self):
         return self.project.get_backend()
 
     @classmethod
     def get_url_name(cls):
-        return 'jira-issues'
+        return "jira-issues"
 
     @property
     def key(self):
-        return self.backend_id or ''
+        return self.backend_id or ""
 
     @property
     def issue_user(self):
@@ -181,26 +181,26 @@ class Issue(structure_models.StructureLoggableMixin, JiraPropertyIssue):
 
     def get_access_url(self):
         base_url = self.project.service_settings.backend_url
-        return urljoin(base_url, 'browse/' + (self.backend_id or ''))
+        return urljoin(base_url, "browse/" + (self.backend_id or ""))
 
     def get_log_fields(self):
-        return ('uuid', 'issue_user', 'key', 'summary', 'status', 'issue_project')
+        return ("uuid", "issue_user", "key", "summary", "status", "issue_project")
 
     def get_description(self):
-        template = settings.WALDUR_JIRA['ISSUE_TEMPLATE']['RESOURCE_INFO']
+        template = settings.WALDUR_JIRA["ISSUE_TEMPLATE"]["RESOURCE_INFO"]
         if template and self.resource:
             return self.description + template.format(resource=self.resource)
 
         return self.description
 
     def __str__(self):
-        return '{}: {}'.format(self.uuid.hex, self.backend_id or '???')
+        return "{}: {}".format(self.uuid.hex, self.backend_id or "???")
 
 
 class JiraSubPropertyIssue(JiraPropertyIssue):
     class Permissions:
-        customer_path = 'issue__project__project__customer'
-        project_path = 'issue__project__project'
+        customer_path = "issue__project__project__customer"
+        project_path = "issue__project__project"
 
     class Meta:
         abstract = True
@@ -208,36 +208,36 @@ class JiraSubPropertyIssue(JiraPropertyIssue):
 
 class Comment(structure_models.StructureLoggableMixin, JiraSubPropertyIssue):
     issue = models.ForeignKey(
-        on_delete=models.CASCADE, to=Issue, related_name='comments'
+        on_delete=models.CASCADE, to=Issue, related_name="comments"
     )
     message = models.TextField(blank=True)
 
     class Meta:
-        unique_together = ('issue', 'backend_id')
+        unique_together = ("issue", "backend_id")
 
     def get_backend(self):
         return self.issue.project.get_backend()
 
     @classmethod
     def get_url_name(cls):
-        return 'jira-comments'
+        return "jira-comments"
 
     @property
     def comment_user(self):
         return self.user  # XXX: avoid logging conflicts
 
     def get_log_fields(self):
-        return ('uuid', 'comment_user', 'issue')
+        return ("uuid", "comment_user", "issue")
 
     def clean_message(self, message):
-        template = settings.WALDUR_JIRA['COMMENT_TEMPLATE']
+        template = settings.WALDUR_JIRA["COMMENT_TEMPLATE"]
         if not template:
             return self.message
 
         User = get_user_model()
-        template = re.sub(r'([\^~*?:\(\)\[\]|+])', r'\\\1', template)
+        template = re.sub(r"([\^~*?:\(\)\[\]|+])", r"\\\1", template)
         pattern = template.format(
-            body='', user=User(full_name=r'(.+?)', username=r'([\w.@+-]+)')
+            body="", user=User(full_name=r"(.+?)", username=r"([\w.@+-]+)")
         )
         match = re.search(pattern, message)
 
@@ -253,7 +253,7 @@ class Comment(structure_models.StructureLoggableMixin, JiraSubPropertyIssue):
         return self.message
 
     def prepare_message(self):
-        template = settings.WALDUR_JIRA['COMMENT_TEMPLATE']
+        template = settings.WALDUR_JIRA["COMMENT_TEMPLATE"]
         if template and self.user:
             return template.format(user=self.user, body=self.message)
         return self.message
@@ -262,24 +262,24 @@ class Comment(structure_models.StructureLoggableMixin, JiraSubPropertyIssue):
         self.message = self.clean_message(message)
 
     def __str__(self):
-        return '{}: {}'.format(self.issue.backend_id or '???', self.backend_id or '')
+        return "{}: {}".format(self.issue.backend_id or "???", self.backend_id or "")
 
 
 class Attachment(JiraSubPropertyIssue):
     issue = models.ForeignKey(
-        on_delete=models.CASCADE, to=Issue, related_name='attachments'
+        on_delete=models.CASCADE, to=Issue, related_name="attachments"
     )
-    file = models.FileField(upload_to='jira_attachments')
+    file = models.FileField(upload_to="jira_attachments")
     thumbnail = models.FileField(
-        upload_to='jira_attachments_thumbnails', blank=True, null=True
+        upload_to="jira_attachments_thumbnails", blank=True, null=True
     )
 
     class Meta:
-        unique_together = ('issue', 'backend_id')
+        unique_together = ("issue", "backend_id")
 
     def get_backend(self):
         return self.issue.project.get_backend()
 
     @classmethod
     def get_url_name(cls):
-        return 'jira-attachments'
+        return "jira-attachments"

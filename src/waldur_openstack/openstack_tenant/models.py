@@ -20,24 +20,24 @@ logger = logging.getLogger(__name__)
 
 
 class Flavor(core_models.StateMixin, LoggableMixin, structure_models.ServiceProperty):
-    cores = models.PositiveSmallIntegerField(help_text=_('Number of cores in a VM'))
-    ram = models.PositiveIntegerField(help_text=_('Memory size in MiB'))
-    disk = models.PositiveIntegerField(help_text=_('Root disk size in MiB'))
+    cores = models.PositiveSmallIntegerField(help_text=_("Number of cores in a VM"))
+    ram = models.PositiveIntegerField(help_text=_("Memory size in MiB"))
+    disk = models.PositiveIntegerField(help_text=_("Root disk size in MiB"))
 
     class Permissions:
-        customer_path = 'settings__customer'
+        customer_path = "settings__customer"
 
     class Meta:
-        unique_together = ('settings', 'backend_id')
-        ordering = ['name']
+        unique_together = ("settings", "backend_id")
+        ordering = ["name"]
 
     @classmethod
     def get_url_name(cls):
-        return 'openstacktenant-flavor'
+        return "openstacktenant-flavor"
 
     @classmethod
     def get_backend_fields(cls):
-        return super().get_backend_fields() + ('cores', 'ram', 'disk')
+        return super().get_backend_fields() + ("cores", "ram", "disk")
 
     def get_backend(self):
         return self.settings.get_backend()
@@ -46,32 +46,32 @@ class Flavor(core_models.StateMixin, LoggableMixin, structure_models.ServiceProp
 class Image(openstack_base_models.BaseImage):
     @classmethod
     def get_url_name(cls):
-        return 'openstacktenant-image'
+        return "openstacktenant-image"
 
     class Meta(openstack_base_models.BaseImage.Meta):
-        ordering = ['name']
+        ordering = ["name"]
 
 
 class SecurityGroup(core_models.DescribableMixin, structure_models.ServiceProperty):
     class Meta:
-        unique_together = ('settings', 'backend_id')
+        unique_together = ("settings", "backend_id")
 
     @classmethod
     def get_url_name(cls):
-        return 'openstacktenant-sgp'
+        return "openstacktenant-sgp"
 
 
 class SecurityGroupRule(openstack_base_models.BaseSecurityGroupRule):
     class Meta:
-        unique_together = ('security_group', 'backend_id')
+        unique_together = ("security_group", "backend_id")
 
     security_group = models.ForeignKey(
-        on_delete=models.CASCADE, to=SecurityGroup, related_name='rules'
+        on_delete=models.CASCADE, to=SecurityGroup, related_name="rules"
     )
     remote_group = models.ForeignKey(
         on_delete=models.CASCADE,
         to=SecurityGroup,
-        related_name='+',
+        related_name="+",
         null=True,
         blank=True,
     )
@@ -81,11 +81,11 @@ class ServerGroup(
     openstack_base_models.BaseServerGroup, structure_models.ServiceProperty
 ):
     class Meta:
-        unique_together = ('settings', 'backend_id')
+        unique_together = ("settings", "backend_id")
 
     @classmethod
     def get_url_name(cls):
-        return 'openstacktenant-server-group'
+        return "openstacktenant-server-group"
 
 
 class TenantQuotaMixin(quotas_models.SharedQuotaMixin):
@@ -99,49 +99,49 @@ class TenantQuotaMixin(quotas_models.SharedQuotaMixin):
 
 
 class FloatingIP(core_models.LoggableMixin, structure_models.ServiceProperty):
-    address = models.GenericIPAddressField(protocol='IPv4', null=True, default=None)
+    address = models.GenericIPAddressField(protocol="IPv4", null=True, default=None)
     runtime_state = models.CharField(max_length=30)
     backend_network_id = models.CharField(max_length=255, editable=False)
     is_booked = models.BooleanField(
         default=False,
-        help_text=_('Marks if floating IP has been booked for provisioning.'),
+        help_text=_("Marks if floating IP has been booked for provisioning."),
     )
     internal_ip = models.ForeignKey(
-        'InternalIP', related_name='floating_ips', null=True, on_delete=models.SET_NULL
+        "InternalIP", related_name="floating_ips", null=True, on_delete=models.SET_NULL
     )
     tracker = FieldTracker()
 
     class Meta:
-        unique_together = ('settings', 'address')
-        verbose_name = _('Floating IP')
-        verbose_name_plural = _('Floating IPs')
+        unique_together = ("settings", "address")
+        verbose_name = _("Floating IP")
+        verbose_name_plural = _("Floating IPs")
 
     def __str__(self):
-        return f'{self.address}:{self.runtime_state} | {self.settings}'
+        return f"{self.address}:{self.runtime_state} | {self.settings}"
 
     @classmethod
     def get_url_name(cls):
-        return 'openstacktenant-fip'
+        return "openstacktenant-fip"
 
     def get_backend(self):
         return self.settings.get_backend()
 
     def increase_backend_quotas_usage(self, validate=False):
-        self.settings.add_quota_usage('floating_ip_count', 1, validate=validate)
+        self.settings.add_quota_usage("floating_ip_count", 1, validate=validate)
 
     def decrease_backend_quotas_usage(self):
-        self.settings.add_quota_usage('floating_ip_count', -1)
+        self.settings.add_quota_usage("floating_ip_count", -1)
 
     @classmethod
     def get_backend_fields(cls):
         return super().get_backend_fields() + (
-            'address',
-            'runtime_state',
-            'backend_network_id',
+            "address",
+            "runtime_state",
+            "backend_network_id",
         )
 
     def get_log_fields(self):
-        return ('address', 'runtime_state', 'backend_id', 'backend_network_id')
+        return ("address", "runtime_state", "backend_id", "backend_network_id")
 
 
 class Volume(TenantQuotaMixin, structure_models.Volume):
@@ -151,8 +151,8 @@ class Volume(TenantQuotaMixin, structure_models.Volume):
 
     instance = models.ForeignKey(
         on_delete=models.CASCADE,
-        to='Instance',
-        related_name='volumes',
+        to="Instance",
+        related_name="volumes",
         blank=True,
         null=True,
     )
@@ -161,26 +161,26 @@ class Volume(TenantQuotaMixin, structure_models.Volume):
         blank=True,
         validators=[
             RegexValidator(
-                '^/dev/[a-zA-Z0-9]+$',
+                "^/dev/[a-zA-Z0-9]+$",
                 message=_('Device should match pattern "/dev/alphanumeric+"'),
             )
         ],
-        help_text=_('Name of volume as instance device e.g. /dev/vdb.'),
+        help_text=_("Name of volume as instance device e.g. /dev/vdb."),
     )
     bootable = models.BooleanField(default=False)
     metadata = JSONField(blank=True)
     image = models.ForeignKey(Image, blank=True, null=True, on_delete=models.SET_NULL)
     image_name = models.CharField(max_length=150, blank=True)
     image_metadata = JSONField(blank=True)
-    type: 'VolumeType' = models.ForeignKey(
-        'VolumeType', blank=True, null=True, on_delete=models.SET_NULL
+    type: "VolumeType" = models.ForeignKey(
+        "VolumeType", blank=True, null=True, on_delete=models.SET_NULL
     )
     availability_zone = models.ForeignKey(
-        'VolumeAvailabilityZone', blank=True, null=True, on_delete=models.SET_NULL
+        "VolumeAvailabilityZone", blank=True, null=True, on_delete=models.SET_NULL
     )
     source_snapshot = models.ForeignKey(
-        'Snapshot',
-        related_name='volumes',
+        "Snapshot",
+        related_name="volumes",
         blank=True,
         null=True,
         on_delete=models.SET_NULL,
@@ -192,38 +192,38 @@ class Volume(TenantQuotaMixin, structure_models.Volume):
     tracker = FieldTracker()
 
     class Meta:
-        unique_together = ('service_settings', 'backend_id')
+        unique_together = ("service_settings", "backend_id")
 
     def get_quota_deltas(self):
         deltas = {
-            'volumes': 1,
-            'volumes_size': self.size,
-            'storage': self.size,
+            "volumes": 1,
+            "volumes_size": self.size,
+            "storage": self.size,
         }
         if self.type:
-            deltas['gigabytes_' + self.type.name] = self.size / 1024
+            deltas["gigabytes_" + self.type.name] = self.size / 1024
         return deltas
 
     @classmethod
     def get_url_name(cls):
-        return 'openstacktenant-volume'
+        return "openstacktenant-volume"
 
     @classmethod
     def get_backend_fields(cls):
         return super().get_backend_fields() + (
-            'name',
-            'description',
-            'size',
-            'metadata',
-            'type',
-            'bootable',
-            'runtime_state',
-            'device',
-            'instance',
-            'availability_zone',
-            'image',
-            'image_metadata',
-            'image_name',
+            "name",
+            "description",
+            "size",
+            "metadata",
+            "type",
+            "bootable",
+            "runtime_state",
+            "device",
+            "instance",
+            "availability_zone",
+            "image",
+            "image_metadata",
+            "image_name",
         )
 
 
@@ -233,18 +233,18 @@ class Snapshot(TenantQuotaMixin, structure_models.Snapshot):
     backend_id = models.CharField(max_length=255, blank=True, null=True)
 
     source_volume: Volume = models.ForeignKey(
-        Volume, related_name='snapshots', null=True, on_delete=models.PROTECT
+        Volume, related_name="snapshots", null=True, on_delete=models.PROTECT
     )
     metadata = JSONField(blank=True)
     # TODO: Move this fields to resource model.
     action = models.CharField(max_length=50, blank=True)
     action_details = JSONField(default=dict)
     snapshot_schedule = models.ForeignKey(
-        'SnapshotSchedule',
+        "SnapshotSchedule",
         blank=True,
         null=True,
         on_delete=models.SET_NULL,
-        related_name='snapshots',
+        related_name="snapshots",
     )
 
     tracker = FieldTracker()
@@ -252,87 +252,87 @@ class Snapshot(TenantQuotaMixin, structure_models.Snapshot):
     kept_until = models.DateTimeField(
         null=True,
         blank=True,
-        help_text=_('Guaranteed time of snapshot retention. If null - keep forever.'),
+        help_text=_("Guaranteed time of snapshot retention. If null - keep forever."),
     )
 
     class Meta:
-        unique_together = ('service_settings', 'backend_id')
+        unique_together = ("service_settings", "backend_id")
 
     @classmethod
     def get_url_name(cls):
-        return 'openstacktenant-snapshot'
+        return "openstacktenant-snapshot"
 
     def get_quota_deltas(self):
         deltas = {
-            'snapshots': 1,
-            'snapshots_size': self.size,
+            "snapshots": 1,
+            "snapshots_size": self.size,
         }
         return deltas
 
     @classmethod
     def get_backend_fields(cls):
         return super().get_backend_fields() + (
-            'name',
-            'description',
-            'size',
-            'metadata',
-            'source_volume',
-            'runtime_state',
+            "name",
+            "description",
+            "size",
+            "metadata",
+            "source_volume",
+            "runtime_state",
         )
 
 
 class SnapshotRestoration(core_models.UuidMixin, TimeStampedModel):
     snapshot = models.ForeignKey(
-        on_delete=models.CASCADE, to=Snapshot, related_name='restorations'
+        on_delete=models.CASCADE, to=Snapshot, related_name="restorations"
     )
     volume = models.OneToOneField(
-        Volume, related_name='restoration', on_delete=models.CASCADE
+        Volume, related_name="restoration", on_delete=models.CASCADE
     )
 
     class Permissions:
-        customer_path = 'snapshot__project__customer'
-        project_path = 'snapshot__project'
+        customer_path = "snapshot__project__customer"
+        project_path = "snapshot__project"
 
 
 class InstanceAvailabilityZone(structure_models.BaseServiceProperty):
     settings = models.ForeignKey(
-        on_delete=models.CASCADE, to=structure_models.ServiceSettings, related_name='+'
+        on_delete=models.CASCADE, to=structure_models.ServiceSettings, related_name="+"
     )
     available = models.BooleanField(default=True)
 
     class Meta:
-        unique_together = ('settings', 'name')
+        unique_together = ("settings", "name")
 
     def __str__(self):
         return self.name
 
     @classmethod
     def get_url_name(cls):
-        return 'openstacktenant-instance-availability-zone'
+        return "openstacktenant-instance-availability-zone"
 
 
 class Instance(TenantQuotaMixin, structure_models.VirtualMachine):
     class RuntimeStates:
         # All possible OpenStack Instance states on backend.
         # See https://docs.openstack.org/developer/nova/vmstates.html
-        ACTIVE = 'ACTIVE'
-        BUILDING = 'BUILDING'
-        DELETED = 'DELETED'
-        SOFT_DELETED = 'SOFT_DELETED'
-        ERROR = 'ERROR'
-        UNKNOWN = 'UNKNOWN'
-        HARD_REBOOT = 'HARD_REBOOT'
-        REBOOT = 'REBOOT'
-        REBUILD = 'REBUILD'
-        PASSWORD = 'PASSWORD'
-        PAUSED = 'PAUSED'
-        RESCUED = 'RESCUED'
-        RESIZED = 'RESIZED'
-        REVERT_RESIZE = 'REVERT_RESIZE'
-        SHUTOFF = 'SHUTOFF'
-        STOPPED = 'STOPPED'
-        SUSPENDED = 'SUSPENDED'
-        VERIFY_RESIZE = 'VERIFY_RESIZE'
+        ACTIVE = "ACTIVE"
+        BUILDING = "BUILDING"
+        DELETED = "DELETED"
+        SOFT_DELETED = "SOFT_DELETED"
+        ERROR = "ERROR"
+        UNKNOWN = "UNKNOWN"
+        HARD_REBOOT = "HARD_REBOOT"
+        REBOOT = "REBOOT"
+        REBUILD = "REBUILD"
+        PASSWORD = "PASSWORD"
+        PAUSED = "PAUSED"
+        RESCUED = "RESCUED"
+        RESIZED = "RESIZED"
+        REVERT_RESIZE = "REVERT_RESIZE"
+        SHUTOFF = "SHUTOFF"
+        STOPPED = "STOPPED"
+        SUSPENDED = "SUSPENDED"
+        VERIFY_RESIZE = "VERIFY_RESIZE"
 
     # backend_id is nullable on purpose, otherwise
     # it wouldn't be possible to put a unique constraint on it
@@ -343,10 +343,10 @@ class Instance(TenantQuotaMixin, structure_models.VirtualMachine):
     )
     flavor_name = models.CharField(max_length=255, blank=True)
     flavor_disk = models.PositiveIntegerField(
-        default=0, help_text=_('Flavor disk size in MiB')
+        default=0, help_text=_("Flavor disk size in MiB")
     )
     security_groups = models.ManyToManyField(
-        SecurityGroup, related_name='instances', blank=True
+        SecurityGroup, related_name="instances", blank=True
     )
     server_group = models.ForeignKey(
         ServerGroup, blank=True, null=True, on_delete=models.SET_NULL
@@ -354,7 +354,7 @@ class Instance(TenantQuotaMixin, structure_models.VirtualMachine):
     # TODO: Move this fields to resource model.
     action = models.CharField(max_length=50, blank=True)
     action_details = JSONField(default=dict)
-    subnets = models.ManyToManyField('SubNet', through='InternalIP')
+    subnets = models.ManyToManyField("SubNet", through="InternalIP")
     hypervisor_hostname = models.CharField(max_length=255, blank=True)
 
     connect_directly_to_external_network = models.BooleanField(default=False)
@@ -364,51 +364,51 @@ class Instance(TenantQuotaMixin, structure_models.VirtualMachine):
     tracker = FieldTracker()
 
     class Meta:
-        unique_together = ('service_settings', 'backend_id')
-        ordering = ['name', 'created']
+        unique_together = ("service_settings", "backend_id")
+        ordering = ["name", "created"]
 
     @property
     def external_ips(self):
-        floating_ips = set(self.floating_ips.values_list('address', flat=True))
+        floating_ips = set(self.floating_ips.values_list("address", flat=True))
         if self.directly_connected_ips:
             floating_ips = floating_ips.union(
-                set(self.directly_connected_ips.split(','))
+                set(self.directly_connected_ips.split(","))
             )
         return list(floating_ips - set(self.internal_ips))
 
     @property
     def internal_ips(self):
         return [
-            val['ip_address']
-            for ip_list in self.internal_ips_set.values_list('fixed_ips', flat=True)
+            val["ip_address"]
+            for ip_list in self.internal_ips_set.values_list("fixed_ips", flat=True)
             for val in ip_list
         ]
 
     @property
     def size(self):
-        return self.volumes.aggregate(models.Sum('size'))['size__sum']
+        return self.volumes.aggregate(models.Sum("size"))["size__sum"]
 
     @classmethod
     def get_url_name(cls):
-        return 'openstacktenant-instance'
+        return "openstacktenant-instance"
 
     def get_log_fields(self):
         return (
-            'uuid',
-            'name',
-            'type',
-            'service_settings',
-            'project',
-            'ram',
-            'cores',
+            "uuid",
+            "name",
+            "type",
+            "service_settings",
+            "project",
+            "ram",
+            "cores",
         )
 
     def detect_coordinates(self):
         settings = self.service_settings
         options = settings.options or {}
-        if 'latitude' in options and 'longitude' in options:
+        if "latitude" in options and "longitude" in options:
             return structure_utils.Coordinates(
-                latitude=settings['latitude'], longitude=settings['longitude']
+                latitude=settings["latitude"], longitude=settings["longitude"]
             )
         else:
             hostname = urlparse(settings.backend_url).hostname
@@ -417,9 +417,9 @@ class Instance(TenantQuotaMixin, structure_models.VirtualMachine):
 
     def get_quota_deltas(self):
         return {
-            'instances': 1,
-            'ram': self.ram,
-            'vcpu': self.cores,
+            "instances": 1,
+            "ram": self.ram,
+            "vcpu": self.cores,
         }
 
     @property
@@ -429,15 +429,15 @@ class Instance(TenantQuotaMixin, structure_models.VirtualMachine):
     @classmethod
     def get_backend_fields(cls):
         return super().get_backend_fields() + (
-            'flavor_name',
-            'flavor_disk',
-            'ram',
-            'cores',
-            'disk',
-            'runtime_state',
-            'availability_zone',
-            'hypervisor_hostname',
-            'directly_connected_ips',
+            "flavor_name",
+            "flavor_disk",
+            "ram",
+            "cores",
+            "disk",
+            "runtime_state",
+            "availability_zone",
+            "hypervisor_hostname",
+            "directly_connected_ips",
         )
 
     @classmethod
@@ -451,58 +451,58 @@ class Instance(TenantQuotaMixin, structure_models.VirtualMachine):
 
 class Backup(structure_models.SubResource):
     instance = models.ForeignKey(
-        Instance, related_name='backups', on_delete=models.PROTECT
+        Instance, related_name="backups", on_delete=models.PROTECT
     )
     backup_schedule = models.ForeignKey(
-        'BackupSchedule',
+        "BackupSchedule",
         blank=True,
         null=True,
         on_delete=models.SET_NULL,
-        related_name='backups',
+        related_name="backups",
     )
     kept_until = models.DateTimeField(
         null=True,
         blank=True,
-        help_text=_('Guaranteed time of backup retention. If null - keep forever.'),
+        help_text=_("Guaranteed time of backup retention. If null - keep forever."),
     )
     metadata = JSONField(
         blank=True,
         help_text=_(
-            'Additional information about backup, can be used for backup restoration or deletion'
+            "Additional information about backup, can be used for backup restoration or deletion"
         ),
     )
-    snapshots = models.ManyToManyField('Snapshot', related_name='backups')
+    snapshots = models.ManyToManyField("Snapshot", related_name="backups")
 
     @classmethod
     def get_url_name(cls):
-        return 'openstacktenant-backup'
+        return "openstacktenant-backup"
 
 
 class BackupRestoration(core_models.UuidMixin, TimeStampedModel):
     """This model corresponds to instance restoration from backup."""
 
     backup = models.ForeignKey(
-        on_delete=models.CASCADE, to=Backup, related_name='restorations'
+        on_delete=models.CASCADE, to=Backup, related_name="restorations"
     )
     instance = models.OneToOneField(
-        Instance, related_name='+', on_delete=models.CASCADE
+        Instance, related_name="+", on_delete=models.CASCADE
     )
     flavor = models.ForeignKey(
-        Flavor, related_name='+', null=True, blank=True, on_delete=models.SET_NULL
+        Flavor, related_name="+", null=True, blank=True, on_delete=models.SET_NULL
     )
 
     class Permissions:
-        customer_path = 'backup__project__customer'
-        project_path = 'backup__project'
+        customer_path = "backup__project__customer"
+        project_path = "backup__project"
 
 
 class BaseSchedule(structure_models.BaseResource, core_models.ScheduleMixin):
     retention_time = models.PositiveIntegerField(
-        help_text=_('Retention time in days, if 0 - resource will be kept forever')
+        help_text=_("Retention time in days, if 0 - resource will be kept forever")
     )
     maximal_number_of_resources = models.PositiveSmallIntegerField()
     call_count = models.PositiveSmallIntegerField(
-        default=0, help_text=_('How many times a resource schedule was called.')
+        default=0, help_text=_("How many times a resource schedule was called.")
     )
 
     class Meta:
@@ -511,35 +511,32 @@ class BaseSchedule(structure_models.BaseResource, core_models.ScheduleMixin):
 
 class BackupSchedule(BaseSchedule):
     instance = models.ForeignKey(
-        on_delete=models.CASCADE, to=Instance, related_name='backup_schedules'
+        on_delete=models.CASCADE, to=Instance, related_name="backup_schedules"
     )
 
     tracker = FieldTracker()
 
     def __str__(self):
-        return f'BackupSchedule of {self.instance}. Active: {self.is_active}'
+        return f"BackupSchedule of {self.instance}. Active: {self.is_active}"
 
     @classmethod
     def get_url_name(cls):
-        return 'openstacktenant-backup-schedule'
+        return "openstacktenant-backup-schedule"
 
 
 class SnapshotSchedule(BaseSchedule):
     source_volume = models.ForeignKey(
-        on_delete=models.CASCADE, to=Volume, related_name='snapshot_schedules'
+        on_delete=models.CASCADE, to=Volume, related_name="snapshot_schedules"
     )
 
     tracker = FieldTracker()
 
     def __str__(self):
-        return 'SnapshotSchedule of {}. Active: {}'.format(
-            self.source_volume,
-            self.is_active,
-        )
+        return f"SnapshotSchedule of {self.source_volume}. Active: {self.is_active}"
 
     @classmethod
     def get_url_name(cls):
-        return 'openstacktenant-snapshot-schedule'
+        return "openstacktenant-snapshot-schedule"
 
 
 class Network(core_models.DescribableMixin, structure_models.ServiceProperty):
@@ -548,14 +545,14 @@ class Network(core_models.DescribableMixin, structure_models.ServiceProperty):
     segmentation_id = models.IntegerField(null=True)
 
     class Meta:
-        unique_together = ('settings', 'backend_id')
+        unique_together = ("settings", "backend_id")
 
     def __str__(self):
         return self.name
 
     @classmethod
     def get_url_name(cls):
-        return 'openstacktenant-network'
+        return "openstacktenant-network"
 
 
 class SubNet(
@@ -564,20 +561,20 @@ class SubNet(
     structure_models.ServiceProperty,
 ):
     network = models.ForeignKey(
-        on_delete=models.CASCADE, to=Network, related_name='subnets'
+        on_delete=models.CASCADE, to=Network, related_name="subnets"
     )
 
     class Meta:
-        verbose_name = _('Subnet')
-        verbose_name_plural = _('Subnets')
-        unique_together = ('settings', 'backend_id')
+        verbose_name = _("Subnet")
+        verbose_name_plural = _("Subnets")
+        unique_together = ("settings", "backend_id")
 
     def __str__(self):
-        return f'{self.name} ({self.cidr})'
+        return f"{self.name} ({self.cidr})"
 
     @classmethod
     def get_url_name(cls):
-        return 'openstacktenant-subnet'
+        return "openstacktenant-subnet"
 
 
 class InternalIP(openstack_base_models.Port):
@@ -591,27 +588,27 @@ class InternalIP(openstack_base_models.Port):
     instance = models.ForeignKey(
         on_delete=models.CASCADE,
         to=Instance,
-        related_name='internal_ips_set',
+        related_name="internal_ips_set",
         null=True,
     )
     subnet = models.ForeignKey(
-        on_delete=models.CASCADE, to=SubNet, related_name='internal_ips'
+        on_delete=models.CASCADE, to=SubNet, related_name="internal_ips"
     )
 
     # backend_id is nullable on purpose, otherwise
     # it wouldn't be possible to put a unique constraint on it
     backend_id = models.CharField(max_length=255, null=True)
     settings = models.ForeignKey(
-        on_delete=models.CASCADE, to=structure_models.ServiceSettings, related_name='+'
+        on_delete=models.CASCADE, to=structure_models.ServiceSettings, related_name="+"
     )
     tracker = FieldTracker()
 
     def __str__(self):
         # This method should not return None
-        return self.backend_id or f'InternalIP <{self.id}>'
+        return self.backend_id or f"InternalIP <{self.id}>"
 
     class Meta:
-        unique_together = ('backend_id', 'settings')
+        unique_together = ("backend_id", "settings")
 
 
 class VolumeType(openstack_base_models.BaseVolumeType):
@@ -619,21 +616,21 @@ class VolumeType(openstack_base_models.BaseVolumeType):
 
     @classmethod
     def get_url_name(cls):
-        return 'openstacktenant-volume-type'
+        return "openstacktenant-volume-type"
 
 
 class VolumeAvailabilityZone(structure_models.BaseServiceProperty):
     settings = models.ForeignKey(
-        on_delete=models.CASCADE, to=structure_models.ServiceSettings, related_name='+'
+        on_delete=models.CASCADE, to=structure_models.ServiceSettings, related_name="+"
     )
     available = models.BooleanField(default=True)
 
     class Meta:
-        unique_together = ('settings', 'name')
+        unique_together = ("settings", "name")
 
     def __str__(self):
         return self.name
 
     @classmethod
     def get_url_name(cls):
-        return 'openstacktenant-volume-availability-zone'
+        return "openstacktenant-volume-availability-zone"

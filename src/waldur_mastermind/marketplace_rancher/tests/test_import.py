@@ -36,7 +36,7 @@ class BaseClusterImportTest(test.APITransactionTestCase):
             shared=False,
             customer=self.fixture.customer,
         )
-        self.client_patcher = mock.patch('waldur_rancher.client.RancherClient')
+        self.client_patcher = mock.patch("waldur_rancher.client.RancherClient")
         self.mocked_client = self.client_patcher.start()()
         self.mocked_client.login.return_value = None
 
@@ -49,7 +49,7 @@ class ClusterImportableResourcesTest(BaseClusterImportTest):
     def setUp(self):
         super().setUp()
         self.client.force_authenticate(self.fixture.staff)
-        self.url = OfferingFactory.get_url(self.offering, 'importable_resources')
+        self.url = OfferingFactory.get_url(self.offering, "importable_resources")
 
     def test_importable_clusters_are_returned(self):
         self.mocked_client.list_clusters.return_value = [MOCK_CLUSTER]
@@ -60,13 +60,13 @@ class ClusterImportableResourcesTest(BaseClusterImportTest):
             response.data,
             [
                 {
-                    'type': 'Rancher.Cluster',
-                    'name': 'customer-app',
-                    'backend_id': 'new_cluster_id',
-                    'extra': [
-                        {'name': 'Description', 'value': ''},
-                        {'name': 'Number of nodes', 'value': 1},
-                        {'name': 'Created at', 'value': '2019-09-11T12:37:57Z'},
+                    "type": "Rancher.Cluster",
+                    "name": "customer-app",
+                    "backend_id": "new_cluster_id",
+                    "extra": [
+                        {"name": "Description", "value": ""},
+                        {"name": "Number of nodes", "value": 1},
+                        {"name": "Created at", "value": "2019-09-11T12:37:57Z"},
                     ],
                 }
             ],
@@ -76,16 +76,16 @@ class ClusterImportableResourcesTest(BaseClusterImportTest):
 class ClusterImportResourceTest(BaseClusterImportTest):
     def setUp(self):
         super().setUp()
-        self.url = OfferingFactory.get_url(self.offering, 'import_resource')
+        self.url = OfferingFactory.get_url(self.offering, "import_resource")
         self.client.force_authenticate(self.fixture.staff)
         self.mocked_client.get_cluster.return_value = MOCK_CLUSTER
 
     def test_backend_cluster_is_imported(self):
-        backend_id = 'backend_id'
+        backend_id = "backend_id"
 
         payload = {
-            'backend_id': backend_id,
-            'project': self.fixture.project.uuid,
+            "backend_id": backend_id,
+            "project": self.fixture.project.uuid,
         }
 
         response = self.client.post(self.url, payload)
@@ -99,8 +99,8 @@ class ClusterImportResourceTest(BaseClusterImportTest):
         )
 
         payload = {
-            'backend_id': cluster.backend_id,
-            'project': self.fixture.project.uuid,
+            "backend_id": cluster.backend_id,
+            "project": self.fixture.project.uuid,
         }
 
         response = self.client.post(self.url, payload)

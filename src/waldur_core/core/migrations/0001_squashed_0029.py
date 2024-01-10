@@ -18,200 +18,200 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('auth', '0001_initial'),
+        ("auth", "0001_initial"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='User',
+            name="User",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('password', models.CharField(max_length=128, verbose_name='password')),
+                ("password", models.CharField(max_length=128, verbose_name="password")),
                 (
-                    'last_login',
+                    "last_login",
                     models.DateTimeField(
-                        blank=True, null=True, verbose_name='last login'
+                        blank=True, null=True, verbose_name="last login"
                     ),
                 ),
                 (
-                    'is_superuser',
+                    "is_superuser",
                     models.BooleanField(
                         default=False,
-                        help_text='Designates that this user has all permissions without explicitly assigning them.',
-                        verbose_name='superuser status',
+                        help_text="Designates that this user has all permissions without explicitly assigning them.",
+                        verbose_name="superuser status",
                     ),
                 ),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=2000, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name="description"
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'username',
+                    "username",
                     models.CharField(
-                        help_text='Required. 128 characters or fewer. Letters, numbers and @/./+/-/_ characters',
+                        help_text="Required. 128 characters or fewer. Letters, numbers and @/./+/-/_ characters",
                         max_length=128,
                         unique=True,
                         validators=[
                             django.core.validators.RegexValidator(
-                                re.compile('^[\\w.@+-]+$'),
-                                'Enter a valid username.',
-                                'invalid',
+                                re.compile("^[\\w.@+-]+$"),
+                                "Enter a valid username.",
+                                "invalid",
                             )
                         ],
-                        verbose_name='username',
+                        verbose_name="username",
                     ),
                 ),
                 (
-                    'civil_number',
+                    "civil_number",
                     models.CharField(
                         blank=True,
                         default=None,
                         max_length=50,
                         null=True,
                         unique=True,
-                        verbose_name='civil number',
+                        verbose_name="civil number",
                     ),
                 ),
                 (
-                    'native_name',
+                    "native_name",
                     models.CharField(
-                        blank=True, max_length=100, verbose_name='native name'
+                        blank=True, max_length=100, verbose_name="native name"
                     ),
                 ),
                 (
-                    'phone_number',
+                    "phone_number",
                     models.CharField(
-                        blank=True, max_length=255, verbose_name='phone number'
+                        blank=True, max_length=255, verbose_name="phone number"
                     ),
                 ),
                 (
-                    'organization',
+                    "organization",
                     models.CharField(
-                        blank=True, max_length=255, verbose_name='organization'
+                        blank=True, max_length=255, verbose_name="organization"
                     ),
                 ),
                 (
-                    'job_title',
+                    "job_title",
                     models.CharField(
-                        blank=True, max_length=120, verbose_name='job title'
+                        blank=True, max_length=120, verbose_name="job title"
                     ),
                 ),
                 (
-                    'email',
+                    "email",
                     models.EmailField(
-                        blank=True, max_length=320, verbose_name='email address'
+                        blank=True, max_length=320, verbose_name="email address"
                     ),
                 ),
                 (
-                    'is_staff',
+                    "is_staff",
                     models.BooleanField(
                         default=False,
-                        help_text='Designates whether the user can log into this admin site.',
-                        verbose_name='staff status',
+                        help_text="Designates whether the user can log into this admin site.",
+                        verbose_name="staff status",
                     ),
                 ),
                 (
-                    'is_active',
+                    "is_active",
                     models.BooleanField(
                         default=True,
-                        help_text='Designates whether this user should be treated as active. Unselect this instead of deleting accounts.',
-                        verbose_name='active',
+                        help_text="Designates whether this user should be treated as active. Unselect this instead of deleting accounts.",
+                        verbose_name="active",
                     ),
                 ),
                 (
-                    'is_support',
+                    "is_support",
                     models.BooleanField(
                         default=False,
-                        help_text='Designates whether the user is a global support user.',
-                        verbose_name='support status',
+                        help_text="Designates whether the user is a global support user.",
+                        verbose_name="support status",
                     ),
                 ),
                 (
-                    'date_joined',
+                    "date_joined",
                     models.DateTimeField(
-                        default=django.utils.timezone.now, verbose_name='date joined'
+                        default=django.utils.timezone.now, verbose_name="date joined"
                     ),
                 ),
                 (
-                    'registration_method',
+                    "registration_method",
                     models.CharField(
                         blank=True,
-                        default='default',
-                        help_text='Indicates what registration method were used.',
+                        default="default",
+                        help_text="Indicates what registration method were used.",
                         max_length=50,
-                        verbose_name='registration method',
+                        verbose_name="registration method",
                     ),
                 ),
                 (
-                    'agreement_date',
+                    "agreement_date",
                     models.DateTimeField(
                         blank=True,
-                        help_text='Indicates when the user has agreed with the policy.',
+                        help_text="Indicates when the user has agreed with the policy.",
                         null=True,
-                        verbose_name='agreement date',
+                        verbose_name="agreement date",
                     ),
                 ),
-                ('preferred_language', models.CharField(blank=True, max_length=10)),
-                ('competence', models.CharField(blank=True, max_length=255)),
+                ("preferred_language", models.CharField(blank=True, max_length=10)),
+                ("competence", models.CharField(blank=True, max_length=255)),
                 (
-                    'token_lifetime',
+                    "token_lifetime",
                     models.PositiveIntegerField(
-                        help_text='Token lifetime in seconds.',
+                        help_text="Token lifetime in seconds.",
                         null=True,
                         validators=[django.core.validators.MinValueValidator(60)],
                     ),
                 ),
                 (
-                    'groups',
+                    "groups",
                     models.ManyToManyField(
                         blank=True,
-                        help_text='The groups this user belongs to. A user will get all permissions granted to each of their groups.',
-                        related_name='user_set',
-                        related_query_name='user',
-                        to='auth.Group',
-                        verbose_name='groups',
+                        help_text="The groups this user belongs to. A user will get all permissions granted to each of their groups.",
+                        related_name="user_set",
+                        related_query_name="user",
+                        to="auth.Group",
+                        verbose_name="groups",
                     ),
                 ),
                 (
-                    'user_permissions',
+                    "user_permissions",
                     models.ManyToManyField(
                         blank=True,
-                        help_text='Specific permissions for this user.',
-                        related_name='user_set',
-                        related_query_name='user',
-                        to='auth.Permission',
-                        verbose_name='user permissions',
+                        help_text="Specific permissions for this user.",
+                        related_name="user_set",
+                        related_query_name="user",
+                        to="auth.Permission",
+                        verbose_name="user permissions",
                     ),
                 ),
                 (
-                    'details',
+                    "details",
                     models.JSONField(
                         blank=True,
                         default=dict,
-                        help_text='Extra details from authentication backend.',
+                        help_text="Extra details from authentication backend.",
                     ),
                 ),
-                ('backend_id', models.CharField(blank=True, max_length=255)),
+                ("backend_id", models.CharField(blank=True, max_length=255)),
                 (
-                    'is_identity_manager',
+                    "is_identity_manager",
                     models.BooleanField(
                         default=False,
-                        help_text='Designates whether the user is allowed to manage remote user identities.',
+                        help_text="Designates whether the user is allowed to manage remote user identities.",
                     ),
                 ),
                 (
-                    'affiliations',
+                    "affiliations",
                     models.JSONField(
                         blank=True,
                         default=list,
@@ -219,33 +219,33 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 (
-                    'first_name',
+                    "first_name",
                     models.CharField(
-                        blank=True, max_length=100, verbose_name='first name'
+                        blank=True, max_length=100, verbose_name="first name"
                     ),
                 ),
                 (
-                    'last_name',
+                    "last_name",
                     models.CharField(
-                        blank=True, max_length=100, verbose_name='last name'
+                        blank=True, max_length=100, verbose_name="last name"
                     ),
                 ),
                 (
-                    'last_sync',
+                    "last_sync",
                     models.DateTimeField(
                         default=django.utils.timezone.now, editable=False
                     ),
                 ),
-                ('query_field', models.CharField(blank=True, max_length=300)),
+                ("query_field", models.CharField(blank=True, max_length=300)),
                 (
-                    'notifications_enabled',
+                    "notifications_enabled",
                     models.BooleanField(
                         default=True,
-                        help_text='Designates whether the user is allowed to receive email notifications.',
+                        help_text="Designates whether the user is allowed to receive email notifications.",
                     ),
                 ),
                 (
-                    'image',
+                    "image",
                     models.ImageField(
                         blank=True,
                         null=True,
@@ -254,32 +254,32 @@ class Migration(migrations.Migration):
                 ),
             ],
             options={
-                'verbose_name': 'user',
-                'verbose_name_plural': 'users',
-                'ordering': ['username'],
+                "verbose_name": "user",
+                "verbose_name_plural": "users",
+                "ordering": ["username"],
             },
             bases=(waldur_core.logging.loggers.LoggableMixin, models.Model),
             managers=[
-                ('objects', django.contrib.auth.models.UserManager()),
+                ("objects", django.contrib.auth.models.UserManager()),
             ],
         ),
         migrations.CreateModel(
-            name='SshPublicKey',
+            name="SshPublicKey",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('name', models.CharField(blank=True, max_length=150)),
-                ('fingerprint', models.CharField(max_length=47)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("name", models.CharField(blank=True, max_length=150)),
+                ("fingerprint", models.CharField(max_length=47)),
                 (
-                    'public_key',
+                    "public_key",
                     models.TextField(
                         validators=[
                             django.core.validators.MaxLengthValidator(2000),
@@ -287,9 +287,9 @@ class Migration(migrations.Migration):
                         ]
                     ),
                 ),
-                ('is_shared', models.BooleanField(default=False)),
+                ("is_shared", models.BooleanField(default=False)),
                 (
-                    'user',
+                    "user",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
                         to=settings.AUTH_USER_MODEL,
@@ -297,169 +297,169 @@ class Migration(migrations.Migration):
                 ),
             ],
             options={
-                'verbose_name': 'SSH public key',
-                'verbose_name_plural': 'SSH public keys',
-                'ordering': ['name'],
-                'unique_together': {('user', 'name')},
+                "verbose_name": "SSH public key",
+                "verbose_name_plural": "SSH public keys",
+                "ordering": ["name"],
+                "unique_together": {("user", "name")},
             },
             bases=(waldur_core.logging.loggers.LoggableMixin, models.Model),
         ),
         migrations.CreateModel(
-            name='ChangeEmailRequest',
+            name="ChangeEmailRequest",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
-                ('email', models.EmailField(max_length=254)),
+                ("email", models.EmailField(max_length=254)),
                 (
-                    'user',
+                    "user",
                     models.OneToOneField(
                         on_delete=django.db.models.deletion.CASCADE,
                         to=settings.AUTH_USER_MODEL,
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
             ],
             options={
-                'verbose_name': 'change email request',
-                'verbose_name_plural': 'change email requests',
+                "verbose_name": "change email request",
+                "verbose_name_plural": "change email requests",
             },
         ),
         migrations.CreateModel(
-            name='Feature',
+            name="Feature",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('key', models.TextField(max_length=255, unique=True)),
-                ('value', models.BooleanField(default=False)),
+                ("key", models.TextField(max_length=255, unique=True)),
+                ("value", models.BooleanField(default=False)),
             ],
         ),
         migrations.CreateModel(
-            name='NotificationTemplate',
+            name="NotificationTemplate",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'path',
+                    "path",
                     models.CharField(
                         help_text="Example: 'flatpages/default.html'",
                         max_length=150,
-                        verbose_name='path',
+                        verbose_name="path",
                     ),
                 ),
             ],
             options={
-                'ordering': ['name', 'path'],
+                "ordering": ["name", "path"],
             },
         ),
         migrations.CreateModel(
-            name='Notification',
+            name="Notification",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=2000, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name="description"
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('key', models.CharField(max_length=255, unique=True)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("key", models.CharField(max_length=255, unique=True)),
                 (
-                    'enabled',
+                    "enabled",
                     models.BooleanField(
                         default=True,
-                        help_text='Indicates if notification is enabled or disabled',
+                        help_text="Indicates if notification is enabled or disabled",
                     ),
                 ),
-                ('templates', models.ManyToManyField(to='core.NotificationTemplate')),
+                ("templates", models.ManyToManyField(to="core.NotificationTemplate")),
             ],
             options={
-                'ordering': ['key'],
+                "ordering": ["key"],
             },
         ),
     ]

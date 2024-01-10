@@ -9,16 +9,16 @@ class RecalculateCommandTest(TestCase):
         customer = structure_factories.CustomerFactory()
         structure_factories.ProjectFactory(customer=customer)
 
-        customer.set_quota_usage('nc_project_count', 10)
+        customer.set_quota_usage("nc_project_count", 10)
 
         update_standard_quotas()
-        self.assertEqual(customer.get_quota_usage('nc_project_count'), 1)
+        self.assertEqual(customer.get_quota_usage("nc_project_count"), 1)
 
     def test_aggregator_quota_recalculation(self):
         customer = structure_factories.CustomerFactory()
         structure_factories.ProjectFactory(customer=customer)
 
-        customer.set_quota_usage('nc_resource_count', 10)
+        customer.set_quota_usage("nc_resource_count", 10)
 
         update_standard_quotas()
-        self.assertEqual(customer.get_quota_usage('nc_resource_count'), 0)
+        self.assertEqual(customer.get_quota_usage("nc_resource_count"), 0)

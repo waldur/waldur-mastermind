@@ -15,11 +15,11 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            '-o',
-            '--output',
-            dest='output',
+            "-o",
+            "--output",
+            dest="output",
             default=None,
-            help='Specifies file to which the output is written. The output will be printed to stdout by default.',
+            help="Specifies file to which the output is written. The output will be printed to stdout by default.",
         )
 
     def handle(self, *args, **options):
@@ -27,29 +27,29 @@ class Command(BaseCommand):
         logging.disable(logging.CRITICAL)
 
         if not settings.DEBUG and not settings.ALLOWED_HOSTS:
-            raise CommandError('ALLOWED_HOSTS should not be empty in settings.py file.')
+            raise CommandError("ALLOWED_HOSTS should not be empty in settings.py file.")
 
-        if settings.ALLOWED_HOSTS and settings.ALLOWED_HOSTS[0] != '*':
+        if settings.ALLOWED_HOSTS and settings.ALLOWED_HOSTS[0] != "*":
             host = settings.ALLOWED_HOSTS[0]
         else:
-            host = '127.0.0.1'
+            host = "127.0.0.1"
 
         client = APIClient(HTTP_HOST=host)
         user, _ = User.objects.get_or_create(
-            username='waldur_docs_exporter', is_staff=True
+            username="waldur_docs_exporter", is_staff=True
         )
         client.force_authenticate(user=user)
-        response = client.get('/docs/?format=openapi')
+        response = client.get("/docs/?format=openapi")
         user.delete()
 
         if response.status_code != status.HTTP_200_OK:
-            raise CommandError('Failed to get response from the server')
+            raise CommandError("Failed to get response from the server")
 
         data = json.loads(response.content)
-        if options['output'] is None:
+        if options["output"] is None:
             self.stdout.write(str(data))
         else:
-            with open(options['output'], 'w') as output_file:
+            with open(options["output"], "w") as output_file:
                 json.dump(data, output_file)
 
         # return logging level back

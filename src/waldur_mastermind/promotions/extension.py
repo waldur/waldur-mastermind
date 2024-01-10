@@ -7,7 +7,7 @@ class MarketplacePromotionsExtension(WaldurExtension):
 
     @staticmethod
     def django_app():
-        return 'waldur_mastermind.promotions'
+        return "waldur_mastermind.promotions"
 
     @staticmethod
     def is_assembly():

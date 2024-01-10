@@ -42,14 +42,14 @@ class BackendTest(TestCase):
         self.account = self.allocation.backend_id
 
     def prepare_limits_check(self, quotas):
-        self.allocation.cpu_limit = quotas['CPU']
-        self.allocation.gpu_limit = quotas['GPU']
-        self.allocation.ram_limit = quotas['RAM']
+        self.allocation.cpu_limit = quotas["CPU"]
+        self.allocation.gpu_limit = quotas["GPU"]
+        self.allocation.ram_limit = quotas["RAM"]
         self.allocation.save()
 
         template = (
-            'sacctmgr --parsable2 --noheader --immediate'
-            ' modify account %s set GrpTRESMins=cpu=%d,gres/gpu=%d,mem=%d'
+            "sacctmgr --parsable2 --noheader --immediate"
+            " modify account %s set GrpTRESMins=cpu=%d,gres/gpu=%d,mem=%d"
         )
 
         context = (
@@ -60,33 +60,33 @@ class BackendTest(TestCase):
         )
 
         return [
-            'ssh',
-            '-o',
-            'UserKnownHostsFile=/dev/null',
-            '-o',
-            'StrictHostKeyChecking=no',
-            'root@localhost',
-            '-p',
-            '22',
-            '-i',
-            '/etc/waldur/id_rsa',
+            "ssh",
+            "-o",
+            "UserKnownHostsFile=/dev/null",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "root@localhost",
+            "-p",
+            "22",
+            "-i",
+            "/etc/waldur/id_rsa",
             template % context,
         ]
 
-    @mock.patch('subprocess.check_output')
+    @mock.patch("subprocess.check_output")
     def test_allocation_creation(self, check_output):
         backend = self.allocation.get_backend()
         backend.create_allocation(self.allocation)
 
         self.allocation.refresh_from_db()
-        default_limits = django_settings.WALDUR_SLURM['DEFAULT_LIMITS']
-        self.assertEqual(self.allocation.cpu_limit, default_limits['CPU'])
-        self.assertEqual(self.allocation.gpu_limit, default_limits['GPU'])
-        self.assertEqual(self.allocation.ram_limit, default_limits['RAM'])
+        default_limits = django_settings.WALDUR_SLURM["DEFAULT_LIMITS"]
+        self.assertEqual(self.allocation.cpu_limit, default_limits["CPU"])
+        self.assertEqual(self.allocation.gpu_limit, default_limits["GPU"])
+        self.assertEqual(self.allocation.ram_limit, default_limits["RAM"])
 
-    @mock.patch('subprocess.check_output')
+    @mock.patch("subprocess.check_output")
     def test_usage_synchronization(self, check_output):
-        check_output.return_value = VALID_REPORT.replace('allocation1', self.account)
+        check_output.return_value = VALID_REPORT.replace("allocation1", self.account)
 
         backend = self.allocation.get_backend()
         backend.sync_usage()
@@ -96,16 +96,16 @@ class BackendTest(TestCase):
         self.assertEqual(self.allocation.gpu_usage, 1 + 2 * 2)
         self.assertEqual(self.allocation.ram_usage, (1 + 2) * 51200)
 
-    @freeze_time('2017-10-16')
-    @mock.patch('subprocess.check_output')
+    @freeze_time("2017-10-16")
+    @mock.patch("subprocess.check_output")
     def test_usage_per_user(self, check_output):
-        check_output.return_value = VALID_REPORT.replace('allocation1', self.account)
+        check_output.return_value = VALID_REPORT.replace("allocation1", self.account)
 
         user1 = self.fixture.manager
         user2 = self.fixture.admin
 
-        freeipa_models.Profile.objects.create(user=user1, username='user1')
-        freeipa_models.Profile.objects.create(user=user2, username='user2')
+        freeipa_models.Profile.objects.create(user=user1, username="user1")
+        freeipa_models.Profile.objects.create(user=user2, username="user2")
 
         backend = self.allocation.get_backend()
         backend.sync_usage()
@@ -125,39 +125,39 @@ class BackendTest(TestCase):
         self.assertEqual(user2_allocation_usage.gpu_usage, 2 * 2)
         self.assertEqual(user2_allocation_usage.ram_usage, 2 * 51200)
 
-    @mock.patch('subprocess.check_output')
+    @mock.patch("subprocess.check_output")
     def test_set_default_resource_limits(self, check_output):
-        default_limits = django_settings.WALDUR_SLURM['DEFAULT_LIMITS']
+        default_limits = django_settings.WALDUR_SLURM["DEFAULT_LIMITS"]
         command = self.prepare_limits_check(default_limits)
 
         backend = self.allocation.get_backend()
         backend.set_resource_limits(self.allocation)
 
-        check_output.assert_called_once_with(command, encoding='utf-8', stderr=-2)
+        check_output.assert_called_once_with(command, encoding="utf-8", stderr=-2)
 
-    @mock.patch('subprocess.check_output')
+    @mock.patch("subprocess.check_output")
     def test_set_custom_resource_limits(self, check_output):
         quotas_dict = {
-            'CPU': 1000,
-            'GPU': 2000,
-            'RAM': 3000,
+            "CPU": 1000,
+            "GPU": 2000,
+            "RAM": 3000,
         }
         command = self.prepare_limits_check(quotas_dict)
 
         backend = self.allocation.get_backend()
         backend.set_resource_limits(self.allocation)
 
-        check_output.assert_called_once_with(command, encoding='utf-8', stderr=-2)
+        check_output.assert_called_once_with(command, encoding="utf-8", stderr=-2)
 
-    @mock.patch('subprocess.check_output')
+    @mock.patch("subprocess.check_output")
     def test_pull_allocation(self, check_output):
-        association_line = VALID_ASSOCIATIONS.replace('allocation1', self.account)
+        association_line = VALID_ASSOCIATIONS.replace("allocation1", self.account)
         check_output.return_value = association_line
 
-        with mock.patch.object(SlurmClient, 'get_usage_report') as usage_report:
-            report = VALID_REPORT.replace('allocation1', self.account)
+        with mock.patch.object(SlurmClient, "get_usage_report") as usage_report:
+            report = VALID_REPORT.replace("allocation1", self.account)
             usage_report.return_value = [
-                SlurmReportLine(line) for line in report.splitlines() if '|' in line
+                SlurmReportLine(line) for line in report.splitlines() if "|" in line
             ]
 
             backend = self.allocation.get_backend()
@@ -169,9 +169,9 @@ class BackendTest(TestCase):
             self.assertEqual(self.allocation.ram_limit, 100)
 
     def test_name_changing(self):
-        sample_name = 'al*lo$ca#tio#n_12~!34-5'
-        correct_name = 'allocation_1234-5'
-        prefix = django_settings.WALDUR_SLURM['ALLOCATION_PREFIX']
+        sample_name = "al*lo$ca#tio#n_12~!34-5"
+        correct_name = "allocation_1234-5"
+        prefix = django_settings.WALDUR_SLURM["ALLOCATION_PREFIX"]
 
         allocation = factories.AllocationFactory(name=sample_name)
         hexpart = allocation.uuid.hex[:5]
@@ -184,12 +184,12 @@ class BackendTest(TestCase):
 
         self.assertEqual(result_name, final_correct_name)
 
-    @mock.patch('subprocess.check_output')
+    @mock.patch("subprocess.check_output")
     def test_allocation_zero_usage_created(self, check_output):
         association = f"{self.account}|cpu=400,mem=100M,gres/gpu=120"
         check_output.return_value = association
 
-        with mock.patch.object(SlurmClient, 'get_usage_report') as usage_report:
+        with mock.patch.object(SlurmClient, "get_usage_report") as usage_report:
             usage_report.return_value = []
 
             backend = self.allocation.get_backend()
@@ -200,20 +200,20 @@ class BackendTest(TestCase):
             self.assertEqual(self.allocation.gpu_usage, 0)
             self.assertEqual(self.allocation.ram_usage, 0)
 
-    @mock.patch('subprocess.check_output')
+    @mock.patch("subprocess.check_output")
     def test_allocation_limits_are_not_changed_after_if_association_lines_are_invalid(
         self, check_output
     ):
-        invalid_association = INVALID_ASSOCIATIONS.replace('allocation1', self.account)
+        invalid_association = INVALID_ASSOCIATIONS.replace("allocation1", self.account)
         check_output.return_value = invalid_association
         cpu_limit_old = self.allocation.cpu_limit
         gpu_limit_old = self.allocation.gpu_limit
         ram_limit_old = self.allocation.ram_limit
 
-        with mock.patch.object(SlurmClient, 'get_usage_report') as usage_report:
-            report = VALID_REPORT.replace('allocation1', self.account)
+        with mock.patch.object(SlurmClient, "get_usage_report") as usage_report:
+            report = VALID_REPORT.replace("allocation1", self.account)
             usage_report.return_value = [
-                SlurmReportLine(line) for line in report.splitlines() if '|' in line
+                SlurmReportLine(line) for line in report.splitlines() if "|" in line
             ]
 
             backend = self.allocation.get_backend()
@@ -224,14 +224,14 @@ class BackendTest(TestCase):
             self.assertEqual(self.allocation.gpu_limit, gpu_limit_old)
             self.assertEqual(self.allocation.ram_limit, ram_limit_old)
 
-    @mock.patch('subprocess.check_output')
+    @mock.patch("subprocess.check_output")
     def test_allocation_associations(self, check_output):
         check_output.return_value = VALID_USERS_ASSOCIATIONS.replace(
-            'allocation1', self.account
+            "allocation1", self.account
         )
 
         stale_association = factories.AssociationFactory(
-            allocation=self.allocation, username='user4'
+            allocation=self.allocation, username="user4"
         )
 
         backend = self.allocation.get_backend()

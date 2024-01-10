@@ -10,57 +10,57 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('contenttypes', '0002_remove_content_type_name'),
+        ("contenttypes", "0002_remove_content_type_name"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='PriceEstimate',
+            name="PriceEstimate",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'threshold',
+                    "threshold",
                     models.FloatField(
                         default=0,
                         validators=[django.core.validators.MinValueValidator(0)],
                     ),
                 ),
-                ('object_id', models.PositiveIntegerField(null=True)),
+                ("object_id", models.PositiveIntegerField(null=True)),
                 (
-                    'total',
+                    "total",
                     models.FloatField(
                         default=0,
-                        help_text='Predicted price for scope for current month.',
+                        help_text="Predicted price for scope for current month.",
                     ),
                 ),
                 (
-                    'limit',
+                    "limit",
                     models.FloatField(
                         default=-1,
-                        help_text='Price limit of a scope object in current month. -1 means no limit.',
+                        help_text="Price limit of a scope object in current month. -1 means no limit.",
                     ),
                 ),
                 (
-                    'content_type',
+                    "content_type",
                     models.ForeignKey(
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='contenttypes.ContentType',
+                        related_name="+",
+                        to="contenttypes.ContentType",
                     ),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
     ]

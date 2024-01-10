@@ -11,7 +11,7 @@ class VolumeAvailabilityZoneTest(test.APITransactionTestCase):
         self.url = factories.VolumeAvailabilityZoneFactory.get_list_url()
         self.fixture.volume
 
-    @data('admin', 'manager', 'staff')
+    @data("admin", "manager", "staff")
     def test_authorized_users_can_get_volume_availability_zone_list(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(self.url)

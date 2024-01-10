@@ -8,4 +8,4 @@ def set_current_user(user):
 
 
 def get_current_user():
-    return getattr(_locals, 'user', None)
+    return getattr(_locals, "user", None)

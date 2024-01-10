@@ -5,18 +5,18 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace_remote', '0003_store_old_values'),
+        ("marketplace_remote", "0003_store_old_values"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='projectupdaterequest',
-            name='old_is_industry',
+            model_name="projectupdaterequest",
+            name="old_is_industry",
             field=models.BooleanField(blank=True, null=True),
         ),
         migrations.AddField(
-            model_name='projectupdaterequest',
-            name='new_is_industry',
+            model_name="projectupdaterequest",
+            name="new_is_industry",
             field=models.BooleanField(blank=True, null=True),
         ),
     ]

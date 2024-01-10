@@ -5,13 +5,13 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('permissions', '0006_role_content_type'),
+        ("permissions", "0006_role_content_type"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='role',
-            name='is_active',
+            model_name="role",
+            name="is_active",
             field=models.BooleanField(default=True),
         ),
     ]

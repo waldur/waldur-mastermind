@@ -5,7 +5,7 @@ from waldur_mastermind.marketplace import utils
 from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME
 
 
-@shared_task(name='waldur_mastermind.marketplace_slurm_remote.sync_offering_users')
+@shared_task(name="waldur_mastermind.marketplace_slurm_remote.sync_offering_users")
 def sync_offering_users():
     offerings = marketplace_models.Offering.objects.filter(
         type=PLUGIN_NAME,

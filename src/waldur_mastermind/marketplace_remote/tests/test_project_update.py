@@ -18,7 +18,7 @@ from .. import PLUGIN_NAME
 
 
 @override_settings(
-    WALDUR_AUTH_SOCIAL={'ENABLE_EDUTEAMS_SYNC': True},
+    WALDUR_AUTH_SOCIAL={"ENABLE_EDUTEAMS_SYNC": True},
     task_always_eager=True,
 )
 class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
@@ -48,20 +48,20 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
         old_name = self.project.name
         self.client.force_login(self.fixture.owner)
         self.client.patch(
-            ProjectFactory.get_url(self.project), {'name': 'New project name'}
+            ProjectFactory.get_url(self.project), {"name": "New project name"}
         )
 
         request = ProjectUpdateRequest.objects.filter(
             project=self.project,
             offering=self.offering,
             old_name=old_name,
-            new_name='New project name',
+            new_name="New project name",
             state=ProjectUpdateRequest.States.PENDING,
         ).get()
 
         request_url = reverse(
             "marketplace-project-update-request-detail",
-            kwargs={'uuid': request.uuid.hex},
+            kwargs={"uuid": request.uuid.hex},
         )
 
         response = self.client.get(request_url)
@@ -70,18 +70,18 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
     def test_when_consecutive_update_is_applied_previous_request_is_cancelled(self):
         self.client.force_login(self.fixture.owner)
         self.client.patch(
-            ProjectFactory.get_url(self.project), {'name': 'First project'}
+            ProjectFactory.get_url(self.project), {"name": "First project"}
         )
 
         self.client.patch(
-            ProjectFactory.get_url(self.project), {'name': 'Second project'}
+            ProjectFactory.get_url(self.project), {"name": "Second project"}
         )
 
         self.assertTrue(
             ProjectUpdateRequest.objects.filter(
                 project=self.project,
                 offering=self.offering,
-                new_name='First project',
+                new_name="First project",
                 state=ProjectUpdateRequest.States.CANCELED,
             ).exists()
         )
@@ -90,8 +90,8 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
             ProjectUpdateRequest.objects.filter(
                 project=self.project,
                 offering=self.offering,
-                old_name='First project',
-                new_name='Second project',
+                old_name="First project",
+                new_name="Second project",
                 state=ProjectUpdateRequest.States.PENDING,
             ).exists()
         )
@@ -99,17 +99,17 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
     def test_when_request_is_approved_change_is_applied_remotely(self):
         # Arrange
         self.offering.secret_options = {
-            'api_url': 'http://example.com',
-            'token': 'secret',
+            "api_url": "http://example.com",
+            "token": "secret",
         }
         self.offering.save()
-        self.client_mock().list_projects.return_value = [{'uuid': 'valid_uuid'}]
+        self.client_mock().list_projects.return_value = [{"uuid": "valid_uuid"}]
 
         # Act
         self.client.force_login(self.fixture.owner)
         self.client.patch(
             ProjectFactory.get_url(self.project),
-            {'name': 'First project', 'is_industry': True},
+            {"name": "First project", "is_industry": True},
         )
         request = ProjectUpdateRequest.objects.get(
             project=self.project, offering=self.offering
@@ -117,15 +117,15 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
         self.client.force_login(self.fixture.offering_owner)
         base_url = reverse(
             "marketplace-project-update-request-detail",
-            kwargs={'uuid': request.uuid.hex},
+            kwargs={"uuid": request.uuid.hex},
         )
-        response = self.client.post(f'{base_url}approve/')
+        response = self.client.post(f"{base_url}approve/")
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.client_mock().update_project.assert_called_once()
         self.assertEqual(
-            self.client_mock().update_project.call_args_list[0].kwargs['is_industry'],
+            self.client_mock().update_project.call_args_list[0].kwargs["is_industry"],
             True,
         )
 
@@ -133,7 +133,7 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
         # Arrange
         self.client.force_login(self.fixture.owner)
         self.client.patch(
-            ProjectFactory.get_url(self.project), {'name': 'First project'}
+            ProjectFactory.get_url(self.project), {"name": "First project"}
         )
         request = ProjectUpdateRequest.objects.get(
             project=self.project, offering=self.offering
@@ -143,9 +143,9 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
         self.client.force_login(self.fixture.offering_owner)
         base_url = reverse(
             "marketplace-project-update-request-detail",
-            kwargs={'uuid': request.uuid.hex},
+            kwargs={"uuid": request.uuid.hex},
         )
-        response = self.client.post(f'{base_url}reject/')
+        response = self.client.post(f"{base_url}reject/")
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -157,13 +157,13 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
         self.fixture.customer.add_user(offering_owner, CustomerRole.OWNER)
 
         response = self.client.patch(
-            ProjectFactory.get_url(self.project), {'name': 'First project'}
+            ProjectFactory.get_url(self.project), {"name": "First project"}
         )
 
         self.assertEqual(200, response.status_code)
         self.project.refresh_from_db()
 
-        self.assertEqual('First project', self.project.name)
+        self.assertEqual("First project", self.project.name)
         requests = ProjectUpdateRequest.objects.filter(
             project=self.project,
             offering=self.offering,
@@ -171,13 +171,13 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
         )
         self.assertEqual(1, requests.count())
 
-    @freeze_time('2023-01-01')
+    @freeze_time("2023-01-01")
     def test_when_changes_made_by_staff_they_applied_immediately(self):
         staff = self.fixture.staff
         self.client.force_login(staff)
 
         response = self.client.patch(
-            ProjectFactory.get_url(self.project), {'end_date': '2023-01-26'}
+            ProjectFactory.get_url(self.project), {"end_date": "2023-01-26"}
         )
 
         self.assertEqual(200, response.status_code, response.data)
@@ -195,13 +195,13 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
         owner = self.fixture.offering_owner
 
         self.offering.type = PLUGIN_NAME
-        self.offering.secret_options = {'api_url': 'abc', 'token': '123'}
+        self.offering.secret_options = {"api_url": "abc", "token": "123"}
         self.offering.save()
 
         middleware.set_current_user(None)
 
-        self.project.name = 'Correct project name'
-        self.project.oecd_fos_2007_code = '1.1'
+        self.project.name = "Correct project name"
+        self.project.oecd_fos_2007_code = "1.1"
         self.project.description = "Correct description"
         self.project.end_date = date(year=2023, month=5, day=16)
         self.project.is_industry = True
@@ -217,18 +217,16 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
             is_industry=self.project.is_industry,
         )
 
-        url = '/api/remote-waldur-api/push_project_data/{}/'.format(
-            self.offering.uuid.hex
-        )
+        url = f"/api/remote-waldur-api/push_project_data/{self.offering.uuid.hex}/"
 
         self.client_mock().list_projects.return_value = [
             {
-                'uuid': '8192843ee7e848d4b425ea135043053a',
-                'name': "Incorrect project name",
-                'description': "Incorrect description",
-                'end_date': date(year=2023, month=5, day=10).isoformat(),
-                'oecd_fos_2007_code': '1.2',
-                'is_industry': False,
+                "uuid": "8192843ee7e848d4b425ea135043053a",
+                "name": "Incorrect project name",
+                "description": "Incorrect description",
+                "end_date": date(year=2023, month=5, day=10).isoformat(),
+                "oecd_fos_2007_code": "1.2",
+                "is_industry": False,
             }
         ]
 
@@ -237,5 +235,5 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
         self.assertEqual(200, response.status_code)
 
         self.client_mock().update_project.assert_called_once_with(
-            project_uuid='8192843ee7e848d4b425ea135043053a', **payload
+            project_uuid="8192843ee7e848d4b425ea135043053a", **payload
         )

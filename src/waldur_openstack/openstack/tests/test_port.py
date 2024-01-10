@@ -27,7 +27,7 @@ class PortDeleteTest(BasePortTest):
         self.port = self.fixture.port
         self.url = factories.PortFactory.get_url(self.port)
 
-    @mock.patch('waldur_openstack.openstack.executors.PortDeleteExecutor.execute')
+    @mock.patch("waldur_openstack.openstack.executors.PortDeleteExecutor.execute")
     def test_port_update_triggers_executor(self, delete_port_executor_action_mock):
         response = self.client.delete(self.url)
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)

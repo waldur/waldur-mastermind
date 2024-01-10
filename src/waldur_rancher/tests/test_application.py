@@ -15,10 +15,10 @@ class ApplicationCreateTest(test.APITransactionTestCase):
     @utils.override_plugin_settings(READ_ONLY_MODE=True)
     def test_create_is_disabled_in_read_only_mode(self):
         self.client.force_authenticate(self.fixture.owner)
-        response = self.client.post('/api/rancher-apps/')
+        response = self.client.post("/api/rancher-apps/")
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
-    @mock.patch('waldur_rancher.backend.RancherBackend.client')
+    @mock.patch("waldur_rancher.backend.RancherBackend.client")
     def test_create_is_enabled_for_owner(self, mock_client):
         self.client.force_authenticate(self.fixture.staff)
 
@@ -33,21 +33,21 @@ class ApplicationCreateTest(test.APITransactionTestCase):
             settings=self.fixture.settings, project=project
         )
 
-        mock_client.create_application.return_value = {'data': {}}
+        mock_client.create_application.return_value = {"data": {}}
 
         response = self.client.post(
-            '/api/rancher-apps/',
+            "/api/rancher-apps/",
             {
-                'service_settings': factories.RancherServiceSettingsFactory.get_url(
+                "service_settings": factories.RancherServiceSettingsFactory.get_url(
                     self.fixture.settings
                 ),
-                'project': ProjectFactory.get_url(self.fixture.project),
-                'name': 'Test Catalog',
-                'template': factories.TemplateFactory.get_url(template),
-                'rancher_project': factories.ProjectFactory.get_url(project),
-                'namespace': factories.NamespaceFactory.get_url(namespace),
-                'version': '1.0',
-                'answers': {},
+                "project": ProjectFactory.get_url(self.fixture.project),
+                "name": "Test Catalog",
+                "template": factories.TemplateFactory.get_url(template),
+                "rancher_project": factories.ProjectFactory.get_url(project),
+                "namespace": factories.NamespaceFactory.get_url(namespace),
+                "version": "1.0",
+                "answers": {},
             },
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)

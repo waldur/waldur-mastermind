@@ -35,19 +35,19 @@ class Issue(
     core_models.StateMixin,
 ):
     class Meta:
-        ordering = ['-created']
-        unique_together = ('backend_name', 'backend_id')
+        ordering = ["-created"]
+        unique_together = ("backend_name", "backend_id")
 
     class Permissions:
-        customer_path = 'customer'
-        project_path = 'project'
+        customer_path = "customer"
+        project_path = "project"
 
     backend_id = models.CharField(max_length=255, blank=True, null=True)
     remote_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
     key = models.CharField(max_length=255, blank=True)
     type = models.CharField(max_length=255)
     link = models.URLField(
-        max_length=255, help_text=_('Link to issue in support system.'), blank=True
+        max_length=255, help_text=_("Link to issue in support system."), blank=True
     )
 
     summary = models.CharField(max_length=255)
@@ -61,42 +61,42 @@ class Issue(
 
     caller = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        related_name='created_issues',
+        related_name="created_issues",
         blank=True,
         null=True,
-        help_text=_('Waldur user who has reported the issue.'),
+        help_text=_("Waldur user who has reported the issue."),
         on_delete=models.SET_NULL,
     )
     reporter = models.ForeignKey(
-        'SupportUser',
-        related_name='reported_issues',
+        "SupportUser",
+        related_name="reported_issues",
         blank=True,
         null=True,
         help_text=_(
-            'Help desk user who have created the issue that is reported by caller.'
+            "Help desk user who have created the issue that is reported by caller."
         ),
         on_delete=models.PROTECT,
     )
     assignee = models.ForeignKey(
-        'SupportUser',
-        related_name='issues',
+        "SupportUser",
+        related_name="issues",
         blank=True,
         null=True,
-        help_text=_('Help desk user who will implement the issue'),
+        help_text=_("Help desk user who will implement the issue"),
         on_delete=models.PROTECT,
     )
 
     customer = models.ForeignKey(
         structure_models.Customer,
-        verbose_name=_('organization'),
-        related_name='issues',
+        verbose_name=_("organization"),
+        related_name="issues",
         blank=True,
         null=True,
         on_delete=models.CASCADE,
     )
     project = models.ForeignKey(
         structure_models.Project,
-        related_name='issues',
+        related_name="issues",
         blank=True,
         null=True,
         on_delete=models.CASCADE,
@@ -106,13 +106,13 @@ class Issue(
         on_delete=models.CASCADE, to=ContentType, null=True
     )
     resource_object_id = models.PositiveIntegerField(null=True)
-    resource = GenericForeignKey('resource_content_type', 'resource_object_id')
+    resource = GenericForeignKey("resource_content_type", "resource_object_id")
 
     first_response_sla = models.DateTimeField(blank=True, null=True)
     resolution_date = models.DateTimeField(blank=True, null=True)
     template = models.ForeignKey(
-        'Template',
-        related_name='issues',
+        "Template",
+        related_name="issues",
         blank=True,
         null=True,
         on_delete=models.PROTECT,
@@ -120,7 +120,7 @@ class Issue(
     feedback_request = models.BooleanField(
         blank=True,
         default=True,
-        help_text='Request feedback from the issue creator after resolution of the issue',
+        help_text="Request feedback from the issue creator after resolution of the issue",
     )
 
     tracker = FieldTracker()
@@ -130,44 +130,44 @@ class Issue(
 
     @classmethod
     def get_url_name(cls):
-        return 'support-issue'
+        return "support-issue"
 
     @classmethod
     def get_backend_fields(cls):
         return super().get_backend_fields() + (
-            'backend_id',
-            'key',
-            'type',
-            'link',
-            'summary',
-            'description',
-            'deadline',
-            'impact',
-            'status',
-            'resolution',
-            'priority',
-            'caller',
-            'reporter',
-            'assignee',
-            'customer',
-            'project',
-            'resource',
-            'first_response_sla',
+            "backend_id",
+            "key",
+            "type",
+            "link",
+            "summary",
+            "description",
+            "deadline",
+            "impact",
+            "status",
+            "resolution",
+            "priority",
+            "caller",
+            "reporter",
+            "assignee",
+            "customer",
+            "project",
+            "resource",
+            "first_response_sla",
         )
 
     def get_log_fields(self):
         return (
-            'uuid',
-            'type',
-            'key',
-            'status',
-            'link',
-            'summary',
-            'reporter',
-            'caller',
-            'customer',
-            'project',
-            'resource',
+            "uuid",
+            "type",
+            "key",
+            "status",
+            "link",
+            "summary",
+            "reporter",
+            "caller",
+            "customer",
+            "project",
+            "resource",
         )
 
     @property
@@ -189,7 +189,7 @@ class Issue(
         self.save()
 
     def __str__(self):
-        return '{}: {}'.format(self.key or '???', self.summary)
+        return "{}: {}".format(self.key or "???", self.summary)
 
 
 class Priority(
@@ -201,12 +201,12 @@ class Priority(
     backend_id = models.CharField(max_length=255, blank=True)
 
     class Meta:
-        verbose_name = _('Priority')
-        verbose_name_plural = _('Priorities')
+        verbose_name = _("Priority")
+        verbose_name_plural = _("Priorities")
 
     @classmethod
     def get_url_name(cls):
-        return 'support-priority'
+        return "support-priority"
 
     def __str__(self):
         return self.name
@@ -219,30 +219,30 @@ class SupportUser(
     models.Model,
 ):
     class Meta:
-        ordering = ['name']
-        unique_together = ('backend_name', 'backend_id')
+        ordering = ["name"]
+        unique_together = ("backend_name", "backend_id")
 
     user = models.ForeignKey(
         on_delete=models.CASCADE,
         to=settings.AUTH_USER_MODEL,
-        related_name='+',
+        related_name="+",
         blank=True,
         null=True,
     )
     backend_id = models.CharField(max_length=255, blank=True, null=True)
     is_active = models.BooleanField(
-        _('active'),
+        _("active"),
         default=True,
         help_text=_(
-            'Designates whether this user should be treated as '
-            'active. Unselect this instead of deleting accounts.'
+            "Designates whether this user should be treated as "
+            "active. Unselect this instead of deleting accounts."
         ),
     )
     objects = managers.SupportUserManager()
 
     @classmethod
     def get_url_name(cls):
-        return 'support-user'
+        return "support-user"
 
     def __str__(self):
         return self.name
@@ -256,18 +256,18 @@ class Comment(
     core_models.StateMixin,
 ):
     class Meta:
-        ordering = ['-created']
-        unique_together = ('backend_name', 'backend_id')
+        ordering = ["-created"]
+        unique_together = ("backend_name", "backend_id")
 
     class Permissions:
-        customer_path = 'issue__customer'
-        project_path = 'issue__project'
+        customer_path = "issue__customer"
+        project_path = "issue__project"
 
     issue = models.ForeignKey(
-        on_delete=models.CASCADE, to=Issue, related_name='comments'
+        on_delete=models.CASCADE, to=Issue, related_name="comments"
     )
     author = models.ForeignKey(
-        on_delete=models.CASCADE, to=SupportUser, related_name='comments'
+        on_delete=models.CASCADE, to=SupportUser, related_name="comments"
     )
     description = models.TextField()
     is_public = models.BooleanField(default=True)
@@ -279,8 +279,8 @@ class Comment(
         """
         Extracts comment message from JIRA comment which contains user's info in its body.
         """
-        match = re.search(r'^(\[.*?\]\:\s)', message)
-        return message.replace(match.group(0), '') if match else message
+        match = re.search(r"^(\[.*?\]\:\s)", message)
+        return message.replace(match.group(0), "") if match else message
 
     def prepare_message(self):
         """
@@ -293,24 +293,24 @@ class Comment(
         if user:
             prefix = user.full_name or user.username
             if user.civil_number:
-                prefix += ' ' + user.civil_number
-        return f'[{prefix}]: {self.description}'
+                prefix += " " + user.civil_number
+        return f"[{prefix}]: {self.description}"
 
     def update_message(self, message):
         self.description = self.clean_message(message)
 
     @classmethod
     def get_url_name(cls):
-        return 'support-comment'
+        return "support-comment"
 
     @classmethod
     def get_backend_fields(cls):
         return super().get_backend_fields() + (
-            'issue',
-            'author',
-            'description',
-            'is_public',
-            'backend_id',
+            "issue",
+            "author",
+            "description",
+            "is_public",
+            "backend_id",
         )
 
     def __str__(self):
@@ -325,26 +325,26 @@ class Attachment(
     core_models.StateMixin,
 ):
     class Permissions:
-        customer_path = 'issue__customer'
-        project_path = 'issue__project'
+        customer_path = "issue__customer"
+        project_path = "issue__project"
 
     class Meta:
-        unique_together = ('backend_name', 'backend_id')
+        unique_together = ("backend_name", "backend_id")
 
     issue = models.ForeignKey(
-        on_delete=models.CASCADE, to=Issue, related_name='attachments'
+        on_delete=models.CASCADE, to=Issue, related_name="attachments"
     )
-    file = models.FileField(upload_to='support_attachments')
+    file = models.FileField(upload_to="support_attachments")
     backend_id = models.CharField(max_length=255)
-    mime_type = models.CharField(_('MIME type'), max_length=100, blank=True)
-    file_size = models.PositiveIntegerField(_('Filesize, B'), blank=True, null=True)
+    mime_type = models.CharField(_("MIME type"), max_length=100, blank=True)
+    file_size = models.PositiveIntegerField(_("Filesize, B"), blank=True, null=True)
     thumbnail = models.FileField(
-        upload_to='support_attachments_thumbnails', blank=True, null=True
+        upload_to="support_attachments_thumbnails", blank=True, null=True
     )
     author = models.ForeignKey(
         on_delete=models.CASCADE,
         to=SupportUser,
-        related_name='attachments',
+        related_name="attachments",
         blank=True,
         null=True,
     )
@@ -352,27 +352,27 @@ class Attachment(
 
     @classmethod
     def get_url_name(cls):
-        return 'support-attachment'
+        return "support-attachment"
 
     def __str__(self):
-        return '{} | {}'.format(self.issue, self.file.name.split('/')[-1])
+        return "{} | {}".format(self.issue, self.file.name.split("/")[-1])
 
     def get_log_fields(self):
-        return ('uuid', 'issue', 'author', 'backend_id')
+        return ("uuid", "issue", "author", "backend_id")
 
 
 class Template(core_models.UuidMixin, core_models.NameMixin, TimeStampedModel):
     class IssueTypes:
-        INFORMATIONAL = 'INFORMATIONAL'
-        SERVICE_REQUEST = 'SERVICE_REQUEST'
-        CHANGE_REQUEST = 'CHANGE_REQUEST'
-        INCIDENT = 'INCIDENT'
+        INFORMATIONAL = "INFORMATIONAL"
+        SERVICE_REQUEST = "SERVICE_REQUEST"
+        CHANGE_REQUEST = "CHANGE_REQUEST"
+        INCIDENT = "INCIDENT"
 
         CHOICES = (
-            (INFORMATIONAL, 'Informational'),
-            (SERVICE_REQUEST, 'Service request'),
-            (CHANGE_REQUEST, 'Change request'),
-            (INCIDENT, 'Incident'),
+            (INFORMATIONAL, "Informational"),
+            (SERVICE_REQUEST, "Service request"),
+            (CHANGE_REQUEST, "Change request"),
+            (INCIDENT, "Incident"),
         )
 
     native_name = models.CharField(max_length=150, blank=True)
@@ -384,7 +384,7 @@ class Template(core_models.UuidMixin, core_models.NameMixin, TimeStampedModel):
 
     @classmethod
     def get_url_name(cls):
-        return 'support-template'
+        return "support-template"
 
     def __str__(self):
         return self.name
@@ -394,14 +394,14 @@ class TemplateAttachment(
     core_models.UuidMixin, core_models.NameMixin, TimeStampedModel
 ):
     template = models.ForeignKey(
-        Template, on_delete=models.CASCADE, related_name='attachments'
+        Template, on_delete=models.CASCADE, related_name="attachments"
     )
-    file = models.FileField(upload_to='support_template_attachments')
+    file = models.FileField(upload_to="support_template_attachments")
 
 
 class IgnoredIssueStatus(models.Model):
     name = models.CharField(
-        _('name'), max_length=150, validators=[validate_name], unique=True
+        _("name"), max_length=150, validators=[validate_name], unique=True
     )
 
     def __str__(self):
@@ -451,12 +451,12 @@ class IssueStatus(models.Model):
         CANCELED = 1
 
     TYPE_CHOICES = (
-        (Types.RESOLVED, 'Resolved'),
-        (Types.CANCELED, 'Canceled'),
+        (Types.RESOLVED, "Resolved"),
+        (Types.CANCELED, "Canceled"),
     )
 
     name = models.CharField(
-        max_length=255, help_text='Status name in Jira.', unique=True
+        max_length=255, help_text="Status name in Jira.", unique=True
     )
     type = FSMIntegerField(default=Types.RESOLVED, choices=TYPE_CHOICES)
 
@@ -473,9 +473,9 @@ class IssueStatus(models.Model):
             or not cls.objects.filter(type=cls.Types.CANCELED).exists()
         ):
             logger.critical(
-                'There is no information about statuses of an issue. '
-                'Please, add resolved and canceled statuses in admin. '
-                'Otherwise, you cannot use processes that need this information.'
+                "There is no information about statuses of an issue. "
+                "Please, add resolved and canceled statuses in admin. "
+                "Otherwise, you cannot use processes that need this information."
             )
             return
         try:
@@ -488,8 +488,8 @@ class IssueStatus(models.Model):
             return
 
     class Meta:
-        verbose_name = _('Issue status')
-        verbose_name_plural = _('Issue statuses')
+        verbose_name = _("Issue status")
+        verbose_name_plural = _("Issue statuses")
 
 
 class TemplateConfirmationComment(models.Model):
@@ -501,7 +501,7 @@ class TemplateConfirmationComment(models.Model):
     Issue type specific text template is to be used for incident, etc.
     """
 
-    issue_type = models.CharField(max_length=255, unique=True, default='default')
+    issue_type = models.CharField(max_length=255, unique=True, default="default")
     template = models.TextField(validators=[validate_name, validate_template_syntax])
 
     def __str__(self):
@@ -515,16 +515,16 @@ class Feedback(
 ):
     class Evaluation:
         CHOICES = (
-            (1, '1'),
-            (2, '2'),
-            (3, '3'),
-            (4, '4'),
-            (5, '5'),
-            (6, '6'),
-            (7, '7'),
-            (8, '8'),
-            (9, '9'),
-            (10, '10'),
+            (1, "1"),
+            (2, "2"),
+            (3, "3"),
+            (4, "4"),
+            (5, "5"),
+            (6, "6"),
+            (7, "7"),
+            (8, "8"),
+            (9, "9"),
+            (10, "10"),
         )
 
     issue = models.OneToOneField(Issue, on_delete=models.CASCADE)
@@ -532,8 +532,8 @@ class Feedback(
     comment = models.TextField(blank=True)
 
     def __str__(self):
-        return f'{self.issue} | {self.evaluation}'
+        return f"{self.issue} | {self.evaluation}"
 
     @classmethod
     def get_url_name(cls):
-        return 'support-feedback'
+        return "support-feedback"

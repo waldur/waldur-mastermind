@@ -4,11 +4,11 @@ from waldur_core.structure import models as structure_models
 from . import models
 
 TENANT_QUOTAS = (
-    ('vpc_cpu_count', 'vcpu'),
-    ('vpc_ram_size', 'ram'),
-    ('vpc_storage_size', 'storage'),
-    ('vpc_floating_ip_count', 'floating_ip_count'),
-    ('vpc_instance_count', 'instances'),
+    ("vpc_cpu_count", "vcpu"),
+    ("vpc_ram_size", "ram"),
+    ("vpc_storage_size", "storage"),
+    ("vpc_floating_ip_count", "floating_ip_count"),
+    ("vpc_instance_count", "instances"),
 )
 
 TENANT_PATHS = {

@@ -5,7 +5,7 @@ from waldur_mastermind.marketplace import models as marketplace_models
 
 class GoogleAuthFilter(django_filters.FilterSet):
     has_credentials = django_filters.BooleanFilter(
-        method='filter_has_credentials', label='has_credentials'
+        method="filter_has_credentials", label="has_credentials"
     )
 
     class Meta:

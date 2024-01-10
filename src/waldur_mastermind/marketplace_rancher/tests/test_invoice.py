@@ -28,14 +28,14 @@ class InvoiceTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = openstack_tenant_fixtures.OpenStackTenantFixture()
         self.patcher = mock.patch(
-            'waldur_rancher.backend.RancherBackend.get_cluster_nodes'
+            "waldur_rancher.backend.RancherBackend.get_cluster_nodes"
         )
         self.mocked_get_cluster_nodes = self.patcher.start()
         self.mocked_get_cluster_nodes.return_value = [
-            {'backend_id': 'node_backend_id', 'name': 'name-rancher-node-1'}
+            {"backend_id": "node_backend_id", "name": "name-rancher-node-1"}
         ]
 
-        self.patcher_client = mock.patch('waldur_rancher.backend.RancherBackend.client')
+        self.patcher_client = mock.patch("waldur_rancher.backend.RancherBackend.client")
         self.mock_client = self.patcher_client.start()
         self.mock_client.get_node.return_value = backend_node_response
 
@@ -48,7 +48,7 @@ class InvoiceTest(test.APITransactionTestCase):
         )
         self.offering_component = marketplace_factories.OfferingComponentFactory(
             offering=self.offering,
-            type='node',
+            type="node",
             billing_type=marketplace_models.OfferingComponent.BillingTypes.USAGE,
         )
         self.plan_component = marketplace_factories.PlanComponentFactory(
@@ -64,9 +64,9 @@ class InvoiceTest(test.APITransactionTestCase):
             settings=self.fixture.openstack_tenant_service_settings
         )
         openstack_tenant_factories.SecurityGroupFactory(
-            name='default', settings=self.fixture.openstack_tenant_service_settings
+            name="default", settings=self.fixture.openstack_tenant_service_settings
         )
-        service_settings.options['base_image_name'] = image.name
+        service_settings.options["base_image_name"] = image.name
         service_settings.save()
 
         self.resource = None
@@ -83,19 +83,19 @@ class InvoiceTest(test.APITransactionTestCase):
             created_by=self.fixture.owner,
             offering=self.offering,
             attributes={
-                'name': 'name',
-                'tenant_settings': openstack_tenant_factories.OpenStackTenantServiceSettingsFactory.get_url(
+                "name": "name",
+                "tenant_settings": openstack_tenant_factories.OpenStackTenantServiceSettingsFactory.get_url(
                     self.fixture.openstack_tenant_service_settings
                 ),
-                'nodes': [
+                "nodes": [
                     {
-                        'subnet': openstack_tenant_factories.SubNetFactory.get_url(
+                        "subnet": openstack_tenant_factories.SubNetFactory.get_url(
                             self.fixture.subnet
                         ),
-                        'system_volume_size': 1024,
-                        'memory': 1,
-                        'cpu': 1,
-                        'roles': ['controlplane', 'etcd', 'worker'],
+                        "system_volume_size": 1024,
+                        "memory": 1,
+                        "cpu": 1,
+                        "roles": ["controlplane", "etcd", "worker"],
                     }
                 ],
             },
@@ -103,12 +103,12 @@ class InvoiceTest(test.APITransactionTestCase):
         )
         marketplace_utils.process_order(order, self.fixture.staff)
         self.assertTrue(
-            marketplace_models.Resource.objects.filter(name='name').exists()
+            marketplace_models.Resource.objects.filter(name="name").exists()
         )
-        self.assertTrue(rancher_models.Cluster.objects.filter(name='name').exists())
+        self.assertTrue(rancher_models.Cluster.objects.filter(name="name").exists())
 
-        self.cluster = rancher_models.Cluster.objects.get(name='name')
-        self.cluster.backend_id = 'cluster_backend_id'
+        self.cluster = rancher_models.Cluster.objects.get(name="name")
+        self.cluster.backend_id = "cluster_backend_id"
         self.cluster.save()
 
         create_node_task = tasks.CreateNodeTask()
@@ -117,7 +117,7 @@ class InvoiceTest(test.APITransactionTestCase):
                 0
             ].node_set.first(),
             user_id=mock_executors.ClusterCreateExecutor.execute.mock_calls[0][2][
-                'user'
+                "user"
             ].id,
         )
         self.assertTrue(self.cluster.node_set.filter(cluster=self.cluster).exists())
@@ -134,8 +134,8 @@ class InvoiceTest(test.APITransactionTestCase):
         tasks.pull_cluster_nodes(self.cluster.id)
         utils.update_cluster_nodes_states(self.cluster.id)
 
-    @freeze_time('2019-01-01')
-    @mock.patch('waldur_rancher.views.executors')
+    @freeze_time("2019-01-01")
+    @mock.patch("waldur_rancher.views.executors")
     def test_create_usage_if_node_is_active(self, mock_executors):
         self._create_usage(mock_executors)
         today = datetime.date.today()
@@ -153,11 +153,11 @@ class InvoiceTest(test.APITransactionTestCase):
         self.assertEqual(invoice.items.count(), 1)
         self.assertEqual(invoice.price, self.plan_component.price)
 
-    @freeze_time('2019-01-01')
-    @mock.patch('waldur_rancher.views.executors')
+    @freeze_time("2019-01-01")
+    @mock.patch("waldur_rancher.views.executors")
     def test_usage_is_zero_if_node_is_not_active(self, mock_executors):
         return_value = copy.copy(self.mock_client.get_node.return_value)
-        return_value['state'] = 'error'
+        return_value["state"] = "error"
         self.mock_client.get_node.return_value = return_value
         self._create_usage(mock_executors)
         today = datetime.date.today()
@@ -179,8 +179,8 @@ class InvoiceTest(test.APITransactionTestCase):
         )
         self.assertEqual(usage.usage, 0)
 
-    @freeze_time('2019-01-01')
-    @mock.patch('waldur_rancher.views.executors')
+    @freeze_time("2019-01-01")
+    @mock.patch("waldur_rancher.views.executors")
     def test_usage_grows_if_active_nodes_count_grow(self, mock_executors):
         self._create_usage(mock_executors)
         today = datetime.date.today()
@@ -194,10 +194,10 @@ class InvoiceTest(test.APITransactionTestCase):
                 plan_period=self.plan_period,
             ).exists()
         )
-        rancher_factories.NodeFactory(cluster=self.cluster, name='second node')
+        rancher_factories.NodeFactory(cluster=self.cluster, name="second node")
         self.mocked_get_cluster_nodes.return_value = [
-            {'backend_id': 'node_backend_id', 'name': 'name-rancher-node'},
-            {'backend_id': 'second_node_backend_id', 'name': 'second node'},
+            {"backend_id": "node_backend_id", "name": "name-rancher-node"},
+            {"backend_id": "second_node_backend_id", "name": "second node"},
         ]
         tasks.pull_cluster_nodes(self.cluster.id)
         utils.update_cluster_nodes_states(self.cluster.id)
@@ -225,8 +225,8 @@ class InvoiceTest(test.APITransactionTestCase):
         self.assertEqual(invoice.items.count(), 1)
         self.assertEqual(invoice.price, self.plan_component.price * 2)
 
-    @freeze_time('2019-01-01')
-    @mock.patch('waldur_rancher.views.executors')
+    @freeze_time("2019-01-01")
+    @mock.patch("waldur_rancher.views.executors")
     def test_usage_does_not_decrease_if_active_nodes_count_decrease(
         self, mock_executors
     ):
@@ -242,10 +242,10 @@ class InvoiceTest(test.APITransactionTestCase):
                 plan_period=self.plan_period,
             ).exists()
         )
-        rancher_factories.NodeFactory(cluster=self.cluster, name='second node')
+        rancher_factories.NodeFactory(cluster=self.cluster, name="second node")
         self.mocked_get_cluster_nodes.return_value = [
-            {'backend_id': 'node_backend_id', 'name': 'name-rancher-node'},
-            {'backend_id': 'second_node_backend_id', 'name': 'second node'},
+            {"backend_id": "node_backend_id", "name": "name-rancher-node"},
+            {"backend_id": "second_node_backend_id", "name": "second node"},
         ]
         tasks.pull_cluster_nodes(self.cluster.id)
         utils.update_cluster_nodes_states(self.cluster.id)
@@ -260,7 +260,7 @@ class InvoiceTest(test.APITransactionTestCase):
             ).exists()
         )
         return_value = copy.copy(self.mock_client.get_node.return_value)
-        return_value['state'] = 'error'
+        return_value["state"] = "error"
         self.mock_client.get_node.return_value = return_value
         tasks.pull_cluster_nodes(self.cluster.id)
         self.assertTrue(

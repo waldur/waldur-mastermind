@@ -16,7 +16,7 @@ class CategoryGroupGetTest(test.APITransactionTestCase):
         self.group_url = factories.CategoryGroupFactory.get_url(self.group)
         self.list_url = factories.CategoryGroupFactory.get_list_url()
 
-    @data('staff', 'owner', 'user', 'customer_support', 'admin', 'manager')
+    @data("staff", "owner", "user", "customer_support", "admin", "manager")
     def test_group_should_be_visible_to_all_authenticated_users(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
@@ -41,14 +41,14 @@ class CategoryGroupCreateTest(test.APITransactionTestCase):
         self.fixture = fixtures.ProjectFixture()
 
     @data(
-        'staff',
+        "staff",
     )
     def test_authorized_user_can_create_group(self, user):
         response = self.create_group(user)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(models.CategoryGroup.objects.filter(title='group').exists())
+        self.assertTrue(models.CategoryGroup.objects.filter(title="group").exists())
 
-    @data('owner', 'user', 'customer_support', 'admin', 'manager')
+    @data("owner", "user", "customer_support", "admin", "manager")
     def test_unauthorized_user_can_not_create_group(self, user):
         response = self.create_group(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -59,7 +59,7 @@ class CategoryGroupCreateTest(test.APITransactionTestCase):
         url = factories.CategoryGroupFactory.get_list_url()
 
         payload = {
-            'title': 'group',
+            "title": "group",
         }
 
         return self.client.post(url, payload)
@@ -71,15 +71,15 @@ class CategoryGroupUpdateTest(test.APITransactionTestCase):
         self.fixture = fixtures.ProjectFixture()
 
     @data(
-        'staff',
+        "staff",
     )
     def test_authorized_user_can_update_group(self, user):
         response, group = self.update_group(user)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertEqual(group.title, 'new_group')
-        self.assertTrue(models.CategoryGroup.objects.filter(title='new_group').exists())
+        self.assertEqual(group.title, "new_group")
+        self.assertTrue(models.CategoryGroup.objects.filter(title="new_group").exists())
 
-    @data('owner', 'user', 'customer_support', 'admin', 'manager')
+    @data("owner", "user", "customer_support", "admin", "manager")
     def test_unauthorized_user_can_not_update_category(self, user):
         response, group = self.update_group(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -90,7 +90,7 @@ class CategoryGroupUpdateTest(test.APITransactionTestCase):
         self.client.force_authenticate(user)
         url = factories.CategoryGroupFactory.get_url(group)
 
-        response = self.client.patch(url, {'title': 'new_group'})
+        response = self.client.patch(url, {"title": "new_group"})
         group.refresh_from_db()
 
         return response, group
@@ -100,23 +100,23 @@ class CategoryGroupUpdateTest(test.APITransactionTestCase):
 class CategoryGroupDeleteTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
-        self.group = factories.CategoryGroupFactory(title='group')
+        self.group = factories.CategoryGroupFactory(title="group")
 
     @data(
-        'staff',
+        "staff",
     )
     def test_authorized_user_can_delete_group(self, user):
         response = self.delete_group(user)
         self.assertEqual(
             response.status_code, status.HTTP_204_NO_CONTENT, response.data
         )
-        self.assertFalse(models.CategoryGroup.objects.filter(title='group').exists())
+        self.assertFalse(models.CategoryGroup.objects.filter(title="group").exists())
 
-    @data('owner', 'user', 'customer_support', 'admin', 'manager')
+    @data("owner", "user", "customer_support", "admin", "manager")
     def test_unauthorized_user_can_not_delete_group(self, user):
         response = self.delete_group(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertTrue(models.CategoryGroup.objects.filter(title='group').exists())
+        self.assertTrue(models.CategoryGroup.objects.filter(title="group").exists())
 
     def delete_group(self, user):
         user = getattr(self.fixture, user)

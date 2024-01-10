@@ -10,29 +10,29 @@ from waldur_core.logging.loggers import expand_event_groups
 
 
 class BaseHookFilter(django_filters.FilterSet):
-    author_uuid = django_filters.UUIDFilter(field_name='user__uuid')
+    author_uuid = django_filters.UUIDFilter(field_name="user__uuid")
     author_fullname = django_filters.CharFilter(
-        method='filter_by_full_name', label='User full name contains'
+        method="filter_by_full_name", label="User full name contains"
     )
-    author_username = django_filters.CharFilter(field_name='user__username')
-    author_email = django_filters.CharFilter(field_name='user__email')
+    author_username = django_filters.CharFilter(field_name="user__username")
+    author_email = django_filters.CharFilter(field_name="user__email")
     is_active = django_filters.BooleanFilter(widget=BooleanWidget)
     last_published = django_filters.DateTimeFilter()
 
     def filter_by_full_name(self, queryset, name, value):
-        return core_filters.filter_by_full_name(queryset, value, 'user')
+        return core_filters.filter_by_full_name(queryset, value, "user")
 
 
 class WebHookFilter(BaseHookFilter):
     class Meta:
         model = models.WebHook
-        fields = ('destination_url', 'content_type')
+        fields = ("destination_url", "content_type")
 
 
 class EmailHookFilter(BaseHookFilter):
     class Meta:
         model = models.EmailHook
-        fields = ('email',)
+        fields = ("email",)
 
 
 class HookSummaryFilterBackend(core_filters.SummaryFilter):
@@ -49,10 +49,10 @@ class HookSummaryFilterBackend(core_filters.SummaryFilter):
 
 
 class EventFilter(django_filters.FilterSet):
-    created_from = core_filters.TimestampFilter(field_name='created', lookup_expr='gte')
-    created_to = core_filters.TimestampFilter(field_name='created', lookup_expr='lt')
-    message = django_filters.CharFilter(lookup_expr='icontains')
-    o = django_filters.OrderingFilter(fields=('created',))
+    created_from = core_filters.TimestampFilter(field_name="created", lookup_expr="gte")
+    created_to = core_filters.TimestampFilter(field_name="created", lookup_expr="lt")
+    message = django_filters.CharFilter(lookup_expr="icontains")
+    o = django_filters.OrderingFilter(fields=("created",))
 
     class Meta:
         model = models.Event
@@ -61,20 +61,20 @@ class EventFilter(django_filters.FilterSet):
 
 class EventFilterBackend(filters.BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
-        event_types = request.query_params.getlist('event_type')
+        event_types = request.query_params.getlist("event_type")
         if event_types:
             queryset = queryset.filter(event_type__in=event_types)
 
-        features = request.query_params.getlist('feature')
+        features = request.query_params.getlist("feature")
         if features:
             queryset = queryset.filter(event_type__in=expand_event_groups(features))
 
-        if 'scope' in request.query_params:
+        if "scope" in request.query_params:
             field = core_serializers.GenericRelatedField(
                 related_models=utils.get_loggable_models()
             )
-            field._context = {'request': request}
-            scope = field.to_internal_value(request.query_params['scope'])
+            field._context = {"request": request}
+            scope = field.to_internal_value(request.query_params["scope"])
 
             # Check permissions
             visible = scope._meta.model.get_permitted_objects(request.user)
@@ -85,7 +85,7 @@ class EventFilterBackend(filters.BaseFilterBackend):
             events = models.Feed.objects.filter(
                 content_type=content_type,
                 object_id=scope.id,
-            ).values_list('event_id', flat=True)
+            ).values_list("event_id", flat=True)
             queryset = queryset.filter(id__in=events)
 
         elif not request.user.is_staff and not request.user.is_support:

@@ -18,7 +18,7 @@ REMOTE_CUSTOMER_UUID = uuid.uuid4().hex
 
 
 @override_settings(
-    WALDUR_AUTH_SOCIAL={'ENABLE_EDUTEAMS_SYNC': True},
+    WALDUR_AUTH_SOCIAL={"ENABLE_EDUTEAMS_SYNC": True},
     task_always_eager=True,
     task_eager_propagates=True,
 )
@@ -34,11 +34,11 @@ class RemoteProjectPermissionsTestCase(test.APITransactionTestCase):
         self.resource = resource
 
         offering = self.mp_fixture.offering
-        offering.backend_id = 'ABC'
+        offering.backend_id = "ABC"
         offering.secret_options = {
-            'api_url': 'http://offerings.example.com/api',
-            'token': 'AAABBBCCC',
-            'customer_uuid': REMOTE_CUSTOMER_UUID,
+            "api_url": "http://offerings.example.com/api",
+            "token": "AAABBBCCC",
+            "customer_uuid": REMOTE_CUSTOMER_UUID,
         }
         offering.type = PLUGIN_NAME
         offering.save()
@@ -50,8 +50,8 @@ class RemoteProjectPermissionsTestCase(test.APITransactionTestCase):
             "waldur_mastermind.marketplace_remote.utils.WaldurClient"
         )
         client_mock = self.patcher.start()
-        client_mock().get_remote_eduteams_user.return_value = {'uuid': REMOTE_USER_UUID}
-        client_mock().list_projects.return_value = [{'uuid': REMOTE_PROJECT_UUID}]
+        client_mock().get_remote_eduteams_user.return_value = {"uuid": REMOTE_USER_UUID}
+        client_mock().list_projects.return_value = [{"uuid": REMOTE_PROJECT_UUID}]
         client_mock().get_project_permissions.return_value = []
         self.client_mock = client_mock
 
@@ -68,7 +68,7 @@ class RemoteProjectPermissionsTestCase(test.APITransactionTestCase):
             self.new_user.username
         )
         self.client_mock().list_projects.assert_called_once_with(
-            {'backend_id': f'{self.customer.uuid}_{self.project.uuid}'}
+            {"backend_id": f"{self.customer.uuid}_{self.project.uuid}"}
         )
         self.client_mock().get_project_permissions.assert_called_once_with(
             REMOTE_PROJECT_UUID,
@@ -93,7 +93,7 @@ class RemoteProjectPermissionsTestCase(test.APITransactionTestCase):
             self.new_user.username
         )
         self.client_mock().list_projects.assert_called_once_with(
-            {'backend_id': f'{self.customer.uuid}_{self.project.uuid}'}
+            {"backend_id": f"{self.customer.uuid}_{self.project.uuid}"}
         )
         self.client_mock().get_project_permissions.assert_called_once_with(
             REMOTE_PROJECT_UUID,
@@ -118,7 +118,7 @@ class RemoteProjectPermissionsTestCase(test.APITransactionTestCase):
             expiration_time=old_expiration_time,
         )
         self.client_mock().get_project_permissions.return_value = [
-            {'expiration_time': old_expiration_time.isoformat()}
+            {"expiration_time": old_expiration_time.isoformat()}
         ]
         permission.set_expiration_time(new_expiration_time)
         self.client_mock().update_project_permission.assert_called_once_with(
@@ -134,7 +134,7 @@ class RemoteProjectPermissionsTestCase(test.APITransactionTestCase):
             role=ProjectRole.ADMIN,
         )
         self.client_mock().get_project_permissions.return_value = [
-            {'expiration_time': None}
+            {"expiration_time": None}
         ]
         self.project.remove_user(
             user=self.new_user,

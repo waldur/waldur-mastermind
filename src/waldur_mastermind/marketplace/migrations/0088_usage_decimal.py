@@ -5,23 +5,23 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace', '0087_robotaccount_backend_id'),
+        ("marketplace", "0087_robotaccount_backend_id"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='componentquota',
-            name='limit',
+            model_name="componentquota",
+            name="limit",
             field=models.DecimalField(decimal_places=2, default=-1, max_digits=20),
         ),
         migrations.AlterField(
-            model_name='componentquota',
-            name='usage',
+            model_name="componentquota",
+            name="usage",
             field=models.DecimalField(decimal_places=2, default=0, max_digits=20),
         ),
         migrations.AlterField(
-            model_name='componentusage',
-            name='usage',
+            model_name="componentusage",
+            name="usage",
             field=models.DecimalField(decimal_places=2, default=0, max_digits=20),
         ),
     ]

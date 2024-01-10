@@ -5,146 +5,146 @@ from waldur_mastermind.marketplace import views
 
 def register_in(router):
     router.register(
-        r'marketplace-service-providers',
+        r"marketplace-service-providers",
         views.ServiceProviderViewSet,
-        basename='marketplace-service-provider',
+        basename="marketplace-service-provider",
     )
     router.register(
-        r'marketplace-categories',
+        r"marketplace-categories",
         views.CategoryViewSet,
-        basename='marketplace-category',
+        basename="marketplace-category",
     )
     router.register(
-        r'marketplace-category-groups',
+        r"marketplace-category-groups",
         views.CategoryGroupViewSet,
-        basename='marketplace-category-group',
+        basename="marketplace-category-group",
     )
     router.register(
-        r'marketplace-provider-offerings',
+        r"marketplace-provider-offerings",
         views.ProviderOfferingViewSet,
-        basename='marketplace-provider-offering',
+        basename="marketplace-provider-offering",
     )
     router.register(
-        r'marketplace-offering-permissions',
+        r"marketplace-offering-permissions",
         views.OfferingPermissionViewSet,
-        basename='marketplace-offering-permission',
+        basename="marketplace-offering-permission",
     )
     router.register(
-        r'marketplace-offering-permissions-log',
+        r"marketplace-offering-permissions-log",
         views.OfferingPermissionLogViewSet,
-        basename='marketplace-offering-permission_log',
+        basename="marketplace-offering-permission_log",
     )
     router.register(
-        r'marketplace-plans', views.ProviderPlanViewSet, basename='marketplace-plan'
+        r"marketplace-plans", views.ProviderPlanViewSet, basename="marketplace-plan"
     )
     router.register(
-        r'marketplace-plan-components',
+        r"marketplace-plan-components",
         views.PlanComponentViewSet,
-        basename='marketplace-plan-component',
+        basename="marketplace-plan-component",
     )
     router.register(
-        r'marketplace-screenshots',
+        r"marketplace-screenshots",
         views.ScreenshotViewSet,
-        basename='marketplace-screenshot',
+        basename="marketplace-screenshot",
     )
     router.register(
-        r'marketplace-cart-items',
+        r"marketplace-cart-items",
         views.CartItemViewSet,
-        basename='marketplace-cart-item',
+        basename="marketplace-cart-item",
     )
     router.register(
-        r'marketplace-orders',
+        r"marketplace-orders",
         views.OrderViewSet,
-        basename='marketplace-order',
+        basename="marketplace-order",
     )
     router.register(
-        r'marketplace-resources', views.ResourceViewSet, basename='marketplace-resource'
+        r"marketplace-resources", views.ResourceViewSet, basename="marketplace-resource"
     )
     router.register(
-        r'marketplace-category-component-usages',
+        r"marketplace-category-component-usages",
         views.CategoryComponentUsageViewSet,
-        basename='marketplace-category-component-usage',
+        basename="marketplace-category-component-usage",
     )
     router.register(
-        r'marketplace-component-usages',
+        r"marketplace-component-usages",
         views.ComponentUsageViewSet,
-        basename='marketplace-component-usage',
+        basename="marketplace-component-usage",
     )
     router.register(
-        r'marketplace-public-api',
+        r"marketplace-public-api",
         views.MarketplaceAPIViewSet,
-        basename='marketplace-public-api',
+        basename="marketplace-public-api",
     )
     router.register(
-        r'marketplace-offering-files',
+        r"marketplace-offering-files",
         views.OfferingFileViewSet,
-        basename='marketplace-offering-file',
+        basename="marketplace-offering-file",
     )
     router.register(
-        r'marketplace-offering-referrals',
+        r"marketplace-offering-referrals",
         views.OfferingReferralsViewSet,
-        basename='marketplace-offering-referral',
+        basename="marketplace-offering-referral",
     )
     router.register(
-        r'marketplace-offering-users',
+        r"marketplace-offering-users",
         views.OfferingUsersViewSet,
-        basename='marketplace-offering-user',
+        basename="marketplace-offering-user",
     )
     router.register(
-        r'marketplace-stats',
+        r"marketplace-stats",
         views.StatsViewSet,
-        basename='marketplace-stats',
+        basename="marketplace-stats",
     )
     router.register(
-        r'provider-invoice-items',
+        r"provider-invoice-items",
         views.ProviderInvoiceItemsViewSet,
-        basename='provider-invoice-items',
+        basename="provider-invoice-items",
     )
     router.register(
-        r'marketplace-public-offerings',
+        r"marketplace-public-offerings",
         views.PublicOfferingViewSet,
-        basename='marketplace-public-offering',
+        basename="marketplace-public-offering",
     )
     router.register(
-        r'marketplace-robot-accounts',
+        r"marketplace-robot-accounts",
         views.RobotAccountViewSet,
-        basename='marketplace-robot-account',
+        basename="marketplace-robot-account",
     )
     router.register(
-        r'marketplace-sections',
+        r"marketplace-sections",
         views.SectionViewSet,
-        basename='marketplace-section',
+        basename="marketplace-section",
     )
     router.register(
-        r'marketplace-category-help-articles',
+        r"marketplace-category-help-articles",
         views.CategoryHelpArticleViewSet,
-        basename='marketplace-category-help-articles',
+        basename="marketplace-category-help-articles",
     )
     router.register(
-        r'marketplace-category-components',
+        r"marketplace-category-components",
         views.CategoryComponentViewSet,
-        basename='marketplace-category-component',
+        basename="marketplace-category-component",
     )
 
 
 urlpatterns = [
-    re_path(r'^api/marketplace-plugins/$', views.PluginViewSet.as_view()),
+    re_path(r"^api/marketplace-plugins/$", views.PluginViewSet.as_view()),
     re_path(
-        r'^api/marketplace-resource-offerings/(?P<project_uuid>[a-f0-9]+)/(?P<category_uuid>[a-f0-9]+)/$',
+        r"^api/marketplace-resource-offerings/(?P<project_uuid>[a-f0-9]+)/(?P<category_uuid>[a-f0-9]+)/$",
         views.ResourceOfferingsViewSet.as_view(),
     ),
     re_path(
-        r'^api/marketplace-runtime-states/(?:(?P<project_uuid>[a-f0-9]+)/)?$',
+        r"^api/marketplace-runtime-states/(?:(?P<project_uuid>[a-f0-9]+)/)?$",
         views.RuntimeStatesViewSet.as_view(),
-        name='marketplace-runtime-states-list',
+        name="marketplace-runtime-states-list",
     ),
     re_path(
-        r'^api/marketplace-related-customers/(?P<customer_uuid>[a-f0-9]+)/$',
+        r"^api/marketplace-related-customers/(?P<customer_uuid>[a-f0-9]+)/$",
         views.RelatedCustomersViewSet.as_view(),
     ),
     re_path(
-        r'^api/marketplace-public-offerings/(?P<uuid>[a-f0-9]+)/plans/(?P<plan_uuid>[a-f0-9]+)/$',
-        views.PublicOfferingViewSet.as_view({'get': 'plan_detail'}),
-        name='marketplace-public-offering-plan-detail',
+        r"^api/marketplace-public-offerings/(?P<uuid>[a-f0-9]+)/plans/(?P<plan_uuid>[a-f0-9]+)/$",
+        views.PublicOfferingViewSet.as_view({"get": "plan_detail"}),
+        name="marketplace-public-offering-plan-detail",
     ),
 ]

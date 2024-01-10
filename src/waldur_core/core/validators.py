@@ -35,9 +35,9 @@ class MinCronValueValidator(BaseValidator):
     """
 
     message = _(
-        'Ensure schedule period is greater than or equal to %(limit_value)s hour(s).'
+        "Ensure schedule period is greater than or equal to %(limit_value)s hour(s)."
     )
-    code = 'min_cron_value'
+    code = "min_cron_value"
 
     def compare(self, cleaned, limit_value):
         validate_cron_schedule(cleaned)
@@ -55,7 +55,7 @@ class MinCronValueValidator(BaseValidator):
 def validate_name(value):
     if len(value.strip()) == 0:
         raise ValidationError(
-            _('Ensure that name has at least one non-whitespace character.')
+            _("Ensure that name has at least one non-whitespace character.")
         )
 
 
@@ -70,7 +70,7 @@ class StateValidator:
                 str(states_names[state]) for state in self.valid_states
             ]
             raise exceptions.IncorrectStateException(
-                _('Valid states for operation: %s.') % ', '.join(valid_states_names)
+                _("Valid states for operation: %s.") % ", ".join(valid_states_names)
             )
 
 
@@ -78,13 +78,13 @@ class RuntimeStateValidator(StateValidator):
     def __call__(self, resource):
         if resource.runtime_state not in self.valid_states:
             raise exceptions.IncorrectStateException(
-                _('Valid runtime states for operation: %s.')
-                % ', '.join(self.valid_states)
+                _("Valid runtime states for operation: %s.")
+                % ", ".join(self.valid_states)
             )
 
 
 class BackendURLValidator(URLValidator):
-    schemes = ['ldap', 'ldaps', 'http', 'https', 'ssh', 'rdp']
+    schemes = ["ldap", "ldaps", "http", "https", "ssh", "rdp"]
 
 
 def is_valid_ipv46_cidr(value):
@@ -95,22 +95,22 @@ def validate_cidr_list(value):
     if not value.strip():
         return
     invalid_items = []
-    for item in value.split(','):
+    for item in value.split(","):
         item = item.strip()
         if not is_valid_ipv46_cidr(item):
             invalid_items.append(item)
     if invalid_items:
         raise ValidationError(
-            message=_('The following items are invalid: %s'),
-            code='invalid',
-            params=', '.join(invalid_items),
+            message=_("The following items are invalid: %s"),
+            code="invalid",
+            params=", ".join(invalid_items),
         )
 
 
 @deconstructible
 class BlacklistValidator:
-    message = _('This value is blacklisted.')
-    code = 'blacklist'
+    message = _("This value is blacklisted.")
+    code = "blacklist"
     blacklist = ()
 
     def __init__(self, blacklist=None, message=None, code=None):
@@ -135,20 +135,20 @@ def validate_template_syntax(value):
 
 def validate_ssh_public_key(ssh_key):
     if isinstance(ssh_key, str):
-        ssh_key = ssh_key.encode('utf-8')
+        ssh_key = ssh_key.encode("utf-8")
 
     try:
         serialization.load_ssh_public_key(ssh_key, backends.default_backend())
     except (ValueError, UnsupportedAlgorithm) as e:
-        logger.debug('Invalid SSH public key %s. Error: %s', ssh_key, e)
-        raise ValidationError(_('Invalid SSH public key.'))
+        logger.debug("Invalid SSH public key %s. Error: %s", ssh_key, e)
+        raise ValidationError(_("Invalid SSH public key."))
 
 
 def validate_x509_certificate(data):
     if isinstance(data, str):
-        data = data.encode('utf-8')
+        data = data.encode("utf-8")
 
     try:
         x509.load_pem_x509_certificate(data)
     except ValueError:
-        raise ValidationError(_('Invalid X509 certificate.'))
+        raise ValidationError(_("Invalid X509 certificate."))

@@ -22,7 +22,7 @@ def reraise_exceptions(msg=None):
             try:
                 return func(self, *args, **kwargs)
             except requests_exceptions.HTTPError as e:
-                raise ZammadBackendError(f'{msg}. {e}')
+                raise ZammadBackendError(f"{msg}. {e}")
 
         return wrapped
 
@@ -78,81 +78,81 @@ class Priority:
 
 class ZammadBackend:
     def __init__(self):
-        if not config.ZAMMAD_API_URL.endswith('/'):
-            url = f'{config.ZAMMAD_API_URL}/api/v1/'
+        if not config.ZAMMAD_API_URL.endswith("/"):
+            url = f"{config.ZAMMAD_API_URL}/api/v1/"
         else:
-            url = f'{config.ZAMMAD_API_URL}api/v1/'
+            url = f"{config.ZAMMAD_API_URL}api/v1/"
 
         self.manager = ZammadAPI(url, http_token=config.ZAMMAD_TOKEN)
 
     def _zammad_response_to_issue(self, response):
         return Issue(
-            id=str(response['id']),
-            status=response['state'],
-            summary=response['title'],
+            id=str(response["id"]),
+            status=response["state"],
+            summary=response["title"],
         )
 
     def _zammad_response_to_user(self, response):
-        if response['firstname'] and response['lastname']:
-            name = '{} {}'.format(response['firstname'], response['lastname'])
+        if response["firstname"] and response["lastname"]:
+            name = "{} {}".format(response["firstname"], response["lastname"])
         else:
-            name = response['login']
+            name = response["login"]
 
         return User(
-            id=response['id'],
-            email=response['email'],
-            login=response['login'],
-            firstname=response['firstname'],
-            lastname=response['lastname'],
+            id=response["id"],
+            email=response["email"],
+            login=response["login"],
+            firstname=response["firstname"],
+            lastname=response["lastname"],
             name=name,
-            is_active=response['active'],
+            is_active=response["active"],
         )
 
     def _zammad_response_to_comment(self, response):
-        article_id = str(response.get('id'))
-        ticket_id = str(response.get('ticket_id'))
+        article_id = str(response.get("id"))
+        ticket_id = str(response.get("ticket_id"))
         return Comment(
             id=article_id,
-            creator=response.get('from'),
-            created=response.get('created_at'),
-            content=clean_html(response.get('body', '')),
-            is_public=not response.get('internal', False),
-            user_id=response.get('created_by_id'),
+            creator=response.get("from"),
+            created=response.get("created_at"),
+            content=clean_html(response.get("body", "")),
+            is_public=not response.get("internal", False),
+            user_id=response.get("created_by_id"),
             is_waldur_comment=re.search(
                 r"^" + config.ZAMMAD_COMMENT_MARKER,
-                clean_html(response.get('body', '')),
+                clean_html(response.get("body", "")),
                 re.MULTILINE,
             ),
             attachments=[
                 self._zammad_response_to_attachment(a, article_id, ticket_id)
-                for a in response.get('attachments', [])
+                for a in response.get("attachments", [])
             ],
             ticket_id=ticket_id,
         )
 
     def _zammad_response_to_attachment(self, response, article_id, ticket_id):
         return Attachment(
-            id=str(response.get('id')),
-            filename=response.get('filename'),
-            size=response.get('size'),
-            content_type=response.get('preferences', {}).get('Content-Type')
-            or response.get('preferences', {}).get('Mime-Type'),
+            id=str(response.get("id")),
+            filename=response.get("filename"),
+            size=response.get("size"),
+            content_type=response.get("preferences", {}).get("Content-Type")
+            or response.get("preferences", {}).get("Mime-Type"),
             article_id=article_id,
             ticket_id=ticket_id,
         )
 
     def _zammad_response_to_priority(self, response):
         return Priority(
-            id=str(response.get('id')),
-            name=response.get('name'),
+            id=str(response.get("id")),
+            name=response.get("name"),
         )
 
-    @reraise_exceptions('An issue is not found.')
+    @reraise_exceptions("An issue is not found.")
     def get_issue(self, issue_id):
         response = self.manager.ticket.find(issue_id)
         return self._zammad_response_to_issue(response)
 
-    @reraise_exceptions('A comment is not found.')
+    @reraise_exceptions("A comment is not found.")
     def get_comment(self, comment_id):
         response = self.manager.ticket_article.find(comment_id)
         return self._zammad_response_to_comment(response)
@@ -162,7 +162,7 @@ class ZammadBackend:
 
     def get_user_by_field(self, value, field_name):
         """ " value: email, login, firstname, lastname and so on."""
-        response = self.manager.user.search({'query': value})
+        response = self.manager.user.search({"query": value})
 
         if len(response) == 1:
             return self._zammad_response_to_user(response[0])
@@ -172,12 +172,12 @@ class ZammadBackend:
                 return self._zammad_response_to_user(result[0])
 
     def get_user_by_login(self, login):
-        return self.get_user_by_field(login, 'login')
+        return self.get_user_by_field(login, "login")
 
     def get_user_by_email(self, email):
-        return self.get_user_by_field(email, 'email')
+        return self.get_user_by_field(email, "email")
 
-    @reraise_exceptions('A user is not found.')
+    @reraise_exceptions("A user is not found.")
     def get_user_by_id(self, user_id):
         response = self.manager.user.find(user_id)
         return self._zammad_response_to_user(response)
@@ -189,23 +189,23 @@ class ZammadBackend:
         json_response = self.manager.user._raise_or_return_json(response)
         return [self._zammad_response_to_user(r) for r in json_response]
 
-    @reraise_exceptions('Creating a user has failed.')
+    @reraise_exceptions("Creating a user has failed.")
     def add_user(self, login, email, firstname, lastname):
         response = self.manager.user.create(
             {
-                'login': login,
-                'email': email,
-                'firstname': firstname,
-                'lastname': lastname,
-                'roles': [
-                    'Agent',
-                    'Customer',
+                "login": login,
+                "email": email,
+                "firstname": firstname,
+                "lastname": lastname,
+                "roles": [
+                    "Agent",
+                    "Customer",
                 ],
             }
         )
         return self._zammad_response_to_user(response)
 
-    @reraise_exceptions('Creating a comment has failed.')
+    @reraise_exceptions("Creating a comment has failed.")
     def add_comment(
         self,
         ticket_id,
@@ -215,18 +215,18 @@ class ZammadBackend:
         zammad_user_email=None,
     ):
         params = {
-            'ticket_id': ticket_id,
-            'body': content
-            + '\n\n'
+            "ticket_id": ticket_id,
+            "body": content
+            + "\n\n"
             + config.ZAMMAD_COMMENT_MARKER
-            + '\n\n'
+            + "\n\n"
             + config.ZAMMAD_COMMENT_PREFIX.format(name=support_user_name),
-            'type': config.ZAMMAD_ARTICLE_TYPE,
-            'internal': not is_public,  # if internal equals False so deleting of comment will be impossible
+            "type": config.ZAMMAD_ARTICLE_TYPE,
+            "internal": not is_public,  # if internal equals False so deleting of comment will be impossible
         }
 
         if zammad_user_email:
-            params['to'] = zammad_user_email
+            params["to"] = zammad_user_email
 
         response = self.manager.ticket_article.create(params)
         return self._zammad_response_to_comment(response)
@@ -239,7 +239,7 @@ class ZammadBackend:
 
         return attachments
 
-    @reraise_exceptions('Creating an attachment has failed.')
+    @reraise_exceptions("Creating an attachment has failed.")
     def add_attachment(
         self,
         ticket_id,
@@ -247,24 +247,24 @@ class ZammadBackend:
         data_base64_encoded,
         mime_type,
         waldur_user_email,
-        author_name='',
+        author_name="",
     ):
         body = filename
 
         if author_name:
-            body = f'User {author_name} added file {filename}.'
+            body = f"User {author_name} added file {filename}."
 
         params = {
-            'ticket_id': ticket_id,
-            'body': body + '\n\n' + config.ZAMMAD_COMMENT_MARKER,
-            'to': waldur_user_email,
-            'type': config.ZAMMAD_ARTICLE_TYPE,
-            'internal': True,  # if internal equals False so deleting of comment will be impossible
-            'attachments': [
+            "ticket_id": ticket_id,
+            "body": body + "\n\n" + config.ZAMMAD_COMMENT_MARKER,
+            "to": waldur_user_email,
+            "type": config.ZAMMAD_ARTICLE_TYPE,
+            "internal": True,  # if internal equals False so deleting of comment will be impossible
+            "attachments": [
                 {
-                    'filename': filename,
-                    'data': data_base64_encoded,
-                    'mime-type': mime_type,
+                    "filename": filename,
+                    "data": data_base64_encoded,
+                    "mime-type": mime_type,
                 }
             ],
         }
@@ -273,12 +273,12 @@ class ZammadBackend:
         zammad_comment = self._zammad_response_to_comment(response)
         return zammad_comment.attachments[0]
 
-    @reraise_exceptions('Deleting a comment has failed.')
+    @reraise_exceptions("Deleting a comment has failed.")
     def del_comment(self, comment_id):
         self.manager.ticket_article.destroy(comment_id)
         return
 
-    @reraise_exceptions('Creating an issue has failed.')
+    @reraise_exceptions("Creating an issue has failed.")
     def add_issue(
         self,
         subject,
@@ -286,14 +286,14 @@ class ZammadBackend:
         customer_id,
         waldur_user_email,
         group=None,
-        tags: List[str] = '',
+        tags: List[str] = "",
     ):
-        group = group or config.ZAMMAD_GROUP or self.get_groups()[0]['name']
-        tags = ','.join(tags)
+        group = group or config.ZAMMAD_GROUP or self.get_groups()[0]["name"]
+        tags = ",".join(tags)
         params = {
-            'title': subject,
-            'customer_id': customer_id,
-            'group': group,
+            "title": subject,
+            "customer_id": customer_id,
+            "group": group,
             "article": {
                 "subject": "Task description",
                 "body": description,  # We do not add marker as we treat first article as a special one.
@@ -304,20 +304,20 @@ class ZammadBackend:
         }
 
         if tags:
-            params['tags'] = tags
+            params["tags"] = tags
 
         response = self.manager.ticket.create(params)
 
         return self._zammad_response_to_issue(response)
 
     @reraise_exceptions(
-        'Comments have not been received as referenced issue has not been found.'
+        "Comments have not been received as referenced issue has not been found."
     )
     def get_comments(self, ticket_id):
         comments = []
 
         for zammad_comment in self.manager.ticket.articles(ticket_id):
-            if zammad_comment['sender'] == 'System':
+            if zammad_comment["sender"] == "System":
                 continue
             comment = self._zammad_response_to_comment(zammad_comment)
             comments.append(comment)
@@ -338,7 +338,7 @@ class ZammadBackend:
         self.manager.ticket.destroy(issue_id)
 
     def update_issue(self, issue_id, title):
-        self.manager.ticket.update(issue_id, {'title': title})
+        self.manager.ticket.update(issue_id, {"title": title})
 
     def pull_priorities(self):
         return [

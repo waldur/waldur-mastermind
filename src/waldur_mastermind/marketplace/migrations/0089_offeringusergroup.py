@@ -8,54 +8,54 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('structure', '0039_project_end_date_requested_by'),
-        ('marketplace', '0088_usage_decimal'),
+        ("structure", "0039_project_end_date_requested_by"),
+        ("marketplace", "0088_usage_decimal"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='OfferingUserGroup',
+            name="OfferingUserGroup",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
-                ('backend_metadata', models.JSONField(blank=True, default=dict)),
+                ("backend_metadata", models.JSONField(blank=True, default=dict)),
                 (
-                    'offering',
+                    "offering",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='marketplace.offering',
+                        to="marketplace.offering",
                     ),
                 ),
                 (
-                    'projects',
-                    models.ManyToManyField(blank=True, to='structure.Project'),
+                    "projects",
+                    models.ManyToManyField(blank=True, to="structure.Project"),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
     ]

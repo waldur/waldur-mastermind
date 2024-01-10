@@ -5,14 +5,14 @@ from django.db import migrations
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('structure', '0040_useragreement_uuid'),
+        ("structure", "0040_useragreement_uuid"),
     ]
 
     operations = [
         migrations.DeleteModel(
-            name='CustomerPermission',
+            name="CustomerPermission",
         ),
         migrations.DeleteModel(
-            name='ProjectPermission',
+            name="ProjectPermission",
         ),
     ]

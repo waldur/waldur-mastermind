@@ -11,7 +11,7 @@ class CreateRequestProcessor(processors.BaseCreateResourceProcessor):
     viewset = IssueViewSet
 
     def get_post_data(self):
-        return {'uuid': str(self.order.uuid)}
+        return {"uuid": str(self.order.uuid)}
 
     def process_order(self, user):
         with transaction.atomic():
@@ -20,7 +20,7 @@ class CreateRequestProcessor(processors.BaseCreateResourceProcessor):
             if issue:
                 resource = self.order.resource
                 resource.scope = issue
-                resource.backend_id = issue.backend_id or ''
+                resource.backend_id = issue.backend_id or ""
                 resource.save()
 
     @classmethod
@@ -37,10 +37,10 @@ class DeleteRequestProcessor(processors.DeleteScopedResourceProcessor):
 
 class UpdateRequestProcessor(processors.UpdateScopedResourceProcessor):
     def get_view(self):
-        return IssueViewSet.as_view({'post': 'update'})
+        return IssueViewSet.as_view({"post": "update"})
 
     def get_post_data(self):
-        return {'uuid': str(self.order.uuid)}
+        return {"uuid": str(self.order.uuid)}
 
     def get_resource(self):
         return self.order.resource
@@ -49,6 +49,6 @@ class UpdateRequestProcessor(processors.UpdateScopedResourceProcessor):
         utils.create_issue(
             self.order,
             description=utils.format_update_limits_description(self.order),
-            summary='Request to update limits for %s' % self.order.resource.name,
+            summary="Request to update limits for %s" % self.order.resource.name,
         )
         return False

@@ -17,14 +17,14 @@ class InvoiceFactory(factory.django.DjangoModelFactory):
     def get_url(cls, invoice=None, action=None):
         if invoice is None:
             invoice = InvoiceFactory()
-        url = 'http://testserver' + reverse(
-            'invoice-detail', kwargs={'uuid': invoice.uuid.hex}
+        url = "http://testserver" + reverse(
+            "invoice-detail", kwargs={"uuid": invoice.uuid.hex}
         )
-        return url if action is None else url + action + '/'
+        return url if action is None else url + action + "/"
 
     @classmethod
     def get_list_url(cls):
-        return 'http://testserver' + reverse('invoice-list')
+        return "http://testserver" + reverse("invoice-list")
 
 
 class InvoiceItemFactory(factory.django.DjangoModelFactory):
@@ -38,14 +38,14 @@ class InvoiceItemFactory(factory.django.DjangoModelFactory):
     def get_url(cls, invoice=None, action=None):
         if invoice is None:
             invoice = InvoiceItemFactory()
-        url = 'http://testserver' + reverse(
-            'invoice-item-detail', kwargs={'uuid': invoice.uuid.hex}
+        url = "http://testserver" + reverse(
+            "invoice-item-detail", kwargs={"uuid": invoice.uuid.hex}
         )
-        return url if action is None else url + action + '/'
+        return url if action is None else url + action + "/"
 
     @classmethod
     def get_list_url(cls):
-        return 'http://testserver' + reverse('invoice-item-list')
+        return "http://testserver" + reverse("invoice-item-list")
 
 
 class PaymentProfileFactory(factory.django.DjangoModelFactory):
@@ -59,14 +59,14 @@ class PaymentProfileFactory(factory.django.DjangoModelFactory):
     def get_url(cls, profile=None, action=None):
         if profile is None:
             profile = cls()
-        url = 'http://testserver' + reverse(
-            'payment-profile-detail', kwargs={'uuid': profile.uuid.hex}
+        url = "http://testserver" + reverse(
+            "payment-profile-detail", kwargs={"uuid": profile.uuid.hex}
         )
-        return url if action is None else url + action + '/'
+        return url if action is None else url + action + "/"
 
     @classmethod
     def get_list_url(cls):
-        return 'http://testserver' + reverse('payment-profile-list')
+        return "http://testserver" + reverse("payment-profile-list")
 
 
 class PaymentFactory(factory.django.DjangoModelFactory):
@@ -81,11 +81,11 @@ class PaymentFactory(factory.django.DjangoModelFactory):
     def get_url(cls, payment=None, action=None):
         if payment is None:
             payment = cls()
-        url = 'http://testserver' + reverse(
-            'payment-detail', kwargs={'uuid': payment.uuid.hex}
+        url = "http://testserver" + reverse(
+            "payment-detail", kwargs={"uuid": payment.uuid.hex}
         )
-        return url if action is None else url + action + '/'
+        return url if action is None else url + action + "/"
 
     @classmethod
     def get_list_url(cls):
-        return 'http://testserver' + reverse('payment-list')
+        return "http://testserver" + reverse("payment-list")

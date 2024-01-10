@@ -4,8 +4,8 @@ from ... import utils
 
 
 class Command(BaseCommand):
-    help = 'Synchronize SAML2 identity providers.'
+    help = "Synchronize SAML2 identity providers."
 
     def handle(self, *args, **options):
         utils.sync_providers()
-        self.stdout.write('SAML2 providers have been successfully synchronized.')
+        self.stdout.write("SAML2 providers have been successfully synchronized.")

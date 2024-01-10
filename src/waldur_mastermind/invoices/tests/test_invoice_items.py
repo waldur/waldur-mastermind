@@ -29,14 +29,14 @@ class InvoiceItemDeleteTest(test.APITransactionTestCase):
         response = self.delete_invoice_item(self.fixture.user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @mock.patch('waldur_core.structure.handlers.event_logger')
+    @mock.patch("waldur_core.structure.handlers.event_logger")
     def test_event_is_emitted(self, logger_mock):
         self.delete_invoice_item(self.fixture.staff)
         logger_mock.event_logger.invoice_item.info(
-            f'Invoice item {self.fixture.invoice_item.name} has been deleted.',
-            event_type='invoice_item_deleted',
+            f"Invoice item {self.fixture.invoice_item.name} has been deleted.",
+            event_type="invoice_item_deleted",
             event_context={
-                'customer': self.fixture.invoice_item.invoice.customer,
+                "customer": self.fixture.invoice_item.invoice.customer,
             },
         )
 
@@ -49,27 +49,27 @@ class InvoiceItemUpdateTest(test.APITransactionTestCase):
         self.client.force_authenticate(user)
         return self.client.patch(
             factories.InvoiceItemFactory.get_url(self.fixture.invoice_item),
-            {'article_code': 'AA11'},
+            {"article_code": "AA11"},
         )
 
     def test_staff_can_update_invoice_item(self):
         response = self.update_invoice_item(self.fixture.staff)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.fixture.invoice_item.refresh_from_db()
-        self.assertEqual('AA11', self.fixture.invoice_item.article_code)
+        self.assertEqual("AA11", self.fixture.invoice_item.article_code)
 
     def test_non_staff_can_not_update_invoice_item(self):
         response = self.update_invoice_item(self.fixture.user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @mock.patch('waldur_core.structure.handlers.event_logger')
+    @mock.patch("waldur_core.structure.handlers.event_logger")
     def test_event_is_emitted(self, logger_mock):
         self.update_invoice_item(self.fixture.staff)
         logger_mock.event_logger.invoice_item.info(
-            f'Invoice item {self.fixture.invoice_item.name} has been updated.',
-            event_type='invoice_item_updated',
+            f"Invoice item {self.fixture.invoice_item.name} has been updated.",
+            event_type="invoice_item_updated",
             event_context={
-                'customer': self.fixture.invoice_item.invoice.customer,
+                "customer": self.fixture.invoice_item.invoice.customer,
             },
         )
 
@@ -89,7 +89,7 @@ class InvoiceItemUpdateTest(test.APITransactionTestCase):
         plan_component = marketplace_factories.PlanComponentFactory(
             plan=plan, component=offering_component
         )
-        item.details['plan_component_id'] = plan_component.id
+        item.details["plan_component_id"] = plan_component.id
         item.save()
         billing_period = date(year=item.invoice.year, month=item.invoice.month, day=1)
         component_usage = marketplace_factories.ComponentUsageFactory(
@@ -103,7 +103,7 @@ class InvoiceItemUpdateTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.patch(
             factories.InvoiceItemFactory.get_url(self.fixture.invoice_item),
-            {'quantity': 200},
+            {"quantity": 200},
         )
 
         # Assert
@@ -129,9 +129,9 @@ class InvoiceItemUpdateTest(test.APITransactionTestCase):
         plan_component = marketplace_factories.PlanComponentFactory(
             plan=plan, component=offering_component
         )
-        item.details['plan_component_id'] = plan_component.id
-        item.start = parse_date('2022-02-01')
-        item.end = parse_date('2022-02-28')
+        item.details["plan_component_id"] = plan_component.id
+        item.start = parse_date("2022-02-01")
+        item.end = parse_date("2022-02-28")
         item.quantity = 28
         item.save()
 
@@ -139,7 +139,7 @@ class InvoiceItemUpdateTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.patch(
             factories.InvoiceItemFactory.get_url(self.fixture.invoice_item),
-            {'start': '2022-02-01T00:00:00', 'end': '2022-02-07T00:00:00'},
+            {"start": "2022-02-01T00:00:00", "end": "2022-02-07T00:00:00"},
         )
 
         # Assert
@@ -153,11 +153,11 @@ class InvoiceItemCompensationTest(test.APITransactionTestCase):
         self.fixture = fixtures.InvoiceFixture()
         self.item = self.fixture.invoice_item
 
-    def create_compensation(self, user, offering_component_name='Compensation'):
+    def create_compensation(self, user, offering_component_name="Compensation"):
         self.client.force_authenticate(user)
-        url = factories.InvoiceItemFactory.get_url(self.item, 'create_compensation')
+        url = factories.InvoiceItemFactory.get_url(self.item, "create_compensation")
         return self.client.post(
-            url, {'offering_component_name': offering_component_name}
+            url, {"offering_component_name": offering_component_name}
         )
 
     def test_staff_can_create_compensation(self):
@@ -168,11 +168,11 @@ class InvoiceItemCompensationTest(test.APITransactionTestCase):
         self.create_compensation(self.fixture.staff)
         new_invoice_item = self.fixture.invoice.items.last()
         self.assertEqual(
-            str(new_invoice_item.details['original_invoice_item_uuid']),
+            str(new_invoice_item.details["original_invoice_item_uuid"]),
             str(self.item.uuid),
         )
         self.assertEqual(
-            new_invoice_item.details['offering_component_name'], 'Compensation'
+            new_invoice_item.details["offering_component_name"], "Compensation"
         )
 
     def test_compensation_for_invoice_item_with_negative_price_is_invalid(self):
@@ -185,20 +185,20 @@ class InvoiceItemCompensationTest(test.APITransactionTestCase):
         response = self.create_compensation(self.fixture.user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @mock.patch('waldur_core.structure.handlers.event_logger')
+    @mock.patch("waldur_core.structure.handlers.event_logger")
     def test_event_is_emitted(self, logger_mock):
         self.create_compensation(self.fixture.staff)
         logger_mock.event_logger.invoice_item.info(
-            f'Invoice item {self.item.name} has been created.',
-            event_type='invoice_item_created',
+            f"Invoice item {self.item.name} has been created.",
+            event_type="invoice_item_created",
             event_context={
-                'customer': self.item.invoice.customer,
+                "customer": self.item.invoice.customer,
             },
         )
 
 
 @ddt.ddt
-@freeze_time('2019-01-01')
+@freeze_time("2019-01-01")
 class InvoiceTerminateTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()
@@ -213,9 +213,9 @@ class InvoiceTerminateTest(test.APITransactionTestCase):
         self.assertEqual(self.item.quantity, old_quantity)
 
     def test_when_item_is_terminated_quantity_is_updated_if_component_is_fixed(self):
-        self.item.details['plan_component_id'] = self.fixture.plan_component.id
+        self.item.details["plan_component_id"] = self.fixture.plan_component.id
         self.item.save()
-        with freeze_time('2019-01-31'):
+        with freeze_time("2019-01-31"):
             self.item.terminate()
         self.item.refresh_from_db()
         self.assertEqual(self.item.quantity, 30)
@@ -232,9 +232,9 @@ class InvoiceTerminateTest(test.APITransactionTestCase):
         )
         self.fixture.offering_component.limit_period = limit_period
         self.fixture.offering_component.save()
-        self.item.details['plan_component_id'] = self.fixture.plan_component.id
+        self.item.details["plan_component_id"] = self.fixture.plan_component.id
         self.item.save()
-        with freeze_time('2019-01-31'):
+        with freeze_time("2019-01-31"):
             self.item.terminate()
         self.item.refresh_from_db()
         self.assertEqual(self.item.quantity, 30)
@@ -250,15 +250,15 @@ class InvoiceTerminateTest(test.APITransactionTestCase):
             marketplace_models.OfferingComponent.LimitPeriods.TOTAL
         )
         self.fixture.offering_component.save()
-        self.item.details['plan_component_id'] = self.fixture.plan_component.id
+        self.item.details["plan_component_id"] = self.fixture.plan_component.id
         self.item.save()
-        with freeze_time('2019-01-31'):
+        with freeze_time("2019-01-31"):
             self.item.terminate()
         self.item.refresh_from_db()
         self.assertEqual(self.item.quantity, old_quantity)
 
 
-@freeze_time('2019-01-01')
+@freeze_time("2019-01-01")
 class InvoiceItemMigrateToTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()
@@ -269,24 +269,24 @@ class InvoiceItemMigrateToTest(test.APITransactionTestCase):
 
     def test_user_can_migrate_item(self):
         self.client.force_authenticate(self.fixture.staff)
-        url = factories.InvoiceItemFactory.get_url(self.item, 'migrate_to')
+        url = factories.InvoiceItemFactory.get_url(self.item, "migrate_to")
         response = self.client.post(
-            url, {'invoice': factories.InvoiceFactory.get_url(self.target_invoice)}
+            url, {"invoice": factories.InvoiceFactory.get_url(self.target_invoice)}
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_user_cannot_migrate_item_between_different_customers(self):
         self.client.force_authenticate(self.fixture.staff)
-        url = factories.InvoiceItemFactory.get_url(self.item, 'migrate_to')
+        url = factories.InvoiceItemFactory.get_url(self.item, "migrate_to")
         response = self.client.post(
-            url, {'invoice': factories.InvoiceFactory.get_url()}
+            url, {"invoice": factories.InvoiceFactory.get_url()}
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_user_cannot_migrate_item_if_it_already_in_target_invoice(self):
         self.client.force_authenticate(self.fixture.staff)
-        url = factories.InvoiceItemFactory.get_url(self.item, 'migrate_to')
+        url = factories.InvoiceItemFactory.get_url(self.item, "migrate_to")
         response = self.client.post(
-            url, {'invoice': factories.InvoiceFactory.get_url(self.item)}
+            url, {"invoice": factories.InvoiceFactory.get_url(self.item)}
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

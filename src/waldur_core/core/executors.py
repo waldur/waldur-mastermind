@@ -31,7 +31,7 @@ class BaseExecutor:
         Note! Celery chord and group is not supported.
         """
         raise NotImplementedError(
-            'Executor %s should implement method `get_task_signature`' % cls.__name__
+            "Executor %s should implement method `get_task_signature`" % cls.__name__
         )
 
     @classmethod
@@ -60,14 +60,14 @@ class BaseExecutor:
                 link=link,
                 link_error=link_error,
                 countdown=countdown,
-                queue=is_heavy_task and 'heavy' or None,
+                queue=is_heavy_task and "heavy" or None,
             )
         else:
             try:
                 result = signature.apply()
             except Exception as exc:
                 logger.exception(
-                    'Unable to execute task sequence %s for %s. Exception: %s',
+                    "Unable to execute task sequence %s for %s. Exception: %s",
                     cls,
                     instance,
                     exc,
@@ -125,7 +125,7 @@ class SuccessExecutorMixin:
     @classmethod
     def get_success_signature(cls, instance, serialized_instance, **kwargs):
         return tasks.StateTransitionTask().si(
-            serialized_instance, state_transition='set_ok', action='', action_details={}
+            serialized_instance, state_transition="set_ok", action="", action_details={}
         )
 
 
@@ -173,13 +173,13 @@ class UpdateExecutor(SuccessExecutorMixin, ErrorExecutorMixin, BaseExecutor):
     @classmethod
     def pre_apply(cls, instance, **kwargs):
         instance.schedule_updating()
-        instance.save(update_fields=['state'])
+        instance.save(update_fields=["state"])
 
     @classmethod
     def execute(cls, instance, is_async=True, **kwargs):
-        if 'updated_fields' not in kwargs:
+        if "updated_fields" not in kwargs:
             raise ExecutorException(
-                'updated_fields keyword argument should be defined for UpdateExecutor.'
+                "updated_fields keyword argument should be defined for UpdateExecutor."
             )
         super().execute(instance, is_async=is_async, **kwargs)
 
@@ -195,7 +195,7 @@ class DeleteExecutor(DeleteExecutorMixin, BaseExecutor):
     @classmethod
     def pre_apply(cls, instance, **kwargs):
         instance.schedule_deleting()
-        instance.save(update_fields=['state'])
+        instance.save(update_fields=["state"])
 
 
 class ActionExecutor(SuccessExecutorMixin, ErrorExecutorMixin, BaseExecutor):
@@ -207,7 +207,7 @@ class ActionExecutor(SuccessExecutorMixin, ErrorExecutorMixin, BaseExecutor):
     """
 
     # TODO: After refactoring field action should become mandatory for implementation
-    action = ''
+    action = ""
 
     @classmethod
     def get_action_details(cls, instance, **kwargs):

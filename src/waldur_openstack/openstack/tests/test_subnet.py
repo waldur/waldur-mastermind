@@ -10,7 +10,7 @@ class BaseSubNetTest(test.APITransactionTestCase):
         self.fixture = fixtures.OpenStackFixture()
 
 
-@mock.patch('waldur_openstack.openstack.executors.SubNetDeleteExecutor.execute')
+@mock.patch("waldur_openstack.openstack.executors.SubNetDeleteExecutor.execute")
 class SubNetDeleteActionTest(BaseSubNetTest):
     def setUp(self):
         super().setUp()
@@ -33,16 +33,16 @@ class SubNetUpdateActionTest(BaseSubNetTest):
         super().setUp()
         self.client.force_authenticate(user=self.fixture.admin)
         self.url = factories.SubNetFactory.get_url(self.fixture.subnet)
-        self.request_data = {'name': 'test_name'}
+        self.request_data = {"name": "test_name"}
 
-    @mock.patch('waldur_openstack.openstack.executors.SubNetUpdateExecutor.execute')
+    @mock.patch("waldur_openstack.openstack.executors.SubNetUpdateExecutor.execute")
     def test_subnet_update_action_triggers_update_executor(self, executor_action_mock):
         response = self.client.put(self.url, self.request_data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         executor_action_mock.assert_called_once()
 
     def test_subnet_update_does_not_reset_cidr(self):
-        CIDR = '10.1.0.0/24'
+        CIDR = "10.1.0.0/24"
         subnet = self.fixture.subnet
         subnet.cidr = CIDR
         subnet.save()

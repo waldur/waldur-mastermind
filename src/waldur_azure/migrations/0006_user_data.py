@@ -4,16 +4,16 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('waldur_azure', '0005_ordering'),
+        ("waldur_azure", "0005_ordering"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='virtualmachine',
-            name='user_data',
+            model_name="virtualmachine",
+            name="user_data",
             field=models.TextField(
                 blank=True,
-                help_text='Additional data that will be added to instance on provisioning',
+                help_text="Additional data that will be added to instance on provisioning",
                 max_length=87380,
             ),
         ),

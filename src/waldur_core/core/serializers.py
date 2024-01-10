@@ -47,21 +47,21 @@ class Base64Field(serializers.CharField):
             return value
         except (TypeError, ValueError):
             raise serializers.ValidationError(
-                _('This field should a be valid Base64 encoded string.')
+                _("This field should a be valid Base64 encoded string.")
             )
 
     def to_representation(self, value):
         value = super().to_representation(value)
         if isinstance(value, str):
-            value = value.encode('utf-8')
+            value = value.encode("utf-8")
         return base64.b64encode(value)
 
 
 class BasicInfoSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
-        fields = ('url', 'uuid', 'name')
+        fields = ("url", "uuid", "name")
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
+            "url": {"lookup_field": "uuid"},
         }
 
 
@@ -75,7 +75,7 @@ class UnboundSerializerMethodField(ReadOnlyField):
         super().__init__(*args, **kwargs)
 
     def to_representation(self, value):
-        request = self.context.get('request')
+        request = self.context.get("request")
         return self.filter_function(value, request)
 
 
@@ -85,8 +85,8 @@ class GenericRelatedField(Field):
     """
 
     read_only = False
-    _default_view_name = '%(model_name)s-detail'
-    lookup_fields = ['uuid', 'pk']
+    _default_view_name = "%(model_name)s-detail"
+    lookup_fields = ["uuid", "pk"]
 
     def __init__(self, related_models=(), **kwargs):
         super().__init__(**kwargs)
@@ -102,20 +102,20 @@ class GenericRelatedField(Field):
         Gets object url
         """
         format_kwargs = {
-            'app_label': obj._meta.app_label,
+            "app_label": obj._meta.app_label,
         }
         try:
-            format_kwargs['model_name'] = getattr(obj.__class__, 'get_url_name')()
+            format_kwargs["model_name"] = getattr(obj.__class__, "get_url_name")()
         except AttributeError:
-            format_kwargs['model_name'] = obj._meta.object_name.lower()
+            format_kwargs["model_name"] = obj._meta.object_name.lower()
         return self._default_view_name % format_kwargs
 
     def _get_request(self):
         try:
-            return self.context['request']
+            return self.context["request"]
         except KeyError:
             raise AttributeError(
-                'GenericRelatedField have to be initialized with `request` in context'
+                "GenericRelatedField have to be initialized with `request` in context"
             )
 
     def to_representation(self, obj):
@@ -128,7 +128,7 @@ class GenericRelatedField(Field):
                 kwargs = {field: getattr(obj, field)}
                 break
         if kwargs is None:
-            raise AttributeError('Related object does not have any of lookup_fields')
+            raise AttributeError("Related object does not have any of lookup_fields")
         if self.related_models and not isinstance(obj, tuple(self.related_models)):
             return None
         request = self._get_request()
@@ -146,7 +146,7 @@ class GenericRelatedField(Field):
             obj = core_utils.instance_from_url(data, user=user)
             model = obj.__class__
         except ValueError:
-            raise serializers.ValidationError(_('URL is invalid: %s.') % data)
+            raise serializers.ValidationError(_("URL is invalid: %s.") % data)
         except (
             Resolver404,
             AttributeError,
@@ -158,8 +158,8 @@ class GenericRelatedField(Field):
             )
 
         if self.related_models and model not in self.related_models:
-            context = (model, ', '.join(str(model) for model in self.related_models))
-            message = _('%s is not valid. Valid models are: %s') % context
+            context = (model, ", ".join(str(model) for model in self.related_models))
+            message = _("%s is not valid. Valid models are: %s") % context
             raise serializers.ValidationError(message)
 
         return obj
@@ -258,11 +258,11 @@ class AugmentedSerializerMixin:
             pass
         else:
             try:
-                method = self.context['view'].request.method
+                method = self.context["view"].request.method
             except (KeyError, AttributeError):
                 return fields
 
-            if method in ('PUT', 'PATCH'):
+            if method in ("PUT", "PATCH"):
                 for field in protected_fields:
                     fields[field].read_only = True
 
@@ -276,11 +276,11 @@ class AugmentedSerializerMixin:
 
         if not isinstance(self, serializers.ModelSerializer):
             raise ImproperlyConfigured(
-                'related_paths can be defined only for ModelSerializer.'
+                "related_paths can be defined only for ModelSerializer."
             )
 
         if isinstance(related_paths, (list, tuple)):
-            related_paths = {path: ('name', 'uuid') for path in related_paths}
+            related_paths = {path: ("name", "uuid") for path in related_paths}
 
         return related_paths
 
@@ -288,9 +288,7 @@ class AugmentedSerializerMixin:
         related_paths = self._get_related_paths()
 
         related_field_source_map = {
-            '{}_{}'.format(path.split('.')[-1], attribute): '{}.{}'.format(
-                path, attribute
-            )
+            "{}_{}".format(path.split(".")[-1], attribute): f"{path}.{attribute}"
             for path, attributes in related_paths.items()
             for attribute in attributes
         }
@@ -298,7 +296,7 @@ class AugmentedSerializerMixin:
         try:
             return (
                 serializers.ReadOnlyField,
-                {'source': related_field_source_map[field_name]},
+                {"source": related_field_source_map[field_name]},
             )
         except KeyError:
             return super().build_unknown_field(field_name, model_class)
@@ -306,15 +304,15 @@ class AugmentedSerializerMixin:
     def get_extra_kwargs(self):
         extra_kwargs = super().get_extra_kwargs()
 
-        if hasattr(self.Meta, 'view_name'):
+        if hasattr(self.Meta, "view_name"):
             view_name = self.Meta.view_name
         else:
             view_name = core_utils.get_detail_view_name(self.Meta.model)
 
-        if 'url' in extra_kwargs:
-            extra_kwargs['url']['view_name'] = view_name
+        if "url" in extra_kwargs:
+            extra_kwargs["url"]["view_name"] = view_name
         else:
-            extra_kwargs['url'] = {'view_name': view_name}
+            extra_kwargs["url"] = {"view_name": view_name}
 
         return extra_kwargs
 
@@ -325,13 +323,13 @@ class RestrictedSerializerMixin:
     It expects that request is available in serializer's context.
     """
 
-    FIELDS_PARAM_NAME = 'field'
+    FIELDS_PARAM_NAME = "field"
 
     def get_fields(self):
         fields = super().get_fields()
-        if 'request' not in self.context:
+        if "request" not in self.context:
             return fields
-        query_params = self.context['request'].query_params
+        query_params = self.context["request"].query_params
         keys = query_params.getlist(self.FIELDS_PARAM_NAME)
         keys = set(key for key in keys if key in fields.keys())
         optional_fields = set(self.get_optional_fields()) - keys
@@ -354,23 +352,23 @@ class RestrictedSerializerMixin:
 
 class HyperlinkedRelatedModelSerializer(serializers.HyperlinkedModelSerializer):
     def __init__(self, **kwargs):
-        self.queryset = kwargs.pop('queryset', None)
-        assert self.queryset is not None or kwargs.get('read_only', None), (
-            'Relational field must provide a `queryset` argument, '
-            'or set read_only=`True`.'
+        self.queryset = kwargs.pop("queryset", None)
+        assert self.queryset is not None or kwargs.get("read_only", None), (
+            "Relational field must provide a `queryset` argument, "
+            "or set read_only=`True`."
         )
-        assert not (self.queryset is not None and kwargs.get('read_only', None)), (
-            'Relational fields should not provide a `queryset` argument, '
-            'when setting read_only=`True`.'
+        assert not (self.queryset is not None and kwargs.get("read_only", None)), (
+            "Relational fields should not provide a `queryset` argument, "
+            "when setting read_only=`True`."
         )
         super().__init__(**kwargs)
 
     def to_internal_value(self, data):
-        if 'url' not in data:
+        if "url" not in data:
             raise serializers.ValidationError(
-                _('URL has to be defined for related object.')
+                _("URL has to be defined for related object.")
             )
-        url_field = self.fields['url']
+        url_field = self.fields["url"]
 
         # This is tricky: self.fields['url'] is the one generated
         # based on Meta.fields.
@@ -385,7 +383,7 @@ class HyperlinkedRelatedModelSerializer(serializers.HyperlinkedModelSerializer):
             lookup_field=url_field.lookup_field,
         )
 
-        return url.to_internal_value(data['url'])
+        return url.to_internal_value(data["url"])
 
 
 class UnicodeIntegerField(serializers.IntegerField):
@@ -400,13 +398,13 @@ class DateRangeFilterSerializer(serializers.Serializer):
     end = core_fields.YearMonthField(required=False)
 
     def validate(self, data):
-        if 'start' in data and 'end' in data and data['start'] > data['end']:
+        if "start" in data and "end" in data and data["start"] > data["end"]:
             raise serializers.ValidationError(
-                _('Start date must be earlier or equal to end date.')
+                _("Start date must be earlier or equal to end date.")
             )
 
-        if ('start' in data) ^ ('end' in data):
-            raise serializers.ValidationError(_('Both parameters must be specified.'))
+        if ("start" in data) ^ ("end" in data):
+            raise serializers.ValidationError(_("Both parameters must be specified."))
         return data
 
 
@@ -441,16 +439,16 @@ class ConstanceSettingsSerializer(serializers.Serializer):
                             "the default value of "
                             "'%(name)s'."
                         )
-                        % {'name': name}
+                        % {"name": name}
                     )
             else:
                 config_type = type(default)
             field_class = None
             if config_type == str:
                 field_class = serializers.CharField
-            if config_type == 'image_field':
+            if config_type == "image_field":
                 field_class = serializers.ImageField
-            if config_type == 'email_field':
+            if config_type == "email_field":
                 field_class = serializers.EmailField
             if config_type == int:
                 field_class = serializers.IntegerField
@@ -460,19 +458,19 @@ class ConstanceSettingsSerializer(serializers.Serializer):
                 continue
             kwargs = dict(required=False)
             if config_type == str:
-                kwargs['allow_blank'] = True
-            if config_type == 'image_field':
-                kwargs['allow_null'] = True
-            if name in ['BRAND_COLOR', 'BRAND_LABEL_COLOR']:
-                kwargs['validators'] = [color_hex_validator]
+                kwargs["allow_blank"] = True
+            if config_type == "image_field":
+                kwargs["allow_null"] = True
+            if name in ["BRAND_COLOR", "BRAND_LABEL_COLOR"]:
+                kwargs["validators"] = [color_hex_validator]
             if name in [
-                'HERO_LINK_URL',
-                'DOCS_URL',
-                'SUPPORT_PORTAL_URL',
-                'ATLASSIAN_API_URL',
-                'ZAMMAD_API_URL',
+                "HERO_LINK_URL",
+                "DOCS_URL",
+                "SUPPORT_PORTAL_URL",
+                "ATLASSIAN_API_URL",
+                "ZAMMAD_API_URL",
             ]:
-                kwargs['validators'] = [URLValidator()]
+                kwargs["validators"] = [URLValidator()]
             fields[name] = field_class(**kwargs)
         return fields
 
@@ -483,7 +481,7 @@ class ConstanceSettingsSerializer(serializers.Serializer):
                 continue
             new = self.validated_data[name]
             if current != new:
-                if hasattr(new, 'name'):
+                if hasattr(new, "name"):
                     new = default_storage.save(
                         join(django_settings.MEDIA_ROOT, new.name), new
                     )

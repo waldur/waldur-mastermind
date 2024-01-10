@@ -18,13 +18,13 @@ from waldur_freeipa.utils import generate_username
 
 
 def get_invitation_context(invitation: models.Invitation, sender):
-    context = {'extra_invitation_text': invitation.extra_invitation_text}
+    context = {"extra_invitation_text": invitation.extra_invitation_text}
 
     if invitation.project_role is not None:
         role = invitation.project.get_or_create_role(invitation.project_role)
         context.update(
             dict(
-                type=_('project'),
+                type=_("project"),
                 name=invitation.project.name,
                 role=role.description,
                 org_name=invitation.customer.name,
@@ -34,21 +34,21 @@ def get_invitation_context(invitation: models.Invitation, sender):
         role = invitation.customer.get_or_create_role(invitation.customer_role)
         context.update(
             dict(
-                type=_('organization'),
+                type=_("organization"),
                 name=invitation.customer.name,
                 role=role.description,
                 org_name=invitation.customer.name,
             )
         )
 
-    context['sender'] = sender
-    context['invitation'] = invitation
+    context["sender"] = sender
+    context["invitation"] = invitation
     return context
 
 
 def get_invitation_token(invitation, user):
     signer = TimestampSigner()
-    payload = f'{user.uuid.hex}.{invitation.uuid.hex}'
+    payload = f"{user.uuid.hex}.{invitation.uuid.hex}"
     return signer.sign(payload)
 
 
@@ -56,50 +56,50 @@ def parse_invitation_token(token):
     signer = TimestampSigner()
     try:
         payload = signer.unsign(
-            token, max_age=settings.WALDUR_CORE['INVITATION_MAX_AGE']
+            token, max_age=settings.WALDUR_CORE["INVITATION_MAX_AGE"]
         )
     except BadSignature:
-        raise serializers.ValidationError('Invalid signature.')
+        raise serializers.ValidationError("Invalid signature.")
 
-    parts = payload.split('.')
+    parts = payload.split(".")
     if len(parts) != 2:
-        raise serializers.ValidationError('Invalid payload.')
+        raise serializers.ValidationError("Invalid payload.")
 
     user_uuid = parts[0]
     invitation_uuid = parts[1]
 
     if not core_utils.is_uuid_like(user_uuid):
-        raise serializers.ValidationError('Invalid user UUID.')
+        raise serializers.ValidationError("Invalid user UUID.")
 
     try:
         user = core_models.User.objects.filter(
             uuid=parts[0], is_active=True, is_staff=True
         ).get()
     except core_models.User.DoesNotExist:
-        raise serializers.ValidationError('Invalid user UUID.')
+        raise serializers.ValidationError("Invalid user UUID.")
 
     if not core_utils.is_uuid_like(invitation_uuid):
-        raise serializers.ValidationError('Invalid invitation UUID.')
+        raise serializers.ValidationError("Invalid invitation UUID.")
 
     try:
         invitation = models.Invitation.objects.get(
             uuid=parts[1], state=models.Invitation.State.REQUESTED
         )
     except models.Invitation.DoesNotExist:
-        raise serializers.ValidationError('Invalid invitation UUID.')
+        raise serializers.ValidationError("Invalid invitation UUID.")
 
     return user, invitation
 
 
 def normalize_username(username):
-    return ''.join(c if c.isalnum() else '_' for c in username.lower())
+    return "".join(c if c.isalnum() else "_" for c in username.lower())
 
 
 def generate_safe_username(username):
     username = generate_username(username)
     # Maximum length for FreeIPA username is 32 chars
     if len(username) > 32:
-        prefix_length = len(settings.WALDUR_FREEIPA['USERNAME_PREFIX'])
+        prefix_length = len(settings.WALDUR_FREEIPA["USERNAME_PREFIX"])
         username = generate_username(pwgen(32 - prefix_length))
     return username
 
@@ -125,18 +125,18 @@ def get_or_create_user(invitation):
     payload = {
         field: getattr(invitation, field)
         for field in (
-            'full_name',
-            'native_name',
-            'organization',
-            'civil_number',
-            'job_title',
-            'phone_number',
+            "full_name",
+            "native_name",
+            "organization",
+            "civil_number",
+            "job_title",
+            "phone_number",
         )
     }
     user = core_models.User.objects.create_user(
         username=username,
         email=invitation.email,
-        registration_method='FREEIPA',
+        registration_method="FREEIPA",
         **payload,
     )
     user.set_unusable_password()
@@ -163,7 +163,7 @@ def get_or_create_profile(user, username, password):
 
 
 def get_invitation_link(uuid):
-    return core_utils.format_homeport_link('invitation/{uuid}/', uuid=uuid)
+    return core_utils.format_homeport_link("invitation/{uuid}/", uuid=uuid)
 
 
 def can_manage_invitation_with(
@@ -195,7 +195,7 @@ def get_users_for_notification_about_request_has_been_submitted(permission_reque
     owners = permission_request.invitation.customer.get_owners()
     staff_users = (
         core_models.User.objects.filter(is_staff=True, is_active=True)
-        .exclude(email='')
+        .exclude(email="")
         .exclude(notifications_enabled=False)
     )
 

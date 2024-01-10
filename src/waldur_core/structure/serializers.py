@@ -81,7 +81,7 @@ class PermissionFieldFilteringMixin:
         fields = super().get_fields()
 
         try:
-            request = self.context['request']
+            request = self.context["request"]
             user = request.user
         except (KeyError, AttributeError):
             return fields
@@ -96,7 +96,7 @@ class PermissionFieldFilteringMixin:
 
     def get_filtered_field_names(self):
         raise NotImplementedError(
-            'Implement get_filtered_field_names() ' 'to return list of filtered fields'
+            "Implement get_filtered_field_names() " "to return list of filtered fields"
         )
 
 
@@ -113,7 +113,7 @@ class FieldFilteringMixin:
         fields = super().get_fields()
 
         try:
-            request = self.context['request']
+            request = self.context["request"]
             user = request.user
         except (KeyError, AttributeError):
             return fields
@@ -129,7 +129,7 @@ class FieldFilteringMixin:
 
     def get_filtered_field(self):
         raise NotImplementedError(
-            'Implement get_filtered_field() ' 'to return list of tuples '
+            "Implement get_filtered_field() " "to return list of tuples "
         )
 
 
@@ -150,7 +150,7 @@ class PermissionListSerializer(serializers.ListSerializer):
 
     def to_representation(self, data):
         try:
-            request = self.context['request']
+            request = self.context["request"]
             user = request.user
         except (KeyError, AttributeError):
             pass
@@ -167,16 +167,16 @@ class BasicUserSerializer(
     class Meta:
         model = User
         fields = (
-            'url',
-            'uuid',
-            'username',
-            'full_name',
-            'native_name',
-            'email',
-            'image',
+            "url",
+            "uuid",
+            "username",
+            "full_name",
+            "native_name",
+            "email",
+            "image",
         )
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
+            "url": {"lookup_field": "uuid"},
         }
 
 
@@ -190,7 +190,7 @@ class PermissionProjectSerializer(BasicProjectSerializer):
 
     class Meta(BasicProjectSerializer.Meta):
         list_serializer_class = PermissionListSerializer
-        fields = BasicProjectSerializer.Meta.fields + ('image', 'resource_count')
+        fields = BasicProjectSerializer.Meta.fields + ("image", "resource_count")
 
     def get_resource_count(self, project):
         from waldur_mastermind.marketplace import models as marketplace_models
@@ -207,9 +207,9 @@ class PermissionProjectSerializer(BasicProjectSerializer):
 class ProjectTypeSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = models.ProjectType
-        fields = ('uuid', 'url', 'name', 'description')
+        fields = ("uuid", "url", "name", "description")
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid', 'view_name': 'project_type-detail'},
+            "url": {"lookup_field": "uuid", "view_name": "project_type-detail"},
         }
 
 
@@ -220,7 +220,7 @@ class ProjectDetailsSerializerMixin(serializers.Serializer):
     def validate_end_date(self, end_date):
         if end_date and end_date < timezone.datetime.today().date():
             raise serializers.ValidationError(
-                {'end_date': _('Cannot be earlier than the current date.')}
+                {"end_date": _("Cannot be earlier than the current date.")}
             )
         return end_date
 
@@ -236,88 +236,88 @@ class ProjectSerializer(
     resources_count = serializers.SerializerMethodField()
     role = serializers.SerializerMethodField()
     oecd_fos_2007_label = serializers.ReadOnlyField(
-        source='get_oecd_fos_2007_code_display'
+        source="get_oecd_fos_2007_code_display"
     )
 
     class Meta:
         model = models.Project
         fields = (
-            'url',
-            'uuid',
-            'name',
-            'customer',
-            'customer_uuid',
-            'customer_name',
-            'customer_native_name',
-            'customer_abbreviation',
-            'description',
-            'created',
-            'type',
-            'type_name',
-            'type_uuid',
-            'backend_id',
-            'end_date',
-            'end_date_requested_by',
-            'oecd_fos_2007_code',
-            'oecd_fos_2007_label',
-            'is_industry',
-            'image',
-            'resources_count',
-            'role',
+            "url",
+            "uuid",
+            "name",
+            "customer",
+            "customer_uuid",
+            "customer_name",
+            "customer_native_name",
+            "customer_abbreviation",
+            "description",
+            "created",
+            "type",
+            "type_name",
+            "type_uuid",
+            "backend_id",
+            "end_date",
+            "end_date_requested_by",
+            "oecd_fos_2007_code",
+            "oecd_fos_2007_label",
+            "is_industry",
+            "image",
+            "resources_count",
+            "role",
         )
-        protected_fields = ('end_date_requested_by',)
+        protected_fields = ("end_date_requested_by",)
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
-            'customer': {'lookup_field': 'uuid'},
-            'type': {'lookup_field': 'uuid', 'view_name': 'project_type-detail'},
-            'end_date_requested_by': {
-                'lookup_field': 'uuid',
-                'view_name': 'user-detail',
+            "url": {"lookup_field": "uuid"},
+            "customer": {"lookup_field": "uuid"},
+            "type": {"lookup_field": "uuid", "view_name": "project_type-detail"},
+            "end_date_requested_by": {
+                "lookup_field": "uuid",
+                "view_name": "user-detail",
             },
         }
         related_paths = {
-            'customer': ('uuid', 'name', 'native_name', 'abbreviation'),
-            'type': ('name', 'uuid'),
+            "customer": ("uuid", "name", "native_name", "abbreviation"),
+            "type": ("name", "uuid"),
         }
 
     @staticmethod
     def eager_load(queryset, request=None):
         related_fields = (
-            'uuid',
-            'name',
-            'created',
-            'description',
-            'customer__uuid',
-            'customer__name',
-            'customer__native_name',
-            'customer__abbreviation',
+            "uuid",
+            "name",
+            "created",
+            "description",
+            "customer__uuid",
+            "customer__name",
+            "customer__native_name",
+            "customer__abbreviation",
         )
-        return queryset.select_related('customer').only(*related_fields)
+        return queryset.select_related("customer").only(*related_fields)
 
     def get_filtered_field_names(self):
-        return ('customer',)
+        return ("customer",)
 
     def validate(self, attrs):
         customer = (
-            attrs.get('customer') if not self.instance else self.instance.customer
+            attrs.get("customer") if not self.instance else self.instance.customer
         )
-        end_date = attrs.get('end_date')
+        end_date = attrs.get("end_date")
 
         if end_date:
             if not has_permission(
-                self.context['request'], PermissionEnum.DELETE_PROJECT, customer
+                self.context["request"], PermissionEnum.DELETE_PROJECT, customer
             ):
                 raise exceptions.PermissionDenied()
-            attrs['end_date_requested_by'] = self.context['request'].user
+            attrs["end_date_requested_by"] = self.context["request"].user
 
-        if settings.WALDUR_CORE.get('OECD_FOS_2007_CODE_MANDATORY'):
-            if (not self.instance and not attrs.get('oecd_fos_2007_code')) or (
+        if settings.WALDUR_CORE.get("OECD_FOS_2007_CODE_MANDATORY"):
+            if (not self.instance and not attrs.get("oecd_fos_2007_code")) or (
                 self.instance
                 and not self.instance.oecd_fos_2007_code
-                and not attrs.get('oecd_fos_2007_code')
+                and not attrs.get("oecd_fos_2007_code")
             ):
                 raise serializers.ValidationError(
-                    {'oecd_fos_2007_code': _('This field is required.')}
+                    {"oecd_fos_2007_code": _("This field is required.")}
                 )
 
         return attrs
@@ -334,16 +334,16 @@ class ProjectSerializer(
         ).count()
 
     def get_role(self, project):
-        user_uuid = self.context['request'].GET.get('user_uuid')
+        user_uuid = self.context["request"].GET.get("user_uuid")
         user = (
             User.objects.get(uuid=user_uuid)
             if user_uuid and is_uuid_like(user_uuid)
-            else self.context['request'].user
+            else self.context["request"].user
         )
         if user.is_staff:
-            return 'staff'
+            return "staff"
         if user.is_support:
-            return 'support'
+            return "support"
         permission = get_permissions(project, user).first()
         if permission:
             return get_old_role_name(permission.role.name)
@@ -351,14 +351,14 @@ class ProjectSerializer(
 
 class CountrySerializerMixin(serializers.Serializer):
     COUNTRIES = core_fields.COUNTRIES
-    if settings.WALDUR_CORE.get('COUNTRIES'):
+    if settings.WALDUR_CORE.get("COUNTRIES"):
         COUNTRIES = [
-            item for item in COUNTRIES if item[0] in settings.WALDUR_CORE['COUNTRIES']
+            item for item in COUNTRIES if item[0] in settings.WALDUR_CORE["COUNTRIES"]
         ]
     country = serializers.ChoiceField(
         required=False, choices=COUNTRIES, allow_blank=True
     )
-    country_name = serializers.ReadOnlyField(source='get_country_display')
+    country_name = serializers.ReadOnlyField(source="get_country_display")
 
 
 class CustomerSerializer(
@@ -369,21 +369,21 @@ class CustomerSerializer(
     serializers.HyperlinkedModelSerializer,
 ):
     projects = serializers.SerializerMethodField()
-    owners = BasicUserSerializer(source='get_owners', many=True, read_only=True)
+    owners = BasicUserSerializer(source="get_owners", many=True, read_only=True)
     support_users = BasicUserSerializer(
-        source='get_support_users', many=True, read_only=True
+        source="get_support_users", many=True, read_only=True
     )
     service_managers = BasicUserSerializer(
-        source='get_service_managers', many=True, read_only=True
+        source="get_service_managers", many=True, read_only=True
     )
 
-    display_name = serializers.ReadOnlyField(source='get_display_name')
-    division_name = serializers.ReadOnlyField(source='division.name')
-    division_uuid = serializers.ReadOnlyField(source='division.uuid')
-    division_parent_name = serializers.ReadOnlyField(source='division.parent.name')
-    division_parent_uuid = serializers.ReadOnlyField(source='division.parent.uuid')
-    division_type_name = serializers.ReadOnlyField(source='division.type.name')
-    division_type_uuid = serializers.ReadOnlyField(source='division.type.uuid')
+    display_name = serializers.ReadOnlyField(source="get_display_name")
+    division_name = serializers.ReadOnlyField(source="division.name")
+    division_uuid = serializers.ReadOnlyField(source="division.uuid")
+    division_parent_name = serializers.ReadOnlyField(source="division.parent.name")
+    division_parent_uuid = serializers.ReadOnlyField(source="division.parent.uuid")
+    division_type_name = serializers.ReadOnlyField(source="division.type.name")
+    division_type_uuid = serializers.ReadOnlyField(source="division.type.uuid")
     role = serializers.SerializerMethodField()
     projects_count = serializers.SerializerMethodField()
     users_count = serializers.SerializerMethodField()
@@ -391,54 +391,54 @@ class CustomerSerializer(
     class Meta:
         model = models.Customer
         fields = (
-            'url',
-            'uuid',
-            'created',
-            'division',
-            'division_name',
-            'division_uuid',
-            'division_parent_name',
-            'division_parent_uuid',
-            'division_type_name',
-            'division_type_uuid',
-            'display_name',
-            'projects',
-            'owners',
-            'support_users',
-            'service_managers',
-            'backend_id',
-            'image',
-            'blocked',
-            'archived',
-            'default_tax_percent',
-            'accounting_start_date',
-            'inet',
-            'role',
-            'projects_count',
-            'users_count',
-            'sponsor_number',
+            "url",
+            "uuid",
+            "created",
+            "division",
+            "division_name",
+            "division_uuid",
+            "division_parent_name",
+            "division_parent_uuid",
+            "division_type_name",
+            "division_type_uuid",
+            "display_name",
+            "projects",
+            "owners",
+            "support_users",
+            "service_managers",
+            "backend_id",
+            "image",
+            "blocked",
+            "archived",
+            "default_tax_percent",
+            "accounting_start_date",
+            "inet",
+            "role",
+            "projects_count",
+            "users_count",
+            "sponsor_number",
         ) + CUSTOMER_DETAILS_FIELDS
         staff_only_fields = (
-            'access_subnets',
-            'accounting_start_date',
-            'default_tax_percent',
-            'agreement_number',
-            'domain',
-            'division',
-            'blocked',
-            'archived',
-            'sponsor_number',
+            "access_subnets",
+            "accounting_start_date",
+            "default_tax_percent",
+            "agreement_number",
+            "domain",
+            "division",
+            "blocked",
+            "archived",
+            "sponsor_number",
         )
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
-            'division': {'lookup_field': 'uuid'},
+            "url": {"lookup_field": "uuid"},
+            "division": {"lookup_field": "uuid"},
         }
 
     def get_fields(self):
         fields = super().get_fields()
 
         try:
-            request = self.context['view'].request
+            request = self.context["view"].request
             user = request.user
         except (KeyError, AttributeError):
             return fields
@@ -452,25 +452,25 @@ class CustomerSerializer(
         return fields
 
     def create(self, validated_data):
-        user = self.context['request'].user
-        if 'domain' not in validated_data:
+        user = self.context["request"].user
+        if "domain" not in validated_data:
             # Staff can specify domain name on organization creation
-            validated_data['domain'] = user.organization
+            validated_data["domain"] = user.organization
         return super().create(validated_data)
 
     @staticmethod
     def eager_load(queryset, request=None):
-        return queryset.prefetch_related('projects')
+        return queryset.prefetch_related("projects")
 
     def validate(self, attrs):
-        country = attrs.get('country')
-        vat_code = attrs.get('vat_code')
+        country = attrs.get("country")
+        vat_code = attrs.get("vat_code")
 
         if vat_code:
             # Check VAT format
             if not pyvat.is_vat_number_format_valid(vat_code, country):
                 raise serializers.ValidationError(
-                    {'vat_code': _('VAT number has invalid format.')}
+                    {"vat_code": _("VAT number has invalid format.")}
                 )
 
             # Check VAT number in EU VAT Information Exchange System
@@ -482,38 +482,38 @@ class CustomerSerializer(
             ):
                 check_result = pyvat.check_vat_number(vat_code, country)
                 if check_result.is_valid:
-                    attrs['vat_name'] = check_result.business_name
-                    attrs['vat_address'] = check_result.business_address
-                    if not attrs.get('contact_details'):
-                        attrs['contact_details'] = attrs['vat_address']
+                    attrs["vat_name"] = check_result.business_name
+                    attrs["vat_address"] = check_result.business_address
+                    if not attrs.get("contact_details"):
+                        attrs["contact_details"] = attrs["vat_address"]
                 elif check_result.is_valid is False:
                     raise serializers.ValidationError(
-                        {'vat_code': _('VAT number is invalid.')}
+                        {"vat_code": _("VAT number is invalid.")}
                     )
                 else:
                     logger.debug(
-                        'Unable to check VAT number %s for country %s. Error message: %s',
+                        "Unable to check VAT number %s for country %s. Error message: %s",
                         vat_code,
                         country,
                         check_result.log_lines,
                     )
                     raise serializers.ValidationError(
-                        {'vat_code': _('Unable to check VAT number.')}
+                        {"vat_code": _("Unable to check VAT number.")}
                     )
         return attrs
 
     def get_role(self, customer):
-        user_uuid = self.context['request'].GET.get('user_uuid')
+        user_uuid = self.context["request"].GET.get("user_uuid")
         user = (
             User.objects.get(uuid=user_uuid)
             if user_uuid and is_uuid_like(user_uuid)
-            else self.context['request'].user
+            else self.context["request"].user
         )
 
         if user.is_staff:
-            return 'staff'
+            return "staff"
         if user.is_support:
-            return 'support'
+            return "support"
         permission = get_permissions(customer, user).first()
         if permission:
             return get_old_role_name(permission.role.name)
@@ -523,11 +523,11 @@ class CustomerSerializer(
 
     def get_projects(self, customer):
         projects = models.Project.available_objects.filter(customer=customer)
-        show_all_projects = self.context['request'].query_params.get(
-            'show_all_projects'
+        show_all_projects = self.context["request"].query_params.get(
+            "show_all_projects"
         )
-        if show_all_projects not in ['true', 'True']:
-            query = self.context['request'].query_params.get('query')
+        if show_all_projects not in ["true", "True"]:
+            query = self.context["request"].query_params.get("query")
 
             if query:
                 projects = projects.filter(name__icontains=query)
@@ -546,9 +546,9 @@ class NestedCustomerSerializer(
 ):
     class Meta:
         model = models.Customer
-        fields = ('uuid', 'url')
+        fields = ("uuid", "url")
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
+            "url": {"lookup_field": "uuid"},
         }
 
 
@@ -556,8 +556,8 @@ class BasicCustomerSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Customer
         fields = (
-            'uuid',
-            'name',
+            "uuid",
+            "name",
         )
 
 
@@ -567,20 +567,20 @@ class NestedProjectSerializer(
 ):
     class Meta:
         model = models.Project
-        fields = ('uuid', 'url')
+        fields = ("uuid", "url")
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
+            "url": {"lookup_field": "uuid"},
         }
 
 
 class NestedProjectPermissionSerializer(serializers.ModelSerializer):
     url = serializers.HyperlinkedRelatedField(
-        source='scope', lookup_field='uuid', view_name='project-detail', read_only=True
+        source="scope", lookup_field="uuid", view_name="project-detail", read_only=True
     )
-    uuid = serializers.ReadOnlyField(source='scope.uuid')
-    name = serializers.ReadOnlyField(source='scope.name')
+    uuid = serializers.ReadOnlyField(source="scope.uuid")
+    name = serializers.ReadOnlyField(source="scope.name")
     permission = serializers.HyperlinkedRelatedField(
-        source='pk', view_name='project_permission-detail', read_only=True
+        source="pk", view_name="project_permission-detail", read_only=True
     )
     role = serializers.SerializerMethodField()
     role_name = serializers.SerializerMethodField()
@@ -588,13 +588,13 @@ class NestedProjectPermissionSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserRole
         fields = [
-            'url',
-            'uuid',
-            'name',
-            'role',
-            'role_name',
-            'permission',
-            'expiration_time',
+            "url",
+            "uuid",
+            "name",
+            "role",
+            "role_name",
+            "permission",
+            "expiration_time",
         ]
 
     def get_role(self, instance):
@@ -610,10 +610,10 @@ class CustomerUserSerializer(
 ):
     role = serializers.ReadOnlyField()
     is_service_manager = serializers.ReadOnlyField()
-    expiration_time = serializers.ReadOnlyField(source='perm.expiration_time')
+    expiration_time = serializers.ReadOnlyField(source="perm.expiration_time")
     permission = serializers.HyperlinkedRelatedField(
-        source='perm.pk',
-        view_name='customer_permission-detail',
+        source="perm.pk",
+        view_name="customer_permission-detail",
         read_only=True,
     )
     projects = NestedProjectPermissionSerializer(many=True, read_only=True)
@@ -622,25 +622,25 @@ class CustomerUserSerializer(
     class Meta:
         model = User
         fields = [
-            'url',
-            'uuid',
-            'username',
-            'full_name',
-            'email',
-            'role',
-            'role_name',
-            'permission',
-            'projects',
-            'is_service_manager',
-            'expiration_time',
-            'image',
+            "url",
+            "uuid",
+            "username",
+            "full_name",
+            "email",
+            "role",
+            "role_name",
+            "permission",
+            "projects",
+            "is_service_manager",
+            "expiration_time",
+            "image",
         ]
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
+            "url": {"lookup_field": "uuid"},
         }
 
     def get_role_name(self, user):
-        customer = self.context['customer']
+        customer = self.context["customer"]
         permission = UserRole.objects.filter(
             scope=customer,
             user=user,
@@ -649,7 +649,7 @@ class CustomerUserSerializer(
         return permission and permission.role.name
 
     def to_representation(self, user):
-        customer = self.context['customer']
+        customer = self.context["customer"]
         permission = UserRole.objects.filter(
             content_type=ContentType.objects.get_for_model(models.Customer),
             object_id=customer.id,
@@ -657,7 +657,7 @@ class CustomerUserSerializer(
             is_active=True,
             role__name__in=SYSTEM_CUSTOMER_ROLES,
         ).first()
-        project_ids = customer.projects.values_list('id', flat=True)
+        project_ids = customer.projects.values_list("id", flat=True)
         projects = UserRole.objects.filter(
             content_type=ContentType.objects.get_for_model(models.Project),
             object_id__in=project_ids,
@@ -667,43 +667,43 @@ class CustomerUserSerializer(
         is_service_manager = customer.has_user(
             user, role=models.CustomerRole.SERVICE_MANAGER
         )
-        setattr(user, 'perm', permission)
-        setattr(user, 'role', permission and get_old_role_name(permission.role.name))
-        setattr(user, 'projects', projects)
-        setattr(user, 'is_service_manager', is_service_manager)
+        setattr(user, "perm", permission)
+        setattr(user, "role", permission and get_old_role_name(permission.role.name))
+        setattr(user, "projects", projects)
+        setattr(user, "is_service_manager", is_service_manager)
         return super().to_representation(user)
 
 
 class ProjectUserSerializer(serializers.ModelSerializer):
     role = serializers.ReadOnlyField()
-    expiration_time = serializers.ReadOnlyField(source='perm.expiration_time')
+    expiration_time = serializers.ReadOnlyField(source="perm.expiration_time")
     permission = serializers.HyperlinkedRelatedField(
-        source='perm.pk',
-        view_name='project_permission-detail',
+        source="perm.pk",
+        view_name="project_permission-detail",
         read_only=True,
     )
 
     class Meta:
         model = User
         fields = [
-            'url',
-            'uuid',
-            'username',
-            'full_name',
-            'email',
-            'role',
-            'permission',
-            'expiration_time',
+            "url",
+            "uuid",
+            "username",
+            "full_name",
+            "email",
+            "role",
+            "permission",
+            "expiration_time",
         ]
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
+            "url": {"lookup_field": "uuid"},
         }
 
     def to_representation(self, user):
-        project = self.context['project']
+        project = self.context["project"]
         permission = get_permissions(project, user).first()
-        setattr(user, 'perm', permission)
-        setattr(user, 'role', permission and get_old_role_name(permission.role.name))
+        setattr(user, "perm", permission)
+        setattr(user, "role", permission and get_old_role_name(permission.role.name))
         return super().to_representation(user)
 
 
@@ -714,16 +714,16 @@ class BasePermissionSerializer(
 
     class Meta:
         fields = (
-            'role',
-            'user',
-            'user_full_name',
-            'user_native_name',
-            'user_username',
-            'user_uuid',
-            'user_email',
+            "role",
+            "user",
+            "user_full_name",
+            "user_native_name",
+            "user_username",
+            "user_uuid",
+            "user_email",
         )
         related_paths = {
-            'user': ('username', 'full_name', 'native_name', 'uuid', 'email'),
+            "user": ("username", "full_name", "native_name", "uuid", "email"),
         }
 
     def get_role(self, instance):
@@ -732,94 +732,94 @@ class BasePermissionSerializer(
 
 class BasicCustomerPermissionSerializer(BasePermissionSerializer):
     customer = serializers.HyperlinkedRelatedField(
-        source='scope',
-        view_name='customer-detail',
+        source="scope",
+        view_name="customer-detail",
         read_only=True,
-        lookup_field='uuid',
+        lookup_field="uuid",
     )
-    customer_name = serializers.ReadOnlyField(source='scope.name')
-    customer_uuid = serializers.ReadOnlyField(source='scope.uuid')
-    customer_native_name = serializers.ReadOnlyField(source='scope.native_name')
-    customer_abbreviation = serializers.ReadOnlyField(source='scope.abbreviation')
-    customer_division_name = serializers.ReadOnlyField(source='scope.division.name')
-    customer_division_uuid = serializers.ReadOnlyField(source='scope.division.uuid')
+    customer_name = serializers.ReadOnlyField(source="scope.name")
+    customer_uuid = serializers.ReadOnlyField(source="scope.uuid")
+    customer_native_name = serializers.ReadOnlyField(source="scope.native_name")
+    customer_abbreviation = serializers.ReadOnlyField(source="scope.abbreviation")
+    customer_division_name = serializers.ReadOnlyField(source="scope.division.name")
+    customer_division_uuid = serializers.ReadOnlyField(source="scope.division.uuid")
 
     class Meta(BasePermissionSerializer.Meta):
         model = UserRole
         fields = (
-            'url',
-            'pk',
-            'role',
-            'customer',
-            'customer_uuid',
-            'customer_name',
-            'customer_native_name',
-            'customer_abbreviation',
-            'customer_division_name',
-            'customer_division_uuid',
+            "url",
+            "pk",
+            "role",
+            "customer",
+            "customer_uuid",
+            "customer_name",
+            "customer_native_name",
+            "customer_abbreviation",
+            "customer_division_name",
+            "customer_division_uuid",
         )
-        view_name = 'customer_permission-detail'
+        view_name = "customer_permission-detail"
 
 
 class CustomerPermissionSerializer(BasePermissionSerializer):
-    customer_name = serializers.ReadOnlyField(source='scope.name')
-    customer_uuid = serializers.ReadOnlyField(source='scope.uuid')
-    customer_native_name = serializers.ReadOnlyField(source='scope.native_name')
-    customer_abbreviation = serializers.ReadOnlyField(source='scope.abbreviation')
-    customer_division_name = serializers.ReadOnlyField(source='scope.division.name')
-    customer_division_uuid = serializers.ReadOnlyField(source='scope.division.uuid')
-    customer_created = serializers.ReadOnlyField(source='scope.created')
-    customer_email = serializers.ReadOnlyField(source='scope.email')
+    customer_name = serializers.ReadOnlyField(source="scope.name")
+    customer_uuid = serializers.ReadOnlyField(source="scope.uuid")
+    customer_native_name = serializers.ReadOnlyField(source="scope.native_name")
+    customer_abbreviation = serializers.ReadOnlyField(source="scope.abbreviation")
+    customer_division_name = serializers.ReadOnlyField(source="scope.division.name")
+    customer_division_uuid = serializers.ReadOnlyField(source="scope.division.uuid")
+    customer_created = serializers.ReadOnlyField(source="scope.created")
+    customer_email = serializers.ReadOnlyField(source="scope.email")
     customer = serializers.HyperlinkedRelatedField(
-        source='scope',
-        view_name='customer-detail',
+        source="scope",
+        view_name="customer-detail",
         read_only=True,
-        lookup_field='uuid',
+        lookup_field="uuid",
     )
     role = serializers.SerializerMethodField()
 
     class Meta(BasePermissionSerializer.Meta):
         model = UserRole
         fields = (
-            'url',
-            'pk',
-            'role',
-            'created',
-            'expiration_time',
-            'created_by',
-            'created_by_full_name',
-            'created_by_username',
-            'customer',
-            'customer_uuid',
-            'customer_name',
-            'customer_native_name',
-            'customer_abbreviation',
-            'customer_division_name',
-            'customer_division_uuid',
-            'customer_created',
-            'customer_email',
+            "url",
+            "pk",
+            "role",
+            "created",
+            "expiration_time",
+            "created_by",
+            "created_by_full_name",
+            "created_by_username",
+            "customer",
+            "customer_uuid",
+            "customer_name",
+            "customer_native_name",
+            "customer_abbreviation",
+            "customer_division_name",
+            "customer_division_uuid",
+            "customer_created",
+            "customer_email",
         ) + BasePermissionSerializer.Meta.fields
         related_paths = dict(
-            created_by=('full_name', 'username'),
-            **BasePermissionSerializer.Meta.related_paths
+            created_by=("full_name", "username"),
+            **BasePermissionSerializer.Meta.related_paths,
         )
-        view_name = 'customer_permission-detail'
+        view_name = "customer_permission-detail"
         extra_kwargs = {
-            'user': {
-                'view_name': 'user-detail',
-                'lookup_field': 'uuid',
+            "user": {
+                "view_name": "user-detail",
+                "lookup_field": "uuid",
             },
-            'created_by': {
-                'view_name': 'user-detail',
-                'lookup_field': 'uuid',
-                'read_only': True,
+            "created_by": {
+                "view_name": "user-detail",
+                "lookup_field": "uuid",
+                "read_only": True,
             },
         }
 
 
 class CustomerPermissionLogSerializer(CustomerPermissionSerializer):
     class Meta(CustomerPermissionSerializer.Meta):
-        view_name = 'customer_permission_log-detail'
+        view_name = "customer_permission_log-detail"
 
 
 class CustomerPermissionReviewSerializer(
@@ -827,112 +827,112 @@ class CustomerPermissionReviewSerializer(
 ):
     class Meta:
         model = models.CustomerPermissionReview
-        view_name = 'customer_permission_review-detail'
+        view_name = "customer_permission_review-detail"
         fields = (
-            'url',
-            'uuid',
-            'reviewer_full_name',
-            'reviewer_uuid',
-            'customer_uuid',
-            'customer_name',
-            'is_pending',
-            'created',
-            'closed',
+            "url",
+            "uuid",
+            "reviewer_full_name",
+            "reviewer_uuid",
+            "customer_uuid",
+            "customer_name",
+            "is_pending",
+            "created",
+            "closed",
         )
         read_only_fields = (
-            'is_pending',
-            'closed',
+            "is_pending",
+            "closed",
         )
         related_paths = {
-            'reviewer': ('full_name', 'uuid'),
-            'customer': ('name', 'uuid'),
+            "reviewer": ("full_name", "uuid"),
+            "customer": ("name", "uuid"),
         }
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
+            "url": {"lookup_field": "uuid"},
         }
 
 
 class ProjectPermissionSerializer(BasePermissionSerializer):
-    customer_uuid = serializers.ReadOnlyField(source='scope.customer.uuid')
-    customer_name = serializers.ReadOnlyField(source='scope.customer.name')
-    project_uuid = serializers.ReadOnlyField(source='scope.uuid')
-    project_name = serializers.ReadOnlyField(source='scope.name')
-    project_created = serializers.ReadOnlyField(source='scope.created')
-    project_end_date = serializers.ReadOnlyField(source='scope.end_date')
+    customer_uuid = serializers.ReadOnlyField(source="scope.customer.uuid")
+    customer_name = serializers.ReadOnlyField(source="scope.customer.name")
+    project_uuid = serializers.ReadOnlyField(source="scope.uuid")
+    project_name = serializers.ReadOnlyField(source="scope.name")
+    project_created = serializers.ReadOnlyField(source="scope.created")
+    project_end_date = serializers.ReadOnlyField(source="scope.end_date")
     role = serializers.SerializerMethodField()
     project = serializers.HyperlinkedRelatedField(
-        source='scope',
-        view_name='project-detail',
+        source="scope",
+        view_name="project-detail",
         read_only=True,
-        lookup_field='uuid',
+        lookup_field="uuid",
     )
 
     class Meta(BasePermissionSerializer.Meta):
         model = UserRole
         fields = (
-            'url',
-            'pk',
-            'role',
-            'created',
-            'expiration_time',
-            'created_by',
-            'created_by_full_name',
-            'created_by_username',
-            'project',
-            'project_uuid',
-            'project_name',
-            'project_created',
-            'project_end_date',
-            'customer_uuid',
-            'customer_name',
+            "url",
+            "pk",
+            "role",
+            "created",
+            "expiration_time",
+            "created_by",
+            "created_by_full_name",
+            "created_by_username",
+            "project",
+            "project_uuid",
+            "project_name",
+            "project_created",
+            "project_end_date",
+            "customer_uuid",
+            "customer_name",
         ) + BasePermissionSerializer.Meta.fields
         related_paths = dict(
-            created_by=('full_name', 'username'),
-            **BasePermissionSerializer.Meta.related_paths
+            created_by=("full_name", "username"),
+            **BasePermissionSerializer.Meta.related_paths,
         )
-        view_name = 'project_permission-detail'
+        view_name = "project_permission-detail"
         extra_kwargs = {
-            'user': {
-                'view_name': 'user-detail',
-                'lookup_field': 'uuid',
-                'queryset': User.objects.all(),
+            "user": {
+                "view_name": "user-detail",
+                "lookup_field": "uuid",
+                "queryset": User.objects.all(),
             },
-            'created_by': {
-                'view_name': 'user-detail',
-                'lookup_field': 'uuid',
-                'read_only': True,
+            "created_by": {
+                "view_name": "user-detail",
+                "lookup_field": "uuid",
+                "read_only": True,
             },
         }
 
 
 class BasicProjectPermissionSerializer(BasePermissionSerializer):
-    project_uuid = serializers.ReadOnlyField(source='scope.uuid')
-    project_name = serializers.ReadOnlyField(source='scope.name')
-    customer_name = serializers.ReadOnlyField(source='scope.customer.name')
+    project_uuid = serializers.ReadOnlyField(source="scope.uuid")
+    project_name = serializers.ReadOnlyField(source="scope.name")
+    customer_name = serializers.ReadOnlyField(source="scope.customer.name")
 
     class Meta:
         model = UserRole
         fields = (
-            'url',
-            'pk',
-            'role',
-            'project_uuid',
-            'project_name',
-            'customer_name',
+            "url",
+            "pk",
+            "role",
+            "project_uuid",
+            "project_name",
+            "customer_name",
         )
-        view_name = 'project_permission-detail'
+        view_name = "project_permission-detail"
         extra_kwargs = {
-            'project': {
-                'view_name': 'project-detail',
-                'lookup_field': 'uuid',
-                'queryset': models.Project.objects.all(),
+            "project": {
+                "view_name": "project-detail",
+                "lookup_field": "uuid",
+                "queryset": models.Project.objects.all(),
             }
         }
 
 
 class ProjectPermissionLogSerializer(ProjectPermissionSerializer):
     class Meta(ProjectPermissionSerializer.Meta):
-        view_name = 'project_permission_log-detail'
+        view_name = "project_permission_log-detail"
 
 
 class UserSerializer(
@@ -945,14 +945,14 @@ class UserSerializer(
     agree_with_policy = serializers.BooleanField(
         write_only=True,
         required=False,
-        help_text=_('User must agree with the policy to register.'),
+        help_text=_("User must agree with the policy to register."),
     )
     competence = serializers.ChoiceField(
-        choices=settings.WALDUR_CORE.get('USER_COMPETENCE_LIST', []),
+        choices=settings.WALDUR_CORE.get("USER_COMPETENCE_LIST", []),
         allow_blank=True,
         required=False,
     )
-    token = serializers.ReadOnlyField(source='auth_token.key')
+    token = serializers.ReadOnlyField(source="auth_token.key")
     customer_permissions = serializers.SerializerMethodField()
     project_permissions = serializers.SerializerMethodField()
     permissions = serializers.SerializerMethodField()
@@ -1004,61 +1004,61 @@ class UserSerializer(
     class Meta:
         model = User
         fields = (
-            'url',
-            'uuid',
-            'username',
-            'full_name',
-            'native_name',
-            'job_title',
-            'email',
-            'phone_number',
-            'organization',
-            'civil_number',
-            'description',
-            'is_staff',
-            'is_active',
-            'is_support',
-            'token',
-            'token_lifetime',
-            'registration_method',
-            'date_joined',
-            'agree_with_policy',
-            'agreement_date',
-            'preferred_language',
-            'competence',
-            'permissions',
-            'customer_permissions',
-            'project_permissions',
-            'requested_email',
-            'affiliations',
-            'first_name',
-            'last_name',
-            'identity_provider_name',
-            'identity_provider_label',
-            'identity_provider_management_url',
-            'identity_provider_fields',
-            'image',
+            "url",
+            "uuid",
+            "username",
+            "full_name",
+            "native_name",
+            "job_title",
+            "email",
+            "phone_number",
+            "organization",
+            "civil_number",
+            "description",
+            "is_staff",
+            "is_active",
+            "is_support",
+            "token",
+            "token_lifetime",
+            "registration_method",
+            "date_joined",
+            "agree_with_policy",
+            "agreement_date",
+            "preferred_language",
+            "competence",
+            "permissions",
+            "customer_permissions",
+            "project_permissions",
+            "requested_email",
+            "affiliations",
+            "first_name",
+            "last_name",
+            "identity_provider_name",
+            "identity_provider_label",
+            "identity_provider_management_url",
+            "identity_provider_fields",
+            "image",
         )
         read_only_fields = (
-            'uuid',
-            'civil_number',
-            'registration_method',
-            'date_joined',
-            'agreement_date',
-            'customer_permissions',
-            'project_permissions',
-            'affiliations',
+            "uuid",
+            "civil_number",
+            "registration_method",
+            "date_joined",
+            "agreement_date",
+            "customer_permissions",
+            "project_permissions",
+            "affiliations",
         )
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
+            "url": {"lookup_field": "uuid"},
         }
-        protected_fields = ('email',)
+        protected_fields = ("email",)
 
     def get_fields(self):
         fields = super().get_fields()
 
         try:
-            request = self.context['view'].request
+            request = self.context["view"].request
             user = request.user
         except (KeyError, AttributeError):
             return fields
@@ -1067,7 +1067,7 @@ class UserSerializer(
             return fields
 
         if not user.is_staff:
-            protected_fields = ('is_active', 'is_staff', 'is_support', 'description')
+            protected_fields = ("is_active", "is_staff", "is_support", "description")
             if user.is_support:
                 for field in protected_fields:
                     if field in fields:
@@ -1078,27 +1078,27 @@ class UserSerializer(
                         del fields[field]
 
         if not self._can_see_token(user):
-            if 'token' in fields:
-                del fields['token']
-            if 'token_lifetime' in fields:
-                del fields['token_lifetime']
+            if "token" in fields:
+                del fields["token"]
+            if "token_lifetime" in fields:
+                del fields["token_lifetime"]
 
-        if request.method in ('PUT', 'PATCH'):
-            fields['username'].read_only = True
+        if request.method in ("PUT", "PATCH"):
+            fields["username"].read_only = True
             protected_methods = settings.WALDUR_CORE[
-                'PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS'
+                "PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS"
             ]
             if (
                 user.registration_method
                 and user.registration_method in protected_methods
             ):
                 detail_fields = (
-                    'full_name',
-                    'native_name',
-                    'job_title',
-                    'email',
-                    'phone_number',
-                    'organization',
+                    "full_name",
+                    "native_name",
+                    "job_title",
+                    "email",
+                    "phone_number",
+                    "organization",
                 )
                 for field in detail_fields:
                     fields[field].read_only = True
@@ -1115,42 +1115,42 @@ class UserSerializer(
             return self.instance == user
 
     def validate(self, attrs):
-        agree_with_policy = attrs.pop('agree_with_policy', False)
+        agree_with_policy = attrs.pop("agree_with_policy", False)
         if self.instance and not self.instance.agreement_date:
             if not agree_with_policy:
                 if (
                     self.instance.is_active
-                    and 'is_active' in attrs.keys()
-                    and not attrs['is_active']
+                    and "is_active" in attrs.keys()
+                    and not attrs["is_active"]
                     and len(attrs) == 1
                 ):
                     # Deactivation of user.
                     pass
                 else:
                     raise serializers.ValidationError(
-                        {'agree_with_policy': _('User must agree with the policy.')}
+                        {"agree_with_policy": _("User must agree with the policy.")}
                     )
             else:
-                attrs['agreement_date'] = timezone.now()
+                attrs["agreement_date"] = timezone.now()
 
         if self.instance:
             idp_fields = self.get_identity_provider_fields(self.instance)
             allowed_fields = set(attrs.keys()) - set(idp_fields)
             attrs = {k: v for k, v in attrs.items() if k in allowed_fields}
 
-        if 'full_name' in attrs and 'first_name' in attrs:
+        if "full_name" in attrs and "first_name" in attrs:
             raise serializers.ValidationError(
-                {'first_name': _('Cannot specify first name with full name')}
+                {"first_name": _("Cannot specify first name with full name")}
             )
-        elif 'full_name' in attrs and 'last_name' in attrs:
+        elif "full_name" in attrs and "last_name" in attrs:
             raise serializers.ValidationError(
-                {'last_name': _('Cannot specify last name with full name')}
+                {"last_name": _("Cannot specify last name with full name")}
             )
 
         # Convert validation error from Django to DRF
         # https://github.com/tomchristie/django-rest-framework/issues/2145
         try:
-            user = User(id=getattr(self.instance, 'id', None), **attrs)
+            user = User(id=getattr(self.instance, "id", None), **attrs)
             user.clean()
 
         except django_exceptions.ValidationError as error:
@@ -1163,23 +1163,23 @@ class UserEmailChangeSerializer(serializers.Serializer):
 
 
 class SshKeySerializer(serializers.HyperlinkedModelSerializer):
-    user_uuid = serializers.ReadOnlyField(source='user.uuid')
+    user_uuid = serializers.ReadOnlyField(source="user.uuid")
 
     class Meta:
         model = core_models.SshPublicKey
         fields = (
-            'url',
-            'uuid',
-            'name',
-            'public_key',
-            'fingerprint',
-            'user_uuid',
-            'is_shared',
-            'type',
+            "url",
+            "uuid",
+            "name",
+            "public_key",
+            "fingerprint",
+            "user_uuid",
+            "is_shared",
+            "type",
         )
-        read_only_fields = ('fingerprint', 'is_shared')
+        read_only_fields = ("fingerprint", "is_shared")
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
+            "url": {"lookup_field": "uuid"},
         }
 
     def validate_name(self, value):
@@ -1189,14 +1189,14 @@ class SshKeySerializer(serializers.HyperlinkedModelSerializer):
         value = value.strip()
         if len(value.splitlines()) > 1:
             raise serializers.ValidationError(
-                _('Key is not valid: it should be single line.')
+                _("Key is not valid: it should be single line.")
             )
 
         try:
             core_models.get_ssh_key_fingerprint(value)
         except (IndexError, TypeError):
             raise serializers.ValidationError(
-                _('Key is not valid: cannot generate fingerprint from it.')
+                _("Key is not valid: cannot generate fingerprint from it.")
             )
         return value
 
@@ -1224,7 +1224,7 @@ class ServiceSettingsSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
-    customer_native_name = serializers.ReadOnlyField(source='customer.native_name')
+    customer_native_name = serializers.ReadOnlyField(source="customer.native_name")
     state = MappedChoiceField(
         choices=[(v, k) for k, v in core_models.StateMixin.States.CHOICES],
         choice_mappings={v: k for k, v in core_models.StateMixin.States.CHOICES},
@@ -1240,51 +1240,51 @@ class ServiceSettingsSerializer(
     class Meta:
         model = models.ServiceSettings
         fields = (
-            'url',
-            'uuid',
-            'name',
-            'type',
-            'state',
-            'error_message',
-            'shared',
-            'customer',
-            'customer_name',
-            'customer_native_name',
-            'terms_of_services',
-            'scope',
-            'options',
+            "url",
+            "uuid",
+            "name",
+            "type",
+            "state",
+            "error_message",
+            "shared",
+            "customer",
+            "customer_name",
+            "customer_native_name",
+            "terms_of_services",
+            "scope",
+            "options",
         )
-        read_only_fields = ('state', 'error_message')
-        related_paths = ('customer',)
+        read_only_fields = ("state", "error_message")
+        related_paths = ("customer",)
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
-            'customer': {'lookup_field': 'uuid'},
+            "url": {"lookup_field": "uuid"},
+            "customer": {"lookup_field": "uuid"},
         }
 
     def get_filtered_field_names(self):
-        return ('customer',)
+        return ("customer",)
 
     @staticmethod
     def eager_load(queryset, request=None):
-        return queryset.select_related('customer')
+        return queryset.select_related("customer")
 
     def get_fields(self):
         fields = super().get_fields()
-        method = self.context['view'].request.method
-        if method == 'GET' and 'options' in fields:
-            fields['options'] = serializers.SerializerMethodField('get_options')
+        method = self.context["view"].request.method
+        if method == "GET" and "options" in fields:
+            fields["options"] = serializers.SerializerMethodField("get_options")
         return fields
 
     def get_options(self, service):
         options = {
-            'backend_url': service.backend_url,
-            'username': service.username,
-            'password': service.password,
-            'domain': service.domain,
-            'token': service.token,
+            "backend_url": service.backend_url,
+            "username": service.username,
+            "password": service.password,
+            "domain": service.domain,
+            "token": service.token,
             **service.options,
         }
-        request = self.context['request']
+        request = self.context["request"]
 
         if request.user.is_staff:
             return options
@@ -1309,11 +1309,11 @@ class BasicResourceSerializer(serializers.Serializer):
 
 
 class ManagedResourceSerializer(BasicResourceSerializer):
-    project_name = serializers.ReadOnlyField(source='project.name')
-    project_uuid = serializers.ReadOnlyField(source='project.uuid')
+    project_name = serializers.ReadOnlyField(source="project.name")
+    project_uuid = serializers.ReadOnlyField(source="project.uuid")
 
-    customer_uuid = serializers.ReadOnlyField(source='project.customer.uuid')
-    customer_name = serializers.ReadOnlyField(source='project.customer.name')
+    customer_uuid = serializers.ReadOnlyField(source="project.customer.uuid")
+    customer_name = serializers.ReadOnlyField(source="project.customer.name")
 
 
 class BaseResourceSerializer(
@@ -1322,45 +1322,45 @@ class BaseResourceSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
-    state = serializers.ReadOnlyField(source='get_state_display')
+    state = serializers.ReadOnlyField(source="get_state_display")
 
     project = serializers.HyperlinkedRelatedField(
         queryset=models.Project.objects.all(),
-        view_name='project-detail',
-        lookup_field='uuid',
+        view_name="project-detail",
+        lookup_field="uuid",
     )
 
-    project_name = serializers.ReadOnlyField(source='project.name')
-    project_uuid = serializers.ReadOnlyField(source='project.uuid')
+    project_name = serializers.ReadOnlyField(source="project.name")
+    project_uuid = serializers.ReadOnlyField(source="project.uuid")
 
-    service_name = serializers.ReadOnlyField(source='service_settings.name')
+    service_name = serializers.ReadOnlyField(source="service_settings.name")
 
     service_settings = serializers.HyperlinkedRelatedField(
         queryset=models.ServiceSettings.objects.all(),
-        view_name='servicesettings-detail',
-        lookup_field='uuid',
+        view_name="servicesettings-detail",
+        lookup_field="uuid",
     )
-    service_settings_uuid = serializers.ReadOnlyField(source='service_settings.uuid')
+    service_settings_uuid = serializers.ReadOnlyField(source="service_settings.uuid")
     service_settings_state = serializers.ReadOnlyField(
-        source='service_settings.human_readable_state'
+        source="service_settings.human_readable_state"
     )
     service_settings_error_message = serializers.ReadOnlyField(
-        source='service_settings.error_message'
+        source="service_settings.error_message"
     )
 
     customer = serializers.HyperlinkedRelatedField(
-        source='project.customer',
-        view_name='customer-detail',
+        source="project.customer",
+        view_name="customer-detail",
         read_only=True,
-        lookup_field='uuid',
+        lookup_field="uuid",
     )
 
-    customer_name = serializers.ReadOnlyField(source='project.customer.name')
+    customer_name = serializers.ReadOnlyField(source="project.customer.name")
     customer_abbreviation = serializers.ReadOnlyField(
-        source='project.customer.abbreviation'
+        source="project.customer.abbreviation"
     )
     customer_native_name = serializers.ReadOnlyField(
-        source='project.customer.native_name'
+        source="project.customer.native_name"
     )
 
     created = serializers.DateTimeField(read_only=True)
@@ -1371,42 +1371,42 @@ class BaseResourceSerializer(
     class Meta:
         model = NotImplemented
         fields = (
-            'url',
-            'uuid',
-            'name',
-            'description',
-            'service_name',
-            'service_settings',
-            'service_settings_uuid',
-            'service_settings_state',
-            'service_settings_error_message',
-            'project',
-            'project_name',
-            'project_uuid',
-            'customer',
-            'customer_name',
-            'customer_native_name',
-            'customer_abbreviation',
-            'error_message',
-            'error_traceback',
-            'resource_type',
-            'state',
-            'created',
-            'modified',
-            'backend_id',
-            'access_url',
+            "url",
+            "uuid",
+            "name",
+            "description",
+            "service_name",
+            "service_settings",
+            "service_settings_uuid",
+            "service_settings_state",
+            "service_settings_error_message",
+            "project",
+            "project_name",
+            "project_uuid",
+            "customer",
+            "customer_name",
+            "customer_native_name",
+            "customer_abbreviation",
+            "error_message",
+            "error_traceback",
+            "resource_type",
+            "state",
+            "created",
+            "modified",
+            "backend_id",
+            "access_url",
         )
         protected_fields = (
-            'project',
-            'service_settings',
+            "project",
+            "service_settings",
         )
-        read_only_fields = ('error_message', 'error_traceback', 'backend_id')
+        read_only_fields = ("error_message", "error_traceback", "backend_id")
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
+            "url": {"lookup_field": "uuid"},
         }
 
     def get_filtered_field_names(self):
-        return ('project', 'service_settings')
+        return ("project", "service_settings")
 
     def get_resource_type(self, obj):
         return get_resource_type(obj)
@@ -1424,11 +1424,11 @@ class BaseResourceSerializer(
         if not self.instance:
             service_type = get_service_type(self.Meta.model)
             if (
-                'service_settings' in fields
-                and not fields['service_settings'].read_only
+                "service_settings" in fields
+                and not fields["service_settings"].read_only
             ):
-                queryset = fields['service_settings'].queryset.filter(type=service_type)
-                fields['service_settings'].queryset = queryset
+                queryset = fields["service_settings"].queryset.filter(type=service_type)
+                fields["service_settings"].queryset = queryset
         return fields
 
     @transaction.atomic
@@ -1453,13 +1453,13 @@ class BaseResourceSerializer(
 
 class BaseResourceActionSerializer(BaseResourceSerializer):
     project = serializers.HyperlinkedRelatedField(
-        view_name='project-detail',
-        lookup_field='uuid',
+        view_name="project-detail",
+        lookup_field="uuid",
         read_only=True,
     )
     service_settings = serializers.HyperlinkedRelatedField(
-        view_name='servicesettings-detail',
-        lookup_field='uuid',
+        view_name="servicesettings-detail",
+        lookup_field="uuid",
         read_only=True,
     )
 
@@ -1469,8 +1469,8 @@ class BaseResourceActionSerializer(BaseResourceSerializer):
 
 class SshPublicKeySerializerMixin(serializers.HyperlinkedModelSerializer):
     ssh_public_key = serializers.HyperlinkedRelatedField(
-        view_name='sshpublickey-detail',
-        lookup_field='uuid',
+        view_name="sshpublickey-detail",
+        lookup_field="uuid",
         queryset=core_models.SshPublicKey.objects.all(),
         required=False,
         write_only=True,
@@ -1478,9 +1478,9 @@ class SshPublicKeySerializerMixin(serializers.HyperlinkedModelSerializer):
 
     def get_fields(self):
         fields = super().get_fields()
-        if 'request' in self.context:
-            user = self.context['request'].user
-            ssh_public_key = fields.get('ssh_public_key')
+        if "request" in self.context:
+            user = self.context["request"].user
+            ssh_public_key = fields.get("ssh_public_key")
             if ssh_public_key:
                 if not user.is_staff:
                     visible_users = list(filter_visible_users(User.objects.all(), user))
@@ -1491,55 +1491,55 @@ class SshPublicKeySerializerMixin(serializers.HyperlinkedModelSerializer):
 
 class VirtualMachineSerializer(SshPublicKeySerializerMixin, BaseResourceSerializer):
     external_ips = serializers.ListField(
-        child=serializers.IPAddressField(protocol='ipv4'),
+        child=serializers.IPAddressField(protocol="ipv4"),
         read_only=True,
     )
     internal_ips = serializers.ListField(
-        child=serializers.IPAddressField(protocol='ipv4'),
+        child=serializers.IPAddressField(protocol="ipv4"),
         read_only=True,
     )
 
     class Meta(BaseResourceSerializer.Meta):
         fields = BaseResourceSerializer.Meta.fields + (
-            'start_time',
-            'cores',
-            'ram',
-            'disk',
-            'min_ram',
-            'min_disk',
-            'ssh_public_key',
-            'user_data',
-            'external_ips',
-            'internal_ips',
-            'latitude',
-            'longitude',
-            'key_name',
-            'key_fingerprint',
-            'image_name',
+            "start_time",
+            "cores",
+            "ram",
+            "disk",
+            "min_ram",
+            "min_disk",
+            "ssh_public_key",
+            "user_data",
+            "external_ips",
+            "internal_ips",
+            "latitude",
+            "longitude",
+            "key_name",
+            "key_fingerprint",
+            "image_name",
         )
         read_only_fields = BaseResourceSerializer.Meta.read_only_fields + (
-            'start_time',
-            'cores',
-            'ram',
-            'disk',
-            'min_ram',
-            'min_disk',
-            'external_ips',
-            'internal_ips',
-            'latitude',
-            'longitude',
-            'key_name',
-            'key_fingerprint',
-            'image_name',
+            "start_time",
+            "cores",
+            "ram",
+            "disk",
+            "min_ram",
+            "min_disk",
+            "external_ips",
+            "internal_ips",
+            "latitude",
+            "longitude",
+            "key_name",
+            "key_fingerprint",
+            "image_name",
         )
         protected_fields = BaseResourceSerializer.Meta.protected_fields + (
-            'user_data',
-            'ssh_public_key',
+            "user_data",
+            "ssh_public_key",
         )
 
     def create(self, validated_data):
-        if 'image' in validated_data:
-            validated_data['image_name'] = validated_data['image'].name
+        if "image" in validated_data:
+            validated_data["image_name"] = validated_data["image"].name
         return super().create(validated_data)
 
 
@@ -1552,16 +1552,16 @@ class BasePropertySerializer(
 
 
 class DivisionSerializer(serializers.HyperlinkedModelSerializer):
-    type = serializers.ReadOnlyField(source='type.name')
-    parent_uuid = serializers.ReadOnlyField(source='parent.uuid')
-    parent_name = serializers.ReadOnlyField(source='parent.type.name')
+    type = serializers.ReadOnlyField(source="type.name")
+    parent_uuid = serializers.ReadOnlyField(source="parent.uuid")
+    parent_name = serializers.ReadOnlyField(source="parent.type.name")
 
     class Meta:
         model = models.Division
-        fields = ('uuid', 'url', 'name', 'type', 'parent_uuid', 'parent_name', 'parent')
+        fields = ("uuid", "url", "name", "type", "parent_uuid", "parent_name", "parent")
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
-            'parent': {'lookup_field': 'uuid'},
+            "url": {"lookup_field": "uuid"},
+            "parent": {"lookup_field": "uuid"},
         }
 
 
@@ -1569,21 +1569,21 @@ class DivisionTypesSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = models.DivisionType
         fields = (
-            'uuid',
-            'url',
-            'name',
+            "uuid",
+            "url",
+            "name",
         )
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid', 'view_name': 'division-type-detail'},
+            "url": {"lookup_field": "uuid", "view_name": "division-type-detail"},
         }
 
 
 class UserAgreementSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = models.UserAgreement
-        fields = ('url', 'content', 'agreement_type', 'created', 'modified')
+        fields = ("url", "content", "agreement_type", "created", "modified")
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid', 'view_name': 'user-agreements-detail'}
+            "url": {"lookup_field": "uuid", "view_name": "user-agreements-detail"}
         }
 
 
@@ -1593,11 +1593,11 @@ class NotificationTemplateDetailSerializers(serializers.ModelSerializer):
 
     class Meta:
         model = core_models.NotificationTemplate
-        fields = ('uuid', 'url', 'path', 'name', 'content', 'original_content')
+        fields = ("uuid", "url", "path", "name", "content", "original_content")
         extra_kwargs = {
-            'url': {
-                'view_name': 'notification-messages-templates-detail',
-                'lookup_field': 'uuid',
+            "url": {
+                "view_name": "notification-messages-templates-detail",
+                "lookup_field": "uuid",
             },
         }
 
@@ -1624,19 +1624,19 @@ class NotificationSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = core_models.Notification
         fields = (
-            'uuid',
-            'url',
-            'key',
-            'description',
-            'enabled',
-            'created',
-            'templates',
+            "uuid",
+            "url",
+            "key",
+            "description",
+            "enabled",
+            "created",
+            "templates",
         )
-        read_only_fields = ('created', 'enabled')
+        read_only_fields = ("created", "enabled")
         extra_kwargs = {
-            'url': {
-                'view_name': 'notification-messages-detail',
-                'lookup_field': 'uuid',
+            "url": {
+                "view_name": "notification-messages-detail",
+                "lookup_field": "uuid",
             },
         }
 
@@ -1644,7 +1644,7 @@ class NotificationSerializer(serializers.HyperlinkedModelSerializer):
 class CommonMailFooterSerializer(serializers.ModelSerializer):
     class Meta:
         model = core_models.CommonMailFooter
-        fields = ('uuid', 'html_content', 'text_content')
+        fields = ("uuid", "html_content", "text_content")
 
 
 class NotificationTemplateUpdateSerializers(serializers.Serializer):
@@ -1652,28 +1652,28 @@ class NotificationTemplateUpdateSerializers(serializers.Serializer):
 
 
 class AuthTokenSerializers(serializers.HyperlinkedModelSerializer):
-    user_first_name = serializers.CharField(source='user.first_name')
-    user_last_name = serializers.CharField(source='user.last_name')
-    user_username = serializers.CharField(source='user.username')
-    user_is_active = serializers.CharField(source='user.is_active')
-    user_token_lifetime = serializers.CharField(source='user.token_lifetime')
+    user_first_name = serializers.CharField(source="user.first_name")
+    user_last_name = serializers.CharField(source="user.last_name")
+    user_username = serializers.CharField(source="user.username")
+    user_is_active = serializers.CharField(source="user.is_active")
+    user_token_lifetime = serializers.CharField(source="user.token_lifetime")
 
     class Meta:
         model = authtoken_models.Token
         fields = (
-            'url',
-            'created',
-            'user',
-            'user_first_name',
-            'user_last_name',
-            'user_username',
-            'user_is_active',
-            'user_token_lifetime',
+            "url",
+            "created",
+            "user",
+            "user_first_name",
+            "user_last_name",
+            "user_username",
+            "user_is_active",
+            "user_token_lifetime",
         )
         extra_kwargs = {
-            'url': {
-                'view_name': 'auth-tokens-detail',
-                'lookup_field': 'user_id',
+            "url": {
+                "view_name": "auth-tokens-detail",
+                "lookup_field": "user_id",
             },
-            'user': {'lookup_field': 'uuid', 'view_name': 'user-detail'},
+            "user": {"lookup_field": "uuid", "view_name": "user-detail"},
         }

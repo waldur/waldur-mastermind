@@ -7,11 +7,11 @@ def create_reviews(sender, instance, created=False, **kwargs):
     if created:
         return
 
-    if not proposal.tracker.has_changed('state'):
+    if not proposal.tracker.has_changed("state"):
         return
 
     if (
-        proposal.tracker.previous('state') != models.Proposal.States.DRAFT
+        proposal.tracker.previous("state") != models.Proposal.States.DRAFT
         or proposal.state != models.Proposal.States.SUBMITTED
     ):
         return

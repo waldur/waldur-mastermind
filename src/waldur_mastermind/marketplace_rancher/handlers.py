@@ -35,7 +35,7 @@ def create_marketplace_resource_for_imported_cluster(
 
 
 def update_node_usage(sender, instance, created=False, **kwargs):
-    if not instance.tracker.has_changed('state'):
+    if not instance.tracker.has_changed("state"):
         return
 
     cluster = instance.cluster
@@ -44,9 +44,9 @@ def update_node_usage(sender, instance, created=False, **kwargs):
         resource = marketplace_models.Resource.objects.get(scope=cluster)
     except django_exceptions.ObjectDoesNotExist:
         logger.debug(
-            'Skipping node usage synchronization because this '
-            'marketplace.Resource does not exist.'
-            'Cluster ID: %s',
+            "Skipping node usage synchronization because this "
+            "marketplace.Resource does not exist."
+            "Cluster ID: %s",
             cluster.id,
         )
         return
@@ -54,7 +54,7 @@ def update_node_usage(sender, instance, created=False, **kwargs):
     usage = cluster.node_set.filter(state=core_models.StateMixin.States.OK).count()
 
     resource.current_usages = {NODES_COMPONENT_TYPE: usage}
-    resource.save(update_fields=['current_usages'])
+    resource.save(update_fields=["current_usages"])
 
     import_current_usages(resource)
 
@@ -67,8 +67,8 @@ def create_offering_user_for_rancher_user(sender, instance, created=False, **kwa
         offering = marketplace_models.Offering.objects.get(scope=instance.settings)
     except marketplace_models.Offering.DoesNotExist:
         logger.warning(
-            'Skipping Rancher user synchronization because offering is not found. '
-            'Rancher settings ID: %s',
+            "Skipping Rancher user synchronization because offering is not found. "
+            "Rancher settings ID: %s",
             instance.settings.id,
         )
         return
@@ -85,8 +85,8 @@ def drop_offering_user_for_rancher_user(sender, instance, **kwargs):
         offering = marketplace_models.Offering.objects.get(scope=instance.settings)
     except marketplace_models.Offering.DoesNotExist:
         logger.warning(
-            'Skipping Rancher user synchronization because offering is not found. '
-            'Rancher settings ID: %s',
+            "Skipping Rancher user synchronization because offering is not found. "
+            "Rancher settings ID: %s",
             instance.settings.id,
         )
         return

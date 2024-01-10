@@ -4,7 +4,7 @@ from waldur_core.core import WaldurExtension
 class MarketplaceFlowsExtension(WaldurExtension):
     @staticmethod
     def django_app():
-        return 'waldur_mastermind.marketplace_flows'
+        return "waldur_mastermind.marketplace_flows"
 
     @staticmethod
     def is_assembly():

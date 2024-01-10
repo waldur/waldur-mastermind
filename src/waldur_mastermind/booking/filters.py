@@ -27,7 +27,7 @@ class ResourceOwnerOrCreatorFilterBackend(BaseFilterBackend):
                     type=marketplace_models.RequestTypeMixin.Types.CREATE,
                     offering__type=PLUGIN_NAME,
                     created_by=user,
-                ).values_list('resource_id', flat=True)
+                ).values_list("resource_id", flat=True)
             except (
                 django_exceptions.ObjectDoesNotExist,
                 django_exceptions.MultipleObjectsReturned,
@@ -52,20 +52,20 @@ class CustomersFilterBackend(BaseFilterBackend):
 class SchedulesOrderingFilter(OrderingFilter):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.extra['choices'] += [
-            ('schedules', 'Schedules'),
-            ('-schedules', 'Schedules (descending)'),
+        self.extra["choices"] += [
+            ("schedules", "Schedules"),
+            ("-schedules", "Schedules (descending)"),
         ]
 
     def filter(self, qs, value):
         if isinstance(value, Iterable) and any(
-            v in ['schedules', '-schedules'] for v in value
+            v in ["schedules", "-schedules"] for v in value
         ):
             # This code works if the first record is the earliest booking.
             # TODO: Add model 'Slot'
             qs = qs.extra(
                 select={
-                    'schedules': "((marketplace_resource.attributes::json->'schedules'->>0)::json->>'start')"
+                    "schedules": "((marketplace_resource.attributes::json->'schedules'->>0)::json->>'start')"
                 }
             )
 
@@ -73,8 +73,8 @@ class SchedulesOrderingFilter(OrderingFilter):
 
 
 class BookingResourceFilter(ResourceFilter):
-    o = SchedulesOrderingFilter(fields=('name', 'created', 'type'))
-    connected_customer_uuid = UUIDFilter(method='filter_connected_customer')
+    o = SchedulesOrderingFilter(fields=("name", "created", "type"))
+    connected_customer_uuid = UUIDFilter(method="filter_connected_customer")
 
     def filter_connected_customer(self, queryset, name, value):
         return queryset.filter(

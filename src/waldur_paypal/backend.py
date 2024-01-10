@@ -23,12 +23,12 @@ class PaypalPayment:
 
 class PaypalBackend:
     BACKEND_SERVERS_MAP = {
-        'sandbox': 'https://www.sandbox.paypal.com',
-        'live': 'https://www.paypal.com',
+        "sandbox": "https://www.sandbox.paypal.com",
+        "live": "https://www.paypal.com",
     }
 
     def __init__(self):
-        config = settings.WALDUR_PAYPAL['BACKEND']
+        config = settings.WALDUR_PAYPAL["BACKEND"]
         self.configure(**config)
 
     def configure(self, mode, client_id, client_secret, currency_name, **kwargs):
@@ -36,34 +36,31 @@ class PaypalBackend:
         self.currency_name = currency_name
 
         paypal.configure(
-            {'mode': mode, 'client_id': client_id, 'client_secret': client_secret}
+            {"mode": mode, "client_id": client_id, "client_secret": client_secret}
         )
 
         self.server = self.BACKEND_SERVERS_MAP[mode]
 
     def get_payment_view_url(self, backend_invoice_id, params=None):
-        invoice_url = '{}/invoice/payerView/details/{}'.format(
-            self.server,
-            backend_invoice_id,
-        )
+        invoice_url = f"{self.server}/invoice/payerView/details/{backend_invoice_id}"
         if params:
             query_params = urlencode(params)
-            invoice_url = f'{invoice_url}?{query_params}'
+            invoice_url = f"{invoice_url}?{query_params}"
 
         return invoice_url
 
     def _find_approval_url(self, links):
         for link in links:
-            if link.rel == 'approval_url':
+            if link.rel == "approval_url":
                 return link.href
-        raise PayPalError('Approval URL is not found')
+        raise PayPalError("Approval URL is not found")
 
     def _find_token(self, approval_url):
         parts = urlparse(approval_url)
         params = parse_qs(parts.query)
-        token = params.get('token')
+        token = params.get("token")
         if not token:
-            raise PayPalError('Unable to parse token from approval_url')
+            raise PayPalError("Unable to parse token from approval_url")
         return token[0]
 
     def create_invoice(self, invoice):
@@ -81,69 +78,69 @@ class PaypalBackend:
             raise PayPalError('"items" size must be between 1 and 100.')
 
         if not invoice.price:
-            raise PayPalError('The total cost must not be zero.')
+            raise PayPalError("The total cost must not be zero.")
 
-        phone = invoice.issuer_details.get('phone', {})
+        phone = invoice.issuer_details.get("phone", {})
         if not phone:
             raise PayPalError('"phone" is a required attribute')
 
-        if phone and 'country_code' not in phone:
+        if phone and "country_code" not in phone:
             raise PayPalError('"phone"."country_code" is a required attribute')
 
-        if phone and 'national_number' not in phone:
+        if phone and "national_number" not in phone:
             raise PayPalError('"phone"."national_number" is a required attribute')
 
         invoice_details = {
-            'merchant_info': {
-                'email': invoice.issuer_details.get('email'),
-                'business_name': invoice.issuer_details.get('company'),
-                'phone': {
-                    'country_code': phone.get('country_code'),
-                    'national_number': phone.get('national_number'),
+            "merchant_info": {
+                "email": invoice.issuer_details.get("email"),
+                "business_name": invoice.issuer_details.get("company"),
+                "phone": {
+                    "country_code": phone.get("country_code"),
+                    "national_number": phone.get("national_number"),
                 },
-                'address': {
-                    'line1': invoice.issuer_details.get('address'),
-                    'city': invoice.issuer_details.get('city'),
-                    'state': invoice.issuer_details.get('state'),
-                    'postal_code': invoice.issuer_details.get('postal'),
-                    'country_code': invoice.issuer_details.get('country_code'),
+                "address": {
+                    "line1": invoice.issuer_details.get("address"),
+                    "city": invoice.issuer_details.get("city"),
+                    "state": invoice.issuer_details.get("state"),
+                    "postal_code": invoice.issuer_details.get("postal"),
+                    "country_code": invoice.issuer_details.get("country_code"),
                 },
             },
-            'items': [
+            "items": [
                 {
-                    'name': item.name,
-                    'unit_of_measure': item.unit_of_measure,
-                    'quantity': item.quantity,
-                    'date': self._format_date(item.start.date()),
-                    'unit_price': {
-                        'currency': self.currency_name,
-                        'value': self._format_decimal(item.unit_price),
+                    "name": item.name,
+                    "unit_of_measure": item.unit_of_measure,
+                    "quantity": item.quantity,
+                    "date": self._format_date(item.start.date()),
+                    "unit_price": {
+                        "currency": self.currency_name,
+                        "value": self._format_decimal(item.unit_price),
                     },
                 }
                 for item in invoice.items.iterator()
             ],
-            'tax_inclusive': False,
-            'payment_term': {
-                'due_date': self._format_date(invoice.end_date),
+            "tax_inclusive": False,
+            "payment_term": {
+                "due_date": self._format_date(invoice.end_date),
             },
-            'total_amount': {
-                'currency': self.currency_name,
-                'value': self._format_decimal(invoice.total),
-            }
+            "total_amount": {
+                "currency": self.currency_name,
+                "value": self._format_decimal(invoice.total),
+            },
             # 'logo_url': pass logo url if needed. 250x90, HTTPS. Image is not displayed o PDF atm.
         }
 
         if invoice.tax_percent and invoice.tax_percent > 0:
-            for item in invoice_details['items']:
-                item['tax'] = {
-                    'name': 'VAT',
-                    'percent': self._format_decimal(invoice.tax_percent),
+            for item in invoice_details["items"]:
+                item["tax"] = {
+                    "name": "VAT",
+                    "percent": self._format_decimal(invoice.tax_percent),
                 }
 
-        invoice_details['billing_info'] = [
+        invoice_details["billing_info"] = [
             {
-                'email': invoice.customer.email,
-                'business_name': invoice.customer.name,
+                "email": invoice.customer.email,
+                "business_name": invoice.customer.name,
             }
         ]
 
@@ -154,7 +151,7 @@ class PaypalBackend:
                 invoice.state = backend_invoice.status
                 invoice.backend_id = backend_invoice.id
                 invoice.number = backend_invoice.number
-                invoice.save(update_fields=['state', 'backend_id', 'number'])
+                invoice.save(update_fields=["state", "backend_id", "number"])
 
                 return invoice
             else:
@@ -184,7 +181,7 @@ class PaypalBackend:
 
         invoice.state = backend_invoice.status
         invoice.number = backend_invoice.number
-        invoice.save(update_fields=['state', 'number'])
+        invoice.save(update_fields=["state", "number"])
         return invoice
 
     def make_payment(self, amount, tax, description, return_url, cancel_url):
@@ -200,26 +197,26 @@ class PaypalBackend:
         :return: Object containing backend payment id, approval URL and token.
         """
         if amount < tax:
-            raise PayPalError('Payment amount should be greater than tax.')
+            raise PayPalError("Payment amount should be greater than tax.")
 
         payment = paypal.Payment(
             {
-                'intent': 'sale',
-                'payer': {'payment_method': 'paypal'},
-                'transactions': [
+                "intent": "sale",
+                "payer": {"payment_method": "paypal"},
+                "transactions": [
                     {
-                        'amount': {
-                            'total': self._format_decimal(amount),
-                            'currency': self.currency_name,
-                            'details': {
-                                'subtotal': self._format_decimal(amount - tax),
-                                'tax': self._format_decimal(tax),
+                        "amount": {
+                            "total": self._format_decimal(amount),
+                            "currency": self.currency_name,
+                            "details": {
+                                "subtotal": self._format_decimal(amount - tax),
+                                "tax": self._format_decimal(tax),
                             },
                         },
-                        'description': description,
+                        "description": description,
                     }
                 ],
-                'redirect_urls': {'return_url': return_url, 'cancel_url': cancel_url},
+                "redirect_urls": {"return_url": return_url, "cancel_url": cancel_url},
             }
         )
 
@@ -238,8 +235,8 @@ class PaypalBackend:
             payment = paypal.Payment.find(payment_id)
             # When payment is not found PayPal returns empty result instead of raising an exception
             if not payment:
-                raise PayPalError('Payment not found')
-            if payment.execute({'payer_id': payer_id}):
+                raise PayPalError("Payment not found")
+            if payment.execute({"payer_id": payer_id}):
                 return True
             else:
                 raise PayPalError(payment.error)
@@ -260,39 +257,39 @@ class PaypalBackend:
         :return: Billing plan ID.
         """
         if amount < tax:
-            raise PayPalError('Plan price should be greater than tax.')
+            raise PayPalError("Plan price should be greater than tax.")
 
         plan = paypal.BillingPlan(
             {
-                'name': name,
-                'description': description,
-                'type': 'INFINITE',
-                'payment_definitions': [
+                "name": name,
+                "description": description,
+                "type": "INFINITE",
+                "payment_definitions": [
                     {
-                        'name': f'Monthly payment for {name}',
-                        'type': 'REGULAR',
-                        'frequency_interval': 1,
-                        'frequency': 'MONTH',
-                        'cycles': 0,
-                        'amount': {
-                            'currency': self.currency_name,
-                            'value': self._format_decimal(amount - tax),
+                        "name": f"Monthly payment for {name}",
+                        "type": "REGULAR",
+                        "frequency_interval": 1,
+                        "frequency": "MONTH",
+                        "cycles": 0,
+                        "amount": {
+                            "currency": self.currency_name,
+                            "value": self._format_decimal(amount - tax),
                         },
-                        'charge_models': [
+                        "charge_models": [
                             {
-                                'type': 'TAX',
-                                'amount': {
-                                    'currency': self.currency_name,
-                                    'value': self._format_decimal(tax),
+                                "type": "TAX",
+                                "amount": {
+                                    "currency": self.currency_name,
+                                    "value": self._format_decimal(tax),
                                 },
                             }
                         ],
                     }
                 ],
-                'merchant_preferences': {
-                    'return_url': return_url,
-                    'cancel_url': cancel_url,
-                    'auto_bill_amount': 'YES',
+                "merchant_preferences": {
+                    "return_url": return_url,
+                    "cancel_url": cancel_url,
+                    "auto_bill_amount": "YES",
                 },
             }
         )
@@ -315,7 +312,7 @@ class PaypalBackend:
         """
         At the moment timezone is ignored as only days of resources usage are counted, not hours.
         """
-        return date.strftime('%Y-%m-%d UTC')
+        return date.strftime("%Y-%m-%d UTC")
 
     def create_agreement(self, plan_id, name):
         """
@@ -326,15 +323,15 @@ class PaypalBackend:
         start_date = datetime.datetime.utcnow() + datetime.timedelta(minutes=1)
 
         # PayPal does not fully support ISO 8601 format
-        formatted_date = start_date.strftime('%Y-%m-%dT%H:%M:%SZ')
+        formatted_date = start_date.strftime("%Y-%m-%dT%H:%M:%SZ")
 
         agreement = paypal.BillingAgreement(
             {
-                'name': name,
-                'description': f'Agreement for {name}',
-                'start_date': formatted_date,
-                'payer': {'payment_method': 'paypal'},
-                'plan': {'id': plan_id},
+                "name": name,
+                "description": f"Agreement for {name}",
+                "start_date": formatted_date,
+                "payer": {"payment_method": "paypal"},
+                "plan": {"id": plan_id},
             }
         )
         try:
@@ -358,7 +355,7 @@ class PaypalBackend:
         try:
             agreement = paypal.BillingAgreement.execute(payment_token)
             if not agreement:
-                raise PayPalError('Can not execute agreement')
+                raise PayPalError("Can not execute agreement")
             return agreement.id
         except paypal.exceptions.ConnectionError as e:
             raise PayPalError(e)
@@ -371,7 +368,7 @@ class PaypalBackend:
             agreement = paypal.BillingAgreement.find(agreement_id)
             # When agreement is not found PayPal returns empty result instead of raising an exception
             if not agreement:
-                raise PayPalError('Agreement not found')
+                raise PayPalError("Agreement not found")
             return agreement
         except paypal.exceptions.ConnectionError as e:
             raise PayPalError(e)
@@ -382,7 +379,7 @@ class PaypalBackend:
         try:
             # Because user may cancel agreement via PayPal web UI
             # we need to distinguish it from cancel done via API
-            if agreement.cancel({'note': 'Canceling the agreement by application'}):
+            if agreement.cancel({"note": "Canceling the agreement by application"}):
                 return True
             else:
                 raise PayPalError(agreement.error)
@@ -398,8 +395,8 @@ class PaypalBackend:
         if end_date - start_date < datetime.timedelta(days=1):
             end_date += datetime.timedelta(days=1)
 
-        formatted_start_date = start_date.strftime('%Y-%m-%d')
-        formatted_end_date = end_date.strftime('%Y-%m-%d')
+        formatted_start_date = start_date.strftime("%Y-%m-%d")
+        formatted_end_date = end_date.strftime("%Y-%m-%d")
 
         agreement = self.get_agreement(agreement_id)
         try:
@@ -412,14 +409,14 @@ class PaypalBackend:
 
             results = []
             for tx in txs:
-                if tx.status != 'Completed':
+                if tx.status != "Completed":
                     continue
                 results.append(
                     {
-                        'time_stamp': dateutil.parser.parse(tx.time_stamp),
-                        'transaction_id': tx.transaction_id,
-                        'amount': decimal.Decimal(tx.amount.value),
-                        'payer_email': tx.payer_email,
+                        "time_stamp": dateutil.parser.parse(tx.time_stamp),
+                        "transaction_id": tx.transaction_id,
+                        "amount": decimal.Decimal(tx.amount.value),
+                        "payer_email": tx.payer_email,
                     }
                 )
             return results
@@ -430,15 +427,14 @@ class PaypalBackend:
     def download_invoice_pdf(self, invoice):
         if not invoice.backend_id:
             raise PayPalError(
-                'Invoice for date %s and customer %s could not be found'
-                % (
-                    invoice.invoice_date.strftime('%Y-%m-%d'),
+                "Invoice for date {} and customer {} could not be found".format(
+                    invoice.invoice_date.strftime("%Y-%m-%d"),
                     invoice.customer.name,
                 )
             )
 
         invoice_url = self.get_payment_view_url(
-            invoice.backend_id, {'printPdfMode': 'true'}
+            invoice.backend_id, {"printPdfMode": "true"}
         )
         response = requests.get(invoice_url)
         content = response.content

@@ -23,6 +23,6 @@ class InstanceFloatingIPsUpdateExecutorTest(TestCase):
         self.instance._old_floating_ips = [floating_ip]
         result = self.executor.get_action_details(self.instance)
 
-        self.assertFalse(result['attached'])
-        self.assertFalse(result['detached'])
-        self.assertEqual(result['message'], 'Instance floating IPs have been updated.')
+        self.assertFalse(result["attached"])
+        self.assertFalse(result["detached"])
+        self.assertEqual(result["message"], "Instance floating IPs have been updated.")

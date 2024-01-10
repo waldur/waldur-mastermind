@@ -227,95 +227,95 @@ class CustomerPermissionFilterTest(test.APITransactionTestCase):
         self.client.force_authenticate(user=staff_user)
 
         self.users = {
-            'first': factories.UserFactory(),
-            'second': factories.UserFactory(),
+            "first": factories.UserFactory(),
+            "second": factories.UserFactory(),
         }
 
         self.customers = {
-            'first': factories.CustomerFactory(),
-            'second': factories.CustomerFactory(),
+            "first": factories.CustomerFactory(),
+            "second": factories.CustomerFactory(),
         }
 
         for customer in self.customers:
-            self.customers[customer].add_user(self.users['first'], CustomerRole.OWNER)
-            self.customers[customer].add_user(self.users['second'], CustomerRole.OWNER)
+            self.customers[customer].add_user(self.users["first"], CustomerRole.OWNER)
+            self.customers[customer].add_user(self.users["second"], CustomerRole.OWNER)
 
     def test_staff_user_can_filter_roles_within_customer_by_customer_uuid(self):
-        response = self.client.get(reverse('customer_permission-list'))
+        response = self.client.get(reverse("customer_permission-list"))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         for customer in self.customers:
             response = self.client.get(
-                reverse('customer_permission-list'),
-                data={'customer': self.customers[customer].uuid.hex},
+                reverse("customer_permission-list"),
+                data={"customer": self.customers[customer].uuid.hex},
             )
             self.assertEqual(response.status_code, status.HTTP_200_OK)
 
             customer_url = self._get_customer_url(self.customers[customer])
 
             for permission in response.data:
-                self.assertEqual(customer_url, permission['customer'])
+                self.assertEqual(customer_url, permission["customer"])
 
     def test_staff_user_can_filter_roles_within_customer_by_username(self):
-        response = self.client.get(reverse('customer_permission-list'))
+        response = self.client.get(reverse("customer_permission-list"))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         for user in self.users:
-            self._ensure_matching_entries_in('username', self.users[user].username)
+            self._ensure_matching_entries_in("username", self.users[user].username)
             self._ensure_non_matching_entries_not_in(
-                'username', self.users[user].username
+                "username", self.users[user].username
             )
 
     def test_staff_user_can_filter_roles_within_customer_by_native_name(self):
-        response = self.client.get(reverse('customer_permission-list'))
+        response = self.client.get(reverse("customer_permission-list"))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         for user in self.users:
             self._ensure_matching_entries_in(
-                'native_name', self.users[user].native_name
+                "native_name", self.users[user].native_name
             )
             self._ensure_non_matching_entries_not_in(
-                'native_name', self.users[user].native_name
+                "native_name", self.users[user].native_name
             )
 
     def test_staff_user_can_filter_roles_within_customer_by_full_name(self):
-        response = self.client.get(reverse('customer_permission-list'))
+        response = self.client.get(reverse("customer_permission-list"))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         for user in self.users:
-            self._ensure_matching_entries_in('full_name', self.users[user].full_name)
+            self._ensure_matching_entries_in("full_name", self.users[user].full_name)
             self._ensure_non_matching_entries_not_in(
-                'full_name', self.users[user].full_name
+                "full_name", self.users[user].full_name
             )
 
     def test_staff_user_can_filter_roles_within_customer_by_role_name(self):
-        response = self.client.get(reverse('customer_permission-list'))
+        response = self.client.get(reverse("customer_permission-list"))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         response = self.client.get(
-            reverse('customer_permission-list'), data={'role': 'owner'}
+            reverse("customer_permission-list"), data={"role": "owner"}
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         for permission in response.data:
-            self.assertEqual('owner', permission['role'])
+            self.assertEqual("owner", permission["role"])
 
     def test_staff_user_can_see_required_fields_in_filtration_response(self):
-        response = self.client.get(reverse('customer_permission-list'))
+        response = self.client.get(reverse("customer_permission-list"))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         for customer in self.customers:
             response = self.client.get(
-                reverse('customer_permission-list'),
-                data={'customer': self.customers[customer].uuid.hex},
+                reverse("customer_permission-list"),
+                data={"customer": self.customers[customer].uuid.hex},
             )
             self.assertEqual(response.status_code, status.HTTP_200_OK)
 
             required_fields = (
-                'url',
-                'user_native_name',
-                'user_full_name',
-                'user_username',
+                "url",
+                "user_native_name",
+                "user_full_name",
+                "user_username",
             )
 
             for permission in response.data:
@@ -325,12 +325,12 @@ class CustomerPermissionFilterTest(test.APITransactionTestCase):
     # Helper methods
     def _ensure_matching_entries_in(self, field, value):
         response = self.client.get(
-            reverse('customer_permission-list'), data={field: value}
+            reverse("customer_permission-list"), data={field: value}
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         for permission in response.data:
-            self.assertEqual(value, permission['user_' + field])
+            self.assertEqual(value, permission["user_" + field])
 
     def _ensure_non_matching_entries_not_in(self, field, value):
         user = factories.UserFactory()
@@ -339,16 +339,16 @@ class CustomerPermissionFilterTest(test.APITransactionTestCase):
         customer.add_user(user, CustomerRole.OWNER)
 
         response = self.client.get(
-            reverse('customer_permission-list'), data={field: getattr(user, field)}
+            reverse("customer_permission-list"), data={field: getattr(user, field)}
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         for permission in response.data:
-            self.assertNotEqual(value, permission['user_' + field])
+            self.assertNotEqual(value, permission["user_" + field])
 
     def _get_customer_url(self, customer):
-        return 'http://testserver' + reverse(
-            'customer-detail', kwargs={'uuid': customer.uuid.hex}
+        return "http://testserver" + reverse(
+            "customer-detail", kwargs={"uuid": customer.uuid.hex}
         )
 
 
@@ -382,7 +382,7 @@ class CustomerPermissionExpirationTest(test.APITransactionTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(
-            response.data['expiration_time'], expiration_time, response.data
+            response.data["expiration_time"], expiration_time, response.data
         )
 
     def test_owner_can_update_permission_expiration_time_for_other_owner_in_same_customer(
@@ -397,7 +397,7 @@ class CustomerPermissionExpirationTest(test.APITransactionTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(
-            response.data['expiration_time'], expiration_time, response.data
+            response.data["expiration_time"], expiration_time, response.data
         )
 
     def test_owner_can_not_update_permission_expiration_time_for_other_owner(
@@ -456,7 +456,7 @@ class CustomerPermissionExpirationTest(test.APITransactionTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(
-            response.data['expiration_time'], expiration_time, response.data
+            response.data["expiration_time"], expiration_time, response.data
         )
 
     def test_task_revokes_expired_permissions(self):

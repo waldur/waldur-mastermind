@@ -20,10 +20,10 @@ class ManagerGetTest(test.APITransactionTestCase):
         self.call_manager = self.fixture.manager
 
     @data(
-        'staff',
-        'owner',
-        'user',
-        'customer_support',
+        "staff",
+        "owner",
+        "user",
+        "customer_support",
     )
     def test_manager_should_be_visible_to_all_authenticated_users(self, user):
         user = getattr(self.fixture, user)
@@ -55,7 +55,7 @@ class ManagerCreateTest(test.APITransactionTestCase):
         self.fixture = structure_fixtures.ProjectFixture()
         self.customer = self.fixture.customer
 
-    @data('staff')
+    @data("staff")
     def test_staff_can_create_manager(self, user):
         response = self.create_manager(user)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -65,22 +65,22 @@ class ManagerCreateTest(test.APITransactionTestCase):
             ).exists()
         )
 
-    @data('user', 'customer_support', 'admin', 'manager')
+    @data("user", "customer_support", "admin", "manager")
     def test_unauthorized_user_can_not_create_manager(self, user):
         response = self.create_manager(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_owner_can_create_manager_with_settings_enabled(self):
         CustomerRole.OWNER.add_permission(PermissionEnum.REGISTER_SERVICE_PROVIDER)
-        response = self.create_manager('owner')
+        response = self.create_manager("owner")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    @data('owner')
+    @data("owner")
     def test_owner_can_not_create_manager_with_settings_disabled(self, user):
         response = self.create_manager(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @data('user', 'customer_support', 'admin', 'manager')
+    @data("user", "customer_support", "admin", "manager")
     def test_unauthorized_user_can_not_create_manager_with_settings_disabled(
         self, user
     ):
@@ -93,7 +93,7 @@ class ManagerCreateTest(test.APITransactionTestCase):
         url = factories.CallManagingOrganisationFactory.get_list_url()
 
         payload = {
-            'customer': structure_factories.CustomerFactory.get_url(self.customer),
+            "customer": structure_factories.CustomerFactory.get_url(self.customer),
         }
 
         return self.client.post(url, payload)
@@ -105,26 +105,26 @@ class ManagerUpdateTest(test.APITransactionTestCase):
         self.fixture = structure_fixtures.ProjectFixture()
         self.customer = self.fixture.customer
 
-    @data('staff', 'owner')
+    @data("staff", "owner")
     def test_authorized_user_can_update_manager(self, user):
         response, call_manager = self.update_manager(user)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         call_manager.refresh_from_db()
-        self.assertEqual(call_manager.description, 'new description')
+        self.assertEqual(call_manager.description, "new description")
         self.assertTrue(
             models.CallManagingOrganisation.objects.filter(
                 customer=self.customer
             ).exists()
         )
 
-    @data('user', 'customer_support', 'admin', 'manager')
+    @data("user", "customer_support", "admin", "manager")
     def test_unauthorized_user_can_not_update_manager(self, user):
         response, call_manager = self.update_manager(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def update_manager(self, user, payload=None, **kwargs):
         if not payload:
-            payload = {'description': 'new description'}
+            payload = {"description": "new description"}
 
         call_manager = factories.CallManagingOrganisationFactory(customer=self.customer)
         user = getattr(self.fixture, user)
@@ -137,15 +137,15 @@ class ManagerUpdateTest(test.APITransactionTestCase):
         return response, call_manager
 
     def test_upload_image(self):
-        payload = {'image': dummy_image()}
+        payload = {"image": dummy_image()}
         response, call_manager = self.update_manager(
-            'staff', payload=payload, format='multipart'
+            "staff", payload=payload, format="multipart"
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertTrue(call_manager.image)
 
         url = factories.CallManagingOrganisationFactory.get_url(call_manager)
-        response = self.client.patch(url, {'image': None})
+        response = self.client.patch(url, {"image": None})
         call_manager.refresh_from_db()
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertFalse(call_manager.image)
@@ -160,7 +160,7 @@ class ManagerDeleteTest(test.APITransactionTestCase):
             customer=self.customer
         )
 
-    @data('staff', 'owner')
+    @data("staff", "owner")
     def test_authorized_user_can_delete_manager(self, user):
         response = self.delete_manager(user)
         self.assertEqual(
@@ -172,7 +172,7 @@ class ManagerDeleteTest(test.APITransactionTestCase):
             ).exists()
         )
 
-    @data('user', 'customer_support', 'admin', 'manager')
+    @data("user", "customer_support", "admin", "manager")
     def test_unauthorized_user_can_not_delete_manager(self, user):
         response = self.delete_manager(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

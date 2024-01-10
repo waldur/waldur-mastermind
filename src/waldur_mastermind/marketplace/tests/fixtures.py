@@ -18,7 +18,7 @@ class MarketplaceFixture(structure_fixtures.ProjectFixture):
     def offering(self):
         return marketplace_factories.OfferingFactory(
             type=PLUGIN_NAME,
-            options={'order': []},
+            options={"order": []},
             state=marketplace_models.Offering.States.ACTIVE,
             project=self.offering_project,
             customer=self.offering_customer,
@@ -28,7 +28,7 @@ class MarketplaceFixture(structure_fixtures.ProjectFixture):
     def plan(self):
         plan = marketplace_factories.PlanFactory(
             offering=self.offering,
-            name='Standard plan',
+            name="Standard plan",
             unit_price=0,
             unit=marketplace_models.Plan.Units.PER_MONTH,
         )
@@ -55,7 +55,7 @@ class MarketplaceFixture(structure_fixtures.ProjectFixture):
         return marketplace_factories.OrderFactory(
             project=self.project,
             offering=self.offering,
-            attributes={'name': 'item_name', 'description': 'Description'},
+            attributes={"name": "item_name", "description": "Description"},
             plan=self.plan,
             resource=self.resource,
             state=marketplace_models.Order.States.DONE,
@@ -65,7 +65,7 @@ class MarketplaceFixture(structure_fixtures.ProjectFixture):
     def service_provider(self):
         return marketplace_factories.ServiceProviderFactory(
             customer=self.offering_customer,
-            description='ServiceProvider\'s description',
+            description="ServiceProvider's description",
         )
 
     @cached_property

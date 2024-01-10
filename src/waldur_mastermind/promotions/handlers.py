@@ -14,7 +14,7 @@ def apply_campaign_to_pending_invoices(sender, instance, created=False, **kwargs
     if created:
         return
 
-    if not campaign.tracker.has_changed('state'):
+    if not campaign.tracker.has_changed("state"):
         return
 
     if campaign.state != models.Campaign.States.ACTIVE:
@@ -46,7 +46,7 @@ def apply_campaign_to_pending_invoices(sender, instance, created=False, **kwargs
         resource = invoice_item.resource
 
         if campaign.check_resource_on_conditions_of_campaign(resource):
-            unit_price = invoice_item.details.get('unit_price', invoice_item.unit_price)
+            unit_price = invoice_item.details.get("unit_price", invoice_item.unit_price)
             discount_price = campaign.get_discount_price(unit_price)
 
             if discount_price < invoice_item.unit_price:
@@ -55,6 +55,6 @@ def apply_campaign_to_pending_invoices(sender, instance, created=False, **kwargs
                     and invoice_item.invoice.month == campaign.start_date.month
                 ):
                     invoice_item.unit_price = discount_price
-                    invoice_item.details['campaign_uuid'] = campaign.uuid.hex
-                    invoice_item.details['unit_price'] = float(unit_price)
+                    invoice_item.details["campaign_uuid"] = campaign.uuid.hex
+                    invoice_item.details["unit_price"] = float(unit_price)
                     invoice_item.save()

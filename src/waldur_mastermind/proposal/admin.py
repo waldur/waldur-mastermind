@@ -20,19 +20,19 @@ class CallReviewersInline(admin.TabularInline):
 
 class CallAdmin(admin.ModelAdmin):
     inlines = [RequestedOfferingInline, RoundInline, CallReviewersInline]
-    list_display = ('name',)
+    list_display = ("name",)
 
 
 class RoundAdmin(admin.ModelAdmin):
-    list_display = ('call', 'start_time', 'cutoff_time')
+    list_display = ("call", "start_time", "cutoff_time")
 
 
 class ProposalAdmin(admin.ModelAdmin):
-    list_display = ('__str__', 'get_state_display')
+    list_display = ("__str__", "get_state_display")
 
 
 class ReviewAdmin(admin.ModelAdmin):
-    list_display = ('reviewer', 'proposal')
+    list_display = ("reviewer", "proposal")
 
 
 admin.site.register(models.CallManagingOrganisation)

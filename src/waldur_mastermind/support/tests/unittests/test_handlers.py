@@ -22,26 +22,26 @@ class IssueUpdatedHandlerTest(BaseHandlerTest):
     def test_email_notification_is_sent_when_issue_is_updated(self):
         issue = factories.IssueFactory()
 
-        issue.summary = 'new_summary'
+        issue.summary = "new_summary"
         issue.save()
 
         self.assertEqual(len(mail.outbox), 1)
 
     def test_old_and_new_summary_is_rendered_in_email(self):
-        issue = factories.IssueFactory(summary='old summary')
+        issue = factories.IssueFactory(summary="old summary")
 
-        issue.summary = 'new summary'
+        issue.summary = "new summary"
         issue.save()
 
         body = mail.outbox[0].body
-        self.assertTrue('old summary' in body)
-        self.assertTrue('new summary' in body)
+        self.assertTrue("old summary" in body)
+        self.assertTrue("new summary" in body)
 
     def test_common_footer_is_rendered_in_email(self):
         common_footer = factories.CommonMailFooterFactory()
         issue = factories.IssueFactory()
 
-        issue.summary = 'new summary'
+        issue.summary = "new summary"
         issue.save()
 
         body = mail.outbox[0].body
@@ -56,7 +56,7 @@ class IssueUpdatedHandlerTest(BaseHandlerTest):
         with self.settings(SUPPRESS_NOTIFICATION_EMAILS=True):
             issue = factories.IssueFactory()
 
-            issue.summary = 'new_summary'
+            issue.summary = "new_summary"
             issue.save()
 
             self.assertEqual(len(mail.outbox), 0)
@@ -73,7 +73,7 @@ class IssueUpdatedHandlerTest(BaseHandlerTest):
         issue = factories.IssueFactory()
 
         issue.assignee = factories.SupportUserFactory()
-        issue.status = 'new_status'
+        issue.status = "new_status"
         issue.save()
 
         self.assertEqual(len(mail.outbox), 1)
@@ -81,8 +81,8 @@ class IssueUpdatedHandlerTest(BaseHandlerTest):
     def test_email_notification_is_not_sent_if_issue_just_has_not_been_created_on_backend_yet(
         self,
     ):
-        issue = factories.IssueFactory(backend_id='')
-        issue.status = 'new_status'
+        issue = factories.IssueFactory(backend_id="")
+        issue.status = "new_status"
         issue.save()
 
         self.assertEqual(len(mail.outbox), 0)
@@ -90,8 +90,8 @@ class IssueUpdatedHandlerTest(BaseHandlerTest):
     def test_email_notification_is_not_sent_if_issue_just_has_been_created_on_backend(
         self,
     ):
-        issue = factories.IssueFactory(backend_id='')
-        issue.backend_id = 'new_backend_id'
+        issue = factories.IssueFactory(backend_id="")
+        issue.backend_id = "new_backend_id"
         issue.save()
 
         self.assertEqual(len(mail.outbox), 0)
@@ -107,7 +107,7 @@ class IssueUpdatedHandlerTest(BaseHandlerTest):
     def test_email_notification_subject_include_issue_summary(self):
         issue = factories.IssueFactory()
 
-        new_summary = 'new_summary'
+        new_summary = "new_summary"
         issue.summary = new_summary
         issue.save()
 
@@ -128,8 +128,8 @@ class IssueUpdatedHandlerTest(BaseHandlerTest):
         issue = factories.IssueFactory()
         factories.TemplateStatusNotificationFactory()
 
-        new_summary = 'new_summary'
-        body = 'Test template %s' % new_summary
+        new_summary = "new_summary"
+        body = "Test template %s" % new_summary
         issue.summary = new_summary
         issue.save()
 
@@ -140,8 +140,8 @@ class IssueUpdatedHandlerTest(BaseHandlerTest):
         issue = factories.IssueFactory()
         template = factories.TemplateStatusNotificationFactory()
 
-        new_summary = 'new_summary'
-        body = 'Test template %s' % new_summary
+        new_summary = "new_summary"
+        body = "Test template %s" % new_summary
         issue.summary = new_summary
         issue.status = template.status
         issue.save()
@@ -152,22 +152,22 @@ class IssueUpdatedHandlerTest(BaseHandlerTest):
     def test_email_notification_if_issue_is_resolved(self):
         issue = factories.IssueFactory()
         template_text = (
-            '{{issue.summary}} '
-            '{{issue.key}} '
-            'you ticket has been resolved at '
+            "{{issue.summary}} "
+            "{{issue.key}} "
+            "you ticket has been resolved at "
             '{{issue.resolution_date|date:"G"}} hours {{issue.resolution_date|date:"i"}} minutes.'
         )
         template = factories.TemplateStatusNotificationFactory(
-            status='Resolved', text=template_text
+            status="Resolved", text=template_text
         )
 
-        new_summary = 'new_summary'
+        new_summary = "new_summary"
         issue.summary = new_summary
         issue.status = template.status
         issue.resolution_date = timezone.now()
         issue.save()
 
-        body = Template(template_text).render(Context({'issue': issue}))
+        body = Template(template_text).render(Context({"issue": issue}))
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(body, mail.outbox[0].body)
 
@@ -187,7 +187,7 @@ class CommentCreatedHandlerTest(BaseHandlerTest):
         comment = factories.CommentFactory(is_public=True)
         self.assertEqual(len(mail.outbox), 1)
 
-        comment.description = 'new_description'
+        comment.description = "new_description"
         comment.save()
 
         # First mail is for creation, second mail is for update

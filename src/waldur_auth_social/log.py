@@ -11,12 +11,12 @@ class SocialEventLogger(AuthEventMixin, EventLogger):
     user = User
 
     class Meta:
-        event_types = ['auth_logged_in_with_oauth']
-        event_groups = {'users': event_types}
+        event_types = ["auth_logged_in_with_oauth"]
+        event_groups = {"users": event_types}
 
     @staticmethod
     def get_scopes(event_context):
-        return {event_context['user']}
+        return {event_context["user"]}
 
 
-event_logger.register('auth_social', SocialEventLogger)
+event_logger.register("auth_social", SocialEventLogger)

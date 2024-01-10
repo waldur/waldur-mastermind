@@ -4,7 +4,7 @@ from waldur_core.core import WaldurExtension
 class SlurmExtension(WaldurExtension):
     @staticmethod
     def django_app():
-        return 'waldur_slurm'
+        return "waldur_slurm"
 
     @staticmethod
     def rest_urls():

@@ -7,16 +7,16 @@ User = get_user_model()
 
 class Saml2BackendTest(TestCase):
     def test_email_may_be_duplicate(self):
-        User.objects.create(username='harry', email='john@example.com')
+        User.objects.create(username="harry", email="john@example.com")
         attribute_mapping = {
-            'uid': ('username',),
-            'mail': ('email',),
+            "uid": ("username",),
+            "mail": ("email",),
         }
         attributes = {
-            'uid': ['john'],
-            'mail': ['john@example.com'],
+            "uid": ["john"],
+            "mail": ["john@example.com"],
         }
-        session_info = {'ava': attributes, 'issuer': 'IDP'}
+        session_info = {"ava": attributes, "issuer": "IDP"}
 
         backend = Saml2Backend()
         user = backend.authenticate(

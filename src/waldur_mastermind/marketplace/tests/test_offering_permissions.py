@@ -38,12 +38,12 @@ class ListOfferingPermissionTest(BaseOfferingPermissionTest):
             self.client, getattr(self.fixture, user), self.offering
         )
 
-    @data('staff', 'owner')
+    @data("staff", "owner")
     def test_authorized_user_can_list_offering_permission(self, user):
         response = self.list_users(user)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    @data('admin', 'manager')
+    @data("admin", "manager")
     def test_unauthorized_user_can_not_list_offering_permission(self, user):
         response = self.list_users(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
@@ -60,27 +60,27 @@ class GrantOfferingPermissionTest(BaseOfferingPermissionTest):
             OfferingRole.MANAGER,
         )
 
-    @data('staff', 'owner')
+    @data("staff", "owner")
     def test_authorized_user_can_grant_offering_permission(self, user):
         response = self.grant_permission(user)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    @data('admin', 'manager')
+    @data("admin", "manager")
     def test_unauthorized_user_can_not_grant_offering_permission(self, user):
         response = self.grant_permission(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    @data('staff', 'owner')
+    @data("staff", "owner")
     def test_authorized_user_can_not_grant_permission_for_private_offering(self, user):
         self.offering.shared = False
-        self.offering.save(update_fields=['shared'])
+        self.offering.save(update_fields=["shared"])
         response = self.grant_permission(user)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_when_offering_permission_is_granted_customer_permission_is_granted_too(
         self,
     ):
-        self.grant_permission('owner')
+        self.grant_permission("owner")
         self.assertTrue(
             self.offering.customer.has_user(self.fixture.user, CustomerRole.MANAGER)
         )
@@ -89,14 +89,14 @@ class GrantOfferingPermissionTest(BaseOfferingPermissionTest):
         self,
     ):
         self.offering.customer.add_user(self.fixture.user, CustomerRole.OWNER)
-        self.grant_permission('owner')
+        self.grant_permission("owner")
         self.assertTrue(
             self.offering.customer.has_user(self.fixture.user, CustomerRole.MANAGER)
         )
 
 
 @ddt
-@freeze_time('2020-01-01')
+@freeze_time("2020-01-01")
 class UpdateOfferingPermissionTest(BaseOfferingPermissionTest):
     def setUp(self):
         super().setUp()
@@ -110,15 +110,15 @@ class UpdateOfferingPermissionTest(BaseOfferingPermissionTest):
             self.target_user,
             self.offering,
             OfferingRole.MANAGER,
-            '2021-01-01T00:00',
+            "2021-01-01T00:00",
         )
 
-    @data('staff', 'owner')
+    @data("staff", "owner")
     def test_authorized_user_can_change_offering_permission(self, user):
         response = self.change_permission(user)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    @data('admin', 'manager')
+    @data("admin", "manager")
     def test_unauthorized_user_can_not_change_offering_permission(self, user):
         response = self.change_permission(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
@@ -139,19 +139,19 @@ class RevokeOfferingPermissionTest(BaseOfferingPermissionTest):
             OfferingRole.MANAGER,
         )
 
-    @data('staff', 'owner')
+    @data("staff", "owner")
     def test_authorized_user_can_revoke_offering_permission(self, user):
         response = self.revoke_permission(user)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_unauthorized_user_can_not_revoke_offering_permission(self):
-        response = self.revoke_permission('admin')
+        response = self.revoke_permission("admin")
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_when_offering_permission_is_revoked_customer_permission_is_revoked_too(
         self,
     ):
-        self.revoke_permission('owner')
+        self.revoke_permission("owner")
         self.assertFalse(
             self.offering.customer.has_user(self.fixture.user, CustomerRole.MANAGER)
         )
@@ -163,7 +163,7 @@ class RevokeOfferingPermissionTest(BaseOfferingPermissionTest):
             shared=True, customer=self.fixture.customer
         )
         offering.add_user(self.fixture.user, OfferingRole.MANAGER)
-        self.revoke_permission('owner')
+        self.revoke_permission("owner")
         self.assertTrue(
             self.fixture.customer.has_user(self.fixture.user, CustomerRole.MANAGER)
         )

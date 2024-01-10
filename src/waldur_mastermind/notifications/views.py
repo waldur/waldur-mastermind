@@ -10,7 +10,7 @@ from . import filters, models, serializers, tasks, utils
 
 
 class BroadcastMessageViewSet(ActionsViewSet):
-    queryset = models.BroadcastMessage.objects.all().order_by('-created')
+    queryset = models.BroadcastMessage.objects.all().order_by("-created")
     serializer_class = serializers.BroadcastMessageSerializer
     permission_classes = [permissions.IsAuthenticated, core_permissions.IsSupport]
     filter_backends = [DjangoFilterBackend]
@@ -21,9 +21,9 @@ class BroadcastMessageViewSet(ActionsViewSet):
             models.BroadcastMessage.States.SCHEDULED,
         )
     ]
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
 
-    @decorators.action(detail=True, methods=['post'])
+    @decorators.action(detail=True, methods=["post"])
     def send(self, request, *args, **kwargs):
         broadcast_message = self.get_object()
         tasks.send_broadcast_message_email.delay(broadcast_message.uuid)
@@ -41,9 +41,9 @@ class BroadcastMessageViewSet(ActionsViewSet):
 
 
 class MessageTemplateViewSet(ActionsViewSet):
-    queryset = models.MessageTemplate.objects.all().order_by('name')
+    queryset = models.MessageTemplate.objects.all().order_by("name")
     serializer_class = serializers.MessageTemplateSerializer
     permission_classes = [permissions.IsAuthenticated, core_permissions.IsSupport]
     filter_backends = [DjangoFilterBackend]
     filterset_class = filters.MessageTemplateFilterSet
-    lookup_field = 'uuid'
+    lookup_field = "uuid"

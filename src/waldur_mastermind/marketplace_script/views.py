@@ -27,15 +27,15 @@ from .utils import ContainerExecutorMixin
 
 class DryRunView(ActionsViewSet):
     queryset = marketplace_models.Offering.objects.filter(type=PLUGIN_NAME)
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
     serializer_class = marketplace_serializers.PublicOfferingDetailsSerializer
     disabled_actions = [
-        'retrieve',
-        'list',
-        'create',
-        'update',
-        'partial_update',
-        'destroy',
+        "retrieve",
+        "list",
+        "create",
+        "update",
+        "partial_update",
+        "destroy",
     ]
 
     """
@@ -54,7 +54,7 @@ class DryRunView(ActionsViewSet):
         }
     """
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def run(self, request, *args, **kwargs):
         serializer = DryRunSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -62,25 +62,25 @@ class DryRunView(ActionsViewSet):
         order = marketplace_models.Order(**serializer.validated_data)
         order.offering = offering
         order_type = DryRunTypes.get_type_display(order.type)
-        script_language = order.offering.secret_options.get('language')
+        script_language = order.offering.secret_options.get("language")
         if not script_language:
             return Response(
                 {
-                    'Can not dry run the script. The script language is not set.',
+                    "Can not dry run the script. The script language is not set.",
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
         project = structure_models.Project.objects.create(
-            name='Dry-run project', customer=offering.customer
+            name="Dry-run project", customer=offering.customer
         )
         order.created_by = request.user
         order.project = project
         resource = marketplace_models.Resource(
             project=project,
             offering=offering,
-            plan=serializer.validated_data.get('plan'),
-            attributes=serializer.validated_data['attributes'],
-            name=serializer.validated_data['attributes'].get('name', 'test-resource'),
+            plan=serializer.validated_data.get("plan"),
+            attributes=serializer.validated_data["attributes"],
+            name=serializer.validated_data["attributes"].get("name", "test-resource"),
             state=marketplace_models.Resource.States.CREATING,
         )
         resource.init_cost()
@@ -92,22 +92,22 @@ class DryRunView(ActionsViewSet):
         executor.order = order
         executor.hook_type = order_type
         output = executor.send_request(request.user, dry_run=True)
-        return Response({'output': output})
+        return Response({"output": output})
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def async_run(self, request, *args, **kwargs):
         serializer = DryRunSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         offering = self.get_object()
         project = structure_models.Project.objects.create(
-            name='Dry-run project', customer=offering.customer
+            name="Dry-run project", customer=offering.customer
         )
         resource = marketplace_models.Resource(
             project=project,
             offering=offering,
-            plan=serializer.validated_data.get('plan'),
-            attributes=serializer.validated_data['attributes'],
-            name=serializer.validated_data['attributes'].get('name', 'test-resource'),
+            plan=serializer.validated_data.get("plan"),
+            attributes=serializer.validated_data["attributes"],
+            name=serializer.validated_data["attributes"].get("name", "test-resource"),
             state=marketplace_models.Resource.States.CREATING,
         )
         resource.init_cost()
@@ -129,16 +129,16 @@ class DryRunView(ActionsViewSet):
         transaction.on_commit(
             lambda: marketplace_script_executors.DryRunExecutor.execute(dry_run)
         )
-        return Response({'uuid': dry_run.uuid.hex}, status=status.HTTP_202_ACCEPTED)
+        return Response({"uuid": dry_run.uuid.hex}, status=status.HTTP_202_ACCEPTED)
 
     run_permissions = async_run_permissions = [
-        permission_factory(PermissionEnum.DRY_RUN_OFFERING_SCRIPT, ['*', 'customer'])
+        permission_factory(PermissionEnum.DRY_RUN_OFFERING_SCRIPT, ["*", "customer"])
     ]
 
 
 class AsyncDryRunView(ReadOnlyActionsViewSet):
-    queryset = marketplace_script_models.DryRun.objects.filter().order_by('-created')
-    lookup_field = 'uuid'
+    queryset = marketplace_script_models.DryRun.objects.filter().order_by("-created")
+    lookup_field = "uuid"
     filter_backends = (structure_filters.GenericRoleFilter,)
     serializer_class = DryRunSerializer
 
@@ -151,7 +151,7 @@ class PullMarketplaceScriptResourceView(APIView):
             )
         )
         serializer.is_valid(raise_exception=True)
-        resource_uuid = serializer.validated_data['resource_uuid']
+        resource_uuid = serializer.validated_data["resource_uuid"]
 
         try:
             queryset = marketplace_models.Resource.objects.filter(uuid=resource_uuid)
@@ -164,6 +164,6 @@ class PullMarketplaceScriptResourceView(APIView):
 
         tasks.pull_resource.delay(allowed_resource.first().id)
         return Response(
-            {'detail': _('Pull operation was successfully scheduled.')},
+            {"detail": _("Pull operation was successfully scheduled.")},
             status=status.HTTP_202_ACCEPTED,
         )

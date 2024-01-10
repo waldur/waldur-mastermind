@@ -6,36 +6,36 @@ import waldur_core.core.fields
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('logging', '0001_squashed_0010'),
+        ("logging", "0001_squashed_0010"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='emailhook',
-            name='event_groups',
+            model_name="emailhook",
+            name="event_groups",
             field=waldur_core.core.fields.JSONField(
-                default=list, verbose_name='List of event groups'
+                default=list, verbose_name="List of event groups"
             ),
         ),
         migrations.AlterField(
-            model_name='pushhook',
-            name='event_groups',
+            model_name="pushhook",
+            name="event_groups",
             field=waldur_core.core.fields.JSONField(
-                default=list, verbose_name='List of event groups'
+                default=list, verbose_name="List of event groups"
             ),
         ),
         migrations.AlterField(
-            model_name='systemnotification',
-            name='event_groups',
+            model_name="systemnotification",
+            name="event_groups",
             field=waldur_core.core.fields.JSONField(
-                default=list, verbose_name='List of event groups'
+                default=list, verbose_name="List of event groups"
             ),
         ),
         migrations.AlterField(
-            model_name='webhook',
-            name='event_groups',
+            model_name="webhook",
+            name="event_groups",
             field=waldur_core.core.fields.JSONField(
-                default=list, verbose_name='List of event groups'
+                default=list, verbose_name="List of event groups"
             ),
         ),
     ]

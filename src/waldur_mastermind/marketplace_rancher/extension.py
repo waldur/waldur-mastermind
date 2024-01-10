@@ -7,7 +7,7 @@ class MarketplaceRancherExtension(WaldurExtension):
 
     @staticmethod
     def django_app():
-        return 'waldur_mastermind.marketplace_rancher'
+        return "waldur_mastermind.marketplace_rancher"
 
     @staticmethod
     def is_assembly():

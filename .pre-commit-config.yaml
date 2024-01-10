@@ -14,18 +14,10 @@ repos:
         files: ^src/
         exclude: src/waldur_core/server/base_settings.py
 
-  - repo: https://github.com/psf/black
-    rev: 23.1.0
-    hooks:
-      - id: black
-        files: ^src/
-        exclude: src/waldur_core/server/base_settings.py
-        additional_dependencies:
-          - tomli
-
   - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.0.247
+    rev: v0.1.11
     hooks:
+      - id: ruff-format
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
         files: ^src/

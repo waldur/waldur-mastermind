@@ -8,7 +8,7 @@ class VersionApiPermissionTest(test.APITransactionTestCase):
         self.staff = UserFactory(is_staff=True)
         self.support = UserFactory(is_support=True)
         self.regular_user = UserFactory()
-        self.version_url = 'http://testserver/api/version/'
+        self.version_url = "http://testserver/api/version/"
 
     def test_staff_can_access_version(self):
         self.client.force_authenticate(user=self.staff)

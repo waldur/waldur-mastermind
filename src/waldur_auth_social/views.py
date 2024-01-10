@@ -34,29 +34,29 @@ User = get_user_model()
 class OAuthView(RefreshTokenMixin, views.APIView):
     permission_classes = []
     authentication_classes = []
-    throttle_scope = 'oauth'
+    throttle_scope = "oauth"
 
     def post(self, request, provider, format=None):
         if not self.request.user.is_anonymous:
-            raise ValidationError('This view is for anonymous users only.')
+            raise ValidationError("This view is for anonymous users only.")
 
         if provider not in ProviderChoices.CHOICES:
             raise ValidationError(
-                f'provider parameter is invalid. Valid choices are: {ProviderChoices.CHOICES}'
+                f"provider parameter is invalid. Valid choices are: {ProviderChoices.CHOICES}"
             )
         try:
             self.config = models.IdentityProvider.objects.get(provider=provider)
         except models.IdentityProvider.DoesNotExist:
-            raise AuthenticationFailed('Identity provider is not defined.')
+            raise AuthenticationFailed("Identity provider is not defined.")
 
         if not self.config.is_active:
-            raise AuthenticationFailed('Identity provider is disabled.')
+            raise AuthenticationFailed("Identity provider is disabled.")
 
         serializer = AuthSerializer(
             data={
-                'client_id': request.data.get('clientId'),
-                'redirect_uri': request.data.get('redirectUri'),
-                'code': request.data.get('code'),
+                "client_id": request.data.get("clientId"),
+                "redirect_uri": request.data.get("redirectUri"),
+                "code": request.data.get("code"),
             }
         )
         serializer.is_valid(raise_exception=True)
@@ -64,42 +64,42 @@ class OAuthView(RefreshTokenMixin, views.APIView):
         user, created = self.authenticate_user(serializer.validated_data)
         token = self.refresh_token(user)
         user.last_login = timezone.now()
-        user.save(update_fields=['last_login'])
+        user.save(update_fields=["last_login"])
 
         event_logger.auth_social.info(
-            'User {user_username} with full name {user_full_name} authenticated successfully with {provider}.',
-            event_type='auth_logged_in_with_oauth',
+            "User {user_username} with full name {user_full_name} authenticated successfully with {provider}.",
+            event_type="auth_logged_in_with_oauth",
             event_context={
-                'provider': provider,
-                'user': user,
-                'request': request,
+                "provider": provider,
+                "user": user,
+                "request": request,
             },
         )
         return Response(
-            {'token': token.key},
+            {"token": token.key},
             status=created and status.HTTP_201_CREATED or status.HTTP_200_OK,
         )
 
     def authenticate_user(self, validated_data):
         token_data = self.get_token_data(validated_data)
         try:
-            access_token = token_data['access_token']
+            access_token = token_data["access_token"]
         except KeyError:
             raise OAuthException(
-                self.config.provider, 'Authentication response does not contain token.'
+                self.config.provider, "Authentication response does not contain token."
             )
 
-        refresh_token = token_data.get('refresh_token', '')
+        refresh_token = token_data.get("refresh_token", "")
         user_info = self.get_user_info(access_token)
-        logger.info('Received user info: ', user_info)
+        logger.info("Received user info: ", user_info)
 
         user, created = create_or_update_oauth_user(self.config.provider, user_info)
         OAuthToken.objects.update_or_create(
             user=user,
             provider=self.config.provider,
             defaults={
-                'access_token': access_token,
-                'refresh_token': refresh_token,
+                "access_token": access_token,
+                "refresh_token": refresh_token,
             },
         )
         return user, created
@@ -108,24 +108,24 @@ class OAuthView(RefreshTokenMixin, views.APIView):
         if response.status_code != valid_response:
             try:
                 data = response.json()
-                error_message = data['error']
-                error_description = data.get('error_description', '')
+                error_message = data["error"]
+                error_description = data.get("error_description", "")
             except (TypeError, ValueError, KeyError):
                 values = (response.reason, response.status_code)
-                error_message = 'Message: %s, status code: %s' % values
-                error_description = ''
+                error_message = "Message: {}, status code: {}".format(*values)
+                error_description = ""
             raise OAuthException(self.config.provider, error_message, error_description)
 
     def get_user_info(self, access_token):
-        headers = {'Authorization': f'Bearer {access_token}'}
+        headers = {"Authorization": f"Bearer {access_token}"}
         try:
             user_response = requests.get(
                 self.config.userinfo_url, headers=headers, verify=self.config.verify_ssl
             )
         except requests.exceptions.RequestException as e:
-            logger.warning('Unable to send user info request. Error is %s', e)
+            logger.warning("Unable to send user info request. Error is %s", e)
             raise OAuthException(
-                self.config.provider, 'Unable to send user info request.'
+                self.config.provider, "Unable to send user info request."
             )
         self.check_response(user_response)
 
@@ -133,24 +133,24 @@ class OAuthView(RefreshTokenMixin, views.APIView):
             return user_response.json()
         except (ValueError, TypeError):
             raise OAuthException(
-                self.config.provider, 'Unable to parse JSON in user info response.'
+                self.config.provider, "Unable to parse JSON in user info response."
             )
 
     def get_token_data(self, validated_data):
         data = {
-            'grant_type': 'authorization_code',
-            'redirect_uri': validated_data['redirect_uri'],
-            'code': validated_data['code'],
+            "grant_type": "authorization_code",
+            "redirect_uri": validated_data["redirect_uri"],
+            "code": validated_data["code"],
         }
         headers = None
         if self.config.provider == ProviderChoices.TARA:
-            raw_token = f'{self.config.client_id}:{self.config.client_secret}'
-            auth_token = base64.b64encode(raw_token.encode('utf-8'))
-            headers = {'Authorization': b'Basic %s' % auth_token}
+            raw_token = f"{self.config.client_id}:{self.config.client_secret}"
+            auth_token = base64.b64encode(raw_token.encode("utf-8"))
+            headers = {"Authorization": b"Basic %s" % auth_token}
         else:
             data |= {
-                'client_id': self.config.client_id,
-                'client_secret': self.config.client_secret,
+                "client_id": self.config.client_id,
+                "client_secret": self.config.client_secret,
             }
         try:
             token_response = requests.post(
@@ -160,9 +160,9 @@ class OAuthView(RefreshTokenMixin, views.APIView):
                 verify=self.config.verify_ssl,
             )
         except requests.exceptions.RequestException as e:
-            logger.warning('Unable to send authentication request. Error is %s', e)
+            logger.warning("Unable to send authentication request. Error is %s", e)
             raise OAuthException(
-                self.config.provider, 'Unable to send authentication request.'
+                self.config.provider, "Unable to send authentication request."
             )
 
         self.check_response(token_response)
@@ -171,14 +171,14 @@ class OAuthView(RefreshTokenMixin, views.APIView):
             return token_response.json()
         except (ValueError, TypeError):
             raise OAuthException(
-                self.config.provider, 'Unable to parse JSON in authentication response.'
+                self.config.provider, "Unable to parse JSON in authentication response."
             )
 
 
 class IdentityProvidersViewSet(viewsets.ModelViewSet):
     queryset = models.IdentityProvider.objects.all()
     serializer_class = IdentityProviderSerializer
-    lookup_field = 'provider'
+    lookup_field = "provider"
     permission_classes = (core_permissions.IsAdminOrReadOnly,)
 
     def get_queryset(self):
@@ -192,21 +192,21 @@ class RemoteEduteamsView(views.APIView):
     def post(self, request, *args, **kwargs):
         if not request.user.is_staff and not request.user.is_identity_manager:
             return Response(
-                'Only staff and identity manager are allowed to sync remote users.',
+                "Only staff and identity manager are allowed to sync remote users.",
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        if not settings.WALDUR_AUTH_SOCIAL['REMOTE_EDUTEAMS_ENABLED']:
+        if not settings.WALDUR_AUTH_SOCIAL["REMOTE_EDUTEAMS_ENABLED"]:
             return Response(
-                'Remote eduTEAMS user sync is disabled.',
+                "Remote eduTEAMS user sync is disabled.",
                 status=status.HTTP_403_FORBIDDEN,
             )
 
         serializer = RemoteEduteamsRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        cuid = serializer.validated_data['cuid']
+        cuid = serializer.validated_data["cuid"]
 
         user = pull_remote_eduteams_user(cuid)
         if user is None:
-            raise NotFound('User %s has not been found' % cuid)
-        return Response({'uuid': user.uuid.hex})
+            raise NotFound("User %s has not been found" % cuid)
+        return Response({"uuid": user.uuid.hex})

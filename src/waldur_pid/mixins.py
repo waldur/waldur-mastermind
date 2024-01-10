@@ -14,14 +14,14 @@ class DataciteMixin(models.Model):
         abstract = True
 
     datacite_doi = models.CharField(
-        max_length=255, blank=True, verbose_name='Datacite DOI'
+        max_length=255, blank=True, verbose_name="Datacite DOI"
     )
 
     # `-1` - citations have never been looked up
     # non-negative value - the number of citations of a DOI
     citation_count = models.IntegerField(
         default=-1,
-        help_text=_('Number of citations of a DOI'),
+        help_text=_("Number of citations of a DOI"),
     )
 
     error_message = models.TextField(blank=True)

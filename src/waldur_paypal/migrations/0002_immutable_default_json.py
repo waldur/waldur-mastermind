@@ -6,24 +6,24 @@ import waldur_core.core.fields
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('waldur_paypal', '0001_initial'),
+        ("waldur_paypal", "0001_initial"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='invoice',
-            name='issuer_details',
+            model_name="invoice",
+            name="issuer_details",
             field=waldur_core.core.fields.JSONField(
-                blank=True, default=dict, help_text='Stores data about invoice issuer'
+                blank=True, default=dict, help_text="Stores data about invoice issuer"
             ),
         ),
         migrations.AlterField(
-            model_name='invoice',
-            name='payment_details',
+            model_name="invoice",
+            name="payment_details",
             field=waldur_core.core.fields.JSONField(
                 blank=True,
                 default=dict,
-                help_text='Stores data about customer payment details',
+                help_text="Stores data about customer payment details",
             ),
         ),
     ]

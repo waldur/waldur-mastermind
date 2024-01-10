@@ -9,15 +9,15 @@ from . import backend, filters, models, serializers, tasks
 
 
 class CheckExtensionMixin(core_views.CheckExtensionMixin):
-    extension_name = 'WALDUR_FREEIPA'
+    extension_name = "WALDUR_FREEIPA"
 
 
 class ProfileViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     queryset = models.Profile.objects.all()
     filterset_class = filters.ProfileFilter
     serializer_class = serializers.ProfileSerializer
-    disabled_actions = ['destroy']
-    lookup_field = 'uuid'
+    disabled_actions = ["destroy"]
+    lookup_field = "uuid"
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -33,10 +33,10 @@ class ProfileViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
             tasks.schedule_sync()
         except freeipa_exceptions.DuplicateEntry:
             raise exceptions.ValidationError(
-                {'username': _('Profile with such name already exists.')}
+                {"username": _("Profile with such name already exists.")}
             )
 
-    @decorators.action(detail=True, methods=['post'])
+    @decorators.action(detail=True, methods=["post"])
     def update_ssh_keys(self, request, uuid=None):
         profile = self.get_object()
         try:

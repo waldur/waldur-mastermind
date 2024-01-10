@@ -5,11 +5,11 @@ from django.db import migrations
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('waldur_auth_social', '0002_remoteeduteamsuser'),
+        ("waldur_auth_social", "0002_remoteeduteamsuser"),
     ]
 
     operations = [
         migrations.DeleteModel(
-            name='RemoteEduteamsUser',
+            name="RemoteEduteamsUser",
         ),
     ]

@@ -13,12 +13,12 @@ class IssueTypesTest(test.APITransactionTestCase):
 
         self.mock_issue_type = mock.MagicMock()
         self.mock_issue_type.configure_mock(
-            id='100',
-            description='Basic issue type',
-            iconUrl='http://example.com/1.svg',
+            id="100",
+            description="Basic issue type",
+            iconUrl="http://example.com/1.svg",
             subtask=False,
         )
-        self.mock_issue_type.name = 'Task'
+        self.mock_issue_type.name = "Task"
         self.mock_project = mock.MagicMock(issueTypes=[self.mock_issue_type])
 
         self.backend = JiraBackend(self.fixture.service_settings)

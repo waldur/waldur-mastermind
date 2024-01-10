@@ -1,1 +1,1 @@
-PLUGIN_NAME = 'Marketplace.Script'
+PLUGIN_NAME = "Marketplace.Script"

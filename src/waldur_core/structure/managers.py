@@ -9,9 +9,9 @@ from waldur_core.structure import models as structure_models
 
 
 def build_filter(path, ids):
-    if path == 'self':
-        path = 'id'
-    return models.Q(**{f'{path}__in': ids})
+    if path == "self":
+        path = "id"
+    return models.Q(**{f"{path}__in": ids})
 
 
 def filter_queryset_for_user(queryset, user):
@@ -25,8 +25,8 @@ def filter_queryset_for_user(queryset, user):
 
     subquery = models.Q()
 
-    customer_path = getattr(permissions, 'customer_path', None)
-    project_path = getattr(permissions, 'project_path', None)
+    customer_path = getattr(permissions, "customer_path", None)
+    project_path = getattr(permissions, "project_path", None)
 
     if customer_path:
         subquery |= build_filter(customer_path, get_connected_customers(user))
@@ -34,7 +34,7 @@ def filter_queryset_for_user(queryset, user):
     if project_path:
         subquery |= build_filter(project_path, get_connected_projects(user))
 
-    build_query = getattr(permissions, 'build_query', None)
+    build_query = getattr(permissions, "build_query", None)
     if build_query:
         subquery |= build_query(user)
 
@@ -56,20 +56,20 @@ def filter_queryset_by_user_ip(queryset, request):
     except AttributeError:
         return queryset
 
-    customer_path = getattr(permissions, 'customer_path', None)
+    customer_path = getattr(permissions, "customer_path", None)
     if not customer_path:
         return queryset
 
-    if customer_path == 'self':
-        path = 'id__in'
-        none_path = 'id'
+    if customer_path == "self":
+        path = "id__in"
+        none_path = "id"
     else:
-        path = customer_path + '__id__in'
-        none_path = customer_path + '_id'
+        path = customer_path + "__id__in"
+        none_path = customer_path + "_id"
 
     customers_ids = structure_models.Customer.objects.filter(
         models.Q(inet__isnull=True) | models.Q(inet__net_contains_or_equals=user_ip)
-    ).values_list('id', flat=True)
+    ).values_list("id", flat=True)
     subquery = models.Q(**{path: customers_ids}) | models.Q(**{none_path: None})
     return queryset.filter(subquery)
 
@@ -120,10 +120,10 @@ class StructureQueryset(models.QuerySet):
         args = {}
         fields = [f.name for f in self.model._meta.get_fields()]
         for field, val in kwargs.items():
-            base_field = field.split('__')[0]
+            base_field = field.split("__")[0]
             if base_field in fields:
                 args.update(**{field: val})
-            elif base_field in ('customer', 'project'):
+            elif base_field in ("customer", "project"):
                 args.update(self._filter_by_permission_fields(base_field, field, val))
             else:
                 args.update(**{field: val})
@@ -132,24 +132,24 @@ class StructureQueryset(models.QuerySet):
 
     def _filter_by_permission_fields(self, name, field, value):
         # handle fields connected via permissions relations
-        extra = '__'.join(field.split('__')[1:]) if '__' in field else None
+        extra = "__".join(field.split("__")[1:]) if "__" in field else None
         try:
             # look for the target field path in Permissions class,
-            path = getattr(self.model.Permissions, '%s_path' % name)
+            path = getattr(self.model.Permissions, "%s_path" % name)
         except AttributeError:
             # fallback to FieldError if it's missed
             return {field: value}
         else:
-            if path == 'self':
+            if path == "self":
                 if extra:
                     return {extra: value}
                 else:
                     return {
-                        'pk': value.pk if isinstance(value, models.Model) else value
+                        "pk": value.pk if isinstance(value, models.Model) else value
                     }
             else:
                 if extra:
-                    path += '__' + extra
+                    path += "__" + extra
                 return {path: value}
 
 
@@ -191,7 +191,7 @@ def get_connected_customers_by_permission(user, permission):
     roles = list(
         Role.objects.filter(
             content_type=ctype, is_active=True, permissions__permission=permission
-        ).values_list('name', flat=True)
+        ).values_list("name", flat=True)
     )
     if not roles:
         return structure_models.Customer.objects.none()
@@ -203,7 +203,7 @@ def get_connected_projects_by_permission(user, permission):
     roles = list(
         Role.objects.filter(
             content_type=ctype, is_active=True, permissions__permission=permission
-        ).values_list('name', flat=True)
+        ).values_list("name", flat=True)
     )
     if not roles:
         return structure_models.Project.objects.none()
@@ -228,7 +228,7 @@ def get_visible_users(user):
 
 def get_nested_customer_users(customer):
     customer_users = get_customer_users(customer.id)
-    project_users = get_project_users(customer.projects.values_list('id', flat=True))
+    project_users = get_project_users(customer.projects.values_list("id", flat=True))
     return customer_users.union(project_users)
 
 
@@ -241,7 +241,7 @@ def get_visible_customers(user):
     direct_customers = get_connected_customers(user)
     indirect_customers = structure_models.Project.objects.filter(
         id__in=direct_projects
-    ).values_list('customer_id', flat=True)
+    ).values_list("customer_id", flat=True)
     return direct_customers.union(indirect_customers)
 
 
@@ -250,14 +250,14 @@ def get_visible_projects(user):
     direct_projects = get_connected_projects(user)
     indirect_projects = structure_models.Project.objects.filter(
         customer_id__in=direct_customers
-    ).values_list('id', flat=True)
+    ).values_list("id", flat=True)
     return direct_projects.union(indirect_projects)
 
 
 def get_divisions(user):
     return structure_models.Customer.objects.filter(
         id__in=get_visible_customers(user)
-    ).values('division')
+    ).values("division")
 
 
 def filter_customer_permissions(user, is_active=True, target_user=None):
@@ -265,7 +265,7 @@ def filter_customer_permissions(user, is_active=True, target_user=None):
         content_type=ContentType.objects.get_for_model(structure_models.Customer),
         role__is_system_role=True,
         is_active=is_active,
-    ).order_by('-created')
+    ).order_by("-created")
 
     if target_user:
         queryset = queryset.filter(user=target_user)
@@ -282,7 +282,7 @@ def filter_project_permissions(user, is_active=True, target_user=None):
         content_type=ContentType.objects.get_for_model(structure_models.Project),
         role__is_system_role=True,
         is_active=is_active,
-    ).order_by('-created')
+    ).order_by("-created")
 
     if target_user:
         queryset = queryset.filter(user=target_user)

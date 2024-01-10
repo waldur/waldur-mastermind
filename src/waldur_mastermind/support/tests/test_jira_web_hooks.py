@@ -19,38 +19,38 @@ from waldur_mastermind.support.tests import factories
 from waldur_mastermind.support.tests.base import load_resource
 
 
-@mock.patch('waldur_mastermind.support.serializers.ServiceDeskBackend')
+@mock.patch("waldur_mastermind.support.serializers.ServiceDeskBackend")
 @override_constance_config(
     WALDUR_SUPPORT_ENABLED=True,
-    WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE='basic',
+    WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE="basic",
 )
 @override_settings(task_always_eager=True)
 class TestJiraWebHooks(APITransactionTestCase):
     def setUp(self):
-        self.url = reverse('web-hook-receiver')
-        backend_id = 'SNT-101'
+        self.url = reverse("web-hook-receiver")
+        backend_id = "SNT-101"
         self.issue = factories.IssueFactory(backend_id=backend_id)
 
         def create_request(test, name, path):
             jira_request = json.loads(load_resource(path))
-            jira_request['issue']['key'] = backend_id
-            setattr(test, 'request_data_' + name, jira_request)
+            jira_request["issue"]["key"] = backend_id
+            setattr(test, "request_data_" + name, jira_request)
 
         jira_requests = (
-            ('issue_updated', 'jira_issue_updated_query.json'),
-            ('comment_create', 'jira_comment_create_query.json'),
-            ('comment_update', 'jira_comment_update_query.json'),
-            ('comment_delete', 'jira_comment_delete_query.json'),
+            ("issue_updated", "jira_issue_updated_query.json"),
+            ("comment_create", "jira_comment_create_query.json"),
+            ("comment_update", "jira_comment_update_query.json"),
+            ("comment_delete", "jira_comment_delete_query.json"),
         )
         [create_request(self, *r) for r in jira_requests]
 
     def test_issue_update(self, mock_jira):
-        self.request_data_issue_updated['issue_event_type_name'] = 'issue_updated'
+        self.request_data_issue_updated["issue_event_type_name"] = "issue_updated"
         self.client.post(self.url, self.request_data_issue_updated)
         self.assertTrue(self._call_update_issue(mock_jira))
 
     def test_generic_update(self, mock_jira):
-        self.request_data_issue_updated['issue_event_type_name'] = 'issue_generic'
+        self.request_data_issue_updated["issue_event_type_name"] = "issue_generic"
         self.client.post(self.url, self.request_data_issue_updated)
         self.assertTrue(self._call_update_issue(mock_jira))
 
@@ -60,54 +60,54 @@ class TestJiraWebHooks(APITransactionTestCase):
 
     def test_comment_update(self, mock_jira):
         comment = factories.CommentFactory(issue=self.issue)
-        self.request_data_comment_update['comment']['id'] = comment.backend_id
+        self.request_data_comment_update["comment"]["id"] = comment.backend_id
         self.client.post(self.url, self.request_data_comment_update)
         self.assertTrue(self._call_update_comment(mock_jira))
 
     def test_comment_delete(self, mock_jira):
         comment = factories.CommentFactory(issue=self.issue)
-        self.request_data_comment_delete['comment']['id'] = comment.backend_id
+        self.request_data_comment_delete["comment"]["id"] = comment.backend_id
         self.client.post(self.url, self.request_data_comment_delete)
         self.assertTrue(self._call_delete_comment(mock_jira))
 
     def test_add_attachment(self, mock_jira):
-        self.request_data_issue_updated['issue_event_type_name'] = 'issue_updated'
+        self.request_data_issue_updated["issue_event_type_name"] = "issue_updated"
         self.client.post(self.url, self.request_data_issue_updated)
         self.assertTrue(self._call_update_attachment(mock_jira))
 
     def test_delete_attachment(self, mock_jira):
-        self.request_data_issue_updated['issue_event_type_name'] = 'issue_updated'
+        self.request_data_issue_updated["issue_event_type_name"] = "issue_updated"
         self.client.post(self.url, self.request_data_issue_updated)
         self.assertTrue(self._call_update_attachment(mock_jira))
 
     def _call_update_attachment(self, mock_jira):
         return filter(
-            lambda x: x[0] == '().update_attachment_from_jira', mock_jira.mock_calls
+            lambda x: x[0] == "().update_attachment_from_jira", mock_jira.mock_calls
         )
 
     def _call_create_comment(self, mock_jira):
         return filter(
-            lambda x: x[0] == '().create_comment_from_jira', mock_jira.mock_calls
+            lambda x: x[0] == "().create_comment_from_jira", mock_jira.mock_calls
         )
 
     def _call_update_comment(self, mock_jira):
         return filter(
-            lambda x: x[0] == '().update_comment_from_jira', mock_jira.mock_calls
+            lambda x: x[0] == "().update_comment_from_jira", mock_jira.mock_calls
         )
 
     def _call_delete_comment(self, mock_jira):
         return filter(
-            lambda x: x[0] == '().delete_comment_from_jira', mock_jira.mock_calls
+            lambda x: x[0] == "().delete_comment_from_jira", mock_jira.mock_calls
         )
 
     def _call_update_issue(self, mock_jira):
         return filter(
-            lambda x: x[0] == '().update_issue_from_jira', mock_jira.mock_calls
+            lambda x: x[0] == "().update_issue_from_jira", mock_jira.mock_calls
         )
 
 
-MockSupportUser = collections.namedtuple('MockSupportUser', ['key'])
-MockResolution = collections.namedtuple('MockResolution', ['name'])
+MockSupportUser = collections.namedtuple("MockSupportUser", ["key"])
+MockResolution = collections.namedtuple("MockResolution", ["name"])
 
 
 @override_settings(task_always_eager=True)
@@ -116,19 +116,19 @@ class TestUpdateIssueFromJira(APITransactionTestCase):
     def setUp(self):
         self.issue = factories.IssueFactory()
 
-        backend_issue_raw = json.loads(load_resource('jira_issue_raw.json'))
+        backend_issue_raw = json.loads(load_resource("jira_issue_raw.json"))
         self.backend_issue = jira.resources.Issue(
-            {'server': 'example.com'}, None, backend_issue_raw
+            {"server": "example.com"}, None, backend_issue_raw
         )
 
-        self.impact_field_id = 'customfield_10116'
-        self.request_feedback = 'customfield_10216'
+        self.impact_field_id = "customfield_10116"
+        self.request_feedback = "customfield_10216"
         self.first_response_sla = timezone.now()
 
         def side_effect(arg):
-            if arg == 'Impact':
+            if arg == "Impact":
                 return self.impact_field_id
-            elif arg == 'Request feedback':
+            elif arg == "Request feedback":
                 return self.request_feedback
 
         self.backend = ServiceDeskBackend()
@@ -143,27 +143,27 @@ class TestUpdateIssueFromJira(APITransactionTestCase):
         self.issue.refresh_from_db()
 
     def test_update_issue_impact_field(self):
-        impact_field_value = 'Custom Value'
+        impact_field_value = "Custom Value"
         setattr(self.backend_issue.fields, self.impact_field_id, impact_field_value)
         self.update_issue_from_jira()
         self.assertEqual(self.issue.impact, impact_field_value)
 
     def test_update_issue_assignee(self):
-        assignee = factories.SupportUserFactory(backend_id='support_user_backend_id')
+        assignee = factories.SupportUserFactory(backend_id="support_user_backend_id")
         backend_assignee_user = MockSupportUser(key=assignee.backend_id)
         self.backend_issue.fields.assignee = backend_assignee_user
         self.update_issue_from_jira()
         self.assertEqual(self.issue.assignee.id, assignee.id)
 
     def test_update_issue_reporter(self):
-        reporter = factories.SupportUserFactory(backend_id='support_user_backend_id')
+        reporter = factories.SupportUserFactory(backend_id="support_user_backend_id")
         backend_reporter_user = MockSupportUser(key=reporter.backend_id)
         self.backend_issue.fields.reporter = backend_reporter_user
         self.update_issue_from_jira()
         self.assertEqual(self.issue.reporter.id, reporter.id)
 
     def test_update_issue_summary(self):
-        expected_summary = 'Happy New Year'
+        expected_summary = "Happy New Year"
         self.backend_issue.fields.summary = expected_summary
         self.update_issue_from_jira()
         self.assertEqual(self.issue.summary, expected_summary)
@@ -178,7 +178,7 @@ class TestUpdateIssueFromJira(APITransactionTestCase):
         self.assertEqual(self.issue.first_response_sla, self.first_response_sla)
 
     def test_update_issue_resolution(self):
-        expected_resolution = MockResolution(name='Done')
+        expected_resolution = MockResolution(name="Done")
         self.backend_issue.fields.resolution = expected_resolution
         self.update_issue_from_jira()
         self.assertEqual(self.issue.resolution, expected_resolution.name)
@@ -187,7 +187,7 @@ class TestUpdateIssueFromJira(APITransactionTestCase):
         expected_resolution = None
         self.backend_issue.fields.resolution = expected_resolution
         self.update_issue_from_jira()
-        self.assertEqual(self.issue.resolution, '')
+        self.assertEqual(self.issue.resolution, "")
 
     def test_update_issue_status(self):
         self.update_issue_from_jira()
@@ -202,7 +202,7 @@ class TestUpdateIssueFromJira(APITransactionTestCase):
 
     def test_web_hook_does_trigger_issue_update_email_if_the_issue_was_updated(self):
         self.update_issue_from_jira()
-        self.backend_issue.fields.summary = 'New summary'
+        self.backend_issue.fields.summary = "New summary"
         self.update_issue_from_jira()
         self.assertEqual(len(mail.outbox), 1)
 
@@ -231,23 +231,23 @@ class TestUpdateCommentFromJira(APITransactionTestCase):
     def setUp(self):
         self.comment = factories.CommentFactory()
 
-        backend_comment_raw = json.loads(load_resource('jira_comment_raw.json'))
+        backend_comment_raw = json.loads(load_resource("jira_comment_raw.json"))
         self.backend_comment = jira.resources.Comment(
-            {'server': 'example.com'}, None, backend_comment_raw
+            {"server": "example.com"}, None, backend_comment_raw
         )
         self.backend = ServiceDeskBackend()
 
-        self.internal = {'value': {'internal': False}}
+        self.internal = {"value": {"internal": False}}
         path = mock.patch.object(
             ServiceDeskBackend,
-            '_get_property',
+            "_get_property",
             new=mock.Mock(return_value=self.internal),
         )
         path.start()
 
         path = mock.patch.object(
             ServiceDeskBackend,
-            'get_backend_comment',
+            "get_backend_comment",
             new=mock.Mock(return_value=self.backend_comment),
         )
         path.start()
@@ -264,9 +264,9 @@ class TestUpdateCommentFromJira(APITransactionTestCase):
         )
 
     def test_update_comment_is_public(self):
-        self.internal['value']['internal'] = True
+        self.internal["value"]["internal"] = True
         self.backend.update_comment_from_jira(self.comment)
-        self.internal['value']['internal'] = False
+        self.internal["value"]["internal"] = False
         self.comment.refresh_from_db()
         self.assertEqual(self.comment.is_public, False)
 
@@ -274,7 +274,7 @@ class TestUpdateCommentFromJira(APITransactionTestCase):
         self,
     ):
         expected_comment_body = self.comment.description
-        jira_comment_body = '[Luke Skywalker 19BBY-TA-T16]: %s' % expected_comment_body
+        jira_comment_body = "[Luke Skywalker 19BBY-TA-T16]: %s" % expected_comment_body
         self.backend_comment.body = jira_comment_body
         self.backend.update_comment_from_jira(self.comment)
         self.comment.refresh_from_db()
@@ -289,14 +289,14 @@ class TestUpdateAttachmentFromJira(APITransactionTestCase):
     def setUp(self):
         self.issue = factories.IssueFactory()
 
-        backend_issue_raw = json.loads(load_resource('jira_issue_raw.json'))
+        backend_issue_raw = json.loads(load_resource("jira_issue_raw.json"))
         self.backend_issue = jira.resources.Issue(
-            {'server': 'example.com'}, None, backend_issue_raw
+            {"server": "example.com"}, None, backend_issue_raw
         )
 
-        backend_attachment_raw = json.loads(load_resource('jira_attachment_raw.json'))
+        backend_attachment_raw = json.loads(load_resource("jira_attachment_raw.json"))
         self.backend_attachment = jira.resources.Attachment(
-            {'server': 'example.com'}, None, backend_attachment_raw
+            {"server": "example.com"}, None, backend_attachment_raw
         )
         self.backend_issue.fields.attachment.append(self.backend_attachment)
 
@@ -304,24 +304,24 @@ class TestUpdateAttachmentFromJira(APITransactionTestCase):
 
         path = mock.patch.object(
             ServiceDeskBackend,
-            'get_backend_issue',
+            "get_backend_issue",
             new=mock.Mock(return_value=self.backend_issue),
         )
         path.start()
 
         path = mock.patch.object(
             ServiceDeskBackend,
-            'get_backend_attachment',
+            "get_backend_attachment",
             new=mock.Mock(return_value=self.backend_attachment),
         )
         path.start()
 
         file_content = BytesIO(
-            base64.b64decode('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7')
+            base64.b64decode("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7")
         )
         path = mock.patch.object(
             AttachmentSynchronizer,
-            '_download_file',
+            "_download_file",
             new=mock.Mock(return_value=file_content),
         )
         path.start()

@@ -11,7 +11,7 @@ class CustomerRole:
         return Role.objects.get_system_role(
             RoleEnum.CUSTOMER_OWNER,
             content_type=ContentType.objects.get_by_natural_key(
-                'structure', 'customer'
+                "structure", "customer"
             ),
         )
 
@@ -21,7 +21,7 @@ class CustomerRole:
         return Role.objects.get_system_role(
             RoleEnum.CUSTOMER_SUPPORT,
             content_type=ContentType.objects.get_by_natural_key(
-                'structure', 'customer'
+                "structure", "customer"
             ),
         )
 
@@ -31,7 +31,7 @@ class CustomerRole:
         return Role.objects.get_system_role(
             RoleEnum.CUSTOMER_MANAGER,
             content_type=ContentType.objects.get_by_natural_key(
-                'structure', 'customer'
+                "structure", "customer"
             ),
         )
 
@@ -42,7 +42,7 @@ class ProjectRole:
     def ADMIN(self):
         return Role.objects.get_system_role(
             RoleEnum.PROJECT_ADMIN,
-            content_type=ContentType.objects.get_by_natural_key('structure', 'project'),
+            content_type=ContentType.objects.get_by_natural_key("structure", "project"),
         )
 
     @classmethod
@@ -50,7 +50,7 @@ class ProjectRole:
     def MANAGER(self):
         return Role.objects.get_system_role(
             RoleEnum.PROJECT_MANAGER,
-            content_type=ContentType.objects.get_by_natural_key('structure', 'project'),
+            content_type=ContentType.objects.get_by_natural_key("structure", "project"),
         )
 
     @classmethod
@@ -58,7 +58,7 @@ class ProjectRole:
     def MEMBER(self):
         return Role.objects.get_system_role(
             RoleEnum.PROJECT_MEMBER,
-            content_type=ContentType.objects.get_by_natural_key('structure', 'project'),
+            content_type=ContentType.objects.get_by_natural_key("structure", "project"),
         )
 
 
@@ -69,6 +69,6 @@ class OfferingRole:
         return Role.objects.get_system_role(
             RoleEnum.OFFERING_MANAGER,
             content_type=ContentType.objects.get_by_natural_key(
-                'marketplace', 'offering'
+                "marketplace", "offering"
             ),
         )

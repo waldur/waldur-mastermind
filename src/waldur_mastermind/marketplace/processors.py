@@ -16,11 +16,11 @@ logger = logging.getLogger(__name__)
 def get_order_post_data(order, fields):
     if not order.offering.scope:
         raise serializers.ValidationError(
-            'Offering is invalid: it does not have a scope.'
+            "Offering is invalid: it does not have a scope."
         )
-    project_url = reverse('project-detail', kwargs={'uuid': order.project.uuid})
+    project_url = reverse("project-detail", kwargs={"uuid": order.project.uuid})
     service_settings_url = reverse(
-        'servicesettings-detail', kwargs={'uuid': order.offering.scope.uuid}
+        "servicesettings-detail", kwargs={"uuid": order.offering.scope.uuid}
     )
     return dict(
         service_settings=service_settings_url,
@@ -67,10 +67,10 @@ class AbstractCreateResourceProcessor(BaseOrderProcessor):
         scope = self.send_request(user)
         backend_metadata = {}
         endpoints = {}
-        if isinstance(scope, dict) and scope['response_type'] == 'metadata':
-            backend_metadata = scope['backend_metadata']
-            endpoints = scope['endpoints']
-            scope = scope['backend_id']
+        if isinstance(scope, dict) and scope["response_type"] == "metadata":
+            backend_metadata = scope["backend_metadata"]
+            endpoints = scope["endpoints"]
+            scope = scope["backend_id"]
 
         with transaction.atomic():
             resource.backend_metadata = backend_metadata
@@ -80,8 +80,8 @@ class AbstractCreateResourceProcessor(BaseOrderProcessor):
                 resource.scope = scope
             resource.save()
             for endpoint in endpoints:
-                name = endpoint.get('name')
-                url = endpoint.get('url')
+                name = endpoint.get("name")
+                url = endpoint.get("url")
                 if name is not None and url is not None:
                     models.ResourceAccessEndpoint.objects.create(
                         name=name, url=url, resource=resource
@@ -119,13 +119,13 @@ class CreateResourceProcessor(AbstractCreateResourceProcessor):
         post_data = self.get_post_data()
         serializer_class = self.get_serializer_class()
         if serializer_class:
-            context = {'request': request, 'skip_permission_check': True}
+            context = {"request": request, "skip_permission_check": True}
             serializer = serializer_class(data=post_data, context=context)
             serializer.is_valid(raise_exception=True)
 
     def send_request(self, user):
         post_data = self.get_post_data()
-        view = self.get_viewset().as_view({'post': 'create'})
+        view = self.get_viewset().as_view({"post": "create"})
         response = common_utils.create_request(view, user, post_data)
         if response.status_code != status.HTTP_201_CREATED:
             raise serializers.ValidationError(response.data)
@@ -162,7 +162,7 @@ class CreateResourceProcessor(AbstractCreateResourceProcessor):
 
 class AbstractUpdateResourceProcessor(BaseOrderProcessor):
     def is_update_limit_order(self):
-        if 'old_limits' in self.order.attributes.keys():
+        if "old_limits" in self.order.attributes.keys():
             return True
 
     def validate_order(self, request):
@@ -180,7 +180,7 @@ class AbstractUpdateResourceProcessor(BaseOrderProcessor):
         post_data = self.get_post_data()
         serializer_class = self.get_serializer_class()
         if serializer_class:
-            context = {'request': request, 'skip_permission_check': True}
+            context = {"request": request, "skip_permission_check": True}
             serializer = serializer_class(data=post_data, context=context)
             serializer.is_valid(raise_exception=True)
 
@@ -207,12 +207,12 @@ class AbstractUpdateResourceProcessor(BaseOrderProcessor):
             else:
                 with transaction.atomic():
                     self.order.resource.set_state_updating()
-                    self.order.resource.save(update_fields=['state'])
+                    self.order.resource.save(update_fields=["state"])
             return
 
         resource = self.get_resource()
         if not resource:
-            raise serializers.ValidationError('Resource is not found.')
+            raise serializers.ValidationError("Resource is not found.")
         done = self.send_request(user)
 
         if done:
@@ -220,19 +220,19 @@ class AbstractUpdateResourceProcessor(BaseOrderProcessor):
                 # check if a new plan has been requested
                 if self.order.resource.plan != self.order.plan:
                     logger.info(
-                        f'Changing plan of a resource {self.order.resource.name} '
-                        'from {self.order.resource.plan} to {self.order.plan}. '
-                        'Order ID: {self.order.id}'
+                        f"Changing plan of a resource {self.order.resource.name} "
+                        "from {self.order.resource.plan} to {self.order.plan}. "
+                        "Order ID: {self.order.id}"
                     )
                     self.order.resource.plan = self.order.plan
-                    self.order.resource.save(update_fields=['plan'])
+                    self.order.resource.save(update_fields=["plan"])
 
                 self.order.state = models.Order.States.DONE
-                self.order.save(update_fields=['state'])
+                self.order.save(update_fields=["state"])
         else:
             with transaction.atomic():
                 self.order.resource.set_state_updating()
-                self.order.resource.save(update_fields=['state'])
+                self.order.resource.save(update_fields=["state"])
 
     def send_request(self, user, resource):
         """
@@ -309,21 +309,21 @@ class AbstractDeleteResourceProcessor(BaseOrderProcessor):
     def process_order(self, user):
         resource = self.get_resource()
         if not resource:
-            raise serializers.ValidationError('Resource is not found.')
+            raise serializers.ValidationError("Resource is not found.")
 
         done = self.send_request(user, resource)
 
         if done:
             with transaction.atomic():
                 self.order.resource.set_state_terminated()
-                self.order.resource.save(update_fields=['state'])
+                self.order.resource.save(update_fields=["state"])
 
                 self.order.state = models.Order.States.DONE
-                self.order.save(update_fields=['state'])
+                self.order.save(update_fields=["state"])
         else:
             with transaction.atomic():
                 self.order.resource.set_state_terminating()
-                self.order.resource.save(update_fields=['state'])
+                self.order.resource.save(update_fields=["state"])
 
 
 class DeleteScopedResourceProcessor(AbstractDeleteResourceProcessor):
@@ -336,13 +336,13 @@ class DeleteScopedResourceProcessor(AbstractDeleteResourceProcessor):
         action = self._get_action()
         resource = self.get_resource()
         if not resource:
-            raise serializers.ValidationError('Resource is not found.')
+            raise serializers.ValidationError("Resource is not found.")
         self.get_viewset()().validate_object_action(action, resource)
 
     def send_request(self, user, resource):
         delete_attributes = self.order.attributes
         action = self._get_action()
-        view = self.get_viewset().as_view({'delete': action})
+        view = self.get_viewset().as_view({"delete": action})
         # Delete resource processor operates with scoped resources
 
         response = common_utils.delete_request(
@@ -364,8 +364,8 @@ class DeleteScopedResourceProcessor(AbstractDeleteResourceProcessor):
 
     def _get_action(self):
         delete_attributes = self.order.attributes
-        action = delete_attributes.get('action', 'destroy')
-        return action if hasattr(self.get_viewset(), action) else 'destroy'
+        action = delete_attributes.get("action", "destroy")
+        return action if hasattr(self.get_viewset(), action) else "destroy"
 
 
 class BaseCreateResourceProcessor(CreateResourceProcessor):
@@ -399,15 +399,15 @@ class BaseCreateResourceProcessor(CreateResourceProcessor):
         Use create_serializer_class if it is defined. Otherwise fallback to standard serializer class.
         """
         viewset = self.get_viewset()
-        return getattr(viewset, 'create_serializer_class', None) or getattr(
-            viewset, 'serializer_class'
+        return getattr(viewset, "create_serializer_class", None) or getattr(
+            viewset, "serializer_class"
         )
 
     def get_post_data(self):
         return get_order_post_data(self.order, self.get_fields())
 
     def get_scope_from_response(self, response):
-        return self.get_resource_model().objects.get(uuid=response.data['uuid'])
+        return self.get_resource_model().objects.get(uuid=response.data["uuid"])
 
 
 class BasicCreateResourceProcessor(AbstractCreateResourceProcessor):

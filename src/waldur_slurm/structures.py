@@ -1,7 +1,7 @@
 import collections
 
-Account = collections.namedtuple('Account', ['name', 'description', 'organization'])
-Association = collections.namedtuple('Association', ['account', 'user', 'value'])
+Account = collections.namedtuple("Account", ["name", "description", "organization"])
+Association = collections.namedtuple("Association", ["account", "user", "value"])
 
 
 class Quotas:
@@ -18,11 +18,7 @@ class Quotas:
         )
 
     def __str__(self):
-        return "Quotas: CPU={}, GPU={}, RAM={}".format(
-            self.cpu,
-            self.gpu,
-            self.ram,
-        )
+        return f"Quotas: CPU={self.cpu}, GPU={self.gpu}, RAM={self.ram}"
 
     def __repr__(self) -> str:
         return self.__str__()

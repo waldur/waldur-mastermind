@@ -69,8 +69,8 @@ class PermissionsTest(test.APITransactionTestCase):
         can request them and users without - can't
         """
         for conf in self.get_urls_configs():
-            url, method = conf['url'], conf['method']
-            data = conf['data'] if 'data' in conf else {}
+            url, method = conf["url"], conf["method"]
+            data = conf["data"] if "data" in conf else {}
 
             for user in self.get_users_with_permission(url, method):
                 self.client.force_authenticate(user=user)
@@ -78,8 +78,7 @@ class PermissionsTest(test.APITransactionTestCase):
                 self.assertFalse(
                     response.status_code
                     in (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND),
-                    'Error. User %s can not reach url: %s (method:%s). (Response status code %s, data %s)'
-                    % (user, url, method, response.status_code, response.data),
+                    f"Error. User {user} can not reach url: {url} (method:{method}). (Response status code {response.status_code}, data {response.data})",
                 )
 
             for user in self.get_users_without_permissions(url, method):
@@ -92,8 +91,7 @@ class PermissionsTest(test.APITransactionTestCase):
                 )
                 self.assertTrue(
                     response.status_code in unreachable_statuses,
-                    'Error. User %s can reach url: %s (method:%s). (Response status code %s, data %s)'
-                    % (user, url, method, response.status_code, response.data),
+                    f"Error. User {user} can reach url: {url} (method:{method}). (Response status code {response.status_code}, data {response.data})",
                 )
 
 
@@ -119,16 +117,15 @@ class ListPermissionsTest(test.APITransactionTestCase):
 
     def test_list_permissions(self):
         for user_and_expected_result in self.get_users_and_expected_results():
-            user = user_and_expected_result['user']
-            expected_results = user_and_expected_result['expected_results']
+            user = user_and_expected_result["user"]
+            expected_results = user_and_expected_result["expected_results"]
 
             self.client.force_authenticate(user=user)
             response = self.client.get(self.get_url())
             self.assertEqual(
                 len(expected_results),
                 len(response.data),
-                'User %s receive wrong number of objects. Expected: %s, received %s'
-                % (user, len(expected_results), len(response.data)),
+                f"User {user} receive wrong number of objects. Expected: {len(expected_results)}, received {len(response.data)}",
             )
             for actual, expected in zip(response.data, expected_results):
                 for key, value in expected.items():

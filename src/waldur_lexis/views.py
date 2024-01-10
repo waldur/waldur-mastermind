@@ -14,7 +14,7 @@ from . import executors, filters, models, serializers
 
 class LexisLinkViewSet(core_views.ActionsViewSet):
     queryset = models.LexisLink.objects.all()
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
     serializer_class = serializers.LexisLinkSerializer
     create_serializer_class = serializers.LexisLinkCreateSerializer
     filter_backends = (DjangoFilterBackend,)
@@ -23,13 +23,13 @@ class LexisLinkViewSet(core_views.ActionsViewSet):
     create_permissions = [
         permission_factory(
             PermissionEnum.CREATE_LEXIS_LINK_PERMISSION,
-            ['*', 'robot_account.resource.offering.customer'],
+            ["*", "robot_account.resource.offering.customer"],
         )
     ]
     destroy_permissions = [
         permission_factory(
             PermissionEnum.DELETE_LEXIS_LINK_PERMISSION,
-            ['*', 'robot_account.resource.offering.customer'],
+            ["*", "robot_account.resource.offering.customer"],
         )
     ]
 

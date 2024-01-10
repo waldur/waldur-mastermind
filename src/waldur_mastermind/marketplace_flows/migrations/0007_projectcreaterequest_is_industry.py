@@ -5,13 +5,13 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace_flows', '0006_json_field'),
+        ("marketplace_flows", "0006_json_field"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='projectcreaterequest',
-            name='is_industry',
+            model_name="projectcreaterequest",
+            name="is_industry",
             field=models.BooleanField(default=False),
         ),
     ]

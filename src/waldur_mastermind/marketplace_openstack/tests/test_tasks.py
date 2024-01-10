@@ -31,7 +31,7 @@ class TaskTest(BaseOpenStackTest):
         )
 
 
-@mock.patch('waldur_mastermind.marketplace_openstack.utils.openstack_tenant_backend')
+@mock.patch("waldur_mastermind.marketplace_openstack.utils.openstack_tenant_backend")
 class TaskSyncTenantTest(BaseOpenStackTest):
     def setUp(self):
         super().setUp()
@@ -53,7 +53,7 @@ class TaskSyncTenantTest(BaseOpenStackTest):
 
     def test_sync_instances_if_tenant_has_been_synchronized(self, mock_backend):
         mock_backend.OpenStackTenantBackend().get_importable_instances.return_value = [
-            {'backend_id': self.instance.backend_id}
+            {"backend_id": self.instance.backend_id}
         ]
         mock_backend.OpenStackTenantBackend().get_importable_volumes.return_value = []
         mock_backend.OpenStackTenantBackend().import_instance.return_value = (
@@ -84,7 +84,7 @@ class TaskSyncTenantTest(BaseOpenStackTest):
     def test_sync_volumes_if_tenant_has_been_synchronized(self, mock_backend):
         mock_backend.OpenStackTenantBackend().get_importable_instances.return_value = []
         mock_backend.OpenStackTenantBackend().get_importable_volumes.return_value = [
-            {'backend_id': self.volume.backend_id}
+            {"backend_id": self.volume.backend_id}
         ]
         mock_backend.OpenStackTenantBackend().import_volume.return_value = self.volume
         tasks.sync_instances_and_volumes_of_tenant(

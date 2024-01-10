@@ -21,51 +21,51 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('contenttypes', '0002_remove_content_type_name'),
-        ('quotas', '0001_squashed_0004'),
+        ("contenttypes", "0002_remove_content_type_name"),
+        ("quotas", "0001_squashed_0004"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Customer',
+            name="Customer",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'image',
+                    "image",
                     models.ImageField(
                         blank=True,
                         null=True,
@@ -73,80 +73,80 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 (
-                    'vat_code',
-                    models.CharField(blank=True, help_text='VAT number', max_length=20),
+                    "vat_code",
+                    models.CharField(blank=True, help_text="VAT number", max_length=20),
                 ),
                 (
-                    'vat_name',
+                    "vat_name",
                     models.CharField(
                         blank=True,
-                        help_text='Optional business name retrieved for the VAT number.',
+                        help_text="Optional business name retrieved for the VAT number.",
                         max_length=255,
                     ),
                 ),
                 (
-                    'vat_address',
+                    "vat_address",
                     models.CharField(
                         blank=True,
-                        help_text='Optional business address retrieved for the VAT number.',
+                        help_text="Optional business address retrieved for the VAT number.",
                         max_length=255,
                     ),
                 ),
-                ('country', models.CharField(blank=True, max_length=2)),
+                ("country", models.CharField(blank=True, max_length=2)),
                 (
-                    'native_name',
-                    models.CharField(blank=True, default='', max_length=160),
+                    "native_name",
+                    models.CharField(blank=True, default="", max_length=160),
                 ),
-                ('abbreviation', models.CharField(blank=True, max_length=12)),
+                ("abbreviation", models.CharField(blank=True, max_length=12)),
                 (
-                    'contact_details',
+                    "contact_details",
                     models.TextField(
                         blank=True,
                         validators=[django.core.validators.MaxLengthValidator(500)],
                     ),
                 ),
                 (
-                    'agreement_number',
+                    "agreement_number",
                     models.PositiveIntegerField(blank=True, null=True),
                 ),
                 (
-                    'email',
+                    "email",
                     models.EmailField(
-                        blank=True, max_length=75, verbose_name='email address'
+                        blank=True, max_length=75, verbose_name="email address"
                     ),
                 ),
                 (
-                    'phone_number',
+                    "phone_number",
                     models.CharField(
-                        blank=True, max_length=255, verbose_name='phone number'
+                        blank=True, max_length=255, verbose_name="phone number"
                     ),
                 ),
                 (
-                    'access_subnets',
+                    "access_subnets",
                     models.TextField(
                         blank=True,
-                        default='',
-                        help_text='Enter a comma separated list of IPv4 or IPv6 CIDR addresses from where connection to self-service is allowed.',
+                        default="",
+                        help_text="Enter a comma separated list of IPv4 or IPv6 CIDR addresses from where connection to self-service is allowed.",
                         validators=[waldur_core.core.validators.validate_cidr_list],
                     ),
                 ),
                 (
-                    'registration_code',
-                    models.CharField(blank=True, default='', max_length=160),
+                    "registration_code",
+                    models.CharField(blank=True, default="", max_length=160),
                 ),
-                ('address', models.CharField(blank=True, max_length=300)),
-                ('postal', models.CharField(blank=True, max_length=20)),
-                ('bank_name', models.CharField(blank=True, max_length=150)),
-                ('bank_account', models.CharField(blank=True, max_length=50)),
+                ("address", models.CharField(blank=True, max_length=300)),
+                ("postal", models.CharField(blank=True, max_length=20)),
+                ("bank_name", models.CharField(blank=True, max_length=150)),
+                ("bank_account", models.CharField(blank=True, max_length=50)),
                 (
-                    'accounting_start_date',
+                    "accounting_start_date",
                     models.DateTimeField(
                         default=django.utils.timezone.now,
-                        verbose_name='Start date of accounting',
+                        verbose_name="Start date of accounting",
                     ),
                 ),
                 (
-                    'default_tax_percent',
+                    "default_tax_percent",
                     models.DecimalField(
                         decimal_places=2,
                         default=0,
@@ -157,38 +157,38 @@ class Migration(migrations.Migration):
                         ],
                     ),
                 ),
-                ('homepage', models.URLField(blank=True, max_length=255)),
-                ('domain', models.CharField(blank=True, max_length=255)),
+                ("homepage", models.URLField(blank=True, max_length=255)),
+                ("domain", models.CharField(blank=True, max_length=255)),
                 (
-                    'backend_id',
+                    "backend_id",
                     models.CharField(
                         blank=True,
-                        help_text='Organization identifier in another application.',
+                        help_text="Organization identifier in another application.",
                         max_length=255,
                     ),
                 ),
-                ('blocked', models.BooleanField(default=False)),
-                ('latitude', models.FloatField(blank=True, null=True)),
-                ('longitude', models.FloatField(blank=True, null=True)),
+                ("blocked", models.BooleanField(default=False)),
+                ("latitude", models.FloatField(blank=True, null=True)),
+                ("longitude", models.FloatField(blank=True, null=True)),
                 (
-                    'sponsor_number',
+                    "sponsor_number",
                     models.PositiveIntegerField(
                         blank=True,
-                        help_text='External ID of the sponsor covering the costs',
+                        help_text="External ID of the sponsor covering the costs",
                         null=True,
                     ),
                 ),
                 (
-                    'inet',
+                    "inet",
                     netfields.fields.CidrAddressField(
                         blank=True, max_length=43, null=True
                     ),
                 ),
-                ('archived', models.BooleanField(default=False)),
+                ("archived", models.BooleanField(default=False)),
             ],
             options={
-                'verbose_name': 'organization',
-                'ordering': ('name',),
+                "verbose_name": "organization",
+                "ordering": ("name",),
             },
             bases=(
                 waldur_core.core.models.DescendantMixin,
@@ -198,105 +198,105 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.CreateModel(
-            name='ProjectType',
+            name="ProjectType",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=2000, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name="description"
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
             ],
             options={
-                'ordering': ['name'],
-                'verbose_name': 'Project type',
-                'verbose_name_plural': 'Project types',
+                "ordering": ["name"],
+                "verbose_name": "Project type",
+                "verbose_name_plural": "Project types",
             },
         ),
         migrations.CreateModel(
-            name='ServiceSettings',
+            name="ServiceSettings",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('error_message', models.TextField(blank=True)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("error_message", models.TextField(blank=True)),
                 (
-                    'state',
+                    "state",
                     django_fsm.FSMIntegerField(
                         choices=[
-                            (5, 'Creation Scheduled'),
-                            (6, 'Creating'),
-                            (1, 'Update Scheduled'),
-                            (2, 'Updating'),
-                            (7, 'Deletion Scheduled'),
-                            (8, 'Deleting'),
-                            (3, 'OK'),
-                            (4, 'Erred'),
+                            (5, "Creation Scheduled"),
+                            (6, "Creating"),
+                            (1, "Update Scheduled"),
+                            (2, "Updating"),
+                            (7, "Deletion Scheduled"),
+                            (8, "Deleting"),
+                            (3, "OK"),
+                            (4, "Erred"),
                         ],
                         default=5,
                     ),
                 ),
                 (
-                    'backend_url',
+                    "backend_url",
                     waldur_core.core.fields.BackendURLField(blank=True, null=True),
                 ),
-                ('username', models.CharField(blank=True, max_length=100, null=True)),
-                ('password', models.CharField(blank=True, max_length=100, null=True)),
-                ('domain', models.CharField(blank=True, max_length=200, null=True)),
-                ('token', models.CharField(blank=True, max_length=255, null=True)),
+                ("username", models.CharField(blank=True, max_length=100, null=True)),
+                ("password", models.CharField(blank=True, max_length=100, null=True)),
+                ("domain", models.CharField(blank=True, max_length=200, null=True)),
+                ("token", models.CharField(blank=True, max_length=255, null=True)),
                 (
-                    'certificate',
+                    "certificate",
                     models.FileField(
                         blank=True,
                         null=True,
-                        upload_to='certs',
+                        upload_to="certs",
                         validators=[
                             upload_validator.FileTypeValidator(
-                                allowed_extensions=['pem'],
+                                allowed_extensions=["pem"],
                                 allowed_types=[
-                                    'application/x-pem-file',
-                                    'application/x-x509-ca-cert',
-                                    'text/plain',
+                                    "application/x-pem-file",
+                                    "application/x-x509-ca-cert",
+                                    "text/plain",
                                 ],
                             )
                         ],
                     ),
                 ),
                 (
-                    'type',
+                    "type",
                     models.CharField(
                         db_index=True,
                         max_length=255,
@@ -304,186 +304,186 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 (
-                    'options',
+                    "options",
                     waldur_core.core.fields.JSONField(
-                        blank=True, default=dict, help_text='Extra options'
+                        blank=True, default=dict, help_text="Extra options"
                     ),
                 ),
                 (
-                    'shared',
-                    models.BooleanField(default=False, help_text='Anybody can use it'),
+                    "shared",
+                    models.BooleanField(default=False, help_text="Anybody can use it"),
                 ),
-                ('terms_of_services', models.URLField(blank=True, max_length=255)),
-                ('object_id', models.PositiveIntegerField(null=True)),
+                ("terms_of_services", models.URLField(blank=True, max_length=255)),
+                ("object_id", models.PositiveIntegerField(null=True)),
                 (
-                    'content_type',
+                    "content_type",
                     models.ForeignKey(
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='contenttypes.contenttype',
+                        to="contenttypes.contenttype",
                     ),
                 ),
                 (
-                    'customer',
+                    "customer",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='service_settings',
-                        to='structure.customer',
-                        verbose_name='organization',
+                        related_name="service_settings",
+                        to="structure.customer",
+                        verbose_name="organization",
                     ),
                 ),
-                ('error_traceback', models.TextField(blank=True)),
+                ("error_traceback", models.TextField(blank=True)),
                 (
-                    'is_active',
+                    "is_active",
                     models.BooleanField(
                         default=True,
-                        help_text='Information about inactive service settings will not be updated in the background',
+                        help_text="Information about inactive service settings will not be updated in the background",
                     ),
                 ),
             ],
             options={
-                'verbose_name': 'Service settings',
-                'verbose_name_plural': 'Service settings',
-                'ordering': ('name',),
+                "verbose_name": "Service settings",
+                "verbose_name_plural": "Service settings",
+                "ordering": ("name",),
             },
             bases=(models.Model, waldur_core.logging.loggers.LoggableMixin),
         ),
         migrations.CreateModel(
-            name='Project',
+            name="Project",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=2000, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name="description"
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=500,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'customer',
+                    "customer",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='projects',
-                        to='structure.customer',
-                        verbose_name='organization',
+                        related_name="projects",
+                        to="structure.customer",
+                        verbose_name="organization",
                     ),
                 ),
                 (
-                    'type',
+                    "type",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.PROTECT,
-                        to='structure.projecttype',
-                        verbose_name='project type',
+                        to="structure.projecttype",
+                        verbose_name="project type",
                     ),
                 ),
-                ('is_removed', models.BooleanField(default=False)),
-                ('backend_id', models.CharField(blank=True, max_length=255)),
+                ("is_removed", models.BooleanField(default=False)),
+                ("backend_id", models.CharField(blank=True, max_length=255)),
                 (
-                    'end_date',
+                    "end_date",
                     models.DateField(
                         blank=True,
-                        help_text='The date is inclusive. Once reached, all project resource will be scheduled for termination.',
+                        help_text="The date is inclusive. Once reached, all project resource will be scheduled for termination.",
                         null=True,
                     ),
                 ),
                 (
-                    'oecd_fos_2007_code',
+                    "oecd_fos_2007_code",
                     models.CharField(
                         blank=True,
                         choices=[
-                            ('1.1', 'Mathematics'),
-                            ('1.2', 'Computer and information sciences'),
-                            ('1.3', 'Physical sciences'),
-                            ('1.4', 'Chemical sciences'),
-                            ('1.5', 'Earth and related environmental sciences'),
-                            ('1.6', 'Biological sciences'),
-                            ('1.7', 'Other natural sciences'),
-                            ('2.1', 'Civil engineering'),
+                            ("1.1", "Mathematics"),
+                            ("1.2", "Computer and information sciences"),
+                            ("1.3", "Physical sciences"),
+                            ("1.4", "Chemical sciences"),
+                            ("1.5", "Earth and related environmental sciences"),
+                            ("1.6", "Biological sciences"),
+                            ("1.7", "Other natural sciences"),
+                            ("2.1", "Civil engineering"),
                             (
-                                '2.2',
-                                'Electrical engineering, electronic engineering, information engineering',
+                                "2.2",
+                                "Electrical engineering, electronic engineering, information engineering",
                             ),
-                            ('2.3', 'Mechanical engineering'),
-                            ('2.4', 'Chemical engineering'),
-                            ('2.5', 'Materials engineering'),
-                            ('2.6', 'Medical engineering'),
-                            ('2.7', 'Environmental engineering'),
-                            ('2.8', 'Systems engineering'),
-                            ('2.9', 'Environmental biotechnology'),
-                            ('2.10', 'Industrial biotechnology'),
-                            ('2.11', 'Nano technology'),
-                            ('2.12', 'Other engineering and technologies'),
-                            ('3.1', 'Basic medicine'),
-                            ('3.2', 'Clinical medicine'),
-                            ('3.3', 'Health sciences'),
-                            ('3.4', 'Health biotechnology'),
-                            ('3.5', 'Other medical sciences'),
-                            ('4.1', 'Agriculture, forestry, and fisheries'),
-                            ('4.2', 'Animal and dairy science'),
-                            ('4.3', 'Veterinary science'),
-                            ('4.4', 'Agricultural biotechnology'),
-                            ('4.5', 'Other agricultural sciences'),
-                            ('5.1', 'Psychology'),
-                            ('5.2', 'Economics and business'),
-                            ('5.3', 'Educational sciences'),
-                            ('5.4', 'Sociology'),
-                            ('5.5', 'Law'),
-                            ('5.6', 'Political science'),
-                            ('5.7', 'Social and economic geography'),
-                            ('5.8', 'Media and communications'),
-                            ('5.9', 'Other social sciences'),
-                            ('6.1', 'History and archaeology'),
-                            ('6.2', 'Languages and literature'),
-                            ('6.3', 'Philosophy, ethics and religion'),
+                            ("2.3", "Mechanical engineering"),
+                            ("2.4", "Chemical engineering"),
+                            ("2.5", "Materials engineering"),
+                            ("2.6", "Medical engineering"),
+                            ("2.7", "Environmental engineering"),
+                            ("2.8", "Systems engineering"),
+                            ("2.9", "Environmental biotechnology"),
+                            ("2.10", "Industrial biotechnology"),
+                            ("2.11", "Nano technology"),
+                            ("2.12", "Other engineering and technologies"),
+                            ("3.1", "Basic medicine"),
+                            ("3.2", "Clinical medicine"),
+                            ("3.3", "Health sciences"),
+                            ("3.4", "Health biotechnology"),
+                            ("3.5", "Other medical sciences"),
+                            ("4.1", "Agriculture, forestry, and fisheries"),
+                            ("4.2", "Animal and dairy science"),
+                            ("4.3", "Veterinary science"),
+                            ("4.4", "Agricultural biotechnology"),
+                            ("4.5", "Other agricultural sciences"),
+                            ("5.1", "Psychology"),
+                            ("5.2", "Economics and business"),
+                            ("5.3", "Educational sciences"),
+                            ("5.4", "Sociology"),
+                            ("5.5", "Law"),
+                            ("5.6", "Political science"),
+                            ("5.7", "Social and economic geography"),
+                            ("5.8", "Media and communications"),
+                            ("5.9", "Other social sciences"),
+                            ("6.1", "History and archaeology"),
+                            ("6.2", "Languages and literature"),
+                            ("6.3", "Philosophy, ethics and religion"),
                             (
-                                '6.4',
-                                'Arts (arts, history of arts, performing arts, music)',
+                                "6.4",
+                                "Arts (arts, history of arts, performing arts, music)",
                             ),
-                            ('6.5', 'Other humanities'),
+                            ("6.5", "Other humanities"),
                         ],
                         max_length=80,
                         null=True,
                     ),
                 ),
-                ('is_industry', models.BooleanField(default=False)),
+                ("is_industry", models.BooleanField(default=False)),
                 (
-                    'image',
+                    "image",
                     models.ImageField(
                         blank=True,
                         null=True,
@@ -492,8 +492,8 @@ class Migration(migrations.Migration):
                 ),
             ],
             options={
-                'abstract': False,
-                'base_manager_name': 'objects',
+                "abstract": False,
+                "base_manager_name": "objects",
             },
             bases=(
                 waldur_core.core.models.DescendantMixin,
@@ -503,137 +503,137 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.CreateModel(
-            name='PrivateServiceSettings',
+            name="PrivateServiceSettings",
             fields=[],
             options={
-                'proxy': True,
-                'verbose_name_plural': 'Private provider settings',
-                'indexes': [],
+                "proxy": True,
+                "verbose_name_plural": "Private provider settings",
+                "indexes": [],
             },
-            bases=('structure.servicesettings',),
+            bases=("structure.servicesettings",),
         ),
         migrations.CreateModel(
-            name='SharedServiceSettings',
+            name="SharedServiceSettings",
             fields=[],
             options={
-                'proxy': True,
-                'verbose_name_plural': 'Shared provider settings',
-                'indexes': [],
+                "proxy": True,
+                "verbose_name_plural": "Shared provider settings",
+                "indexes": [],
             },
-            bases=('structure.servicesettings',),
+            bases=("structure.servicesettings",),
         ),
         migrations.CreateModel(
-            name='DivisionType',
+            name="DivisionType",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
             ],
             options={
-                'ordering': ('name',),
-                'verbose_name': 'division type',
+                "ordering": ("name",),
+                "verbose_name": "division type",
             },
         ),
         migrations.CreateModel(
-            name='Division',
+            name="Division",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'parent',
+                    "parent",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='structure.division',
+                        to="structure.division",
                     ),
                 ),
                 (
-                    'type',
+                    "type",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='structure.divisiontype',
+                        to="structure.divisiontype",
                     ),
                 ),
             ],
             options={
-                'ordering': ('name',),
-                'verbose_name': 'division',
+                "ordering": ("name",),
+                "verbose_name": "division",
             },
         ),
         migrations.AddField(
-            model_name='customer',
-            name='division',
+            model_name="customer",
+            name="division",
             field=models.ForeignKey(
                 blank=True,
                 null=True,
                 on_delete=django.db.models.deletion.SET_NULL,
-                to='structure.division',
+                to="structure.division",
             ),
         ),
         migrations.CreateModel(
-            name='CustomerPermissionReview',
+            name="CustomerPermissionReview",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('is_pending', models.BooleanField(default=True)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("is_pending", models.BooleanField(default=True)),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now, editable=False
                     ),
                 ),
-                ('closed', models.DateTimeField(blank=True, null=True)),
+                ("closed", models.DateTimeField(blank=True, null=True)),
                 (
-                    'customer',
+                    "customer",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='reviews',
-                        to='structure.customer',
-                        verbose_name='organization',
+                        related_name="reviews",
+                        to="structure.customer",
+                        verbose_name="organization",
                     ),
                 ),
                 (
-                    'reviewer',
+                    "reviewer",
                     models.ForeignKey(
                         blank=True,
                         null=True,
@@ -644,68 +644,68 @@ class Migration(migrations.Migration):
             ],
         ),
         migrations.AlterModelManagers(
-            name='project',
+            name="project",
             managers=[
-                ('available_objects', django.db.models.manager.Manager()),
-                ('objects', django.db.models.manager.Manager()),
+                ("available_objects", django.db.models.manager.Manager()),
+                ("objects", django.db.models.manager.Manager()),
             ],
         ),
         migrations.CreateModel(
-            name='CustomerPermission',
+            name="CustomerPermission",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now, editable=False
                     ),
                 ),
-                ('expiration_time', models.DateTimeField(blank=True, null=True)),
+                ("expiration_time", models.DateTimeField(blank=True, null=True)),
                 (
-                    'is_active',
+                    "is_active",
                     models.BooleanField(db_index=True, default=True, null=True),
                 ),
                 (
-                    'role',
+                    "role",
                     waldur_core.structure.models.CustomerRole(
                         choices=[
-                            ('owner', 'Owner'),
-                            ('support', 'Support'),
-                            ('service_manager', 'Service manager'),
+                            ("owner", "Owner"),
+                            ("support", "Support"),
+                            ("service_manager", "Service manager"),
                         ],
                         db_index=True,
                         max_length=30,
                     ),
                 ),
                 (
-                    'created_by',
+                    "created_by",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
+                        related_name="+",
                         to=settings.AUTH_USER_MODEL,
                     ),
                 ),
                 (
-                    'customer',
+                    "customer",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='permissions',
-                        to='structure.customer',
-                        verbose_name='organization',
+                        related_name="permissions",
+                        to="structure.customer",
+                        verbose_name="organization",
                     ),
                 ),
                 (
-                    'user',
+                    "user",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
                         to=settings.AUTH_USER_MODEL,
@@ -713,65 +713,65 @@ class Migration(migrations.Migration):
                 ),
             ],
             options={
-                'unique_together': {('customer', 'role', 'user', 'is_active')},
+                "unique_together": {("customer", "role", "user", "is_active")},
             },
         ),
         migrations.CreateModel(
-            name='ProjectPermission',
+            name="ProjectPermission",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now, editable=False
                     ),
                 ),
-                ('expiration_time', models.DateTimeField(blank=True, null=True)),
+                ("expiration_time", models.DateTimeField(blank=True, null=True)),
                 (
-                    'is_active',
+                    "is_active",
                     models.BooleanField(db_index=True, default=True, null=True),
                 ),
                 (
-                    'role',
+                    "role",
                     waldur_core.structure.models.ProjectRole(
                         choices=[
-                            ('admin', 'Administrator'),
-                            ('manager', 'Manager'),
-                            ('member', 'Member'),
+                            ("admin", "Administrator"),
+                            ("manager", "Manager"),
+                            ("member", "Member"),
                         ],
                         db_index=True,
                         max_length=30,
                     ),
                 ),
                 (
-                    'created_by',
+                    "created_by",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
+                        related_name="+",
                         to=settings.AUTH_USER_MODEL,
                     ),
                 ),
                 (
-                    'project',
+                    "project",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='permissions',
-                        to='structure.project',
+                        related_name="permissions",
+                        to="structure.project",
                     ),
                 ),
                 (
-                    'user',
+                    "user",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
                         to=settings.AUTH_USER_MODEL,
@@ -779,45 +779,45 @@ class Migration(migrations.Migration):
                 ),
             ],
             options={
-                'ordering': ['-created'],
-                'unique_together': {('project', 'role', 'user', 'is_active')},
+                "ordering": ["-created"],
+                "unique_together": {("project", "role", "user", "is_active")},
             },
         ),
         migrations.CreateModel(
-            name='UserAgreement',
+            name="UserAgreement",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
-                ('content', models.TextField(blank=True)),
+                ("content", models.TextField(blank=True)),
                 (
-                    'agreement_type',
+                    "agreement_type",
                     models.CharField(
                         choices=[
-                            ('TOS', 'Terms of services'),
-                            ('PP', 'Privacy policy'),
+                            ("TOS", "Terms of services"),
+                            ("PP", "Privacy policy"),
                         ],
                         max_length=5,
                         unique=True,
@@ -825,7 +825,7 @@ class Migration(migrations.Migration):
                 ),
             ],
             options={
-                'ordering': ['created'],
+                "ordering": ["created"],
             },
             bases=(waldur_core.logging.loggers.LoggableMixin, models.Model),
         ),

@@ -13,7 +13,7 @@ class BusySlot(core_models.TimeStampedModel):
     backend_id = models.CharField(max_length=255, null=True, blank=True)
 
     class Permissions:
-        customer_path = 'offering__customer'
+        customer_path = "offering__customer"
 
 
 class BookingSlot(core_models.TimeStampedModel):
@@ -23,11 +23,11 @@ class BookingSlot(core_models.TimeStampedModel):
     backend_id = models.CharField(max_length=255, null=False, blank=False)
 
     class Permissions:
-        customer_path = 'resource__project__customer'
-        project_path = 'resource__project'
+        customer_path = "resource__project__customer"
+        project_path = "resource__project"
 
     def save(self, *args, **kwargs):
         if not self.backend_id:
-            self.backend_id = 'booking_' + uuid.uuid4().hex
+            self.backend_id = "booking_" + uuid.uuid4().hex
 
         super().save(*args, **kwargs)

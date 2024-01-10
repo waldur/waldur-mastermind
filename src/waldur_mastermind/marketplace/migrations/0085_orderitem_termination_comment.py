@@ -5,13 +5,13 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace', '0084_resource_end_date_requested_by'),
+        ("marketplace", "0084_resource_end_date_requested_by"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='orderitem',
-            name='termination_comment',
+            model_name="orderitem",
+            name="termination_comment",
             field=models.CharField(blank=True, max_length=255, null=True),
         ),
     ]

@@ -21,9 +21,9 @@ class Notification:
         """
         if not self.templates:
             self.templates = [
-                NotificationTemplate(self.key + '_subject.txt', self.key),
-                NotificationTemplate(self.key + '_message.txt', self.key),
-                NotificationTemplate(self.key + '_message.html', self.key),
+                NotificationTemplate(self.key + "_subject.txt", self.key),
+                NotificationTemplate(self.key + "_message.txt", self.key),
+                NotificationTemplate(self.key + "_message.html", self.key),
             ]
 
 
@@ -32,18 +32,18 @@ NOTIFICATIONS = dict()
 
 class NotificationSectionMetaclass(type):
     def __new__(self, name, bases, attrs):
-        if 'Meta' in attrs:
+        if "Meta" in attrs:
             section = {
-                attrs['Meta'].key: [],
+                attrs["Meta"].key: [],
             }
             NOTIFICATIONS.update(section)
             for _, notification in attrs.items():
                 if isinstance(notification, Notification):
-                    section[attrs['Meta'].key].append(
+                    section[attrs["Meta"].key].append(
                         {
-                            'path': notification.key,
-                            'description': notification.description,
-                            'templates': notification.templates,
+                            "path": notification.key,
+                            "description": notification.description,
+                            "templates": notification.templates,
                         }
                     )
         return type.__new__(self, name, bases, attrs)
@@ -55,188 +55,188 @@ class NotificationSection(metaclass=NotificationSectionMetaclass):
 
 class StructureSection(NotificationSection):
     class Meta:
-        key = 'structure'
+        key = "structure"
 
     notifications_profile_changes_operator = Notification(
-        'notifications_profile_changes_operator', 'A notification of changing a profile'
+        "notifications_profile_changes_operator", "A notification of changing a profile"
     )
 
     change_email_request = Notification(
-        'change_email_request', 'A notification of an email change request'
+        "change_email_request", "A notification of an email change request"
     )
 
     structure_role_granted = Notification(
-        'structure_role_granted', 'A notification of a granted role'
+        "structure_role_granted", "A notification of a granted role"
     )
 
 
 class UserSection(NotificationSection):
     class Meta:
-        key = 'users'
+        key = "users"
 
     invitation_created = Notification(
-        'invitation_created', 'A notification of invitation creation'
+        "invitation_created", "A notification of invitation creation"
     )
 
     invitation_requested = Notification(
-        'invitation_requested', 'A notification of invitation request'
+        "invitation_requested", "A notification of invitation request"
     )
 
     invitation_rejected = Notification(
-        'invitation_rejected', 'A notification of invitation rejection'
+        "invitation_rejected", "A notification of invitation rejection"
     )
 
     invitation_approved = Notification(
-        'invitation_approved', 'A notification of invitation approval'
+        "invitation_approved", "A notification of invitation approval"
     )
 
     invitation_expired = Notification(
-        'invitation_expired', 'A notification of expired invitation'
+        "invitation_expired", "A notification of expired invitation"
     )
 
     permission_request_submitted = Notification(
-        'permission_request_submitted',
-        'A notification of a submitted invitation request',
+        "permission_request_submitted",
+        "A notification of a submitted invitation request",
     )
 
 
 class BookingSection(NotificationSection):
     class Meta:
-        key = 'booking'
+        key = "booking"
 
     notification = Notification(
-        'notification', 'A notification about upcoming bookings'
+        "notification", "A notification about upcoming bookings"
     )
 
 
 class InvoiceSection(NotificationSection):
     class Meta:
-        key = 'invoices'
+        key = "invoices"
 
     upcoming_ends_notification = Notification(
-        'upcoming_ends_notification', 'A notification about upcoming ends'
+        "upcoming_ends_notification", "A notification about upcoming ends"
     )
-    notification = Notification('notification', 'A notification of invoice')
+    notification = Notification("notification", "A notification of invoice")
 
 
 class MarketplaceSection(NotificationSection):
     class Meta:
-        key = 'marketplace'
+        key = "marketplace"
 
     notify_consumer_about_pending_order = Notification(
-        'notify_consumer_about_pending_order',
-        'A notification for consumer about pending order',
+        "notify_consumer_about_pending_order",
+        "A notification for consumer about pending order",
     )
 
     notify_provider_about_pending_order = Notification(
-        'notify_provider_about_pending_order',
-        'A notification for provider about pending order',
+        "notify_provider_about_pending_order",
+        "A notification for provider about pending order",
     )
 
     notification_usages = Notification(
-        'notification_usages', 'A notification about usages'
+        "notification_usages", "A notification about usages"
     )
 
     notification_about_stale_resources = Notification(
-        'notification_about_stale_resources', 'A notification about stale resources'
+        "notification_about_stale_resources", "A notification about stale resources"
     )
 
     marketplace_resource_termination_scheduled_staff = Notification(
-        'marketplace_resource_termination_scheduled_staff',
-        'A notification of a resource termination',
+        "marketplace_resource_termination_scheduled_staff",
+        "A notification of a resource termination",
     )
 
     marketplace_resource_update_succeeded = Notification(
-        'marketplace_resource_update_succeeded',
-        'A notification of a successful resource update',
+        "marketplace_resource_update_succeeded",
+        "A notification of a successful resource update",
     )
 
     marketplace_resource_update_limits_succeeded = Notification(
-        'marketplace_resource_update_limits_succeeded',
-        'A notification of a successful resource limit update',
+        "marketplace_resource_update_limits_succeeded",
+        "A notification of a successful resource limit update",
     )
 
     marketplace_resource_create_succeeded = Notification(
-        'marketplace_resource_create_succeeded',
-        'A notification of a successful resource creation',
+        "marketplace_resource_create_succeeded",
+        "A notification of a successful resource creation",
     )
 
     marketplace_resource_termination_scheduled = Notification(
-        'marketplace_resource_termination_scheduled',
-        'A notification of a scheduled resource termination',
+        "marketplace_resource_termination_scheduled",
+        "A notification of a scheduled resource termination",
     )
 
     notification_about_project_ending = Notification(
-        'notification_about_project_ending', 'A notification about project ending'
+        "notification_about_project_ending", "A notification about project ending"
     )
 
     marketplace_resource_update_limits_failed = Notification(
-        'marketplace_resource_update_limits_failed',
-        'A notification of failed resource limits update',
+        "marketplace_resource_update_limits_failed",
+        "A notification of failed resource limits update",
     )
 
     marketplace_resource_update_failed = Notification(
-        'marketplace_resource_update_failed', 'A notification of failed resource update'
+        "marketplace_resource_update_failed", "A notification of failed resource update"
     )
 
     marketplace_resource_create_failed = Notification(
-        'marketplace_resource_create_failed',
-        'A notification of a failed resource creation',
+        "marketplace_resource_create_failed",
+        "A notification of a failed resource creation",
     )
 
     marketplace_resource_terminate_succeeded = Notification(
-        'marketplace_resource_terminate_succeeded',
-        'A notification of a successful resource termination',
+        "marketplace_resource_terminate_succeeded",
+        "A notification of a successful resource termination",
     )
 
     marketplace_resource_terminate_failed = Notification(
-        'marketplace_resource_terminate_failed',
-        'A notification of a failed resource termination',
+        "marketplace_resource_terminate_failed",
+        "A notification of a failed resource termination",
     )
 
 
 class MarketplaceFlowsSection(NotificationSection):
     class Meta:
-        key = 'marketplace_flows'
+        key = "marketplace_flows"
 
     flow_submitted = Notification(
-        'flow_submitted', 'A notification for a submitted marketplace flow'
+        "flow_submitted", "A notification for a submitted marketplace flow"
     )
 
     flow_rejected = Notification(
-        'flow_rejected', 'A notification for a rejected marketplace flow'
+        "flow_rejected", "A notification for a rejected marketplace flow"
     )
 
 
 class RancherSection(NotificationSection):
     class Meta:
-        key = 'rancher'
+        key = "rancher"
 
     notification_create_user = Notification(
-        'notification_create_user', 'A notification for created rancher user'
+        "notification_create_user", "A notification for created rancher user"
     )
 
 
 class MarketplaceRemoteSection(NotificationSection):
     class Meta:
-        key = 'marketplace_remote'
+        key = "marketplace_remote"
 
     notification_about_pending_project_updates = Notification(
-        'notification_about_pending_project_updates',
-        'A notification about pending project updates',
+        "notification_about_pending_project_updates",
+        "A notification about pending project updates",
     )
 
     notification_about_project_details_update = Notification(
-        'notification_about_project_details_update',
-        'A notification about project details update',
+        "notification_about_project_details_update",
+        "A notification about project details update",
     )
 
 
 class PolicySection(NotificationSection):
     class Meta:
-        key = 'marketplace_policy'
+        key = "marketplace_policy"
 
     notification_project_cost_limit = Notification(
-        'notification_about_project_cost_exceeded_limit',
-        'Notification about project cost exceeded limit.',
+        "notification_about_project_cost_exceeded_limit",
+        "Notification about project cost exceeded limit.",
     )

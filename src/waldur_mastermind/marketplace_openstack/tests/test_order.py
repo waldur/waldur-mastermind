@@ -43,7 +43,7 @@ class TenantGetTest(test.APITransactionTestCase):
         self.order = marketplace_factories.OrderFactory(
             project=self.fixture.project,
             offering=self.offering,
-            attributes=dict(user_username='admin', user_userpassword='secret'),
+            attributes=dict(user_username="admin", user_userpassword="secret"),
         )
 
     def get_order(self):
@@ -54,12 +54,12 @@ class TenantGetTest(test.APITransactionTestCase):
     @override_openstack_settings(TENANT_CREDENTIALS_VISIBLE=True)
     def test_secret_attributes_are_rendered(self):
         response = self.get_order()
-        self.assertTrue('user_username' in response.data['attributes'])
+        self.assertTrue("user_username" in response.data["attributes"])
 
     @override_openstack_settings(TENANT_CREDENTIALS_VISIBLE=False)
     def test_secret_attributes_are_not_rendered(self):
         response = self.get_order()
-        self.assertFalse('user_username' in response.data['attributes'])
+        self.assertFalse("user_username" in response.data["attributes"])
 
 
 @ddt
@@ -71,11 +71,11 @@ class TenantCreateTest(BaseOpenStackTest):
             scope=self.fixture.openstack_service_settings,
             type=TENANT_TYPE,
             state=marketplace_models.Offering.States.ACTIVE,
-            plugin_options={'storage_mode': STORAGE_MODE_DYNAMIC},
+            plugin_options={"storage_mode": STORAGE_MODE_DYNAMIC},
         )
         self.plan = marketplace_factories.PlanFactory(offering=self.offering)
 
-    @data('staff', 'owner', 'manager', 'admin')
+    @data("staff", "owner", "manager", "admin")
     def test_order_is_created(self, user):
         response = self.create_order(user=user)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
@@ -84,12 +84,12 @@ class TenantCreateTest(BaseOpenStackTest):
     def test_mandatory_attributes_are_checked(self):
         response = self.create_order(dict(user_username=None))
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertTrue('user_username' in response.data)
+        self.assertTrue("user_username" in response.data)
 
     def test_limits_are_not_checked_if_offering_components_limits_are_not_defined(self):
         create_offering_components(self.offering)
         response = self.create_order(
-            limits={'cores': 2, 'ram': 1024 * 10, 'storage': 1024 * 1024 * 10}
+            limits={"cores": 2, "ram": 1024 * 10, "storage": 1024 * 1024 * 10}
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -102,7 +102,7 @@ class TenantCreateTest(BaseOpenStackTest):
         )
 
         response = self.create_order(
-            limits={'cores': 20, 'ram': 1024 * 100, 'storage': 1024 * 1024 * 100}
+            limits={"cores": 20, "ram": 1024 * 100, "storage": 1024 * 1024 * 100}
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -116,7 +116,7 @@ class TenantCreateTest(BaseOpenStackTest):
         self.offering.components.filter(type=CORES_TYPE).update(max_available_limit=35)
 
         response = self.create_order(
-            limits={'cores': 40, 'ram': 1024 * 5, 'storage': 1024 * 1024 * 5}
+            limits={"cores": 40, "ram": 1024 * 5, "storage": 1024 * 1024 * 5}
         )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -136,11 +136,11 @@ class TenantCreateTest(BaseOpenStackTest):
         self.create_plan_component(STORAGE_TYPE, 0.1)
 
         response = self.create_order(
-            limits={'cores': 20, 'ram': 1024 * 100, 'storage': 1024 * 10000}
+            limits={"cores": 20, "ram": 1024 * 100, "storage": 1024 * 10000}
         )
         expected = 20 * 1 + 100 * 0.5 + 10000 * 0.1
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
-        self.assertEqual(float(response.data['cost']), expected)
+        self.assertEqual(float(response.data["cost"]), expected)
 
     def test_cost_estimate_is_calculated_using_dynamic_storage(self):
         create_offering_components(self.offering)
@@ -149,20 +149,20 @@ class TenantCreateTest(BaseOpenStackTest):
         self.create_plan_component(RAM_TYPE, 0.5)
         marketplace_models.OfferingComponent.objects.create(
             offering=self.offering,
-            type='gigabytes_llvm',
+            type="gigabytes_llvm",
             billing_type=marketplace_models.OfferingComponent.BillingTypes.LIMIT,
         )
-        self.create_plan_component('gigabytes_llvm', 0.1)
+        self.create_plan_component("gigabytes_llvm", 0.1)
 
         response = self.create_order(
-            limits={'cores': 20, 'ram': 1024 * 100, 'gigabytes_llvm': 10000}
+            limits={"cores": 20, "ram": 1024 * 100, "gigabytes_llvm": 10000}
         )
 
         expected = 20 * 1 + 100 * 0.5 + 10000 * 0.1
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(float(response.data['cost']), expected)
+        self.assertEqual(float(response.data["cost"]), expected)
 
-    def create_order(self, add_attributes=None, user='staff', limits=None):
+    def create_order(self, add_attributes=None, user="staff", limits=None):
         project_url = structure_factories.ProjectFactory.get_url(self.fixture.project)
         offering_url = marketplace_factories.OfferingFactory.get_public_url(
             self.offering
@@ -170,21 +170,21 @@ class TenantCreateTest(BaseOpenStackTest):
         plan_url = marketplace_factories.PlanFactory.get_public_url(self.plan)
 
         attributes = dict(
-            name='My first VPC',
-            description='Database cluster',
-            user_username='admin_user',
+            name="My first VPC",
+            description="Database cluster",
+            user_username="admin_user",
         )
         if add_attributes:
             attributes.update(add_attributes)
 
         payload = {
-            'project': project_url,
-            'offering': offering_url,
-            'plan': plan_url,
-            'attributes': attributes,
+            "project": project_url,
+            "offering": offering_url,
+            "plan": plan_url,
+            "attributes": attributes,
         }
         if limits:
-            payload['limits'] = limits
+            payload["limits"] = limits
 
         self.client.force_login(getattr(self.fixture, user))
         url = marketplace_factories.OrderFactory.get_list_url()
@@ -193,9 +193,9 @@ class TenantCreateTest(BaseOpenStackTest):
     def test_when_order_is_approved_openstack_tenant_is_created(self):
         # Arrange
         attributes = dict(
-            name='My first VPC',
-            description='Database cluster',
-            user_username='admin_user',
+            name="My first VPC",
+            description="Database cluster",
+            user_username="admin_user",
         )
         order = marketplace_factories.OrderFactory(
             project=self.fixture.project,
@@ -244,40 +244,40 @@ class TenantCreateTest(BaseOpenStackTest):
 
         marketplace_models.OfferingComponent.objects.create(
             offering=self.offering,
-            type='gigabytes_llvm',
+            type="gigabytes_llvm",
             billing_type=marketplace_models.OfferingComponent.BillingTypes.LIMIT,
         )
 
         response = self.create_order(
-            limits={'cores': 2, 'ram': 1024 * 10, 'gigabytes_llvm': 10}
+            limits={"cores": 2, "ram": 1024 * 10, "gigabytes_llvm": 10}
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-        order = marketplace_models.Order.objects.get(uuid=response.data['uuid'])
+        order = marketplace_models.Order.objects.get(uuid=response.data["uuid"])
         marketplace_utils.process_order(order, self.fixture.staff)
 
         tenant: openstack_models.Tenant = order.resource.scope
-        self.assertEqual(tenant.get_quota_limit('gigabytes_llvm'), 10)
+        self.assertEqual(tenant.get_quota_limit("gigabytes_llvm"), 10)
 
     def test_volume_type_limits_are_initialized_with_zero_by_default(self):
         create_offering_components(self.offering)
 
-        openstack_factories.VolumeTypeFactory(settings=self.offering.scope, name='llvm')
-        openstack_factories.VolumeTypeFactory(settings=self.offering.scope, name='ssd')
-        openstack_factories.VolumeTypeFactory(settings=self.offering.scope, name='rbd')
+        openstack_factories.VolumeTypeFactory(settings=self.offering.scope, name="llvm")
+        openstack_factories.VolumeTypeFactory(settings=self.offering.scope, name="ssd")
+        openstack_factories.VolumeTypeFactory(settings=self.offering.scope, name="rbd")
 
         response = self.create_order(
-            limits={'cores': 2, 'ram': 1024 * 10, 'gigabytes_llvm': 10}
+            limits={"cores": 2, "ram": 1024 * 10, "gigabytes_llvm": 10}
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-        order = marketplace_models.Order.objects.get(uuid=response.data['uuid'])
+        order = marketplace_models.Order.objects.get(uuid=response.data["uuid"])
         marketplace_utils.process_order(order, self.fixture.staff)
 
         tenant: openstack_models.Tenant = order.resource.scope
-        self.assertEqual(tenant.get_quota_limit('gigabytes_llvm'), 10)
-        self.assertEqual(tenant.get_quota_limit('gigabytes_ssd'), 0)
-        self.assertEqual(tenant.get_quota_limit('gigabytes_rbd'), 0)
+        self.assertEqual(tenant.get_quota_limit("gigabytes_llvm"), 10)
+        self.assertEqual(tenant.get_quota_limit("gigabytes_ssd"), 0)
+        self.assertEqual(tenant.get_quota_limit("gigabytes_rbd"), 0)
 
 
 class TenantMutateTest(test.APITransactionTestCase):
@@ -346,7 +346,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
         self.assertEqual(order.state, marketplace_models.Order.States.EXECUTING)
         self.assertTrue(
             openstack_tenant_models.Instance.objects.filter(
-                name='virtual-machine'
+                name="virtual-machine"
             ).exists()
         )
 
@@ -410,12 +410,12 @@ class InstanceCreateTest(test.APITransactionTestCase):
             self.fixture.subnet
         )
         attributes = {
-            'flavor': openstack_tenant_factories.FlavorFactory.get_url(flavor),
-            'image': openstack_tenant_factories.ImageFactory.get_url(image),
-            'name': 'virtual-machine',
-            'system_volume_size': image.min_disk,
-            'internal_ips_set': [{'subnet': subnet_url}],
-            'ssh_public_key': structure_factories.SshPublicKeyFactory.get_url(
+            "flavor": openstack_tenant_factories.FlavorFactory.get_url(flavor),
+            "image": openstack_tenant_factories.ImageFactory.get_url(image),
+            "name": "virtual-machine",
+            "system_volume_size": image.min_disk,
+            "internal_ips_set": [{"subnet": subnet_url}],
+            "ssh_public_key": structure_factories.SshPublicKeyFactory.get_url(
                 structure_factories.SshPublicKeyFactory(user=self.fixture.manager)
             ),
         }
@@ -458,7 +458,7 @@ class InstanceDeleteTest(test.APITransactionTestCase):
     def test_order_is_valid(self):
         self.resource.scope = None
         self.resource.save()
-        url = marketplace_factories.OrderFactory.get_url(self.order, 'terminate')
+        url = marketplace_factories.OrderFactory.get_url(self.order, "terminate")
         request = test.APIRequestFactory().post(url)
         request.user = self.fixture.user
         self.assertRaises(
@@ -476,23 +476,23 @@ class InstanceDeleteTest(test.APITransactionTestCase):
             openstack_tenant_models.Instance.States.DELETION_SCHEDULED,
         )
 
-    @mock.patch('waldur_openstack.openstack_tenant.views.executors')
+    @mock.patch("waldur_openstack.openstack_tenant.views.executors")
     def test_cancel_of_volume_deleting(self, mock_executors):
-        self.order.attributes = {'delete_volumes': False}
+        self.order.attributes = {"delete_volumes": False}
         self.order.save()
         self.trigger_deletion()
         self.assertFalse(
-            mock_executors.InstanceDeleteExecutor.execute.call_args[1]['delete_volumes']
+            mock_executors.InstanceDeleteExecutor.execute.call_args[1]["delete_volumes"]
         )
 
-    @mock.patch('waldur_openstack.openstack_tenant.views.executors')
+    @mock.patch("waldur_openstack.openstack_tenant.views.executors")
     def test_cancel_of_floating_ips_deleting(self, mock_executors):
-        self.order.attributes = {'release_floating_ips': False}
+        self.order.attributes = {"release_floating_ips": False}
         self.order.save()
         self.trigger_deletion()
         self.assertFalse(
             mock_executors.InstanceDeleteExecutor.execute.call_args[1][
-                'release_floating_ips'
+                "release_floating_ips"
             ]
         )
 
@@ -514,7 +514,7 @@ class InstanceDeleteTest(test.APITransactionTestCase):
             openstack_tenant_models.Instance.RuntimeStates.ACTIVE
         )
         self.instance.save()
-        self.order.attributes = {'action': 'force_destroy'}
+        self.order.attributes = {"action": "force_destroy"}
         self.order.save()
         self.trigger_deletion()
         self.assertEqual(self.order.state, marketplace_models.Order.States.EXECUTING)
@@ -532,21 +532,21 @@ class InstanceDeleteTest(test.APITransactionTestCase):
         self.order.state = marketplace_models.Order.States.DONE
         self.order.save()
         openstack_tenant_factories.BackupFactory(instance=self.instance)
-        url = marketplace_factories.ResourceFactory.get_url(self.resource, 'terminate')
+        url = marketplace_factories.ResourceFactory.get_url(self.resource, "terminate")
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(
             url,
             {
-                'attributes': {
-                    'action': 'force_destroy',
-                    'delete_volumes': True,
-                    'release_floating_ips': True,
+                "attributes": {
+                    "action": "force_destroy",
+                    "delete_volumes": True,
+                    "release_floating_ips": True,
                 }
             },
         )
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
         self.assertTrue(
-            b'Cannot delete instance that has backups' in response.rendered_content
+            b"Cannot delete instance that has backups" in response.rendered_content
         )
 
     def test_cannot_delete_instance_that_has_snapshots(self):
@@ -559,21 +559,21 @@ class InstanceDeleteTest(test.APITransactionTestCase):
             project=self.instance.project,
             source_volume=self.instance.volumes.first(),
         )
-        url = marketplace_factories.ResourceFactory.get_url(self.resource, 'terminate')
+        url = marketplace_factories.ResourceFactory.get_url(self.resource, "terminate")
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(
             url,
             {
-                'attributes': {
-                    'action': 'force_destroy',
-                    'delete_volumes': True,
-                    'release_floating_ips': True,
+                "attributes": {
+                    "action": "force_destroy",
+                    "delete_volumes": True,
+                    "release_floating_ips": True,
                 }
             },
         )
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
         self.assertTrue(
-            b'Cannot delete instance that has snapshots' in response.rendered_content
+            b"Cannot delete instance that has snapshots" in response.rendered_content
         )
 
     def test_termination_should_not_be_triggered_if_termination_is_already_in_progress(
@@ -583,15 +583,15 @@ class InstanceDeleteTest(test.APITransactionTestCase):
         self.resource.save()
         self.order.state = marketplace_models.Order.States.DONE
         self.order.save()
-        url = marketplace_factories.ResourceFactory.get_url(self.resource, 'terminate')
+        url = marketplace_factories.ResourceFactory.get_url(self.resource, "terminate")
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(
             url,
             {
-                'attributes': {
-                    'action': 'force_destroy',
-                    'delete_volumes': True,
-                    'release_floating_ips': True,
+                "attributes": {
+                    "action": "force_destroy",
+                    "delete_volumes": True,
+                    "release_floating_ips": True,
                 }
             },
         )
@@ -599,16 +599,16 @@ class InstanceDeleteTest(test.APITransactionTestCase):
         response = self.client.post(
             url,
             {
-                'attributes': {
-                    'action': 'force_destroy',
-                    'delete_volumes': True,
-                    'release_floating_ips': True,
+                "attributes": {
+                    "action": "force_destroy",
+                    "delete_volumes": True,
+                    "release_floating_ips": True,
                 }
             },
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertTrue(
-            b'Pending order for resource already exists.' in response.rendered_content
+            b"Pending order for resource already exists." in response.rendered_content
         )
 
     def trigger_deletion(self):
@@ -628,7 +628,7 @@ class VolumeCreateTest(test.APITransactionTestCase):
         order = self.trigger_volume_creation()
         self.assertEqual(order.state, marketplace_models.Order.States.EXECUTING)
         self.assertTrue(
-            openstack_tenant_models.Volume.objects.filter(name='Volume').exists()
+            openstack_tenant_models.Volume.objects.filter(name="Volume").exists()
         )
 
     def test_availability_zone_is_passed_to_plugin(self):
@@ -664,9 +664,9 @@ class VolumeCreateTest(test.APITransactionTestCase):
         )
 
         attributes = {
-            'image': openstack_tenant_factories.ImageFactory.get_url(image),
-            'name': 'Volume',
-            'size': 10 * 1024,
+            "image": openstack_tenant_factories.ImageFactory.get_url(image),
+            "name": "Volume",
+            "size": 10 * 1024,
         }
         attributes.update(kwargs)
 
@@ -691,7 +691,7 @@ class VolumeDeleteTest(test.APITransactionTestCase):
         self.fixture = openstack_tenant_fixtures.OpenStackTenantFixture()
 
         self.volume = self.fixture.volume
-        self.volume.runtime_state = 'available'
+        self.volume.runtime_state = "available"
         self.volume.save()
 
         self.offering = marketplace_factories.OfferingFactory(type=VOLUME_TYPE)
@@ -753,17 +753,17 @@ class TenantUpdateLimitTestBase(test.APITransactionTestCase):
         self.resource.scope = tenant
         self.resource.save()
         self.quotas = {
-            'network_count': 100,
-            'cores': 4,
-            'ram': 1024,
-            'storage': 1024,
-            'snapshots': 50,
-            'instances': 30,
-            'floating_ip_count': 50,
-            'subnet_count': 100,
-            'volumes': 50,
-            'security_group_rule_count': 100,
-            'security_group_count': 100,
+            "network_count": 100,
+            "cores": 4,
+            "ram": 1024,
+            "storage": 1024,
+            "snapshots": 50,
+            "instances": 30,
+            "floating_ip_count": 50,
+            "subnet_count": 100,
+            "volumes": 50,
+            "security_group_rule_count": 100,
+            "security_group_count": 100,
         }
 
 
@@ -776,7 +776,7 @@ class TenantUpdateLimitTest(TenantUpdateLimitTestBase):
             plan=self.resource.plan,
             offering=self.offering,
             limits=self.quotas,
-            attributes={'old_limits': self.resource.limits},
+            attributes={"old_limits": self.resource.limits},
             state=marketplace_models.Order.States.EXECUTING,
         )
 
@@ -797,40 +797,40 @@ class TenantUpdateLimitTest(TenantUpdateLimitTestBase):
 
     def test_resource_limits_have_been_not_updated_if_backend_raises_exception(self):
         self.mock_get_backend().push_tenant_quotas = mock.Mock(
-            side_effect=Exception('foo')
+            side_effect=Exception("foo")
         )
         marketplace_utils.process_order(self.order, self.fixture.staff)
         self.resource.refresh_from_db()
         self.assertEqual(self.resource.limits, {})
         self.order.refresh_from_db()
         self.assertEqual(self.order.state, marketplace_models.Order.States.ERRED)
-        self.assertEqual(self.order.error_message, 'foo')
+        self.assertEqual(self.order.error_message, "foo")
 
     def test_volume_type_quotas_are_propagated(self):
-        del self.quotas['storage']
-        self.quotas['gigabytes_lvmdriver-1'] = 10
-        self.quotas['gigabytes_backup'] = 30
+        del self.quotas["storage"]
+        self.quotas["gigabytes_lvmdriver-1"] = 10
+        self.quotas["gigabytes_backup"] = 30
         marketplace_utils.process_order(self.order, self.fixture.staff)
         _, quotas = self.mock_get_backend().push_tenant_quotas.call_args[0]
-        self.assertTrue('gigabytes_lvmdriver-1' in quotas)
-        self.assertEqual(quotas['storage'], 40 * 1024)
+        self.assertTrue("gigabytes_lvmdriver-1" in quotas)
+        self.assertEqual(quotas["storage"], 40 * 1024)
 
 
 class TenantUpdateLimitValidationTest(TenantUpdateLimitTestBase):
     def setUp(self):
         super().setUp()
         create_offering_components(self.offering)
-        self.offering.components.filter(type='cores').update(
+        self.offering.components.filter(type="cores").update(
             max_value=20,
             min_value=2,
         )
 
     def update_limits(self, user, resource, limits=None):
-        defaults = {'cores': 10, 'ram': 10240, 'storage': 102400}
+        defaults = {"cores": 10, "ram": 10240, "storage": 102400}
         defaults.update(limits or {})
         self.client.force_authenticate(user)
-        url = marketplace_factories.ResourceFactory.get_url(resource, 'update_limits')
-        payload = {'limits': defaults}
+        url = marketplace_factories.ResourceFactory.get_url(resource, "update_limits")
+        payload = {"limits": defaults}
         return self.client.post(url, payload)
 
     def test_validation_if_requested_available_limits(self):
@@ -838,7 +838,7 @@ class TenantUpdateLimitValidationTest(TenantUpdateLimitTestBase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_validation_if_requested_unavailable_limits(self):
-        response = self.update_limits(self.fixture.staff, self.resource, {'foo': 1})
+        response = self.update_limits(self.fixture.staff, self.resource, {"foo": 1})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_validation_if_value_limit_in_confines(self):
@@ -846,9 +846,9 @@ class TenantUpdateLimitValidationTest(TenantUpdateLimitTestBase):
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
     def test_validation_if_value_limit_more_max(self):
-        response = self.update_limits(self.fixture.staff, self.resource, {'cores': 30})
+        response = self.update_limits(self.fixture.staff, self.resource, {"cores": 30})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_validation_if_value_limit_less_min(self):
-        response = self.update_limits(self.fixture.staff, self.resource, {'cores': 1})
+        response = self.update_limits(self.fixture.staff, self.resource, {"cores": 1})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

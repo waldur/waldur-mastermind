@@ -4,16 +4,16 @@ from django.db import migrations
 
 
 def fill_openstack_component_limit_period(apps, schema_editor):
-    OfferingComponent = apps.get_model('marketplace', 'OfferingComponent')
+    OfferingComponent = apps.get_model("marketplace", "OfferingComponent")
     # set limit_period for all existing components
     OfferingComponent.objects.filter(
-        billing_type='limit', offering__type='OpenStack.Admin'
-    ).update(limit_period='month')
+        billing_type="limit", offering__type="OpenStack.Admin"
+    ).update(limit_period="month")
 
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace_openstack', '0015_fix_limits'),
+        ("marketplace_openstack", "0015_fix_limits"),
     ]
 
     operations = [migrations.RunPython(fill_openstack_component_limit_period)]

@@ -13,129 +13,129 @@ import waldur_core.core.fields
 class Migration(migrations.Migration):
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('proposal', '0005_proposal_state'),
+        ("proposal", "0005_proposal_state"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='call',
-            name='created_by',
+            model_name="call",
+            name="created_by",
             field=models.ForeignKey(
                 null=True,
                 on_delete=django.db.models.deletion.PROTECT,
-                related_name='+',
+                related_name="+",
                 to=settings.AUTH_USER_MODEL,
             ),
         ),
         migrations.CreateModel(
-            name='CallReviewer',
+            name="CallReviewer",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'call',
+                    "call",
                     models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE, to='proposal.call'
+                        on_delete=django.db.models.deletion.CASCADE, to="proposal.call"
                     ),
                 ),
                 (
-                    'created_by',
+                    "created_by",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
+                        related_name="+",
                         to=settings.AUTH_USER_MODEL,
                     ),
                 ),
                 (
-                    'user',
+                    "user",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
+                        related_name="+",
                         to=settings.AUTH_USER_MODEL,
                     ),
                 ),
             ],
             options={
-                'unique_together': {('user', 'call')},
+                "unique_together": {("user", "call")},
             },
         ),
         migrations.AddField(
-            model_name='call',
-            name='reviewers',
+            model_name="call",
+            name="reviewers",
             field=models.ManyToManyField(
-                through='proposal.CallReviewer', to=settings.AUTH_USER_MODEL
+                through="proposal.CallReviewer", to=settings.AUTH_USER_MODEL
             ),
         ),
         migrations.AddField(
-            model_name='review',
-            name='reviewer',
+            model_name="review",
+            name="reviewer",
             field=models.ForeignKey(
                 default=1,
                 on_delete=django.db.models.deletion.CASCADE,
-                to='proposal.callreviewer',
+                to="proposal.callreviewer",
             ),
             preserve_default=False,
         ),
         migrations.RemoveField(
-            model_name='review',
-            name='points',
+            model_name="review",
+            name="points",
         ),
         migrations.RemoveField(
-            model_name='review',
-            name='type',
+            model_name="review",
+            name="type",
         ),
         migrations.RemoveField(
-            model_name='review',
-            name='version',
+            model_name="review",
+            name="version",
         ),
         migrations.AddField(
-            model_name='review',
-            name='summary_private_comment',
+            model_name="review",
+            name="summary_private_comment",
             field=models.TextField(blank=True),
         ),
         migrations.AddField(
-            model_name='review',
-            name='summary_public_comment',
+            model_name="review",
+            name="summary_public_comment",
             field=models.TextField(blank=True),
         ),
         migrations.AddField(
-            model_name='review',
-            name='summary_score',
+            model_name="review",
+            name="summary_score",
             field=models.PositiveSmallIntegerField(blank=True, default=0),
         ),
         migrations.AlterField(
-            model_name='review',
-            name='state',
+            model_name="review",
+            name="state",
             field=django_fsm.FSMIntegerField(
                 choices=[
-                    (1, 'Created'),
-                    (2, 'In review'),
-                    (3, 'Submitted'),
-                    (4, 'Rejected'),
+                    (1, "Created"),
+                    (2, "In review"),
+                    (3, "Submitted"),
+                    (4, "Rejected"),
                 ],
                 default=1,
             ),

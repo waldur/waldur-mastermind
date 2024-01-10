@@ -13,9 +13,9 @@ class MarketplaceOpenStackFixture(OpenStackFixture):
             type=openstack_tenant_apps.OpenStackTenantConfig.service_name,
             scope=self.openstack_tenant,
             options={
-                'availability_zone': self.openstack_tenant.availability_zone,
-                'tenant_id': self.openstack_tenant.backend_id,
-                'external_network_id': self.openstack_tenant.external_network_id,
-                'internal_network_id': self.openstack_tenant.internal_network_id,
+                "availability_zone": self.openstack_tenant.availability_zone,
+                "tenant_id": self.openstack_tenant.backend_id,
+                "external_network_id": self.openstack_tenant.external_network_id,
+                "internal_network_id": self.openstack_tenant.internal_network_id,
             },
         )

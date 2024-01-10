@@ -11,36 +11,36 @@ class EventSerializer(RestrictedSerializerMixin, serializers.ModelSerializer):
 
     class Meta:
         model = models.Event
-        fields = ('uuid', 'created', 'event_type', 'message', 'context')
+        fields = ("uuid", "created", "event_type", "message", "context")
 
 
 class BaseHookSerializer(serializers.HyperlinkedModelSerializer):
-    author_uuid = serializers.ReadOnlyField(source='user.uuid')
-    author_fullname = serializers.ReadOnlyField(source='user.full_name')
-    author_username = serializers.ReadOnlyField(source='user.username')
-    author_email = serializers.ReadOnlyField(source='user.email')
+    author_uuid = serializers.ReadOnlyField(source="user.uuid")
+    author_fullname = serializers.ReadOnlyField(source="user.full_name")
+    author_username = serializers.ReadOnlyField(source="user.username")
+    author_email = serializers.ReadOnlyField(source="user.email")
     hook_type = serializers.SerializerMethodField()
 
     class Meta:
         model = models.BaseHook
 
         fields = (
-            'url',
-            'uuid',
-            'is_active',
-            'author_uuid',
-            'event_types',
-            'event_groups',
-            'created',
-            'modified',
-            'hook_type',
-            'author_fullname',
-            'author_username',
-            'author_email',
+            "url",
+            "uuid",
+            "is_active",
+            "author_uuid",
+            "event_types",
+            "event_groups",
+            "created",
+            "modified",
+            "hook_type",
+            "author_fullname",
+            "author_username",
+            "author_email",
         )
 
         extra_kwargs = {
-            'url': {'lookup_field': 'uuid'},
+            "url": {"lookup_field": "uuid"},
         }
 
     def get_fields(self):
@@ -50,38 +50,38 @@ class BaseHookSerializer(serializers.HyperlinkedModelSerializer):
         When dynamic declaration is used, all valid event types are available as choices.
         """
         fields = super().get_fields()
-        fields['event_types'] = serializers.MultipleChoiceField(
+        fields["event_types"] = serializers.MultipleChoiceField(
             choices=loggers.get_valid_events(), required=False
         )
-        fields['event_groups'] = serializers.MultipleChoiceField(
+        fields["event_groups"] = serializers.MultipleChoiceField(
             choices=loggers.get_event_groups_keys(), required=False
         )
         return fields
 
     def create(self, validated_data):
-        validated_data['user'] = self.context['request'].user
+        validated_data["user"] = self.context["request"].user
         return super().create(validated_data)
 
     def validate(self, attrs):
         if (
             not self.instance
-            and 'event_types' not in attrs
-            and 'event_groups' not in attrs
+            and "event_types" not in attrs
+            and "event_groups" not in attrs
         ):
             raise serializers.ValidationError(
-                _('Please specify list of event_types or event_groups.')
+                _("Please specify list of event_types or event_groups.")
             )
 
-        if 'event_groups' in attrs:
-            events = list(attrs.get('event_types', []))
-            groups = list(attrs.get('event_groups', []))
+        if "event_groups" in attrs:
+            events = list(attrs.get("event_types", []))
+            groups = list(attrs.get("event_groups", []))
             events = sorted(set(loggers.expand_event_groups(groups)) | set(events))
 
-            attrs['event_types'] = events
-            attrs['event_groups'] = groups
+            attrs["event_types"] = events
+            attrs["event_groups"] = groups
 
-        elif 'event_types' in attrs:
-            attrs['event_types'] = list(attrs['event_types'])
+        elif "event_types" in attrs:
+            attrs["event_types"] = list(attrs["event_types"])
 
         return attrs
 
@@ -98,7 +98,7 @@ class SummaryHookSerializer(serializers.Serializer):
         for serializer in BaseHookSerializer.__subclasses__():
             if serializer.Meta.model == cls:
                 return serializer
-        raise ValueError('Hook serializer for %s class is not found' % cls)
+        raise ValueError("Hook serializer for %s class is not found" % cls)
 
 
 class WebHookSerializer(BaseHookSerializer):
@@ -108,16 +108,16 @@ class WebHookSerializer(BaseHookSerializer):
 
     class Meta(BaseHookSerializer.Meta):
         model = models.WebHook
-        fields = BaseHookSerializer.Meta.fields + ('destination_url', 'content_type')
+        fields = BaseHookSerializer.Meta.fields + ("destination_url", "content_type")
 
     def get_hook_type(self, hook):
-        return 'webhook'
+        return "webhook"
 
 
 class EmailHookSerializer(BaseHookSerializer):
     class Meta(BaseHookSerializer.Meta):
         model = models.EmailHook
-        fields = BaseHookSerializer.Meta.fields + ('email',)
+        fields = BaseHookSerializer.Meta.fields + ("email",)
 
     def get_hook_type(self, hook):
-        return 'email'
+        return "email"

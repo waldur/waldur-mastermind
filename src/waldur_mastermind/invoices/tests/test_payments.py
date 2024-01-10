@@ -17,15 +17,15 @@ class PaymentRetrieveTest(test.APITransactionTestCase):
         self.url = factories.PaymentFactory.get_url(payment=self.payment)
 
     @data(
-        'staff',
-        'owner',
+        "staff",
+        "owner",
     )
     def test_user_with_access_can_retrieve_payment(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    @data('manager', 'admin', 'user')
+    @data("manager", "admin", "user")
     def test_user_cannot_retrieve_customer_profile(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(self.url)
@@ -43,13 +43,13 @@ class PaymentCreateTest(test.APITransactionTestCase):
 
     def get_data(self):
         return {
-            'profile': factories.PaymentProfileFactory.get_url(profile=self.profile),
-            'sum': 200,
-            'date_of_payment': '2000-01-01',
+            "profile": factories.PaymentProfileFactory.get_url(profile=self.profile),
+            "sum": 200,
+            "date_of_payment": "2000-01-01",
         }
 
     @data(
-        'staff',
+        "staff",
     )
     def test_user_with_access_can_create_payments(self, user):
         self.fixture = structure_fixtures.ProjectFixture()
@@ -58,7 +58,7 @@ class PaymentCreateTest(test.APITransactionTestCase):
         )
         self.url = factories.PaymentFactory.get_list_url()
 
-    @data('owner', 'manager', 'admin', 'user', 'global_support')
+    @data("owner", "manager", "admin", "user", "global_support")
     def test_user_cannot_create_payments(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.post(self.url, self.get_data())
@@ -76,14 +76,14 @@ class PaymentUpdateTest(test.APITransactionTestCase):
         self.url = factories.PaymentFactory.get_url(payment=self.payment)
 
     @data(
-        'staff',
+        "staff",
     )
     def test_user_with_access_can_update_payment(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.patch(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    @data('owner', 'manager', 'admin', 'user', 'global_support')
+    @data("owner", "manager", "admin", "user", "global_support")
     def test_user_cannot_create_customer_profiles(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.patch(self.url)
@@ -101,14 +101,14 @@ class PaymentDeleteTest(test.APITransactionTestCase):
         self.url = factories.PaymentFactory.get_url(payment=self.payment)
 
     @data(
-        'staff',
+        "staff",
     )
     def test_user_with_access_can_delete_payment(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.delete(self.url)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
-    @data('owner', 'manager', 'admin', 'user', 'global_support')
+    @data("owner", "manager", "admin", "user", "global_support")
     def test_user_cannot_delete_payment(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.delete(self.url)
@@ -126,16 +126,16 @@ class PaymentActionsTest(test.APITransactionTestCase):
             customer=self.fixture.customer, state=models.Invoice.States.PAID
         )
         self.url = factories.PaymentFactory.get_url(
-            payment=self.payment, action='link_to_invoice'
+            payment=self.payment, action="link_to_invoice"
         )
 
         self.url_unlink = factories.PaymentFactory.get_url(
-            payment=self.payment, action='unlink_from_invoice'
+            payment=self.payment, action="unlink_from_invoice"
         )
 
     def test_link_payment_to_invoice(self):
         self.client.force_authenticate(self.fixture.staff)
-        payload = {'invoice': factories.InvoiceFactory.get_url(invoice=self.invoice)}
+        payload = {"invoice": factories.InvoiceFactory.get_url(invoice=self.invoice)}
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.payment.refresh_from_db()
@@ -144,7 +144,7 @@ class PaymentActionsTest(test.APITransactionTestCase):
     def test_do_not_link_payment_to_invoice_if_customers_are_different(self):
         self.client.force_authenticate(self.fixture.staff)
         invoice = factories.InvoiceFactory(state=models.Invoice.States.PAID)
-        payload = {'invoice': factories.InvoiceFactory.get_url(invoice=invoice)}
+        payload = {"invoice": factories.InvoiceFactory.get_url(invoice=invoice)}
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -152,7 +152,7 @@ class PaymentActionsTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.staff)
         self.invoice.state = models.Invoice.States.PENDING
         self.invoice.save()
-        payload = {'invoice': factories.InvoiceFactory.get_url(self.invoice)}
+        payload = {"invoice": factories.InvoiceFactory.get_url(self.invoice)}
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 

@@ -13,340 +13,340 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('structure', '0001_squashed_0036'),
+        ("structure", "0001_squashed_0036"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='GroupInvitation',
+            name="GroupInvitation",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'customer_role',
+                    "customer_role",
                     waldur_core.structure.models.CustomerRole(
                         blank=True,
                         choices=[
-                            ('owner', 'Owner'),
-                            ('support', 'Support'),
-                            ('service_manager', 'Service manager'),
+                            ("owner", "Owner"),
+                            ("support", "Support"),
+                            ("service_manager", "Service manager"),
                         ],
                         max_length=30,
                         null=True,
-                        verbose_name='organization role',
+                        verbose_name="organization role",
                     ),
                 ),
                 (
-                    'project_role',
+                    "project_role",
                     waldur_core.structure.models.ProjectRole(
                         blank=True,
                         choices=[
-                            ('admin', 'Administrator'),
-                            ('manager', 'Manager'),
-                            ('member', 'Member'),
+                            ("admin", "Administrator"),
+                            ("manager", "Manager"),
+                            ("member", "Member"),
                         ],
                         max_length=30,
                         null=True,
                     ),
                 ),
-                ('is_active', models.BooleanField(default=True)),
+                ("is_active", models.BooleanField(default=True)),
                 (
-                    'created_by',
+                    "created_by",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
+                        related_name="+",
                         to=settings.AUTH_USER_MODEL,
                     ),
                 ),
                 (
-                    'customer',
+                    "customer",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='structure.customer',
-                        verbose_name='organization',
+                        to="structure.customer",
+                        verbose_name="organization",
                     ),
                 ),
                 (
-                    'project',
+                    "project",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='structure.project',
+                        to="structure.project",
                     ),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='PermissionRequest',
+            name="PermissionRequest",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'state',
+                    "state",
                     django_fsm.FSMIntegerField(
                         choices=[
-                            (1, 'draft'),
-                            (2, 'pending'),
-                            (3, 'approved'),
-                            (4, 'rejected'),
-                            (5, 'canceled'),
+                            (1, "draft"),
+                            (2, "pending"),
+                            (3, "approved"),
+                            (4, "rejected"),
+                            (5, "canceled"),
                         ],
                         default=1,
                     ),
                 ),
                 (
-                    'reviewed_at',
+                    "reviewed_at",
                     models.DateTimeField(blank=True, editable=False, null=True),
                 ),
-                ('review_comment', models.TextField(blank=True, null=True)),
+                ("review_comment", models.TextField(blank=True, null=True)),
                 (
-                    'created_by',
+                    "created_by",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.PROTECT,
-                        related_name='+',
+                        related_name="+",
                         to=settings.AUTH_USER_MODEL,
                     ),
                 ),
                 (
-                    'invitation',
+                    "invitation",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.PROTECT,
-                        to='users.groupinvitation',
+                        to="users.groupinvitation",
                     ),
                 ),
                 (
-                    'reviewed_by',
+                    "reviewed_by",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
+                        related_name="+",
                         to=settings.AUTH_USER_MODEL,
                     ),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='Invitation',
+            name="Invitation",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('error_message', models.TextField(blank=True)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("error_message", models.TextField(blank=True)),
                 (
-                    'customer_role',
+                    "customer_role",
                     waldur_core.structure.models.CustomerRole(
                         blank=True,
                         choices=[
-                            ('owner', 'Owner'),
-                            ('support', 'Support'),
-                            ('service_manager', 'Service manager'),
+                            ("owner", "Owner"),
+                            ("support", "Support"),
+                            ("service_manager", "Service manager"),
                         ],
                         max_length=30,
                         null=True,
-                        verbose_name='organization role',
+                        verbose_name="organization role",
                     ),
                 ),
                 (
-                    'project_role',
+                    "project_role",
                     waldur_core.structure.models.ProjectRole(
                         blank=True,
                         choices=[
-                            ('admin', 'Administrator'),
-                            ('manager', 'Manager'),
-                            ('member', 'Member'),
+                            ("admin", "Administrator"),
+                            ("manager", "Manager"),
+                            ("member", "Member"),
                         ],
                         max_length=30,
                         null=True,
                     ),
                 ),
                 (
-                    'state',
+                    "state",
                     models.CharField(
                         choices=[
-                            ('requested', 'Requested'),
-                            ('rejected', 'Rejected'),
-                            ('pending', 'Pending'),
-                            ('accepted', 'Accepted'),
-                            ('canceled', 'Canceled'),
-                            ('expired', 'Expired'),
+                            ("requested", "Requested"),
+                            ("rejected", "Rejected"),
+                            ("pending", "Pending"),
+                            ("accepted", "Accepted"),
+                            ("canceled", "Canceled"),
+                            ("expired", "Expired"),
                         ],
-                        default='pending',
+                        default="pending",
                         max_length=10,
                     ),
                 ),
                 (
-                    'email',
+                    "email",
                     models.EmailField(
-                        help_text='Invitation link will be sent to this email. Note that user can accept invitation with different email.',
+                        help_text="Invitation link will be sent to this email. Note that user can accept invitation with different email.",
                         max_length=254,
                     ),
                 ),
                 (
-                    'civil_number',
+                    "civil_number",
                     models.CharField(
                         blank=True,
-                        help_text='Civil number of invited user. If civil number is not defined any user can accept invitation.',
+                        help_text="Civil number of invited user. If civil number is not defined any user can accept invitation.",
                         max_length=50,
                     ),
                 ),
                 (
-                    'created_by',
+                    "created_by",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
+                        related_name="+",
                         to=settings.AUTH_USER_MODEL,
                     ),
                 ),
                 (
-                    'customer',
+                    "customer",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='structure.customer',
-                        verbose_name='organization',
+                        to="structure.customer",
+                        verbose_name="organization",
                     ),
                 ),
                 (
-                    'project',
+                    "project",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='structure.project',
+                        to="structure.project",
                     ),
                 ),
                 (
-                    'approved_by',
+                    "approved_by",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
+                        related_name="+",
                         to=settings.AUTH_USER_MODEL,
                     ),
                 ),
                 (
-                    'full_name',
+                    "full_name",
                     models.CharField(
-                        blank=True, max_length=100, verbose_name='full name'
+                        blank=True, max_length=100, verbose_name="full name"
                     ),
                 ),
                 (
-                    'job_title',
+                    "job_title",
                     models.CharField(
-                        blank=True, max_length=120, verbose_name='job title'
+                        blank=True, max_length=120, verbose_name="job title"
                     ),
                 ),
                 (
-                    'native_name',
+                    "native_name",
                     models.CharField(
-                        blank=True, max_length=100, verbose_name='native name'
+                        blank=True, max_length=100, verbose_name="native name"
                     ),
                 ),
                 (
-                    'organization',
+                    "organization",
                     models.CharField(
-                        blank=True, max_length=255, verbose_name='organization'
+                        blank=True, max_length=255, verbose_name="organization"
                     ),
                 ),
                 (
-                    'phone_number',
+                    "phone_number",
                     models.CharField(
-                        blank=True, max_length=255, verbose_name='phone number'
+                        blank=True, max_length=255, verbose_name="phone number"
                     ),
                 ),
                 (
-                    'tax_number',
+                    "tax_number",
                     models.CharField(
-                        blank=True, max_length=50, verbose_name='tax number'
+                        blank=True, max_length=50, verbose_name="tax number"
                     ),
                 ),
-                ('error_traceback', models.TextField(blank=True)),
+                ("error_traceback", models.TextField(blank=True)),
                 (
-                    'affiliations',
+                    "affiliations",
                     models.JSONField(
                         blank=True,
                         default=list,
@@ -355,7 +355,7 @@ class Migration(migrations.Migration):
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
     ]

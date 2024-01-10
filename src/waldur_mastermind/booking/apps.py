@@ -3,8 +3,8 @@ from django.db.models import signals
 
 
 class BookingConfig(AppConfig):
-    name = 'waldur_mastermind.booking'
-    verbose_name = 'Booking system'
+    name = "waldur_mastermind.booking"
+    verbose_name = "Booking system"
 
     def ready(self):
         from waldur_mastermind.marketplace import models as marketplace_models
@@ -27,5 +27,5 @@ class BookingConfig(AppConfig):
         signals.post_save.connect(
             handlers.update_google_calendar_name_if_offering_name_has_been_changed,
             sender=marketplace_models.Offering,
-            dispatch_uid='waldur_mastermind.booking.handlers.update_google_calendar_name',
+            dispatch_uid="waldur_mastermind.booking.handlers.update_google_calendar_name",
         )

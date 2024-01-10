@@ -5,17 +5,17 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('waldur_azure', '0008_networkinterface_public_ip'),
+        ("waldur_azure", "0008_networkinterface_public_ip"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='publicip',
-            name='resource_group',
+            model_name="publicip",
+            name="resource_group",
             field=models.ForeignKey(
                 default=None,
                 on_delete=django.db.models.deletion.CASCADE,
-                to='waldur_azure.ResourceGroup',
+                to="waldur_azure.ResourceGroup",
             ),
             preserve_default=False,
         ),

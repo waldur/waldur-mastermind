@@ -28,15 +28,15 @@ def update_estimates_for_customer(customer):
     for scope in scopes:
         estimate, _ = models.PriceEstimate.objects.get_or_create(scope=scope)
         estimate.update_total()
-        estimate.save(update_fields=['total'])
+        estimate.save(update_fields=["total"])
 
 
 def process_invoice_item(sender, instance, created=False, **kwargs):
     if not created and not set(instance.tracker.changed()) & {
-        'unit_price',
-        'start',
-        'end',
-        'quantity',
+        "unit_price",
+        "start",
+        "end",
+        "quantity",
     }:
         return
 
@@ -46,4 +46,4 @@ def process_invoice_item(sender, instance, created=False, **kwargs):
         for scope in [instance.project, instance.project.customer]:
             estimate, _ = models.PriceEstimate.objects.get_or_create(scope=scope)
             estimate.update_total()
-            estimate.save(update_fields=['total'])
+            estimate.save(update_fields=["total"])

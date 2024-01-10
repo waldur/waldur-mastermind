@@ -5,13 +5,13 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace', '0117_offering_resource_options_alter_offering_options'),
+        ("marketplace", "0117_offering_resource_options_alter_offering_options"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='resource',
-            name='options',
+            model_name="resource",
+            name="options",
             field=models.JSONField(blank=True, null=True),
         ),
     ]

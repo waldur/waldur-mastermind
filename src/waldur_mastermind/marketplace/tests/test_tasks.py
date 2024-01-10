@@ -59,22 +59,22 @@ class NotificationTest(test.APITransactionTestCase):
         project_fixture = structure_fixtures.ProjectFixture()
         admin = project_fixture.admin
         project = project_fixture.project
-        resource = factories.ResourceFactory(project=project, name='Test resource')
-        event_type = 'marketplace_resource_create_succeeded'
+        resource = factories.ResourceFactory(project=project, name="Test resource")
+        event_type = "marketplace_resource_create_succeeded"
         structure_factories.NotificationFactory(key=f"marketplace.{event_type}")
 
         tasks.notify_about_resource_change(
             event_type,
-            {'resource_name': resource.name},
+            {"resource_name": resource.name},
             resource.uuid,
         )
         self.assertEqual(len(mail.outbox), 1)
-        subject_template_name = '{}/{}_subject.txt'.format(
-            'marketplace',
-            'marketplace_resource_create_succeeded',
+        subject_template_name = "{}/{}_subject.txt".format(
+            "marketplace",
+            "marketplace_resource_create_succeeded",
         )
         subject = core_utils.format_text(
-            subject_template_name, {'resource_name': resource.name}
+            subject_template_name, {"resource_name": resource.name}
         )
         self.assertEqual(mail.outbox[0].subject, subject)
         self.assertEqual(mail.outbox[0].to[0], admin.email)
@@ -87,7 +87,7 @@ class ResourceEndDateTest(test.APITransactionTestCase):
         fixture = fixtures.MarketplaceFixture()
         admin = fixture.admin
         manager = fixture.manager
-        event_type = 'marketplace_resource_termination_scheduled'
+        event_type = "marketplace_resource_termination_scheduled"
         structure_factories.NotificationFactory(key=f"marketplace.{event_type}")
         tasks.notify_about_resource_termination(
             fixture.resource.uuid,
@@ -107,7 +107,7 @@ class ResourceEndDateTest(test.APITransactionTestCase):
         )
         self.assertEqual(len(mail.outbox), 0)
 
-    @patch('waldur_mastermind.marketplace.tasks.core_utils.broadcast_mail')
+    @patch("waldur_mastermind.marketplace.tasks.core_utils.broadcast_mail")
     def test_notification_uses_different_templates_for_staff_and_other_users(
         self, mock_broadcast_mail
     ):
@@ -118,7 +118,7 @@ class ResourceEndDateTest(test.APITransactionTestCase):
         mock_broadcast_mail.assert_called()
         self.assertEqual(
             mock_broadcast_mail.call_args[0][1],
-            'marketplace_resource_termination_scheduled',
+            "marketplace_resource_termination_scheduled",
         )
 
         tasks.notify_about_resource_termination(
@@ -127,7 +127,7 @@ class ResourceEndDateTest(test.APITransactionTestCase):
         mock_broadcast_mail.assert_called()
         self.assertEqual(
             mock_broadcast_mail.call_args[0][1],
-            'marketplace_resource_termination_scheduled_staff',
+            "marketplace_resource_termination_scheduled_staff",
         )
 
 
@@ -166,7 +166,7 @@ class ProjectEndDate(test.APITransactionTestCase):
         self.fixture.owner
 
     def test_terminate_resources_if_project_end_date_has_been_reached(self):
-        with freeze_time('2020-01-02'):
+        with freeze_time("2020-01-02"):
             tasks.terminate_resources_if_project_end_date_has_been_reached()
             self.assertTrue(
                 models.Order.objects.filter(
@@ -180,13 +180,13 @@ class ProjectEndDate(test.APITransactionTestCase):
             self.assertTrue(order.state, models.Order.States.EXECUTING)
 
     def test_notification_about_project_ending(self):
-        with freeze_time('2019-12-25'):
-            event_type = 'notification_about_project_ending'
+        with freeze_time("2019-12-25"):
+            event_type = "notification_about_project_ending"
             structure_factories.NotificationFactory(key=f"marketplace.{event_type}")
             tasks.notification_about_project_ending()
 
             self.assertEqual(len(mail.outbox), 2)
-            subject = 'Project %s will be deleted.' % self.fixture.project.name
+            subject = "Project %s will be deleted." % self.fixture.project.name
             self.assertEqual(mail.outbox[0].subject, subject)
             self.assertEqual(
                 {mail.outbox[0].to[0], mail.outbox[1].to[0]},
@@ -201,8 +201,8 @@ class ProjectEndDate(test.APITransactionTestCase):
         manager = structure_factories.UserFactory()
         other_project.add_user(manager, ProjectRole.MANAGER)
 
-        with freeze_time('2019-12-25'):
-            event_type = 'notification_about_project_ending'
+        with freeze_time("2019-12-25"):
+            event_type = "notification_about_project_ending"
             structure_factories.NotificationFactory(key=f"marketplace.{event_type}")
             tasks.notification_about_project_ending()
 
@@ -212,7 +212,7 @@ class ProjectEndDate(test.APITransactionTestCase):
                 {self.fixture.manager.email, self.fixture.owner.email},
             )
 
-    @freeze_time('2020-01-02')
+    @freeze_time("2020-01-02")
     def test_expired_project_is_deleted_if_there_are_no_active_resources(self):
         self.fixture.resource.set_state_terminated()
         self.fixture.resource.save()
@@ -222,12 +222,12 @@ class ProjectEndDate(test.APITransactionTestCase):
         self.fixture.project.refresh_from_db()
         self.assertTrue(self.fixture.project.is_removed)
 
-    @freeze_time('2020-01-02')
+    @freeze_time("2020-01-02")
     def test_expired_project_is_not_deleted_if_there_are_active_resources(self):
         tasks.terminate_resources_if_project_end_date_has_been_reached()
         self.fixture.project.refresh_from_db()
 
-    @freeze_time('2020-01-02')
+    @freeze_time("2020-01-02")
     def test_expired_project_is_not_deleted_if_there_are_terminating_resources(self):
         self.fixture.resource.set_state_terminating()
         self.fixture.resource.save()
@@ -243,19 +243,19 @@ class NotificationAboutStaleResourceTest(test.APITransactionTestCase):
         self.owner = project_fixture.owner
         project = project_fixture.project
         self.resource = factories.ResourceFactory(
-            project=project, name='Test resource', state=models.Resource.States.OK
+            project=project, name="Test resource", state=models.Resource.States.OK
         )
-        self.resource.offering.type = 'Test.Type'
+        self.resource.offering.type = "Test.Type"
         self.resource.offering.save()
 
     def test_send_notify_if_stale_resource_exists(self):
-        event_type = 'notification_about_stale_resources'
+        event_type = "notification_about_stale_resources"
         structure_factories.NotificationFactory(key=f"marketplace.{event_type}")
         tasks.notify_about_stale_resource()
         self.assertEqual(len(mail.outbox), 1)
-        subject_template_name = '{}/{}_subject.txt'.format(
-            'marketplace',
-            'notification_about_stale_resources',
+        subject_template_name = "{}/{}_subject.txt".format(
+            "marketplace",
+            "notification_about_stale_resources",
         )
         subject = core_utils.format_text(subject_template_name, {})
         self.assertEqual(mail.outbox[0].subject, subject)
@@ -275,7 +275,7 @@ class NotificationAboutStaleResourceTest(test.APITransactionTestCase):
 
     def test_send_notify_if_related_invoice_item_has_not_price(self):
         item = invoices_factories.InvoiceItemFactory(resource=self.resource)
-        event_type = 'notification_about_stale_resources'
+        event_type = "notification_about_stale_resources"
         structure_factories.NotificationFactory(key=f"marketplace.{event_type}")
         item.unit_price = 0
         item.save()
@@ -300,10 +300,10 @@ class ResourceEndDate(test.APITransactionTestCase):
         # We need create a system robot account because
         # account created in a migration does not exist when test is running
         self.system_robot = structure_factories.UserFactory(
-            first_name='System',
-            last_name='Robot',
-            username='system_robot',
-            description='Special user used for performing actions on behalf of Waldur.',
+            first_name="System",
+            last_name="Robot",
+            username="system_robot",
+            description="Special user used for performing actions on behalf of Waldur.",
             is_staff=True,
             is_active=True,
         )
@@ -315,7 +315,7 @@ class ResourceEndDate(test.APITransactionTestCase):
         self.resource.save()
 
     def test_terminate_resource_if_its_end_date_has_been_reached(self):
-        with freeze_time('2020-01-01'):
+        with freeze_time("2020-01-01"):
             self.assertTrue(self.resource.is_expired)
             tasks.terminate_expired_resources()
             self.resource.refresh_from_db()
@@ -333,7 +333,7 @@ class ResourceEndDate(test.APITransactionTestCase):
             self.assertEqual(order.created_by, self.system_robot)
 
     def test_terminate_resource_if_end_date_requested_by_is_passed(self):
-        with freeze_time('2020-01-01'):
+        with freeze_time("2020-01-01"):
             user = structure_factories.UserFactory(is_staff=True)
             self.resource.end_date_requested_by = user
             self.resource.save()

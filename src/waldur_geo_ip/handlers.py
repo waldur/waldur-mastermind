@@ -24,8 +24,8 @@ def detect_event_geo_location(sender, instance, created=False, **kwargs):
 
     if created:
         if (
-            event.context.get('ip_address')
-            and event.context.get('location') == 'pending'
+            event.context.get("ip_address")
+            and event.context.get("location") == "pending"
         ):
             transaction.on_commit(
                 lambda: tasks.detect_event_location.delay(

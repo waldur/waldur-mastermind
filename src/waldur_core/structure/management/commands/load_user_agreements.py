@@ -4,7 +4,7 @@ from waldur_core.structure.models import UserAgreement
 
 
 class Command(BaseCommand):
-    help = 'Imports privacy policy and terms of service into DB'
+    help = "Imports privacy policy and terms of service into DB"
 
     def create_user_agreement(self, filepath, agreement_type, force=False):
         try:
@@ -14,7 +14,7 @@ class Command(BaseCommand):
             if not force and user_agreement_count > 0:
                 self.stdout.write(
                     self.style.NOTICE(
-                        'The %s agreement already exists, skipping loading'
+                        "The %s agreement already exists, skipping loading"
                         % agreement_type,
                     )
                 )
@@ -24,43 +24,43 @@ class Command(BaseCommand):
                 content = agreement_file.read()
 
             UserAgreement.objects.update_or_create(
-                agreement_type=agreement_type, defaults={'content': content}
+                agreement_type=agreement_type, defaults={"content": content}
             )
         except Exception as e:
             return e
 
     def add_arguments(self, parser):
         parser.add_argument(
-            '-tos',
-            '--tos',
+            "-tos",
+            "--tos",
             type=str,
-            help='Path to a Terms of service file',
+            help="Path to a Terms of service file",
             required=False,
         )
         parser.add_argument(
-            '-pp',
-            '--pp',
+            "-pp",
+            "--pp",
             type=str,
-            help='Path to a Privacy policy file',
+            help="Path to a Privacy policy file",
             required=False,
         )
         parser.add_argument(
-            '-f',
-            '--force',
-            dest='force',
+            "-f",
+            "--force",
+            dest="force",
             default=False,
-            help='This flag means force loading agreements even if they are already defined in DB.',
+            help="This flag means force loading agreements even if they are already defined in DB.",
         )
 
     def handle(self, *args, **options):
-        tos_path = options.get('tos')
-        pp_path = options.get('pp')
-        force = options.get('force')
+        tos_path = options.get("tos")
+        pp_path = options.get("pp")
+        force = options.get("force")
 
         if not tos_path and not pp_path:
             self.stdout.write(
                 self.style.ERROR(
-                    'You must specify a path to ToS or Privacy Policy files to create them.'
+                    "You must specify a path to ToS or Privacy Policy files to create them."
                 )
             )
             return

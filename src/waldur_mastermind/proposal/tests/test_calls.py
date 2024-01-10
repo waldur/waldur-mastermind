@@ -14,10 +14,10 @@ class PublicCallGetTest(test.APITransactionTestCase):
         self.fixture = fixtures.ProposalFixture()
 
     @data(
-        'staff',
-        'owner',
-        'user',
-        'customer_support',
+        "staff",
+        "owner",
+        "user",
+        "customer_support",
     )
     def test_active_call_should_be_visible_to_all_authenticated_users(self, user):
         user = getattr(self.fixture, user)
@@ -42,9 +42,9 @@ class CallGetTest(test.APITransactionTestCase):
         self.fixture = fixtures.ProposalFixture()
 
     @data(
-        'staff',
-        'owner',
-        'customer_support',
+        "staff",
+        "owner",
+        "customer_support",
     )
     def test_call_should_be_visible(self, user):
         user = getattr(self.fixture, user)
@@ -54,7 +54,7 @@ class CallGetTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 2)
 
-    @data('user')
+    @data("user")
     def test_call_should_not_be_visible(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
@@ -71,16 +71,16 @@ class CallCreateTest(test.APITransactionTestCase):
         self.manager = self.fixture.manager
 
     @data(
-        'staff',
-        'owner',
-        'customer_support',
+        "staff",
+        "owner",
+        "customer_support",
     )
     def test_user_can_create_call(self, user):
         response = self.create_call(user)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(models.Call.objects.filter(uuid=response.data['uuid']).exists())
+        self.assertTrue(models.Call.objects.filter(uuid=response.data["uuid"]).exists())
 
-    @data('user')
+    @data("user")
     def test_user_can_not_create_call(self, user):
         response = self.create_call(user)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -91,8 +91,8 @@ class CallCreateTest(test.APITransactionTestCase):
         url = factories.CallFactory.get_protected_list_url()
 
         payload = {
-            'name': 'new call',
-            'manager': factories.CallManagingOrganisationFactory.get_url(self.manager),
+            "name": "new call",
+            "manager": factories.CallManagingOrganisationFactory.get_url(self.manager),
         }
 
         return self.client.post(url, payload)
@@ -104,20 +104,20 @@ class CallUpdateTest(test.APITransactionTestCase):
         self.fixture = fixtures.ProposalFixture()
         self.call = self.fixture.call
 
-    @data('staff', 'owner', 'customer_support')
+    @data("staff", "owner", "customer_support")
     def test_user_can_update_call(self, user):
         response = self.update_call(user)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertEqual(self.call.description, 'new description')
+        self.assertEqual(self.call.description, "new description")
 
-    @data('user')
+    @data("user")
     def test_user_can_not_update_call(self, user):
         response = self.update_call(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def update_call(self, user, payload=None, **kwargs):
         if not payload:
-            payload = {'description': 'new description'}
+            payload = {"description": "new description"}
 
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
@@ -134,7 +134,7 @@ class CallDeleteTest(test.APITransactionTestCase):
         self.draft_call = self.fixture.new_call
         self.active_call = self.fixture.call
 
-    @data('staff', 'owner', 'customer_support')
+    @data("staff", "owner", "customer_support")
     def test_user_can_delete_call(self, user):
         response = self.delete_call(user, self.draft_call)
         self.assertEqual(
@@ -144,7 +144,7 @@ class CallDeleteTest(test.APITransactionTestCase):
             models.Call.objects.filter(uuid=self.draft_call.uuid.hex).exists()
         )
 
-    @data('staff', 'owner', 'customer_support')
+    @data("staff", "owner", "customer_support")
     def test_user_can_not_delete_active_call(self, user):
         response = self.delete_call(user, self.active_call)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT, response.data)
@@ -152,7 +152,7 @@ class CallDeleteTest(test.APITransactionTestCase):
             models.Call.objects.filter(uuid=self.active_call.uuid.hex).exists()
         )
 
-    @data('user')
+    @data("user")
     def test_user_can_not_delete_call(self, user):
         response = self.delete_call(user, self.draft_call)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
@@ -175,19 +175,19 @@ class CallActivateTest(test.APITransactionTestCase):
         self.draft_call = self.fixture.new_call
         self.active_call = self.fixture.call
 
-    @data('staff', 'owner', 'customer_support')
+    @data("staff", "owner", "customer_support")
     def test_user_can_activate_call(self, user):
         response = self.activate_call(user, self.draft_call)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(self.draft_call.state, models.Call.States.ACTIVE)
 
-    @data('staff', 'owner', 'customer_support')
+    @data("staff", "owner", "customer_support")
     def test_user_can_not_activate_active_call(self, user):
         response = self.activate_call(user, self.active_call)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT, response.data)
         self.assertEqual(self.active_call.state, models.Call.States.ACTIVE)
 
-    @data('user')
+    @data("user")
     def test_user_can_not_activate_call(self, user):
         response = self.activate_call(user, self.draft_call)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND, response.data)
@@ -196,7 +196,7 @@ class CallActivateTest(test.APITransactionTestCase):
     def activate_call(self, user, call):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
-        url = factories.CallFactory.get_protected_url(call, 'activate')
+        url = factories.CallFactory.get_protected_url(call, "activate")
         response = self.client.post(url)
         call.refresh_from_db()
         return response
@@ -208,13 +208,13 @@ class CallArchiveTest(test.APITransactionTestCase):
         self.fixture = fixtures.ProposalFixture()
         self.draft_call = self.fixture.new_call
 
-    @data('staff', 'owner', 'customer_support')
+    @data("staff", "owner", "customer_support")
     def test_user_can_activate_call(self, user):
         response = self.archive_call(user, self.draft_call)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(self.draft_call.state, models.Call.States.ARCHIVED)
 
-    @data('user')
+    @data("user")
     def test_user_can_not_activate_call(self, user):
         response = self.archive_call(user, self.draft_call)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND, response.data)
@@ -223,7 +223,7 @@ class CallArchiveTest(test.APITransactionTestCase):
     def archive_call(self, user, call):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
-        url = factories.CallFactory.get_protected_url(call, 'archive')
+        url = factories.CallFactory.get_protected_url(call, "archive")
         response = self.client.post(url)
         call.refresh_from_db()
         return response
@@ -236,9 +236,9 @@ class RequestedOfferingsGetTest(test.APITransactionTestCase):
         self.url = factories.RequestedOfferingFactory.get_list_url(self.fixture.call)
 
     @data(
-        'staff',
-        'owner',
-        'customer_support',
+        "staff",
+        "owner",
+        "customer_support",
     )
     def test_call_should_be_visible(self, user):
         user = getattr(self.fixture, user)
@@ -247,7 +247,7 @@ class RequestedOfferingsGetTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(len(response.json()))
 
-    @data('user')
+    @data("user")
     def test_call_should_not_be_visible(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
@@ -262,18 +262,18 @@ class RequestedOfferingsCreateTest(test.APITransactionTestCase):
         self.url = factories.RequestedOfferingFactory.get_list_url(self.fixture.call)
 
     @data(
-        'staff',
-        'owner',
-        'customer_support',
+        "staff",
+        "owner",
+        "customer_support",
     )
     def test_user_can_add_offering_to_call(self, user):
         response = self.create_call(user)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(
-            models.RequestedOffering.objects.filter(uuid=response.data['uuid']).exists()
+            models.RequestedOffering.objects.filter(uuid=response.data["uuid"]).exists()
         )
 
-    @data('user')
+    @data("user")
     def test_user_can_not_add_offering_to_call(self, user):
         response = self.create_call(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
@@ -283,10 +283,10 @@ class RequestedOfferingsCreateTest(test.APITransactionTestCase):
         self.client.force_authenticate(user)
 
         payload = {
-            'offering': marketplace_factories.OfferingFactory.get_public_url(
+            "offering": marketplace_factories.OfferingFactory.get_public_url(
                 self.fixture.offering
             ),
-            'attributes': '{"cores": 100}',
+            "attributes": '{"cores": 100}',
         }
 
         return self.client.post(self.url, payload)
@@ -302,18 +302,18 @@ class RequestedOfferingsUpdateTest(test.APITransactionTestCase):
         )
 
     @data(
-        'staff',
-        'owner',
-        'customer_support',
+        "staff",
+        "owner",
+        "customer_support",
     )
     def test_user_can_update_requested_offering(self, user):
         response = self.update_requested_offering(user)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     @data(
-        'staff',
-        'owner',
-        'customer_support',
+        "staff",
+        "owner",
+        "customer_support",
     )
     def test_user_can_not_update_accepted_offering(self, user):
         self.requested_offering.state = models.RequestedOffering.States.ACCEPTED
@@ -321,7 +321,7 @@ class RequestedOfferingsUpdateTest(test.APITransactionTestCase):
         response = self.update_requested_offering(user)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
-    @data('user')
+    @data("user")
     def test_user_can_not_add_offering_to_call(self, user):
         response = self.update_requested_offering(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
@@ -331,7 +331,7 @@ class RequestedOfferingsUpdateTest(test.APITransactionTestCase):
         self.client.force_authenticate(user)
 
         payload = {
-            'attributes': '{"cores": 300}',
+            "attributes": '{"cores": 300}',
         }
         response = self.client.patch(self.url, payload)
         self.requested_offering.refresh_from_db()
@@ -348,15 +348,15 @@ class RequestedOfferingsDeleteTest(test.APITransactionTestCase):
         )
 
     @data(
-        'staff',
-        'owner',
-        'customer_support',
+        "staff",
+        "owner",
+        "customer_support",
     )
     def test_user_can_update_requested_offering(self, user):
         response = self.delete_requested_offering(user)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
-    @data('user')
+    @data("user")
     def test_user_can_not_add_offering_to_call(self, user):
         response = self.delete_requested_offering(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

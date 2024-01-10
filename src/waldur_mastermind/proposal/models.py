@@ -25,17 +25,17 @@ class CallManagingOrganisation(
     customer = models.OneToOneField(structure_models.Customer, on_delete=models.CASCADE)
 
     class Permissions:
-        customer_path = 'customer'
+        customer_path = "customer"
 
     class Meta:
-        verbose_name = _('Call managing organisation')
+        verbose_name = _("Call managing organisation")
 
     def __str__(self):
         return str(self.customer)
 
     @classmethod
     def get_url_name(cls):
-        return 'call-managing-organisation'
+        return "call-managing-organisation"
 
 
 class Call(
@@ -50,9 +50,9 @@ class Call(
         ARCHIVED = 3
 
         CHOICES = (
-            (DRAFT, 'Draft'),
-            (ACTIVE, 'Active'),
-            (ARCHIVED, 'Archived'),
+            (DRAFT, "Draft"),
+            (ACTIVE, "Active"),
+            (ARCHIVED, "Archived"),
         )
 
     manager = models.ForeignKey(CallManagingOrganisation, on_delete=models.PROTECT)
@@ -60,21 +60,21 @@ class Call(
         core_models.User,
         on_delete=models.PROTECT,
         null=True,
-        related_name='+',
+        related_name="+",
     )
     state = FSMIntegerField(default=States.DRAFT, choices=States.CHOICES)
     offerings = models.ManyToManyField(
-        marketplace_models.Offering, through='RequestedOffering'
+        marketplace_models.Offering, through="RequestedOffering"
     )
     reviewers = models.ManyToManyField(
-        core_models.User, through='CallReviewer', through_fields=('call', 'user')
+        core_models.User, through="CallReviewer", through_fields=("call", "user")
     )
 
     class Permissions:
-        customer_path = 'manager__customer'
+        customer_path = "manager__customer"
 
     def __str__(self):
-        return f'{self.name} | {self.manager.customer}'
+        return f"{self.name} | {self.manager.customer}"
 
 
 class RequestedOffering(SafeAttributesMixin, core_models.UuidMixin, TimeStampedModel):
@@ -84,23 +84,23 @@ class RequestedOffering(SafeAttributesMixin, core_models.UuidMixin, TimeStampedM
         CANCELED = 3
 
         CHOICES = (
-            (REQUESTED, 'Requested'),
-            (ACCEPTED, 'Accepted'),
-            (CANCELED, 'Canceled'),
+            (REQUESTED, "Requested"),
+            (ACCEPTED, "Accepted"),
+            (CANCELED, "Canceled"),
         )
 
     approved_by = models.ForeignKey(
         core_models.User,
         on_delete=models.PROTECT,
         null=True,
-        related_name='+',
+        related_name="+",
         blank=True,
     )
     created_by = models.ForeignKey(
         core_models.User,
         on_delete=models.PROTECT,
         null=True,
-        related_name='+',
+        related_name="+",
     )
     state = FSMIntegerField(default=States.REQUESTED, choices=States.CHOICES)
     call = models.ForeignKey(Call, on_delete=models.CASCADE)
@@ -110,17 +110,17 @@ class CallReviewer(core_models.UuidMixin, TimeStampedModel):
     created_by = models.ForeignKey(
         core_models.User,
         on_delete=models.CASCADE,
-        related_name='+',
+        related_name="+",
     )
     user = models.ForeignKey(
         core_models.User,
         on_delete=models.CASCADE,
-        related_name='+',
+        related_name="+",
     )
     call = models.ForeignKey(Call, on_delete=models.CASCADE)
 
     class Meta:
-        unique_together = ('user', 'call')
+        unique_together = ("user", "call")
 
     def __str__(self):
         return self.user.full_name
@@ -135,8 +135,8 @@ class Round(
         AFTER_PROPOSAL = 2
 
         CHOICES = (
-            (AFTER_ROUND, 'After round is closed'),
-            (AFTER_PROPOSAL, 'After proposal submission'),
+            (AFTER_ROUND, "After round is closed"),
+            (AFTER_PROPOSAL, "After proposal submission"),
         )
 
     class AllocationStrategies:
@@ -144,8 +144,8 @@ class Round(
         AUTOMATIC = 2
 
         CHOICES = (
-            (BY_CALL_MANAGER, 'By call manager'),
-            (AUTOMATIC, 'Automatic based on review scoring'),
+            (BY_CALL_MANAGER, "By call manager"),
+            (AUTOMATIC, "Automatic based on review scoring"),
         )
 
     class AllocationTimes:
@@ -153,8 +153,8 @@ class Round(
         FIXED_DATE = 2
 
         CHOICES = (
-            (ON_DECISION, 'On decision'),
-            (FIXED_DATE, 'Fixed date'),
+            (ON_DECISION, "On decision"),
+            (FIXED_DATE, "Fixed date"),
         )
 
     review_strategy = FSMIntegerField(
@@ -182,10 +182,10 @@ class Round(
     call = models.ForeignKey(Call, on_delete=models.PROTECT)
 
     class Permissions:
-        customer_path = 'call__manager__customer'
+        customer_path = "call__manager__customer"
 
     def __str__(self):
-        return f'{self.call.name} | {self.start_time} - {self.cutoff_time}'
+        return f"{self.call.name} | {self.start_time} - {self.cutoff_time}"
 
 
 class Proposal(
@@ -203,13 +203,13 @@ class Proposal(
         CANCELED = 7
 
         CHOICES = (
-            (DRAFT, 'Draft'),
-            (SUBMITTED, 'Submitted'),
-            (IN_REVIEW, 'In review'),
-            (IN_REVISION, 'In revision'),
-            (ACCEPTED, 'Accepted'),
-            (REJECTED, 'Rejected'),
-            (CANCELED, 'Canceled'),
+            (DRAFT, "Draft"),
+            (SUBMITTED, "Submitted"),
+            (IN_REVIEW, "In review"),
+            (IN_REVISION, "In revision"),
+            (ACCEPTED, "Accepted"),
+            (REJECTED, "Rejected"),
+            (CANCELED, "Canceled"),
         )
 
     round = models.ForeignKey(Round, on_delete=models.CASCADE)
@@ -220,33 +220,33 @@ class Proposal(
     duration_in_days = models.PositiveIntegerField(
         null=True,
         blank=True,
-        help_text='Duration in days after provisioning of resources.',
+        help_text="Duration in days after provisioning of resources.",
     )
     approved_by = models.ForeignKey(
         core_models.User,
         on_delete=models.PROTECT,
         null=True,
-        related_name='+',
+        related_name="+",
         blank=True,
     )
     created_by = models.ForeignKey(
         core_models.User,
         on_delete=models.PROTECT,
         null=True,
-        related_name='+',
+        related_name="+",
     )
 
     tracker = FieldTracker()
 
     class Permissions:
-        customer_path = 'round__call__manager__customer'
+        customer_path = "round__call__manager__customer"
 
     def __str__(self):
-        return f'{self.name} | {self.round.start_time} - {self.round.cutoff_time} | {self.round.call}'
+        return f"{self.name} | {self.round.start_time} - {self.round.cutoff_time} | {self.round.call}"
 
     @classmethod
     def get_url_name(cls):
-        return 'proposal-proposal'
+        return "proposal-proposal"
 
 
 class Review(
@@ -260,10 +260,10 @@ class Review(
         REJECTED = 4
 
         CHOICES = (
-            (CREATED, 'Created'),
-            (IN_REVIEW, 'In review'),
-            (SUBMITTED, 'Submitted'),
-            (REJECTED, 'Rejected'),
+            (CREATED, "Created"),
+            (IN_REVIEW, "In review"),
+            (SUBMITTED, "Submitted"),
+            (REJECTED, "Rejected"),
         )
 
     proposal = models.ForeignKey(Proposal, on_delete=models.PROTECT)
@@ -277,7 +277,7 @@ class Review(
 
     @classmethod
     def get_url_name(cls):
-        return 'proposal-review'
+        return "proposal-review"
 
 
 class ReviewComment(

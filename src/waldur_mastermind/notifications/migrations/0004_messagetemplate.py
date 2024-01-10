@@ -8,36 +8,36 @@ import waldur_core.core.validators
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('notifications', '0003_rename_notification_broadcastmessage'),
+        ("notifications", "0003_rename_notification_broadcastmessage"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='MessageTemplate',
+            name="MessageTemplate",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('body', models.TextField()),
-                ('subject', models.TextField()),
+                ("body", models.TextField()),
+                ("subject", models.TextField()),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
     ]

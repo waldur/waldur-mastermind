@@ -4,15 +4,15 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('waldur_azure', '0013_publicip_ip_address'),
+        ("waldur_azure", "0013_publicip_ip_address"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='networkinterface',
-            name='ip_address',
+            model_name="networkinterface",
+            name="ip_address",
             field=models.GenericIPAddressField(
-                blank=True, default=None, null=True, protocol='IPv4'
+                blank=True, default=None, null=True, protocol="IPv4"
             ),
         ),
     ]

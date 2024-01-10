@@ -21,26 +21,26 @@ class KeycloakClient:
         self.refresh_token = None
 
     def login(self):
-        token_url = f'{self.base_url}/realms/{self.realm}/protocol/openid-connect/token'
+        token_url = f"{self.base_url}/realms/{self.realm}/protocol/openid-connect/token"
         data = {
-            'client_id': self.client_id,
-            'client_secret': self.client_secret,
-            'username': self.username,
-            'password': self.password,
-            'grant_type': 'password',
+            "client_id": self.client_id,
+            "client_secret": self.client_secret,
+            "username": self.username,
+            "password": self.password,
+            "grant_type": "password",
         }
         try:
             response = requests.post(token_url, data=data)
         except requests.exceptions.RequestException as e:
-            logger.warning('Unable to send authentication request. Error is %s', e)
-            raise KeycloakException('Unable to send authentication request.')
+            logger.warning("Unable to send authentication request. Error is %s", e)
+            raise KeycloakException("Unable to send authentication request.")
         if response.ok:
             payload = response.json()
-            self.access_token = payload['access_token']
-            self.refresh_token = payload['refresh_token']
+            self.access_token = payload["access_token"]
+            self.refresh_token = payload["refresh_token"]
         else:
-            logger.warning('Request failed', response.text)
-            raise KeycloakException('Unable to parse access token.')
+            logger.warning("Request failed", response.text)
+            raise KeycloakException("Unable to parse access token.")
 
     @property
     def is_logged_in(self):
@@ -48,31 +48,31 @@ class KeycloakClient:
 
     def logout(self):
         logout_url = (
-            f'{self.base_url}/realms/{self.realm}/protocol/openid-connect/logout'
+            f"{self.base_url}/realms/{self.realm}/protocol/openid-connect/logout"
         )
         data = {
-            'client_id': self.client_id,
-            'client_secret': self.client_secret,
-            'refresh_token': self.refresh_token,
+            "client_id": self.client_id,
+            "client_secret": self.client_secret,
+            "refresh_token": self.refresh_token,
         }
         try:
             response = requests.post(logout_url, data=data)
         except requests.exceptions.RequestException as e:
-            logger.warning('Unable to send logout request. Error is %s', e)
-            raise KeycloakException('Unable to send logout request.')
+            logger.warning("Unable to send logout request. Error is %s", e)
+            raise KeycloakException("Unable to send logout request.")
         if response.status_code != 204:
-            logger.warning('Logout failed', response.text)
-            raise KeycloakException('Unable to logout.')
+            logger.warning("Logout failed", response.text)
+            raise KeycloakException("Unable to logout.")
         else:
             self.access_token = None
             self.refresh_token = None
 
     def _request(self, method, endpoint, json=None):
         if not self.is_logged_in:
-            raise KeycloakException('User is not logged in.')
+            raise KeycloakException("User is not logged in.")
         if not endpoint.startswith(self.base_url):
-            url = f'{self.base_url}/admin/realms/{self.realm}/{endpoint}'
-        headers = {'Authorization': 'Bearer ' + self.access_token}
+            url = f"{self.base_url}/admin/realms/{self.realm}/{endpoint}"
+        headers = {"Authorization": "Bearer " + self.access_token}
         try:
             response = requests.request(method, url, json=json, headers=headers)
         except requests.RequestException as e:
@@ -93,16 +93,16 @@ class KeycloakClient:
             raise KeycloakException(response.content)
 
     def _get_all(self, endpoint):
-        response = self._request('get', endpoint)
+        response = self._request("get", endpoint)
 
         if response.status_code != 200:
             raise KeycloakException(response.content)
         result = response.json()
-        if 'Link' not in response.headers:
+        if "Link" not in response.headers:
             return result
-        while 'next' in response.headers['Link']:
-            next_url = response.headers['Link'].split('; ')[0][1:-1]
-            response = self._request('get', next_url)
+        while "next" in response.headers["Link"]:
+            next_url = response.headers["Link"].split("; ")[0][1:-1]
+            response = self._request("get", next_url)
 
             if response.status_code != 200:
                 raise KeycloakException(response.content)
@@ -112,51 +112,51 @@ class KeycloakClient:
         return result
 
     def _post(self, endpoint, **kwargs):
-        response = self._request('post', endpoint, **kwargs)
+        response = self._request("post", endpoint, **kwargs)
         if response.status_code == requests.codes.created:
             # Parse created object UUID
-            return response.headers['location'].split('/')[-1]
+            return response.headers["location"].split("/")[-1]
         else:
             return self._parse_response(response)
 
     def _get(self, endpoint, **kwargs):
-        response = self._request('get', endpoint, **kwargs)
+        response = self._request("get", endpoint, **kwargs)
         return self._parse_response(response)
 
     def _put(self, endpoint, **kwargs):
-        response = self._request('put', endpoint, **kwargs)
+        response = self._request("put", endpoint, **kwargs)
         return self._parse_response(response)
 
     def _delete(self, endpoint, **kwargs):
-        response = self._request('delete', endpoint, **kwargs)
+        response = self._request("delete", endpoint, **kwargs)
         return self._parse_response(response)
 
     def get_users(self):
-        return self._get_all('users')
+        return self._get_all("users")
 
     def get_user_groups(self, user_id):
-        return self._get_all(f'users/{user_id}/groups')
+        return self._get_all(f"users/{user_id}/groups")
 
     def add_user_to_group(self, user_id, group_id):
-        return self._put(f'users/{user_id}/groups/{group_id}')
+        return self._put(f"users/{user_id}/groups/{group_id}")
 
     def delete_user_from_group(self, user_id, group_id):
-        return self._delete(f'users/{user_id}/groups/{group_id}')
+        return self._delete(f"users/{user_id}/groups/{group_id}")
 
     def get_groups(self):
-        return self._get_all('groups')
+        return self._get_all("groups")
 
     def create_group(self, name):
-        return self._post('groups', json={'name': name})
+        return self._post("groups", json={"name": name})
 
     def update_group(self, group_id, name):
-        return self._put(f'groups/{group_id}', json={'name': name})
+        return self._put(f"groups/{group_id}", json={"name": name})
 
     def delete_group(self, group_id):
-        return self._delete(f'groups/{group_id}')
+        return self._delete(f"groups/{group_id}")
 
     def create_child_group(self, group_id, name):
-        return self._post(f'groups/{group_id}/children', json={'name': name})
+        return self._post(f"groups/{group_id}/children", json={"name": name})
 
     def get_group_users(self, group_id):
-        return self._get_all(f'groups/{group_id}/members')
+        return self._get_all(f"groups/{group_id}/members")

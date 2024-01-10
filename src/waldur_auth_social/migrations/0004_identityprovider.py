@@ -5,80 +5,80 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('waldur_auth_social', '0003_delete_remoteeduteamsuser'),
+        ("waldur_auth_social", "0003_delete_remoteeduteamsuser"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='IdentityProvider',
+            name="IdentityProvider",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('provider', models.CharField(max_length=32, unique=True)),
-                ('is_active', models.BooleanField(default=True)),
+                ("provider", models.CharField(max_length=32, unique=True)),
+                ("is_active", models.BooleanField(default=True)),
                 (
-                    'client_id',
+                    "client_id",
                     models.CharField(
-                        help_text='ID of application used for OAuth authentication.',
+                        help_text="ID of application used for OAuth authentication.",
                         max_length=200,
                     ),
                 ),
                 (
-                    'client_secret',
+                    "client_secret",
                     models.CharField(
-                        help_text='Application secret key.', max_length=200
+                        help_text="Application secret key.", max_length=200
                     ),
                 ),
-                ('verify_ssl', models.BooleanField(default=True)),
+                ("verify_ssl", models.BooleanField(default=True)),
                 (
-                    'discovery_url',
+                    "discovery_url",
                     models.CharField(
-                        max_length=200, help_text='The endpoint for endpoint discovery.'
-                    ),
-                ),
-                (
-                    'userinfo_url',
-                    models.CharField(
-                        max_length=200, help_text='The endpoint for fetching user info.'
+                        max_length=200, help_text="The endpoint for endpoint discovery."
                     ),
                 ),
                 (
-                    'token_url',
+                    "userinfo_url",
                     models.CharField(
-                        max_length=200,
-                        help_text='The endpoint for obtaining auth token.',
+                        max_length=200, help_text="The endpoint for fetching user info."
                     ),
                 ),
                 (
-                    'auth_url',
+                    "token_url",
                     models.CharField(
                         max_length=200,
-                        help_text='The endpoint for authorization request flow.',
+                        help_text="The endpoint for obtaining auth token.",
                     ),
                 ),
                 (
-                    'label',
+                    "auth_url",
                     models.CharField(
-                        help_text='Human-readable identity provider is label.',
+                        max_length=200,
+                        help_text="The endpoint for authorization request flow.",
+                    ),
+                ),
+                (
+                    "label",
+                    models.CharField(
+                        help_text="Human-readable identity provider is label.",
                         max_length=200,
                     ),
                 ),
                 (
-                    'management_url',
+                    "management_url",
                     models.CharField(
                         max_length=200,
                         blank=True,
-                        help_text='The endpoint for user details management.',
+                        help_text="The endpoint for user details management.",
                     ),
                 ),
-                ('protected_fields', models.JSONField(default=list)),
+                ("protected_fields", models.JSONField(default=list)),
             ],
         ),
     ]

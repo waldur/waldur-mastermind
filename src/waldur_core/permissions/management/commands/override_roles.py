@@ -23,25 +23,25 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         super().add_arguments(parser)
         parser.add_argument(
-            'roles_file',
-            help='Specifies location of roles configuration file.',
+            "roles_file",
+            help="Specifies location of roles configuration file.",
         )
 
     def handle(self, *args, **options):
-        with open(options['roles_file']) as auth_file:
+        with open(options["roles_file"]) as auth_file:
             data = yaml.safe_load(auth_file)
         if data is None:
             return
 
         for row in data:
-            role = Role.objects.get(name=row['role'])
-            description = row.get('description')
-            permissions_add = row.get('add_permissions')
-            permissions_drop = row.get('drop_permissions')
+            role = Role.objects.get(name=row["role"])
+            description = row.get("description")
+            permissions_add = row.get("add_permissions")
+            permissions_drop = row.get("drop_permissions")
 
             if description is not None and description != role.description:
                 role.description = description
-                role.save(update_fields=['description'])
+                role.save(update_fields=["description"])
 
             if permissions_add:
                 for permission in permissions_add:
@@ -55,7 +55,7 @@ class Command(BaseCommand):
                     if existing_permission:
                         existing_permission.delete()
 
-            is_active = row.get('is_active')
+            is_active = row.get("is_active")
             if is_active and role.is_active != is_active:
                 self.stdout.write(
                     self.style.WARNING(
@@ -63,4 +63,4 @@ class Command(BaseCommand):
                     )
                 )
                 role.is_active = is_active
-                role.save(update_fields=['is_active'])
+                role.save(update_fields=["is_active"])

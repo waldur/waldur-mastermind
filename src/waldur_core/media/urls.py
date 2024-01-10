@@ -4,8 +4,8 @@ from waldur_core.media import views
 
 urlpatterns = [
     re_path(
-        r'^media-download/(?P<token>.+)/$',
+        r"^media-download/(?P<token>.+)/$",
         views.ProtectedFileView.as_view(),
-        name='media-download',
+        name="media-download",
     ),
 ]

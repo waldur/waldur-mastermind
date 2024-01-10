@@ -12,7 +12,7 @@ from waldur_mastermind.invoices.tests import factories, fixtures
 
 
 class EmitInvoiceCreatedOnStateChange(TransactionTestCase):
-    @mock.patch('waldur_mastermind.invoices.signals.invoice_created')
+    @mock.patch("waldur_mastermind.invoices.signals.invoice_created")
     def test_invoice_created_signal_is_emitted_on_monthly_invoice_creation(
         self, invoice_created_mock
     ):
@@ -26,7 +26,7 @@ class EmitInvoiceCreatedOnStateChange(TransactionTestCase):
         invoice_created_mock.send.assert_called_once_with(
             invoice=new_invoice,
             sender=models.Invoice,
-            issuer_details=settings.WALDUR_INVOICES['ISSUER_DETAILS'],
+            issuer_details=settings.WALDUR_INVOICES["ISSUER_DETAILS"],
         )
 
 

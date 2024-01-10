@@ -27,12 +27,12 @@ logger = logging.getLogger(__name__)
 
 
 class CheckExtensionMixin(core_views.ConstanceCheckExtensionMixin):
-    extension_name = 'WALDUR_SUPPORT'
+    extension_name = "WALDUR_SUPPORT"
 
 
 class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     queryset = models.Issue.objects.all()
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
     filter_backends = (
         filters.IssueCallerOrRoleFilterBackend,
         DjangoFilterBackend,
@@ -49,16 +49,16 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         if not request.user.email:
             raise rf_exceptions.ValidationError(
                 _(
-                    'Current user does not have email, '
-                    'therefore he is not allowed to create issues.'
+                    "Current user does not have email, "
+                    "therefore he is not allowed to create issues."
                 )
             )
 
         if not request.user.full_name:
             raise rf_exceptions.ValidationError(
                 _(
-                    'Current user does not have full_name, '
-                    'therefore he is not allowed to create issues.'
+                    "Current user does not have full_name, "
+                    "therefore he is not allowed to create issues."
                 )
             )
 
@@ -69,7 +69,7 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
             backend.get_active_backend().create_issue(issue)
             backend.get_active_backend().create_confirmation_comment(issue)
         except exceptions.SupportUserInactive:
-            raise rf_exceptions.ValidationError({'caller': _('Caller is inactive.')})
+            raise rf_exceptions.ValidationError({"caller": _("Caller is inactive.")})
 
     create_permissions = [can_create_user]
 
@@ -80,7 +80,7 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
     def _update_is_available_validator(issue):
         if not backend.get_active_backend().update_is_available(issue):
-            raise ValidationError('Updating is not available.')
+            raise ValidationError("Updating is not available.")
 
     update_permissions = partial_update_permissions = [is_staff_or_support]
     update_validators = partial_update_validators = [_update_is_available_validator]
@@ -92,7 +92,7 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
     def _destroy_is_available_validator(issue):
         if not backend.get_active_backend().destroy_is_available(issue):
-            raise ValidationError('Destroying is not available.')
+            raise ValidationError("Destroying is not available.")
 
     destroy_permissions = [is_staff_or_support]
     destroy_validators = [_destroy_is_available_validator]
@@ -116,7 +116,7 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
             return
         raise rf_exceptions.PermissionDenied()
 
-    @decorators.action(detail=True, methods=['post'])
+    @decorators.action(detail=True, methods=["post"])
     def comment(self, request, uuid=None):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -130,14 +130,14 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
 
 class PriorityViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = models.Priority.objects.all().order_by('name')
+    queryset = models.Priority.objects.all().order_by("name")
     serializer_class = serializers.PrioritySerializer
     filterset_class = filters.PriorityFilter
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
 
 
 class CommentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
     serializer_class = serializers.CommentSerializer
     filter_backends = (
         filters.CommentIssueCallerOrRoleFilterBackend,
@@ -154,7 +154,7 @@ class CommentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
     def _update_is_available_validator(comment):
         if not backend.get_active_backend().comment_update_is_available(comment):
-            raise ValidationError('Updating is not available.')
+            raise ValidationError("Updating is not available.")
 
     update_permissions = partial_update_permissions = [structure_permissions.is_staff]
     update_validators = partial_update_validators = [_update_is_available_validator]
@@ -166,7 +166,7 @@ class CommentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
     def _destroy_is_available_validator(comment):
         if not backend.get_active_backend().comment_destroy_is_available(comment):
-            raise ValidationError('Comment cannot be destroyed.')
+            raise ValidationError("Comment cannot be destroyed.")
 
     destroy_permissions = [structure_permissions.is_staff]
     destroy_validators = [_destroy_is_available_validator]
@@ -183,7 +183,7 @@ class CommentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
 class SupportUserViewSet(CheckExtensionMixin, viewsets.ReadOnlyModelViewSet):
     queryset = models.SupportUser.objects.all()
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
     permission_classes = (
         permissions.IsAuthenticated,
         structure_permissions.IsStaffOrSupportUser,
@@ -202,14 +202,14 @@ class SupportStatsViewSet(CheckExtensionMixin, views.APIView):
                 status__in=[
                     models.IssueStatus.Types.RESOLVED,
                     models.IssueStatus.Types.CANCELED,
-                    'Closed',
+                    "Closed",
                 ]
             )
             .filter(resolution_date__isnull=True)
             .count()
         )
         closed_this_month_count = models.Issue.objects.filter(
-            status__in=[models.IssueStatus.Types.RESOLVED, 'Closed'],
+            status__in=[models.IssueStatus.Types.RESOLVED, "Closed"],
             resolution_date__month=current_month,
         ).count()
 
@@ -219,9 +219,9 @@ class SupportStatsViewSet(CheckExtensionMixin, views.APIView):
         recent_broadcasts_count = recent_broadcasts.count()
 
         data = {
-            'open_issues_count': open_issues_count,
-            'closed_this_month_count': closed_this_month_count,
-            'recent_broadcasts_count': recent_broadcasts_count,
+            "open_issues_count": open_issues_count,
+            "closed_this_month_count": closed_this_month_count,
+            "recent_broadcasts_count": recent_broadcasts_count,
         }
 
         return JsonResponse(data)
@@ -244,8 +244,8 @@ class AttachmentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     filterset_class = filters.AttachmentFilter
     filter_backends = [DjangoFilterBackend]
     serializer_class = serializers.AttachmentSerializer
-    lookup_field = 'uuid'
-    disabled_actions = ['update', 'partial_update']
+    lookup_field = "uuid"
+    disabled_actions = ["update", "partial_update"]
 
     @transaction.atomic()
     def perform_destroy(self, attachment):
@@ -254,7 +254,7 @@ class AttachmentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
     def _destroy_is_available_validator(attachment):
         if not backend.get_active_backend().attachment_destroy_is_available(attachment):
-            raise ValidationError('Destroying is not available.')
+            raise ValidationError("Destroying is not available.")
 
     destroy_validators = [_destroy_is_available_validator]
 
@@ -270,15 +270,15 @@ class AttachmentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
 class TemplateViewSet(CheckExtensionMixin, viewsets.ReadOnlyModelViewSet):
     permission_classes = (permissions.IsAuthenticated,)
-    queryset = models.Template.objects.all().order_by('name')
-    lookup_field = 'uuid'
+    queryset = models.Template.objects.all().order_by("name")
+    lookup_field = "uuid"
     serializer_class = serializers.TemplateSerializer
 
 
 class FeedbackViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
-    lookup_field = 'uuid'
-    queryset = models.Feedback.objects.all().order_by('created')
-    disabled_actions = ['update', 'partial_update', 'destroy']
+    lookup_field = "uuid"
+    queryset = models.Feedback.objects.all().order_by("created")
+    disabled_actions = ["update", "partial_update", "destroy"]
     permission_classes = (core_permissions.ActionsPermission,)
     create_permissions = ()
     create_serializer_class = serializers.CreateFeedbackSerializer
@@ -299,11 +299,11 @@ class FeedbackReportViewSet(views.APIView):
 
     def get(self, request, format=None):
         result = {
-            dict(models.Feedback.Evaluation.CHOICES).get(count['evaluation']): count[
-                'id__count'
+            dict(models.Feedback.Evaluation.CHOICES).get(count["evaluation"]): count[
+                "id__count"
             ]
-            for count in models.Feedback.objects.values('evaluation').annotate(
-                Count('id')
+            for count in models.Feedback.objects.values("evaluation").annotate(
+                Count("id")
             )
         }
         return response.Response(result, status=status.HTTP_200_OK)
@@ -313,7 +313,7 @@ class FeedbackAverageReportViewSet(views.APIView):
     permission_classes = [permissions.IsAuthenticated, core_permissions.IsSupport]
 
     def get(self, request, format=None):
-        avg = models.Feedback.objects.aggregate(Avg('evaluation'))['evaluation__avg']
+        avg = models.Feedback.objects.aggregate(Avg("evaluation"))["evaluation__avg"]
 
         if avg:
             result = round(avg, 2)
@@ -327,14 +327,14 @@ class ZammadWebHookReceiverView(CheckExtensionMixin, views.APIView):
     permission_classes = ()
 
     def post(self, request):
-        ticket_id = request.data.get('ticket', {}).get('id')
+        ticket_id = request.data.get("ticket", {}).get("id")
 
         if not ticket_id:
-            raise ValidationError('Key ticket.id is required.')
+            raise ValidationError("Key ticket.id is required.")
 
         issue: models.Issue = get_object_or_404(models.Issue, backend_id=ticket_id)
         logger.info(
-            f'Updating issue {issue.key} based on data from ticket with id {ticket_id}.'
+            f"Updating issue {issue.key} based on data from ticket with id {ticket_id}."
         )
         ZammadServiceBackend().update_waldur_issue_from_zammad(issue)
         ZammadServiceBackend().update_waldur_comments_from_zammad(issue)

@@ -63,27 +63,27 @@ class VpcExternalFilterTest(BaseOpenStackTest):
 
 class PlanComponentsTest(test.APITransactionTestCase):
     prices = {
-        'cores': 10,
-        'ram': 100,
-        'storage': 1000,
+        "cores": 10,
+        "ram": 100,
+        "storage": 1000,
     }
     quotas = prices
 
     def setUp(self):
         super().setUp()
-        self.category = load_category('vpc')
+        self.category = load_category("vpc")
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_OFFERING)
 
     def test_plan_components_are_validated(self):
         response = self.create_offering()
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
-        offering = marketplace_models.Offering.objects.get(uuid=response.data['uuid'])
+        offering = marketplace_models.Offering.objects.get(uuid=response.data["uuid"])
         self.assertEqual(offering.plans.first().components.count(), 3)
 
     def test_plan_components_have_parent(self):
         response = self.create_offering()
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
-        offering = marketplace_models.Offering.objects.get(uuid=response.data['uuid'])
+        offering = marketplace_models.Offering.objects.get(uuid=response.data["uuid"])
         self.assertEqual(3, offering.components.exclude(parent=None).count())
 
     def test_plan_without_components_is_valid(self):
@@ -95,29 +95,29 @@ class PlanComponentsTest(test.APITransactionTestCase):
         url = marketplace_factories.OfferingFactory.get_list_url()
         self.client.force_authenticate(fixture.owner)
         payload = {
-            'name': 'offering',
-            'category': marketplace_factories.CategoryFactory.get_url(self.category),
-            'customer': structure_factories.CustomerFactory.get_url(fixture.customer),
-            'type': TENANT_TYPE,
-            'service_attributes': {
-                'backend_url': 'http://example.com/',
-                'username': 'root',
-                'password': 'secret',
-                'tenant_name': 'admin',
-                'external_network_id': uuid.uuid4(),
+            "name": "offering",
+            "category": marketplace_factories.CategoryFactory.get_url(self.category),
+            "customer": structure_factories.CustomerFactory.get_url(fixture.customer),
+            "type": TENANT_TYPE,
+            "service_attributes": {
+                "backend_url": "http://example.com/",
+                "username": "root",
+                "password": "secret",
+                "tenant_name": "admin",
+                "external_network_id": uuid.uuid4(),
             },
-            'plans': [
+            "plans": [
                 {
-                    'name': 'small',
-                    'description': 'CPU 1',
-                    'unit': UnitPriceMixin.Units.PER_DAY,
-                    'unit_price': 1010100,
+                    "name": "small",
+                    "description": "CPU 1",
+                    "unit": UnitPriceMixin.Units.PER_DAY,
+                    "unit_price": 1010100,
                 }
             ],
         }
         if components:
-            payload['plans'][0]['prices'] = self.prices
-        with mock.patch('waldur_core.structure.models.ServiceSettings.get_backend'):
+            payload["plans"][0]["prices"] = self.prices
+        with mock.patch("waldur_core.structure.models.ServiceSettings.get_backend"):
             return self.client.post(url, payload)
 
 
@@ -192,7 +192,7 @@ class OfferingComponentForVolumeTypeTest(test.APITransactionTestCase):
         self.offering = marketplace_factories.OfferingFactory(
             type=TENANT_TYPE,
             scope=self.fixture.openstack_service_settings,
-            plugin_options={'storage_mode': STORAGE_MODE_DYNAMIC},
+            plugin_options={"storage_mode": STORAGE_MODE_DYNAMIC},
         )
         self.volume_type = self.fixture.volume_type
 
@@ -205,13 +205,13 @@ class OfferingComponentForVolumeTypeTest(test.APITransactionTestCase):
             component.billing_type,
             marketplace_models.OfferingComponent.BillingTypes.LIMIT,
         )
-        self.assertEqual(component.name, 'Storage (%s)' % self.volume_type.name)
-        self.assertEqual(component.type, 'gigabytes_' + self.volume_type.name)
+        self.assertEqual(component.name, "Storage (%s)" % self.volume_type.name)
+        self.assertEqual(component.type, "gigabytes_" + self.volume_type.name)
 
     def test_offering_component_for_volume_type_is_not_created_if_storage_mode_is_fixed(
         self,
     ):
-        self.offering.plugin_options = {'storage_mode': STORAGE_MODE_FIXED}
+        self.offering.plugin_options = {"storage_mode": STORAGE_MODE_FIXED}
         self.offering.save()
 
         new_volume_type = VolumeTypeFactory(
@@ -225,12 +225,12 @@ class OfferingComponentForVolumeTypeTest(test.APITransactionTestCase):
         )
 
     def test_offering_component_name_is_updated(self):
-        self.volume_type.name = 'new name'
+        self.volume_type.name = "new name"
         self.volume_type.save()
         component = marketplace_models.OfferingComponent.objects.get(
             scope=self.volume_type
         )
-        self.assertEqual(component.name, 'Storage (%s)' % self.volume_type.name)
+        self.assertEqual(component.name, "Storage (%s)" % self.volume_type.name)
 
     def test_offering_component_is_deleted(self):
         self.volume_type.delete()
@@ -242,31 +242,31 @@ class OfferingComponentForVolumeTypeTest(test.APITransactionTestCase):
 
     def set_storage_mode(self, storage_mode):
         url = marketplace_factories.OfferingFactory.get_url(
-            self.offering, 'update_integration'
+            self.offering, "update_integration"
         )
         new_options = {
-            'plugin_options': {'storage_mode': storage_mode},
+            "plugin_options": {"storage_mode": storage_mode},
         }
 
         self.client.force_authenticate(self.fixture.staff)
         return self.client.post(url, new_options)
 
     def test_switch_from_fixed_to_dynamic_billing(self):
-        self.offering.plugin_options = {'storage_mode': STORAGE_MODE_FIXED}
+        self.offering.plugin_options = {"storage_mode": STORAGE_MODE_FIXED}
         response = self.set_storage_mode(STORAGE_MODE_DYNAMIC)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.offering.refresh_from_db()
         self.assertEqual(
-            self.offering.plugin_options['storage_mode'], STORAGE_MODE_DYNAMIC
+            self.offering.plugin_options["storage_mode"], STORAGE_MODE_DYNAMIC
         )
 
     def test_switch_from_dynamic_to_fixed_billing(self):
-        self.offering.plugin_options = {'storage_mode': STORAGE_MODE_DYNAMIC}
+        self.offering.plugin_options = {"storage_mode": STORAGE_MODE_DYNAMIC}
         response = self.set_storage_mode(STORAGE_MODE_FIXED)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.offering.refresh_from_db()
         self.assertEqual(
-            self.offering.plugin_options['storage_mode'], STORAGE_MODE_FIXED
+            self.offering.plugin_options["storage_mode"], STORAGE_MODE_FIXED
         )
 
 
@@ -279,11 +279,11 @@ class OfferingCreateTest(test.APITransactionTestCase):
         self.category_url = marketplace_factories.CategoryFactory.get_url()
         self.url = marketplace_factories.OfferingFactory.get_list_url()
         mock_backend_patch = mock.patch(
-            'waldur_openstack.openstack_base.backend.BaseOpenStackBackend.get_client'
+            "waldur_openstack.openstack_base.backend.BaseOpenStackBackend.get_client"
         )
         mock_backend_patch.start()
         mock_executors_patch = mock.patch(
-            'waldur_mastermind.marketplace_openstack.views.executors'
+            "waldur_mastermind.marketplace_openstack.views.executors"
         )
         mock_executors_patch.start()
 
@@ -298,17 +298,17 @@ class OfferingCreateTest(test.APITransactionTestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(
-            marketplace_models.Offering.objects.filter(name='TEST').exists()
+            marketplace_models.Offering.objects.filter(name="TEST").exists()
         )
         self.assertTrue(
             marketplace_models.OfferingComponent.objects.filter(
-                offering__name='TEST'
+                offering__name="TEST"
             ).exists()
         )
         component = marketplace_models.OfferingComponent.objects.get(
-            offering__name='TEST', type='cores'
+            offering__name="TEST", type="cores"
         )
-        self.assertEqual(component.article_code, 'artcode1')
+        self.assertEqual(component.article_code, "artcode1")
         self.assertEqual(component.min_value, 1)
         self.assertEqual(component.max_value, 100)
         self.assertEqual(component.max_available_limit, 200)
@@ -368,11 +368,11 @@ class OfferingCreateTest(test.APITransactionTestCase):
 
     def test_create_offering_with_limits(self):
         payload = self._get_payload()
-        payload.pop('components')
-        payload['limits'] = {
-            'cores': {'min': 1, 'max': 100, 'max_available_limit': 200},
-            'ram': {'min': 1024, 'max': 102400, 'max_available_limit': 204800},
-            'storage': {'min': 1024, 'max': 102400, 'max_available_limit': 204800},
+        payload.pop("components")
+        payload["limits"] = {
+            "cores": {"min": 1, "max": 100, "max_available_limit": 200},
+            "ram": {"min": 1024, "max": 102400, "max_available_limit": 204800},
+            "storage": {"min": 1024, "max": 102400, "max_available_limit": 204800},
         }
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(self.url, payload)
@@ -380,15 +380,15 @@ class OfferingCreateTest(test.APITransactionTestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(
-            marketplace_models.Offering.objects.filter(name='TEST').exists()
+            marketplace_models.Offering.objects.filter(name="TEST").exists()
         )
         self.assertTrue(
             marketplace_models.OfferingComponent.objects.filter(
-                offering__name='TEST'
+                offering__name="TEST"
             ).exists()
         )
         component = marketplace_models.OfferingComponent.objects.get(
-            offering__name='TEST', type='cores'
+            offering__name="TEST", type="cores"
         )
         self.assertEqual(component.min_value, 1)
         self.assertEqual(component.max_value, 100)
@@ -404,11 +404,11 @@ class OfferingUpdateTest(test.APITransactionTestCase):
         )
         self.component = marketplace_factories.OfferingComponentFactory(
             offering=self.offering,
-            type='cores',
-            article_code='article_code',
+            type="cores",
+            article_code="article_code",
         )
         self.url = marketplace_factories.OfferingFactory.get_url(
-            self.offering, 'update_offering_component'
+            self.offering, "update_offering_component"
         )
 
     def test_update_article_code(self):
@@ -416,29 +416,29 @@ class OfferingUpdateTest(test.APITransactionTestCase):
         response = self.client.post(
             self.url,
             {
-                'uuid': self.component.uuid.hex,
-                'type': 'cores',
-                'name': 'Cores',
-                'measured_unit': 'hours',
-                'billing_type': 'fixed',
-                'article_code': 'new_article_code',
+                "uuid": self.component.uuid.hex,
+                "type": "cores",
+                "name": "Cores",
+                "measured_unit": "hours",
+                "billing_type": "fixed",
+                "article_code": "new_article_code",
             },
         )
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.component.refresh_from_db()
-        self.assertEqual(self.component.article_code, 'new_article_code')
+        self.assertEqual(self.component.article_code, "new_article_code")
 
     def test_validate_extra_components(self):
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(
             self.url,
             {
-                'type': 'extra',
-                'name': 'extra',
-                'measured_unit': 'hours',
-                'billing_type': 'fixed',
+                "type": "extra",
+                "name": "extra",
+                "measured_unit": "hours",
+                "billing_type": "fixed",
             },
         )
 
@@ -453,37 +453,37 @@ class OfferingDetailsTest(test.APITransactionTestCase):
             type=TENANT_TYPE, scope=self.fixture.openstack_service_settings
         )
         marketplace_factories.OfferingComponentFactory(
-            offering=self.offering, type='cores'
+            offering=self.offering, type="cores"
         )
         marketplace_factories.OfferingComponentFactory(
-            offering=self.offering, type='ram'
+            offering=self.offering, type="ram"
         )
         marketplace_factories.OfferingComponentFactory(
-            offering=self.offering, type='storage'
+            offering=self.offering, type="storage"
         )
         marketplace_factories.OfferingComponentFactory(
-            offering=self.offering, type='gigabytes_ssd'
+            offering=self.offering, type="gigabytes_ssd"
         )
         self.url = marketplace_factories.OfferingFactory.get_url(offering=self.offering)
 
     def test_when_storage_mode_is_fixed_offering_components_are_filtered(self):
-        self.offering.plugin_options['storage_mode'] = STORAGE_MODE_FIXED
+        self.offering.plugin_options["storage_mode"] = STORAGE_MODE_FIXED
         self.offering.save()
 
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.get(self.url)
-        actual_types = {component['type'] for component in response.data['components']}
-        expected_types = {'cores', 'ram', 'storage'}
+        actual_types = {component["type"] for component in response.data["components"]}
+        expected_types = {"cores", "ram", "storage"}
         self.assertEqual(actual_types, expected_types)
 
     def test_when_storage_mode_is_dynamic_offering_components_are_filtered(self):
-        self.offering.plugin_options['storage_mode'] = STORAGE_MODE_DYNAMIC
+        self.offering.plugin_options["storage_mode"] = STORAGE_MODE_DYNAMIC
         self.offering.save()
 
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.get(self.url)
-        actual_types = {component['type'] for component in response.data['components']}
-        expected_types = {'cores', 'ram', 'gigabytes_ssd'}
+        actual_types = {component["type"] for component in response.data["components"]}
+        expected_types = {"cores", "ram", "gigabytes_ssd"}
         self.assertEqual(actual_types, expected_types)
 
 
@@ -500,7 +500,7 @@ class OfferingNameTest(test.APITransactionTestCase):
             type=offering_type,
             scope=self.fixture.private_settings,
         )
-        self.fixture.openstack_tenant.name = 'new_name'
+        self.fixture.openstack_tenant.name = "new_name"
         self.fixture.openstack_tenant.save()
         offering.refresh_from_db()
-        self.assertTrue('new_name' in offering.name)
+        self.assertTrue("new_name" in offering.name)

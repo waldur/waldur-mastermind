@@ -12,20 +12,20 @@ from . import INSTANCE_TYPE, VOLUME_TYPE, utils
 logger = logging.getLogger(__name__)
 
 
-@shared_task(name='waldur_mastermind.marketplace_openstack.push_tenant_limits')
+@shared_task(name="waldur_mastermind.marketplace_openstack.push_tenant_limits")
 def push_tenant_limits(serialized_resource):
     resource = core_utils.deserialize_instance(serialized_resource)
     utils.push_tenant_limits(resource)
 
 
-@shared_task(name='waldur_mastermind.marketplace_openstack.restore_tenant_limits')
+@shared_task(name="waldur_mastermind.marketplace_openstack.restore_tenant_limits")
 def restore_tenant_limits(serialized_resource):
     resource = core_utils.deserialize_instance(serialized_resource)
     utils.restore_limits(resource)
 
 
 @shared_task(
-    name='waldur_mastermind.marketplace_openstack.import_instances_and_volumes_of_tenant'
+    name="waldur_mastermind.marketplace_openstack.import_instances_and_volumes_of_tenant"
 )
 def sync_instances_and_volumes_of_tenant(serialized_resource):
     resource = core_utils.deserialize_instance(serialized_resource)
@@ -34,7 +34,7 @@ def sync_instances_and_volumes_of_tenant(serialized_resource):
 
 
 @shared_task(
-    name='waldur_mastermind.marketplace_openstack.create_resources_for_lost_instances_and_volumes'
+    name="waldur_mastermind.marketplace_openstack.create_resources_for_lost_instances_and_volumes"
 )
 def create_resources_for_lost_instances_and_volumes():
     for offering_type, klass in (
@@ -43,7 +43,7 @@ def create_resources_for_lost_instances_and_volumes():
     ):
         ids = marketplace_models.Resource.objects.filter(
             offering__type=offering_type
-        ).values_list('object_id', flat=True)
+        ).values_list("object_id", flat=True)
         instances = klass.objects.exclude(id__in=ids)
 
         for instance in instances:
@@ -54,7 +54,7 @@ def create_resources_for_lost_instances_and_volumes():
 
 
 @shared_task(
-    name='waldur_mastermind.marketplace_openstack.refresh_instance_backend_metadata'
+    name="waldur_mastermind.marketplace_openstack.refresh_instance_backend_metadata"
 )
 def refresh_instance_backend_metadata():
     instances = marketplace_models.Resource.objects.filter(offering__type=INSTANCE_TYPE)

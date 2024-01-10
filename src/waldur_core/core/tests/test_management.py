@@ -7,12 +7,12 @@ from django.test import TestCase
 class CommandsTestCase(TestCase):
     def test_no_missing_migrations(self):
         result = StringIO()
-        call_command('makemigrations', dry_run=True, stdout=result)
+        call_command("makemigrations", dry_run=True, stdout=result)
         result_string = result.getvalue()
-        self.assertEqual(result_string, 'No changes detected\n')
+        self.assertEqual(result_string, "No changes detected\n")
 
     def test_no_conflicting_migrations(self):
         result = StringIO()
-        call_command('migrate', stdout=result)
+        call_command("migrate", stdout=result)
         result_string = result.getvalue()
-        self.assertFalse('Conflicting migrations detected' in result_string)
+        self.assertFalse("Conflicting migrations detected" in result_string)

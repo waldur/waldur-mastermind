@@ -32,14 +32,14 @@ class BaseBackendTest(TestCase):
         return Volume(
             manager=None,
             info=dict(
-                name='volume-%s' % backend_id,
+                name="volume-%s" % backend_id,
                 size=1,
-                metadata='',
-                description='',
-                volume_type='',
-                status='OK',
+                metadata="",
+                description="",
+                volume_type="",
+                status="OK",
                 id=backend_id,
-                bootable='true',
+                bootable="true",
             ),
         )
 
@@ -47,16 +47,16 @@ class BaseBackendTest(TestCase):
         return Server(
             manager=None,
             info={
-                'id': backend_id,
-                'name': 'server-%s' % backend_id,
-                'status': 'ACTIVE',
-                'key_name': '',
-                'created': '2012-04-23T08:10:00Z',
-                'OS-SRV-USG:launched_at': '2012-04-23T09:15',
-                'flavor': {'id': backend_id},
-                'networks': {
-                    'test-int-net': ['192.168.42.60'],
-                    'public': ['172.29.249.185'],
+                "id": backend_id,
+                "name": "server-%s" % backend_id,
+                "status": "ACTIVE",
+                "key_name": "",
+                "created": "2012-04-23T08:10:00Z",
+                "OS-SRV-USG:launched_at": "2012-04-23T09:15",
+                "flavor": {"id": backend_id},
+                "networks": {
+                    "test-int-net": ["192.168.42.60"],
+                    "public": ["172.29.249.185"],
                 },
             },
         )
@@ -65,7 +65,7 @@ class BaseBackendTest(TestCase):
         return Flavor(
             manager=None,
             info=dict(
-                name='m1.small',
+                name="m1.small",
                 disk=10,
                 vcpus=2,
                 ram=4096,
@@ -79,11 +79,11 @@ class PullFloatingIPTest(BaseBackendTest):
         return dict(
             floatingips=[
                 {
-                    'floating_ip_address': '0.0.0.0',  # noqa: S104
-                    'floating_network_id': 'new_backend_network_id',
-                    'status': 'DOWN',
-                    'id': 'new_backend_id',
-                    'port_id': internal_ip.backend_id,
+                    "floating_ip_address": "0.0.0.0",  # noqa: S104
+                    "floating_network_id": "new_backend_network_id",
+                    "status": "DOWN",
+                    "id": "new_backend_id",
+                    "port_id": internal_ip.backend_id,
                 }
             ]
         )
@@ -104,14 +104,14 @@ class PullFloatingIPTest(BaseBackendTest):
         backend_floating_ips = self._get_valid_new_backend_ip(internal_ip)
         internal_ip.delete()
         self.neutron_client_mock.list_floatingips.return_value = backend_floating_ips
-        backend_ip = backend_floating_ips['floatingips'][0]
+        backend_ip = backend_floating_ips["floatingips"][0]
         floating_ip = factories.FloatingIPFactory(
             settings=self.settings,
-            backend_id=backend_ip['id'],
-            name='old_name',
-            runtime_state='old_status',
-            backend_network_id='old_backend_network_id',
-            address='127.0.0.1',
+            backend_id=backend_ip["id"],
+            name="old_name",
+            runtime_state="old_status",
+            backend_network_id="old_backend_network_id",
+            address="127.0.0.1",
         )
         self.assertEqual(models.FloatingIP.objects.count(), 1)
 
@@ -119,11 +119,11 @@ class PullFloatingIPTest(BaseBackendTest):
 
         self.assertEqual(models.FloatingIP.objects.count(), 1)
         floating_ip.refresh_from_db()
-        self.assertNotEqual(floating_ip.address, backend_ip['floating_ip_address'])
-        self.assertNotEqual(floating_ip.name, backend_ip['floating_ip_address'])
-        self.assertNotEqual(floating_ip.runtime_state, backend_ip['status'])
+        self.assertNotEqual(floating_ip.address, backend_ip["floating_ip_address"])
+        self.assertNotEqual(floating_ip.name, backend_ip["floating_ip_address"])
+        self.assertNotEqual(floating_ip.runtime_state, backend_ip["status"])
         self.assertNotEqual(
-            floating_ip.backend_network_id, backend_ip['floating_network_id']
+            floating_ip.backend_network_id, backend_ip["floating_network_id"]
         )
 
     def test_floating_ip_is_updated_if_internal_ip_exists_even_if_not_connected_to_instance(
@@ -133,14 +133,14 @@ class PullFloatingIPTest(BaseBackendTest):
         backend_floating_ips = self._get_valid_new_backend_ip(internal_ip)
         self.neutron_client_mock.list_floatingips.return_value = backend_floating_ips
 
-        backend_ip = backend_floating_ips['floatingips'][0]
+        backend_ip = backend_floating_ips["floatingips"][0]
         floating_ip = factories.FloatingIPFactory(
             settings=self.settings,
-            backend_id=backend_ip['id'],
-            name='old_name',
-            runtime_state='old_status',
-            backend_network_id='old_backend_network_id',
-            address='127.0.0.1',
+            backend_id=backend_ip["id"],
+            name="old_name",
+            runtime_state="old_status",
+            backend_network_id="old_backend_network_id",
+            address="127.0.0.1",
         )
 
         self.tenant_backend.pull_floating_ips()
@@ -148,10 +148,10 @@ class PullFloatingIPTest(BaseBackendTest):
         floating_ip.refresh_from_db()
 
         self.assertEqual(models.FloatingIP.objects.count(), 1)
-        self.assertEqual(floating_ip.address, backend_ip['floating_ip_address'])
-        self.assertEqual(floating_ip.runtime_state, backend_ip['status'])
+        self.assertEqual(floating_ip.address, backend_ip["floating_ip_address"])
+        self.assertEqual(floating_ip.runtime_state, backend_ip["status"])
         self.assertEqual(
-            floating_ip.backend_network_id, backend_ip['floating_network_id']
+            floating_ip.backend_network_id, backend_ip["floating_network_id"]
         )
         self.assertEqual(floating_ip.internal_ip, internal_ip)
 
@@ -160,18 +160,18 @@ class PullFloatingIPTest(BaseBackendTest):
             subnet=self.fixture.subnet, instance=self.fixture.instance
         )
         backend_floating_ips = self._get_valid_new_backend_ip(internal_ip)
-        backend_ip = backend_floating_ips['floatingips'][0]
+        backend_ip = backend_floating_ips["floatingips"][0]
         self.neutron_client_mock.list_floatingips.return_value = backend_floating_ips
 
         self.tenant_backend.pull_floating_ips()
 
         self.assertEqual(models.FloatingIP.objects.count(), 1)
-        created_ip = models.FloatingIP.objects.get(backend_id=backend_ip['id'])
-        self.assertEqual(created_ip.runtime_state, backend_ip['status'])
+        created_ip = models.FloatingIP.objects.get(backend_id=backend_ip["id"])
+        self.assertEqual(created_ip.runtime_state, backend_ip["status"])
         self.assertEqual(
-            created_ip.backend_network_id, backend_ip['floating_network_id']
+            created_ip.backend_network_id, backend_ip["floating_network_id"]
         )
-        self.assertEqual(created_ip.address, backend_ip['floating_ip_address'])
+        self.assertEqual(created_ip.address, backend_ip["floating_ip_address"])
 
     def test_floating_ip_is_deleted_if_it_is_not_returned_by_neutron(self):
         floating_ip = factories.FloatingIPFactory(settings=self.settings)
@@ -185,14 +185,14 @@ class PullFloatingIPTest(BaseBackendTest):
         internal_ip = factories.InternalIPFactory(instance=self.fixture.instance)
         backend_floating_ips = self._get_valid_new_backend_ip(internal_ip)
         self.neutron_client_mock.list_floatingips.return_value = backend_floating_ips
-        backend_ip = backend_floating_ips['floatingips'][0]
-        expected_name = 'booked ip'
-        expected_address = '127.0.0.1'
-        expected_runtime_state = 'booked_state'
+        backend_ip = backend_floating_ips["floatingips"][0]
+        expected_name = "booked ip"
+        expected_address = "127.0.0.1"
+        expected_runtime_state = "booked_state"
         booked_ip = factories.FloatingIPFactory(
             is_booked=True,
             settings=self.settings,
-            backend_id=backend_ip['id'],
+            backend_id=backend_ip["id"],
             name=expected_name,
             address=expected_address,
             runtime_state=expected_runtime_state,
@@ -209,19 +209,19 @@ class PullFloatingIPTest(BaseBackendTest):
         internal_ip = factories.InternalIPFactory(instance=self.fixture.instance)
         backend_floating_ips = self._get_valid_new_backend_ip(internal_ip)
         self.neutron_client_mock.list_floatingips.return_value = backend_floating_ips
-        backend_ip = backend_floating_ips['floatingips'][0]
+        backend_ip = backend_floating_ips["floatingips"][0]
         factories.FloatingIPFactory(
             is_booked=True,
             settings=self.settings,
-            backend_id=backend_ip['id'],
-            name='booked ip',
-            address=backend_ip['floating_ip_address'],
-            runtime_state='booked_state',
+            backend_id=backend_ip["id"],
+            name="booked ip",
+            address=backend_ip["floating_ip_address"],
+            runtime_state="booked_state",
         )
 
         self.tenant_backend.pull_floating_ips()
 
-        backend_ip_address = backend_ip['floating_ip_address']
+        backend_ip_address = backend_ip["floating_ip_address"]
         self.assertEqual(
             models.FloatingIP.objects.filter(address=backend_ip_address).count(), 1
         )
@@ -229,33 +229,33 @@ class PullFloatingIPTest(BaseBackendTest):
     def test_backend_id_is_filled_up_when_floating_ip_is_looked_up_by_address(self):
         backend_floating_ips = self._get_valid_new_backend_ip(self.fixture.internal_ip)
         self.neutron_client_mock.list_floatingips.return_value = backend_floating_ips
-        backend_ip = backend_floating_ips['floatingips'][0]
+        backend_ip = backend_floating_ips["floatingips"][0]
         factories.FloatingIPFactory(
             is_booked=True,
             settings=self.settings,
-            name='booked ip',
-            address=backend_ip['floating_ip_address'],
-            runtime_state='booked_state',
+            name="booked ip",
+            address=backend_ip["floating_ip_address"],
+            runtime_state="booked_state",
         )
 
         self.tenant_backend.pull_floating_ips()
 
-        backend_ip_address = backend_ip['floating_ip_address']
+        backend_ip_address = backend_ip["floating_ip_address"]
         self.assertEqual(
             models.FloatingIP.objects.filter(address=backend_ip_address).count(), 1
         )
 
         floating_ip = models.FloatingIP.objects.filter(address=backend_ip_address).get()
-        self.assertEqual(floating_ip.backend_id, backend_ip['id'])
+        self.assertEqual(floating_ip.backend_id, backend_ip["id"])
 
     def test_floating_ip_name_is_not_update_if_it_was_set_by_user(self):
         internal_ip = factories.InternalIPFactory(instance=self.fixture.instance)
         backend_floating_ips = self._get_valid_new_backend_ip(internal_ip)
         self.neutron_client_mock.list_floatingips.return_value = backend_floating_ips
-        backend_ip = backend_floating_ips['floatingips'][0]
-        expected_name = 'user defined ip'
+        backend_ip = backend_floating_ips["floatingips"][0]
+        expected_name = "user defined ip"
         floating_ip = factories.FloatingIPFactory(
-            settings=self.settings, backend_id=backend_ip['id'], name=expected_name
+            settings=self.settings, backend_id=backend_ip["id"], name=expected_name
         )
 
         self.tenant_backend.pull_floating_ips()
@@ -269,12 +269,12 @@ class PullSecurityGroupsTest(BaseBackendTest):
     def setUp(self):
         super().setUp()
         self.backend_security_groups = {
-            'security_groups': [
+            "security_groups": [
                 {
-                    'id': 'backend_id',
-                    'name': 'Default',
-                    'description': 'Default security group',
-                    'security_group_rules': [],
+                    "id": "backend_id",
+                    "name": "Default",
+                    "description": "Default security group",
+                    "security_group_rules": [],
                 }
             ]
         }
@@ -291,22 +291,22 @@ class PullSecurityGroupsTest(BaseBackendTest):
         self.assertEqual(models.SecurityGroup.objects.count(), 1)
         security_group = models.SecurityGroup.objects.get(
             settings=self.settings,
-            backend_id='backend_id',
+            backend_id="backend_id",
         )
-        self.assertEqual(security_group.name, 'Default')
-        self.assertEqual(security_group.description, 'Default security group')
+        self.assertEqual(security_group.name, "Default")
+        self.assertEqual(security_group.description, "Default security group")
 
     def test_pull_creates_missing_security_group_rule(self):
-        self.backend_security_groups['security_groups'][0]['security_group_rules'] = [
+        self.backend_security_groups["security_groups"][0]["security_group_rules"] = [
             {
-                'id': 'security_group_id',
-                'ethertype': 'IPv4',
-                'direction': 'ingress',
-                'port_range_min': 80,
-                'port_range_max': 80,
-                'protocol': 'tcp',
-                'description': '',
-                'remote_ip_prefix': '0.0.0.0/0',
+                "id": "security_group_id",
+                "ethertype": "IPv4",
+                "direction": "ingress",
+                "port_range_min": 80,
+                "port_range_max": 80,
+                "protocol": "tcp",
+                "description": "",
+                "remote_ip_prefix": "0.0.0.0/0",
             }
         ]
         self.tenant_backend.pull_security_groups()
@@ -314,16 +314,16 @@ class PullSecurityGroupsTest(BaseBackendTest):
         self.assertEqual(models.SecurityGroupRule.objects.count(), 1)
         security_group = models.SecurityGroup.objects.get(
             settings=self.settings,
-            backend_id='backend_id',
+            backend_id="backend_id",
         )
         security_group_rule = models.SecurityGroupRule.objects.get(
             security_group=security_group,
-            backend_id='security_group_id',
+            backend_id="security_group_id",
         )
         self.assertEqual(security_group_rule.from_port, 80)
         self.assertEqual(security_group_rule.to_port, 80)
-        self.assertEqual(security_group_rule.protocol, 'tcp')
-        self.assertEqual(security_group_rule.cidr, '0.0.0.0/0')
+        self.assertEqual(security_group_rule.protocol, "tcp")
+        self.assertEqual(security_group_rule.cidr, "0.0.0.0/0")
 
     def test_stale_security_groups_are_deleted(self):
         factories.SecurityGroupFactory(settings=self.settings)
@@ -336,23 +336,23 @@ class PullSecurityGroupsTest(BaseBackendTest):
     def test_security_groups_are_updated(self):
         security_group = factories.SecurityGroupFactory(
             settings=self.settings,
-            backend_id='backend_id',
-            name='Old name',
+            backend_id="backend_id",
+            name="Old name",
         )
         self.tenant_backend.pull_security_groups()
         security_group.refresh_from_db()
-        self.assertEqual(security_group.name, 'Default')
+        self.assertEqual(security_group.name, "Default")
 
 
 class PullNetworksTest(BaseBackendTest):
     def setUp(self):
         super().setUp()
         self.backend_networks = {
-            'networks': [
+            "networks": [
                 {
-                    'id': 'backend_id',
-                    'name': 'Private',
-                    'description': 'Internal network',
+                    "id": "backend_id",
+                    "name": "Private",
+                    "description": "Internal network",
                 }
             ]
         }
@@ -364,10 +364,10 @@ class PullNetworksTest(BaseBackendTest):
         self.assertEqual(models.Network.objects.count(), 1)
         network = models.Network.objects.get(
             settings=self.settings,
-            backend_id='backend_id',
+            backend_id="backend_id",
         )
-        self.assertEqual(network.name, 'Private')
-        self.assertEqual(network.description, 'Internal network')
+        self.assertEqual(network.name, "Private")
+        self.assertEqual(network.description, "Internal network")
 
     def test_stale_networks_are_deleted(self):
         factories.NetworkFactory(settings=self.settings)
@@ -378,33 +378,33 @@ class PullNetworksTest(BaseBackendTest):
     def test_existing_networks_are_updated(self):
         network = factories.NetworkFactory(
             settings=self.settings,
-            backend_id='backend_id',
-            name='Old name',
+            backend_id="backend_id",
+            name="Old name",
         )
         self.tenant_backend.pull_networks()
         network.refresh_from_db()
-        self.assertEqual(network.name, 'Private')
+        self.assertEqual(network.name, "Private")
 
 
 class PullSubnetsTest(BaseBackendTest):
     def setUp(self):
         super().setUp()
         self.network = factories.NetworkFactory(
-            settings=self.settings, backend_id='network_id'
+            settings=self.settings, backend_id="network_id"
         )
         self.backend_subnets = {
-            'subnets': [
+            "subnets": [
                 {
-                    'id': 'backend_id',
-                    'network_id': 'network_id',
-                    'name': 'subnet-1',
-                    'description': '',
-                    'cidr': '192.168.42.0/24',
-                    'ip_version': 4,
-                    'allocation_pools': [
+                    "id": "backend_id",
+                    "network_id": "network_id",
+                    "name": "subnet-1",
+                    "description": "",
+                    "cidr": "192.168.42.0/24",
+                    "ip_version": 4,
+                    "allocation_pools": [
                         {
-                            'start': '192.168.42.10',
-                            'end': '192.168.42.100',
+                            "start": "192.168.42.10",
+                            "end": "192.168.42.100",
                         }
                     ],
                 }
@@ -421,17 +421,17 @@ class PullSubnetsTest(BaseBackendTest):
         self.assertEqual(models.SubNet.objects.count(), 1)
         subnet = models.SubNet.objects.get(
             settings=self.settings,
-            backend_id='backend_id',
+            backend_id="backend_id",
             network=self.network,
         )
-        self.assertEqual(subnet.name, 'subnet-1')
-        self.assertEqual(subnet.cidr, '192.168.42.0/24')
+        self.assertEqual(subnet.name, "subnet-1")
+        self.assertEqual(subnet.cidr, "192.168.42.0/24")
         self.assertEqual(
             subnet.allocation_pools,
             [
                 {
-                    'start': '192.168.42.10',
-                    'end': '192.168.42.100',
+                    "start": "192.168.42.10",
+                    "end": "192.168.42.100",
                 }
             ],
         )
@@ -450,13 +450,13 @@ class PullSubnetsTest(BaseBackendTest):
     def test_existing_subnets_are_updated(self):
         subnet = factories.SubNetFactory(
             settings=self.settings,
-            backend_id='backend_id',
-            name='Old name',
+            backend_id="backend_id",
+            name="Old name",
             network=self.network,
         )
         self.tenant_backend.pull_subnets()
         subnet.refresh_from_db()
-        self.assertEqual(subnet.name, 'subnet-1')
+        self.assertEqual(subnet.name, "subnet-1")
 
 
 class VolumesBaseTest(BaseBackendTest):
@@ -489,7 +489,7 @@ class CreateVolumesTest(VolumesBaseTest):
     def setUp(self):
         super().setUp()
         self.patcher = mock.patch(
-            'waldur_openstack.openstack_base.backend.OpenStackClient'
+            "waldur_openstack.openstack_base.backend.OpenStackClient"
         )
         mock_client = self.patcher.start()
         cinder = mock.MagicMock()
@@ -513,15 +513,15 @@ class CreateVolumesTest(VolumesBaseTest):
         volume = self._get_volume()
         self.assertEqual(volume.type, None)
 
-    @mock.patch('waldur_openstack.openstack_tenant.backend.logger')
+    @mock.patch("waldur_openstack.openstack_tenant.backend.logger")
     def test_not_use_default_volume_type_if_it_not_exists(self, mock_logger):
-        self.tenant.default_volume_type_name = 'not_exists_value_type'
+        self.tenant.default_volume_type_name = "not_exists_value_type"
         self.tenant.save()
         volume = self._get_volume()
         self.assertEqual(volume.type, None)
         mock_logger.error.assert_called_once()
 
-    @mock.patch('waldur_openstack.openstack_tenant.backend.logger')
+    @mock.patch("waldur_openstack.openstack_tenant.backend.logger")
     def test_not_use_default_volume_type_if_two_types_exist(self, mock_logger):
         volume_type = factories.VolumeTypeFactory(settings=self.settings)
         factories.VolumeTypeFactory(name=volume_type.name, settings=self.settings)
@@ -536,7 +536,7 @@ class CreateVolumesTest(VolumesBaseTest):
             settings=self.settings
         )
         self.tenant.service_settings.options[
-            'volume_availability_zone_name'
+            "volume_availability_zone_name"
         ] = volume_availability_zone.name
         self.tenant.service_settings.save()
         volume = self._get_volume()
@@ -548,13 +548,13 @@ class CreateVolumesTest(VolumesBaseTest):
         volume = self._get_volume()
         self.assertEqual(volume.availability_zone, None)
 
-    @mock.patch('waldur_openstack.openstack_tenant.backend.logger')
+    @mock.patch("waldur_openstack.openstack_tenant.backend.logger")
     def test_not_use_default_volume_availability_zone_if_it_not_exists(
         self, mock_logger
     ):
         self.tenant.service_settings.options[
-            'volume_availability_zone_name'
-        ] = 'not_exists_volume_availability_zone'
+            "volume_availability_zone_name"
+        ] = "not_exists_volume_availability_zone"
         self.tenant.service_settings.save()
         volume = self._get_volume()
         self.assertEqual(volume.availability_zone, None)
@@ -575,7 +575,7 @@ class CreateVolumesTest(VolumesBaseTest):
 class ImportVolumeTest(BaseBackendTest):
     def setUp(self):
         super().setUp()
-        self.backend_volume_id = 'backend_id'
+        self.backend_volume_id = "backend_id"
         self.backend_volume = self._get_valid_volume(self.backend_volume_id)
 
         self.cinder_client_mock.volumes.get.return_value = self.backend_volume
@@ -596,7 +596,7 @@ class ImportVolumeTest(BaseBackendTest):
 
     def test_volume_instance_is_not_created_during_import(self):
         vm = factories.InstanceFactory(
-            backend_id='instance_backend_id',
+            backend_id="instance_backend_id",
             service_settings=self.fixture.openstack_tenant_service_settings,
             project=self.fixture.project,
         )
@@ -619,14 +619,14 @@ class ImportVolumeTest(BaseBackendTest):
 class PullVolumeTest(BaseBackendTest):
     def setUp(self):
         super().setUp()
-        self.backend_volume_id = 'backend_id'
+        self.backend_volume_id = "backend_id"
         self.backend_volume = self._get_valid_volume(self.backend_volume_id)
 
         self.cinder_client_mock.volumes.get.return_value = self.backend_volume
 
     def test_volume_instance_is_pulled(self):
         vm = factories.InstanceFactory(
-            backend_id='instance_backend_id',
+            backend_id="instance_backend_id",
             service_settings=self.fixture.openstack_tenant_service_settings,
             project=self.fixture.project,
         )
@@ -649,7 +649,7 @@ class PullVolumeTest(BaseBackendTest):
             project=self.fixture.project,
         )
         image = factories.ImageFactory(settings=self.settings)
-        self.backend_volume.volume_image_metadata = {'image_id': image.backend_id}
+        self.backend_volume.volume_image_metadata = {"image_id": image.backend_id}
         self.tenant_backend.pull_volume(volume)
         volume.refresh_from_db()
 
@@ -685,7 +685,7 @@ class PullInstanceAvailabilityZonesTest(BaseBackendTest):
         self.assertEqual(models.InstanceAvailabilityZone.objects.count(), 1)
 
         zone = models.InstanceAvailabilityZone.objects.get()
-        self.assertEqual(zone.name, 'AZ_T1')
+        self.assertEqual(zone.name, "AZ_T1")
         self.assertTrue(zone.available)
 
     def test_stale_zone_is_removed(self):
@@ -729,7 +729,7 @@ class PullVolumeAvailabilityZonesTest(BaseBackendTest):
         self.assertEqual(models.VolumeAvailabilityZone.objects.count(), 1)
 
         zone = models.VolumeAvailabilityZone.objects.get()
-        self.assertEqual(zone.name, 'AZ_T1')
+        self.assertEqual(zone.name, "AZ_T1")
         self.assertTrue(zone.available)
 
     def test_stale_zone_is_removed(self):
@@ -757,29 +757,29 @@ class PullInstanceTest(BaseBackendTest):
         super().setUp()
 
         class MockFlavor:
-            name = 'flavor_name'
+            name = "flavor_name"
             disk = 102400
             ram = 10240
             vcpus = 1
 
         class MockInstance:
-            name = 'instance_name'
-            id = 'instance_id'
-            created = '2017-08-10'
-            key_name = 'key_name'
-            flavor = {'id': 'flavor_id'}
-            status = 'ERRED'
-            fault = {'message': 'OpenStack Nova error.'}
+            name = "instance_name"
+            id = "instance_id"
+            created = "2017-08-10"
+            key_name = "key_name"
+            flavor = {"id": "flavor_id"}
+            status = "ERRED"
+            fault = {"message": "OpenStack Nova error."}
             networks = {
-                'test-int-net': ['192.168.42.60'],
-                'public': ['172.29.249.185'],
+                "test-int-net": ["192.168.42.60"],
+                "public": ["172.29.249.185"],
             }
 
             @classmethod
             def to_dict(cls):
                 return {
-                    'OS-EXT-AZ:availability_zone': 'AZ_TST',
-                    'OS-EXT-SRV-ATTR:hypervisor_hostname': 'aio1.openstack.local',
+                    "OS-EXT-AZ:availability_zone": "AZ_TST",
+                    "OS-EXT-SRV-ATTR:hypervisor_hostname": "aio1.openstack.local",
                 }
 
         self.nova_client_mock = mock.Mock()
@@ -792,7 +792,7 @@ class PullInstanceTest(BaseBackendTest):
 
     def test_availability_zone_is_pulled(self):
         zone = self.fixture.instance_availability_zone
-        zone.name = 'AZ_TST'
+        zone.name = "AZ_TST"
         zone.save()
 
         instance = self.fixture.instance
@@ -816,18 +816,18 @@ class PullInstanceTest(BaseBackendTest):
         self.tenant_backend.pull_instance(instance)
         instance.refresh_from_db()
 
-        self.assertEqual(instance.error_message, 'OpenStack Nova error.')
+        self.assertEqual(instance.error_message, "OpenStack Nova error.")
 
     def test_existing_error_message_is_preserved_if_defined(self):
         del self.nova_client_mock.servers.get.return_value.fault
         instance = self.fixture.instance
-        instance.error_message = 'Waldur error.'
+        instance.error_message = "Waldur error."
         instance.save()
 
         self.tenant_backend.pull_instance(instance)
         instance.refresh_from_db()
 
-        self.assertEqual(instance.error_message, 'Waldur error.')
+        self.assertEqual(instance.error_message, "Waldur error.")
 
     def test_hypervisor_hostname_is_synchronized(self):
         instance = self.fixture.instance
@@ -835,22 +835,22 @@ class PullInstanceTest(BaseBackendTest):
         self.tenant_backend.pull_instance(instance)
         instance.refresh_from_db()
 
-        self.assertEqual(instance.hypervisor_hostname, 'aio1.openstack.local')
+        self.assertEqual(instance.hypervisor_hostname, "aio1.openstack.local")
 
 
 class PullInstanceInternalIpsTest(BaseBackendTest):
     def setup_neutron(self, port_id, device_id, subnet_id):
         self.neutron_client_mock.list_ports.return_value = {
-            'ports': [
+            "ports": [
                 {
-                    'id': port_id,
-                    'mac_address': 'DC-D6-5E-9B-49-70',
-                    'device_id': device_id,
-                    'device_owner': 'compute:nova',
-                    'fixed_ips': [
+                    "id": port_id,
+                    "mac_address": "DC-D6-5E-9B-49-70",
+                    "device_id": device_id,
+                    "device_owner": "compute:nova",
+                    "fixed_ips": [
                         {
-                            'ip_address': '10.0.0.2',
-                            'subnet_id': subnet_id,
+                            "ip_address": "10.0.0.2",
+                            "subnet_id": subnet_id,
                         }
                     ],
                 }
@@ -864,7 +864,7 @@ class PullInstanceInternalIpsTest(BaseBackendTest):
         internal_ip.backend_id = None
         internal_ip.save()
         self.setup_neutron(
-            'port_id', instance.backend_id, internal_ip.subnet.backend_id
+            "port_id", instance.backend_id, internal_ip.subnet.backend_id
         )
 
         # Act
@@ -872,13 +872,13 @@ class PullInstanceInternalIpsTest(BaseBackendTest):
 
         # Assert
         internal_ip.refresh_from_db()
-        self.assertEqual(internal_ip.backend_id, 'port_id')
+        self.assertEqual(internal_ip.backend_id, "port_id")
 
     def test_missing_internal_ips_are_created(self):
         # Arrange
         instance = self.fixture.instance
         subnet = self.fixture.subnet
-        self.setup_neutron('port_id', instance.backend_id, subnet.backend_id)
+        self.setup_neutron("port_id", instance.backend_id, subnet.backend_id)
 
         # Act
         self.tenant_backend.pull_instance_internal_ips(instance)
@@ -886,14 +886,14 @@ class PullInstanceInternalIpsTest(BaseBackendTest):
         # Assert
         self.assertEqual(instance.internal_ips_set.count(), 1)
         internal_ip = instance.internal_ips_set.first()
-        self.assertEqual(internal_ip.backend_id, 'port_id')
+        self.assertEqual(internal_ip.backend_id, "port_id")
         self.assertEqual(internal_ip.subnet, subnet)
 
     def test_stale_internal_ips_are_deleted(self):
         # Arrange
         instance = self.fixture.instance
 
-        self.neutron_client_mock.list_ports.return_value = {'ports': []}
+        self.neutron_client_mock.list_ports.return_value = {"ports": []}
 
         # Act
         self.tenant_backend.pull_instance_internal_ips(instance)
@@ -930,8 +930,8 @@ class PullInstanceInternalIpsTest(BaseBackendTest):
 
         # Assert
         internal_ip.refresh_from_db()
-        self.assertEqual(internal_ip.mac_address, 'DC-D6-5E-9B-49-70')
-        self.assertEqual(internal_ip.fixed_ips[0]['ip_address'], '10.0.0.2')
+        self.assertEqual(internal_ip.mac_address, "DC-D6-5E-9B-49-70")
+        self.assertEqual(internal_ip.fixed_ips[0]["ip_address"], "10.0.0.2")
 
     def test_shared_internal_ips_are_reassigned(self):
         # Arrange
@@ -962,16 +962,16 @@ class PullInstanceInternalIpsTest(BaseBackendTest):
 class PullInternalIpsTest(BaseBackendTest):
     def setup_neutron(self, port_id, device_id, subnet_id):
         self.neutron_client_mock.list_ports.return_value = {
-            'ports': [
+            "ports": [
                 {
-                    'id': port_id,
-                    'mac_address': 'DC-D6-5E-9B-49-70',
-                    'device_id': device_id,
-                    'device_owner': 'compute:nova',
-                    'fixed_ips': [
+                    "id": port_id,
+                    "mac_address": "DC-D6-5E-9B-49-70",
+                    "device_id": device_id,
+                    "device_owner": "compute:nova",
+                    "fixed_ips": [
                         {
-                            'ip_address': '10.0.0.2',
-                            'subnet_id': subnet_id,
+                            "ip_address": "10.0.0.2",
+                            "subnet_id": subnet_id,
                         }
                     ],
                 }
@@ -985,7 +985,7 @@ class PullInternalIpsTest(BaseBackendTest):
         internal_ip.backend_id = None
         internal_ip.save()
         self.setup_neutron(
-            'port_id', instance.backend_id, internal_ip.subnet.backend_id
+            "port_id", instance.backend_id, internal_ip.subnet.backend_id
         )
 
         # Act
@@ -993,13 +993,13 @@ class PullInternalIpsTest(BaseBackendTest):
 
         # Assert
         internal_ip.refresh_from_db()
-        self.assertEqual(internal_ip.backend_id, 'port_id')
+        self.assertEqual(internal_ip.backend_id, "port_id")
 
     def test_missing_internal_ips_are_created(self):
         # Arrange
         instance = self.fixture.instance
         subnet = self.fixture.subnet
-        self.setup_neutron('port_id', instance.backend_id, subnet.backend_id)
+        self.setup_neutron("port_id", instance.backend_id, subnet.backend_id)
 
         # Act
         self.tenant_backend.pull_internal_ips()
@@ -1007,14 +1007,14 @@ class PullInternalIpsTest(BaseBackendTest):
         # Assert
         self.assertEqual(instance.internal_ips_set.count(), 1)
         internal_ip = instance.internal_ips_set.first()
-        self.assertEqual(internal_ip.backend_id, 'port_id')
+        self.assertEqual(internal_ip.backend_id, "port_id")
         self.assertEqual(internal_ip.subnet, subnet)
 
     def test_stale_internal_ips_are_deleted(self):
         # Arrange
         instance = self.fixture.instance
 
-        self.neutron_client_mock.list_ports.return_value = {'ports': []}
+        self.neutron_client_mock.list_ports.return_value = {"ports": []}
 
         # Act
         self.tenant_backend.pull_internal_ips()
@@ -1035,12 +1035,12 @@ class PullInternalIpsTest(BaseBackendTest):
 
         # Assert
         internal_ip.refresh_from_db()
-        self.assertEqual(internal_ip.mac_address, 'DC-D6-5E-9B-49-70')
-        self.assertEqual(internal_ip.fixed_ips[0]['ip_address'], '10.0.0.2')
+        self.assertEqual(internal_ip.mac_address, "DC-D6-5E-9B-49-70")
+        self.assertEqual(internal_ip.fixed_ips[0]["ip_address"], "10.0.0.2")
 
     def test_even_if_internal_ip_is_not_connected_it_is_not_skipped(self):
         # Arrange
-        self.setup_neutron('port_id', '', self.fixture.internal_ip.subnet.backend_id)
+        self.setup_neutron("port_id", "", self.fixture.internal_ip.subnet.backend_id)
 
         # Act
         self.tenant_backend.pull_internal_ips()
@@ -1051,9 +1051,9 @@ class PullInternalIpsTest(BaseBackendTest):
 
         internal_ip = internal_ips.first()
         self.assertEqual(internal_ip.instance, None)
-        self.assertEqual(internal_ip.backend_id, 'port_id')
-        self.assertEqual(internal_ip.mac_address, 'DC-D6-5E-9B-49-70')
-        self.assertEqual(internal_ip.fixed_ips[0]['ip_address'], '10.0.0.2')
+        self.assertEqual(internal_ip.backend_id, "port_id")
+        self.assertEqual(internal_ip.mac_address, "DC-D6-5E-9B-49-70")
+        self.assertEqual(internal_ip.fixed_ips[0]["ip_address"], "10.0.0.2")
 
     def test_instance_has_several_ports_in_the_same_network_connected_to_the_same_instance(
         self,
@@ -1068,28 +1068,28 @@ class PullInternalIpsTest(BaseBackendTest):
         subnet_id = subnet.backend_id
 
         self.neutron_client_mock.list_ports.return_value = {
-            'ports': [
+            "ports": [
                 {
-                    'id': 'port1',
-                    'mac_address': 'fa:16:3e:88:d4:69',
-                    'device_id': device_id,
-                    'device_owner': 'compute:nova',
-                    'fixed_ips': [
+                    "id": "port1",
+                    "mac_address": "fa:16:3e:88:d4:69",
+                    "device_id": device_id,
+                    "device_owner": "compute:nova",
+                    "fixed_ips": [
                         {
-                            'ip_address': '10.0.0.2',
-                            'subnet_id': subnet_id,
+                            "ip_address": "10.0.0.2",
+                            "subnet_id": subnet_id,
                         }
                     ],
                 },
                 {
-                    'id': 'port2',
-                    'mac_address': 'fa:16:3e:1f:fb:22',
-                    'device_id': device_id,
-                    'device_owner': 'compute:nova',
-                    'fixed_ips': [
+                    "id": "port2",
+                    "mac_address": "fa:16:3e:1f:fb:22",
+                    "device_id": device_id,
+                    "device_owner": "compute:nova",
+                    "fixed_ips": [
                         {
-                            'ip_address': '10.0.0.3',
-                            'subnet_id': subnet_id,
+                            "ip_address": "10.0.0.3",
+                            "subnet_id": subnet_id,
                         }
                     ],
                 },
@@ -1103,25 +1103,25 @@ class PullInternalIpsTest(BaseBackendTest):
         self.assertEqual(2, instance.internal_ips_set.count())
 
         actual_subnets = set(
-            instance.internal_ips_set.values_list('subnet_id', flat=True)
+            instance.internal_ips_set.values_list("subnet_id", flat=True)
         )
         self.assertEqual({subnet.id}, actual_subnets)
 
         actual_addresses = list(
-            instance.internal_ips_set.values_list('fixed_ips', flat=True)
+            instance.internal_ips_set.values_list("fixed_ips", flat=True)
         )
         self.assertEqual(
             [
-                [{'ip_address': '10.0.0.2', 'subnet_id': subnet_id}],
-                [{'ip_address': '10.0.0.3', 'subnet_id': subnet_id}],
+                [{"ip_address": "10.0.0.2", "subnet_id": subnet_id}],
+                [{"ip_address": "10.0.0.3", "subnet_id": subnet_id}],
             ],
             actual_addresses,
         )
 
-        actual_ids = set(instance.internal_ips_set.values_list('backend_id', flat=True))
-        self.assertEqual({'port1', 'port2'}, actual_ids)
+        actual_ids = set(instance.internal_ips_set.values_list("backend_id", flat=True))
+        self.assertEqual({"port1", "port2"}, actual_ids)
 
-    @data('compute:nova', 'compute:MS-ZONE')
+    @data("compute:nova", "compute:MS-ZONE")
     def test_instance_field_of_internal_ip_is_updated(self, device_owner):
         # Consider the case when instance has several IP addresses in the same subnet.
 
@@ -1137,16 +1137,16 @@ class PullInternalIpsTest(BaseBackendTest):
         subnet_id = subnet.backend_id
 
         self.neutron_client_mock.list_ports.return_value = {
-            'ports': [
+            "ports": [
                 {
-                    'id': internal_ip.backend_id,
-                    'mac_address': 'fa:16:3e:88:d4:69',
-                    'device_id': device_id,
-                    'device_owner': device_owner,
-                    'fixed_ips': [
+                    "id": internal_ip.backend_id,
+                    "mac_address": "fa:16:3e:88:d4:69",
+                    "device_id": device_id,
+                    "device_owner": device_owner,
+                    "fixed_ips": [
                         {
-                            'ip_address': '10.0.0.2',
-                            'subnet_id': subnet_id,
+                            "ip_address": "10.0.0.2",
+                            "subnet_id": subnet_id,
                         }
                     ],
                 }
@@ -1198,7 +1198,7 @@ class GetInstancesTest(BaseBackendTest):
 class ImportInstanceTest(BaseBackendTest):
     def setUp(self):
         super().setUp()
-        self.backend_id = 'instance_id'
+        self.backend_id = "instance_id"
         self.backend_instance = self._get_valid_instance(self.backend_id)
         self.nova_client_mock.servers.get.return_value = self.backend_instance
         self.tenant_backend.get_admin_tenant_client.return_value = self.nova_client_mock
@@ -1247,7 +1247,7 @@ class ImportInstanceTest(BaseBackendTest):
         self.assertEqual([backend_volume.id], actual_backend_ids)
 
     def test_instance_is_imported_with_attached_volume(self):
-        volume_backend_id = 'volume_id'
+        volume_backend_id = "volume_id"
         backend_volume = self._get_valid_volume(backend_id=volume_backend_id)
         backend_volume.volumeId = backend_volume.id
         self.nova_client_mock.volumes.get_server_volumes.return_value = [backend_volume]
@@ -1265,7 +1265,7 @@ class ImportInstanceTest(BaseBackendTest):
         self.assertEqual([backend_volume.id], actual_backend_ids)
 
     def test_instance_error_message_is_filled_if_fault_is_provided_by_backend(self):
-        expected_error_message = 'An error occurred displaying an error'
+        expected_error_message = "An error occurred displaying an error"
         self.backend_instance.fault = dict(message=expected_error_message)
         self.nova_client_mock.volumes.get_server_volumes.return_value = []
 
@@ -1286,14 +1286,14 @@ class PullInstanceFloatingIpsTest(BaseBackendTest):
 
         ip1 = factories.InternalIPFactory(
             subnet=subnet,
-            backend_id='port_id1',
-            fixed_ips=[{'ip_address': '192.168.42.42', 'subnet_id': subnet.backend_id}],
+            backend_id="port_id1",
+            fixed_ips=[{"ip_address": "192.168.42.42", "subnet_id": subnet.backend_id}],
         )
 
         ip2 = factories.InternalIPFactory(
             subnet=subnet,
-            backend_id='port_id2',
-            fixed_ips=[{'ip_address': '192.168.42.62', 'subnet_id': subnet.backend_id}],
+            backend_id="port_id2",
+            fixed_ips=[{"ip_address": "192.168.42.62", "subnet_id": subnet.backend_id}],
             instance=instance,
         )
 
@@ -1301,15 +1301,15 @@ class PullInstanceFloatingIpsTest(BaseBackendTest):
 
         floatingips = [
             {
-                'floating_ip_address': fip.address,
-                'floating_network_id': 'new_backend_network_id',
-                'status': 'DOWN',
-                'id': fip.backend_id,
-                'port_id': ip2.backend_id,
+                "floating_ip_address": fip.address,
+                "floating_network_id": "new_backend_network_id",
+                "status": "DOWN",
+                "id": fip.backend_id,
+                "port_id": ip2.backend_id,
             }
         ]
         self.neutron_client_mock.list_floatingips.return_value = {
-            'floatingips': floatingips
+            "floatingips": floatingips
         }
 
         # Act
@@ -1325,7 +1325,7 @@ class PullInstanceFloatingIpsTest(BaseBackendTest):
 class CreateInstanceTest(VolumesBaseTest):
     def setUp(self):
         super().setUp()
-        self.flavor_id = 'small_flavor'
+        self.flavor_id = "small_flavor"
         backend_flavor = self._get_valid_flavor(self.flavor_id)
         self.nova_client_mock.flavors.get.return_value = backend_flavor
         self.nova_client_mock.servers.create.return_value.id = uuid.uuid4()
@@ -1342,15 +1342,15 @@ class CreateInstanceTest(VolumesBaseTest):
 
         # Assert
         kwargs = self.nova_client_mock.servers.create.mock_calls[0][2]
-        self.assertEqual(kwargs['availability_zone'], zone.name)
+        self.assertEqual(kwargs["availability_zone"], zone.name)
 
     def test_default_zone_name_is_passed_to_nova_client(self):
         # Arrange
-        self.settings.options['availability_zone'] = 'default_availability_zone'
+        self.settings.options["availability_zone"] = "default_availability_zone"
 
         # Act
         self.tenant_backend.create_instance(self.fixture.instance, self.flavor_id)
 
         # Assert
         kwargs = self.nova_client_mock.servers.create.mock_calls[0][2]
-        self.assertEqual(kwargs['availability_zone'], 'default_availability_zone')
+        self.assertEqual(kwargs["availability_zone"], "default_availability_zone")

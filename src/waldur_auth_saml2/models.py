@@ -9,4 +9,4 @@ class IdentityProvider(models.Model):
     metadata = core_fields.JSONField(default=dict)
 
     class Meta:
-        ordering = ('name',)
+        ordering = ("name",)

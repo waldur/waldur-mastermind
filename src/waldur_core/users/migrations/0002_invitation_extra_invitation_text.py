@@ -5,13 +5,13 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('users', '0001_squashed_0012'),
+        ("users", "0001_squashed_0012"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='invitation',
-            name='extra_invitation_text',
+            model_name="invitation",
+            name="extra_invitation_text",
             field=models.CharField(blank=True, max_length=255),
         ),
     ]

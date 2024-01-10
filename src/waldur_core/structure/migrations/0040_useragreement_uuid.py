@@ -7,27 +7,27 @@ import waldur_core.core.fields
 
 
 def gen_uuid(apps, schema_editor):
-    UserAgreement = apps.get_model('structure', 'UserAgreement')
+    UserAgreement = apps.get_model("structure", "UserAgreement")
     for row in UserAgreement.objects.all():
         row.uuid = uuid.uuid4().hex
-        row.save(update_fields=['uuid'])
+        row.save(update_fields=["uuid"])
 
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('structure', '0039_project_end_date_requested_by'),
+        ("structure", "0039_project_end_date_requested_by"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='useragreement',
-            name='uuid',
+            model_name="useragreement",
+            name="uuid",
             field=models.UUIDField(null=True),
         ),
         migrations.RunPython(gen_uuid, elidable=True),
         migrations.AlterField(
-            model_name='useragreement',
-            name='uuid',
+            model_name="useragreement",
+            name="uuid",
             field=waldur_core.core.fields.UUIDField(),
         ),
     ]

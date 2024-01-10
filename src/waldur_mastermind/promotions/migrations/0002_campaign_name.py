@@ -7,18 +7,18 @@ import waldur_core.core.validators
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('promotions', '0001_initial'),
+        ("promotions", "0001_initial"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='campaign',
-            name='name',
+            model_name="campaign",
+            name="name",
             field=models.CharField(
-                default='Default',
+                default="Default",
                 max_length=150,
                 validators=[waldur_core.core.validators.validate_name],
-                verbose_name='name',
+                verbose_name="name",
             ),
             preserve_default=False,
         ),

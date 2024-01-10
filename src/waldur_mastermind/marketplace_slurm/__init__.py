@@ -1,1 +1,1 @@
-PLUGIN_NAME = 'SlurmInvoices.SlurmPackage'
+PLUGIN_NAME = "SlurmInvoices.SlurmPackage"

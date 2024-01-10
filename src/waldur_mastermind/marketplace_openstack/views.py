@@ -12,15 +12,15 @@ class MarketplaceTenantViewSet(core_views.ActionsViewSet):
         serializer.is_valid(raise_exception=True)
         tenant = serializer.save()
         skip = (
-            settings.WALDUR_CORE['ONLY_STAFF_MANAGES_SERVICES']
-            and serializer.validated_data['skip_connection_extnet']
+            settings.WALDUR_CORE["ONLY_STAFF_MANAGES_SERVICES"]
+            and serializer.validated_data["skip_connection_extnet"]
         )
         executors.MarketplaceTenantCreateExecutor.execute(
             tenant, skip_connection_extnet=skip
         )
 
         return response.Response(
-            {'uuid': tenant.uuid.hex}, status=status.HTTP_201_CREATED
+            {"uuid": tenant.uuid.hex}, status=status.HTTP_201_CREATED
         )
 
     serializer_class = serializers.MarketplaceTenantCreateSerializer

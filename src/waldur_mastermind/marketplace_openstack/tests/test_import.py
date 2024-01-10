@@ -117,7 +117,7 @@ class BaseInstanceImportTest(BaseBackendTestCase, BaseOpenStackTest):
 class InstanceImportableResourcesTest(BaseInstanceImportTest):
     def setUp(self):
         super().setUp()
-        self.url = OfferingFactory.get_url(self.offering, 'importable_resources')
+        self.url = OfferingFactory.get_url(self.offering, "importable_resources")
         self.client.force_authenticate(self.fixture.staff)
 
     def test_importable_instances_are_returned(self):
@@ -128,15 +128,15 @@ class InstanceImportableResourcesTest(BaseInstanceImportTest):
             response.data,
             [
                 {
-                    'type': 'OpenStackTenant.Instance',
-                    'name': 'VM-1',
-                    'backend_id': '1',
-                    'description': '',
-                    'extra': [
-                        {'name': 'Runtime state', 'value': 'active'},
-                        {'name': 'Flavor', 'value': 'Standard'},
-                        {'name': 'RAM (MBs)', 'value': 4096},
-                        {'name': 'Cores', 'value': 4},
+                    "type": "OpenStackTenant.Instance",
+                    "name": "VM-1",
+                    "backend_id": "1",
+                    "description": "",
+                    "extra": [
+                        {"name": "Runtime state", "value": "active"},
+                        {"name": "Flavor", "value": "Standard"},
+                        {"name": "RAM (MBs)", "value": 4096},
+                        {"name": "Cores", "value": 4},
                     ],
                 }
             ],
@@ -148,17 +148,17 @@ class InstanceImportableResourcesTest(BaseInstanceImportTest):
 class InstanceImportTest(BaseInstanceImportTest):
     def setUp(self):
         super().setUp()
-        self.url = OfferingFactory.get_url(self.offering, 'import_resource')
+        self.url = OfferingFactory.get_url(self.offering, "import_resource")
         self.client.force_authenticate(self.fixture.staff)
 
-    def _get_payload(self, backend_id='backend_id'):
+    def _get_payload(self, backend_id="backend_id"):
         return {
-            'backend_id': backend_id,
-            'project': self.fixture.project.uuid.hex,
+            "backend_id": backend_id,
+            "project": self.fixture.project.uuid.hex,
         }
 
     @mock.patch(
-        'waldur_openstack.openstack_tenant.executors.InstancePullExecutor.execute'
+        "waldur_openstack.openstack_tenant.executors.InstancePullExecutor.execute"
     )
     def test_instance_can_be_imported(self, resource_import_execute_mock):
         response = self.client.post(self.url, self._get_payload())
@@ -166,7 +166,7 @@ class InstanceImportTest(BaseInstanceImportTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         resource_import_execute_mock.assert_called()
         instance = marketplace_models.Resource.objects.get()
-        self.assertEqual(instance.backend_id, '1')
+        self.assertEqual(instance.backend_id, "1")
 
     def test_existing_instance_cannot_be_imported(self):
         InstanceFactory(
@@ -199,7 +199,7 @@ class BaseVolumeImportTest(BaseBackendTestCase, test.APITransactionTestCase):
 class VolumeImportableResourcesTest(BaseVolumeImportTest):
     def setUp(self):
         super().setUp()
-        self.url = OfferingFactory.get_url(self.offering, 'importable_resources')
+        self.url = OfferingFactory.get_url(self.offering, "importable_resources")
         self.client.force_authenticate(self.fixture.staff)
 
     def test_importable_volumes_are_returned(self):
@@ -210,15 +210,15 @@ class VolumeImportableResourcesTest(BaseVolumeImportTest):
             response.data,
             [
                 {
-                    'type': 'OpenStackTenant.Volume',
-                    'name': 'ssd-volume',
-                    'backend_id': '1',
-                    'description': '',
-                    'extra': [
-                        {'name': 'Is bootable', 'value': False},
-                        {'name': 'Size', 'value': 102400},
-                        {'name': 'Device', 'value': ''},
-                        {'name': 'Runtime state', 'value': 'available'},
+                    "type": "OpenStackTenant.Volume",
+                    "name": "ssd-volume",
+                    "backend_id": "1",
+                    "description": "",
+                    "extra": [
+                        {"name": "Is bootable", "value": False},
+                        {"name": "Size", "value": 102400},
+                        {"name": "Device", "value": ""},
+                        {"name": "Runtime state", "value": "available"},
                     ],
                 }
             ],
@@ -228,7 +228,7 @@ class VolumeImportableResourcesTest(BaseVolumeImportTest):
 class VolumeImportTest(BaseVolumeImportTest):
     def setUp(self):
         super().setUp()
-        self.url = OfferingFactory.get_url(self.offering, 'import_resource')
+        self.url = OfferingFactory.get_url(self.offering, "import_resource")
         self.client.force_authenticate(self.fixture.staff)
 
     def test_backend_volume_is_imported(self):
@@ -236,7 +236,7 @@ class VolumeImportTest(BaseVolumeImportTest):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         instance = marketplace_models.Resource.objects.get()
-        self.assertEqual(instance.backend_id, '1')
+        self.assertEqual(instance.backend_id, "1")
 
     def test_backend_volume_cannot_be_imported_if_it_is_registered_in_waldur(self):
         volume = VolumeFactory(
@@ -250,10 +250,10 @@ class VolumeImportTest(BaseVolumeImportTest):
             response.status_code, status.HTTP_400_BAD_REQUEST, response.data
         )
 
-    def _get_payload(self, backend_id='backend_id'):
+    def _get_payload(self, backend_id="backend_id"):
         return {
-            'backend_id': backend_id,
-            'project': self.fixture.project.uuid.hex,
+            "backend_id": backend_id,
+            "project": self.fixture.project.uuid.hex,
         }
 
 
@@ -267,13 +267,13 @@ class TenantImportableResourcesTest(BaseBackendTestCase, BaseTenantActionsTest):
             project=self.fixture.project,
             customer=self.fixture.customer,
         )
-        self.url = OfferingFactory.get_url(self.offering, 'importable_resources')
+        self.url = OfferingFactory.get_url(self.offering, "importable_resources")
 
     def test_user_can_list_importable_resources(self):
         self.client.force_authenticate(self.fixture.staff)
         self.mocked_keystone().projects.list.return_value = [
-            MockTenant(name='First Tenant', id='1'),
-            MockTenant(name='Second Tenant', id='2'),
+            MockTenant(name="First Tenant", id="1"),
+            MockTenant(name="Second Tenant", id="2"),
         ]
 
         response = self.client.get(self.url)
@@ -283,21 +283,21 @@ class TenantImportableResourcesTest(BaseBackendTestCase, BaseTenantActionsTest):
             response.data,
             [
                 {
-                    'type': 'OpenStack.Tenant',
-                    'name': 'First Tenant',
-                    'description': '',
-                    'backend_id': '1',
+                    "type": "OpenStack.Tenant",
+                    "name": "First Tenant",
+                    "description": "",
+                    "backend_id": "1",
                 },
                 {
-                    'type': 'OpenStack.Tenant',
-                    'name': 'Second Tenant',
-                    'description': '',
-                    'backend_id': '2',
+                    "type": "OpenStack.Tenant",
+                    "name": "Second Tenant",
+                    "description": "",
+                    "backend_id": "2",
                 },
             ],
         )
 
-    @data('admin', 'manager', 'owner')
+    @data("admin", "manager", "owner")
     def test_user_does_not_have_permissions_to_list_resources(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(self.url)
@@ -325,22 +325,22 @@ class TenantImportTest(BaseBackendTestCase):
         response = self.import_tenant()
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
-        self.assertEqual(response.data['backend_id'], self.backend_tenant.backend_id)
+        self.assertEqual(response.data["backend_id"], self.backend_tenant.backend_id)
         self.assertTrue(
             models.Tenant.objects.filter(
                 backend_id=self.backend_tenant.backend_id
             ).exists()
         )
 
-    @patch('waldur_core.structure.handlers.event_logger')
+    @patch("waldur_core.structure.handlers.event_logger")
     def test_event_is_emitted(self, logger_mock):
         self.import_tenant()
 
         actual = logger_mock.resource.info.call_args[0][0]
-        expected = 'Resource {resource_full_name} has been imported.'
+        expected = "Resource {resource_full_name} has been imported."
         self.assertEqual(expected, actual)
 
-    @data('admin', 'manager', 'owner')
+    @data("admin", "manager", "owner")
     def test_user_cannot_import_tenant(self, user):
         response = self.import_tenant(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
@@ -356,7 +356,7 @@ class TenantImportTest(BaseBackendTestCase):
         response = self.import_tenant()
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
-        self.assertEqual(response.data['backend_id'], self.backend_tenant.backend_id)
+        self.assertEqual(response.data["backend_id"], self.backend_tenant.backend_id)
 
         tenant = models.Tenant.objects.get(backend_id=self.backend_tenant.backend_id)
         self.assertIsNotNone(tenant.user_username)
@@ -372,7 +372,7 @@ class TenantImportTest(BaseBackendTestCase):
         self.assertEqual(tenant.user_username, service_settings.username)
         self.assertEqual(tenant.user_password, service_settings.password)
 
-    @mock.patch('waldur_mastermind.marketplace_openstack.handlers.tasks')
+    @mock.patch("waldur_mastermind.marketplace_openstack.handlers.tasks")
     def test_import_instances_and_volumes_if_tenant_has_been_imported(self, mock_tasks):
         marketplace_factories.CategoryFactory(default_vm_category=True)
         marketplace_factories.CategoryFactory(default_volume_category=True)
@@ -381,12 +381,12 @@ class TenantImportTest(BaseBackendTestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         mock_tasks.sync_instances_and_volumes_of_tenant.delay.assert_called_once()
 
-    def import_tenant(self, user='staff'):
+    def import_tenant(self, user="staff"):
         self.client.force_authenticate(getattr(self.fixture, user))
         payload = {
-            'backend_id': self.backend_tenant.backend_id,
-            'project': self.fixture.project.uuid.hex,
+            "backend_id": self.backend_tenant.backend_id,
+            "project": self.fixture.project.uuid.hex,
         }
-        url = OfferingFactory.get_url(self.offering, 'import_resource')
+        url = OfferingFactory.get_url(self.offering, "import_resource")
         self.mocked_keystone.return_value.projects.get.return_value = MOCK_TENANT
         return self.client.post(url, payload)

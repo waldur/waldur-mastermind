@@ -32,7 +32,7 @@ class UnknownStatusError(ResponseParseError):
 
 
 class Response:
-    ns_namespace = 'http://uri.etsi.org/TS102204/v1.1.2#'
+    ns_namespace = "http://uri.etsi.org/TS102204/v1.1.2#"
 
     def __init__(self, content):
         etree = lxml.etree.fromstring(content)  # noqa: S320
@@ -47,80 +47,76 @@ class Request:
     url = NotImplemented
     template = NotImplemented
     response_class = NotImplemented
-    settings = getattr(django_settings, 'WALDUR_AUTH_VALIMO', {})
+    settings = getattr(django_settings, "WALDUR_AUTH_VALIMO", {})
 
     @classmethod
     def execute(cls, **kwargs):
         url = cls._get_url()
         headers = {
-            'content-type': 'text/xml',
-            'SOAPAction': url,
+            "content-type": "text/xml",
+            "SOAPAction": url,
         }
         data = cls.template.strip().format(
-            AP_ID=cls.settings['AP_ID'],
-            AP_PWD=cls.settings['AP_PWD'],
+            AP_ID=cls.settings["AP_ID"],
+            AP_PWD=cls.settings["AP_PWD"],
             Instant=cls._format_datetime(timezone.now()),
-            DNSName=cls.settings['DNSName'],
-            **kwargs
+            DNSName=cls.settings["DNSName"],
+            **kwargs,
         )
-        cert = (cls.settings['cert_path'], cls.settings['key_path'])
+        cert = (cls.settings["cert_path"], cls.settings["key_path"])
         # TODO: add verification
         logger.debug(
-            'Executing POST request to %s with data:\n %s \nheaders: %s',
+            "Executing POST request to %s with data:\n %s \nheaders: %s",
             url,
             data,
             headers,
         )
         # workaround for https://github.com/psf/requests/pull/5596 as requests need to go directly
-        proxies = {'http': '', 'https': ''}
+        proxies = {"http": "", "https": ""}
         response = requests.post(
             url,
             data=data,
             headers=headers,
             cert=cert,
             proxies=proxies,
-            verify=cls.settings['verify_ssl'],
+            verify=cls.settings["verify_ssl"],
         )
         if response.ok:
             return cls.response_class(response.content)
         else:
-            message = (
-                'Failed to execute POST request against %s endpoint. Response [%s]: %s'
-                % (url, response.status_code, response.content)
-            )
+            message = f"Failed to execute POST request against {url} endpoint. Response [{response.status_code}]: {response.content}"
             raise RequestError(message, response)
 
     @classmethod
     def _format_datetime(cls, d):
-        return d.strftime('%Y-%m-%dT%H:%M:%S.000Z')
+        return d.strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
     @classmethod
     def _format_transaction_id(cls, transaction_id):
-        return ('_' + transaction_id)[:32]  # such formation is required by server.
+        return ("_" + transaction_id)[:32]  # such formation is required by server.
 
     @classmethod
     def _get_url(cls):
-        return urljoin(cls.settings['URL'], cls.url)
+        return urljoin(cls.settings["URL"], cls.url)
 
 
 class SignatureResponse(Response):
     def init_response_attributes(self, etree):
         try:
-            self.backend_transaction_id = etree.xpath('//MSS_SignatureResp')[0].attrib[
-                'MSSP_TransID'
+            self.backend_transaction_id = etree.xpath("//MSS_SignatureResp")[0].attrib[
+                "MSSP_TransID"
             ]
             self.status = etree.xpath(
-                '//ns6:StatusCode', namespaces={'ns6': self.ns_namespace}
-            )[0].attrib['Value']
+                "//ns6:StatusCode", namespaces={"ns6": self.ns_namespace}
+            )[0].attrib["Value"]
         except (IndexError, KeyError, lxml.etree.XMLSchemaError) as e:
             raise ResponseParseError(
-                'Cannot parse signature response: %s. Response content: %s'
-                % (e, lxml.etree.tostring(etree))
+                f"Cannot parse signature response: {e}. Response content: {lxml.etree.tostring(etree)}"
             )
 
 
 class SignatureRequest(Request):
-    url = '/MSSP/services/MSS_Signature'
+    url = "/MSSP/services/MSS_Signature"
     template = """
         <?xml version="1.0" encoding="UTF-8"?>
         <soapenv:Envelope xmlns:soapenv="http://www.w3.org/2003/05/soap-envelope"
@@ -158,29 +154,29 @@ class SignatureRequest(Request):
     @classmethod
     def execute(cls, transaction_id, phone, message):
         kwargs = {
-            'MessagingMode': 'asynchClientServer',
-            'AP_TransID': cls._format_transaction_id(transaction_id),
-            'MSISDN': phone,
-            'DataToBeSigned': '{} {}'.format(cls.settings['message_prefix'], message),
-            'SignatureProfile': cls.settings['SignatureProfile'],
+            "MessagingMode": "asynchClientServer",
+            "AP_TransID": cls._format_transaction_id(transaction_id),
+            "MSISDN": phone,
+            "DataToBeSigned": "{} {}".format(cls.settings["message_prefix"], message),
+            "SignatureProfile": cls.settings["SignatureProfile"],
         }
         return super().execute(**kwargs)
 
 
 class Statuses:
-    OK = 'OK'
-    PROCESSING = 'Processing'
-    ERRED = 'Erred'
+    OK = "OK"
+    PROCESSING = "Processing"
+    ERRED = "Erred"
 
     @classmethod
     def map(cls, status_code):
-        if status_code == '502':
+        if status_code == "502":
             return cls.OK
-        elif status_code == '504':
+        elif status_code == "504":
             return cls.PROCESSING
         else:
             raise UnknownStatusError(
-                'Received unsupported status in response: %s' % status_code
+                "Received unsupported status in response: %s" % status_code
             )
 
 
@@ -188,49 +184,47 @@ class StatusResponse(Response):
     def init_response_attributes(self, etree):
         try:
             status_code = etree.xpath(
-                '//ns5:StatusCode', namespaces={'ns5': self.ns_namespace}
-            )[0].attrib['Value']
+                "//ns5:StatusCode", namespaces={"ns5": self.ns_namespace}
+            )[0].attrib["Value"]
         except (IndexError, KeyError, lxml.etree.XMLSchemaError) as e:
             raise ResponseParseError(
-                'Cannot parse status response: %s. Response content: %s'
-                % (e, lxml.etree.tostring(etree))
+                f"Cannot parse status response: {e}. Response content: {lxml.etree.tostring(etree)}"
             )
         self.status = Statuses.map(status_code)
 
         try:
             civil_number_tag = etree.xpath(
-                '//ns4:UserIdentifier', namespaces={'ns4': self.ns_namespace}
+                "//ns4:UserIdentifier", namespaces={"ns4": self.ns_namespace}
             )[0]
         except IndexError:
             # civil number tag does not exist - this is possible if request is still processing
             return
         else:
             try:
-                self.civil_number = civil_number_tag.text.split('=')[1]
+                self.civil_number = civil_number_tag.text.split("=")[1]
             except IndexError:
                 raise ResponseParseError(
-                    'Cannot get civil_number from tag text: %s' % civil_number_tag.text
+                    "Cannot get civil_number from tag text: %s" % civil_number_tag.text
                 )
 
 
 class ErredStatusResponse(Response):
-    soapenv_namespace = 'http://www.w3.org/2003/05/soap-envelope'
+    soapenv_namespace = "http://www.w3.org/2003/05/soap-envelope"
 
     def init_response_attributes(self, etree):
         self.status = Statuses.ERRED
         try:
             self.details = etree.xpath(
-                '//soapenv:Text', namespaces={'soapenv': self.soapenv_namespace}
+                "//soapenv:Text", namespaces={"soapenv": self.soapenv_namespace}
             )[0].text
         except (IndexError, lxml.etree.XMLSchemaError) as e:
             raise ResponseParseError(
-                'Cannot parse error status response: %s. Response content: %s'
-                % (e, lxml.etree.tostring(etree))
+                f"Cannot parse error status response: {e}. Response content: {lxml.etree.tostring(etree)}"
             )
 
 
 class StatusRequest(Request):
-    url = '/MSSP/services/MSS_StatusPort'
+    url = "/MSSP/services/MSS_StatusPort"
     template = """
         <?xml version="1.0" encoding="UTF-8"?>
         <soapenv:Envelope xmlns:soapenv="http://www.w3.org/2003/05/soap-envelope"
@@ -257,8 +251,8 @@ class StatusRequest(Request):
     @classmethod
     def execute(cls, transaction_id, backend_transaction_id):
         kwargs = {
-            'AP_TransID': cls._format_transaction_id(transaction_id),
-            'MSSP_TransID': backend_transaction_id,
+            "AP_TransID": cls._format_transaction_id(transaction_id),
+            "MSSP_TransID": backend_transaction_id,
         }
         try:
             return super().execute(**kwargs)

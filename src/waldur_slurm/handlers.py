@@ -17,7 +17,7 @@ def if_plugin_enabled(f):
 
     @functools.wraps(f)
     def wrapped(*args, **kwargs):
-        if settings.WALDUR_SLURM['ENABLED']:
+        if settings.WALDUR_SLURM["ENABLED"]:
             return f(*args, **kwargs)
 
     return wrapped
@@ -100,8 +100,8 @@ def update_quotas_on_allocation_usage_update(sender, instance, created=False, **
 def update_quotas(scope, path):
     qs = models.Allocation.objects.filter(**{path: scope}).values(path)
     for quota in utils.FIELD_NAMES:
-        qs = qs.annotate(**{'total_%s' % quota: Sum(quota)})
+        qs = qs.annotate(**{"total_%s" % quota: Sum(quota)})
     qs = list(qs)[0]
 
     for quota in utils.FIELD_NAMES:
-        scope.set_quota_usage(utils.MAPPING[quota], qs['total_%s' % quota])
+        scope.set_quota_usage(utils.MAPPING[quota], qs["total_%s" % quota])

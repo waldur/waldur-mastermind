@@ -8,57 +8,57 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('structure', '0040_useragreement_uuid'),
-        ('proposal', '0003_requested_offering'),
+        ("structure", "0040_useragreement_uuid"),
+        ("proposal", "0003_requested_offering"),
     ]
 
     operations = [
         migrations.RemoveField(
-            model_name='proposal',
-            name='duration_requested',
+            model_name="proposal",
+            name="duration_requested",
         ),
         migrations.RemoveField(
-            model_name='proposal',
-            name='resource_usage',
+            model_name="proposal",
+            name="resource_usage",
         ),
         migrations.AddField(
-            model_name='proposal',
-            name='approved_by',
+            model_name="proposal",
+            name="approved_by",
             field=models.ForeignKey(
                 blank=True,
                 null=True,
                 on_delete=django.db.models.deletion.PROTECT,
-                related_name='+',
+                related_name="+",
                 to=settings.AUTH_USER_MODEL,
             ),
         ),
         migrations.AddField(
-            model_name='proposal',
-            name='created_by',
+            model_name="proposal",
+            name="created_by",
             field=models.ForeignKey(
                 null=True,
                 on_delete=django.db.models.deletion.PROTECT,
-                related_name='+',
+                related_name="+",
                 to=settings.AUTH_USER_MODEL,
             ),
         ),
         migrations.AddField(
-            model_name='proposal',
-            name='duration_in_days',
+            model_name="proposal",
+            name="duration_in_days",
             field=models.PositiveIntegerField(
-                help_text='Duration in days after provisioning of resources.',
+                help_text="Duration in days after provisioning of resources.",
                 null=True,
                 blank=True,
             ),
         ),
         migrations.AlterField(
-            model_name='proposal',
-            name='project',
+            model_name="proposal",
+            name="project",
             field=models.ForeignKey(
                 editable=False,
                 null=True,
                 on_delete=django.db.models.deletion.PROTECT,
-                to='structure.project',
+                to="structure.project",
             ),
         ),
     ]

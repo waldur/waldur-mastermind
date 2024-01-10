@@ -36,9 +36,9 @@ from . import executors, models, utils
 class GoogleCredentialsAdminForm(ModelForm):
     class Meta:
         widgets = {
-            'client_secret': PasswordWidget(),
-            'calendar_token': PasswordWidget(),
-            'calendar_refresh_token': PasswordWidget(),
+            "client_secret": PasswordWidget(),
+            "calendar_token": PasswordWidget(),
+            "calendar_refresh_token": PasswordWidget(),
         }
 
 
@@ -48,7 +48,7 @@ class GoogleCredentialsInline(admin.StackedInline):
 
 
 class ServiceProviderAdmin(admin.ModelAdmin):
-    list_display = ('uuid', 'customer', 'created')
+    list_display = ("uuid", "customer", "created")
     inlines = [GoogleCredentialsInline]
 
 
@@ -59,21 +59,21 @@ class AttributeOptionInline(admin.TabularInline):
 class AttributeAdmin(admin.ModelAdmin):
     inlines = [AttributeOptionInline]
     list_display = (
-        'title',
-        'get_category',
-        'section',
-        'type',
-        'key',
-        'required',
+        "title",
+        "get_category",
+        "section",
+        "type",
+        "key",
+        "required",
     )
-    list_filter = ('section',)
-    ordering = ('section', 'title')
+    list_filter = ("section",)
+    ordering = ("section", "title")
 
     def get_category(self, obj):
         return obj.section.category
 
-    get_category.short_description = _('Category')
-    get_category.admin_order_field = 'section__category__title'
+    get_category.short_description = _("Category")
+    get_category.admin_order_field = "section__category__title"
 
 
 class AttributeInline(admin.TabularInline):
@@ -82,7 +82,7 @@ class AttributeInline(admin.TabularInline):
 
 class SectionAdmin(admin.ModelAdmin):
     inlines = [AttributeInline]
-    list_display = ('title', 'category', 'key')
+    list_display = ("title", "category", "key")
 
 
 class SectionInline(admin.TabularInline):
@@ -91,7 +91,7 @@ class SectionInline(admin.TabularInline):
 
 class CategoryColumnInline(admin.TabularInline):
     model = models.CategoryColumn
-    list_display = ('index', 'title', 'attribute', 'widget')
+    list_display = ("index", "title", "attribute", "widget")
 
 
 class CategoryComponentInline(admin.TabularInline):
@@ -100,8 +100,8 @@ class CategoryComponentInline(admin.TabularInline):
 
 class CategoryAdmin(modeltranslation_admin.TranslationAdmin):
     list_display = (
-        'title',
-        'uuid',
+        "title",
+        "uuid",
     )
     inlines = [SectionInline, CategoryColumnInline, CategoryComponentInline]
 
@@ -113,49 +113,49 @@ class CategoryInline(admin.TabularInline):
 class CategoryGroupAdmin(modeltranslation_admin.TranslationAdmin):
     model = models.CategoryGroup
     list_display = (
-        'title',
-        'uuid',
+        "title",
+        "uuid",
     )
     inlines = [CategoryInline]
 
 
 class ScreenshotsInline(admin.StackedInline):
     model = models.Screenshot
-    classes = ['collapse']
-    fields = ('name', 'description', 'image')
+    classes = ["collapse"]
+    fields = ("name", "description", "image")
     extra = 1
 
 
 class DivisionsInline(admin.StackedInline):
     model = models.Offering.divisions.through
-    classes = ['collapse']
+    classes = ["collapse"]
     extra = 1
 
 
 class PlansInline(admin.StackedInline):
     model = models.Plan
-    classes = ['collapse']
+    classes = ["collapse"]
     fields = (
-        'name',
-        'description',
-        'unit_price',
-        'unit',
-        'article_code',
-        'archived',
-        'max_amount',
+        "name",
+        "description",
+        "unit_price",
+        "unit",
+        "article_code",
+        "archived",
+        "max_amount",
     )
     extra = 1
 
 
 class OfferingEndpointsDivisionsInline(admin.StackedInline):
     model = models.OfferingAccessEndpoint
-    classes = ['collapse']
+    classes = ["collapse"]
     extra = 1
 
 
 class ResourceEndpointsDivisionsInline(admin.StackedInline):
     model = models.ResourceAccessEndpoint
-    classes = ['collapse']
+    classes = ["collapse"]
     extra = 1
 
 
@@ -199,8 +199,8 @@ class PlanComponentInline(
     ConnectedResourceMixin, ParentInlineMixin, admin.TabularInline
 ):
     model = models.PlanComponent
-    classes = ['collapse']
-    protected_fields = ('component', 'amount', 'price')
+    classes = ["collapse"]
+    protected_fields = ("component", "amount", "price")
 
     def has_add_permission(self, request, obj=None):
         plan = self.get_parent_object_from_request(request)
@@ -219,27 +219,27 @@ class PlanComponentInline(
 
 class PlanDivisionsInline(admin.StackedInline):
     model = models.Plan.divisions.through
-    verbose_name = _('division')
-    verbose_name_plural = _('divisions')
-    classes = ['collapse']
+    verbose_name = _("division")
+    verbose_name_plural = _("divisions")
+    classes = ["collapse"]
     extra = 1
 
 
 class PlanAdmin(ConnectedResourceMixin, VersionAdmin, admin.ModelAdmin):
-    list_display = ('name', 'offering', 'archived', 'unit', 'unit_price')
-    list_filter = ('offering', 'archived')
-    search_fields = ('name', 'offering__name')
+    list_display = ("name", "offering", "archived", "unit", "unit_price")
+    list_filter = ("offering", "archived")
+    search_fields = ("name", "offering__name")
     inlines = [PlanComponentInline, PlanDivisionsInline]
-    protected_fields = ('unit', 'unit_price', 'article_code')
-    readonly_fields = ('scope_link', 'backend_id', 'offering_uuid')
+    protected_fields = ("unit", "unit_price", "article_code")
+    readonly_fields = ("scope_link", "backend_id", "offering_uuid")
     fields = (
-        'name',
-        'description',
-        'unit',
-        'unit_price',
-        'article_code',
-        'max_amount',
-        'archived',
+        "name",
+        "description",
+        "unit",
+        "unit_price",
+        "article_code",
+        "max_amount",
+        "archived",
     ) + readonly_fields
 
     def scope_link(self, obj):
@@ -249,29 +249,29 @@ class PlanAdmin(ConnectedResourceMixin, VersionAdmin, admin.ModelAdmin):
         if obj:
             return obj.offering.uuid.hex
 
-    scope_link.short_description = 'Scope'
+    scope_link.short_description = "Scope"
 
 
 class OfferingAdminForm(ModelForm):
     class Meta:
         widgets = {
-            'attributes': JsonWidget(),
-            'options': JsonWidget(),
-            'secret_options': JsonWidget(),
-            'plugin_options': JsonWidget(),
-            'referrals': JsonWidget(),
+            "attributes": JsonWidget(),
+            "options": JsonWidget(),
+            "secret_options": JsonWidget(),
+            "plugin_options": JsonWidget(),
+            "referrals": JsonWidget(),
         }
 
 
 class OfferingComponentInline(admin.StackedInline):
     model = models.OfferingComponent
-    classes = ['collapse']
+    classes = ["collapse"]
     extra = 1
 
 
 class GoogleCalendarInline(admin.StackedInline):
     model = GoogleCalendar
-    classes = ['collapse']
+    classes = ["collapse"]
 
 
 def get_admin_url_for_scope(scope):
@@ -280,7 +280,7 @@ def get_admin_url_for_scope(scope):
     else:
         model = scope
     return reverse(
-        f'admin:{scope._meta.app_label}_{model._meta.model_name}_change',
+        f"admin:{scope._meta.app_label}_{model._meta.model_name}_change",
         args=[scope.id],
     )
 
@@ -291,8 +291,8 @@ def get_admin_link_for_scope(scope):
 
 class OfferingUserInline(admin.TabularInline):
     model = models.OfferingUser
-    fields = ('user', 'username', 'created')
-    readonly_fields = ('created',)
+    fields = ("user", "username", "created")
+    readonly_fields = ("created",)
     extra = 1
 
 
@@ -301,7 +301,7 @@ class OfferingUserGroupInline(admin.StackedInline):
     extra = 1
 
     def formfield_for_manytomany(self, db_field, request, **kwargs):
-        object_id = request.resolver_match.kwargs.get('object_id')
+        object_id = request.resolver_match.kwargs.get("object_id")
         if db_field.name == "projects" and object_id:
             offering = models.Offering.objects.get(id=object_id)
             projects = utils.get_offering_projects(offering)
@@ -322,63 +322,63 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
         OfferingUserGroupInline,
     ]
     list_display = (
-        'name',
-        'uuid',
-        'customer',
-        'state',
-        'type',
-        'category',
-        'billable',
-        'created',
+        "name",
+        "uuid",
+        "customer",
+        "state",
+        "type",
+        "category",
+        "billable",
+        "created",
     )
     list_filter = (
-        'state',
-        'shared',
-        'billable',
-        'type',
-        ('category', RelatedOnlyDropdownFilter),
+        "state",
+        "shared",
+        "billable",
+        "type",
+        ("category", RelatedOnlyDropdownFilter),
     )
-    date_hierarchy = 'created'
-    search_fields = ('name', 'uuid')
+    date_hierarchy = "created"
+    search_fields = ("name", "uuid")
     fields = (
-        'uuid',
-        'state',
-        'customer',
-        'category',
-        'name',
-        'native_name',
-        'description',
-        'native_description',
-        'full_description',
-        'country',
-        'terms_of_service',
-        'terms_of_service_link',
-        'privacy_policy_link',
-        'rating',
-        'thumbnail',
-        'attributes',
-        'options',
-        'plugin_options',
-        'secret_options',
-        'shared',
-        'billable',
-        'type',
-        'scope_link',
-        'vendor_details',
-        'getting_started',
-        'integration_guide',
-        'paused_reason',
-        'datacite_doi',
-        'citation_count',
-        'latitude',
-        'longitude',
-        'image',
+        "uuid",
+        "state",
+        "customer",
+        "category",
+        "name",
+        "native_name",
+        "description",
+        "native_description",
+        "full_description",
+        "country",
+        "terms_of_service",
+        "terms_of_service_link",
+        "privacy_policy_link",
+        "rating",
+        "thumbnail",
+        "attributes",
+        "options",
+        "plugin_options",
+        "secret_options",
+        "shared",
+        "billable",
+        "type",
+        "scope_link",
+        "vendor_details",
+        "getting_started",
+        "integration_guide",
+        "paused_reason",
+        "datacite_doi",
+        "citation_count",
+        "latitude",
+        "longitude",
+        "image",
     )
     readonly_fields = (
-        'rating',
-        'scope_link',
-        'citation_count',
-        'uuid',
+        "rating",
+        "scope_link",
+        "citation_count",
+        "uuid",
     )
 
     def scope_link(self, obj):
@@ -388,11 +388,11 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
             )
 
     actions = [
-        'activate',
-        'datacite_registration',
-        'datacite_update',
-        'link_doi_with_collection',
-        'offering_referrals_pull',
+        "activate",
+        "datacite_registration",
+        "datacite_update",
+        "link_doi_with_collection",
+        "offering_referrals_pull",
     ]
 
     def activate(self, request, queryset):
@@ -409,54 +409,54 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
             offering.save()
 
         message = ngettext(
-            'One offering has been activated.',
-            '%(count)d offerings have been activated.',
+            "One offering has been activated.",
+            "%(count)d offerings have been activated.",
             count,
         )
-        message = message % {'count': count}
+        message = message % {"count": count}
 
         self.message_user(request, message)
 
-    activate.short_description = _('Activate offerings')
+    activate.short_description = _("Activate offerings")
 
     def datacite_registration(self, request, queryset):
-        queryset = queryset.filter(datacite_doi='')
+        queryset = queryset.filter(datacite_doi="")
 
         for offering in queryset.all():
             pid_utils.create_doi(offering)
 
         count = queryset.count()
         message = ngettext(
-            'One offering has been scheduled for datacite registration.',
-            '%(count)d offerings have been scheduled for datacite registration.',
+            "One offering has been scheduled for datacite registration.",
+            "%(count)d offerings have been scheduled for datacite registration.",
             count,
         )
-        message = message % {'count': count}
+        message = message % {"count": count}
 
         self.message_user(request, message)
 
-    datacite_registration.short_description = _('Register in Datacite')
+    datacite_registration.short_description = _("Register in Datacite")
 
     def datacite_update(self, request, queryset):
-        queryset = queryset.exclude(datacite_doi='')
+        queryset = queryset.exclude(datacite_doi="")
 
         for offering in queryset.all():
             pid_utils.update_doi(offering)
 
         count = queryset.count()
         message = ngettext(
-            'One offering has been scheduled for updating Datacite registration data.',
-            '%(count)d offerings have been scheduled for updating Datacite registration data.',
+            "One offering has been scheduled for updating Datacite registration data.",
+            "%(count)d offerings have been scheduled for updating Datacite registration data.",
             count,
         )
-        message = message % {'count': count}
+        message = message % {"count": count}
 
         self.message_user(request, message)
 
-    datacite_update.short_description = _('Update data of Datacite registration')
+    datacite_update.short_description = _("Update data of Datacite registration")
 
     def link_doi_with_collection(self, request, queryset):
-        queryset = queryset.exclude(datacite_doi='')
+        queryset = queryset.exclude(datacite_doi="")
 
         for offering in queryset.all():
             serialized_offering = core_utils.serialize_instance(offering)
@@ -464,18 +464,18 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
 
         count = queryset.count()
         message = ngettext(
-            'One offering has been scheduled for linking with collection.',
-            '%(count)d offerings have been scheduled for linking with collection.',
+            "One offering has been scheduled for linking with collection.",
+            "%(count)d offerings have been scheduled for linking with collection.",
             count,
         )
-        message = message % {'count': count}
+        message = message % {"count": count}
 
         self.message_user(request, message)
 
-    link_doi_with_collection.short_description = _('Link with Datacite Collection')
+    link_doi_with_collection.short_description = _("Link with Datacite Collection")
 
     def offering_referrals_pull(self, request, queryset):
-        queryset.exclude(datacite_doi='')
+        queryset.exclude(datacite_doi="")
 
         for offering in queryset.all():
             serialized_offering = core_utils.serialize_instance(offering)
@@ -484,62 +484,62 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
         count = queryset.count()
 
         message = ngettext(
-            'Offering has been scheduled for referrals pull.',
-            '%(count)d offerings have been scheduled for referrals pull.',
+            "Offering has been scheduled for referrals pull.",
+            "%(count)d offerings have been scheduled for referrals pull.",
             count,
         )
-        message = message % {'count': count}
+        message = message % {"count": count}
 
         self.message_user(request, message)
 
-    offering_referrals_pull.short_description = _('Pull referrals info for offering(s)')
+    offering_referrals_pull.short_description = _("Pull referrals info for offering(s)")
 
 
 class OfferingUserAdmin(admin.ModelAdmin):
     list_display = admin.ModelAdmin.list_display + (
-        'offering',
-        'user',
-        'username',
-        'propagation_date',
+        "offering",
+        "user",
+        "username",
+        "propagation_date",
     )
 
 
 class OrderAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
-    list_display = ('uuid', 'project', 'created', 'created_by', 'state', 'cost')
-    search_fields = ('query', 'project__name', 'resource__name', 'uuid')
+    list_display = ("uuid", "project", "created", "created_by", "state", "cost")
+    search_fields = ("query", "project__name", "resource__name", "uuid")
     fields = (
-        'offering',
-        'state',
-        'attributes',
-        'cost',
-        'plan',
-        'resource',
-        'created_by',
-        'consumer_reviewed_by',
-        'consumer_reviewed_at',
-        'provider_reviewed_by',
-        'provider_reviewed_at',
-        'project',
-        'modified',
+        "offering",
+        "state",
+        "attributes",
+        "cost",
+        "plan",
+        "resource",
+        "created_by",
+        "consumer_reviewed_by",
+        "consumer_reviewed_at",
+        "provider_reviewed_by",
+        "provider_reviewed_at",
+        "project",
+        "modified",
     )
     readonly_fields = (
-        'offering',
-        'attributes',
-        'cost',
-        'plan',
-        'resource',
-        'created',
-        'modified',
-        'created_by',
-        'consumer_reviewed_by',
-        'consumer_reviewed_at',
-        'provider_reviewed_by',
-        'provider_reviewed_at',
-        'project',
+        "offering",
+        "attributes",
+        "cost",
+        "plan",
+        "resource",
+        "created",
+        "modified",
+        "created_by",
+        "consumer_reviewed_by",
+        "consumer_reviewed_at",
+        "provider_reviewed_by",
+        "provider_reviewed_at",
+        "project",
     )
 
-    list_filter = ('state', 'created')
-    ordering = ('-created',)
+    list_filter = ("state", "created")
+    ordering = ("-created",)
 
     def get_extra_actions(self):
         return []
@@ -548,16 +548,16 @@ class OrderAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
 class ResourceForm(ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if self.instance and hasattr(self.instance, 'offering'):
+        if self.instance and hasattr(self.instance, "offering"):
             # Filter marketplace resource plans by offering
-            self.fields['plan'].queryset = self.fields['plan'].queryset.filter(
+            self.fields["plan"].queryset = self.fields["plan"].queryset.filter(
                 offering=self.instance.offering
             )
 
 
 class SharedOfferingFilter(admin.SimpleListFilter):
-    title = _('shared offerings')
-    parameter_name = 'shared_offering'
+    title = _("shared offerings")
+    parameter_name = "shared_offering"
 
     def lookups(self, request, model_admin):
         options = []
@@ -579,7 +579,7 @@ class RobotAccountInline(admin.StackedInline):
     extra = 1
 
     def formfield_for_manytomany(self, db_field, request, **kwargs):
-        object_id = request.resolver_match.kwargs.get('object_id')
+        object_id = request.resolver_match.kwargs.get("object_id")
         if db_field.name == "users" and object_id:
             resource = models.Resource.objects.get(id=object_id)
             users = utils.get_resource_users(resource)
@@ -587,7 +587,7 @@ class RobotAccountInline(admin.StackedInline):
         return super().formfield_for_manytomany(db_field, request, **kwargs)
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
-        object_id = request.resolver_match.kwargs.get('object_id')
+        object_id = request.resolver_match.kwargs.get("object_id")
         if db_field.name == "responsible_user" and object_id:
             resource = models.Resource.objects.get(id=object_id)
             resource_users = utils.get_resource_users(resource)
@@ -597,29 +597,29 @@ class RobotAccountInline(admin.StackedInline):
 
 class ResourceAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
     form = ResourceForm
-    list_display = ('uuid', 'name', 'project', 'state', 'category', 'created')
+    list_display = ("uuid", "name", "project", "state", "category", "created")
     list_filter = (
-        'state',
-        ('project', RelatedOnlyDropdownFilter),
-        ('offering', RelatedOnlyDropdownFilter),
+        "state",
+        ("project", RelatedOnlyDropdownFilter),
+        ("offering", RelatedOnlyDropdownFilter),
         SharedOfferingFilter,
     )
     readonly_fields = (
-        'scope_link',
-        'project_link',
-        'offering_link',
-        'plan_link',
-        'order_link',
-        'formatted_attributes',
-        'formatted_limits',
+        "scope_link",
+        "project_link",
+        "offering_link",
+        "plan_link",
+        "order_link",
+        "formatted_attributes",
+        "formatted_limits",
     )
     fields = readonly_fields + (
-        'plan',
-        'state',
-        'requested_downscaling',
+        "plan",
+        "state",
+        "requested_downscaling",
     )
-    date_hierarchy = 'created'
-    search_fields = ('name', 'uuid')
+    date_hierarchy = "created"
+    search_fields = ("name", "uuid")
     inlines = (RobotAccountInline, ResourceEndpointsDivisionsInline)
 
     def category(self, obj):
@@ -628,50 +628,50 @@ class ResourceAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
     def scope_link(self, obj):
         return get_admin_link_for_scope(obj.scope)
 
-    scope_link.short_description = 'Scope'
+    scope_link.short_description = "Scope"
 
     def project_link(self, obj):
         return get_admin_link_for_scope(obj.project)
 
-    project_link.short_description = 'Project'
+    project_link.short_description = "Project"
 
     def offering_link(self, obj):
         return get_admin_link_for_scope(obj.offering)
 
-    offering_link.short_description = 'Offering'
+    offering_link.short_description = "Offering"
 
     def plan_link(self, obj):
         return get_admin_link_for_scope(obj.plan)
 
-    plan_link.short_description = 'Plan'
+    plan_link.short_description = "Plan"
 
     def order_link(self, obj: models.Resource):
         if not obj.id:
-            return ''
+            return ""
         order = obj.creation_order
         if order:
             return get_admin_link_for_scope(order)
         else:
-            return ''
+            return ""
 
-    order_link.short_description = 'Creation order'
+    order_link.short_description = "Creation order"
 
     def formatted_attributes(self, obj):
         return format_json_field(obj.attributes)
 
     formatted_attributes.allow_tags = True
-    formatted_attributes.short_description = 'Attributes'
+    formatted_attributes.short_description = "Attributes"
 
     def formatted_limits(self, obj):
         return format_json_field(obj.limits)
 
     formatted_limits.allow_tags = True
-    formatted_limits.short_description = 'Limits'
+    formatted_limits.short_description = "Limits"
 
     class TerminateResources(ExecutorAdminAction):
         executor = executors.TerminateResourceExecutor
-        short_description = 'Terminate resources'
-        confirmation_description = 'The selected resources and related objects will be deleted. Back up your data.'
+        short_description = "Terminate resources"
+        confirmation_description = "The selected resources and related objects will be deleted. Back up your data."
         confirmation = True
 
         def validate(self, resource):
@@ -679,25 +679,25 @@ class ResourceAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
                 models.Resource.States.OK,
                 models.Resource.States.ERRED,
             ):
-                raise ValidationError(_('Resource has to be in OK or ERRED state.'))
+                raise ValidationError(_("Resource has to be in OK or ERRED state."))
 
         def get_execute_params(self, request, instance):
-            return {'user': request.user}
+            return {"user": request.user}
 
     terminate_resources = TerminateResources()
 
     class RestoreLimits(ExecutorAdminAction):
         executor = marketplace_openstack_executors.RestoreTenantLimitsExecutor
-        short_description = 'Restore Openstack limits'
-        confirmation_description = 'Openstack limits will be restored.'
+        short_description = "Restore Openstack limits"
+        confirmation_description = "Openstack limits will be restored."
         confirmation = True
 
         def validate(self, resource):
             if resource.state != models.Resource.States.OK:
-                raise ValidationError(_('Resource has to be in OK state.'))
+                raise ValidationError(_("Resource has to be in OK state."))
 
     restore_limits = RestoreLimits()
-    actions = ['terminate_resources', 'restore_limits']
+    actions = ["terminate_resources", "restore_limits"]
 
     def get_extra_actions(self):
         return [
@@ -712,14 +712,14 @@ class ResourceAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
         marketplace_openstack_tasks.create_resources_for_lost_instances_and_volumes.delay()
         self.message_user(
             request,
-            _('Сreating resources for lost instances and volumes has been scheduled.'),
+            _("Сreating resources for lost instances and volumes has been scheduled."),
         )
-        return redirect(reverse('admin:marketplace_resource_changelist'))
+        return redirect(reverse("admin:marketplace_resource_changelist"))
 
 
 class CategoryHelpArticleAdmin(admin.ModelAdmin):
-    list_display = ('title', 'url')
-    search_fields = ('title',)
+    list_display = ("title", "url")
+    search_fields = ("title",)
 
 
 admin.site.register(models.ServiceProvider, ServiceProviderAdmin)

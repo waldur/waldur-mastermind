@@ -24,38 +24,38 @@ def log_invoice_state_transition(sender, instance, created=False, **kwargs):
 
     state = instance.state
     if state == models.Invoice.States.PENDING or state == instance.tracker.previous(
-        'state'
+        "state"
     ):
         return
 
     if state == models.Invoice.States.CREATED:
         log.event_logger.invoice.info(
-            'Invoice for customer {customer_name} has been created.',
-            event_type='invoice_created',
+            "Invoice for customer {customer_name} has been created.",
+            event_type="invoice_created",
             event_context={
-                'month': instance.month,
-                'year': instance.year,
-                'customer': instance.customer,
+                "month": instance.month,
+                "year": instance.year,
+                "customer": instance.customer,
             },
         )
     elif state == models.Invoice.States.PAID:
         log.event_logger.invoice.info(
-            'Invoice for customer {customer_name} has been paid.',
-            event_type='invoice_paid',
+            "Invoice for customer {customer_name} has been paid.",
+            event_type="invoice_paid",
             event_context={
-                'month': instance.month,
-                'year': instance.year,
-                'customer': instance.customer,
+                "month": instance.month,
+                "year": instance.year,
+                "customer": instance.customer,
             },
         )
     elif state == models.Invoice.States.CANCELED:
         log.event_logger.invoice.info(
-            'Invoice for customer {customer_name} has been canceled.',
-            event_type='invoice_canceled',
+            "Invoice for customer {customer_name} has been canceled.",
+            event_type="invoice_canceled",
             event_context={
-                'month': instance.month,
-                'year': instance.year,
-                'customer': instance.customer,
+                "month": instance.month,
+                "year": instance.year,
+                "customer": instance.customer,
             },
         )
 
@@ -74,19 +74,19 @@ def set_project_name_on_invoice_item_creation(
         item = instance
         item.project_name = item.project.name
         item.project_uuid = item.project.uuid.hex
-        item.save(update_fields=('project_name', 'project_uuid'))
+        item.save(update_fields=("project_name", "project_uuid"))
 
 
 def update_invoice_item_on_project_name_update(sender, instance, **kwargs):
     project = instance
 
-    if not project.tracker.has_changed('name'):
+    if not project.tracker.has_changed("name"):
         return
 
     query = Q(project=project, invoice__state=models.Invoice.States.PENDING)
-    for item in models.InvoiceItem.objects.filter(query).only('pk'):
+    for item in models.InvoiceItem.objects.filter(query).only("pk"):
         item.project_name = project.name
-        item.save(update_fields=['project_name'])
+        item.save(update_fields=["project_name"])
 
 
 def emit_invoice_created_event(sender, instance, created=False, **kwargs):
@@ -95,14 +95,14 @@ def emit_invoice_created_event(sender, instance, created=False, **kwargs):
 
     state = instance.state
     if state != models.Invoice.States.CREATED or state == instance.tracker.previous(
-        'state'
+        "state"
     ):
         return
 
     cost_signals.invoice_created.send(
         sender=models.Invoice,
         invoice=instance,
-        issuer_details=settings.WALDUR_INVOICES['ISSUER_DETAILS'],
+        issuer_details=settings.WALDUR_INVOICES["ISSUER_DETAILS"],
     )
 
 
@@ -113,7 +113,7 @@ def prevent_deletion_of_customer_with_invoice(sender, instance, user, **kwargs):
     for invoice in models.Invoice.objects.filter(customer=instance):
         if invoice.state != PENDING or invoice.price > 0:
             raise ValidationError(
-                _('Can\'t delete organization with invoice %s.') % invoice
+                _("Can't delete organization with invoice %s.") % invoice
             )
 
 
@@ -122,10 +122,10 @@ def update_total_cost_when_invoice_item_is_updated(
 ):
     invoice_item = instance
     if created or set(invoice_item.tracker.changed()) & {
-        'start',
-        'end',
-        'quantity',
-        'unit_price',
+        "start",
+        "end",
+        "quantity",
+        "unit_price",
     }:
         transaction.on_commit(lambda: invoice_item.invoice.update_total_cost())
 

@@ -16,17 +16,17 @@ class UpdateExecutor(
     def pre_apply(cls, instance, **kwargs):
         if instance.state != GoogleCalendar.States.CREATION_SCHEDULED:
             instance.schedule_updating()
-        instance.save(update_fields=['state'])
+        instance.save(update_fields=["state"])
 
     @classmethod
     def _get_state_change_task(cls, instance, serialized_instance):
         if instance.state == GoogleCalendar.States.CREATION_SCHEDULED:
             return core_tasks.StateTransitionTask().si(
-                serialized_instance, state_transition='begin_creating'
+                serialized_instance, state_transition="begin_creating"
             )
         else:
             return core_tasks.StateTransitionTask().si(
-                serialized_instance, state_transition='begin_updating'
+                serialized_instance, state_transition="begin_updating"
             )
 
 

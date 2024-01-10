@@ -2,7 +2,7 @@ from django.db import migrations
 
 
 def fill_data(apps, schema_editor):
-    OrderItem = apps.get_model('marketplace', 'OrderItem')
+    OrderItem = apps.get_model("marketplace", "OrderItem")
     for order_item in OrderItem.objects.all():
         order = order_item.order
         # because remote plugin assumes so
@@ -20,19 +20,19 @@ def fill_data(apps, schema_editor):
             order_item.state = 6
         order_item.save(
             update_fields=[
-                'uuid',
-                'project',
-                'created_by',
-                'approved_by',
-                'approved_at',
-                'state',
+                "uuid",
+                "project",
+                "created_by",
+                "approved_by",
+                "approved_at",
+                "state",
             ]
         )
 
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace', '0105_merge_order_item_with_order_step1'),
+        ("marketplace", "0105_merge_order_item_with_order_step1"),
     ]
 
     operations = [

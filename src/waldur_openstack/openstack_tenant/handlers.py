@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 def clear_cache_when_service_settings_are_updated(sender, instance, **kwargs):
     if instance.type != apps.OpenStackTenantConfig.service_name:
         return
-    tenant_id = instance.options.get('tenant_id')
+    tenant_id = instance.options.get("tenant_id")
     if tenant_id:
         cache.delete(get_cached_session_key(instance, tenant_id=tenant_id))
 
@@ -30,10 +30,9 @@ def _log_scheduled_action(resource, action, action_details):
     class_name = resource.__class__.__name__.lower()
     message = _get_action_message(action, action_details)
     log.event_logger.openstack_resource_action.info(
-        'Operation "%s" has been scheduled for %s "%s"'
-        % (message, class_name, resource.name),
-        event_type=_get_action_event_type(action, 'scheduled'),
-        event_context={'resource': resource, 'action_details': action_details},
+        f'Operation "{message}" has been scheduled for {class_name} "{resource.name}"',
+        event_type=_get_action_event_type(action, "scheduled"),
+        event_context={"resource": resource, "action_details": action_details},
     )
 
 
@@ -43,10 +42,9 @@ def _log_succeeded_action(resource, action, action_details):
     class_name = resource.__class__.__name__.lower()
     message = _get_action_message(action, action_details)
     log.event_logger.openstack_resource_action.info(
-        'Successfully executed "%s" operation for %s "%s"'
-        % (message, class_name, resource.name),
-        event_type=_get_action_event_type(action, 'succeeded'),
-        event_context={'resource': resource, 'action_details': action_details},
+        f'Successfully executed "{message}" operation for {class_name} "{resource.name}"',
+        event_type=_get_action_event_type(action, "succeeded"),
+        event_context={"resource": resource, "action_details": action_details},
     )
 
 
@@ -54,19 +52,18 @@ def _log_failed_action(resource, action, action_details):
     class_name = resource.__class__.__name__.lower()
     message = _get_action_message(action, action_details)
     log.event_logger.openstack_resource_action.warning(
-        'Failed to execute "%s" operation for %s "%s"'
-        % (message, class_name, resource.name),
-        event_type=_get_action_event_type(action, 'failed'),
-        event_context={'resource': resource, 'action_details': action_details},
+        f'Failed to execute "{message}" operation for {class_name} "{resource.name}"',
+        event_type=_get_action_event_type(action, "failed"),
+        event_context={"resource": resource, "action_details": action_details},
     )
 
 
 def _get_action_message(action, action_details):
-    return action_details.pop('message', action)
+    return action_details.pop("message", action)
 
 
 def _get_action_event_type(action, event_state):
-    return 'resource_{}_{}'.format(action.replace(' ', '_').lower(), event_state)
+    return "resource_{}_{}".format(action.replace(" ", "_").lower(), event_state)
 
 
 def log_action(sender, instance, created=False, **kwargs):
@@ -80,21 +77,21 @@ def log_action(sender, instance, created=False, **kwargs):
     }
     """
     resource = instance
-    if created or not resource.tracker.has_changed('action'):
+    if created or not resource.tracker.has_changed("action"):
         return
     if resource.state == StateMixin.States.UPDATE_SCHEDULED:
         _log_scheduled_action(resource, resource.action, resource.action_details)
     if resource.state == StateMixin.States.OK:
         _log_succeeded_action(
             resource,
-            resource.tracker.previous('action'),
-            resource.tracker.previous('action_details'),
+            resource.tracker.previous("action"),
+            resource.tracker.previous("action_details"),
         )
     elif resource.state == StateMixin.States.ERRED:
         _log_failed_action(
             resource,
-            resource.tracker.previous('action'),
-            resource.tracker.previous('action_details'),
+            resource.tracker.previous("action"),
+            resource.tracker.previous("action_details"),
         )
 
 
@@ -105,42 +102,39 @@ def log_snapshot_schedule_creation(sender, instance, created=False, **kwargs):
     snapshot_schedule = instance
     log.event_logger.openstack_snapshot_schedule.info(
         'Snapshot schedule "%s" has been created' % snapshot_schedule.name,
-        event_type='resource_snapshot_schedule_created',
+        event_type="resource_snapshot_schedule_created",
         event_context={
-            'resource': snapshot_schedule.source_volume,
-            'snapshot_schedule': snapshot_schedule,
+            "resource": snapshot_schedule.source_volume,
+            "snapshot_schedule": snapshot_schedule,
         },
     )
 
 
 def log_snapshot_schedule_action(sender, instance, created=False, **kwargs):
     snapshot_schedule = instance
-    if created or not snapshot_schedule.tracker.has_changed('is_active'):
+    if created or not snapshot_schedule.tracker.has_changed("is_active"):
         return
 
     context = {
-        'resource': snapshot_schedule.source_volume,
-        'snapshot_schedule': snapshot_schedule,
+        "resource": snapshot_schedule.source_volume,
+        "snapshot_schedule": snapshot_schedule,
     }
     if snapshot_schedule.is_active:
         log.event_logger.openstack_snapshot_schedule.info(
             'Snapshot schedule "%s" has been activated' % snapshot_schedule.name,
-            event_type='resource_snapshot_schedule_activated',
+            event_type="resource_snapshot_schedule_activated",
             event_context=context,
         )
     else:
         if snapshot_schedule.error_message:
-            message = (
-                'Snapshot schedule "%s" has been deactivated because of error: %s'
-                % (snapshot_schedule.name, snapshot_schedule.error_message)
-            )
+            message = f'Snapshot schedule "{snapshot_schedule.name}" has been deactivated because of error: {snapshot_schedule.error_message}'
         else:
             message = (
                 'Snapshot schedule "%s" has been deactivated' % snapshot_schedule.name
             )
         log.event_logger.openstack_snapshot_schedule.warning(
             message,
-            event_type='resource_snapshot_schedule_deactivated',
+            event_type="resource_snapshot_schedule_deactivated",
             event_context=context,
         )
 
@@ -149,10 +143,10 @@ def log_snapshot_schedule_deletion(sender, instance, **kwargs):
     snapshot_schedule = instance
     log.event_logger.openstack_snapshot_schedule.info(
         'Snapshot schedule "%s" has been deleted' % snapshot_schedule.name,
-        event_type='resource_snapshot_schedule_deleted',
+        event_type="resource_snapshot_schedule_deleted",
         event_context={
-            'resource': snapshot_schedule.source_volume,
-            'snapshot_schedule': snapshot_schedule,
+            "resource": snapshot_schedule.source_volume,
+            "snapshot_schedule": snapshot_schedule,
         },
     )
 
@@ -164,37 +158,34 @@ def log_backup_schedule_creation(sender, instance, created=False, **kwargs):
     backup_schedule = instance
     log.event_logger.openstack_backup_schedule.info(
         'Backup schedule "%s" has been created' % backup_schedule.name,
-        event_type='resource_backup_schedule_created',
+        event_type="resource_backup_schedule_created",
         event_context={
-            'resource': backup_schedule.instance,
-            'backup_schedule': backup_schedule,
+            "resource": backup_schedule.instance,
+            "backup_schedule": backup_schedule,
         },
     )
 
 
 def log_backup_schedule_action(sender, instance, created=False, **kwargs):
     backup_schedule = instance
-    if created or not backup_schedule.tracker.has_changed('is_active'):
+    if created or not backup_schedule.tracker.has_changed("is_active"):
         return
 
-    context = {'resource': backup_schedule.instance, 'backup_schedule': backup_schedule}
+    context = {"resource": backup_schedule.instance, "backup_schedule": backup_schedule}
     if backup_schedule.is_active:
         log.event_logger.openstack_backup_schedule.info(
             'Backup schedule "%s" has been activated' % backup_schedule.name,
-            event_type='resource_backup_schedule_activated',
+            event_type="resource_backup_schedule_activated",
             event_context=context,
         )
     else:
         if backup_schedule.error_message:
-            message = (
-                'Backup schedule "%s" has been deactivated because of error: %s'
-                % (backup_schedule.name, backup_schedule.error_message)
-            )
+            message = f'Backup schedule "{backup_schedule.name}" has been deactivated because of error: {backup_schedule.error_message}'
         else:
             message = 'Backup schedule "%s" has been deactivated' % backup_schedule.name
         log.event_logger.openstack_backup_schedule.warning(
             message,
-            event_type='resource_backup_schedule_deactivated',
+            event_type="resource_backup_schedule_deactivated",
             event_context=context,
         )
 
@@ -203,10 +194,10 @@ def log_backup_schedule_deletion(sender, instance, **kwargs):
     backup_schedule = instance
     log.event_logger.openstack_backup_schedule.info(
         'Backup schedule "%s" has been deleted' % backup_schedule.name,
-        event_type='resource_backup_schedule_deleted',
+        event_type="resource_backup_schedule_deleted",
         event_context={
-            'resource': backup_schedule.instance,
-            'backup_schedule': backup_schedule,
+            "resource": backup_schedule.instance,
+            "backup_schedule": backup_schedule,
         },
     )
 
@@ -221,8 +212,8 @@ def update_service_settings_credentials(sender, instance, created=False, **kwarg
         return
 
     tenant = instance
-    if tenant.tracker.has_changed('user_password') or tenant.tracker.has_changed(
-        'user_username'
+    if tenant.tracker.has_changed("user_password") or tenant.tracker.has_changed(
+        "user_username"
     ):
         service_settings = structure_models.ServiceSettings.objects.filter(
             scope=tenant
@@ -285,8 +276,8 @@ class BaseSynchronizationHandler:
                 )
         except IntegrityError:
             logger.warning(
-                'Could not create %s with backend ID %s '
-                'and service settings %s due to concurrent update.',
+                "Could not create %s with backend ID %s "
+                "and service settings %s due to concurrent update.",
                 self.property_model,
                 resource.backend_id,
                 settings,
@@ -346,13 +337,13 @@ class BaseSynchronizationHandler:
 class FloatingIPHandler(BaseSynchronizationHandler):
     property_model = models.FloatingIP
     resource_model = openstack_models.FloatingIP
-    fields = ('address', 'backend_network_id', 'runtime_state')
+    fields = ("address", "backend_network_id", "runtime_state")
 
 
 class SecurityGroupHandler(BaseSynchronizationHandler):
     property_model = models.SecurityGroup
     resource_model = openstack_models.SecurityGroup
-    fields = ('description',)
+    fields = ("description",)
 
     def map_rules(self, security_group, openstack_security_group):
         return [
@@ -367,13 +358,13 @@ class SecurityGroupHandler(BaseSynchronizationHandler):
                 backend_id=rule.backend_id,
                 security_group=security_group,
             )
-            for rule in openstack_security_group.rules.exclude(backend_id='')
+            for rule in openstack_security_group.rules.exclude(backend_id="")
         ]
 
     def pull_remote_group(self, group_property, group_resource, service_settings):
         # Skip rules with empty backend ID (ie rules being created)
         for rule_resource in group_resource.rules.exclude(
-            Q(remote_group=None) | Q(backend_id='')
+            Q(remote_group=None) | Q(backend_id="")
         ):
             try:
                 remote_group = models.SecurityGroup.objects.get(
@@ -388,7 +379,7 @@ class SecurityGroupHandler(BaseSynchronizationHandler):
             else:
                 if rule_property.remote_group != remote_group:
                     rule_property.remote_group = remote_group
-                    rule_property.save(update_fields=['remote_group'])
+                    rule_property.save(update_fields=["remote_group"])
 
     def create_service_property(self, resource, settings):
         service_property, _ = super().create_service_property(resource, settings)
@@ -409,19 +400,19 @@ class SecurityGroupHandler(BaseSynchronizationHandler):
 class NetworkHandler(BaseSynchronizationHandler):
     property_model = models.Network
     resource_model = openstack_models.Network
-    fields = ('is_external', 'segmentation_id', 'type')
+    fields = ("is_external", "segmentation_id", "type")
 
 
 class SubNetHandler(BaseSynchronizationHandler):
     property_model = models.SubNet
     resource_model = openstack_models.SubNet
     fields = (
-        'allocation_pools',
-        'cidr',
-        'dns_nameservers',
-        'enable_dhcp',
-        'ip_version',
-        'is_connected',
+        "allocation_pools",
+        "cidr",
+        "dns_nameservers",
+        "enable_dhcp",
+        "ip_version",
+        "is_connected",
     )
 
     def get_tenant(self, resource):
@@ -429,7 +420,7 @@ class SubNetHandler(BaseSynchronizationHandler):
 
     def map_resource_to_dict(self, resource):
         params = super().map_resource_to_dict(resource)
-        params['network'] = models.Network.objects.get(
+        params["network"] = models.Network.objects.get(
             backend_id=resource.network.backend_id
         )
         return params
@@ -454,10 +445,10 @@ def copy_flavor_exclude_regex_to_openstacktenant_service_settings(
         return
 
     admin_settings = tenant.service_settings
-    instance.options['flavor_exclude_regex'] = admin_settings.options.get(
-        'flavor_exclude_regex', ''
+    instance.options["flavor_exclude_regex"] = admin_settings.options.get(
+        "flavor_exclude_regex", ""
     )
-    instance.save(update_fields=['options'])
+    instance.save(update_fields=["options"])
 
 
 def copy_config_drive_to_openstacktenant_service_settings(
@@ -469,11 +460,11 @@ def copy_config_drive_to_openstacktenant_service_settings(
     if instance.type != openstack_apps.OpenStackConfig.service_name:
         return
 
-    if not instance.tracker.has_changed('options'):
+    if not instance.tracker.has_changed("options"):
         return
 
-    old_value = (instance.tracker.previous('options') or {}).get('config_drive', False)
-    new_value = instance.options.get('config_drive', False)
+    old_value = (instance.tracker.previous("options") or {}).get("config_drive", False)
+    new_value = instance.options.get("config_drive", False)
 
     if old_value == new_value:
         return
@@ -481,11 +472,11 @@ def copy_config_drive_to_openstacktenant_service_settings(
     tenants = openstack_models.Tenant.objects.filter(service_settings=instance)
     ctype = ContentType.objects.get_for_model(openstack_models.Tenant)
     tenant_settings = structure_models.ServiceSettings.objects.filter(
-        object_id__in=tenants.values_list('id'), content_type=ctype
+        object_id__in=tenants.values_list("id"), content_type=ctype
     )
     for item in tenant_settings:
-        item.options['config_drive'] = new_value
-        item.save(update_fields=['options'])
+        item.options["config_drive"] = new_value
+        item.save(update_fields=["options"])
 
 
 def create_service_from_tenant(sender, instance, created=False, **kwargs):
@@ -511,20 +502,20 @@ def create_service_from_tenant(sender, instance, created=False, **kwargs):
         password=tenant.user_password,
         domain=admin_settings.domain,
         options={
-            'availability_zone': tenant.availability_zone,
-            'tenant_id': tenant.backend_id,
+            "availability_zone": tenant.availability_zone,
+            "tenant_id": tenant.backend_id,
         },
     )
 
-    if admin_settings.options.get('console_type'):
-        service_settings.options['console_type'] = admin_settings.options.get(
-            'console_type'
+    if admin_settings.options.get("console_type"):
+        service_settings.options["console_type"] = admin_settings.options.get(
+            "console_type"
         )
         service_settings.save()
 
-    if admin_settings.options.get('config_drive'):
-        service_settings.options['config_drive'] = admin_settings.options[
-            'config_drive'
+    if admin_settings.options.get("config_drive"):
+        service_settings.options["config_drive"] = admin_settings.options[
+            "config_drive"
         ]
         service_settings.save()
 
@@ -533,7 +524,7 @@ def update_service_settings(sender, instance, created=False, **kwargs):
     tenant = instance
 
     if created or not (
-        {'name', 'backend_id', 'internal_network_id', 'external_network_id'}
+        {"name", "backend_id", "internal_network_id", "external_network_id"}
         & set(tenant.tracker.changed())
     ):
         return
@@ -547,9 +538,9 @@ def update_service_settings(sender, instance, created=False, **kwargs):
     except structure_models.ServiceSettings.MultipleObjectsReturned:
         return
     else:
-        service_settings.options['internal_network_id'] = tenant.internal_network_id
-        service_settings.options['external_network_id'] = tenant.external_network_id
-        service_settings.options['tenant_id'] = tenant.backend_id
+        service_settings.options["internal_network_id"] = tenant.internal_network_id
+        service_settings.options["external_network_id"] = tenant.external_network_id
+        service_settings.options["tenant_id"] = tenant.backend_id
         service_settings.name = tenant.name
         service_settings.save()
 
@@ -568,8 +559,8 @@ def mark_private_settings_as_erred_if_tenant_creation_failed(
             return
         else:
             service_settings.set_erred()
-            service_settings.error_message = 'Failed to create tenant: %s.' % instance
-            service_settings.save(update_fields=['state', 'error_message'])
+            service_settings.error_message = "Failed to create tenant: %s." % instance
+            service_settings.save(update_fields=["state", "error_message"])
 
 
 def sync_private_settings_quota_limit_with_tenant_quotas(
@@ -603,7 +594,7 @@ def sync_private_settings_quota_usage_with_tenant_quotas(
 def delete_volume_type_quotas_from_private_service_settings(sender, instance, **kwargs):
     quota = instance
 
-    if not quota.name.startswith('gigabytes_'):
+    if not quota.name.startswith("gigabytes_"):
         return
 
     if not isinstance(quota.scope, openstack_models.Tenant):

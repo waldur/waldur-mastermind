@@ -13,10 +13,10 @@ class ImageFilter(structure_filters.ServicePropertySettingsFilter):
         model = models.Image
 
     location = core_filters.URLFilter(
-        view_name='azure-location-detail',
-        field_name='location__uuid',
+        view_name="azure-location-detail",
+        field_name="location__uuid",
     )
-    location_uuid = django_filters.UUIDFilter(field_name='location__uuid')
+    location_uuid = django_filters.UUIDFilter(field_name="location__uuid")
 
 
 class LocationFilter(structure_filters.ServicePropertySettingsFilter):
@@ -24,13 +24,13 @@ class LocationFilter(structure_filters.ServicePropertySettingsFilter):
         model = models.Location
 
     has_sizes = django_filters.BooleanFilter(
-        widget=BooleanWidget, method='filter_has_sizes'
+        widget=BooleanWidget, method="filter_has_sizes"
     )
 
     def filter_has_sizes(self, queryset, name, value):
         if value:
             return queryset.annotate(
-                size_count=Count('sizeavailabilityzone__zone')
+                size_count=Count("sizeavailabilityzone__zone")
             ).filter(size_count__gt=0)
         else:
             return queryset.filter(resolution_sla__gte=0)
@@ -41,24 +41,24 @@ class SizeFilter(structure_filters.ServicePropertySettingsFilter):
         model = models.Size
 
     location = core_filters.URLFilter(
-        view_name='azure-location-detail',
-        field_name='sizeavailabilityzone__location__uuid',
+        view_name="azure-location-detail",
+        field_name="sizeavailabilityzone__location__uuid",
         distinct=True,
     )
     location_uuid = django_filters.UUIDFilter(
-        field_name='sizeavailabilityzone__location__uuid',
+        field_name="sizeavailabilityzone__location__uuid",
         distinct=True,
     )
     zone = django_filters.NumberFilter(
-        field_name='sizeavailabilityzone__zone', distinct=True
+        field_name="sizeavailabilityzone__zone", distinct=True
     )
 
 
 class BaseResourceGroupFilter(structure_filters.BaseResourceFilter):
     resource_group = core_filters.URLFilter(
-        view_name='azure-resource-group-detail', field_name='resource_group__uuid'
+        view_name="azure-resource-group-detail", field_name="resource_group__uuid"
     )
-    resource_group_uuid = django_filters.UUIDFilter(field_name='resource_group__uuid')
+    resource_group_uuid = django_filters.UUIDFilter(field_name="resource_group__uuid")
 
 
 class VirtualMachineFilter(BaseResourceGroupFilter):
@@ -81,6 +81,6 @@ class SQLDatabaseFilter(BaseResourceGroupFilter):
         model = models.SQLDatabase
 
     server = core_filters.URLFilter(
-        view_name='azure-server-detail', field_name='server__uuid'
+        view_name="azure-server-detail", field_name="server__uuid"
     )
-    server_uuid = django_filters.UUIDFilter(field_name='server__uuid')
+    server_uuid = django_filters.UUIDFilter(field_name="server__uuid")

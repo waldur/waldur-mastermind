@@ -20,9 +20,9 @@ class TestOpenStackBackendError(TestCase):
         self.neutron_client_exception = neutron_exceptions.NeutronClientException()
         self.nova_client_exception = nova_exceptions.ClientException(404)
 
-    @data('cinder', 'glance', 'keystone', 'neutron', 'nova')
+    @data("cinder", "glance", "keystone", "neutron", "nova")
     def test_reraised_client_exception_is_serializable(self, exception_type):
-        test_exception = getattr(self, '%s_client_exception' % exception_type)
+        test_exception = getattr(self, "%s_client_exception" % exception_type)
         try:
             raise test_exception
         except test_exception.__class__ as e:
@@ -35,4 +35,4 @@ class TestOpenStackBackendError(TestCase):
         try:
             pickle.loads(pickle.dumps(exc))  # noqa: S301
         except Exception as e:
-            self.fail('Reraised exception is not serializable: %s' % str(e))
+            self.fail("Reraised exception is not serializable: %s" % str(e))

@@ -18,7 +18,7 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
     def manager(self):
         return proposal_factories.CallManagingOrganisationFactory(
             customer=self.customer,
-            description='Manager\'s description',
+            description="Manager's description",
         )
 
     @cached_property

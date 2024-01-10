@@ -15,7 +15,7 @@ from waldur_core.structure import models as structure_models
 logger = logging.getLogger(__name__)
 
 
-@shared_task(name='waldur_core.logging.process_event')
+@shared_task(name="waldur_core.logging.process_event")
 def process_event(event_id):
     event = Event.objects.get(id=event_id)
     for hook in BaseHook.get_active_hooks():
@@ -55,25 +55,22 @@ def check_event(event, hook):
     return False
 
 
-@shared_task(name='waldur_core.logging.create_report')
+@shared_task(name="waldur_core.logging.create_report")
 def create_report(serialized_report):
     report = deserialize_instance(serialized_report)
 
     today = datetime.datetime.today()
-    timestamp = today.strftime('%Y%m%dT%H%M%S')
-    archive_filename = f'waldur-logs-{timestamp}-{report.uuid.hex}.tar.gz'
+    timestamp = today.strftime("%Y%m%dT%H%M%S")
+    archive_filename = f"waldur-logs-{timestamp}-{report.uuid.hex}.tar.gz"
 
     try:
         cf = create_report_archive(
-            settings.WALDUR_CORE['LOGGING_REPORT_DIRECTORY'],
-            settings.WALDUR_CORE['LOGGING_REPORT_INTERVAL'],
+            settings.WALDUR_CORE["LOGGING_REPORT_DIRECTORY"],
+            settings.WALDUR_CORE["LOGGING_REPORT_INTERVAL"],
         )
     except (tarfile.TarError, OSError, ValueError) as e:
         report.state = Report.States.ERRED
-        error_message = 'Error message: {}. Traceback: {}'.format(
-            str(e),
-            traceback.format_exc(),
-        )
+        error_message = f"Error message: {str(e)}. Traceback: {traceback.format_exc()}"
         report.error_message = error_message
         report.save()
     else:

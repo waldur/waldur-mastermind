@@ -106,39 +106,39 @@ def pwgen(pw_len=16):
     digits that look similar -- just to avoid confusion.
     """
     return get_random_string(
-        pw_len, 'abcdefghjkmnpqrstuvwxyz' 'ABCDEFGHJKLMNPQRSTUVWXYZ' '23456789'
+        pw_len, "abcdefghjkmnpqrstuvwxyz" "ABCDEFGHJKLMNPQRSTUVWXYZ" "23456789"
     )
 
 
 def serialize_instance(instance):
     """Serialize Django model instance"""
     model_name = str(instance._meta)
-    return f'{model_name}:{instance.pk}'
+    return f"{model_name}:{instance.pk}"
 
 
 def deserialize_instance(serialized_instance):
     """Deserialize Django model instance"""
-    model_name, pk = serialized_instance.split(':')
+    model_name, pk = serialized_instance.split(":")
     model = apps.get_model(model_name)
     return model._default_manager.get(pk=pk)
 
 
 def serialize_class(cls):
     """Serialize Python class"""
-    return f'{cls.__module__}:{cls.__name__}'
+    return f"{cls.__module__}:{cls.__name__}"
 
 
 def deserialize_class(serilalized_cls):
     """Deserialize Python class"""
-    module_name, cls_name = serilalized_cls.split(':')
+    module_name, cls_name = serilalized_cls.split(":")
     module = importlib.import_module(module_name)
     return getattr(module, cls_name)
 
 
 def clear_url(url):
     """Remove domain and protocol from url"""
-    if url.startswith('http'):
-        return '/' + url.split('/', 3)[-1]
+    if url.startswith("http"):
+        return "/" + url.split("/", 3)[-1]
     return url
 
 
@@ -167,36 +167,36 @@ def instance_from_url(url, user=None):
 
 def get_detail_view_name(model):
     if model is NotImplemented:
-        raise AttributeError('Cannot get detail view name for not implemented model')
+        raise AttributeError("Cannot get detail view name for not implemented model")
 
-    if hasattr(model, 'get_url_name') and callable(model.get_url_name):
-        return '%s-detail' % model.get_url_name()
+    if hasattr(model, "get_url_name") and callable(model.get_url_name):
+        return "%s-detail" % model.get_url_name()
 
-    return '%s-detail' % model.__name__.lower()
+    return "%s-detail" % model.__name__.lower()
 
 
 def get_list_view_name(model):
     if model is NotImplemented:
-        raise AttributeError('Cannot get list view name for not implemented model')
+        raise AttributeError("Cannot get list view name for not implemented model")
 
-    if hasattr(model, 'get_url_name') and callable(model.get_url_name):
-        return '%s-list' % model.get_url_name()
+    if hasattr(model, "get_url_name") and callable(model.get_url_name):
+        return "%s-list" % model.get_url_name()
 
-    return '%s-list' % model.__name__.lower()
+    return "%s-list" % model.__name__.lower()
 
 
 def get_fake_context(user=None):
     if not user:
         user = get_user_model()()
     request = type(
-        'R', (object,), {'method': 'GET', 'user': user, 'query_params': QueryDict()}
+        "R", (object,), {"method": "GET", "user": user, "query_params": QueryDict()}
     )
-    return {'request': request, 'user': user}
+    return {"request": request, "user": user}
 
 
 def camel_case_to_underscore(name):
-    s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
-    return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
+    s1 = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", name)
+    return re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
 
 
 def format_text(template_name, context):
@@ -207,7 +207,7 @@ def format_text(template_name, context):
 def find_template_from_registry(app, event_type, template_suffix):
     app_dict = NOTIFICATIONS.get(app)
     for section in app_dict:
-        if event_type == section.get('path'):
+        if event_type == section.get("path"):
             return f"{app}/{event_type}_{template_suffix}"
 
 
@@ -219,7 +219,7 @@ def send_mail(
     html_message=None,
     filename=None,
     attachment=None,
-    content_type='text/plain',
+    content_type="text/plain",
     bcc=None,
     reply_to=None,
     fail_silently=False,
@@ -247,7 +247,7 @@ def send_mail(
             email.attach_alternative(f"{html_message}\n\n{footer_html}", "text/html")
 
     elif html_message:
-        email.attach_alternative(html_message, 'text/html')
+        email.attach_alternative(html_message, "text/html")
 
     if filename:
         email.attach(filename, attachment, content_type)
@@ -261,7 +261,7 @@ def broadcast_mail(
     recipient_list,
     filename=None,
     attachment=None,
-    content_type='text/plain',
+    content_type="text/plain",
     bcc=None,
 ):
     """
@@ -309,11 +309,7 @@ def broadcast_mail(
         html_message = render_to_string(html_template_name, context)
 
         for recipient in recipient_list:
-            logger.info(
-                'About to send {event_type} notification to {recipient}'.format(
-                    event_type=event_type, recipient=recipient
-                )
-            )
+            logger.info(f"About to send {event_type} notification to {recipient}")
             send_mail(
                 subject,
                 text_message,
@@ -339,7 +335,7 @@ def order_with_nulls(queryset, field):
     if sorting order is descending, then NULL values come last.
     """
     col, order = get_order_dir(field)
-    descending = True if order == 'DESC' else False
+    descending = True if order == "DESC" else False
 
     if descending:
         return queryset.order_by(F(col).desc(nulls_last=True))
@@ -394,7 +390,7 @@ def create_batch_fetcher(fetcher):
         :return: merged list of results
         """
         result = []
-        for chunk in chunks(items, settings.WALDUR_CORE['HTTP_CHUNK_SIZE']):
+        for chunk in chunks(items, settings.WALDUR_CORE["HTTP_CHUNK_SIZE"]):
             result.extend(fetcher(chunk))
         return result
 
@@ -404,9 +400,9 @@ def create_batch_fetcher(fetcher):
 class DryRunCommand(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
-            '--dry-run',
-            action='store_true',
-            help='Don\'t make any changes, instead show what objects would be created.',
+            "--dry-run",
+            action="store_true",
+            help="Don't make any changes, instead show what objects would be created.",
         )
 
 
@@ -420,7 +416,7 @@ def encode_jwt_token(data, api_secret_code=None):
     if api_secret_code is None:
         api_secret_code = settings.SECRET_KEY
     return jwt.encode(
-        data, api_secret_code, algorithm='HS256', json_encoder=DjangoJSONEncoder
+        data, api_secret_code, algorithm="HS256", json_encoder=DjangoJSONEncoder
     )
 
 
@@ -433,20 +429,20 @@ def decode_jwt_token(encoded_data, api_secret_code=None):
     """
     if api_secret_code is None:
         api_secret_code = settings.SECRET_KEY
-    return jwt.decode(encoded_data, api_secret_code, algorithms=['HS256'])
+    return jwt.decode(encoded_data, api_secret_code, algorithms=["HS256"])
 
 
 def normalize_unicode(data):
-    return unicodedata.normalize('NFKD', data).encode('ascii', 'ignore').decode('utf8')
+    return unicodedata.normalize("NFKD", data).encode("ascii", "ignore").decode("utf8")
 
 
-UNIT_PATTERN = re.compile(r'(\d+)([KMGTP]?)')
+UNIT_PATTERN = re.compile(r"(\d+)([KMGTP]?)")
 
 UNITS = {
-    'K': 2**10,
-    'M': 2**20,
-    'G': 2**30,
-    'T': 2**40,
+    "K": 2**10,
+    "M": 2**20,
+    "G": 2**30,
+    "T": 2**40,
 }
 
 
@@ -472,28 +468,28 @@ class QuietSession(requests.Session):
     """
 
     def request(self, *args, **kwargs):
-        if not kwargs.get('verify', self.verify):
+        if not kwargs.get("verify", self.verify):
             with warnings.catch_warnings():
                 if hasattr(
-                    exceptions, 'InsecurePlatformWarning'
+                    exceptions, "InsecurePlatformWarning"
                 ):  # urllib3 1.10 and lower does not have this warning
-                    warnings.simplefilter('ignore', exceptions.InsecurePlatformWarning)
-                warnings.simplefilter('ignore', exceptions.InsecureRequestWarning)
+                    warnings.simplefilter("ignore", exceptions.InsecurePlatformWarning)
+                warnings.simplefilter("ignore", exceptions.InsecureRequestWarning)
                 return super().request(*args, **kwargs)
         else:
             return super().request(*args, **kwargs)
 
 
 def get_lat_lon_from_address(address):
-    geo_locator = Nominatim(user_agent='waldur')
+    geo_locator = Nominatim(user_agent="waldur")
     location = geo_locator.geocode(address)
 
     if location:
         return location.latitude, location.longitude
 
 
-def format_homeport_link(format_str='', **kwargs):
-    link = settings.WALDUR_CORE['HOMEPORT_URL'] + format_str
+def format_homeport_link(format_str="", **kwargs):
+    link = settings.WALDUR_CORE["HOMEPORT_URL"] + format_str
     return link.format(**kwargs)
 
 
@@ -503,15 +499,15 @@ def get_system_robot():
 
     try:
         robot_user, created = models.User.objects.get_or_create(
-            username='system_robot', is_staff=True, is_active=True
+            username="system_robot", is_staff=True, is_active=True
         )
         if created:
             robot_user.set_unusable_password()
             robot_user.description = (
-                'Special user used for performing actions on behalf of a system.'
+                "Special user used for performing actions on behalf of a system."
             )
-            robot_user.first_name = 'System'
-            robot_user.last_name = 'Robot'
+            robot_user.first_name = "System"
+            robot_user.last_name = "Robot"
             robot_user.save()
         return robot_user
     except ObjectDoesNotExist:
@@ -522,14 +518,14 @@ def get_ip_address(request):
     """
     Correct IP address is expected as first element of HTTP_X_FORWARDED_FOR or REMOTE_ADDR
     """
-    if 'HTTP_X_FORWARDED_FOR' in request.META:
-        return request.META['HTTP_X_FORWARDED_FOR'].split(',')[0].strip()
-    elif 'REMOTE_ADDR' in request.META:
-        return request.META['REMOTE_ADDR']
+    if "HTTP_X_FORWARDED_FOR" in request.META:
+        return request.META["HTTP_X_FORWARDED_FOR"].split(",")[0].strip()
+    elif "REMOTE_ADDR" in request.META:
+        return request.META["REMOTE_ADDR"]
 
 
 def get_user_agent(request):
-    return request.META.get('HTTP_USER_AGENT', '')
+    return request.META.get("HTTP_USER_AGENT", "")
 
 
 def get_device_info(user_agent):
@@ -554,11 +550,11 @@ def get_deployment_type():
 
     4. If file /.dockerenv does not exist - Waldur is running in "other" installation environment
     """
-    docker_env_path = '/.dockerenv'
-    resolv_path = '/etc/resolv.conf'
+    docker_env_path = "/.dockerenv"
+    resolv_path = "/etc/resolv.conf"
 
     if os.environ.get("KUBERNETES_SERVICE_HOST"):
-        return 'kubernetes'
+        return "kubernetes"
 
     docker_env = os.path.exists(docker_env_path)
     has_line = False
@@ -566,17 +562,17 @@ def get_deployment_type():
     if os.path.exists(resolv_path):
         with open(resolv_path) as file:
             for line in file:
-                if 'nameserver 127.0.0.11' in line:
+                if "nameserver 127.0.0.11" in line:
                     has_line = True
                     break
 
     if docker_env and has_line:
-        return 'docker compose'
+        return "docker compose"
 
     if docker_env and not has_line:
-        return 'custom docker environment'
+        return "custom docker environment"
 
-    return 'other'
+    return "other"
 
 
 def get_all_subclasses(cls):
@@ -605,4 +601,4 @@ class SubqueryAggregate(Subquery):
 
 
 class SubquerySum(SubqueryAggregate):
-    function = 'SUM'
+    function = "SUM"

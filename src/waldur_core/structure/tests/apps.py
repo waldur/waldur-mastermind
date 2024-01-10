@@ -17,9 +17,9 @@ class TestBackend(ServiceBackend):
 class TestConfig(AppConfig):
     __test__ = False
 
-    name = 'waldur_core.structure.tests'
-    label = 'structure_tests'
-    service_name = 'Test'
+    name = "waldur_core.structure.tests"
+    label = "structure_tests"
+    service_name = "Test"
 
     def ready(self):
         SupportedServices.register_backend(TestBackend)

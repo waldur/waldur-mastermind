@@ -8,35 +8,36 @@ class Command(BaseCommand):
     help = "Add default security groups with given names to all tenants."
 
     def add_arguments(self, parser):
-        parser.add_argument('names', nargs='+', type=str)
+        parser.add_argument("names", nargs="+", type=str)
 
     def handle(self, *args, **options):
-        names = options['names']
-        default_security_groups = getattr(settings, 'WALDUR_OPENSTACK', {}).get(
-            'DEFAULT_SECURITY_GROUPS'
+        names = options["names"]
+        default_security_groups = getattr(settings, "WALDUR_OPENSTACK", {}).get(
+            "DEFAULT_SECURITY_GROUPS"
         )
         security_groups = []
         for name in names:
             try:
-                group = next(sg for sg in default_security_groups if sg['name'] == name)
+                group = next(sg for sg in default_security_groups if sg["name"] == name)
             except StopIteration:
                 raise CommandError(
-                    'There is no default security group with name %s' % name
+                    "There is no default security group with name %s" % name
                 )
             else:
                 security_groups.append(group)
 
         for tenant in models.Tenant.objects.all():
             for group in security_groups:
-                if tenant.security_groups.filter(name=group['name']).exists():
+                if tenant.security_groups.filter(name=group["name"]).exists():
                     self.stdout.write(
-                        'Tenant %s already has security group %s'
-                        % (tenant, group['name'])
+                        "Tenant {} already has security group {}".format(
+                            tenant, group["name"]
+                        )
                     )
                     continue
                 tenant.security_groups.create(
-                    name=group['name'],
-                    description=group['description'],
+                    name=group["name"],
+                    description=group["description"],
                     service_settings=tenant.service_settings,
                     project=tenant.project,
                 )
@@ -44,8 +45,9 @@ class Command(BaseCommand):
                     db_security_group = handlers.create_security_group(tenant, group)
                 except handlers.SecurityGroupCreateException as e:
                     self.stdout.write(
-                        'Failed to add security_group %s to tenant %s. Error: %s'
-                        % (group['name'], tenant, e)
+                        "Failed to add security_group {} to tenant {}. Error: {}".format(
+                            group["name"], tenant, e
+                        )
                     )
                 else:
                     try:
@@ -54,11 +56,11 @@ class Command(BaseCommand):
                         )
                     except Exception as e:
                         self.stdout.write(
-                            'Failed to add security group %s to tenant %s. Error: %s'
-                            % (db_security_group, tenant, e)
+                            f"Failed to add security group {db_security_group} to tenant {tenant}. Error: {e}"
                         )
                     else:
                         self.stdout.write(
-                            'Security group %s has been successfully added to tenant %s'
-                            % (group['name'], tenant)
+                            "Security group {} has been successfully added to tenant {}".format(
+                                group["name"], tenant
+                            )
                         )

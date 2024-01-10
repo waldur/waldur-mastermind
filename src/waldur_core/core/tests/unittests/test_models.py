@@ -9,16 +9,16 @@ class TestModels(TestCase):
         self,
     ):
         waldur_core_settings = settings.WALDUR_CORE.copy()
-        waldur_core_settings['TOKEN_LIFETIME'] = timezone.timedelta(days=1)
+        waldur_core_settings["TOKEN_LIFETIME"] = timezone.timedelta(days=1)
 
         with self.settings(WALDUR_CORE=waldur_core_settings):
-            token_lifetime = settings.WALDUR_CORE['TOKEN_LIFETIME']
+            token_lifetime = settings.WALDUR_CORE["TOKEN_LIFETIME"]
             expected_lifetime = int(token_lifetime.total_seconds())
-            user = get_user_model().objects.create(username='test1')
+            user = get_user_model().objects.create(username="test1")
             self.assertEqual(user.token_lifetime, expected_lifetime)
 
     def test_when_user_is_created_query_field_is_filled(self):
         user = get_user_model().objects.create_user(
-            username='jb007', full_name='J̋̀a̻͢m̪̄e̪͊s̯̊ B̝͆on͎̂d'
+            username="jb007", full_name="J̋̀a̻͢m̪̄e̪͊s̯̊ B̝͆on͎̂d"
         )
-        self.assertEqual(user.query_field, 'James Bond')
+        self.assertEqual(user.query_field, "James Bond")

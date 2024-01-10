@@ -3,15 +3,15 @@ from . import views
 
 def register_in(router):
     router.register(
-        r'slurm-allocations', views.AllocationViewSet, basename='slurm-allocation'
+        r"slurm-allocations", views.AllocationViewSet, basename="slurm-allocation"
     )
     router.register(
-        r'slurm-allocation-user-usage',
+        r"slurm-allocation-user-usage",
         views.AllocationUserUsageViewSet,
-        basename='slurm-allocation-user-usage',
+        basename="slurm-allocation-user-usage",
     )
     router.register(
-        r'slurm-associations',
+        r"slurm-associations",
         views.AssociationViewSet,
-        basename='slurm-association',
+        basename="slurm-association",
     )

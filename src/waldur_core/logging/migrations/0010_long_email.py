@@ -5,13 +5,13 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('logging', '0009_delete_pushhook'),
+        ("logging", "0009_delete_pushhook"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='emailhook',
-            name='email',
+            model_name="emailhook",
+            name="email",
             field=models.EmailField(max_length=320),
         ),
     ]

@@ -10,8 +10,8 @@ class Component:
         measured_unit,
         billing_type,
         factor=1,
-        description='',
-        limit_period='',
+        description="",
+        limit_period="",
     ):
         self.type = type
         self.name = name
@@ -25,11 +25,11 @@ class Component:
         # Note that factor is not serialized to dict because it is not stored in the database.
         # Currently, it is used only for cost estimation when order is created.
         return {
-            'type': self.type,
-            'name': self.name,
-            'measured_unit': self.measured_unit,
-            'billing_type': self.billing_type,
-            'limit_period': self.limit_period,
+            "type": self.type,
+            "name": self.name,
+            "measured_unit": self.measured_unit,
+            "billing_type": self.billing_type,
+            "limit_period": self.limit_period,
         }
 
 
@@ -83,7 +83,7 @@ class PluginManager:
         :param offering_type: offering type name
         :return: string or None
         """
-        return self.backends.get(offering_type, {}).get('service_type')
+        return self.backends.get(offering_type, {}).get("service_type")
 
     def get_components(self, offering_type: str) -> List[Component]:
         """
@@ -91,7 +91,7 @@ class PluginManager:
         :param offering_type: offering type name
         :return: list of components
         """
-        return self.backends.get(offering_type, {}).get('components') or []
+        return self.backends.get(offering_type, {}).get("components") or []
 
     def get_component_types(self, offering_type):
         """
@@ -105,14 +105,14 @@ class PluginManager:
         """
         Returns true if order can be terminated.
         """
-        return self.backends.get(offering_type, {}).get('can_terminate_order') or False
+        return self.backends.get(offering_type, {}).get("can_terminate_order") or False
 
     def get_secret_attributes(self, offering_type):
         """
         Returns list of secret attributes for given offering type.
         """
         secret_attributes = self.backends.get(offering_type, {}).get(
-            'secret_attributes'
+            "secret_attributes"
         )
         if callable(secret_attributes):
             secret_attributes = secret_attributes()
@@ -122,30 +122,30 @@ class PluginManager:
         """
         Returns list of offering component types which supports user-defined limits.
         """
-        return self.backends.get(offering_type, {}).get('available_limits') or []
+        return self.backends.get(offering_type, {}).get("available_limits") or []
 
     def can_update_limits(self, offering_type):
         """
         Returns true if plugin allows user to set limits on resource.
         """
-        return self.backends.get(offering_type, {}).get('can_update_limits', False)
+        return self.backends.get(offering_type, {}).get("can_update_limits", False)
 
     def get_limits_validator(self, offering_type):
         """
         Returns function to validate limis.
         """
-        return self.backends.get(offering_type, {}).get('limits_validator')
+        return self.backends.get(offering_type, {}).get("limits_validator")
 
     def get_resource_model(self, offering_type):
         """
         Returns Django model class which corresponds to resource.
         """
-        processor = self.get_processor(offering_type, 'create_resource_processor')
+        processor = self.get_processor(offering_type, "create_resource_processor")
 
         if not processor:
             return
 
-        if getattr(processor, 'get_resource_model', None):
+        if getattr(processor, "get_resource_model", None):
             resource_model = processor.get_resource_model()
         else:
             return
@@ -161,16 +161,16 @@ class PluginManager:
 
     def get_importable_resources_backend_method(self, offering_type):
         return self.backends.get(offering_type, {}).get(
-            'get_importable_resources_backend_method'
+            "get_importable_resources_backend_method"
         )
 
     def import_resource_backend_method(self, offering_type):
         return self.backends.get(offering_type, {}).get(
-            'import_resource_backend_method'
+            "import_resource_backend_method"
         )
 
     def get_import_resource_executor(self, offering_type):
-        return self.backends.get(offering_type, {}).get('import_resource_executor')
+        return self.backends.get(offering_type, {}).get("import_resource_executor")
 
     def get_processor(self, offering_type, processor_type):
         """
@@ -182,7 +182,7 @@ class PluginManager:
         """
         Return a function for showing attributes.
         """
-        return self.backends.get(offering_type, {}).get('change_attributes_for_view')
+        return self.backends.get(offering_type, {}).get("change_attributes_for_view")
 
     def get_components_filter(self, offering_type):
         """
@@ -190,22 +190,22 @@ class PluginManager:
         This function is expected to receive offering and components queryset.
         It should return filtered components queryset as a result.
         """
-        return self.backends.get(offering_type, {}).get('components_filter')
+        return self.backends.get(offering_type, {}).get("components_filter")
 
     def enable_usage_notifications(self, offering_type):
         return self.backends.get(offering_type, {}).get(
-            'enable_usage_notifications', False
+            "enable_usage_notifications", False
         )
 
     def enable_remote_support(self, offering_type):
-        return self.backends.get(offering_type, {}).get('enable_remote_support', False)
+        return self.backends.get(offering_type, {}).get("enable_remote_support", False)
 
     def can_manage_offering_components(self, offering_type):
         """
         Returns true if creating/deleting of offering components via api is available.
         """
         return self.backends.get(offering_type, {}).get(
-            'can_manage_offering_components', True
+            "can_manage_offering_components", True
         )
 
     def get_plan_fields_that_cannot_be_edited(self, offering_type):
@@ -213,14 +213,14 @@ class PluginManager:
         Returns plan fields that cannot be edited via api.
         """
         return self.backends.get(offering_type, {}).get(
-            'plan_fields_that_cannot_be_edited', []
+            "plan_fields_that_cannot_be_edited", []
         )
 
     def can_manage_plans(self, offering_type):
         """
         Returns true if creating/deleting of plans and plan components via api is available.
         """
-        return self.backends.get(offering_type, {}).get('can_manage_plans', True)
+        return self.backends.get(offering_type, {}).get("can_manage_plans", True)
 
 
 manager = PluginManager()

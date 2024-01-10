@@ -8,39 +8,39 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('marketplace', '0001_squashed_0076'),
+        ("marketplace", "0001_squashed_0076"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='GoogleCredentials',
+            name="GoogleCredentials",
             options={
-                'verbose_name': 'Google credentials',
-                'verbose_name_plural': 'Google credentials',
+                "verbose_name": "Google credentials",
+                "verbose_name_plural": "Google credentials",
             },
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('client_id', models.CharField(max_length=255)),
-                ('project_id', models.CharField(max_length=255)),
-                ('client_secret', models.CharField(max_length=255)),
-                ('calendar_token', models.CharField(blank=True, max_length=255)),
+                ("client_id", models.CharField(max_length=255)),
+                ("project_id", models.CharField(max_length=255)),
+                ("client_secret", models.CharField(max_length=255)),
+                ("calendar_token", models.CharField(blank=True, max_length=255)),
                 (
-                    'calendar_refresh_token',
+                    "calendar_refresh_token",
                     models.CharField(blank=True, max_length=255),
                 ),
                 (
-                    'service_provider',
+                    "service_provider",
                     models.OneToOneField(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='marketplace.ServiceProvider',
+                        to="marketplace.ServiceProvider",
                     ),
                 ),
             ],

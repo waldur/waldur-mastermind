@@ -5,28 +5,28 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace', '0101_categorycomponent_uuid'),
+        ("marketplace", "0101_categorycomponent_uuid"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='category',
-            name='description_ar',
+            model_name="category",
+            name="description_ar",
             field=models.TextField(blank=True, null=True),
         ),
         migrations.AddField(
-            model_name='category',
-            name='title_ar',
+            model_name="category",
+            name="title_ar",
             field=models.CharField(max_length=255, null=True),
         ),
         migrations.AddField(
-            model_name='categorygroup',
-            name='description_ar',
+            model_name="categorygroup",
+            name="description_ar",
             field=models.TextField(blank=True, null=True),
         ),
         migrations.AddField(
-            model_name='categorygroup',
-            name='title_ar',
+            model_name="categorygroup",
+            name="title_ar",
             field=models.CharField(max_length=255, null=True),
         ),
     ]

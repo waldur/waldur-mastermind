@@ -5,13 +5,13 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('invoices', '0001_squashed_0062'),
+        ("invoices", "0001_squashed_0062"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='invoiceitem',
-            name='backend_uuid',
+            model_name="invoiceitem",
+            name="backend_uuid",
             field=models.UUIDField(blank=True, null=True),
         ),
     ]

@@ -5,13 +5,13 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace', '0102_translations'),
+        ("marketplace", "0102_translations"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='offering',
-            name='integration_guide',
+            model_name="offering",
+            name="integration_guide",
             field=models.TextField(blank=True),
         ),
     ]

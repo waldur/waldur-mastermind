@@ -13,69 +13,69 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('marketplace', '0098_robotaccount_responsible_user'),
+        ("marketplace", "0098_robotaccount_responsible_user"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='LexisLink',
+            name="LexisLink",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('error_message', models.TextField(blank=True)),
-                ('error_traceback', models.TextField(blank=True)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("error_message", models.TextField(blank=True)),
+                ("error_traceback", models.TextField(blank=True)),
                 (
-                    'state',
+                    "state",
                     django_fsm.FSMIntegerField(
                         choices=[
-                            (1, 'pending'),
-                            (2, 'executing'),
-                            (3, 'OK'),
-                            (4, 'erred'),
+                            (1, "pending"),
+                            (2, "executing"),
+                            (3, "OK"),
+                            (4, "erred"),
                         ],
                         default=1,
                     ),
                 ),
                 (
-                    'heappe_project_id',
+                    "heappe_project_id",
                     models.PositiveIntegerField(blank=True, null=True),
                 ),
                 (
-                    'robot_account',
+                    "robot_account",
                     models.OneToOneField(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='lexis_link',
-                        to='marketplace.robotaccount',
+                        related_name="lexis_link",
+                        to="marketplace.robotaccount",
                     ),
                 ),
             ],
             options={
-                'verbose_name': 'Lexis Link',
-                'ordering': ('created',),
+                "verbose_name": "Lexis Link",
+                "ordering": ("created",),
             },
         ),
     ]

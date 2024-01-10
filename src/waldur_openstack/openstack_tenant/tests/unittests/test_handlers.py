@@ -99,7 +99,7 @@ class SecurityGroupHandlerTest(BaseServicePropertyTest):
         group1 = openstack_factories.SecurityGroupFactory(tenant=self.tenant)
         group2 = openstack_factories.SecurityGroupFactory(tenant=self.tenant)
         rule = openstack_factories.SecurityGroupRuleFactory(
-            security_group=group1, remote_group=group2, backend_id=''
+            security_group=group1, remote_group=group2, backend_id=""
         )
         self.assertFalse(
             models.SecurityGroupRule.objects.filter(
@@ -113,9 +113,9 @@ class SecurityGroupHandlerTest(BaseServicePropertyTest):
         group1 = openstack_factories.SecurityGroupFactory(tenant=self.tenant)
         group2 = openstack_factories.SecurityGroupFactory(tenant=self.tenant)
         rule = openstack_factories.SecurityGroupRuleFactory(
-            security_group=group1, remote_group=group2, backend_id=''
+            security_group=group1, remote_group=group2, backend_id=""
         )
-        rule.backend_id = 'valid_backend_id'
+        rule.backend_id = "valid_backend_id"
         rule.save()
         self.assertTrue(
             models.SecurityGroupRule.objects.filter(
@@ -130,7 +130,7 @@ class SecurityGroupHandlerTest(BaseServicePropertyTest):
         group2 = openstack_factories.SecurityGroupFactory(tenant=self.tenant)
         rule = openstack_factories.SecurityGroupRuleFactory(security_group=group1)
         rule.remote_group = group2
-        rule.save(update_fields=['remote_group'])
+        rule.save(update_fields=["remote_group"])
         self.assertTrue(
             models.SecurityGroupRule.objects.filter(
                 backend_id=rule.backend_id,
@@ -144,7 +144,7 @@ class SecurityGroupHandlerTest(BaseServicePropertyTest):
         group2 = openstack_factories.SecurityGroupFactory(tenant=self.tenant)
         rule = openstack_factories.SecurityGroupRuleFactory(security_group=group1)
         rule.remote_group = group2
-        rule.backend_id = ''
+        rule.backend_id = ""
         rule.save()
         self.assertFalse(
             models.SecurityGroupRule.objects.filter(
@@ -157,8 +157,8 @@ class SecurityGroupHandlerTest(BaseServicePropertyTest):
     def test_security_group_update(self):
         openstack_security_group = openstack_factories.SecurityGroupFactory(
             tenant=self.tenant,
-            name='New name',
-            description='New description',
+            name="New name",
+            description="New description",
             state=StateMixin.States.UPDATING,
         )
         security_group = factories.SecurityGroupFactory(
@@ -188,7 +188,7 @@ class SecurityGroupHandlerTest(BaseServicePropertyTest):
         openstack_security_group.save()
 
         self.assertEqual(
-            security_group.rules.count(), 1, 'Security group rule has not been added'
+            security_group.rules.count(), 1, "Security group rule has not been added"
         )
         self.assertEqual(
             security_group.rules.first().protocol,
@@ -221,7 +221,7 @@ class SecurityGroupHandlerTest(BaseServicePropertyTest):
         """
         security_group = factories.SecurityGroupFactory(
             settings=self.service_settings,
-            backend_id='backend_id',
+            backend_id="backend_id",
         )
         openstack_security_group = openstack_factories.SecurityGroupFactory(
             tenant=self.tenant,
@@ -253,7 +253,7 @@ class SecurityGroupHandlerTest(BaseServicePropertyTest):
 
         # Assert
         self.assertEqual(
-            security_group.rules.count(), 0, 'Security group rule has not been deleted'
+            security_group.rules.count(), 0, "Security group rule has not been deleted"
         )
 
 
@@ -274,12 +274,12 @@ class FloatingIPHandlerTest(BaseServicePropertyTest):
 
     def test_floating_ip_is_not_created_if_it_already_exists(self):
         factories.FloatingIPFactory(
-            settings=self.service_settings, backend_id='VALID_BACKEND_ID'
+            settings=self.service_settings, backend_id="VALID_BACKEND_ID"
         )
         openstack_floating_ip = openstack_factories.FloatingIPFactory(
             tenant=self.tenant,
             state=StateMixin.States.CREATING,
-            backend_id='VALID_BACKEND_ID',
+            backend_id="VALID_BACKEND_ID",
         )
         self.assertEqual(models.FloatingIP.objects.count(), 1)
 
@@ -290,7 +290,7 @@ class FloatingIPHandlerTest(BaseServicePropertyTest):
 
     def test_floating_ip_update(self):
         openstack_floating_ip = openstack_factories.FloatingIPFactory(
-            tenant=self.tenant, name='New name', state=StateMixin.States.UPDATING
+            tenant=self.tenant, name="New name", state=StateMixin.States.UPDATING
         )
         floating_ip = factories.FloatingIPFactory(
             settings=self.service_settings,
@@ -330,8 +330,8 @@ class TenantChangeCredentialsTest(TestCase):
         service_settings.password = tenant.user_password
         service_settings.save()
 
-        new_password = 'new_password'
-        new_username = 'new_username'
+        new_password = "new_password"
+        new_username = "new_username"
 
         tenant.user_password = new_password
         tenant.user_username = new_username
@@ -349,22 +349,22 @@ class UpdateTenantSettingsTest(TestCase):
         )
 
     def test_update_service_setting_external_network_id_if_updated_scope(self):
-        NEW_EXTERNAL_NETWORK_ID = 'new_external_network_id'
+        NEW_EXTERNAL_NETWORK_ID = "new_external_network_id"
         self.tenant.external_network_id = NEW_EXTERNAL_NETWORK_ID
         self.tenant.save()
         self.service_settings.refresh_from_db()
         self.assertEqual(
-            self.service_settings.get_option('external_network_id'),
+            self.service_settings.get_option("external_network_id"),
             NEW_EXTERNAL_NETWORK_ID,
         )
 
     def test_update_service_setting_internal_network_id_if_updated_scope(self):
-        NEW_INTERNAL_NETWORK_ID = 'new_internal_network_id'
+        NEW_INTERNAL_NETWORK_ID = "new_internal_network_id"
         self.tenant.internal_network_id = NEW_INTERNAL_NETWORK_ID
         self.tenant.save()
         self.service_settings.refresh_from_db()
         self.assertEqual(
-            self.service_settings.get_option('internal_network_id'),
+            self.service_settings.get_option("internal_network_id"),
             NEW_INTERNAL_NETWORK_ID,
         )
 
@@ -393,12 +393,12 @@ class ConfigDriveUpdateTest(TestCase):
         )
 
         # Act
-        tenant.service_settings.options['config_drive'] = True
+        tenant.service_settings.options["config_drive"] = True
         tenant.service_settings.save()
 
         # Assert
         service_settings.refresh_from_db()
-        self.assertEqual(service_settings.options['config_drive'], True)
+        self.assertEqual(service_settings.options["config_drive"], True)
 
 
 class NetworkHandlerTest(BaseServicePropertyTest):
@@ -419,7 +419,7 @@ class NetworkHandlerTest(BaseServicePropertyTest):
     def test_network_update(self):
         openstack_network = openstack_factories.NetworkFactory(
             tenant=self.tenant,
-            name='New network name',
+            name="New network name",
             state=StateMixin.States.UPDATING,
         )
         network = factories.NetworkFactory(
@@ -470,7 +470,7 @@ class SubNetHandlerTest(BaseServicePropertyTest):
     def test_subnet_update(self):
         openstack_subnet = openstack_factories.SubNetFactory(
             network=self.openstack_network,
-            name='New subnet name',
+            name="New subnet name",
             state=StateMixin.States.UPDATING,
         )
         subnet = factories.SubNetFactory(
@@ -520,37 +520,37 @@ class CreateServiceFromTenantTest(TestCase):
             tenant.service_settings.backend_url,
         )
         self.assertEqual(service_settings.type, apps.OpenStackTenantConfig.service_name)
-        self.assertEqual(service_settings.options['tenant_id'], tenant.backend_id)
+        self.assertEqual(service_settings.options["tenant_id"], tenant.backend_id)
         self.assertEqual(
-            service_settings.options['availability_zone'], tenant.availability_zone
+            service_settings.options["availability_zone"], tenant.availability_zone
         )
-        self.assertFalse('console_type' in service_settings.options)
+        self.assertFalse("console_type" in service_settings.options)
 
     def test_copy_console_type_from_admin_settings_to_private_settings(self):
         shared_settings = openstack_factories.OpenStackServiceSettingsFactory()
-        shared_settings.options['console_type'] = 'console_type'
+        shared_settings.options["console_type"] = "console_type"
         shared_settings.save()
         tenant = openstack_factories.TenantFactory(service_settings=shared_settings)
         private_settings = structure_models.ServiceSettings.objects.get(
             scope=tenant,
             type=apps.OpenStackTenantConfig.service_name,
         )
-        self.assertTrue('console_type' in private_settings.options)
+        self.assertTrue("console_type" in private_settings.options)
         self.assertEqual(
-            shared_settings.options['console_type'],
-            private_settings.options['console_type'],
+            shared_settings.options["console_type"],
+            private_settings.options["console_type"],
         )
 
     def test_copy_config_drive_from_admin_settings_to_private_settings(self):
         shared_settings = openstack_factories.OpenStackServiceSettingsFactory()
-        shared_settings.options['config_drive'] = True
+        shared_settings.options["config_drive"] = True
         shared_settings.save()
         tenant = openstack_factories.TenantFactory(service_settings=shared_settings)
         private_settings = structure_models.ServiceSettings.objects.get(
             scope=tenant,
             type=apps.OpenStackTenantConfig.service_name,
         )
-        self.assertTrue(private_settings.options['config_drive'])
+        self.assertTrue(private_settings.options["config_drive"])
 
     def test_copy_tenant_id_from_tenant_to_private_settings(self):
         shared_settings = openstack_factories.OpenStackServiceSettingsFactory()
@@ -561,7 +561,7 @@ class CreateServiceFromTenantTest(TestCase):
             scope=tenant,
             type=apps.OpenStackTenantConfig.service_name,
         )
-        tenant.backend_id = 'VALID_BACKEND_ID'
+        tenant.backend_id = "VALID_BACKEND_ID"
         tenant.save()
         private_settings.refresh_from_db()
-        self.assertTrue(private_settings.options['tenant_id'], tenant.backend_id)
+        self.assertTrue(private_settings.options["tenant_id"], tenant.backend_id)

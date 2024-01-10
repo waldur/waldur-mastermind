@@ -17,21 +17,21 @@ class SupportFixture:
     @cached_property
     def success_issue_status(self):
         return support_factories.IssueStatusFactory(
-            name='Completed',
+            name="Completed",
             type=support_models.IssueStatus.Types.RESOLVED,
         )
 
     @cached_property
     def second_success_issue_status(self):
         return support_factories.IssueStatusFactory(
-            name='Done',
+            name="Done",
             type=support_models.IssueStatus.Types.RESOLVED,
         )
 
     @cached_property
     def fail_issue_status(self):
         return support_factories.IssueStatusFactory(
-            name='Cancelled',
+            name="Cancelled",
             type=support_models.IssueStatus.Types.CANCELED,
         )
 

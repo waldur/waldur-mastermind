@@ -5,18 +5,18 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace_flows', '0005_extend_project_details_mixin'),
+        ("marketplace_flows", "0005_extend_project_details_mixin"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='resourcecreaterequest',
-            name='attributes',
+            model_name="resourcecreaterequest",
+            name="attributes",
             field=models.JSONField(blank=True, default=dict),
         ),
         migrations.AlterField(
-            model_name='resourcecreaterequest',
-            name='limits',
+            model_name="resourcecreaterequest",
+            name="limits",
             field=models.JSONField(blank=True, default=dict),
         ),
     ]

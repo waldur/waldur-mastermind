@@ -10,10 +10,10 @@ class PublicPlanField(serializers.HyperlinkedRelatedField):
         try:
             return super().get_url(obj, view_name, request, format)
         except NoReverseMatch:
-            return self.context['request'].build_absolute_uri(
+            return self.context["request"].build_absolute_uri(
                 reverse(
-                    'marketplace-public-offering-plan-detail',
-                    kwargs={'uuid': obj.offering.uuid.hex, 'plan_uuid': obj.uuid.hex},
+                    "marketplace-public-offering-plan-detail",
+                    kwargs={"uuid": obj.offering.uuid.hex, "plan_uuid": obj.uuid.hex},
                 )
             )
 

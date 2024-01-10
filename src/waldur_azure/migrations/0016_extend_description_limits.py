@@ -5,78 +5,78 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('waldur_azure', '0015_location_enabled'),
+        ("waldur_azure", "0015_location_enabled"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='network',
-            name='description',
+            model_name="network",
+            name="description",
             field=models.CharField(
-                blank=True, max_length=2000, verbose_name='description'
+                blank=True, max_length=2000, verbose_name="description"
             ),
         ),
         migrations.AlterField(
-            model_name='networkinterface',
-            name='description',
+            model_name="networkinterface",
+            name="description",
             field=models.CharField(
-                blank=True, max_length=2000, verbose_name='description'
+                blank=True, max_length=2000, verbose_name="description"
             ),
         ),
         migrations.AlterField(
-            model_name='publicip',
-            name='description',
+            model_name="publicip",
+            name="description",
             field=models.CharField(
-                blank=True, max_length=2000, verbose_name='description'
+                blank=True, max_length=2000, verbose_name="description"
             ),
         ),
         migrations.AlterField(
-            model_name='resourcegroup',
-            name='description',
+            model_name="resourcegroup",
+            name="description",
             field=models.CharField(
-                blank=True, max_length=2000, verbose_name='description'
+                blank=True, max_length=2000, verbose_name="description"
             ),
         ),
         migrations.AlterField(
-            model_name='securitygroup',
-            name='description',
+            model_name="securitygroup",
+            name="description",
             field=models.CharField(
-                blank=True, max_length=2000, verbose_name='description'
+                blank=True, max_length=2000, verbose_name="description"
             ),
         ),
         migrations.AlterField(
-            model_name='sqldatabase',
-            name='description',
+            model_name="sqldatabase",
+            name="description",
             field=models.CharField(
-                blank=True, max_length=2000, verbose_name='description'
+                blank=True, max_length=2000, verbose_name="description"
             ),
         ),
         migrations.AlterField(
-            model_name='sqlserver',
-            name='description',
+            model_name="sqlserver",
+            name="description",
             field=models.CharField(
-                blank=True, max_length=2000, verbose_name='description'
+                blank=True, max_length=2000, verbose_name="description"
             ),
         ),
         migrations.AlterField(
-            model_name='storageaccount',
-            name='description',
+            model_name="storageaccount",
+            name="description",
             field=models.CharField(
-                blank=True, max_length=2000, verbose_name='description'
+                blank=True, max_length=2000, verbose_name="description"
             ),
         ),
         migrations.AlterField(
-            model_name='subnet',
-            name='description',
+            model_name="subnet",
+            name="description",
             field=models.CharField(
-                blank=True, max_length=2000, verbose_name='description'
+                blank=True, max_length=2000, verbose_name="description"
             ),
         ),
         migrations.AlterField(
-            model_name='virtualmachine',
-            name='description',
+            model_name="virtualmachine",
+            name="description",
             field=models.CharField(
-                blank=True, max_length=2000, verbose_name='description'
+                blank=True, max_length=2000, verbose_name="description"
             ),
         ),
     ]

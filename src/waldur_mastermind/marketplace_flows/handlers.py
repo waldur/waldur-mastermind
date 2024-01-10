@@ -11,7 +11,7 @@ def process_flow_state_change(sender, instance, created=False, **kwargs):
 
     flow: models.FlowTracker = instance
 
-    if not flow.tracker.has_changed('state'):
+    if not flow.tracker.has_changed("state"):
         return
 
     if flow.state != models.FlowTracker.States.PENDING:
@@ -32,7 +32,7 @@ def approve_reject_offering_state_request_when_related_issue_is_resolved(
 
     issue = instance
 
-    if not issue.tracker.has_changed('status'):
+    if not issue.tracker.has_changed("status"):
         return
 
     try:

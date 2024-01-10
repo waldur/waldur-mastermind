@@ -18,25 +18,25 @@ class UnitPriceMixin(models.Model):
         abstract = True
 
     class Units:
-        PER_MONTH = 'month'
-        PER_HALF_MONTH = 'half_month'
-        PER_DAY = 'day'
-        PER_HOUR = 'hour'
-        QUANTITY = 'quantity'
+        PER_MONTH = "month"
+        PER_HALF_MONTH = "half_month"
+        PER_DAY = "day"
+        PER_HOUR = "hour"
+        QUANTITY = "quantity"
 
         CHOICES = (
-            (PER_MONTH, _('Per month')),
-            (PER_HALF_MONTH, _('Per half month')),
-            (PER_DAY, _('Per day')),
-            (PER_HOUR, _('Per hour')),
-            (QUANTITY, _('Quantity')),
+            (PER_MONTH, _("Per month")),
+            (PER_HALF_MONTH, _("Per half month")),
+            (PER_DAY, _("Per day")),
+            (PER_HOUR, _("Per hour")),
+            (QUANTITY, _("Quantity")),
         )
 
     unit_price = models.DecimalField(
         default=0,
         max_digits=22,
         decimal_places=7,
-        validators=[MinValueValidator(Decimal('0'))],
+        validators=[MinValueValidator(Decimal("0"))],
     )
     unit = models.CharField(default=Units.PER_DAY, max_length=30, choices=Units.CHOICES)
 

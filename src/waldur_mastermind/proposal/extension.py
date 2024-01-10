@@ -4,7 +4,7 @@ from waldur_core.core import WaldurExtension
 class ProposalExtension(WaldurExtension):
     @staticmethod
     def django_app():
-        return 'waldur_mastermind.proposal'
+        return "waldur_mastermind.proposal"
 
     @staticmethod
     def is_assembly():

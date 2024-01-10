@@ -6,18 +6,18 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace', '0105_merge_order_item_with_order_step1'),
-        ('marketplace_script', '0001_initial'),
+        ("marketplace", "0105_merge_order_item_with_order_step1"),
+        ("marketplace_script", "0001_initial"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='dryrun',
-            name='order_item',
+            model_name="dryrun",
+            name="order_item",
             field=models.ForeignKey(
                 null=True,
                 on_delete=django.db.models.deletion.SET_NULL,
-                to='marketplace.orderitem',
+                to="marketplace.orderitem",
             ),
         ),
     ]

@@ -18,5 +18,5 @@ class Command(DryRunCommand):
             if resource.scope:
                 utils.import_volume_metadata(resource)
         self.stdout.write(
-            self.style.SUCCESS('%s resources have been processed.' % resources.count())
+            self.style.SUCCESS("%s resources have been processed." % resources.count())
         )

@@ -5,18 +5,18 @@ from django.db import migrations
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace', '0109_alter_order_options'),
+        ("marketplace", "0109_alter_order_options"),
     ]
 
     operations = [
         migrations.RenameField(
-            model_name='order',
-            old_name='reviewed_at',
-            new_name='provider_reviewed_at',
+            model_name="order",
+            old_name="reviewed_at",
+            new_name="provider_reviewed_at",
         ),
         migrations.RenameField(
-            model_name='order',
-            old_name='reviewed_by',
-            new_name='provider_reviewed_by',
+            model_name="order",
+            old_name="reviewed_by",
+            new_name="provider_reviewed_by",
         ),
     ]

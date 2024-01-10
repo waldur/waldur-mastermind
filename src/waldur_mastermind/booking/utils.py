@@ -42,8 +42,8 @@ class TimePeriod:
         self.start = start
         self.end = end
 
-        reg_exp = re.compile(r'[^a-z0-9]')
-        self.id = period_id and re.sub(reg_exp, '', period_id)
+        reg_exp = re.compile(r"[^a-z0-9]")
+        self.id = period_id and re.sub(reg_exp, "", period_id)
         self.location = location
         self.attendees = attendees or []
         self.order = order
@@ -73,14 +73,11 @@ def get_offering_bookings(offering):
     States = marketplace_models.Resource.States
     resources = marketplace_models.Resource.objects.filter(
         offering=offering, state__in=(States.OK, States.CREATING)
-    ).order_by('created')
+    ).order_by("created")
     bookings = []
 
     if offering.latitude and offering.longitude:
-        location = '{{{}}}, {{{}}}'.format(
-            offering.latitude,
-            offering.longitude,
-        )
+        location = f"{{{offering.latitude}}}, {{{offering.longitude}}}"
     else:
         location = None
 
@@ -92,10 +89,10 @@ def get_offering_bookings(offering):
             email = order.created_by.email or None
             full_name = order.created_by.full_name or None
             if email:
-                attendees = [{'displayName': full_name, 'email': email}]
+                attendees = [{"displayName": full_name, "email": email}]
 
         schedule = models.BookingSlot.objects.filter(resource=resource).order_by(
-            'start'
+            "start"
         )
 
         if schedule:
@@ -144,10 +141,10 @@ def get_other_offering_booking_requests(order):
             ),
         )
         .exclude(id=order.id)
-        .values_list('attributes__schedules', flat=True)
+        .values_list("attributes__schedules", flat=True)
     )
     return [
-        TimePeriod(period['start'], period['end'], period.get('id'))
+        TimePeriod(period["start"], period["end"], period.get("id"))
         for schedule in schedules
         if schedule
         for period in schedule
@@ -160,7 +157,7 @@ def get_info_about_upcoming_bookings():
     upcoming_bookings = marketplace_models.Resource.objects.filter(
         offering__type=PLUGIN_NAME,
         state=marketplace_models.Resource.States.OK,
-        attributes__schedules__0__start__icontains='%s-%02d-%02dT'
+        attributes__schedules__0__start__icontains="%s-%02d-%02dT"
         % (tomorrow.year, tomorrow.month, tomorrow.day),
     )
 
@@ -170,21 +167,21 @@ def get_info_about_upcoming_bookings():
         order = resource.creation_order
         if order:
             rows = list(
-                filter(lambda x: x['user'] == resource.project.customer, result)
+                filter(lambda x: x["user"] == resource.project.customer, result)
             )
             if rows:
-                rows[0]['resources'].append(resource)
+                rows[0]["resources"].append(resource)
             else:
                 result.append(
                     {
-                        'user': order.created_by,
-                        'resources': [resource],
+                        "user": order.created_by,
+                        "resources": [resource],
                     }
                 )
         else:
             logger.warning(
-                'Skipping notification because marketplace resource hasn\'t got a order. '
-                'Resource ID: %s',
+                "Skipping notification because marketplace resource hasn't got a order. "
+                "Resource ID: %s",
                 resource.id,
             )
 
@@ -194,15 +191,15 @@ def get_info_about_upcoming_bookings():
 def change_attributes_for_view(attrs):
     # We use copy of attrs to do not change offering.attributes
     attributes = copy.deepcopy(attrs)
-    schedules = attributes.get('schedules', [])
-    attributes['schedules'] = [
+    schedules = attributes.get("schedules", [])
+    attributes["schedules"] = [
         schedule
         for schedule in schedules
-        if parse_datetime(schedule['end']) > timezone.now()
+        if parse_datetime(schedule["end"]) > timezone.now()
     ]
-    for schedule in attributes['schedules']:
-        if parse_datetime(schedule['start']) < timezone.now():
-            schedule['start'] = timezone.now().strftime('%Y-%m-%dT%H:%M:%S.000Z')
+    for schedule in attributes["schedules"]:
+        if parse_datetime(schedule["start"]) < timezone.now():
+            schedule["start"] = timezone.now().strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
     return attributes
 

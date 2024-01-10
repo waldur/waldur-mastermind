@@ -13,13 +13,13 @@ class IssueCreateTest(smax_base.BaseTest):
         self.url = factories.IssueFactory.get_list_url()
         self.fixture = fixtures.SupportFixture()
         self.caller = self.fixture.support_user.user
-        self.smax_issue = Issue(1, 'test', 'description', 'RequestStatusReady')
+        self.smax_issue = Issue(1, "test", "description", "RequestStatusReady")
         self.mock_smax().add_issue.return_value = self.smax_issue
 
     def _get_valid_payload(self, **additional):
         payload = {
-            'summary': 'test_issue',
-            'caller': structure_factories.UserFactory.get_url(user=self.caller),
+            "summary": "test_issue",
+            "caller": structure_factories.UserFactory.get_url(user=self.caller),
         }
         payload.update(additional)
         return payload
@@ -32,7 +32,7 @@ class IssueCreateTest(smax_base.BaseTest):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.mock_smax().add_issue.assert_called_once()
-        issue = models.Issue.objects.get(uuid=response.data['uuid'])
+        issue = models.Issue.objects.get(uuid=response.data["uuid"])
         self.assertEqual(str(issue.backend_id), str(self.smax_issue.id))
 
 
@@ -42,7 +42,7 @@ class SyncFromSmaxTest(smax_base.BaseTest):
         self.issue = factories.IssueFactory(
             backend_name=SmaxServiceBackend.backend_name
         )
-        self.smax_issue = Issue(1, 'test', 'description', 'RequestStatusReady')
+        self.smax_issue = Issue(1, "test", "description", "RequestStatusReady")
         self.mock_smax().get_issue.return_value = self.smax_issue
         self.mock_smax().get_comments.return_value = []
         self.backend = SmaxServiceBackend()

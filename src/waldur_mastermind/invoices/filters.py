@@ -9,15 +9,15 @@ from . import models
 
 class InvoiceFilter(django_filters.FilterSet):
     customer = core_filters.URLFilter(
-        view_name='customer-detail', field_name='customer__uuid'
+        view_name="customer-detail", field_name="customer__uuid"
     )
-    customer_uuid = django_filters.UUIDFilter(field_name='customer__uuid')
+    customer_uuid = django_filters.UUIDFilter(field_name="customer__uuid")
     state = django_filters.MultipleChoiceFilter(choices=models.Invoice.States.CHOICES)
-    start_date = django_filters.DateFilter(field_name='created', lookup_expr='gt')
-    end_date = django_filters.DateFilter(field_name='created', lookup_expr='lt')
-    min_sum = django_filters.NumberFilter(method='filter_min_sum', label='Min sum')
-    max_sum = django_filters.NumberFilter(method='filter_max_sum', label='Max sum')
-    o = django_filters.OrderingFilter(fields=('created', 'year', 'month'))
+    start_date = django_filters.DateFilter(field_name="created", lookup_expr="gt")
+    end_date = django_filters.DateFilter(field_name="created", lookup_expr="lt")
+    min_sum = django_filters.NumberFilter(method="filter_min_sum", label="Min sum")
+    max_sum = django_filters.NumberFilter(method="filter_max_sum", label="Max sum")
+    o = django_filters.OrderingFilter(fields=("created", "year", "month"))
 
     def filter_min_sum(self, queryset, name, value):
         ids = [invoice.id for invoice in queryset.all() if invoice.total >= value]
@@ -29,25 +29,25 @@ class InvoiceFilter(django_filters.FilterSet):
 
     class Meta:
         model = models.Invoice
-        fields = ['created', 'year', 'month']
+        fields = ["created", "year", "month"]
 
 
 class InvoiceItemFilter(django_filters.FilterSet):
-    resource_uuid = django_filters.UUIDFilter(field_name='resource__uuid')
-    year = django_filters.NumberFilter(field_name='invoice__year')
-    month = django_filters.NumberFilter(field_name='invoice__month')
-    project_uuid = django_filters.UUIDFilter(field_name='project__uuid')
+    resource_uuid = django_filters.UUIDFilter(field_name="resource__uuid")
+    year = django_filters.NumberFilter(field_name="invoice__year")
+    month = django_filters.NumberFilter(field_name="invoice__month")
+    project_uuid = django_filters.UUIDFilter(field_name="project__uuid")
 
 
 class PaymentProfileFilter(django_filters.FilterSet):
     organization = core_filters.URLFilter(
-        view_name='customer-detail', field_name='organization__uuid'
+        view_name="customer-detail", field_name="organization__uuid"
     )
-    organization_uuid = django_filters.UUIDFilter(field_name='organization__uuid')
+    organization_uuid = django_filters.UUIDFilter(field_name="organization__uuid")
     payment_type = django_filters.MultipleChoiceFilter(
         choices=models.PaymentType.CHOICES
     )
-    o = django_filters.OrderingFilter(fields=('name', 'payment_type', 'is_active'))
+    o = django_filters.OrderingFilter(fields=("name", "payment_type", "is_active"))
     is_active = django_filters.BooleanFilter(widget=BooleanWidget)
 
     class Meta:
@@ -65,10 +65,10 @@ class PaymentProfileFilterBackend(filters.BaseFilterBackend):
 
 class PaymentFilter(django_filters.FilterSet):
     profile = core_filters.URLFilter(
-        view_name='payment-profile-detail', field_name='profile__uuid'
+        view_name="payment-profile-detail", field_name="profile__uuid"
     )
-    profile_uuid = django_filters.UUIDFilter(field_name='profile__uuid')
+    profile_uuid = django_filters.UUIDFilter(field_name="profile__uuid")
 
     class Meta:
         model = models.Payment
-        fields = ['date_of_payment']
+        fields = ["date_of_payment"]

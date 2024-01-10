@@ -11,39 +11,39 @@ from waldur_mastermind.marketplace.models import (
 def get_category_prefix(category):
     if category.sections.exists():
         # if at least one section exist, take its sections first prefix as category prefix
-        return category.sections.first().key.split('_')[0]
+        return category.sections.first().key.split("_")[0]
     else:
         # cleanup whitespaces from the title
-        return category.title.strip().replace(' ', '')
+        return category.title.strip().replace(" ", "")
 
 
 class Command(BaseCommand):
-    help = 'Copy structure of categories for the Marketplace'
+    help = "Copy structure of categories for the Marketplace"
 
     def add_arguments(self, parser):
         parser.add_argument(
-            'source_category_uuid',
+            "source_category_uuid",
             nargs=1,
             type=str,
-            help='UUID of a category to copy metadata from',
+            help="UUID of a category to copy metadata from",
         )
         parser.add_argument(
-            'target_category_uuid',
+            "target_category_uuid",
             nargs=1,
             type=str,
-            help='UUID of a category to copy metadata to',
+            help="UUID of a category to copy metadata to",
         )
 
     def handle(self, *args, **options):
-        source_category_uuid = options['source_category_uuid'][0]
-        target_category_uuid = options['target_category_uuid'][0]
+        source_category_uuid = options["source_category_uuid"][0]
+        target_category_uuid = options["target_category_uuid"][0]
 
         try:
             source_category = Category.objects.get(uuid=source_category_uuid)
         except Category.DoesNotExist:
             self.stdout.write(
                 self.style.ERROR(
-                    'Source category %s was not found.' % source_category_uuid
+                    "Source category %s was not found." % source_category_uuid
                 )
             )
             exit(1)
@@ -53,7 +53,7 @@ class Command(BaseCommand):
         except Category.DoesNotExist:
             self.stdout.write(
                 self.style.ERROR(
-                    'Target category %s was not found.' % source_category_uuid
+                    "Target category %s was not found." % source_category_uuid
                 )
             )
             exit(1)
@@ -63,18 +63,17 @@ class Command(BaseCommand):
 
         # Copy metadata
         for source_section in source_category.sections.all():
-            section_source_prefix = source_section.key.split('_')[0]
+            section_source_prefix = source_section.key.split("_")[0]
             # assert that convention is respected
             if section_source_prefix != source_prefix:
                 self.stdout.write(
                     self.style.ERROR(
-                        'Prefixes mismatch: %s (from category) and %s (from section)'
-                        % (source_prefix, section_source_prefix)
+                        f"Prefixes mismatch: {source_prefix} (from category) and {section_source_prefix} (from section)"
                     )
                 )
 
-            section_prefix = '_'.join(
-                [target_prefix] + source_section.key.split('_')[1:]
+            section_prefix = "_".join(
+                [target_prefix] + source_section.key.split("_")[1:]
             )
             target_section, _ = Section.objects.get_or_create(
                 key=section_prefix,
@@ -111,6 +110,6 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                'Target category %s was successfully populated.' % target_category
+                "Target category %s was successfully populated." % target_category
             )
         )

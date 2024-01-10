@@ -18,17 +18,17 @@ def get_issue(serializer, scope):
         return
     if connected_issue_count > 1:
         logger.error(
-            'Order has %s instead of 1 issues connected. Unable to select. Order UUID: %s',
+            "Order has %s instead of 1 issues connected. Unable to select. Order UUID: %s",
             connected_issue_count,
             scope.uuid.hex,
         )
 
     issue = issues[0]
 
-    issue_map = {'key': issue.key, 'uuid': issue.uuid.hex}
+    issue_map = {"key": issue.key, "uuid": issue.uuid.hex}
     return issue_map
 
 
 def add_issue(sender, fields, **kwargs):
-    fields['issue'] = serializers.SerializerMethodField()
-    setattr(sender, 'get_issue', get_issue)
+    fields["issue"] = serializers.SerializerMethodField()
+    setattr(sender, "get_issue", get_issue)

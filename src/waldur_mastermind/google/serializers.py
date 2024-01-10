@@ -6,26 +6,26 @@ from waldur_mastermind.marketplace import serializers as marketplace_serializers
 
 class GoogleCredentialsSerializer(marketplace_serializers.ServiceProviderSerializer):
     calendar_token = serializers.CharField(
-        source='googlecredentials.calendar_token', read_only=True
+        source="googlecredentials.calendar_token", read_only=True
     )
     calendar_refresh_token = serializers.CharField(
-        source='googlecredentials.calendar_refresh_token', read_only=True
+        source="googlecredentials.calendar_refresh_token", read_only=True
     )
     google_auth_url = serializers.SerializerMethodField()
 
     class Meta(marketplace_serializers.ServiceProviderSerializer.Meta):
         fields = marketplace_serializers.ServiceProviderSerializer.Meta.fields + (
-            'calendar_token',
-            'calendar_refresh_token',
-            'google_auth_url',
+            "calendar_token",
+            "calendar_refresh_token",
+            "google_auth_url",
         )
-        view_name = 'google-auth-detail'
+        view_name = "google-auth-detail"
 
     def get_google_auth_url(self, service_provider):
         from .backend import GoogleAuthorize
 
-        request = self.context['request']
-        redirect_uri = request.build_absolute_uri('../../') + 'callback/'
+        request = self.context["request"]
+        redirect_uri = request.build_absolute_uri("../../") + "callback/"
         backend = GoogleAuthorize(service_provider, redirect_uri)
         return backend.get_authorization_url(service_provider.uuid.hex)
 
@@ -33,4 +33,4 @@ class GoogleCredentialsSerializer(marketplace_serializers.ServiceProviderSeriali
 class GoogleCalendarSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = google_models.GoogleCalendar
-        fields = ('backend_id', 'public', 'http_link')
+        fields = ("backend_id", "public", "http_link")

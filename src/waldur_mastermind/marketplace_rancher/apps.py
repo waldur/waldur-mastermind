@@ -5,8 +5,8 @@ from waldur_mastermind.marketplace_rancher import NODES_COMPONENT_TYPE
 
 
 class MarketplaceRancherConfig(AppConfig):
-    name = 'waldur_mastermind.marketplace_rancher'
-    verbose_name = 'Marketplace Rancher'
+    name = "waldur_mastermind.marketplace_rancher"
+    verbose_name = "Marketplace Rancher"
 
     def ready(self):
         from waldur_core.structure import signals as structure_signals
@@ -28,14 +28,14 @@ class MarketplaceRancherConfig(AppConfig):
             components=(
                 Component(
                     type=NODES_COMPONENT_TYPE,
-                    name='K8S node',
-                    measured_unit='nodes',
+                    name="K8S node",
+                    measured_unit="nodes",
                     billing_type=USAGE,
                 ),
             ),
             service_type=RancherConfig.service_name,
-            get_importable_resources_backend_method='get_importable_clusters',
-            import_resource_backend_method='import_cluster',
+            get_importable_resources_backend_method="get_importable_clusters",
+            import_resource_backend_method="import_cluster",
         )
 
         marketplace_handlers.connect_resource_metadata_handlers(rancher_models.Cluster)
@@ -44,24 +44,24 @@ class MarketplaceRancherConfig(AppConfig):
         structure_signals.resource_imported.connect(
             handlers.create_marketplace_resource_for_imported_cluster,
             sender=rancher_models.Cluster,
-            dispatch_uid='waldur_mastermind.marketplace_rancher.'
-            'create_resource_for_imported_cluster',
+            dispatch_uid="waldur_mastermind.marketplace_rancher."
+            "create_resource_for_imported_cluster",
         )
 
         signals.post_save.connect(
             handlers.update_node_usage,
             sender=rancher_models.Node,
-            dispatch_uid='waldur_mastermind.marketplace_rancher.update_node_usage',
+            dispatch_uid="waldur_mastermind.marketplace_rancher.update_node_usage",
         )
 
         signals.post_save.connect(
             handlers.create_offering_user_for_rancher_user,
             sender=rancher_models.RancherUser,
-            dispatch_uid='waldur_mastermind.marketplace_rancher.create_offering_user_for_rancher_user',
+            dispatch_uid="waldur_mastermind.marketplace_rancher.create_offering_user_for_rancher_user",
         )
 
         signals.pre_delete.connect(
             handlers.drop_offering_user_for_rancher_user,
             sender=rancher_models.RancherUser,
-            dispatch_uid='waldur_mastermind.marketplace_rancher.drop_offering_user_for_rancher_user',
+            dispatch_uid="waldur_mastermind.marketplace_rancher.drop_offering_user_for_rancher_user",
         )

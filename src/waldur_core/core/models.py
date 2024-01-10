@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 DESCRIPTION_LENGTH = 2000
 
-USERNAME_REGEX = r'^[a-zA-Z0-9_.][a-zA-Z0-9_.-]*[a-zA-Z0-9_.$-]?$'
+USERNAME_REGEX = r"^[a-zA-Z0-9_.][a-zA-Z0-9_.-]*[a-zA-Z0-9_.$-]?$"
 
 
 class DescribableMixin(models.Model):
@@ -46,7 +46,7 @@ class DescribableMixin(models.Model):
         abstract = True
 
     description = models.CharField(
-        _('description'), max_length=DESCRIPTION_LENGTH, blank=True
+        _("description"), max_length=DESCRIPTION_LENGTH, blank=True
     )
 
 
@@ -58,7 +58,7 @@ class NameMixin(models.Model):
     class Meta:
         abstract = True
 
-    name = models.CharField(_('name'), max_length=150, validators=[validate_name])
+    name = models.CharField(_("name"), max_length=150, validators=[validate_name])
 
 
 class UiDescribableMixin(DescribableMixin):
@@ -69,7 +69,7 @@ class UiDescribableMixin(DescribableMixin):
     class Meta:
         abstract = True
 
-    icon_url = models.URLField(_('icon url'), max_length=500, blank=True)
+    icon_url = models.URLField(_("icon url"), max_length=500, blank=True)
 
 
 class UuidMixin(models.Model):
@@ -149,10 +149,10 @@ class UserDetailsMixin(models.Model):
     class Meta:
         abstract = True
 
-    native_name = models.CharField(_('native name'), max_length=100, blank=True)
-    phone_number = models.CharField(_('phone number'), max_length=255, blank=True)
-    organization = models.CharField(_('organization'), max_length=255, blank=True)
-    job_title = models.CharField(_('job title'), max_length=120, blank=True)
+    native_name = models.CharField(_("native name"), max_length=100, blank=True)
+    phone_number = models.CharField(_("phone number"), max_length=255, blank=True)
+    organization = models.CharField(_("organization"), max_length=255, blank=True)
+    job_title = models.CharField(_("job title"), max_length=120, blank=True)
     affiliations = models.JSONField(
         default=list,
         blank=True,
@@ -183,134 +183,134 @@ class User(
     ImageModelMixin,
 ):
     username = models.CharField(
-        _('username'),
+        _("username"),
         max_length=128,
         unique=True,
         help_text=_(
-            'Required. 128 characters or fewer. Lowercase letters, numbers and '
-            '@/./+/-/_ characters'
+            "Required. 128 characters or fewer. Lowercase letters, numbers and "
+            "@/./+/-/_ characters"
         ),
         validators=[
             validators.RegexValidator(
-                re.compile(r'^[0-9a-z_.@+-]+$'), _('Enter a valid username.'), 'invalid'
+                re.compile(r"^[0-9a-z_.@+-]+$"), _("Enter a valid username."), "invalid"
             )
         ],
     )
     # Civil number is nullable on purpose, otherwise
     # it wouldn't be possible to put a unique constraint on it
     civil_number = models.CharField(
-        _('civil number'),
+        _("civil number"),
         max_length=50,
         unique=True,
         blank=True,
         null=True,
         default=None,
     )
-    email = models.EmailField(_('email address'), max_length=320, blank=True)
+    email = models.EmailField(_("email address"), max_length=320, blank=True)
 
     is_staff = models.BooleanField(
-        _('staff status'),
+        _("staff status"),
         default=False,
-        help_text=_('Designates whether the user can log into this admin ' 'site.'),
+        help_text=_("Designates whether the user can log into this admin " "site."),
     )
     is_active = models.BooleanField(
-        _('active'),
+        _("active"),
         default=True,
         help_text=_(
-            'Designates whether this user should be treated as '
-            'active. Unselect this instead of deleting accounts.'
+            "Designates whether this user should be treated as "
+            "active. Unselect this instead of deleting accounts."
         ),
     )
     is_support = models.BooleanField(
-        _('support status'),
+        _("support status"),
         default=False,
-        help_text=_('Designates whether the user is a global support user.'),
+        help_text=_("Designates whether the user is a global support user."),
     )
     is_identity_manager = models.BooleanField(
         default=False,
         help_text=_(
-            'Designates whether the user is allowed to manage remote user identities.'
+            "Designates whether the user is allowed to manage remote user identities."
         ),
     )
     notifications_enabled = models.BooleanField(
         default=True,
         help_text=_(
-            'Designates whether the user is allowed to receive email notifications.'
+            "Designates whether the user is allowed to receive email notifications."
         ),
     )
-    date_joined = models.DateTimeField(_('date joined'), default=django_timezone.now)
+    date_joined = models.DateTimeField(_("date joined"), default=django_timezone.now)
     last_sync = models.DateTimeField(default=django_timezone.now, editable=False)
     registration_method = models.CharField(
-        _('registration method'),
+        _("registration method"),
         max_length=50,
-        default='default',
+        default="default",
         blank=True,
-        help_text=_('Indicates what registration method were used.'),
+        help_text=_("Indicates what registration method were used."),
     )
     agreement_date = models.DateTimeField(
-        _('agreement date'),
+        _("agreement date"),
         blank=True,
         null=True,
-        help_text=_('Indicates when the user has agreed with the policy.'),
+        help_text=_("Indicates when the user has agreed with the policy."),
     )
     preferred_language = models.CharField(max_length=10, blank=True)
     competence = models.CharField(max_length=255, blank=True)
     token_lifetime = models.PositiveIntegerField(
         null=True,
-        help_text=_('Token lifetime in seconds.'),
+        help_text=_("Token lifetime in seconds."),
         validators=[validators.MinValueValidator(60)],
     )
     details = models.JSONField(
         blank=True,
         default=dict,
-        help_text=_('Extra details from authentication backend.'),
+        help_text=_("Extra details from authentication backend."),
     )
     backend_id = models.CharField(max_length=255, blank=True)
-    first_name = models.CharField(_('first name'), max_length=100, blank=True)
-    last_name = models.CharField(_('last name'), max_length=100, blank=True)
+    first_name = models.CharField(_("first name"), max_length=100, blank=True)
+    last_name = models.CharField(_("last name"), max_length=100, blank=True)
     query_field = models.CharField(max_length=300, blank=True)
     WHITELIST_FIELDS = [
-        'is_superuser',
-        'description',
-        'username',
-        'civil_number',
-        'native_name',
-        'phone_number',
-        'organization',
-        'job_title',
-        'email',
-        'is_staff',
-        'is_support',
-        'preferred_language',
-        'competence',
-        'backend_id',
-        'is_identity_manager',
-        'affiliations',
-        'first_name',
-        'last_name',
+        "is_superuser",
+        "description",
+        "username",
+        "civil_number",
+        "native_name",
+        "phone_number",
+        "organization",
+        "job_title",
+        "email",
+        "is_staff",
+        "is_support",
+        "preferred_language",
+        "competence",
+        "backend_id",
+        "is_identity_manager",
+        "affiliations",
+        "first_name",
+        "last_name",
     ]
 
     @property
     def full_name(self):
-        return (f'{self.first_name} {self.last_name}').strip()
+        return (f"{self.first_name} {self.last_name}").strip()
 
     @full_name.setter
     def full_name(self, value):
         names = value.split()
-        self.first_name = ' '.join(names[:1])
-        self.last_name = ' '.join(names[1:])
+        self.first_name = " ".join(names[:1])
+        self.last_name = " ".join(names[1:])
         self.query_field = normalize_unicode(value)
 
     tracker = FieldTracker()
     objects = UserManager()
 
-    USERNAME_FIELD = 'username'
-    REQUIRED_FIELDS = ['email']
+    USERNAME_FIELD = "username"
+    REQUIRED_FIELDS = ["email"]
 
     class Meta:
-        verbose_name = _('user')
-        verbose_name_plural = _('users')
-        ordering = ['username']
+        verbose_name = _("user")
+        verbose_name_plural = _("users")
+        ordering = ["username"]
 
     def save(self, *args, **kwargs):
         self.query_field = normalize_unicode(self.full_name)
@@ -318,13 +318,13 @@ class User(
 
     def get_log_fields(self):
         return (
-            'uuid',
-            'full_name',
-            'native_name',
+            "uuid",
+            "full_name",
+            "native_name",
             self.USERNAME_FIELD,
-            'is_staff',
-            'is_support',
-            'token_lifetime',
+            "is_staff",
+            "is_support",
+            "token_lifetime",
         )
 
     def get_full_name(self):
@@ -362,7 +362,7 @@ class User(
 
     def __str__(self):
         if self.full_name:
-            return f'{self.get_username()} ({self.full_name})'
+            return f"{self.get_username()} ({self.full_name})"
 
         return self.get_username()
 
@@ -372,8 +372,8 @@ class ChangeEmailRequest(UuidMixin, TimeStampedModel):
     email = models.EmailField()
 
     class Meta:
-        verbose_name = _('change email request')
-        verbose_name_plural = _('change email requests')
+        verbose_name = _("change email request")
+        verbose_name_plural = _("change email requests")
 
 
 def get_ssh_key_fingerprint(ssh_key):
@@ -383,9 +383,9 @@ def get_ssh_key_fingerprint(ssh_key):
     import base64
     import hashlib
 
-    key_body = base64.b64decode(ssh_key.strip().split()[1].encode('ascii'))
+    key_body = base64.b64decode(ssh_key.strip().split()[1].encode("ascii"))
     fp_plain = hashlib.md5(key_body).hexdigest()  # noqa: S303
-    return ':'.join(a + b for a, b in zip(fp_plain[::2], fp_plain[1::2]))
+    return ":".join(a + b for a, b in zip(fp_plain[::2], fp_plain[1::2]))
 
 
 @reversion.register()
@@ -409,14 +409,14 @@ class SshPublicKey(LoggableMixin, UuidMixin, models.Model):
 
     @property
     def type(self):
-        key_parts = self.public_key.split(' ', 1)
+        key_parts = self.public_key.split(" ", 1)
         return key_parts[0]
 
     class Meta:
-        unique_together = ('user', 'name')
-        verbose_name = _('SSH public key')
-        verbose_name_plural = _('SSH public keys')
-        ordering = ['name']
+        unique_together = ("user", "name")
+        verbose_name = _("SSH public key")
+        verbose_name_plural = _("SSH public keys")
+        ordering = ["name"]
 
     def save(
         self, force_insert=False, force_update=False, using=None, update_fields=None
@@ -425,22 +425,22 @@ class SshPublicKey(LoggableMixin, UuidMixin, models.Model):
         try:
             self.fingerprint = get_ssh_key_fingerprint(self.public_key)
         except (IndexError, TypeError):
-            logger.exception('Fingerprint calculation has failed')
+            logger.exception("Fingerprint calculation has failed")
             raise ValueError(
-                _('Public key format is incorrect. Fingerprint calculation has failed.')
+                _("Public key format is incorrect. Fingerprint calculation has failed.")
             )
 
         if (
             update_fields
-            and 'public_key' in update_fields
-            and 'fingerprint' not in update_fields
+            and "public_key" in update_fields
+            and "fingerprint" not in update_fields
         ):
-            update_fields.append('fingerprint')
+            update_fields.append("fingerprint")
 
         super().save(force_insert, force_update, using, update_fields)
 
     def __str__(self):
-        return '{} - {}, user: {}, {}'.format(
+        return "{} - {}, user: {}, {}".format(
             self.name,
             self.fingerprint,
             self.user.username,
@@ -452,13 +452,13 @@ class RuntimeStateMixin(models.Model):
     """Provide runtime_state field"""
 
     class RuntimeStates:
-        ONLINE = 'online'
-        OFFLINE = 'offline'
+        ONLINE = "online"
+        OFFLINE = "offline"
 
     class Meta:
         abstract = True
 
-    runtime_state = models.CharField(_('runtime state'), max_length=150, blank=True)
+    runtime_state = models.CharField(_("runtime state"), max_length=150, blank=True)
 
     @classmethod
     def get_online_state(cls):
@@ -481,14 +481,14 @@ class StateMixin(ErrorMessageMixin, ConcurrentTransitionMixin):
         ERRED = 4
 
         CHOICES = (
-            (CREATION_SCHEDULED, 'Creation Scheduled'),
-            (CREATING, 'Creating'),
-            (UPDATE_SCHEDULED, 'Update Scheduled'),
-            (UPDATING, 'Updating'),
-            (DELETION_SCHEDULED, 'Deletion Scheduled'),
-            (DELETING, 'Deleting'),
-            (OK, 'OK'),
-            (ERRED, 'Erred'),
+            (CREATION_SCHEDULED, "Creation Scheduled"),
+            (CREATING, "Creating"),
+            (UPDATE_SCHEDULED, "Update Scheduled"),
+            (UPDATING, "Updating"),
+            (DELETION_SCHEDULED, "Deletion Scheduled"),
+            (DELETING, "Deleting"),
+            (OK, "OK"),
+            (ERRED, "Erred"),
         )
 
     class Meta:
@@ -527,11 +527,11 @@ class StateMixin(ErrorMessageMixin, ConcurrentTransitionMixin):
     def schedule_deleting(self):
         pass
 
-    @transition(field=state, source='*', target=States.OK)
+    @transition(field=state, source="*", target=States.OK)
     def set_ok(self):
         pass
 
-    @transition(field=state, source='*', target=States.ERRED)
+    @transition(field=state, source="*", target=States.ERRED)
     def set_erred(self):
         pass
 
@@ -563,7 +563,7 @@ class AbstractFieldTracker(FieldTracker):
 
     def finalize_class(self, sender, name, **kwargs):
         self.name = name
-        self.attname = '_%s' % name
+        self.attname = "_%s" % name
         if not hasattr(sender, name):
             super().finalize_class(sender, **kwargs)
 
@@ -601,11 +601,11 @@ class Feature(models.Model):
 
 class NotificationTemplate(UuidMixin, NameMixin, TimeStampedModel):
     path = models.CharField(
-        _('path'), max_length=150, help_text=_("Example: 'flatpages/default.html'")
+        _("path"), max_length=150, help_text=_("Example: 'flatpages/default.html'")
     )
 
     class Meta:
-        ordering = ['name', 'path']
+        ordering = ["name", "path"]
 
     def __str__(self):
         return self.path
@@ -619,12 +619,12 @@ class CommonMailFooter(UuidMixin, models.Model):
 class Notification(UuidMixin, DescribableMixin, TimeStampedModel):
     key = models.CharField(max_length=255, unique=True, blank=False)
     enabled = models.BooleanField(
-        default=True, help_text=_('Indicates if notification is enabled or disabled')
+        default=True, help_text=_("Indicates if notification is enabled or disabled")
     )
     templates = models.ManyToManyField(NotificationTemplate)
 
     class Meta:
-        ordering = ['key']
+        ordering = ["key"]
 
     def __str__(self):
         return self.key

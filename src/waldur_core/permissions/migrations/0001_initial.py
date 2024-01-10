@@ -12,98 +12,98 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('contenttypes', '0002_remove_content_type_name'),
+        ("contenttypes", "0002_remove_content_type_name"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Role',
+            name="Role",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=2000, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name="description"
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
             ],
             options={
-                'abstract': False,
-                'ordering': ['name'],
+                "abstract": False,
+                "ordering": ["name"],
             },
         ),
         migrations.CreateModel(
-            name='UserRole',
+            name="UserRole",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('object_id', models.PositiveIntegerField(blank=True, null=True)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("object_id", models.PositiveIntegerField(blank=True, null=True)),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now, editable=False
                     ),
                 ),
-                ('expiration_time', models.DateTimeField(blank=True, null=True)),
+                ("expiration_time", models.DateTimeField(blank=True, null=True)),
                 (
-                    'is_active',
+                    "is_active",
                     models.BooleanField(db_index=True, default=True, null=True),
                 ),
                 (
-                    'content_type',
+                    "content_type",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='contenttypes.contenttype',
+                        related_name="+",
+                        to="contenttypes.contenttype",
                     ),
                 ),
                 (
-                    'created_by',
+                    "created_by",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
+                        related_name="+",
                         to=settings.AUTH_USER_MODEL,
                     ),
                 ),
                 (
-                    'role',
+                    "role",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='permissions.role',
+                        to="permissions.role",
                     ),
                 ),
                 (
-                    'user',
+                    "user",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
                         to=settings.AUTH_USER_MODEL,
@@ -111,28 +111,28 @@ class Migration(migrations.Migration):
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='RolePermission',
+            name="RolePermission",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('permission', models.CharField(db_index=True, max_length=100)),
+                ("permission", models.CharField(db_index=True, max_length=100)),
                 (
-                    'role',
+                    "role",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='permissions.role',
-                        related_name='permissions',
+                        to="permissions.role",
+                        related_name="permissions",
                     ),
                 ),
             ],

@@ -18,464 +18,464 @@ class Migration(migrations.Migration):
 
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('structure', '0001_squashed_0036'),
-        ('marketplace', '0001_squashed_0076'),
+        ("structure", "0001_squashed_0036"),
+        ("marketplace", "0001_squashed_0076"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='CustomerCreateRequest',
+            name="CustomerCreateRequest",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('latitude', models.FloatField(blank=True, null=True)),
-                ('longitude', models.FloatField(blank=True, null=True)),
+                ("latitude", models.FloatField(blank=True, null=True)),
+                ("longitude", models.FloatField(blank=True, null=True)),
                 (
-                    'vat_code',
-                    models.CharField(blank=True, help_text='VAT number', max_length=20),
+                    "vat_code",
+                    models.CharField(blank=True, help_text="VAT number", max_length=20),
                 ),
                 (
-                    'vat_name',
+                    "vat_name",
                     models.CharField(
                         blank=True,
-                        help_text='Optional business name retrieved for the VAT number.',
+                        help_text="Optional business name retrieved for the VAT number.",
                         max_length=255,
                     ),
                 ),
                 (
-                    'vat_address',
+                    "vat_address",
                     models.CharField(
                         blank=True,
-                        help_text='Optional business address retrieved for the VAT number.',
+                        help_text="Optional business address retrieved for the VAT number.",
                         max_length=255,
                     ),
                 ),
-                ('country', models.CharField(blank=True, max_length=2)),
+                ("country", models.CharField(blank=True, max_length=2)),
                 (
-                    'native_name',
-                    models.CharField(blank=True, default='', max_length=160),
+                    "native_name",
+                    models.CharField(blank=True, default="", max_length=160),
                 ),
-                ('abbreviation', models.CharField(blank=True, max_length=12)),
+                ("abbreviation", models.CharField(blank=True, max_length=12)),
                 (
-                    'contact_details',
+                    "contact_details",
                     models.TextField(
                         blank=True,
                         validators=[django.core.validators.MaxLengthValidator(500)],
                     ),
                 ),
                 (
-                    'agreement_number',
+                    "agreement_number",
                     models.PositiveIntegerField(blank=True, null=True),
                 ),
                 (
-                    'sponsor_number',
+                    "sponsor_number",
                     models.PositiveIntegerField(
                         blank=True,
-                        help_text='External ID of the sponsor covering the costs',
+                        help_text="External ID of the sponsor covering the costs",
                         null=True,
                     ),
                 ),
                 (
-                    'email',
+                    "email",
                     models.EmailField(
-                        blank=True, max_length=75, verbose_name='email address'
+                        blank=True, max_length=75, verbose_name="email address"
                     ),
                 ),
                 (
-                    'phone_number',
+                    "phone_number",
                     models.CharField(
-                        blank=True, max_length=255, verbose_name='phone number'
+                        blank=True, max_length=255, verbose_name="phone number"
                     ),
                 ),
                 (
-                    'access_subnets',
+                    "access_subnets",
                     models.TextField(
                         blank=True,
-                        default='',
-                        help_text='Enter a comma separated list of IPv4 or IPv6 CIDR addresses from where connection to self-service is allowed.',
+                        default="",
+                        help_text="Enter a comma separated list of IPv4 or IPv6 CIDR addresses from where connection to self-service is allowed.",
                         validators=[waldur_core.core.validators.validate_cidr_list],
                     ),
                 ),
                 (
-                    'backend_id',
+                    "backend_id",
                     models.CharField(
                         blank=True,
-                        help_text='Organization identifier in another application.',
+                        help_text="Organization identifier in another application.",
                         max_length=255,
                     ),
                 ),
                 (
-                    'registration_code',
-                    models.CharField(blank=True, default='', max_length=160),
+                    "registration_code",
+                    models.CharField(blank=True, default="", max_length=160),
                 ),
-                ('homepage', models.URLField(blank=True, max_length=255)),
-                ('domain', models.CharField(blank=True, max_length=255)),
-                ('address', models.CharField(blank=True, max_length=300)),
-                ('postal', models.CharField(blank=True, max_length=20)),
-                ('bank_name', models.CharField(blank=True, max_length=150)),
-                ('bank_account', models.CharField(blank=True, max_length=50)),
+                ("homepage", models.URLField(blank=True, max_length=255)),
+                ("domain", models.CharField(blank=True, max_length=255)),
+                ("address", models.CharField(blank=True, max_length=300)),
+                ("postal", models.CharField(blank=True, max_length=20)),
+                ("bank_name", models.CharField(blank=True, max_length=150)),
+                ("bank_account", models.CharField(blank=True, max_length=50)),
                 (
-                    'state',
+                    "state",
                     django_fsm.FSMIntegerField(
                         choices=[
-                            (1, 'draft'),
-                            (2, 'pending'),
-                            (3, 'approved'),
-                            (4, 'rejected'),
-                            (5, 'canceled'),
+                            (1, "draft"),
+                            (2, "pending"),
+                            (3, "approved"),
+                            (4, "rejected"),
+                            (5, "canceled"),
                         ],
                         default=1,
                     ),
                 ),
                 (
-                    'reviewed_at',
+                    "reviewed_at",
                     models.DateTimeField(blank=True, editable=False, null=True),
                 ),
-                ('review_comment', models.TextField(blank=True, null=True)),
+                ("review_comment", models.TextField(blank=True, null=True)),
                 (
-                    'reviewed_by',
+                    "reviewed_by",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
+                        related_name="+",
                         to=settings.AUTH_USER_MODEL,
                     ),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='ResourceCreateRequest',
+            name="ResourceCreateRequest",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=2000, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name="description"
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
                 (
-                    'cost',
+                    "cost",
                     models.DecimalField(
                         blank=True, decimal_places=10, max_digits=22, null=True
                     ),
                 ),
                 (
-                    'limits',
+                    "limits",
                     django.contrib.postgres.fields.jsonb.JSONField(
                         blank=True, default=dict
                     ),
                 ),
                 (
-                    'attributes',
+                    "attributes",
                     django.contrib.postgres.fields.jsonb.JSONField(
                         blank=True, default=dict
                     ),
                 ),
                 (
-                    'end_date',
+                    "end_date",
                     models.DateField(
                         blank=True,
-                        help_text='The date is inclusive. Once reached, a resource will be scheduled for termination.',
+                        help_text="The date is inclusive. Once reached, a resource will be scheduled for termination.",
                         null=True,
                     ),
                 ),
                 (
-                    'state',
+                    "state",
                     django_fsm.FSMIntegerField(
                         choices=[
-                            (1, 'draft'),
-                            (2, 'pending'),
-                            (3, 'approved'),
-                            (4, 'rejected'),
-                            (5, 'canceled'),
+                            (1, "draft"),
+                            (2, "pending"),
+                            (3, "approved"),
+                            (4, "rejected"),
+                            (5, "canceled"),
                         ],
                         default=1,
                     ),
                 ),
                 (
-                    'reviewed_at',
+                    "reviewed_at",
                     models.DateTimeField(blank=True, editable=False, null=True),
                 ),
-                ('review_comment', models.TextField(blank=True, null=True)),
+                ("review_comment", models.TextField(blank=True, null=True)),
                 (
-                    'offering',
+                    "offering",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.PROTECT,
-                        related_name='+',
-                        to='marketplace.Offering',
+                        related_name="+",
+                        to="marketplace.Offering",
                     ),
                 ),
                 (
-                    'plan',
+                    "plan",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='marketplace.Plan',
+                        to="marketplace.Plan",
                     ),
                 ),
                 (
-                    'reviewed_by',
+                    "reviewed_by",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
+                        related_name="+",
                         to=settings.AUTH_USER_MODEL,
                     ),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='ProjectCreateRequest',
+            name="ProjectCreateRequest",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=2000, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name="description"
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
                 (
-                    'end_date',
+                    "end_date",
                     models.DateField(
                         blank=True,
-                        help_text='The date is inclusive. Once reached, all project resource will be scheduled for termination.',
+                        help_text="The date is inclusive. Once reached, all project resource will be scheduled for termination.",
                         null=True,
                     ),
                 ),
                 (
-                    'state',
+                    "state",
                     django_fsm.FSMIntegerField(
                         choices=[
-                            (1, 'draft'),
-                            (2, 'pending'),
-                            (3, 'approved'),
-                            (4, 'rejected'),
-                            (5, 'canceled'),
+                            (1, "draft"),
+                            (2, "pending"),
+                            (3, "approved"),
+                            (4, "rejected"),
+                            (5, "canceled"),
                         ],
                         default=1,
                     ),
                 ),
                 (
-                    'reviewed_at',
+                    "reviewed_at",
                     models.DateTimeField(blank=True, editable=False, null=True),
                 ),
-                ('review_comment', models.TextField(blank=True, null=True)),
+                ("review_comment", models.TextField(blank=True, null=True)),
                 (
-                    'reviewed_by',
+                    "reviewed_by",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
+                        related_name="+",
                         to=settings.AUTH_USER_MODEL,
                     ),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='FlowTracker',
+            name="FlowTracker",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'state',
+                    "state",
                     django_fsm.FSMIntegerField(
                         choices=[
-                            (1, 'draft'),
-                            (2, 'pending'),
-                            (3, 'approved'),
-                            (4, 'rejected'),
-                            (5, 'canceled'),
+                            (1, "draft"),
+                            (2, "pending"),
+                            (3, "approved"),
+                            (4, "rejected"),
+                            (5, "canceled"),
                         ],
                         default=1,
                     ),
                 ),
                 (
-                    'customer',
+                    "customer",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='structure.Customer',
+                        related_name="+",
+                        to="structure.Customer",
                     ),
                 ),
                 (
-                    'customer_create_request',
+                    "customer_create_request",
                     models.OneToOneField(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='flow',
-                        to='marketplace_flows.CustomerCreateRequest',
+                        related_name="flow",
+                        to="marketplace_flows.CustomerCreateRequest",
                     ),
                 ),
                 (
-                    'order_item',
+                    "order_item",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='marketplace.Order',
+                        related_name="+",
+                        to="marketplace.Order",
                     ),
                 ),
                 (
-                    'project_create_request',
+                    "project_create_request",
                     models.OneToOneField(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='flow',
-                        to='marketplace_flows.ProjectCreateRequest',
+                        related_name="flow",
+                        to="marketplace_flows.ProjectCreateRequest",
                     ),
                 ),
                 (
-                    'requested_by',
+                    "requested_by",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
+                        related_name="+",
                         to=settings.AUTH_USER_MODEL,
                     ),
                 ),
                 (
-                    'resource_create_request',
+                    "resource_create_request",
                     models.OneToOneField(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='flow',
-                        to='marketplace_flows.ResourceCreateRequest',
+                        related_name="flow",
+                        to="marketplace_flows.ResourceCreateRequest",
                     ),
                 ),
             ],
-            options={'abstract': False, 'ordering': ['-created']},
+            options={"abstract": False, "ordering": ["-created"]},
         ),
     ]

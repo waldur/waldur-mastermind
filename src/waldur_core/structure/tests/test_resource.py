@@ -44,12 +44,12 @@ class ResourceCreateTest(test.APITransactionTestCase):
         key_url = factories.SshPublicKeyFactory.get_url(shared_key)
 
         payload = {
-            'ssh_public_key': key_url,
-            'service_settings': factories.ServiceSettingsFactory.get_url(
+            "ssh_public_key": key_url,
+            "service_settings": factories.ServiceSettingsFactory.get_url(
                 self.fixture.service_settings
             ),
-            'project': factories.ProjectFactory.get_url(self.fixture.project),
-            'name': 'resource name',
+            "project": factories.ProjectFactory.get_url(self.fixture.project),
+            "name": "resource name",
         }
 
         self.client.force_authenticate(user=self.fixture.owner)
@@ -64,5 +64,5 @@ class ResourceEventsTest(test.APITransactionTestCase):
         self.url = factories.TestNewInstanceFactory.get_url(self.fixture.resource)
 
     def test_filter_events_for_resource_by_scope(self):
-        response = self.client.get(EventFactory.get_list_url(), {'scope': self.url})
+        response = self.client.get(EventFactory.get_list_url(), {"scope": self.url})
         self.assertEqual(len(response.data), 1)

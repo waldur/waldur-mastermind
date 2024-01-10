@@ -27,7 +27,7 @@ class RemovalOfExpiredProjectWithoutActiveResourcesTest(test.APITransactionTestC
         self.project.save()
 
     def test_delete_expired_project_if_every_resource_has_been_terminated(self):
-        with freeze_time('2020-01-01'):
+        with freeze_time("2020-01-01"):
             self.assertTrue(self.project.is_expired)
             self.resource_1.state = models.Resource.States.TERMINATED
             self.resource_1.save()
@@ -59,7 +59,7 @@ class MarketplaceResourceCountTest(test.APITransactionTestCase):
         url = structure_factories.ProjectFactory.get_url(self.fixture.resource.project)
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        counters = response.json()['marketplace_resource_count']
+        counters = response.json()["marketplace_resource_count"]
         self.assertEqual(
             counters[self.resource.offering.category.uuid.hex],
             1,

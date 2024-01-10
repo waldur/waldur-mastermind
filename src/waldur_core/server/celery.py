@@ -9,13 +9,13 @@ from waldur_core.logging.middleware import (
 )
 
 # set the default Django settings module for the 'celery' program.
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'waldur_core.server.settings')  # XXX:
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "waldur_core.server.settings")  # XXX:
 
-app = Celery('waldur_core', namespace='CELERY', strict_typing=False)
+app = Celery("waldur_core", namespace="CELERY", strict_typing=False)
 
 # Using a string here means the worker will not have to
 # pickle the object when using Windows.
-app.config_from_object('django.conf:settings')
+app.config_from_object("django.conf:settings")
 app.autodiscover_tasks()
 
 
@@ -24,10 +24,10 @@ class PriorityRouter:
 
     def route_for_task(self, task_name, *args, **kwargs):
         task = app.tasks.get(task_name)
-        if getattr(task, 'is_heavy_task', False):
-            return {'queue': 'heavy'}
-        if getattr(task, 'is_background', False):
-            return {'queue': 'background'}
+        if getattr(task, "is_heavy_task", False):
+            return {"queue": "heavy"}
+        if getattr(task, "is_background", False):
+            return {"queue": "background"}
         return None
 
 
@@ -44,13 +44,13 @@ def pass_event_context(sender=None, body=None, **kwargs):
     if event_context:
         # kwargs is the second item in body tuple with index equal 1.
         # See also http://docs.celeryproject.org/en/v4.1.0/internals/protocol.html#version-2
-        body[1]['event_context'] = event_context
+        body[1]["event_context"] = event_context
 
 
 @signals.task_prerun.connect
 def bind_event_context(sender=None, **kwargs):
     try:
-        event_context = kwargs['kwargs'].pop('event_context')
+        event_context = kwargs["kwargs"].pop("event_context")
     except KeyError:
         return
 

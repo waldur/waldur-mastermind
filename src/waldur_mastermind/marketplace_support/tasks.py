@@ -13,5 +13,5 @@ def send_mail_notification(subject, message, to):
     try:
         send_mail(subject, message, [to])
     except SMTPException:
-        message = 'Failed to send email. Receiver email: %s.' % to
+        message = "Failed to send email. Receiver email: %s." % to
         logger.warning(message)

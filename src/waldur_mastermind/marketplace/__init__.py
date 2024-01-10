@@ -1,1 +1,1 @@
-PLUGIN_NAME = 'Marketplace.Basic'
+PLUGIN_NAME = "Marketplace.Basic"

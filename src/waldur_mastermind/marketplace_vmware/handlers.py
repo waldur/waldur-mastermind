@@ -29,9 +29,9 @@ def update_marketplace_resource_limits_when_vm_is_updated(sender, vm, **kwargs):
         resource = models.Resource.objects.get(scope=vm)
     except ObjectDoesNotExist:
         logger.debug(
-            'Skipping marketplace resource update for vm '
-            'because marketplace resource does not exist. '
-            'Resource ID: %s',
+            "Skipping marketplace resource update for vm "
+            "because marketplace resource does not exist. "
+            "Resource ID: %s",
             core_utils.serialize_instance(vm),
         )
     else:

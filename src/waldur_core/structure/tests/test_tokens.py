@@ -17,7 +17,7 @@ class TokenListTest(test.APITransactionTestCase):
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.assertEqual(len(response.data), 1)
 
-    @data('user', 'global_support')
+    @data("user", "global_support")
     def test_user_can_not_get_list_tokens(self, user):
         if user:
             self.client.force_authenticate(user=getattr(self.fixture, user))
@@ -40,7 +40,7 @@ class TokenDeleteTest(test.APITransactionTestCase):
         response = self.client.delete(url)
         self.assertEqual(status.HTTP_204_NO_CONTENT, response.status_code)
 
-    @data('user', 'global_support')
+    @data("user", "global_support")
     def test_user_can_not_delete_token(self, user):
         self.client.force_authenticate(user=self.fixture.staff)
         self.client.force_authenticate(user=getattr(self.fixture, user))

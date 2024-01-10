@@ -18,16 +18,16 @@ class BaseBackendTest(TestCase):
 class CreateInvoiceTest(BaseBackendTest):
     def setUp(self):
         super().setUp()
-        self.invoice.backend_id = ''
+        self.invoice.backend_id = ""
         self.invoice.save()
 
-    @mock.patch('waldur_paypal.backend.paypal.Invoice')
+    @mock.patch("waldur_paypal.backend.paypal.Invoice")
     def test_invoice_is_created(self, invoice_mock):
         self.invoice.items.add(factories.InvoiceItemFactory())
         backend_invoice = mock.Mock()
-        backend_invoice.id = 'INV2-ETBW-Q5NB-VWLT-9RH1'
-        backend_invoice.status = 'DRAFT'
-        backend_invoice.number = '00001'
+        backend_invoice.id = "INV2-ETBW-Q5NB-VWLT-9RH1"
+        backend_invoice.status = "DRAFT"
+        backend_invoice.number = "00001"
         invoice_mock.return_value = backend_invoice
 
         result = self.backend.create_invoice(self.invoice)
@@ -38,19 +38,19 @@ class CreateInvoiceTest(BaseBackendTest):
 
     def test_invoice_is_not_created_if_phone_is_not_provided(self):
         self.invoice.items.add(factories.InvoiceItemFactory())
-        del self.invoice.issuer_details['phone']
+        del self.invoice.issuer_details["phone"]
 
         self.assertRaises(PayPalError, self.backend.create_invoice, self.invoice)
 
     def test_invoice_is_not_created_if_phone_country_code_is_not_provided(self):
         self.invoice.items.add(factories.InvoiceItemFactory())
-        del self.invoice.issuer_details['phone']['country_code']
+        del self.invoice.issuer_details["phone"]["country_code"]
 
         self.assertRaises(PayPalError, self.backend.create_invoice, self.invoice)
 
     def test_invoice_is_not_created_if_phone_national_number_is_not_provided(self):
         self.invoice.items.add(factories.InvoiceItemFactory())
-        del self.invoice.issuer_details['phone']['national_number']
+        del self.invoice.issuer_details["phone"]["national_number"]
 
         self.assertRaises(PayPalError, self.backend.create_invoice, self.invoice)
 
@@ -60,7 +60,7 @@ class DownloadInvoicePDFTest(BaseBackendTest):
         super().setUp()
 
     def test_pdf_is_not_downloaded_if_backend_id_is_missing(self):
-        self.invoice.backend_id = ''
+        self.invoice.backend_id = ""
         self.invoice.save()
 
         self.assertRaises(PayPalError, self.backend.download_invoice_pdf, self.invoice)
@@ -69,9 +69,9 @@ class DownloadInvoicePDFTest(BaseBackendTest):
     def test_pdf_is_downloaded(self):
         # Arrange
         url = self.invoice.get_backend().get_payment_view_url(
-            self.invoice.backend_id, {'printPdfMode': 'true'}
+            self.invoice.backend_id, {"printPdfMode": "true"}
         )
-        responses.add(responses.GET, url, body='PDF file content')
+        responses.add(responses.GET, url, body="PDF file content")
         self.assertFalse(self.invoice.pdf)
 
         # Act
@@ -82,10 +82,10 @@ class DownloadInvoicePDFTest(BaseBackendTest):
 
 
 class SendInvoiceTest(BaseBackendTest):
-    @mock.patch('waldur_paypal.backend.paypal.Invoice')
+    @mock.patch("waldur_paypal.backend.paypal.Invoice")
     def test_draft_invoice_is_sent(self, invoice_mock):
         self.invoice.items.add(factories.InvoiceItemFactory())
-        backend_invoice = mock.Mock(name='backend_invoice')
+        backend_invoice = mock.Mock(name="backend_invoice")
         invoice_mock.find.return_value = backend_invoice
 
         self.backend.send_invoice(self.invoice)

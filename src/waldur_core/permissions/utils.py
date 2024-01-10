@@ -20,7 +20,7 @@ def has_permission(request, permission, scope):
 
     roles = models.UserRole.objects.filter(
         user=user, is_active=True, scope=scope
-    ).values_list('role', flat=True)
+    ).values_list("role", flat=True)
     if not roles:
         return False
     return models.RolePermission.objects.filter(
@@ -39,8 +39,8 @@ def permission_factory(permission, sources=None):
         else:
             for path in sources:
                 source = scope
-                if path != '*':
-                    for part in path.split('.'):
+                if path != "*":
+                    for part in path.split("."):
                         source = getattr(source, part)
                 if has_permission(request, permission, source):
                     return
@@ -60,14 +60,14 @@ def get_users(scope, role_name=None):
     users = models.UserRole.objects.filter(is_active=True, scope=scope)
     if role_name:
         users = users.filter(role__name=role_name)
-    user_ids = users.values_list('user_id', flat=True)
+    user_ids = users.values_list("user_id", flat=True)
     return User.objects.filter(id__in=user_ids)
 
 
 def get_users_with_permission(scope, permission):
     user_ids = models.UserRole.objects.filter(
         is_active=True, scope=scope, role__permissions__permission=permission
-    ).values_list('user_id', flat=True)
+    ).values_list("user_id", flat=True)
     return User.objects.filter(id__in=user_ids)
 
 
@@ -79,7 +79,7 @@ def get_scope_ids(user, content_type, role=None):
         if not isinstance(role, (list, tuple)):
             role = [role]
         qs = qs.filter(role__name__in=role)
-    return qs.values_list('object_id', flat=True).distinct()
+    return qs.values_list("object_id", flat=True).distinct()
 
 
 def get_user_ids(content_type, scope_ids, role=None):
@@ -95,13 +95,13 @@ def get_user_ids(content_type, scope_ids, role=None):
             if not isinstance(role, (list, tuple)):
                 role = [role]
             qs = qs.filter(role__name__in=role)
-    return qs.values_list('user_id', flat=True)
+    return qs.values_list("user_id", flat=True)
 
 
 def count_users(scope):
     return (
         models.UserRole.objects.filter(is_active=True, scope=scope)
-        .values_list('user_id')
+        .values_list("user_id")
         .distinct()
         .count()
     )
@@ -182,7 +182,7 @@ def delete_user(scope, user, role, current_user=None):
 
 def get_customer(scope):
     model_name = scope._meta.model_name
-    if model_name == 'customer':
+    if model_name == "customer":
         return scope
     else:
         return scope.customer

@@ -8,7 +8,7 @@ There is pending patch in upstream project:
 https://github.com/kmmbvnr/django-fsm/pull/171
 """
 
-__all__ = ['monkey_patch_fields']
+__all__ = ["monkey_patch_fields"]
 
 
 def get_field_name(self):
@@ -39,9 +39,7 @@ def patch_fsm_field_mixin(cls):
             )
         if not meta.conditions_met(instance, current_state):
             raise TransitionNotAllowed(
-                "Transition conditions have not been met for method '{}'".format(
-                    method_name
-                ),
+                f"Transition conditions have not been met for method '{method_name}'",
                 object=instance,
                 method=method,
             )
@@ -49,11 +47,11 @@ def patch_fsm_field_mixin(cls):
         next_state = meta.next_state(current_state)
 
         signal_kwargs = {
-            'sender': instance.__class__,
-            'instance': instance,
-            'name': method_name,
-            'source': current_state,
-            'target': next_state,
+            "sender": instance.__class__,
+            "instance": instance,
+            "name": method_name,
+            "source": current_state,
+            "target": next_state,
         }
 
         pre_transition.send(**signal_kwargs)
@@ -68,8 +66,8 @@ def patch_fsm_field_mixin(cls):
             if exception_state:
                 self.set_proxy(instance, exception_state)
                 self.set_state(instance, exception_state)
-                signal_kwargs['target'] = exception_state
-                signal_kwargs['exception'] = exc
+                signal_kwargs["target"] = exception_state
+                signal_kwargs["exception"] = exc
                 post_transition.send(**signal_kwargs)
             raise
         else:

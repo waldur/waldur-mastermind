@@ -9,7 +9,7 @@ class BadRequest(RancherException):
 class Unauthorized(BadRequest):
     """Raised when invalid credentials are provided."""
 
-    message = 'Unauthorized: bad credentials.'
+    message = "Unauthorized: bad credentials."
 
 
 class NotFound(BadRequest):

@@ -42,7 +42,7 @@ class ZammadServiceBackend(SupportBackend):
     def __init__(self):
         self.manager = ZammadBackend()
 
-    backend_name = 'zammad'
+    backend_name = "zammad"
 
     def comment_destroy_is_available(self, comment):
         if not comment.backend_id:
@@ -107,7 +107,7 @@ class ZammadServiceBackend(SupportBackend):
             backend_id__in=[c.id for c in zammad_comments]
         ):
             comment.delete()
-            logger.info('Comment %s has been deleted.', comment.id)
+            logger.info("Comment %s has been deleted.", comment.id)
 
         self.del_waldur_attachments_from_zammad(issue)
 
@@ -117,7 +117,7 @@ class ZammadServiceBackend(SupportBackend):
 
             if str(comment.id) in issue.comments.filter(
                 backend_name=self.backend_name
-            ).values_list('backend_id', flat=True):
+            ).values_list("backend_id", flat=True):
                 waldur_comment = models.Comment.objects.get(
                     backend_id=comment.id, backend_name=self.backend_name
                 )
@@ -125,7 +125,7 @@ class ZammadServiceBackend(SupportBackend):
                 if comment.is_public != waldur_comment.is_public:
                     waldur_comment.is_public = comment.is_public
                     waldur_comment.save()
-                    logger.info(f'Comment {waldur_comment.uuid.hex} has been changed.')
+                    logger.info(f"Comment {waldur_comment.uuid.hex} has been changed.")
 
                 continue
 
@@ -142,7 +142,7 @@ class ZammadServiceBackend(SupportBackend):
                 author=support_user,
                 backend_name=self.backend_name,
             )
-            logger.info('Comment %s has been created.', comment.id)
+            logger.info("Comment %s has been created.", comment.id)
             self.add_waldur_attachments_from_zammad(new_comment)
 
     def add_waldur_attachments_from_zammad(self, comment):
@@ -151,7 +151,7 @@ class ZammadServiceBackend(SupportBackend):
         for zammad_attachment in zammad_comment.attachments:
             waldur_attachment = models.Attachment.objects.create(
                 issue=comment.issue,
-                mime_type=zammad_attachment.content_type or '',
+                mime_type=zammad_attachment.content_type or "",
                 file_size=zammad_attachment.size,
                 author=comment.author,
                 backend_id=zammad_attachment.id,
@@ -163,7 +163,7 @@ class ZammadServiceBackend(SupportBackend):
                 ContentFile(self.manager.attachment_download(zammad_attachment)),
             )
             logger.info(
-                'Attachment ID: %s, file: %s, size: %s has been created.',
+                "Attachment ID: %s, file: %s, size: %s has been created.",
                 zammad_attachment.id,
                 zammad_attachment.filename,
                 zammad_attachment.size,
@@ -176,7 +176,7 @@ class ZammadServiceBackend(SupportBackend):
             backend_name=self.backend_name
         ).exclude(backend_id__in=[a.id for a in zammad_attachments]):
             attachment.delete()
-            logger.info('Attachment %s has been deleted.', attachment.id)
+            logger.info("Attachment %s has been deleted.", attachment.id)
 
     def create_confirmation_comment(self, issue):
         pass
@@ -207,7 +207,7 @@ class ZammadServiceBackend(SupportBackend):
             self.manager.del_comment(comment.backend_id)
         except ZammadBackendError:
             logger.error(
-                'Deleting a comment has failed. Zammad comment ID: %s'
+                "Deleting a comment has failed. Zammad comment ID: %s"
                 % comment.backend_id
             )
 
@@ -244,7 +244,7 @@ class ZammadServiceBackend(SupportBackend):
         support_user, _ = models.SupportUser.objects.get_or_create(
             user=waldur_user,
             backend_name=self.backend_name,
-            defaults={'name': waldur_user.full_name or waldur_user.username},
+            defaults={"name": waldur_user.full_name or waldur_user.username},
         )
 
         if support_user.backend_id:
@@ -313,7 +313,7 @@ class ZammadServiceBackend(SupportBackend):
             user, created = models.SupportUser.objects.get_or_create(
                 backend_id=backend_user.id,
                 backend_name=self.backend_name,
-                defaults={'name': backend_user.name},
+                defaults={"name": backend_user.name},
             )
             if not created and user.name != backend_user.name:
                 user.name = backend_user.name
@@ -346,7 +346,7 @@ class ZammadServiceBackend(SupportBackend):
         if attachment.author and attachment.author.name:
             author_name = attachment.author.name
 
-        waldur_user_email = ''
+        waldur_user_email = ""
 
         if attachment.author and attachment.author.user.email:
             waldur_user_email = attachment.author.user.email
@@ -383,7 +383,7 @@ class ZammadServiceBackend(SupportBackend):
             return
 
         self.manager.del_comment(zammad_attachment.article_id)
-        logger.info('Comment %s has been deleted.', zammad_attachment.comment.id)
+        logger.info("Comment %s has been deleted.", zammad_attachment.comment.id)
 
     def update_issue(self, issue):
         if issue.backend_id:
@@ -401,7 +401,7 @@ class ZammadServiceBackend(SupportBackend):
                 backend_name=self.backend_name,
             )
             if created:
-                logger.info('Priority %s has been created.', priority.name)
+                logger.info("Priority %s has been created.", priority.name)
 
     def update_comment(self, comment):
-        raise ZammadServiceBackendError('Updating comments is not supported.')
+        raise ZammadServiceBackendError("Updating comments is not supported.")

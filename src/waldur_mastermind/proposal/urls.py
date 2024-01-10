@@ -5,45 +5,45 @@ from waldur_mastermind.proposal import views
 
 def register_in(router):
     router.register(
-        r'call-managing-organisations',
+        r"call-managing-organisations",
         views.CallManagingOrganisationViewSet,
-        basename='call-managing-organisation',
+        basename="call-managing-organisation",
     )
     router.register(
-        r'proposal-public-calls',
+        r"proposal-public-calls",
         views.PublicCallViewSet,
-        basename='proposal-public-call',
+        basename="proposal-public-call",
     )
     router.register(
-        r'proposal-protected-calls',
+        r"proposal-protected-calls",
         views.ProtectedCallViewSet,
-        basename='proposal-protected-call',
+        basename="proposal-protected-call",
     )
     router.register(
-        r'proposal-proposals',
+        r"proposal-proposals",
         views.ProposalViewSet,
-        basename='proposal-proposal',
+        basename="proposal-proposal",
     )
     router.register(
-        r'proposal-reviews',
+        r"proposal-reviews",
         views.ReviewViewSet,
-        basename='proposal-review',
+        basename="proposal-review",
     )
 
 
 urlpatterns = [
     re_path(
-        r'^api/proposal-protected-calls/(?P<uuid>[a-f0-9]+)/%ss/(?P<obj_uuid>[a-f0-9]+)/$'
+        r"^api/proposal-protected-calls/(?P<uuid>[a-f0-9]+)/%ss/(?P<obj_uuid>[a-f0-9]+)/$"
         % action,
         views.ProtectedCallViewSet.as_view(
             {
-                'get': f'{action}_detail',
-                'delete': f'{action}_detail',
-                'patch': f'{action}_detail',
-                'put': f'{action}_detail',
+                "get": f"{action}_detail",
+                "delete": f"{action}_detail",
+                "patch": f"{action}_detail",
+                "put": f"{action}_detail",
             }
         ),
-        name=f'proposal-call-{action}-detail',
+        name=f"proposal-call-{action}-detail",
     )
-    for action in ['offering', 'round', 'reviewer']
+    for action in ["offering", "round", "reviewer"]
 ]

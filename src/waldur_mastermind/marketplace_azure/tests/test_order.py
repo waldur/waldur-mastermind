@@ -17,7 +17,7 @@ class VirtualMachineCreateTest(test.APITransactionTestCase):
 
     def test_request_payload_is_validated(self):
         order = self.trigger_virtual_machine_creation(
-            name='Name should not contain spaces'
+            name="Name should not contain spaces"
         )
         self.assertEqual(order.state, marketplace_models.Order.States.ERRED)
 
@@ -49,10 +49,10 @@ class VirtualMachineCreateTest(test.APITransactionTestCase):
         )
 
         attributes = {
-            'size': azure_factories.SizeFactory.get_url(fixture.size),
-            'image': azure_factories.ImageFactory.get_url(fixture.image),
-            'name': 'virtual-machine',
-            'location': azure_factories.LocationFactory.get_url(fixture.location),
+            "size": azure_factories.SizeFactory.get_url(fixture.size),
+            "image": azure_factories.ImageFactory.get_url(fixture.image),
+            "name": "virtual-machine",
+            "location": azure_factories.LocationFactory.get_url(fixture.location),
         }
         attributes.update(kwargs)
 
@@ -79,7 +79,7 @@ class SQLServerCreateTest(test.APITransactionTestCase):
         self.assertTrue(azure_models.SQLServer.objects.exists())
 
     def test_request_payload_is_validated(self):
-        order = self.trigger_resource_creation(name='Name should not contain spaces')
+        order = self.trigger_resource_creation(name="Name should not contain spaces")
         self.assertEqual(order.state, marketplace_models.Order.States.ERRED)
 
     def test_sql_server_state_is_synchronized(self):
@@ -106,8 +106,8 @@ class SQLServerCreateTest(test.APITransactionTestCase):
         service_settings = fixture.settings
 
         attributes = {
-            'name': 'database-server',
-            'location': azure_factories.LocationFactory.get_url(),
+            "name": "database-server",
+            "location": azure_factories.LocationFactory.get_url(),
         }
         attributes.update(kwargs)
 

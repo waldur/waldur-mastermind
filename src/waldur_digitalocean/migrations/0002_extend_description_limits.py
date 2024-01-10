@@ -5,15 +5,15 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('waldur_digitalocean', '0001_initial'),
+        ("waldur_digitalocean", "0001_initial"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='droplet',
-            name='description',
+            model_name="droplet",
+            name="description",
             field=models.CharField(
-                blank=True, max_length=2000, verbose_name='description'
+                blank=True, max_length=2000, verbose_name="description"
             ),
         ),
     ]

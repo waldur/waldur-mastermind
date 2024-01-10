@@ -15,7 +15,7 @@ class SnapshotScheduleActivateTest(BaseSnapshotScheduleTest):
     def setUp(self):
         super().setUp()
         self.url = factories.SnapshotScheduleFactory.get_url(
-            self.fixture.snapshot_schedule, 'activate'
+            self.fixture.snapshot_schedule, "activate"
         )
         self.client.force_authenticate(self.fixture.owner)
 
@@ -40,7 +40,7 @@ class SnapshotScheduleDeactivateTest(BaseSnapshotScheduleTest):
     def setUp(self):
         super().setUp()
         self.url = factories.SnapshotScheduleFactory.get_url(
-            self.fixture.snapshot_schedule, 'deactivate'
+            self.fixture.snapshot_schedule, "deactivate"
         )
         self.client.force_authenticate(self.fixture.owner)
 
@@ -68,7 +68,7 @@ class SnapshotScheduleRetrieveTest(BaseSnapshotScheduleTest):
         super().setUp()
         self.url = factories.SnapshotScheduleFactory.get_list_url()
 
-    @data('owner', 'global_support', 'admin', 'manager', 'staff')
+    @data("owner", "global_support", "admin", "manager", "staff")
     def test_user_can_see_snapshots_if_he_has_permissions(self, user):
         self.fixture.snapshot_schedule
         self.client.force_authenticate(getattr(self.fixture, user))
@@ -78,10 +78,10 @@ class SnapshotScheduleRetrieveTest(BaseSnapshotScheduleTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(
-            response.data[0]['uuid'], self.fixture.snapshot_schedule.uuid.hex
+            response.data[0]["uuid"], self.fixture.snapshot_schedule.uuid.hex
         )
 
-    @data('user')
+    @data("user")
     def test_user_can_not_see_snapshots_if_he_has_no_project_level_permissions(
         self, user
     ):
@@ -102,7 +102,7 @@ class SnapshotScheduleDeleteTest(BaseSnapshotScheduleTest):
             self.fixture.snapshot_schedule
         )
 
-    @data('owner', 'admin', 'staff')
+    @data("owner", "admin", "staff")
     def test_user_can_delete_snapshot(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
 

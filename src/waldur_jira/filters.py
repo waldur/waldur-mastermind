@@ -34,35 +34,35 @@ class IssueFilter(django_filters.FilterSet):
     created_after = django_filters.IsoDateTimeFilter(
         field_name="created", lookup_expr="gte"
     )
-    summary = django_filters.CharFilter(lookup_expr='icontains')
-    description = django_filters.CharFilter(lookup_expr='icontains')
+    summary = django_filters.CharFilter(lookup_expr="icontains")
+    description = django_filters.CharFilter(lookup_expr="icontains")
     jira_project = core_filters.URLFilter(
-        view_name='project-detail', field_name='project__uuid'
+        view_name="project-detail", field_name="project__uuid"
     )
-    jira_project_uuid = django_filters.UUIDFilter(field_name='project__uuid')
+    jira_project_uuid = django_filters.UUIDFilter(field_name="project__uuid")
     priority_name = django_filters.ModelMultipleChoiceFilter(
-        field_name='priority__name',
-        to_field_name='name',
+        field_name="priority__name",
+        to_field_name="name",
         queryset=models.Priority.objects.all(),
     )
     project = core_filters.URLFilter(
-        view_name='project-detail',
-        field_name='project__project__uuid',
+        view_name="project-detail",
+        field_name="project__project__uuid",
     )
-    project_uuid = django_filters.UUIDFilter(field_name='project__project__uuid')
-    type_name = django_filters.CharFilter(field_name='type__name')
+    project_uuid = django_filters.UUIDFilter(field_name="project__project__uuid")
+    type_name = django_filters.CharFilter(field_name="type__name")
     updated_before = django_filters.IsoDateTimeFilter(
         field_name="updated", lookup_expr="lte"
     )
     updated_after = django_filters.IsoDateTimeFilter(
         field_name="updated", lookup_expr="gte"
     )
-    user_uuid = django_filters.UUIDFilter(field_name='user__uuid')
-    key = django_filters.CharFilter(field_name='backend_id')
+    user_uuid = django_filters.UUIDFilter(field_name="user__uuid")
+    key = django_filters.CharFilter(field_name="backend_id")
     status = core_filters.LooseMultipleChoiceFilter()
     sla_ttr_breached = django_filters.BooleanFilter(
-        field_name='resolution_sla',
-        method='filter_resolution_sla',
+        field_name="resolution_sla",
+        method="filter_resolution_sla",
         widget=django_filters.widgets.BooleanWidget(),
     )
 
@@ -77,30 +77,30 @@ class IssueFilter(django_filters.FilterSet):
     class Meta:
         model = models.Issue
         fields = [
-            'description',
-            'key',
-            'status',
-            'summary',
-            'user_uuid',
-            'creator_name',
-            'assignee_name',
-            'reporter_name',
+            "description",
+            "key",
+            "status",
+            "summary",
+            "user_uuid",
+            "creator_name",
+            "assignee_name",
+            "reporter_name",
         ]
         order_by = [
-            'created',
-            'updated',
+            "created",
+            "updated",
             # desc
-            '-created',
-            '-updated',
+            "-created",
+            "-updated",
         ]
 
 
 class CommentFilter(django_filters.FilterSet):
     issue = core_filters.URLFilter(
-        view_name='jira-issues-detail', field_name='issue__uuid'
+        view_name="jira-issues-detail", field_name="issue__uuid"
     )
-    issue_uuid = django_filters.UUIDFilter(field_name='issue__uuid')
-    user_uuid = django_filters.UUIDFilter(field_name='user__uuid')
+    issue_uuid = django_filters.UUIDFilter(field_name="issue__uuid")
+    user_uuid = django_filters.UUIDFilter(field_name="user__uuid")
 
     class Meta:
         model = models.Comment
@@ -109,9 +109,9 @@ class CommentFilter(django_filters.FilterSet):
 
 class AttachmentFilter(django_filters.FilterSet):
     issue = core_filters.URLFilter(
-        view_name='jira-issues-detail', field_name='issue__uuid'
+        view_name="jira-issues-detail", field_name="issue__uuid"
     )
-    issue_uuid = django_filters.UUIDFilter(field_name='issue__uuid')
+    issue_uuid = django_filters.UUIDFilter(field_name="issue__uuid")
 
     class Meta:
         model = models.Attachment

@@ -10,43 +10,43 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            '-p',
-            '--project',
-            dest='project_uuid',
+            "-p",
+            "--project",
+            dest="project_uuid",
             required=True,
-            help='Target project UUID',
+            help="Target project UUID",
         )
         parser.add_argument(
-            '-r',
-            '--resource',
-            dest='resource_uuid',
+            "-r",
+            "--resource",
+            dest="resource_uuid",
             required=True,
-            help='UUID of a marketplace resource to move.',
+            help="UUID of a marketplace resource to move.",
         )
 
     def handle(self, project_uuid, resource_uuid, *args, **options):
         try:
             project = structure_models.Project.available_objects.get(uuid=project_uuid)
         except structure_models.Project.DoesNotExist:
-            self.stdout.write(self.style.ERROR('Project is not found.'))
+            self.stdout.write(self.style.ERROR("Project is not found."))
             return
         except ValueError:
-            self.stdout.write(self.style.ERROR('Project UUID is not valid.'))
+            self.stdout.write(self.style.ERROR("Project UUID is not valid."))
             return
 
         try:
             resource = marketplace_models.Resource.objects.get(uuid=resource_uuid)
         except marketplace_models.Resource.DoesNotExist:
-            self.stdout.write(self.style.ERROR('Resource is not found.'))
+            self.stdout.write(self.style.ERROR("Resource is not found."))
             return
         except ValueError:
-            self.stdout.write(self.style.ERROR('Resource UUID is not valid.'))
+            self.stdout.write(self.style.ERROR("Resource UUID is not valid."))
             return
 
         try:
             move_resource(resource, project)
             self.stdout.write(
-                self.style.SUCCESS('Resource has been moved to another project.')
+                self.style.SUCCESS("Resource has been moved to another project.")
             )
         except MoveResourceException as e:
             self.stdout.write(self.style.ERROR(e))

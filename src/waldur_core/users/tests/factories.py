@@ -7,28 +7,28 @@ from waldur_core.users import models
 
 
 class InvitationBaseFactory(factory.django.DjangoModelFactory):
-    email = factory.Sequence(lambda n: 'test%s@invitation.com' % n)
+    email = factory.Sequence(lambda n: "test%s@invitation.com" % n)
 
     @classmethod
     def get_list_url(cls, action=None):
-        url = 'http://testserver' + reverse('user-invitation-list')
-        return url if action is None else url + action + '/'
+        url = "http://testserver" + reverse("user-invitation-list")
+        return url if action is None else url + action + "/"
 
     @classmethod
     def get_url(cls, invitation=None, action=None):
         if invitation is None:
             invitation = cls()
-        url = 'http://testserver' + reverse(
-            'user-invitation-detail', kwargs={'uuid': invitation.uuid.hex}
+        url = "http://testserver" + reverse(
+            "user-invitation-detail", kwargs={"uuid": invitation.uuid.hex}
         )
-        return url if action is None else url + action + '/'
+        return url if action is None else url + action + "/"
 
 
 class ProjectInvitationFactory(InvitationBaseFactory):
     class Meta:
         model = models.Invitation
 
-    customer = factory.SelfAttribute('project.customer')
+    customer = factory.SelfAttribute("project.customer")
     project = factory.SubFactory(structure_factories.ProjectFactory)
     project_role = structure_models.ProjectRole.MANAGER
 
@@ -44,24 +44,24 @@ class CustomerInvitationFactory(InvitationBaseFactory):
 class GroupInvitationBaseFactory(factory.django.DjangoModelFactory):
     @classmethod
     def get_list_url(cls, action=None):
-        url = 'http://testserver' + reverse('user-group-invitation-list')
-        return url if action is None else url + action + '/'
+        url = "http://testserver" + reverse("user-group-invitation-list")
+        return url if action is None else url + action + "/"
 
     @classmethod
     def get_url(cls, invitation=None, action=None):
         if invitation is None:
             invitation = cls()
-        url = 'http://testserver' + reverse(
-            'user-group-invitation-detail', kwargs={'uuid': invitation.uuid.hex}
+        url = "http://testserver" + reverse(
+            "user-group-invitation-detail", kwargs={"uuid": invitation.uuid.hex}
         )
-        return url if action is None else url + action + '/'
+        return url if action is None else url + action + "/"
 
 
 class ProjectGroupInvitationFactory(GroupInvitationBaseFactory):
     class Meta:
         model = models.GroupInvitation
 
-    customer = factory.SelfAttribute('project.customer')
+    customer = factory.SelfAttribute("project.customer")
     project = factory.SubFactory(structure_factories.ProjectFactory)
     project_role = structure_models.ProjectRole.MANAGER
 
@@ -84,14 +84,14 @@ class PermissionRequestFactory(factory.django.DjangoModelFactory):
 
     @classmethod
     def get_list_url(cls, action=None):
-        url = 'http://testserver' + reverse('user-permission-request-list')
-        return url if action is None else url + action + '/'
+        url = "http://testserver" + reverse("user-permission-request-list")
+        return url if action is None else url + action + "/"
 
     @classmethod
     def get_url(cls, request=None, action=None):
         if request is None:
             request = cls()
-        url = 'http://testserver' + reverse(
-            'user-permission-request-detail', kwargs={'uuid': request.uuid.hex}
+        url = "http://testserver" + reverse(
+            "user-permission-request-detail", kwargs={"uuid": request.uuid.hex}
         )
-        return url if action is None else url + action + '/'
+        return url if action is None else url + action + "/"

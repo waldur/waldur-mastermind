@@ -13,10 +13,10 @@ class NetworkMetadataTest(test.APITransactionTestCase):
         self.resource = marketplace_factories.ResourceFactory(scope=self.vm)
 
     def get_external_ips(self):
-        return self.resource.backend_metadata['external_ips']
+        return self.resource.backend_metadata["external_ips"]
 
     def get_internal_ips(self):
-        return self.resource.backend_metadata['internal_ips']
+        return self.resource.backend_metadata["internal_ips"]
 
     def test_floating_ip_address_is_synchronized_when_public_ip_is_assigned(self):
         public_ip = self.fixture.public_ip
@@ -37,8 +37,8 @@ class NetworkMetadataTest(test.APITransactionTestCase):
         self.assertEqual(self.get_external_ips(), [])
 
     def test_internal_ip_address_is_synchronized(self):
-        self.nic.ip_address = '192.168.0.101'
+        self.nic.ip_address = "192.168.0.101"
         self.nic.save()
 
         self.resource.refresh_from_db()
-        self.assertEqual(self.get_internal_ips(), ['192.168.0.101'])
+        self.assertEqual(self.get_internal_ips(), ["192.168.0.101"])

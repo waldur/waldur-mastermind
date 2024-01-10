@@ -23,14 +23,14 @@ class VMwareClient:
         :type verify_ssl: bool
         """
         self._host = host
-        self._base_url = f'https://{self._host}/rest'
+        self._base_url = f"https://{self._host}/rest"
         self._session = requests.Session()
         self._session.verify = verify_ssl
 
     def _request(self, method, endpoint, json=None, **kwargs):
-        url = f'{self._base_url}/{endpoint}'
+        url = f"{self._base_url}/{endpoint}"
         if json:
-            json = {'spec': json}
+            json = {"spec": json}
         try:
             response = self._session.request(method, url, json=json, **kwargs)
         except requests.RequestException as e:
@@ -45,23 +45,23 @@ class VMwareClient:
         ):
             if response.content:
                 data = response.json()
-                if isinstance(data, dict) and 'value' in data:
-                    return data['value']
+                if isinstance(data, dict) and "value" in data:
+                    return data["value"]
                 return data
         else:
             raise VMwareError(response.content)
 
     def _get(self, endpoint, **kwargs):
-        return self._request('get', endpoint, **kwargs)
+        return self._request("get", endpoint, **kwargs)
 
     def _post(self, endpoint, **kwargs):
-        return self._request('post', endpoint, **kwargs)
+        return self._request("post", endpoint, **kwargs)
 
     def _patch(self, endpoint, **kwargs):
-        return self._request('patch', endpoint, **kwargs)
+        return self._request("patch", endpoint, **kwargs)
 
     def _delete(self, endpoint, **kwargs):
-        return self._request('delete', endpoint, **kwargs)
+        return self._request("delete", endpoint, **kwargs)
 
     def login(self, username, password):
         """
@@ -73,26 +73,26 @@ class VMwareClient:
         :type password: string
         :raises Unauthorized: raised if credentials are invalid.
         """
-        self._post('com/vmware/cis/session', auth=(username, password))
-        logger.info(f'Successfully logged in as {username}')
+        self._post("com/vmware/cis/session", auth=(username, password))
+        logger.info(f"Successfully logged in as {username}")
 
     def list_clusters(self):
-        return self._get('vcenter/cluster')
+        return self._get("vcenter/cluster")
 
     def get_cluster(self, cluster_id):
-        return self._get(f'vcenter/cluster/{cluster_id}')
+        return self._get(f"vcenter/cluster/{cluster_id}")
 
     def list_datacenters(self):
-        return self._get('vcenter/datacenter')
+        return self._get("vcenter/datacenter")
 
     def list_datastores(self):
-        return self._get('vcenter/datastore')
+        return self._get("vcenter/datastore")
 
     def list_resource_pools(self):
-        return self._get('vcenter/resource-pool')
+        return self._get("vcenter/resource-pool")
 
     def list_networks(self):
-        return self._get('vcenter/network')
+        return self._get("vcenter/network")
 
     def list_folders(self, folder_type=None):
         """
@@ -102,14 +102,14 @@ class VMwareClient:
         """
         params = {}
         if folder_type:
-            params['filter.type'] = folder_type
-        return self._get('vcenter/folder', params=params)
+            params["filter.type"] = folder_type
+        return self._get("vcenter/folder", params=params)
 
     def list_vms(self):
         """
         Get all the VMs from vCenter inventory.
         """
-        return self._get('vcenter/vm')
+        return self._get("vcenter/vm")
 
     def get_vm(self, vm_id):
         """
@@ -118,7 +118,7 @@ class VMwareClient:
         :param vm_id: Virtual machine identifier
         :type vm_id: string
         """
-        return self._get(f'vcenter/vm/{vm_id}')
+        return self._get(f"vcenter/vm/{vm_id}")
 
     def create_vm(self, spec):
         """
@@ -129,7 +129,7 @@ class VMwareClient:
         :return: Virtual machine identifier
         :rtype: string
         """
-        return self._post('vcenter/vm', json=spec)
+        return self._post("vcenter/vm", json=spec)
 
     def delete_vm(self, vm_id):
         """
@@ -138,7 +138,7 @@ class VMwareClient:
         :param vm_id: Virtual machine identifier
         :type vm_id: string
         """
-        return self._delete(f'vcenter/vm/{vm_id}')
+        return self._delete(f"vcenter/vm/{vm_id}")
 
     def start_vm(self, vm_id):
         """
@@ -147,7 +147,7 @@ class VMwareClient:
         :param vm_id: Virtual machine identifier
         :type vm_id: string
         """
-        return self._post(f'vcenter/vm/{vm_id}/power/start')
+        return self._post(f"vcenter/vm/{vm_id}/power/start")
 
     def stop_vm(self, vm_id):
         """
@@ -156,7 +156,7 @@ class VMwareClient:
         :param vm_id: Virtual machine identifier
         :type vm_id: string
         """
-        return self._post(f'vcenter/vm/{vm_id}/power/stop')
+        return self._post(f"vcenter/vm/{vm_id}/power/stop")
 
     def reset_vm(self, vm_id):
         """
@@ -165,7 +165,7 @@ class VMwareClient:
         :param vm_id: Virtual machine identifier
         :type vm_id: string
         """
-        return self._post(f'vcenter/vm/{vm_id}/power/reset')
+        return self._post(f"vcenter/vm/{vm_id}/power/reset")
 
     def suspend_vm(self, vm_id):
         """
@@ -174,7 +174,7 @@ class VMwareClient:
         :param vm_id: Virtual machine identifier
         :type vm_id: string
         """
-        return self._post(f'vcenter/vm/{vm_id}/power/suspend')
+        return self._post(f"vcenter/vm/{vm_id}/power/suspend")
 
     def get_guest_power(self, vm_id):
         """
@@ -183,7 +183,7 @@ class VMwareClient:
         :param vm_id: Virtual machine identifier
         :type vm_id: string
         """
-        return self._get(f'vcenter/vm/{vm_id}/guest/power')
+        return self._get(f"vcenter/vm/{vm_id}/guest/power")
 
     def shutdown_guest(self, vm_id):
         """
@@ -193,7 +193,7 @@ class VMwareClient:
         :param vm_id: Virtual machine identifier
         :type vm_id: string
         """
-        return self._post(f'vcenter/vm/{vm_id}/guest/power?action=shutdown')
+        return self._post(f"vcenter/vm/{vm_id}/guest/power?action=shutdown")
 
     def reboot_guest(self, vm_id):
         """
@@ -202,7 +202,7 @@ class VMwareClient:
         :param vm_id: Virtual machine identifier
         :type vm_id: string
         """
-        return self._post(f'vcenter/vm/{vm_id}/guest/power?action=reboot')
+        return self._post(f"vcenter/vm/{vm_id}/guest/power?action=reboot")
 
     def get_cpu(self, vm_id):
         """
@@ -211,7 +211,7 @@ class VMwareClient:
         :param vm_id: Virtual machine identifier
         :type vm_id: string
         """
-        return self._get(f'vcenter/vm/{vm_id}/hardware/cpu')
+        return self._get(f"vcenter/vm/{vm_id}/hardware/cpu")
 
     def update_cpu(self, vm_id, spec):
         """
@@ -222,7 +222,7 @@ class VMwareClient:
         :param spec: CPU specification
         :type spec: dict
         """
-        return self._patch(f'vcenter/vm/{vm_id}/hardware/cpu', json=spec)
+        return self._patch(f"vcenter/vm/{vm_id}/hardware/cpu", json=spec)
 
     def get_memory(self, vm_id):
         """
@@ -231,7 +231,7 @@ class VMwareClient:
         :param vm_id: Virtual machine identifier
         :type vm_id: string
         """
-        return self._get(f'vcenter/vm/{vm_id}/hardware/memory')
+        return self._get(f"vcenter/vm/{vm_id}/hardware/memory")
 
     def update_memory(self, vm_id, spec):
         """
@@ -242,7 +242,7 @@ class VMwareClient:
         :param spec: CPU specification
         :type spec: dict
         """
-        return self._patch(f'vcenter/vm/{vm_id}/hardware/memory', json=spec)
+        return self._patch(f"vcenter/vm/{vm_id}/hardware/memory", json=spec)
 
     def create_disk(self, vm_id, spec):
         """
@@ -253,7 +253,7 @@ class VMwareClient:
         :param spec: new virtual disk specification
         :type spec: dict
         """
-        return self._post(f'vcenter/vm/{vm_id}/hardware/disk', json=spec)
+        return self._post(f"vcenter/vm/{vm_id}/hardware/disk", json=spec)
 
     def get_disk(self, vm_id, disk_id):
         """
@@ -264,7 +264,7 @@ class VMwareClient:
         :param disk_id: Virtual disk identifier.
         :type disk_id: string
         """
-        return self._get(f'vcenter/vm/{vm_id}/hardware/disk/{disk_id}')
+        return self._get(f"vcenter/vm/{vm_id}/hardware/disk/{disk_id}")
 
     def delete_disk(self, vm_id, disk_id):
         """
@@ -279,7 +279,7 @@ class VMwareClient:
         :param disk_id: Virtual disk identifier.
         :type disk_id: string
         """
-        return self._delete(f'vcenter/vm/{vm_id}/hardware/disk/{disk_id}')
+        return self._delete(f"vcenter/vm/{vm_id}/hardware/disk/{disk_id}")
 
     def connect_cdrom(self, vm_id, cdrom_id):
         """
@@ -290,7 +290,7 @@ class VMwareClient:
         :param cdrom_id: Virtual CD-ROM device identifier.
         :type cdrom_id: string
         """
-        return self._post(f'vcenter/vm/{vm_id}/hardware/cdrom/{cdrom_id}/connect')
+        return self._post(f"vcenter/vm/{vm_id}/hardware/cdrom/{cdrom_id}/connect")
 
     def disconnect_cdrom(self, vm_id, cdrom_id):
         """
@@ -301,7 +301,7 @@ class VMwareClient:
         :param cdrom_id: Virtual CD-ROM device identifier.
         :type cdrom_id: string
         """
-        return self._post(f'vcenter/vm/{vm_id}/hardware/cdrom/{cdrom_id}/disconnect')
+        return self._post(f"vcenter/vm/{vm_id}/hardware/cdrom/{cdrom_id}/disconnect")
 
     def create_nic(self, vm_id, network_id):
         """
@@ -313,13 +313,13 @@ class VMwareClient:
         :type network_id: string
         """
         spec = {
-            'backing': {
-                'network': network_id,
-                'type': 'DISTRIBUTED_PORTGROUP',
+            "backing": {
+                "network": network_id,
+                "type": "DISTRIBUTED_PORTGROUP",
             },
-            'start_connected': True,
+            "start_connected": True,
         }
-        return self._post(f'vcenter/vm/{vm_id}/hardware/ethernet', json=spec)
+        return self._post(f"vcenter/vm/{vm_id}/hardware/ethernet", json=spec)
 
     def delete_nic(self, vm_id, nic_id):
         """
@@ -330,7 +330,7 @@ class VMwareClient:
         :param nic_id: Virtual Ethernet adapter identifier.
         :type nic_id: string
         """
-        return self._delete(f'vcenter/vm/{vm_id}/hardware/ethernet/{nic_id}')
+        return self._delete(f"vcenter/vm/{vm_id}/hardware/ethernet/{nic_id}")
 
     def list_nics(self, vm_id):
         """
@@ -342,8 +342,8 @@ class VMwareClient:
         """
         result = []
         for nic in self.list_nic_ids(vm_id):
-            nic_payload = self.get_nic(vm_id, nic['nic'])
-            nic_payload['nic'] = nic['nic']
+            nic_payload = self.get_nic(vm_id, nic["nic"])
+            nic_payload["nic"] = nic["nic"]
             result.append(nic_payload)
         return result
 
@@ -354,7 +354,7 @@ class VMwareClient:
         :param vm_id: Virtual machine identifier.
         :type vm_id: string
         """
-        return self._get(f'vcenter/vm/{vm_id}/hardware/ethernet')
+        return self._get(f"vcenter/vm/{vm_id}/hardware/ethernet")
 
     def get_nic(self, vm_id, nic_id):
         """
@@ -365,7 +365,7 @@ class VMwareClient:
         :param nic_id: Virtual Ethernet adapter identifier.
         :type nic_id: string
         """
-        return self._get(f'vcenter/vm/{vm_id}/hardware/ethernet/{nic_id}')
+        return self._get(f"vcenter/vm/{vm_id}/hardware/ethernet/{nic_id}")
 
     def connect_nic(self, vm_id, nic_id):
         """
@@ -376,7 +376,7 @@ class VMwareClient:
         :param nic_id: Virtual Ethernet adapter identifier.
         :type nic_id: string
         """
-        return self._post(f'vcenter/vm/{vm_id}/hardware/ethernet/{nic_id}/connect')
+        return self._post(f"vcenter/vm/{vm_id}/hardware/ethernet/{nic_id}/connect")
 
     def disconnect_nic(self, vm_id, nic_id):
         """
@@ -387,32 +387,32 @@ class VMwareClient:
         :param nic_id: Virtual Ethernet adapter identifier.
         :type nic_id: string
         """
-        return self._post(f'vcenter/vm/{vm_id}/hardware/ethernet/{nic_id}/disconnect')
+        return self._post(f"vcenter/vm/{vm_id}/hardware/ethernet/{nic_id}/disconnect")
 
     def list_libraries(self):
-        return self._get('com/vmware/content/library')
+        return self._get("com/vmware/content/library")
 
     def list_library_items(self, library_id):
-        params = {'library_id': library_id}
-        return self._get('com/vmware/content/library/item', params=params)
+        params = {"library_id": library_id}
+        return self._get("com/vmware/content/library/item", params=params)
 
     def get_library_item(self, library_item_id):
-        return self._get(f'com/vmware/content/library/item/id:{library_item_id}')
+        return self._get(f"com/vmware/content/library/item/id:{library_item_id}")
 
     def get_template_library_item(self, library_item_id):
-        return self._get(f'vcenter/vm-template/library-items/{library_item_id}')
+        return self._get(f"vcenter/vm-template/library-items/{library_item_id}")
 
     def list_all_templates(self):
         items = []
         for library_id in self.list_libraries():
             for library_item_id in self.list_library_items(library_id):
                 library_item = self.get_library_item(library_item_id)
-                if library_item['type'] == 'vm-template':
+                if library_item["type"] == "vm-template":
                     template = self.get_template_library_item(library_item_id)
                     items.append(
                         {
-                            'library_item': library_item,
-                            'template': template,
+                            "library_item": library_item,
+                            "template": template,
                         }
                     )
         return items
@@ -427,7 +427,5 @@ class VMwareClient:
         :return: Identifier of the deployed virtual machine.
         :rtype: str
         """
-        url = 'vcenter/vm-template/library-items/{}?action=deploy'.format(
-            library_item_id
-        )
+        url = f"vcenter/vm-template/library-items/{library_item_id}?action=deploy"
         return self._post(url, json=spec)

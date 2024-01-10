@@ -9,7 +9,7 @@ class VpcExternalFilter(core_filters.BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
         if request.user.is_staff:
             return queryset
-        if not django_settings.WALDUR_CORE['ONLY_STAFF_MANAGES_SERVICES']:
+        if not django_settings.WALDUR_CORE["ONLY_STAFF_MANAGES_SERVICES"]:
             return queryset
         try:
             category_uuid = Category.objects.get(default_tenant_category=True).uuid

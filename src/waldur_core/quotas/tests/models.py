@@ -20,21 +20,21 @@ class ParentModel(
     core_models.UuidMixin, quotas_models.QuotaModelMixin, core_models.DescendantMixin
 ):
     parent = django_models.ForeignKey(
-        on_delete=django_models.CASCADE, to=GrandparentModel, related_name='children'
+        on_delete=django_models.CASCADE, to=GrandparentModel, related_name="children"
     )
 
     class Quotas(quotas_models.QuotaModelMixin.Quotas):
         counter_quota = fields.CounterQuotaField(
             target_models=lambda: [ChildModel],
-            path_to_scope='parent',
+            path_to_scope="parent",
         )
         two_targets_counter_quota = fields.CounterQuotaField(
             target_models=lambda: [ChildModel, SecondChildModel],
-            path_to_scope='parent',
+            path_to_scope="parent",
         )
         delta_quota = fields.CounterQuotaField(
             target_models=lambda: [ChildModel],
-            path_to_scope='parent',
+            path_to_scope="parent",
             get_delta=lambda _: 10,
         )
         usage_aggregator_quota = fields.UsageAggregatorQuotaField(
@@ -42,12 +42,12 @@ class ParentModel(
         )
         second_usage_aggregator_quota = fields.UsageAggregatorQuotaField(
             get_children=lambda scope: scope.children.all(),
-            child_quota_name='usage_aggregator_quota',
+            child_quota_name="usage_aggregator_quota",
         )
         total_quota = fields.TotalQuotaField(
             target_models=lambda: [SecondChildModel],
-            path_to_scope='parent',
-            target_field='size',
+            path_to_scope="parent",
+            target_field="size",
         )
 
     def get_parents(self):
@@ -64,12 +64,12 @@ class ChildModel(
     core_models.UuidMixin, quotas_models.QuotaModelMixin, core_models.DescendantMixin
 ):
     parent = django_models.ForeignKey(
-        on_delete=django_models.CASCADE, to=ParentModel, related_name='children'
+        on_delete=django_models.CASCADE, to=ParentModel, related_name="children"
     )
     non_quota_parent = django_models.ForeignKey(
         on_delete=django_models.CASCADE,
         to=NonQuotaParentModel,
-        related_name='children',
+        related_name="children",
         blank=True,
         null=True,
     )
@@ -90,7 +90,7 @@ class SecondChildModel(
     core_models.UuidMixin, quotas_models.QuotaModelMixin, core_models.DescendantMixin
 ):
     parent = django_models.ForeignKey(
-        on_delete=django_models.CASCADE, to=ParentModel, related_name='second_children'
+        on_delete=django_models.CASCADE, to=ParentModel, related_name="second_children"
     )
     size = django_models.IntegerField(default=0)
 

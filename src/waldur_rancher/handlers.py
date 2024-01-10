@@ -39,7 +39,7 @@ def delete_cluster_if_all_related_nodes_have_been_deleted(sender, instance, **kw
             backend = node.cluster.get_backend()
             backend.delete_cluster(node.cluster)
     except models.Cluster.DoesNotExist:
-        logger.warning('Cluster instance has been removed already.')
+        logger.warning("Cluster instance has been removed already.")
 
 
 def set_error_state_for_node_if_related_instance_deleting_is_failed(
@@ -55,11 +55,11 @@ def set_error_state_for_node_if_related_instance_deleting_is_failed(
         return
 
     if (
-        instance.tracker.has_changed('state')
+        instance.tracker.has_changed("state")
         and instance.state == StateMixin.States.ERRED
     ):
         node.state = models.Node.States.ERRED
-        node.error_message = 'Deleting related VM has failed.'
+        node.error_message = "Deleting related VM has failed."
         node.save()
 
 
@@ -71,10 +71,10 @@ def set_error_state_for_cluster_if_related_node_deleting_is_failed(
     if created:
         return
 
-    if node.tracker.has_changed('state') and node.state == models.Node.States.ERRED:
+    if node.tracker.has_changed("state") and node.state == models.Node.States.ERRED:
         if node.cluster.state == models.Cluster.States.DELETING:
             node.cluster.state = models.Cluster.States.ERRED
-            node.cluster.error_message = 'Deleting one or a more nodes have failed.'
+            node.cluster.error_message = "Deleting one or a more nodes have failed."
             node.cluster.save()
 
 

@@ -10,30 +10,30 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         super().add_arguments(parser)
         parser.add_argument(
-            'roles_file',
-            help='Specifies location of roles configuration file.',
+            "roles_file",
+            help="Specifies location of roles configuration file.",
         )
 
     def handle(self, *args, **options):
-        with open(options['roles_file']) as auth_file:
+        with open(options["roles_file"]) as auth_file:
             data = yaml.safe_load(auth_file)
             if data is None:
                 return
             for row in data:
-                role = Role.objects.get(name=row['role'])
+                role = Role.objects.get(name=row["role"])
                 current_permissions = set(
                     RolePermission.objects.filter(role=role).values_list(
-                        'permission', flat=True
+                        "permission", flat=True
                     )
                 )
-                if 'permissions' not in row:
+                if "permissions" not in row:
                     self.stdout.write(
                         self.style.WARNING(
                             f'Role {row["role"]} is missing permissions block, skipping'
                         )
                     )
                     continue
-                new_permissions = set(row['permissions'])
+                new_permissions = set(row["permissions"])
 
                 RolePermission.objects.filter(
                     role=role, permission__in=current_permissions - new_permissions
@@ -42,7 +42,7 @@ class Command(BaseCommand):
                 for permission in new_permissions - current_permissions:
                     RolePermission.objects.create(role=role, permission=permission)
 
-                description = row.get('description')
+                description = row.get("description")
                 if description and role.description != description:
                     self.stdout.write(
                         self.style.WARNING(
@@ -52,7 +52,7 @@ class Command(BaseCommand):
                     role.description = description
                     role.save()
 
-                is_active = row.get('is_active')
+                is_active = row.get("is_active")
                 if is_active and role.is_active != is_active:
                     self.stdout.write(
                         self.style.WARNING(
@@ -60,4 +60,4 @@ class Command(BaseCommand):
                         )
                     )
                     role.is_active = is_active
-                    role.save(update_fields=['is_active'])
+                    role.save(update_fields=["is_active"])

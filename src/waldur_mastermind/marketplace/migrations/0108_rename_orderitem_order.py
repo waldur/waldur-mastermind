@@ -7,13 +7,13 @@ from django.db import migrations
 class Migration(migrations.Migration):
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('structure', '0040_useragreement_uuid'),
-        ('marketplace', '0107_merge_order_item_with_order_step3'),
+        ("structure", "0040_useragreement_uuid"),
+        ("marketplace", "0107_merge_order_item_with_order_step3"),
     ]
 
     operations = [
         migrations.RenameModel(
-            old_name='OrderItem',
-            new_name='Order',
+            old_name="OrderItem",
+            new_name="Order",
         ),
     ]

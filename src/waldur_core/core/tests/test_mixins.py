@@ -14,7 +14,7 @@ class TestUserSerializer(serializers.HyperlinkedModelSerializer):
 
     class Meta:
         model = User
-        fields = ('username', 'full_name')
+        fields = ("username", "full_name")
 
 
 class ExecutorMixinTest(test.APITransactionTestCase):
@@ -24,15 +24,15 @@ class ExecutorMixinTest(test.APITransactionTestCase):
 
         self.serializer = TestUserSerializer(
             data={
-                'username': 'alice2017',
-                'full_name': 'Alice Lebowski',
+                "username": "alice2017",
+                "full_name": "Alice Lebowski",
             }
         )
         self.serializer.is_valid()
 
     def test_if_executor_succeeds_database_object_is_saved(self):
         self.executor.perform_create(self.serializer)
-        self.assertTrue(User.objects.filter(username='alice2017').exists())
+        self.assertTrue(User.objects.filter(username="alice2017").exists())
 
     @helpers.override_waldur_core_settings(USE_ATOMIC_TRANSACTION=False)
     def test_if_executor_fails_and_atomic_transaction_is_not_used_database_object_is_saved(
@@ -46,7 +46,7 @@ class ExecutorMixinTest(test.APITransactionTestCase):
             self.executor.perform_create,
             self.serializer,
         )
-        self.assertTrue(User.objects.filter(username='alice2017').exists())
+        self.assertTrue(User.objects.filter(username="alice2017").exists())
 
     def test_if_executor_fails_and_atomic_transaction_is_used_database_object_is_not_saved(
         self,
@@ -59,4 +59,4 @@ class ExecutorMixinTest(test.APITransactionTestCase):
             self.executor.perform_create,
             self.serializer,
         )
-        self.assertFalse(User.objects.filter(username='alice2017').exists())
+        self.assertFalse(User.objects.filter(username="alice2017").exists())

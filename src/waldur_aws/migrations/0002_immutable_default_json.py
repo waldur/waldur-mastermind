@@ -6,22 +6,22 @@ import waldur_core.core.fields
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('waldur_aws', '0001_initial'),
+        ("waldur_aws", "0001_initial"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='instance',
-            name='private_ips',
+            model_name="instance",
+            name="private_ips",
             field=waldur_core.core.fields.JSONField(
-                blank=True, default=list, help_text='List of private IP addresses'
+                blank=True, default=list, help_text="List of private IP addresses"
             ),
         ),
         migrations.AlterField(
-            model_name='instance',
-            name='public_ips',
+            model_name="instance",
+            name="public_ips",
             field=waldur_core.core.fields.JSONField(
-                blank=True, default=list, help_text='List of public IP addresses'
+                blank=True, default=list, help_text="List of public IP addresses"
             ),
         ),
     ]

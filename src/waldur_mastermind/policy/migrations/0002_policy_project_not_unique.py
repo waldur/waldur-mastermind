@@ -6,16 +6,16 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('structure', '0039_project_end_date_requested_by'),
-        ('policy', '0001_initial'),
+        ("structure", "0039_project_end_date_requested_by"),
+        ("policy", "0001_initial"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='projectestimatedcostpolicy',
-            name='project',
+            model_name="projectestimatedcostpolicy",
+            name="project",
             field=models.ForeignKey(
-                on_delete=django.db.models.deletion.CASCADE, to='structure.project'
+                on_delete=django.db.models.deletion.CASCADE, to="structure.project"
             ),
         ),
     ]

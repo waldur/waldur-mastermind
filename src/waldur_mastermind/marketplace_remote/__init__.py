@@ -1,1 +1,1 @@
-PLUGIN_NAME = 'Waldur.RemoteOffering'
+PLUGIN_NAME = "Waldur.RemoteOffering"

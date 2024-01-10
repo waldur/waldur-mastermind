@@ -19,48 +19,48 @@ class OfferingCreateSerializer(CredentialsSerializer):
 
 
 class ProjectUpdateRequestSerializer(serializers.ModelSerializer):
-    state = serializers.ReadOnlyField(source='get_state_display')
-    customer_name = serializers.ReadOnlyField(source='project.customer.name')
-    offering_name = serializers.ReadOnlyField(source='offering.name')
-    offering_uuid = serializers.ReadOnlyField(source='offering.uuid')
+    state = serializers.ReadOnlyField(source="get_state_display")
+    customer_name = serializers.ReadOnlyField(source="project.customer.name")
+    offering_name = serializers.ReadOnlyField(source="offering.name")
+    offering_uuid = serializers.ReadOnlyField(source="offering.uuid")
 
-    reviewed_by_full_name = serializers.ReadOnlyField(source='reviewed_by.full_name')
-    reviewed_by_uuid = serializers.ReadOnlyField(source='reviewed_by.uuid')
+    reviewed_by_full_name = serializers.ReadOnlyField(source="reviewed_by.full_name")
+    reviewed_by_uuid = serializers.ReadOnlyField(source="reviewed_by.uuid")
 
     old_oecd_fos_2007_label = serializers.ReadOnlyField(
-        source='get_old_oecd_fos_2007_code_display'
+        source="get_old_oecd_fos_2007_code_display"
     )
     new_oecd_fos_2007_label = serializers.ReadOnlyField(
-        source='get_new_oecd_fos_2007_code_display'
+        source="get_new_oecd_fos_2007_code_display"
     )
 
     class Meta:
         model = models.ProjectUpdateRequest
 
         fields = (
-            'uuid',
-            'state',
-            'customer_name',
-            'offering_name',
-            'offering_uuid',
-            'created',
-            'reviewed_at',
-            'reviewed_by_full_name',
-            'reviewed_by_uuid',
-            'review_comment',
-            'old_name',
-            'new_name',
-            'old_description',
-            'new_description',
-            'old_end_date',
-            'new_end_date',
-            'old_oecd_fos_2007_code',
-            'old_oecd_fos_2007_label',
-            'new_oecd_fos_2007_code',
-            'new_oecd_fos_2007_label',
-            'old_is_industry',
-            'new_is_industry',
-            'created_by',
+            "uuid",
+            "state",
+            "customer_name",
+            "offering_name",
+            "offering_uuid",
+            "created",
+            "reviewed_at",
+            "reviewed_by_full_name",
+            "reviewed_by_uuid",
+            "review_comment",
+            "old_name",
+            "new_name",
+            "old_description",
+            "new_description",
+            "old_end_date",
+            "new_end_date",
+            "old_oecd_fos_2007_code",
+            "old_oecd_fos_2007_label",
+            "new_oecd_fos_2007_code",
+            "new_oecd_fos_2007_label",
+            "old_is_industry",
+            "new_is_industry",
+            "created_by",
         )
 
 

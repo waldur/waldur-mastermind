@@ -7,8 +7,8 @@ from waldur_core.core import models as core_models
 class DataciteReferral(core_models.UuidMixin, core_mixins.ScopeMixin):
     class Meta:
         ordering = (
-            'relation_type',
-            'published',
+            "relation_type",
+            "published",
         )
 
     pid = models.CharField(max_length=255, blank=True)
@@ -23,4 +23,4 @@ class DataciteReferral(core_models.UuidMixin, core_mixins.ScopeMixin):
     referral_url = models.CharField(max_length=255, blank=True)
 
     def __str__(self):
-        return f'{self.scope} | {self.pid}'
+        return f"{self.scope} | {self.pid}"

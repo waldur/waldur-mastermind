@@ -15,33 +15,33 @@ class AllocationGetTest(test.APITransactionTestCase):
 
     def test_freeipa_username_is_returned_if_profile_exists(self):
         freeipa_models.Profile.objects.create(
-            user=self.fixture.admin, username='waldur_admin'
+            user=self.fixture.admin, username="waldur_admin"
         )
         self.client.force_login(self.fixture.admin)
 
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['username'], 'waldur_admin')
+        self.assertEqual(response.data["username"], "waldur_admin")
 
     def test_gateway_is_returned_if_is_defined(self):
         settings = self.fixture.settings
-        settings.options['gateway'] = '8.8.8.8'
+        settings.options["gateway"] = "8.8.8.8"
         settings.save()
 
         self.client.force_login(self.fixture.admin)
 
         response = self.client.get(self.url)
-        self.assertEqual(response.data['gateway'], '8.8.8.8')
+        self.assertEqual(response.data["gateway"], "8.8.8.8")
 
     def test_hostname_is_returned_if_is_defined(self):
         settings = self.fixture.settings
-        settings.options['hostname'] = '4.4.4.4'
+        settings.options["hostname"] = "4.4.4.4"
         settings.save()
 
         self.client.force_login(self.fixture.admin)
 
         response = self.client.get(self.url)
-        self.assertEqual(response.data['gateway'], '4.4.4.4')
+        self.assertEqual(response.data["gateway"], "4.4.4.4")
 
 
 @ddt
@@ -50,7 +50,7 @@ class AllocationCreateTest(test.APITransactionTestCase):
         self.fixture = fixtures.SlurmFixture()
         self.url = factories.AllocationFactory.get_list_url()
 
-    @data('owner', 'staff', 'admin', 'manager')
+    @data("owner", "staff", "admin", "manager")
     def test_authorized_user_can_create_allocation(self, user):
         self.client.force_login(getattr(self.fixture, user))
 
@@ -58,7 +58,7 @@ class AllocationCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
     @data(
-        'member',
+        "member",
     )
     def test_non_authorized_user_can_not_create_allocation(self, user):
         self.client.force_login(getattr(self.fixture, user))
@@ -68,11 +68,11 @@ class AllocationCreateTest(test.APITransactionTestCase):
 
     def get_valid_payload(self):
         return {
-            'name': 'Test-allocation',
-            'service_settings': SlurmServiceSettingsFactory.get_url(
+            "name": "Test-allocation",
+            "service_settings": SlurmServiceSettingsFactory.get_url(
                 self.fixture.settings
             ),
-            'project': ProjectFactory.get_url(self.fixture.project),
+            "project": ProjectFactory.get_url(self.fixture.project),
         }
 
 
@@ -82,14 +82,14 @@ class AllocationDeleteTest(test.APITransactionTestCase):
         self.fixture = fixtures.SlurmFixture()
         self.url = factories.AllocationFactory.get_url(self.fixture.allocation)
 
-    @data('staff', 'owner', 'admin', 'manager')
+    @data("staff", "owner", "admin", "manager")
     def test_authorized_user_can_delete_allocation(self, user):
         self.client.force_login(getattr(self.fixture, user))
 
         response = self.client.delete(self.url)
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
-    @data('member')
+    @data("member")
     def test_non_authorized_user_can_not_delete_allocation(self, user):
         self.client.force_login(getattr(self.fixture, user))
 
@@ -103,18 +103,18 @@ class AllocationUpdateTest(test.APITransactionTestCase):
         self.fixture = fixtures.SlurmFixture()
         self.url = factories.AllocationFactory.get_url(self.fixture.allocation)
 
-    @data('staff', 'owner', 'admin', 'manager')
+    @data("staff", "owner", "admin", "manager")
     def test_authorized_user_can_update_allocation(self, user):
         self.client.force_login(getattr(self.fixture, user))
 
-        response = self.client.patch(self.url, {'description': 'New description.'})
+        response = self.client.patch(self.url, {"description": "New description."})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    @data('member')
+    @data("member")
     def test_non_authorized_user_can_not_update_allocation(self, user):
         self.client.force_login(getattr(self.fixture, user))
 
-        response = self.client.patch(self.url, {'description': 'New description.'})
+        response = self.client.patch(self.url, {"description": "New description."})
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
@@ -123,7 +123,7 @@ class AllocationCancelTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.SlurmFixture()
         self.url = factories.AllocationFactory.get_url(
-            self.fixture.allocation, 'cancel'
+            self.fixture.allocation, "cancel"
         )
 
 
@@ -132,7 +132,7 @@ class AllocationSetLimitsTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.SlurmFixture()
         self.allocation = self.fixture.allocation
-        self.url = factories.AllocationFactory.get_url(self.allocation, 'set_limits')
+        self.url = factories.AllocationFactory.get_url(self.allocation, "set_limits")
 
     def test_authorized_user_can_update_allocation(self):
         self.client.force_login(self.fixture.staff)
@@ -147,12 +147,12 @@ class AllocationSetLimitsTest(test.APITransactionTestCase):
     def test_user_can_not_update_allocation_with_invalid_limits(self):
         self.client.force_login(self.fixture.staff)
         payload = self.get_valid_payload()
-        payload['cpu_limit'] = -2
+        payload["cpu_limit"] = -2
 
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @data('owner', 'admin', 'manager')
+    @data("owner", "admin", "manager")
     def test_non_authorized_user_can_not_update_allocation(self, user):
         self.client.force_login(getattr(self.fixture, user))
 
@@ -161,7 +161,7 @@ class AllocationSetLimitsTest(test.APITransactionTestCase):
 
     def get_valid_payload(self):
         return {
-            'cpu_limit': 100,
-            'gpu_limit': 200,
-            'ram_limit': 300,
+            "cpu_limit": 100,
+            "gpu_limit": 200,
+            "ram_limit": 300,
         }

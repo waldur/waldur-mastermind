@@ -27,7 +27,7 @@ class Policy(
     created_by = models.ForeignKey(
         on_delete=models.CASCADE,
         to=settings.AUTH_USER_MODEL,
-        related_name='+',
+        related_name="+",
         blank=True,
         null=True,
     )
@@ -40,7 +40,7 @@ class Policy(
     def get_all_actions(self):
         actions = []
 
-        for action_name in self.actions.split(','):
+        for action_name in self.actions.split(","):
             if action_name in [a.__name__ for a in self.available_actions]:
                 actions.append(
                     [a for a in self.available_actions if a.__name__ == action_name][0]
@@ -50,11 +50,11 @@ class Policy(
 
     def get_not_one_time_actions(self):
         actions = self.get_all_actions()
-        return [a for a in actions if not getattr(a, 'one_time_action', False)]
+        return [a for a in actions if not getattr(a, "one_time_action", False)]
 
     def get_one_time_actions(self):
         actions = self.get_all_actions()
-        return [a for a in actions if getattr(a, 'one_time_action', False)]
+        return [a for a in actions if getattr(a, "one_time_action", False)]
 
     class Meta:
         abstract = True
@@ -62,8 +62,8 @@ class Policy(
 
 class ProjectPolicy(Policy):
     class Permissions:
-        customer_path = 'project__customer'
-        project_path = 'project'
+        customer_path = "project__customer"
+        project_path = "project"
 
     available_actions = {
         policy_actions.notify_project_team,

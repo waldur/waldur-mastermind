@@ -13,7 +13,7 @@ class TestUrlFilter(test.APITransactionTestCase):
         self.url = CustomerFactory.get_url(self.customer)
 
         self.customer_filter = core_filters.URLFilter(
-            view_name='customer-detail', field_name='customer__uuid'
+            view_name="customer-detail", field_name="customer__uuid"
         )
 
     def test_filter_checks_that_url_matches_view(self):

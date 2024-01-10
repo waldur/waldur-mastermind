@@ -20,7 +20,7 @@ User = get_user_model()
 def ensure_atomic_transaction(func):
     @wraps(func)
     def wrapped(self, *args, **kwargs):
-        if settings.WALDUR_CORE['USE_ATOMIC_TRANSACTION']:
+        if settings.WALDUR_CORE["USE_ATOMIC_TRANSACTION"]:
             with transaction.atomic():
                 return func(self, *args, **kwargs)
         else:
@@ -71,7 +71,7 @@ class UpdateExecutorMixin(AsyncExecutor):
             instance,
             is_async=self.async_executor,
             updated_fields=updated_fields,
-            **kwargs
+            **kwargs,
         )
         serializer.instance.refresh_from_db()
 
@@ -88,7 +88,7 @@ class DeleteExecutorMixin(AsyncExecutor):
             force=instance.state == models.StateMixin.States.ERRED,
         )
         return response.Response(
-            {'detail': _('Deletion was scheduled.')}, status=status.HTTP_202_ACCEPTED
+            {"detail": _("Deletion was scheduled.")}, status=status.HTTP_202_ACCEPTED
         )
 
 
@@ -108,8 +108,8 @@ class EagerLoadMixin:
     def get_queryset(self):
         queryset = super().get_queryset()
         serializer_class = self.get_serializer_class()
-        if self.action in ('list', 'retrieve') and hasattr(
-            serializer_class, 'eager_load'
+        if self.action in ("list", "retrieve") and hasattr(
+            serializer_class, "eager_load"
         ):
             queryset = serializer_class.eager_load(queryset, self.request)
         return queryset
@@ -124,10 +124,10 @@ class ScopeMixin(django_models.Model):
         on_delete=django_models.CASCADE,
         null=True,
         blank=True,
-        related_name='+',
+        related_name="+",
     )
     object_id = django_models.PositiveIntegerField(null=True, blank=True)
-    scope = GenericForeignKey('content_type', 'object_id')
+    scope = GenericForeignKey("content_type", "object_id")
 
 
 class ReviewStateMixin(django_models.Model):
@@ -142,22 +142,22 @@ class ReviewStateMixin(django_models.Model):
         CANCELED = 5
 
         CHOICES = (
-            (DRAFT, 'draft'),
-            (PENDING, 'pending'),
-            (APPROVED, 'approved'),
-            (REJECTED, 'rejected'),
-            (CANCELED, 'canceled'),
+            (DRAFT, "draft"),
+            (PENDING, "pending"),
+            (APPROVED, "approved"),
+            (REJECTED, "rejected"),
+            (CANCELED, "canceled"),
         )
 
     state = FSMIntegerField(default=States.DRAFT, choices=States.CHOICES)
 
     def submit(self):
         self.state = self.States.PENDING
-        self.save(update_fields=['state'])
+        self.save(update_fields=["state"])
 
     def cancel(self):
         self.state = self.States.CANCELED
-        self.save(update_fields=['state'])
+        self.save(update_fields=["state"])
 
 
 class ReviewMixin(ReviewStateMixin, TimeStampedModel):
@@ -169,7 +169,7 @@ class ReviewMixin(ReviewStateMixin, TimeStampedModel):
         to=User,
         null=True,
         blank=True,
-        related_name='+',
+        related_name="+",
     )
 
     reviewed_at = django_models.DateTimeField(editable=False, null=True, blank=True)
@@ -183,7 +183,7 @@ class ReviewMixin(ReviewStateMixin, TimeStampedModel):
         self.reviewed_at = timezone.now()
         self.state = self.States.APPROVED
         self.save(
-            update_fields=['reviewed_by', 'reviewed_at', 'review_comment', 'state']
+            update_fields=["reviewed_by", "reviewed_at", "review_comment", "state"]
         )
 
     @transaction.atomic
@@ -193,7 +193,7 @@ class ReviewMixin(ReviewStateMixin, TimeStampedModel):
         self.reviewed_at = timezone.now()
         self.state = self.States.REJECTED
         self.save(
-            update_fields=['reviewed_by', 'reviewed_at', 'review_comment', 'state']
+            update_fields=["reviewed_by", "reviewed_at", "review_comment", "state"]
         )
 
     @property

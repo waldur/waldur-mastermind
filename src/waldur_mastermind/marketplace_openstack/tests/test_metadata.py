@@ -15,25 +15,25 @@ class VolumeMetadataTest(BaseOpenStackTest):
         self.resource = marketplace_factories.ResourceFactory(scope=self.volume)
 
     def test_action_is_synchronized(self):
-        self.volume.action = 'detach'
-        self.volume.action_details = {'message': 'Detaching volume from instance.'}
+        self.volume.action = "detach"
+        self.volume.action_details = {"message": "Detaching volume from instance."}
         self.volume.save()
 
         self.resource.refresh_from_db()
 
-        self.assertEqual(self.resource.backend_metadata['action'], self.volume.action)
+        self.assertEqual(self.resource.backend_metadata["action"], self.volume.action)
         self.assertEqual(
-            self.resource.backend_metadata['action_details'], self.volume.action_details
+            self.resource.backend_metadata["action_details"], self.volume.action_details
         )
 
     def test_size_is_synchronized(self):
         self.volume.size = 100
         self.volume.save()
         self.resource.refresh_from_db()
-        self.assertEqual(self.resource.backend_metadata['size'], self.volume.size)
+        self.assertEqual(self.resource.backend_metadata["size"], self.volume.size)
 
     def test_name_is_synchronized(self):
-        self.volume.name = 'new volume name'
+        self.volume.name = "new volume name"
         self.volume.save()
         self.resource.refresh_from_db()
         self.assertEqual(self.resource.name, self.volume.name)
@@ -43,10 +43,10 @@ class VolumeMetadataTest(BaseOpenStackTest):
         self.volume.save()
         self.resource.refresh_from_db()
         self.assertEqual(
-            self.resource.backend_metadata['state'], self.volume.get_state_display()
+            self.resource.backend_metadata["state"], self.volume.get_state_display()
         )
         self.assertEqual(
-            self.resource.backend_metadata['runtime_state'], self.volume.runtime_state
+            self.resource.backend_metadata["runtime_state"], self.volume.runtime_state
         )
 
     def test_instance_is_synchronized(self):
@@ -57,9 +57,9 @@ class VolumeMetadataTest(BaseOpenStackTest):
 
         self.resource.refresh_from_db()
         self.assertEqual(
-            self.resource.backend_metadata['instance_uuid'], instance.uuid.hex
+            self.resource.backend_metadata["instance_uuid"], instance.uuid.hex
         )
-        self.assertEqual(self.resource.backend_metadata['instance_name'], instance.name)
+        self.assertEqual(self.resource.backend_metadata["instance_name"], instance.name)
 
     def test_instance_name_is_updated(self):
         instance = self.fixture.instance
@@ -67,11 +67,11 @@ class VolumeMetadataTest(BaseOpenStackTest):
         self.volume.instance = instance
         self.volume.save()
 
-        instance.name = 'Name has been changed'
+        instance.name = "Name has been changed"
         instance.save()
 
         self.resource.refresh_from_db()
-        self.assertEqual(self.resource.backend_metadata['instance_name'], instance.name)
+        self.assertEqual(self.resource.backend_metadata["instance_name"], instance.name)
 
     def test_instance_has_been_detached(self):
         # Arrange
@@ -86,8 +86,8 @@ class VolumeMetadataTest(BaseOpenStackTest):
 
         # Assert
         self.resource.refresh_from_db()
-        self.assertIsNone(self.resource.backend_metadata['instance_name'])
-        self.assertIsNone(self.resource.backend_metadata['instance_uuid'])
+        self.assertIsNone(self.resource.backend_metadata["instance_name"])
+        self.assertIsNone(self.resource.backend_metadata["instance_uuid"])
 
 
 class NetworkMetadataTest(BaseOpenStackTest):
@@ -103,27 +103,27 @@ class NetworkMetadataTest(BaseOpenStackTest):
         self.resource.refresh_from_db()
 
         self.assertEqual(
-            self.resource.backend_metadata['internal_ips'], internal_ip.fixed_ips
+            self.resource.backend_metadata["internal_ips"], internal_ip.fixed_ips
         )
 
     def test_internal_ip_address_is_updated(self):
         internal_ip = self.fixture.internal_ip
         internal_ip.fixed_ips = [
-            {'ip_address': '10.0.0.1', 'subnet_id': internal_ip.subnet.backend_id}
+            {"ip_address": "10.0.0.1", "subnet_id": internal_ip.subnet.backend_id}
         ]
 
         internal_ip.save()
 
         self.resource.refresh_from_db()
         self.assertEqual(
-            self.resource.backend_metadata['internal_ips'],
-            ['10.0.0.1'],
+            self.resource.backend_metadata["internal_ips"],
+            ["10.0.0.1"],
         )
 
     def test_internal_ip_address_is_updated_on_delete(self):
         internal_ip = self.fixture.internal_ip
         internal_ip.fixed_ips = [
-            {'ip_address': '10.0.0.1', 'subnet_id': internal_ip.subnet.backend_id}
+            {"ip_address": "10.0.0.1", "subnet_id": internal_ip.subnet.backend_id}
         ]
         internal_ip.save()
         self.resource.refresh_from_db()
@@ -131,7 +131,7 @@ class NetworkMetadataTest(BaseOpenStackTest):
         internal_ip.delete()
 
         self.resource.refresh_from_db()
-        self.assertEqual(self.resource.backend_metadata['internal_ips'], [])
+        self.assertEqual(self.resource.backend_metadata["internal_ips"], [])
 
     def test_floating_ip_address_is_synchronized(self):
         internal_ip = self.fixture.internal_ip
@@ -142,7 +142,7 @@ class NetworkMetadataTest(BaseOpenStackTest):
 
         self.resource.refresh_from_db()
         self.assertEqual(
-            self.resource.backend_metadata['external_ips'], [floating_ip.address]
+            self.resource.backend_metadata["external_ips"], [floating_ip.address]
         )
 
     def test_floating_ip_address_is_synchronized_on_delete(self):
@@ -154,7 +154,7 @@ class NetworkMetadataTest(BaseOpenStackTest):
 
         floating_ip.delete()
         self.resource.refresh_from_db()
-        self.assertEqual(self.resource.backend_metadata['external_ips'], [])
+        self.assertEqual(self.resource.backend_metadata["external_ips"], [])
 
 
 class HypervisorHostnameMetadataTest(BaseOpenStackTest):
@@ -165,13 +165,13 @@ class HypervisorHostnameMetadataTest(BaseOpenStackTest):
         self.resource = marketplace_factories.ResourceFactory(scope=self.instance)
 
     def test_hypervisor_hostname_is_synchronized(self):
-        self.instance.hypervisor_hostname = 'nova_1'
+        self.instance.hypervisor_hostname = "nova_1"
         self.instance.save()
 
         self.resource.refresh_from_db()
 
         self.assertEqual(
-            self.resource.backend_metadata['hypervisor_hostname'], 'nova_1'
+            self.resource.backend_metadata["hypervisor_hostname"], "nova_1"
         )
 
 
@@ -184,45 +184,45 @@ class RouterMetadataTest(BaseOpenStackTest):
 
     def test_fixed_ips_is_synchronized(self):
         router = openstack_factories.RouterFactory(
-            tenant=self.tenant, fixed_ips=['192.168.0.1']
+            tenant=self.tenant, fixed_ips=["192.168.0.1"]
         )
         self.resource.refresh_from_db()
         self.assertEqual(
-            self.resource.backend_metadata.get('router_fixed_ips'), ['192.168.0.1']
+            self.resource.backend_metadata.get("router_fixed_ips"), ["192.168.0.1"]
         )
 
-        router.fixed_ips = ['192.168.0.2']
+        router.fixed_ips = ["192.168.0.2"]
         router.save()
         self.resource.refresh_from_db()
         self.assertEqual(
-            self.resource.backend_metadata.get('router_fixed_ips'), ['192.168.0.2']
+            self.resource.backend_metadata.get("router_fixed_ips"), ["192.168.0.2"]
         )
 
     def test_fixed_ips_is_synchronized_for_multiple_routers(self):
         router_1 = openstack_factories.RouterFactory(
-            tenant=self.tenant, fixed_ips=['192.168.0.1']
+            tenant=self.tenant, fixed_ips=["192.168.0.1"]
         )
         router_2 = openstack_factories.RouterFactory(
-            tenant=self.tenant, fixed_ips=['192.168.1.1']
+            tenant=self.tenant, fixed_ips=["192.168.1.1"]
         )
         self.resource.refresh_from_db()
         self.assertEqual(
-            set(self.resource.backend_metadata.get('router_fixed_ips')),
-            {'192.168.0.1', '192.168.1.1'},
+            set(self.resource.backend_metadata.get("router_fixed_ips")),
+            {"192.168.0.1", "192.168.1.1"},
         )
 
-        router_1.fixed_ips = ['192.168.0.2']
+        router_1.fixed_ips = ["192.168.0.2"]
         router_1.save()
         self.resource.refresh_from_db()
         self.assertEqual(
-            set(self.resource.backend_metadata.get('router_fixed_ips')),
-            {'192.168.0.2', '192.168.1.1'},
+            set(self.resource.backend_metadata.get("router_fixed_ips")),
+            {"192.168.0.2", "192.168.1.1"},
         )
 
-        router_2.fixed_ips = ['192.168.1.2']
+        router_2.fixed_ips = ["192.168.1.2"]
         router_2.save()
         self.resource.refresh_from_db()
         self.assertEqual(
-            set(self.resource.backend_metadata.get('router_fixed_ips')),
-            {'192.168.0.2', '192.168.1.2'},
+            set(self.resource.backend_metadata.get("router_fixed_ips")),
+            {"192.168.0.2", "192.168.1.2"},
         )

@@ -17,21 +17,21 @@ class SecurityGroupCreateTest(BaseSecurityGroupTest):
     def setUp(self):
         super().setUp()
         self.valid_data = {
-            'name': 'https',
-            'rules': [
+            "name": "https",
+            "rules": [
                 {
-                    'protocol': 'tcp',
-                    'from_port': 100,
-                    'to_port': 8001,
-                    'cidr': '11.11.1.2/24',
+                    "protocol": "tcp",
+                    "from_port": 100,
+                    "to_port": 8001,
+                    "cidr": "11.11.1.2/24",
                 }
             ],
         }
         self.url = factories.TenantFactory.get_url(
-            self.fixture.tenant, 'create_security_group'
+            self.fixture.tenant, "create_security_group"
         )
 
-    @data('staff', 'owner', 'admin', 'manager')
+    @data("staff", "owner", "admin", "manager")
     def test_user_with_access_can_create_security_group(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
 
@@ -44,19 +44,19 @@ class SecurityGroupCreateTest(BaseSecurityGroupTest):
     def test_security_group_name_should_be_unique(self):
         self.client.force_authenticate(self.fixture.admin)
         payload = self.valid_data
-        payload['name'] = self.fixture.security_group.name
+        payload["name"] = self.fixture.security_group.name
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_security_group_can_not_be_created_if_quota_is_over_limit(self):
-        self.fixture.tenant.set_quota_limit('security_group_count', 0)
+        self.fixture.tenant.set_quota_limit("security_group_count", 0)
 
         self.client.force_authenticate(self.fixture.admin)
         response = self.client.post(self.url, self.valid_data)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(
-            models.SecurityGroup.objects.filter(name=self.valid_data['name']).exists()
+            models.SecurityGroup.objects.filter(name=self.valid_data["name"]).exists()
         )
 
     def test_security_group_quota_increases_on_security_group_creation(self):
@@ -64,27 +64,27 @@ class SecurityGroupCreateTest(BaseSecurityGroupTest):
         response = self.client.post(self.url, self.valid_data)
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(self.fixture.tenant.get_quota_usage('security_group_count'), 1)
+        self.assertEqual(self.fixture.tenant.get_quota_usage("security_group_count"), 1)
         self.assertEqual(
-            self.fixture.tenant.get_quota_usage('security_group_rule_count'), 1
+            self.fixture.tenant.get_quota_usage("security_group_rule_count"), 1
         )
 
     def test_security_group_can_not_be_created_if_rules_quota_is_over_limit(self):
-        self.fixture.tenant.set_quota_limit('security_group_rule_count', 0)
+        self.fixture.tenant.set_quota_limit("security_group_rule_count", 0)
 
         self.client.force_authenticate(self.fixture.admin)
         response = self.client.post(self.url, self.valid_data)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(
-            models.SecurityGroup.objects.filter(name=self.valid_data['name']).exists()
+            models.SecurityGroup.objects.filter(name=self.valid_data["name"]).exists()
         )
 
     def test_security_group_creation_starts_sync_task(self):
         self.client.force_authenticate(self.fixture.admin)
 
         with patch(
-            'waldur_openstack.openstack.executors.SecurityGroupCreateExecutor.execute'
+            "waldur_openstack.openstack.executors.SecurityGroupCreateExecutor.execute"
         ) as mocked_execute:
             response = self.client.post(self.url, data=self.valid_data)
 
@@ -92,7 +92,7 @@ class SecurityGroupCreateTest(BaseSecurityGroupTest):
                 response.status_code, status.HTTP_201_CREATED, response.data
             )
             security_group = models.SecurityGroup.objects.get(
-                name=self.valid_data['name']
+                name=self.valid_data["name"]
             )
 
             mocked_execute.assert_called_once_with(security_group)
@@ -103,13 +103,13 @@ class SecurityGroupCreateTest(BaseSecurityGroupTest):
         response = self.client.post(
             self.url,
             data={
-                'name': 'allow-all',
-                'rules': [
+                "name": "allow-all",
+                "rules": [
                     {
-                        'protocol': '',
-                        'from_port': -1,
-                        'to_port': -1,
-                        'cidr': '0.0.0.0/0',
+                        "protocol": "",
+                        "from_port": -1,
+                        "to_port": -1,
+                        "cidr": "0.0.0.0/0",
                     }
                 ],
             },
@@ -127,13 +127,13 @@ class SecurityGroupCreateTest(BaseSecurityGroupTest):
         response = self.client.post(
             self.url,
             data={
-                'name': 'allow-all',
-                'rules': [
+                "name": "allow-all",
+                "rules": [
                     {
-                        'protocol': '',
-                        'from_port': 80,
-                        'to_port': 80,
-                        'cidr': '0.0.0.0/0',
+                        "protocol": "",
+                        "from_port": 80,
+                        "to_port": 80,
+                        "cidr": "0.0.0.0/0",
                     }
                 ],
             },
@@ -149,13 +149,13 @@ class SecurityGroupCreateTest(BaseSecurityGroupTest):
         response = self.client.post(
             self.url,
             data={
-                'name': 'allow-all',
-                'rules': [
+                "name": "allow-all",
+                "rules": [
                     {
-                        'protocol': 'tcp',
-                        'from_port': -1,
-                        'to_port': -1,
-                        'cidr': '0.0.0.0/0',
+                        "protocol": "tcp",
+                        "from_port": -1,
+                        "to_port": -1,
+                        "cidr": "0.0.0.0/0",
                     }
                 ],
             },
@@ -167,13 +167,13 @@ class SecurityGroupCreateTest(BaseSecurityGroupTest):
         self.client.force_authenticate(self.fixture.staff)
 
         data = {
-            'name': 'https',
-            'rules': [
+            "name": "https",
+            "rules": [
                 {
-                    'protocol': 'invalid',
-                    'from_port': 100,
-                    'to_port': 8001,
-                    'cidr': '11.11.1.2/24',
+                    "protocol": "invalid",
+                    "from_port": 100,
+                    "to_port": 8001,
+                    "cidr": "11.11.1.2/24",
                 }
             ],
         }
@@ -187,13 +187,13 @@ class SecurityGroupCreateTest(BaseSecurityGroupTest):
         self.client.force_authenticate(self.fixture.staff)
 
         data = {
-            'name': 'https',
-            'rules': [
+            "name": "https",
+            "rules": [
                 {
-                    'protocol': 'icmp',
-                    'from_port': 8001,
-                    'to_port': 8001,
-                    'cidr': '11.11.1.2/24',
+                    "protocol": "icmp",
+                    "from_port": 8001,
+                    "to_port": 8001,
+                    "cidr": "11.11.1.2/24",
                 }
             ],
         }
@@ -207,13 +207,13 @@ class SecurityGroupCreateTest(BaseSecurityGroupTest):
         self.client.force_authenticate(self.fixture.staff)
 
         data = {
-            'name': 'https',
-            'rules': [
+            "name": "https",
+            "rules": [
                 {
-                    'protocol': 'tcp',
-                    'from_port': 8001,
-                    'to_port': 8001,
-                    'cidr': '300.300.300.300/100',
+                    "protocol": "tcp",
+                    "from_port": 8001,
+                    "to_port": 8001,
+                    "cidr": "300.300.300.300/100",
                 }
             ],
         }
@@ -229,23 +229,23 @@ class SecurityGroupCreateTest(BaseSecurityGroupTest):
         response = self.client.post(
             self.url,
             data={
-                'name': 'https',
-                'rules': [
+                "name": "https",
+                "rules": [
                     {
-                        'direction': 'ingress',
-                        'protocol': 'tcp',
-                        'from_port': 8001,
-                        'to_port': 8001,
-                        'cidr': '1.1.1.1/1',
-                        'remote_group': 'https://example.com/api/openstack-security-groups/45754c360acd4982b79aa6830c9e86cc/',
+                        "direction": "ingress",
+                        "protocol": "tcp",
+                        "from_port": 8001,
+                        "to_port": 8001,
+                        "cidr": "1.1.1.1/1",
+                        "remote_group": "https://example.com/api/openstack-security-groups/45754c360acd4982b79aa6830c9e86cc/",
                     },
                     {
-                        'direction': 'ingress',
-                        'protocol': 'tcp',
-                        'from_port': 8001,
-                        'to_port': 8001,
-                        'cidr': '1.1.1.1/1',
-                        'remote_group': 'https://example.com/api/openstack-security-groups/45754c360acd4982b79aa6830c9e86cc/',
+                        "direction": "ingress",
+                        "protocol": "tcp",
+                        "from_port": 8001,
+                        "to_port": 8001,
+                        "cidr": "1.1.1.1/1",
+                        "remote_group": "https://example.com/api/openstack-security-groups/45754c360acd4982b79aa6830c9e86cc/",
                     },
                 ],
             },
@@ -268,22 +268,22 @@ class SecurityGroupUpdateTest(BaseSecurityGroupTest):
         )
         self.url = factories.SecurityGroupFactory.get_url(self.security_group)
 
-    @data('staff', 'owner', 'admin', 'manager')
+    @data("staff", "owner", "admin", "manager")
     def test_user_with_access_can_update_security_group(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
 
-        data = {'name': 'new_name'}
+        data = {"name": "new_name"}
         response = self.client.patch(self.url, data=data)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.security_group.refresh_from_db()
-        self.assertEqual(self.security_group.name, data['name'])
+        self.assertEqual(self.security_group.name, data["name"])
 
-    @data('user')
+    @data("user")
     def test_user_without_access_cannot_update_security_group(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
 
-        response = self.client.patch(self.url, data={'name': 'new_name'})
+        response = self.client.patch(self.url, data={"name": "new_name"})
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
@@ -292,32 +292,32 @@ class SecurityGroupUpdateTest(BaseSecurityGroupTest):
         self.security_group.state = models.SecurityGroup.States.ERRED
         self.security_group.save()
 
-        response = self.client.patch(self.url, data={'name': 'new_name'})
+        response = self.client.patch(self.url, data={"name": "new_name"})
 
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
-    @data('patch', 'put')
+    @data("patch", "put")
     def test_default_security_group_name_can_not_be_updated(self, method):
         self.client.force_authenticate(self.fixture.staff)
-        self.security_group.name = 'default'
+        self.security_group.name = "default"
         self.security_group.save()
 
         update = getattr(self.client, method)
-        response = update(self.url, data={'name': 'new_name'})
+        response = update(self.url, data={"name": "new_name"})
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @data('patch', 'put')
+    @data("patch", "put")
     def test_security_group_name_can_not_become_default(self, method):
         self.client.force_authenticate(self.fixture.staff)
-        self.security_group.name = 'ssh'
+        self.security_group.name = "ssh"
         self.security_group.save()
 
         update = getattr(self.client, method)
-        response = update(self.url, data={'name': 'default'})
+        response = update(self.url, data={"name": "default"})
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertTrue('name' in response.data)
+        self.assertTrue("name" in response.data)
 
     def test_security_group_name_should_be_unique(self):
         existing_group = factories.SecurityGroupFactory(
@@ -327,7 +327,7 @@ class SecurityGroupUpdateTest(BaseSecurityGroupTest):
             state=models.SecurityGroup.States.OK,
         )
         self.client.force_authenticate(self.fixture.staff)
-        response = self.client.patch(self.url, data={'name': existing_group.name})
+        response = self.client.patch(self.url, data={"name": existing_group.name})
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -342,19 +342,19 @@ class SecurityGroupSetRulesTest(BaseSecurityGroupTest):
             state=models.SecurityGroup.States.OK,
         )
         self.url = factories.SecurityGroupFactory.get_url(
-            self.security_group, action='set_rules'
+            self.security_group, action="set_rules"
         )
 
     def test_security_group_rules_can_not_be_added_if_quota_is_over_limit(self):
         self.client.force_authenticate(self.fixture.admin)
-        self.fixture.tenant.set_quota_limit('security_group_rule_count', 0)
+        self.fixture.tenant.set_quota_limit("security_group_rule_count", 0)
 
         data = [
             {
-                'protocol': 'udp',
-                'from_port': 100,
-                'to_port': 8001,
-                'cidr': '11.11.1.2/24',
+                "protocol": "udp",
+                "from_port": 100,
+                "to_port": 8001,
+                "cidr": "11.11.1.2/24",
             }
         ]
         response = self.client.post(self.url, data=data)
@@ -366,7 +366,7 @@ class SecurityGroupSetRulesTest(BaseSecurityGroupTest):
     def test_security_group_update_starts_calls_executor(self):
         self.client.force_authenticate(self.fixture.admin)
 
-        execute_method = 'waldur_openstack.openstack.executors.PushSecurityGroupRulesExecutor.execute'
+        execute_method = "waldur_openstack.openstack.executors.PushSecurityGroupRulesExecutor.execute"
         with patch(execute_method) as mocked_execute:
             response = self.client.post(self.url, data=[])
 
@@ -382,7 +382,7 @@ class SecurityGroupSetRulesTest(BaseSecurityGroupTest):
         )
         self.client.force_authenticate(self.fixture.admin)
 
-        response = self.client.post(self.url, data=[{'id': rule_to_remain.id}])
+        response = self.client.post(self.url, data=[{"id": rule_to_remain.id}])
 
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
         exist_rules = self.security_group.rules.all()
@@ -395,14 +395,14 @@ class SecurityGroupSetRulesTest(BaseSecurityGroupTest):
         )
         self.client.force_authenticate(self.fixture.admin)
         new_rule_data = {
-            'protocol': 'udp',
-            'from_port': 100,
-            'to_port': 8001,
-            'cidr': '11.11.1.2/24',
+            "protocol": "udp",
+            "from_port": 100,
+            "to_port": 8001,
+            "cidr": "11.11.1.2/24",
         }
 
         response = self.client.post(
-            self.url, data=[{'id': exist_rule.id}, new_rule_data]
+            self.url, data=[{"id": exist_rule.id}, new_rule_data]
         )
 
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
@@ -415,10 +415,10 @@ class SecurityGroupSetRulesTest(BaseSecurityGroupTest):
 
         data = [
             {
-                'protocol': 'udp',
-                'from_port': 125,
-                'to_port': 25,
-                'cidr': '11.11.1.2/24',
+                "protocol": "udp",
+                "from_port": 125,
+                "to_port": 25,
+                "cidr": "11.11.1.2/24",
             }
         ]
         response = self.client.post(self.url, data=data)
@@ -435,10 +435,10 @@ class SecurityGroupSetRulesTest(BaseSecurityGroupTest):
 
         data = [
             {
-                'protocol': rule.protocol,
-                'from_port': 125,
-                'to_port': 25,
-                'cidr': rule.cidr,
+                "protocol": rule.protocol,
+                "from_port": 125,
+                "to_port": 25,
+                "cidr": rule.cidr,
             }
         ]
         response = self.client.post(self.url, data=data)
@@ -456,11 +456,11 @@ class SecurityGroupSetRulesTest(BaseSecurityGroupTest):
 
         data = [
             {
-                'id': rule.id,
-                'protocol': rule.protocol,
-                'from_port': 125,
-                'to_port': 225,
-                'cidr': rule.cidr,
+                "id": rule.id,
+                "protocol": rule.protocol,
+                "from_port": 125,
+                "to_port": 225,
+                "cidr": rule.cidr,
             }
         ]
         response = self.client.post(self.url, data=data)
@@ -477,16 +477,16 @@ class SecurityGroupSetRulesTest(BaseSecurityGroupTest):
             self.url,
             data=[
                 {
-                    'protocol': 'tcp',
-                    'from_port': 8001,
-                    'to_port': 8001,
-                    'cidr': '1.1.1.1/1',
+                    "protocol": "tcp",
+                    "from_port": 8001,
+                    "to_port": 8001,
+                    "cidr": "1.1.1.1/1",
                 },
                 {
-                    'protocol': 'tcp',
-                    'from_port': 8001,
-                    'to_port': 8001,
-                    'cidr': '1.1.1.1/1',
+                    "protocol": "tcp",
+                    "from_port": 8001,
+                    "to_port": 8001,
+                    "cidr": "1.1.1.1/1",
                 },
             ],
         )
@@ -507,12 +507,12 @@ class SecurityGroupDeleteTest(BaseSecurityGroupTest):
         )
         self.url = factories.SecurityGroupFactory.get_url(self.security_group)
 
-    @data('admin', 'manager', 'staff', 'owner')
+    @data("admin", "manager", "staff", "owner")
     def test_project_administrator_can_delete_security_group(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
 
         with patch(
-            'waldur_openstack.openstack.executors.SecurityGroupDeleteExecutor.execute'
+            "waldur_openstack.openstack.executors.SecurityGroupDeleteExecutor.execute"
         ) as mocked_execute:
             response = self.client.delete(self.url)
             self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
@@ -532,7 +532,7 @@ class SecurityGroupDeleteTest(BaseSecurityGroupTest):
 
     def test_default_security_group_name_can_not_be_deleted(self):
         self.client.force_authenticate(self.fixture.staff)
-        self.security_group.name = 'default'
+        self.security_group.name = "default"
         self.security_group.save()
 
         response = self.client.delete(self.url)
@@ -550,7 +550,7 @@ class SecurityGroupRetrieveTest(BaseSecurityGroupTest):
         )
         self.url = factories.SecurityGroupFactory.get_url(self.security_group)
 
-    @data('admin', 'manager', 'staff', 'owner')
+    @data("admin", "manager", "staff", "owner")
     def test_user_can_access_security_groups_of_project_instances_he_has_role_in(
         self, user
     ):
@@ -558,7 +558,7 @@ class SecurityGroupRetrieveTest(BaseSecurityGroupTest):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    @data('user')
+    @data("user")
     def test_user_cannot_access_security_groups_of_instances_not_connected_to_him(
         self, user
     ):

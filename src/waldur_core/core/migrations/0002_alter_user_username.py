@@ -7,35 +7,35 @@ from django.db import migrations, models
 
 
 def lowercase_usernames(apps, schema_editor):
-    User = apps.get_model('core', 'User')
+    User = apps.get_model("core", "User")
     for user in User.objects.all():
         username = user.username
         user.username = username.lower()
-        user.save(update_fields=['username'])
+        user.save(update_fields=["username"])
 
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('core', '0001_squashed_0029'),
+        ("core", "0001_squashed_0029"),
     ]
 
     operations = [
         migrations.RunPython(lowercase_usernames),
         migrations.AlterField(
-            model_name='user',
-            name='username',
+            model_name="user",
+            name="username",
             field=models.CharField(
-                help_text='Required. 128 characters or fewer. Lowercase letters, numbers and @/./+/-/_ characters',
+                help_text="Required. 128 characters or fewer. Lowercase letters, numbers and @/./+/-/_ characters",
                 max_length=128,
                 unique=True,
                 validators=[
                     django.core.validators.RegexValidator(
-                        re.compile('^[0-9a-z_.@+-]+$'),
-                        'Enter a valid username.',
-                        'invalid',
+                        re.compile("^[0-9a-z_.@+-]+$"),
+                        "Enter a valid username.",
+                        "invalid",
                     )
                 ],
-                verbose_name='username',
+                verbose_name="username",
             ),
         ),
     ]

@@ -13,24 +13,24 @@ from .models import Allocation, AllocationUserUsage, Association
 
 
 def get_allocation_count(self, scope):
-    return scope.get_quota_usage('nc_allocation_count')
+    return scope.get_quota_usage("nc_allocation_count")
 
 
-get_allocation_count.short_description = _('Allocation count')
+get_allocation_count.short_description = _("Allocation count")
 
 for cls in (structure_admin.CustomerAdmin, structure_admin.ProjectAdmin):
     cls.get_allocation_count = get_allocation_count
-    cls.list_display += ('get_allocation_count',)
+    cls.list_display += ("get_allocation_count",)
 
 
 class AllocationAdmin(structure_admin.ResourceAdmin):
     class SyncAllocations(ExecutorAdminAction):
         executor = executors.AllocationPullExecutor
-        short_description = _('Sync selected allocations')
+        short_description = _("Sync selected allocations")
 
         def validate(self, allocation):
             if allocation.state not in [StateMixin.States.OK, StateMixin.States.ERRED]:
-                raise ValidationError(_('Allocation has to be in OK or ERRED state.'))
+                raise ValidationError(_("Allocation has to be in OK or ERRED state."))
 
     sync_allocations = SyncAllocations()
 
@@ -43,31 +43,31 @@ class AllocationAdmin(structure_admin.ResourceAdmin):
 
         count = valid_allocations.count()
         message = ngettext(
-            'One allocation users have been synchronized.',
-            '%(count)d allocations users have been synchronized.',
+            "One allocation users have been synchronized.",
+            "%(count)d allocations users have been synchronized.",
             count,
         )
-        message = message % {'count': count}
+        message = message % {"count": count}
 
         self.message_user(request, message)
 
-    sync_users.short_description = _('Synchronize allocation users')
-    actions = ['sync_allocations', 'sync_users']
+    sync_users.short_description = _("Synchronize allocation users")
+    actions = ["sync_allocations", "sync_users"]
 
 
 class AllocationUserUsageAdmin(admin.ModelAdmin):
     list_display = admin.ModelAdmin.list_display + (
-        'allocation',
-        'user',
-        'year',
-        'month',
+        "allocation",
+        "user",
+        "year",
+        "month",
     )
 
 
 class AssociationAdmin(admin.ModelAdmin):
     list_display = admin.ModelAdmin.list_display + (
-        'allocation',
-        'username',
+        "allocation",
+        "username",
     )
 
 

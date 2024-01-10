@@ -31,7 +31,7 @@ def get_invoice_item_component_amount(item, component):
 
 @register.simple_tag
 def plan_details(plan):
-    context = {'plan': plan, 'components': []}
+    context = {"plan": plan, "components": []}
 
     for component in plan.components.all():
         offering_component = component.component
@@ -42,21 +42,21 @@ def plan_details(plan):
         amount = component.amount
 
         if offering_component.billing_type == offering_component.BillingTypes.ONE_TIME:
-            amount = _('one-time fee')
+            amount = _("one-time fee")
 
         if (
             offering_component.billing_type
             == offering_component.BillingTypes.ON_PLAN_SWITCH
         ):
-            amount = _('one-time on plan switch')
+            amount = _("one-time on plan switch")
 
-        context['components'].append(
+        context["components"].append(
             {
-                'name': offering_component.name,
-                'amount': amount,
-                'price': component.price,
+                "name": offering_component.name,
+                "amount": amount,
+                "price": component.price,
             }
         )
 
-    plan_template = get_template('marketplace/marketplace_plan_template.txt').template
+    plan_template = get_template("marketplace/marketplace_plan_template.txt").template
     return plan_template.render(template.Context(context, autoescape=False))

@@ -3,16 +3,16 @@ from waldur_core.users import views
 
 def register_in(router):
     router.register(
-        r'user-invitations', views.InvitationViewSet, basename='user-invitation'
+        r"user-invitations", views.InvitationViewSet, basename="user-invitation"
     )
     router.register(
-        r'user-group-invitations',
+        r"user-group-invitations",
         views.GroupInvitationViewSet,
-        basename='user-group-invitation',
+        basename="user-group-invitation",
     )
 
     router.register(
-        r'user-permission-requests',
+        r"user-permission-requests",
         views.PermissionRequestViewSet,
-        basename='user-permission-request',
+        basename="user-permission-request",
     )

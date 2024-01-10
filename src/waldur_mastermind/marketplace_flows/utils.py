@@ -11,11 +11,11 @@ def create_issue(offering_request):
 
     user = offering_request.requested_by
     post_data = {
-        'summary': 'Request publishing of public offering',
-        'caller': reverse('user-detail', kwargs={'uuid': user.uuid.hex}),
-        'description': 'Please review and activate offering {offering_name} ({offering_uuid}). \n'
-        'Requestor: {user_name} / {user_uuid}. \n'
-        'Service provider: {customer_name} / {customer_uuid}'.format(
+        "summary": "Request publishing of public offering",
+        "caller": reverse("user-detail", kwargs={"uuid": user.uuid.hex}),
+        "description": "Please review and activate offering {offering_name} ({offering_uuid}). \n"
+        "Requestor: {user_name} / {user_uuid}. \n"
+        "Service provider: {customer_name} / {customer_uuid}".format(
             offering_name=offering_request.offering.name,
             offering_uuid=offering_request.offering.uuid,
             user_name=user.full_name,
@@ -23,11 +23,11 @@ def create_issue(offering_request):
             customer_name=offering_request.offering.customer.name,
             customer_uuid=offering_request.offering.customer.uuid.hex,
         ),
-        'type': config.ATLASSIAN_DEFAULT_OFFERING_ISSUE_TYPE,
+        "type": config.ATLASSIAN_DEFAULT_OFFERING_ISSUE_TYPE,
     }
 
     return common_utils.create_request(
-        support_views.IssueViewSet.as_view({'post': 'create'}),
+        support_views.IssueViewSet.as_view({"post": "create"}),
         user,
         post_data,
     )

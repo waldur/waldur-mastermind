@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 class CreateProcessor(
     ContainerExecutorMixin, processors.AbstractCreateResourceProcessor
 ):
-    hook_type = 'create'
+    hook_type = "create"
 
     def send_request(self, user):
         output = super().send_request(user)
@@ -51,38 +51,38 @@ class CreateProcessor(
                 return last_line[0]
             elif len(last_line) == 2:
                 # expecting space separated backend_id and base64-encoded metadata in json format
-                result = {'response_type': 'metadata'}
-                if str(last_line[0]) == 'null':
-                    raise ValueError('Backend id returned as null, will not proceed.')
-                result['backend_id'] = str(last_line[0])
+                result = {"response_type": "metadata"}
+                if str(last_line[0]) == "null":
+                    raise ValueError("Backend id returned as null, will not proceed.")
+                result["backend_id"] = str(last_line[0])
                 decoded_metadata = base64.b64decode(last_line[1])
                 try:
                     metadata_dict = json.loads(decoded_metadata)
-                    if 'backend_metadata' in metadata_dict:
-                        result['backend_metadata'] = metadata_dict['backend_metadata']
+                    if "backend_metadata" in metadata_dict:
+                        result["backend_metadata"] = metadata_dict["backend_metadata"]
 
-                    if 'endpoints' in metadata_dict:
-                        result['endpoints'] = metadata_dict['endpoints']
+                    if "endpoints" in metadata_dict:
+                        result["endpoints"] = metadata_dict["endpoints"]
                 except ValueError:
                     logger.error(
-                        f'Failed to encode as json metadata: {decoded_metadata}'
+                        f"Failed to encode as json metadata: {decoded_metadata}"
                     )
                     raise
                 return result
             else:
                 raise serializers.ValidationError(
-                    'Unexpected structure of output', last_line
+                    "Unexpected structure of output", last_line
                 )
 
 
 class UpdateProcessor(
     ContainerExecutorMixin, processors.AbstractUpdateResourceProcessor
 ):
-    hook_type = 'update'
+    hook_type = "update"
 
     def send_request(self, user):
         self.order.resource.set_state_updating()
-        self.order.resource.save(update_fields=['state'])
+        self.order.resource.save(update_fields=["state"])
         super().send_request(user)
         return True
 
@@ -94,10 +94,10 @@ class UpdateProcessor(
 class DeleteProcessor(
     ContainerExecutorMixin, processors.AbstractDeleteResourceProcessor
 ):
-    hook_type = 'terminate'
+    hook_type = "terminate"
 
     def send_request(self, user, resource):
         resource.set_state_terminating()
-        resource.save(update_fields=['state'])
+        resource.save(update_fields=["state"])
         super().send_request(user, resource)
         return True

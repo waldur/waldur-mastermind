@@ -11,45 +11,45 @@ from . import executors, models
 class JiraPropertyAdmin(
     core_admin.UpdateOnlyModelAdmin, structure_admin.BackendModelAdmin, admin.ModelAdmin
 ):
-    list_display = ('name', 'description', 'settings')
-    search_fields = ('name', 'description')
+    list_display = ("name", "description", "settings")
+    search_fields = ("name", "description")
 
 
 class ProjectTemplateAdmin(JiraPropertyAdmin):
-    list_display = ('name', 'description')
-    search_fields = ('name', 'description')
+    list_display = ("name", "description")
+    search_fields = ("name", "description")
 
 
 class ProjectAdmin(structure_admin.ResourceAdmin):
-    actions = ['pull']
+    actions = ["pull"]
 
     class Pull(core_admin.ExecutorAdminAction):
         executor = executors.ProjectPullExecutor
-        short_description = _('Pull')
+        short_description = _("Pull")
 
         def validate(self, service_settings):
             States = models.Project.States
             if service_settings.state not in (States.OK, States.ERRED):
-                raise ValidationError(_('Project has to be OK or erred.'))
+                raise ValidationError(_("Project has to be OK or erred."))
 
     pull = Pull()
 
 
 class IssueAdmin(structure_admin.BackendModelAdmin):
-    list_filter = ('project',)
+    list_filter = ("project",)
     list_display = (
-        'backend_id',
-        'type',
-        'project',
-        'status',
-        'reporter_name',
-        'assignee_name',
+        "backend_id",
+        "type",
+        "project",
+        "status",
+        "reporter_name",
+        "assignee_name",
     )
-    actions = ['pull']
+    actions = ["pull"]
 
     class Pull(core_admin.ExecutorAdminAction):
         executor = executors.IssueUpdateFromBackendExecutor
-        short_description = _('Pull issue')
+        short_description = _("Pull issue")
 
     pull = Pull()
 

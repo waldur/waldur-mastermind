@@ -14,9 +14,9 @@ from waldur_mastermind.promotions import filters, models, serializers, validator
 
 
 class CampaignViewSet(core_views.ActionsViewSet):
-    queryset = models.Campaign.objects.filter().order_by('start_date')
+    queryset = models.Campaign.objects.filter().order_by("start_date")
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
     filterset_class = filters.CampaignFilter
     serializer_class = serializers.CampaignSerializer
 
@@ -24,7 +24,7 @@ class CampaignViewSet(core_views.ActionsViewSet):
         update_permissions
     ) = activate_permissions = terminate_permissions = [
         permission_factory(
-            PermissionEnum.MANAGE_CAMPAIGN, ['service_provider.customer']
+            PermissionEnum.MANAGE_CAMPAIGN, ["service_provider.customer"]
         )
     ]
     destroy_validators = [validators.check_resources]
@@ -33,23 +33,23 @@ class CampaignViewSet(core_views.ActionsViewSet):
             models.Campaign.States.ACTIVE, models.Campaign.States.DRAFT
         )
     ]
-    disabled_actions = ['partial_update']
+    disabled_actions = ["partial_update"]
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def activate(self, request, uuid=None):
         campaign = self.get_object()
         campaign.activate()
         campaign.save()
-        return Response('Campaign has been activated', status=status.HTTP_200_OK)
+        return Response("Campaign has been activated", status=status.HTTP_200_OK)
 
     activate_validators = [core_validators.StateValidator(models.Campaign.States.DRAFT)]
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def terminate(self, request, uuid=None):
         campaign = self.get_object()
         campaign.terminate()
         campaign.save()
-        return Response('Campaign has been terminated', status=status.HTTP_200_OK)
+        return Response("Campaign has been terminated", status=status.HTTP_200_OK)
 
     terminate_validators = [
         core_validators.StateValidator(
@@ -57,28 +57,28 @@ class CampaignViewSet(core_views.ActionsViewSet):
         )
     ]
 
-    @action(detail=True, methods=['get'])
+    @action(detail=True, methods=["get"])
     def orders(self, request, uuid=None):
         campaign = self.get_object()
         resources = models.DiscountedResource.objects.filter(
             campaign=campaign
-        ).values_list('resource', flat=True)
+        ).values_list("resource", flat=True)
         orders = marketplace_models.Order.objects.filter(resource__in=resources)
         serializer = marketplace_serializers.OrderDetailsSerializer(
-            instance=orders, many=True, context={'view': self, 'request': request}
+            instance=orders, many=True, context={"view": self, "request": request}
         )
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-    @action(detail=True, methods=['get'])
+    @action(detail=True, methods=["get"])
     def resources(self, request, uuid=None):
         campaign = self.get_object()
         discounted_resources = models.DiscountedResource.objects.filter(
             campaign=campaign
-        ).values_list('resource', flat=True)
+        ).values_list("resource", flat=True)
         resources = marketplace_models.Resource.objects.filter(
             id__in=discounted_resources
         )
         serializer = marketplace_serializers.ResourceSerializer(
-            resources, many=True, context={'view': self, 'request': request}
+            resources, many=True, context={"view": self, "request": request}
         )
         return Response(serializer.data, status=status.HTTP_200_OK)

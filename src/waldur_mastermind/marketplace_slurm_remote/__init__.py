@@ -1,1 +1,1 @@
-PLUGIN_NAME = 'Marketplace.Slurm'
+PLUGIN_NAME = "Marketplace.Slurm"

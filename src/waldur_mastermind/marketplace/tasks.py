@@ -69,23 +69,23 @@ def notify_consumer_about_pending_order(uuid):
         return
 
     order_link = core_utils.format_homeport_link(
-        'projects/{project_uuid}/marketplace-order-details/{order_uuid}/',
+        "projects/{project_uuid}/marketplace-order-details/{order_uuid}/",
         project_uuid=order.project.uuid,
         order_uuid=order.uuid,
     )
 
     context = {
-        'order_link': order_link,
-        'order': order,
-        'site_name': config.SITE_NAME,
+        "order_link": order_link,
+        "order": order,
+        "site_name": config.SITE_NAME,
     }
 
     logger.info(
-        'About to send email regarding order %s to approvers: %s', order, approvers
+        "About to send email regarding order %s to approvers: %s", order, approvers
     )
 
     core_utils.broadcast_mail(
-        'marketplace', 'notify_consumer_about_pending_order', context, approvers
+        "marketplace", "notify_consumer_about_pending_order", context, approvers
     )
 
 
@@ -98,24 +98,24 @@ def notify_provider_about_pending_order(order_uuid):
         return
 
     link = core_utils.format_homeport_link(
-        'providers/{organization_uuid}/marketplace-orders/',
+        "providers/{organization_uuid}/marketplace-orders/",
         organization_uuid=order.offering.customer.uuid,
     )
 
     context = {
-        'order_url': link,
-        'order': order,
-        'site_name': config.SITE_NAME,
+        "order_url": link,
+        "order": order,
+        "site_name": config.SITE_NAME,
     }
 
     logger.info(
-        'About to send email regarding order %s to approvers: %s',
+        "About to send email regarding order %s to approvers: %s",
         order,
         approvers,
     )
 
     core_utils.broadcast_mail(
-        'marketplace', 'notify_provider_about_pending_order', context, approvers
+        "marketplace", "notify_provider_about_pending_order", context, approvers
     )
 
 
@@ -123,17 +123,17 @@ def notify_provider_about_pending_order(order_uuid):
 def notify_about_resource_change(event_type, context, resource_uuid):
     resource = models.Resource.objects.get(uuid=resource_uuid)
     emails = resource.project.get_user_mails()
-    core_utils.broadcast_mail('marketplace', event_type, context, emails)
+    core_utils.broadcast_mail("marketplace", event_type, context, emails)
 
 
 def filter_aggregate_by_scope(queryset, scope):
     scope_path = None
 
     if isinstance(scope, structure_models.Project):
-        scope_path = 'resource__project'
+        scope_path = "resource__project"
 
     if isinstance(scope, structure_models.Customer):
-        scope_path = 'resource__project__customer'
+        scope_path = "resource__project__customer"
 
     if scope_path:
         queryset = queryset.filter(**{scope_path: scope})
@@ -148,9 +148,9 @@ def aggregate_reported_usage(start, end, scope):
 
     queryset = filter_aggregate_by_scope(queryset, scope)
 
-    queryset = queryset.values('component__parent_id').annotate(total=Sum('usage'))
+    queryset = queryset.values("component__parent_id").annotate(total=Sum("usage"))
 
-    return {row['component__parent_id']: row['total'] for row in queryset}
+    return {row["component__parent_id"]: row["total"] for row in queryset}
 
 
 def aggregate_fixed_usage(start, end, scope):
@@ -164,12 +164,12 @@ def aggregate_fixed_usage(start, end, scope):
     )
     queryset = filter_aggregate_by_scope(queryset, scope)
 
-    queryset = queryset.values('plan__components__component__parent_id').annotate(
-        total=Sum('plan__components__amount')
+    queryset = queryset.values("plan__components__component__parent_id").annotate(
+        total=Sum("plan__components__amount")
     )
 
     return {
-        row['plan__components__component__parent_id']: row['total'] for row in queryset
+        row["plan__components__component__parent_id"]: row["total"] for row in queryset
     }
 
 
@@ -188,13 +188,13 @@ def calculate_usage_for_scope(start, end, scope):
             component_id=component_id,
             date=start,
             defaults={
-                'reported_usage': reported_usage.get(component_id),
-                'fixed_usage': fixed_usage.get(component_id),
+                "reported_usage": reported_usage.get(component_id),
+                "fixed_usage": fixed_usage.get(component_id),
             },
         )
 
 
-@shared_task(name='waldur_mastermind.marketplace.calculate_usage_for_current_month')
+@shared_task(name="waldur_mastermind.marketplace.calculate_usage_for_current_month")
 def calculate_usage_for_current_month():
     start = invoice_utils.get_current_month_start()
     end = invoice_utils.get_current_month_end()
@@ -209,16 +209,16 @@ def calculate_usage_for_current_month():
         calculate_usage_for_scope(start, end, scope)
 
 
-@shared_task(name='waldur_mastermind.marketplace.send_notifications_about_usages')
+@shared_task(name="waldur_mastermind.marketplace.send_notifications_about_usages")
 def send_notifications_about_usages():
     for warning in utils.get_info_about_missing_usage_reports():
-        customer = warning['customer']
+        customer = warning["customer"]
         emails = customer.get_owner_mails()
-        warning['public_resources_url'] = utils.get_public_resources_url(customer)
+        warning["public_resources_url"] = utils.get_public_resources_url(customer)
 
         if customer.serviceprovider.enable_notifications and emails:
             core_utils.broadcast_mail(
-                'marketplace', 'notification_usages', warning, emails
+                "marketplace", "notification_usages", warning, emails
             )
 
 
@@ -226,7 +226,7 @@ def send_notifications_about_usages():
 def terminate_resource(serialized_resource, serialized_user):
     resource = core_utils.deserialize_instance(serialized_resource)
     user = core_utils.deserialize_instance(serialized_user)
-    view = views.ResourceViewSet.as_view({'post': 'terminate'})
+    view = views.ResourceViewSet.as_view({"post": "terminate"})
     response = create_request(view, user, {}, uuid=resource.uuid.hex)
 
     if response.status_code != status.HTTP_200_OK:
@@ -234,7 +234,7 @@ def terminate_resource(serialized_resource, serialized_user):
 
 
 @shared_task(
-    name='waldur_mastermind.marketplace.terminate_resources_if_project_end_date_has_been_reached'
+    name="waldur_mastermind.marketplace.terminate_resources_if_project_end_date_has_been_reached"
 )
 def terminate_resources_if_project_end_date_has_been_reached():
     expired_projects = structure_models.Project.available_objects.exclude(
@@ -249,9 +249,9 @@ def terminate_resources_if_project_end_date_has_been_reached():
 
         if not active_resources:
             event_logger.project.info(
-                'Project {project_name} is going to be deleted because end date has been reached and there are no active resources.',
-                event_type='project_deletion_triggered',
-                event_context={'project': project},
+                "Project {project_name} is going to be deleted because end date has been reached and there are no active resources.",
+                event_type="project_deletion_triggered",
+                event_context={"project": project},
             )
             project.delete()
             return
@@ -267,9 +267,9 @@ def terminate_resources_if_project_end_date_has_been_reached():
         )
 
 
-@shared_task(name='waldur_mastermind.marketplace.notify_about_stale_resource')
+@shared_task(name="waldur_mastermind.marketplace.notify_about_stale_resource")
 def notify_about_stale_resource():
-    if not settings.WALDUR_MARKETPLACE['ENABLE_STALE_RESOURCE_NOTIFICATIONS']:
+    if not settings.WALDUR_MARKETPLACE["ENABLE_STALE_RESOURCE_NOTIFICATIONS"]:
         return
 
     today = datetime.datetime.today()
@@ -303,26 +303,26 @@ def notify_about_stale_resource():
     for resource in resources:
         mails = resource.project.customer.get_owner_mails()
         resource_url = core_utils.format_homeport_link(
-            'projects/{project_uuid}/marketplace-project-resource-details/{resource_uuid}/',
+            "projects/{project_uuid}/marketplace-project-resource-details/{resource_uuid}/",
             project_uuid=resource.project.uuid.hex,
             resource_uuid=resource.uuid.hex,
         )
 
         for mail in mails:
             user_resources[mail].append(
-                {'resource': resource, 'resource_url': resource_url}
+                {"resource": resource, "resource_url": resource_url}
             )
 
     for key, value in user_resources.items():
         core_utils.broadcast_mail(
-            'marketplace',
-            'notification_about_stale_resources',
-            {'resources': value},
+            "marketplace",
+            "notification_about_stale_resources",
+            {"resources": value},
             [key],
         )
 
 
-@shared_task(name='waldur_mastermind.marketplace.terminate_expired_resources')
+@shared_task(name="waldur_mastermind.marketplace.terminate_expired_resources")
 def terminate_expired_resources():
     expired_resources = models.Resource.objects.filter(
         end_date__lte=timezone.datetime.today(),
@@ -349,31 +349,31 @@ def notify_about_resource_termination(resource_uuid, user_uuid, is_staff_action=
     if user.email and user.notifications_enabled:
         bcc.append(user.email)
     resource_url = core_utils.format_homeport_link(
-        'projects/{project_uuid}/marketplace-project-resource-details/{resource_uuid}/',
+        "projects/{project_uuid}/marketplace-project-resource-details/{resource_uuid}/",
         project_uuid=resource.project.uuid.hex,
         resource_uuid=resource.uuid.hex,
     )
-    context = {'resource': resource, 'user': user, 'resource_url': resource_url}
+    context = {"resource": resource, "user": user, "resource_url": resource_url}
 
     if is_staff_action:
         core_utils.broadcast_mail(
-            'marketplace',
-            'marketplace_resource_termination_scheduled_staff',
+            "marketplace",
+            "marketplace_resource_termination_scheduled_staff",
             context,
             emails,
             bcc=bcc,
         )
     else:
         core_utils.broadcast_mail(
-            'marketplace',
-            'marketplace_resource_termination_scheduled',
+            "marketplace",
+            "marketplace_resource_termination_scheduled",
             context,
             emails,
             bcc=bcc,
         )
 
 
-@shared_task(name='waldur_mastermind.marketplace.notification_about_project_ending')
+@shared_task(name="waldur_mastermind.marketplace.notification_about_project_ending")
 def notification_about_project_ending():
     date_1 = timezone.datetime.today().date() + datetime.timedelta(days=1)
     date_7 = timezone.datetime.today().date() + datetime.timedelta(days=7)
@@ -384,61 +384,61 @@ def notification_about_project_ending():
     for project in expired_projects:
         managers = (
             project.get_users(structure_models.ProjectRole.MANAGER)
-            .exclude(email='')
+            .exclude(email="")
             .exclude(notifications_enabled=False)
         )
         owners = (
             project.customer.get_owners()
-            .exclude(email='')
+            .exclude(email="")
             .exclude(notifications_enabled=False)
         )
         users = set(managers) | set(owners)
 
         project_url = core_utils.format_homeport_link(
-            'projects/{project_uuid}/',
+            "projects/{project_uuid}/",
             project_uuid=project.uuid.hex,
         )
 
         for user in users:
             context = {
-                'project_url': project_url,
-                'project': project,
-                'user': user,
-                'delta': (project.end_date - timezone.datetime.today().date()).days,
+                "project_url": project_url,
+                "project": project,
+                "user": user,
+                "delta": (project.end_date - timezone.datetime.today().date()).days,
             }
             core_utils.broadcast_mail(
-                'marketplace',
-                'notification_about_project_ending',
+                "marketplace",
+                "notification_about_project_ending",
                 context,
                 [user.email],
             )
 
 
-@shared_task(name='waldur_mastermind.marketplace.send_metrics')
+@shared_task(name="waldur_mastermind.marketplace.send_metrics")
 def send_metrics():
-    if not settings.WALDUR_MARKETPLACE['TELEMETRY_ENABLED']:
+    if not settings.WALDUR_MARKETPLACE["TELEMETRY_ENABLED"]:
         return
 
-    site_name = settings.WALDUR_CORE['HOMEPORT_URL']
+    site_name = settings.WALDUR_CORE["HOMEPORT_URL"]
     deployment_type = core_utils.get_deployment_type()
-    first_event = logging_models.Event.objects.order_by('created').first()
+    first_event = logging_models.Event.objects.order_by("created").first()
     installation_date = (
-        first_event.created.strftime('%Y-%m-%d %H:%M:%S.%f%z') if first_event else None
+        first_event.created.strftime("%Y-%m-%d %H:%M:%S.%f%z") if first_event else None
     )
     installation_date_str = str(installation_date) if installation_date else None
     params = {
-        'deployment_id': hashlib.sha256(site_name.encode()).hexdigest(),
-        'deployment_type': deployment_type,
-        'helpdesk_backend': get_active_backend().backend_name,
-        'helpdesk_integration_status': config.WALDUR_SUPPORT_ENABLED,
-        'number_of_users': core_models.User.objects.filter(is_active=True).count(),
-        'number_of_offerings': marketplace_models.Offering.objects.filter(
+        "deployment_id": hashlib.sha256(site_name.encode()).hexdigest(),
+        "deployment_type": deployment_type,
+        "helpdesk_backend": get_active_backend().backend_name,
+        "helpdesk_integration_status": config.WALDUR_SUPPORT_ENABLED,
+        "number_of_users": core_models.User.objects.filter(is_active=True).count(),
+        "number_of_offerings": marketplace_models.Offering.objects.filter(
             state__in=(
                 marketplace_models.Offering.States.ACTIVE,
                 marketplace_models.Offering.States.PAUSED,
             )
         ).count(),
-        'types_of_offering': list(
+        "types_of_offering": list(
             marketplace_models.Offering.objects.filter(
                 state__in=(
                     marketplace_models.Offering.States.ACTIVE,
@@ -446,22 +446,22 @@ def send_metrics():
                 )
             )
             .order_by()
-            .values_list('type', flat=True)
+            .values_list("type", flat=True)
             .distinct()
         ),
-        'version': mastermind_version,
+        "version": mastermind_version,
     }
     if installation_date_str:
-        params['installation_date'] = installation_date_str
+        params["installation_date"] = installation_date_str
     url = (
-        settings.WALDUR_MARKETPLACE['TELEMETRY_URL']
+        settings.WALDUR_MARKETPLACE["TELEMETRY_URL"]
         + f"v{settings.WALDUR_MARKETPLACE['TELEMETRY_VERSION']}/metrics/"
     )
     response = requests.post(url, json=params)
 
     if response.status_code != 200:
         logger.warning(
-            'Error when sending telemetry metrics, status code: %s, text: %s',
+            "Error when sending telemetry metrics, status code: %s, text: %s",
             response.status_code,
             response.text,
         )
@@ -469,7 +469,7 @@ def send_metrics():
     return response
 
 
-@shared_task(name='waldur_mastermind.marketplace.drop_dangling_resources')
+@shared_task(name="waldur_mastermind.marketplace.drop_dangling_resources")
 def drop_dangling_resources():
     creating_resources = models.Resource.objects.filter(
         state=models.Resource.States.CREATING
@@ -479,19 +479,19 @@ def drop_dangling_resources():
         if resource.creation_order.state != models.Order.States.ERRED:
             continue
 
-        if resource.backend_id in [None, '']:
-            logger.info('Terminating %s', resource)
+        if resource.backend_id in [None, ""]:
+            logger.info("Terminating %s", resource)
             resource.set_state_terminated()
         else:
-            logger.info('Setting state of %s to Erred', resource)
+            logger.info("Setting state of %s to Erred", resource)
             resource.set_state_erred()
 
-        resource.save(update_fields=['state'])
+        resource.save(update_fields=["state"])
 
 
 def copy_future_price_to_current_price():
     for component in models.PlanComponent.objects.exclude(
-        future_price=F('price')
+        future_price=F("price")
     ).exclude(future_price__isnull=True):
         component.price = component.future_price
-        component.save(update_fields=['price'])
+        component.save(update_fields=["price"])

@@ -14,7 +14,7 @@ class BatchError(Exception):
 
 
 class BaseBatchClient(metaclass=abc.ABCMeta):
-    def __init__(self, hostname, key_path, username='root', port=22, use_sudo=False):
+    def __init__(self, hostname, key_path, username="root", port=22, use_sudo=False):
         self.hostname = hostname
         self.key_path = key_path
         self.username = username
@@ -110,40 +110,40 @@ class BaseBatchClient(metaclass=abc.ABCMeta):
         raise NotImplementedError()
 
     def execute_command(self, command):
-        server = f'{self.username}@{self.hostname}'
+        server = f"{self.username}@{self.hostname}"
         port = str(self.port)
         if self.use_sudo:
-            account_command = ['sudo']
+            account_command = ["sudo"]
         else:
             account_command = []
 
         account_command.extend(command)
         ssh_command = [
-            'ssh',
-            '-o',
-            'UserKnownHostsFile=/dev/null',
-            '-o',
-            'StrictHostKeyChecking=no',
+            "ssh",
+            "-o",
+            "UserKnownHostsFile=/dev/null",
+            "-o",
+            "StrictHostKeyChecking=no",
             server,
-            '-p',
+            "-p",
             port,
-            '-i',
+            "-i",
             self.key_path,
-            ' '.join(account_command),
+            " ".join(account_command),
         ]
 
         try:
-            logger.debug('Executing SSH command: %s', ' '.join(ssh_command))
+            logger.debug("Executing SSH command: %s", " ".join(ssh_command))
             return subprocess.check_output(  # noqa: S603
-                ssh_command, stderr=subprocess.STDOUT, encoding='utf-8'
+                ssh_command, stderr=subprocess.STDOUT, encoding="utf-8"
             )
         except subprocess.CalledProcessError as e:
             logger.exception('Failed to execute command "%s".', ssh_command)
-            stdout = e.output or ''
+            stdout = e.output or ""
             lines = stdout.splitlines()
-            if len(lines) > 0 and lines[0].startswith('Warning: Permanently added'):
+            if len(lines) > 0 and lines[0].startswith("Warning: Permanently added"):
                 lines = lines[1:]
-            stdout = '\n'.join(lines)
+            stdout = "\n".join(lines)
             raise BatchError(stdout)
 
 
@@ -189,16 +189,13 @@ class BaseReportLine(metaclass=abc.ABCMeta):
         )
 
     def __str__(self):
-        return (
-            "ReportLine: User=%s, Account=%s, CPU=%s, GPU=%s, RAM=%s, Duration=%s, Charge=%s, Node=%s"
-            % (
-                self.user,
-                self.account,
-                self.cpu,
-                self.gpu,
-                self.ram,
-                self.duration,
-                self.charge,
-                self.node,
-            )
+        return "ReportLine: User={}, Account={}, CPU={}, GPU={}, RAM={}, Duration={}, Charge={}, Node={}".format(
+            self.user,
+            self.account,
+            self.cpu,
+            self.gpu,
+            self.ram,
+            self.duration,
+            self.charge,
+            self.node,
         )

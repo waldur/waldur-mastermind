@@ -10,8 +10,8 @@ from waldur_core.structure.tests import factories
 class SSHKeySyncTest(test.APITransactionTestCase):
     def setUp(self) -> None:
         self.user = factories.UserFactory()
-        self.key1 = factories.SshPublicKeyFactory(user=self.user, name='eduteams_key_1')
-        self.key2 = factories.SshPublicKeyFactory(user=self.user, name='eduteams_key_2')
+        self.key1 = factories.SshPublicKeyFactory(user=self.user, name="eduteams_key_1")
+        self.key2 = factories.SshPublicKeyFactory(user=self.user, name="eduteams_key_2")
         self.new_ssh_key = factories.SshPublicKeyFactory()
         responses.add(
             responses.GET,
@@ -28,10 +28,10 @@ class SSHKeySyncTest(test.APITransactionTestCase):
     @responses.activate
     @override_settings(
         WALDUR_AUTH_SOCIAL={
-            'REMOTE_EDUTEAMS_SSH_API_URL': "https://test.myaccessid.example.com",
-            'REMOTE_EDUTEAMS_SSH_API_USERNAME': "ssh_keys_testuser",
-            'REMOTE_EDUTEAMS_SSH_API_PASSWORD': "secret_passw0rd!",
-            'REMOTE_EDUTEAMS_ENABLED': True,
+            "REMOTE_EDUTEAMS_SSH_API_URL": "https://test.myaccessid.example.com",
+            "REMOTE_EDUTEAMS_SSH_API_USERNAME": "ssh_keys_testuser",
+            "REMOTE_EDUTEAMS_SSH_API_PASSWORD": "secret_passw0rd!",
+            "REMOTE_EDUTEAMS_ENABLED": True,
         }
     )
     def test_user_ssh_keys_sync(self):

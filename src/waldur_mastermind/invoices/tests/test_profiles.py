@@ -22,19 +22,19 @@ class ProfileRetrieveTest(test.APITransactionTestCase):
             customer=self.fixture.customer
         )
 
-    @data('owner', 'staff', 'global_support')
+    @data("owner", "staff", "global_support")
     def test_user_with_access_can_retrieve_customer_profile(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    @data('manager', 'admin', 'user')
+    @data("manager", "admin", "user")
     def test_user_cannot_retrieve_customer_profile(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    @data('staff', 'global_support')
+    @data("staff", "global_support")
     def test_user_with_access_can_retrieve_unactive_customer_profile(self, user):
         self.profile.is_active = False
         self.profile.save()
@@ -42,7 +42,7 @@ class ProfileRetrieveTest(test.APITransactionTestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    @data('owner', 'manager', 'admin', 'user')
+    @data("owner", "manager", "admin", "user")
     def test_user_cannot_retrieve_unactive_customer_profile(self, user):
         self.profile.is_active = False
         self.profile.save()
@@ -50,23 +50,23 @@ class ProfileRetrieveTest(test.APITransactionTestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    @data('owner', 'staff', 'global_support')
+    @data("owner", "staff", "global_support")
     def test_user_with_access_can_retrieve_customer_profile_in_organization_endpoint(
         self, user
     ):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(self.customer_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data['payment_profiles']), 1)
+        self.assertEqual(len(response.data["payment_profiles"]), 1)
 
-    @data('manager', 'admin')
+    @data("manager", "admin")
     def test_user_cannot_retrieve_customer_profile_in_organization_endpoint(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(self.customer_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['payment_profiles'], None)
+        self.assertEqual(response.data["payment_profiles"], None)
 
-    @data('staff', 'global_support')
+    @data("staff", "global_support")
     def test_user_with_access_can_retrieve_unactive_customer_profile_in_organization_endpoint(
         self, user
     ):
@@ -75,10 +75,10 @@ class ProfileRetrieveTest(test.APITransactionTestCase):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(self.customer_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data['payment_profiles']), 1)
+        self.assertEqual(len(response.data["payment_profiles"]), 1)
 
     @data(
-        'owner',
+        "owner",
     )
     def test_user_cannot_retrieve_unactive_customer_profile_in_organization_endpoint(
         self, user
@@ -88,7 +88,7 @@ class ProfileRetrieveTest(test.APITransactionTestCase):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(self.customer_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['payment_profiles'], [])
+        self.assertEqual(response.data["payment_profiles"], [])
 
 
 @ddt
@@ -99,22 +99,22 @@ class ProfileCreateTest(test.APITransactionTestCase):
 
     def get_data(self):
         return {
-            'organization': structure_factories.CustomerFactory.get_url(
+            "organization": structure_factories.CustomerFactory.get_url(
                 customer=self.fixture.customer
             ),
-            'payment_type': models.PaymentType.MONTHLY_INVOICES,
-            'name': 'default',
+            "payment_type": models.PaymentType.MONTHLY_INVOICES,
+            "name": "default",
         }
 
     @data(
-        'staff',
+        "staff",
     )
     def test_user_with_access_can_create_customer_profiles(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.post(self.url, self.get_data())
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    @data('owner', 'manager', 'admin', 'user', 'global_support')
+    @data("owner", "manager", "admin", "user", "global_support")
     def test_user_cannot_create_customer_profiles(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.post(self.url, self.get_data())
@@ -131,14 +131,14 @@ class ProfileUpdateTest(test.APITransactionTestCase):
         self.url = factories.PaymentProfileFactory.get_url(profile=self.profile)
 
     @data(
-        'staff',
+        "staff",
     )
     def test_user_with_access_can_update_customer_profiles(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.patch(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    @data('owner', 'manager', 'admin', 'user', 'global_support')
+    @data("owner", "manager", "admin", "user", "global_support")
     def test_user_cannot_create_customer_profiles(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.patch(self.url)
@@ -151,7 +151,7 @@ class ProfileUpdateTest(test.APITransactionTestCase):
             is_active=False,
         )
         url = factories.PaymentProfileFactory.get_url(
-            profile=new_profile, action='enable'
+            profile=new_profile, action="enable"
         )
         response = self.client.post(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -171,14 +171,14 @@ class ProfileDeleteTest(test.APITransactionTestCase):
         self.url = factories.PaymentProfileFactory.get_url(profile=self.profile)
 
     @data(
-        'staff',
+        "staff",
     )
     def test_user_with_access_can_delete_customer_profiles(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.delete(self.url)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
-    @data('owner', 'manager', 'admin', 'user', 'global_support')
+    @data("owner", "manager", "admin", "user", "global_support")
     def test_user_cannot_delete_customer_profiles(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.delete(self.url)
@@ -217,7 +217,7 @@ class ProfileProcessingTest(test.APITransactionTestCase):
     def create_invoice(self):
         tasks.create_monthly_invoices()
         invoice = models.Invoice.objects.get(
-            year='2020', month='01', customer=self.profile.organization
+            year="2020", month="01", customer=self.profile.organization
         )
         self.assertEqual(invoice.state, models.Invoice.States.PENDING)
         return invoice
@@ -225,19 +225,19 @@ class ProfileProcessingTest(test.APITransactionTestCase):
     def test_if_customer_has_a_fixed_price_payment_profile_then_invoice_are_created_as_paid(
         self,
     ):
-        with freeze_time('2020-01-01'):
+        with freeze_time("2020-01-01"):
             invoice = self.create_invoice()
 
-        with freeze_time('2020-02-01'):
+        with freeze_time("2020-02-01"):
             tasks.create_monthly_invoices()
             invoice.refresh_from_db()
             self.assertEqual(invoice.state, models.Invoice.States.PAID)
 
-    @mock.patch('waldur_mastermind.invoices.tasks.send_invoice_notification')
+    @mock.patch("waldur_mastermind.invoices.tasks.send_invoice_notification")
     def test_that_invoice_notifications_are_not_sent_if_customer_has_a_fixed_price_payment_profile(
         self, mock_send_invoice_notification
     ):
-        with freeze_time('2020-01-01'):
+        with freeze_time("2020-01-01"):
             self.create_invoice()
 
             # if fixed-price payment profile exists, so invoice notifications are not sent
@@ -254,12 +254,12 @@ class ProfileNotificationTest(test.APITransactionTestCase):
     def setUp(self):
         self.profile = factories.PaymentProfileFactory(
             payment_type=models.PaymentType.FIXED_PRICE,
-            attributes={'end_date': '2020-01-31'},
+            attributes={"end_date": "2020-01-31"},
         )
 
         factories.PaymentProfileFactory(
             payment_type=models.PaymentType.FIXED_PRICE,
-            attributes={'end_date': '2020-02-15'},
+            attributes={"end_date": "2020-02-15"},
         )
 
         factories.PaymentProfileFactory(
@@ -267,6 +267,6 @@ class ProfileNotificationTest(test.APITransactionTestCase):
         )
 
     def test_notification_only_if_end_exists_and_contact_will_end_in_30_days(self):
-        with freeze_time('2020-01-01'):
+        with freeze_time("2020-01-01"):
             result = utils.get_upcoming_ends_of_fixed_payment_profiles()
             self.assertEqual(len(result), 1)

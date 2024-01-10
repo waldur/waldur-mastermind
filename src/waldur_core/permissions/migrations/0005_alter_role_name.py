@@ -5,13 +5,13 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('permissions', '0004_translation'),
+        ("permissions", "0004_translation"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='role',
-            name='name',
+            model_name="role",
+            name="name",
             field=models.CharField(db_index=True, max_length=150, unique=True),
         ),
     ]

@@ -5,13 +5,13 @@ import requests
 from django.conf import settings
 
 UserDetails = collections.namedtuple(
-    'UserDetails', ('full_name', 'native_name', 'organization', 'job_title')
+    "UserDetails", ("full_name", "native_name", "organization", "job_title")
 )
 
 
 class BCCException(Exception):
     default_code = 400
-    default_detail = 'BCC authentication client error'
+    default_detail = "BCC authentication client error"
 
     def __init__(self, detail=None, code=None):
         self.detail = detail or self.default_detail
@@ -32,20 +32,20 @@ def get_user_details(nid, vno):
     :rtype: UserDetails
     """
     conf = settings.WALDUR_AUTH_BCC
-    url = conf['BASE_API_URL']
+    url = conf["BASE_API_URL"]
     params = {
-        'username': conf['USERNAME'],
-        'password': conf['PASSWORD'],
-        'nid': nid,
-        'vno': vno,
-        'type': 'bcc',
+        "username": conf["USERNAME"],
+        "password": conf["PASSWORD"],
+        "nid": nid,
+        "vno": vno,
+        "type": "bcc",
     }
 
     try:
         response = requests.get(url, params=params)
     except requests.RequestException as e:
         logging.warning(
-            'Unable to get user details from PayFixation API. Exception: %s', e
+            "Unable to get user details from PayFixation API. Exception: %s", e
         )
         raise BCCException(detail=e.message)
 
@@ -55,19 +55,19 @@ def get_user_details(nid, vno):
     try:
         data = response.json()
     except ValueError:
-        raise BCCException('Unable to parse JSON.')
+        raise BCCException("Unable to parse JSON.")
 
-    error = data.get('error')
+    error = data.get("error")
     if error:
         raise BCCException(detail=error)
 
-    name = data['nameen']
+    name = data["nameen"]
     if not name:
-        raise BCCException(detail='Invalid input parameters.')
+        raise BCCException(detail="Invalid input parameters.")
 
     return UserDetails(
-        full_name=data['nameen'],
-        native_name=data['namebn'],
-        job_title=data['desig'],
-        organization=data['office'],
+        full_name=data["nameen"],
+        native_name=data["namebn"],
+        job_title=data["desig"],
+        organization=data["office"],
     )

@@ -15,72 +15,72 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.CreateModel(
-            name='AuthResult',
+            name="AuthResult",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
-                        verbose_name='ID',
+                        verbose_name="ID",
                         serialize=False,
                         auto_created=True,
                         primary_key=True,
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
-                        verbose_name='created',
+                        verbose_name="created",
                         editable=False,
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
-                        verbose_name='modified',
+                        verbose_name="modified",
                         editable=False,
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('error_message', models.TextField(blank=True)),
-                ('phone', models.CharField(max_length=30)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("error_message", models.TextField(blank=True)),
+                ("phone", models.CharField(max_length=30)),
                 (
-                    'message',
+                    "message",
                     models.CharField(
                         default=waldur_auth_valimo.models._default_message,
-                        help_text='This message will be shown to user.',
+                        help_text="This message will be shown to user.",
                         max_length=4,
                     ),
                 ),
                 (
-                    'state',
+                    "state",
                     django_fsm.FSMField(
-                        default='Scheduled',
+                        default="Scheduled",
                         max_length=50,
                         choices=[
-                            ('Scheduled', 'Scheduled'),
-                            ('Processing', 'Processing'),
-                            ('OK', 'OK'),
-                            ('Canceled', 'Canceled'),
-                            ('Erred', 'Erred'),
+                            ("Scheduled", "Scheduled"),
+                            ("Processing", "Processing"),
+                            ("OK", "OK"),
+                            ("Canceled", "Canceled"),
+                            ("Erred", "Erred"),
                         ],
                     ),
                 ),
                 (
-                    'details',
+                    "details",
                     models.CharField(
-                        help_text='Cancellation details.', max_length=255, blank=True
+                        help_text="Cancellation details.", max_length=255, blank=True
                     ),
                 ),
                 (
-                    'backend_transaction_id',
+                    "backend_transaction_id",
                     models.CharField(max_length=100, blank=True),
                 ),
                 (
-                    'user',
+                    "user",
                     models.ForeignKey(
-                        related_name='auth_valimo_results',
+                        related_name="auth_valimo_results",
                         to=settings.AUTH_USER_MODEL,
                         null=True,
                         on_delete=models.CASCADE,
@@ -88,7 +88,7 @@ class Migration(migrations.Migration):
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
     ]

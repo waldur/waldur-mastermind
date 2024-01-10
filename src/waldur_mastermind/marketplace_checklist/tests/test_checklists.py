@@ -12,8 +12,8 @@ class CustomerChecklistTest(test.APITransactionTestCase):
         self.checklist1 = factories.ChecklistFactory()
         self.checklist2 = factories.ChecklistFactory()
         self.url = reverse(
-            'marketplace-checklists-customer',
-            kwargs={'customer_uuid': self.customer.uuid.hex},
+            "marketplace-checklists-customer",
+            kwargs={"customer_uuid": self.customer.uuid.hex},
         )
 
     def get_customer_checklists(self):

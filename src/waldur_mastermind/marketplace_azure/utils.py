@@ -15,13 +15,13 @@ def synchronize_nic(nic):
         resource = marketplace_models.Resource.objects.get(scope=vm)
     except ObjectDoesNotExist:
         logger.debug(
-            'Skipping Azure virtual machine synchronization '
-            'because marketplace resource does not exist. '
-            'Resource: %s',
+            "Skipping Azure virtual machine synchronization "
+            "because marketplace resource does not exist. "
+            "Resource: %s",
             core_utils.serialize_instance(nic),
         )
         return
     else:
-        resource.backend_metadata['internal_ips'] = vm.internal_ips
-        resource.backend_metadata['external_ips'] = vm.external_ips
-        resource.save(update_fields=['backend_metadata'])
+        resource.backend_metadata["internal_ips"] = vm.internal_ips
+        resource.backend_metadata["external_ips"] = vm.external_ips
+        resource.save(update_fields=["backend_metadata"])

@@ -6,17 +6,17 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('waldur_azure', '0020_sizeavailabilityzone'),
+        ("waldur_azure", "0020_sizeavailabilityzone"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='image',
-            name='location',
+            model_name="image",
+            name="location",
             field=models.ForeignKey(
                 default=None,
                 on_delete=django.db.models.deletion.CASCADE,
-                to='waldur_azure.Location',
+                to="waldur_azure.Location",
             ),
             preserve_default=False,
         ),

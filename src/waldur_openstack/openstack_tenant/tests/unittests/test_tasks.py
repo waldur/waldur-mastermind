@@ -27,7 +27,7 @@ class DeleteExpiredBackupsTaskTest(TestCase):
         )
 
     @mock.patch(
-        'waldur_openstack.openstack_tenant.executors.BackupDeleteExecutor.execute'
+        "waldur_openstack.openstack_tenant.executors.BackupDeleteExecutor.execute"
     )
     def test_command_starts_backend_deletion(self, mocked_execute):
         tasks.DeleteExpiredBackups().run()
@@ -52,7 +52,7 @@ class DeleteExpiredSnapshotsTaskTest(TestCase):
         )
 
     @mock.patch(
-        'waldur_openstack.openstack_tenant.executors.SnapshotDeleteExecutor.execute'
+        "waldur_openstack.openstack_tenant.executors.SnapshotDeleteExecutor.execute"
     )
     def test_command_starts_snapshot_deletion(self, mocked_execute):
         tasks.DeleteExpiredSnapshots().run()
@@ -73,13 +73,13 @@ class BackupScheduleTaskTest(TestCase):
             state=models.Instance.States.OK,
         )
         self.overdue_schedule = factories.BackupScheduleFactory(
-            instance=self.instance, timezone='Europe/Tallinn'
+            instance=self.instance, timezone="Europe/Tallinn"
         )
         self.overdue_schedule.next_trigger_at = timezone.now() - timedelta(minutes=10)
         self.overdue_schedule.save()
 
         self.future_schedule = factories.BackupScheduleFactory(
-            instance=self.instance, timezone='Europe/Tallinn'
+            instance=self.instance, timezone="Europe/Tallinn"
         )
         self.future_schedule.next_trigger_at = timezone.now() + timedelta(minutes=2)
         self.future_schedule.save()
@@ -92,7 +92,7 @@ class BackupScheduleTaskTest(TestCase):
         tasks.ScheduleBackups().run()
         self.assertEqual(self.overdue_schedule.backups.count(), 1)
 
-    @mock.patch('waldur_openstack.openstack_tenant.handlers.log.event_logger')
+    @mock.patch("waldur_openstack.openstack_tenant.handlers.log.event_logger")
     def test_if_quota_is_exceeded_backup_is_not_created_and_schedule_is_paused(
         self, event_logger
     ):
@@ -100,8 +100,8 @@ class BackupScheduleTaskTest(TestCase):
         scope = self.instance.service_settings
 
         # Usage is equal to limit
-        scope.set_quota_limit('snapshots', 2)
-        scope.set_quota_usage('snapshots', 2)
+        scope.set_quota_limit("snapshots", 2)
+        scope.set_quota_usage("snapshots", 2)
 
         # Trigger task
         tasks.ScheduleBackups().run()
@@ -114,13 +114,13 @@ class BackupScheduleTaskTest(TestCase):
         self.assertFalse(schedule.is_active)
 
         # Error message is persisted in schedule
-        self.assertTrue(schedule.error_message.startswith('Failed to schedule'))
+        self.assertTrue(schedule.error_message.startswith("Failed to schedule"))
 
         # Event is triggered for hooks
         event_type = event_logger.openstack_backup_schedule.warning.call_args[1][
-            'event_type'
+            "event_type"
         ]
-        self.assertEqual(event_type, 'resource_backup_schedule_deactivated')
+        self.assertEqual(event_type, "resource_backup_schedule_deactivated")
 
     def test_next_trigger_at_is_updated_for_overdue_schedule(self):
         # Arrange
@@ -139,7 +139,7 @@ class BackupScheduleTaskTest(TestCase):
         old_dt = self.future_schedule.next_trigger_at
 
         # Act
-        self.future_schedule.timezone = 'Asia/Tokyo'
+        self.future_schedule.timezone = "Asia/Tokyo"
         self.future_schedule.save()
 
         # Assert
@@ -248,7 +248,7 @@ class BackupScheduleTaskTest(TestCase):
         self.assertNotEqual(models.Backup.States.DELETION_SCHEDULED, backup3.state)
 
     @mock.patch(
-        'waldur_openstack.openstack_tenant.executors.BackupDeleteExecutor.execute'
+        "waldur_openstack.openstack_tenant.executors.BackupDeleteExecutor.execute"
     )
     def test_if_exceeding_backups_are_already_deleting_extra_deletion_is_not_scheduled(
         self, mocked_executor
@@ -309,7 +309,7 @@ class SnapshotScheduleTaskTest(TestCase):
 
         self.assertEqual(self.future_schedule.snapshots.count(), 0)
 
-    @mock.patch('waldur_openstack.openstack_tenant.handlers.log.event_logger')
+    @mock.patch("waldur_openstack.openstack_tenant.handlers.log.event_logger")
     def test_if_quota_is_exceeded_snapshot_is_not_created_and_schedule_is_paused(
         self, event_logger
     ):
@@ -319,8 +319,8 @@ class SnapshotScheduleTaskTest(TestCase):
         scope = schedule.source_volume.service_settings
 
         # Usage is equal to limit
-        scope.set_quota_limit('snapshots', 2)
-        scope.set_quota_usage('snapshots', 2)
+        scope.set_quota_limit("snapshots", 2)
+        scope.set_quota_usage("snapshots", 2)
 
         # Trigger task
         tasks.ScheduleSnapshots().run()
@@ -333,10 +333,10 @@ class SnapshotScheduleTaskTest(TestCase):
         self.assertFalse(schedule.is_active)
 
         # Error message is persisted in schedule
-        self.assertTrue(schedule.error_message.startswith('Failed to schedule'))
+        self.assertTrue(schedule.error_message.startswith("Failed to schedule"))
 
         # Event is triggered for hooks
         event_type = event_logger.openstack_snapshot_schedule.warning.call_args[1][
-            'event_type'
+            "event_type"
         ]
-        self.assertEqual(event_type, 'resource_snapshot_schedule_deactivated')
+        self.assertEqual(event_type, "resource_snapshot_schedule_deactivated")

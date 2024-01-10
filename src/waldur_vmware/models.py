@@ -13,82 +13,82 @@ class VirtualMachineMixin(models.Model):
     guest_os = models.CharField(
         max_length=50,
         help_text=_(
-            'Defines the valid guest operating system '
-            'types used for configuring a virtual machine'
+            "Defines the valid guest operating system "
+            "types used for configuring a virtual machine"
         ),
     )
     cores = models.PositiveSmallIntegerField(
-        default=0, help_text=_('Number of cores in a VM')
+        default=0, help_text=_("Number of cores in a VM")
     )
     cores_per_socket = models.PositiveSmallIntegerField(
-        default=1, help_text=_('Number of cores per socket in a VM')
+        default=1, help_text=_("Number of cores per socket in a VM")
     )
     ram = models.PositiveIntegerField(
-        default=0, help_text=_('Memory size in MiB'), verbose_name=_('RAM')
+        default=0, help_text=_("Memory size in MiB"), verbose_name=_("RAM")
     )
-    disk = models.PositiveIntegerField(default=0, help_text=_('Disk size in MiB'))
+    disk = models.PositiveIntegerField(default=0, help_text=_("Disk size in MiB"))
 
 
 class VirtualMachine(
     VirtualMachineMixin, core_models.RuntimeStateMixin, structure_models.BaseResource
 ):
     class RuntimeStates:
-        POWERED_OFF = 'POWERED_OFF'
-        POWERED_ON = 'POWERED_ON'
-        SUSPENDED = 'SUSPENDED'
+        POWERED_OFF = "POWERED_OFF"
+        POWERED_ON = "POWERED_ON"
+        SUSPENDED = "SUSPENDED"
 
         CHOICES = (
-            (POWERED_OFF, 'Powered off'),
-            (POWERED_ON, 'Powered on'),
-            (SUSPENDED, 'Suspended'),
+            (POWERED_OFF, "Powered off"),
+            (POWERED_ON, "Powered on"),
+            (SUSPENDED, "Suspended"),
         )
 
     class GuestPowerStates:
-        RUNNING = 'RUNNING'
-        SHUTTING_DOWN = 'SHUTTING_DOWN'
-        RESETTING = 'RESETTING'
-        STANDBY = 'STANDBY'
-        NOT_RUNNING = 'NOT_RUNNING'
-        UNAVAILABLE = 'UNAVAILABLE'
+        RUNNING = "RUNNING"
+        SHUTTING_DOWN = "SHUTTING_DOWN"
+        RESETTING = "RESETTING"
+        STANDBY = "STANDBY"
+        NOT_RUNNING = "NOT_RUNNING"
+        UNAVAILABLE = "UNAVAILABLE"
 
         CHOICES = (
-            (RUNNING, 'Running'),
-            (SHUTTING_DOWN, 'Shutting down'),
-            (RESETTING, 'Resetting'),
-            (STANDBY, 'Standby'),
-            (NOT_RUNNING, 'Not running'),
-            (UNAVAILABLE, 'Unavailable'),
+            (RUNNING, "Running"),
+            (SHUTTING_DOWN, "Shutting down"),
+            (RESETTING, "Resetting"),
+            (STANDBY, "Standby"),
+            (NOT_RUNNING, "Not running"),
+            (UNAVAILABLE, "Unavailable"),
         )
 
     class ToolsStates:
-        STARTING = 'STARTING'
-        RUNNING = 'RUNNING'
-        NOT_RUNNING = 'NOT_RUNNING'
+        STARTING = "STARTING"
+        RUNNING = "RUNNING"
+        NOT_RUNNING = "NOT_RUNNING"
 
         CHOICES = (
-            (STARTING, 'Starting'),
-            (RUNNING, 'Running'),
-            (NOT_RUNNING, 'Not running'),
+            (STARTING, "Starting"),
+            (RUNNING, "Running"),
+            (NOT_RUNNING, "Not running"),
         )
 
-    template = models.ForeignKey('Template', null=True, on_delete=models.SET_NULL)
-    cluster = models.ForeignKey('Cluster', null=True, on_delete=models.SET_NULL)
-    datastore = models.ForeignKey('Datastore', null=True, on_delete=models.SET_NULL)
-    folder = models.ForeignKey('Folder', null=True, on_delete=models.SET_NULL)
-    networks = models.ManyToManyField('Network', blank=True)
+    template = models.ForeignKey("Template", null=True, on_delete=models.SET_NULL)
+    cluster = models.ForeignKey("Cluster", null=True, on_delete=models.SET_NULL)
+    datastore = models.ForeignKey("Datastore", null=True, on_delete=models.SET_NULL)
+    folder = models.ForeignKey("Folder", null=True, on_delete=models.SET_NULL)
+    networks = models.ManyToManyField("Network", blank=True)
     guest_power_enabled = models.BooleanField(
         default=False,
-        help_text='Flag indicating if the virtual machine is ready to process soft power operations.',
+        help_text="Flag indicating if the virtual machine is ready to process soft power operations.",
     )
     guest_power_state = models.CharField(
-        'The power state of the guest operating system.',
+        "The power state of the guest operating system.",
         max_length=150,
         blank=True,
         choices=GuestPowerStates.CHOICES,
     )
     tools_installed = models.BooleanField(default=False)
     tools_state = models.CharField(
-        'Current running status of VMware Tools running in the guest operating system.',
+        "Current running status of VMware Tools running in the guest operating system.",
         max_length=50,
         blank=True,
         choices=ToolsStates.CHOICES,
@@ -98,22 +98,22 @@ class VirtualMachine(
     @classmethod
     def get_backend_fields(cls):
         return super().get_backend_fields() + (
-            'runtime_state',
-            'cores',
-            'cores_per_socket',
-            'ram',
-            'disk',
-            'tools_installed',
-            'tools_state',
+            "runtime_state",
+            "cores",
+            "cores_per_socket",
+            "ram",
+            "disk",
+            "tools_installed",
+            "tools_state",
         )
 
     @classmethod
     def get_url_name(cls):
-        return 'vmware-virtual-machine'
+        return "vmware-virtual-machine"
 
     @property
     def total_disk(self):
-        return self.disks.aggregate(models.Sum('size'))['size__sum'] or 0
+        return self.disks.aggregate(models.Sum("size"))["size__sum"] or 0
 
     def __str__(self):
         return self.name
@@ -121,39 +121,39 @@ class VirtualMachine(
 
 class Port(core_models.RuntimeStateMixin, structure_models.BaseResource):
     vm = models.ForeignKey(on_delete=models.CASCADE, to=VirtualMachine)
-    network = models.ForeignKey(on_delete=models.CASCADE, to='Network')
+    network = models.ForeignKey(on_delete=models.CASCADE, to="Network")
     mac_address = models.CharField(
-        max_length=32, blank=True, verbose_name=_('MAC address')
+        max_length=32, blank=True, verbose_name=_("MAC address")
     )
 
     @classmethod
     def get_backend_fields(cls):
-        return super().get_backend_fields() + ('name', 'mac_address')
+        return super().get_backend_fields() + ("name", "mac_address")
 
     @classmethod
     def get_url_name(cls):
-        return 'vmware-port'
+        return "vmware-port"
 
     def __str__(self):
         return self.name
 
 
 class Disk(structure_models.BaseResource):
-    size = models.PositiveIntegerField(help_text=_('Size in MiB'))
+    size = models.PositiveIntegerField(help_text=_("Size in MiB"))
     vm = models.ForeignKey(
-        on_delete=models.CASCADE, to=VirtualMachine, related_name='disks'
+        on_delete=models.CASCADE, to=VirtualMachine, related_name="disks"
     )
 
     @classmethod
     def get_url_name(cls):
-        return 'vmware-disk'
+        return "vmware-disk"
 
     def __str__(self):
         return self.name
 
     @classmethod
     def get_backend_fields(cls):
-        return super().get_backend_fields() + ('name', 'size')
+        return super().get_backend_fields() + ("name", "size")
 
 
 class Template(
@@ -164,7 +164,7 @@ class Template(
 
     @classmethod
     def get_url_name(cls):
-        return 'vmware-template'
+        return "vmware-template"
 
     def __str__(self):
         return self.name
@@ -173,21 +173,21 @@ class Template(
 class Cluster(structure_models.ServiceProperty):
     @classmethod
     def get_url_name(cls):
-        return 'vmware-cluster'
+        return "vmware-cluster"
 
     def __str__(self):
-        return f'{self.settings} / {self.name}'
+        return f"{self.settings} / {self.name}"
 
 
 class CustomerCluster(models.Model):
     customer = models.ForeignKey(structure_models.Customer, on_delete=models.CASCADE)
-    cluster = models.ForeignKey('Cluster', on_delete=models.CASCADE)
+    cluster = models.ForeignKey("Cluster", on_delete=models.CASCADE)
 
     def __str__(self):
-        return f'{self.customer} / {self.cluster}'
+        return f"{self.customer} / {self.cluster}"
 
     class Meta:
-        unique_together = ('customer', 'cluster')
+        unique_together = ("customer", "cluster")
 
 
 class Network(structure_models.ServiceProperty):
@@ -195,34 +195,34 @@ class Network(structure_models.ServiceProperty):
 
     @classmethod
     def get_url_name(cls):
-        return 'vmware-network'
+        return "vmware-network"
 
     def __str__(self):
-        return f'{self.settings} / {self.name}'
+        return f"{self.settings} / {self.name}"
 
 
 class CustomerNetwork(models.Model):
     # This model allows to specify allowed networks for VM provision
     customer = models.ForeignKey(structure_models.Customer, on_delete=models.CASCADE)
-    network = models.ForeignKey('Network', on_delete=models.CASCADE)
+    network = models.ForeignKey("Network", on_delete=models.CASCADE)
 
     def __str__(self):
-        return f'{self.customer} / {self.network}'
+        return f"{self.customer} / {self.network}"
 
     class Meta:
-        unique_together = ('customer', 'network')
+        unique_together = ("customer", "network")
 
 
 class CustomerNetworkPair(models.Model):
     # This model allows to specify allowed networks for existing VM NIC provision
     customer = models.ForeignKey(structure_models.Customer, on_delete=models.CASCADE)
-    network = models.ForeignKey('Network', on_delete=models.CASCADE)
+    network = models.ForeignKey("Network", on_delete=models.CASCADE)
 
     def __str__(self):
-        return f'{self.customer} / {self.network}'
+        return f"{self.customer} / {self.network}"
 
     class Meta:
-        unique_together = ('customer', 'network')
+        unique_together = ("customer", "network")
 
 
 class Datastore(structure_models.ServiceProperty):
@@ -236,38 +236,38 @@ class Datastore(structure_models.ServiceProperty):
 
     @classmethod
     def get_url_name(cls):
-        return 'vmware-datastore'
+        return "vmware-datastore"
 
     def __str__(self):
-        return f'{self.settings} / {self.name}'
+        return f"{self.settings} / {self.name}"
 
 
 class CustomerDatastore(models.Model):
     customer = models.ForeignKey(structure_models.Customer, on_delete=models.CASCADE)
-    datastore = models.ForeignKey('Datastore', on_delete=models.CASCADE)
+    datastore = models.ForeignKey("Datastore", on_delete=models.CASCADE)
 
     def __str__(self):
-        return f'{self.customer} / {self.datastore}'
+        return f"{self.customer} / {self.datastore}"
 
     class Meta:
-        unique_together = ('customer', 'datastore')
+        unique_together = ("customer", "datastore")
 
 
 class Folder(structure_models.ServiceProperty):
     def __str__(self):
-        return f'{self.settings} / {self.name}'
+        return f"{self.settings} / {self.name}"
 
     @classmethod
     def get_url_name(cls):
-        return 'vmware-folder'
+        return "vmware-folder"
 
 
 class CustomerFolder(models.Model):
     customer = models.ForeignKey(structure_models.Customer, on_delete=models.CASCADE)
-    folder = models.ForeignKey('Folder', on_delete=models.CASCADE)
+    folder = models.ForeignKey("Folder", on_delete=models.CASCADE)
 
     def __str__(self):
-        return f'{self.customer} / {self.folder}'
+        return f"{self.customer} / {self.folder}"
 
     class Meta:
-        unique_together = ('customer', 'folder')
+        unique_together = ("customer", "folder")

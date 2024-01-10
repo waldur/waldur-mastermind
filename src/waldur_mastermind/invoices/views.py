@@ -24,9 +24,9 @@ from . import filters, log, models, serializers, tasks, utils
 
 
 class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
-    queryset = models.Invoice.objects.order_by('-year', '-month')
+    queryset = models.Invoice.objects.order_by("-year", "-month")
     serializer_class = serializers.InvoiceSerializer
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
     filter_backends = (
         structure_filters.GenericRoleFilter,
         structure_filters.CustomerAccountingStartDateFilter,
@@ -37,18 +37,18 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
     def _is_invoice_created(invoice):
         if invoice.state != models.Invoice.States.CREATED:
             raise exceptions.ValidationError(
-                _('Notification only for the created invoice can be sent.')
+                _("Notification only for the created invoice can be sent.")
             )
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def send_notification(self, request, uuid=None):
         invoice = self.get_object()
         tasks.send_invoice_notification.delay(invoice.uuid.hex)
 
         return Response(
             {
-                'detail': _(
-                    'Invoice notification sending has been successfully scheduled.'
+                "detail": _(
+                    "Invoice notification sending has been successfully scheduled."
                 )
             },
             status=status.HTTP_200_OK,
@@ -58,7 +58,7 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
     send_notification_validators = [_is_invoice_created]
 
     @transaction.atomic
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def paid(self, request, uuid=None):
         invoice = self.get_object()
 
@@ -71,17 +71,17 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
                 )
             except models.PaymentProfile.DoesNotExist:
                 raise exceptions.ValidationError(
-                    _('The active profile for this customer does not exist.')
+                    _("The active profile for this customer does not exist.")
                 )
 
             payment = models.Payment.objects.create(
-                date_of_payment=serializer.validated_data['date'],
+                date_of_payment=serializer.validated_data["date"],
                 sum=invoice.total_current,
                 profile=profile,
                 invoice=invoice,
             )
 
-            proof = serializer.validated_data.get('proof')
+            proof = serializer.validated_data.get("proof")
 
             if proof:
                 payment.proof = proof
@@ -90,16 +90,16 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
 
             log.event_logger.invoice.info(
                 'Payment for invoice ({month}/{year}) has been added."',
-                event_type='payment_created',
+                event_type="payment_created",
                 event_context={
-                    'month': invoice.month,
-                    'year': invoice.year,
-                    'customer': invoice.customer,
+                    "month": invoice.month,
+                    "year": invoice.year,
+                    "customer": invoice.customer,
                 },
             )
 
         invoice.state = models.Invoice.States.PAID
-        invoice.save(update_fields=['state'])
+        invoice.save(update_fields=["state"])
         return Response(status=status.HTTP_200_OK)
 
     paid_permissions = [structure_permissions.is_staff]
@@ -123,30 +123,30 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
 
             if offering.uuid.hex not in offerings.keys():
                 offerings[offering.uuid.hex] = {
-                    'offering_name': offering.name,
-                    'aggregated_price': item.price,
-                    'aggregated_tax': item.tax,
-                    'aggregated_total': item.total,
-                    'service_category_title': service_category_title,
-                    'service_provider_name': service_provider_name,
-                    'service_provider_uuid': service_provider_uuid,
+                    "offering_name": offering.name,
+                    "aggregated_price": item.price,
+                    "aggregated_tax": item.tax,
+                    "aggregated_total": item.total,
+                    "service_category_title": service_category_title,
+                    "service_provider_name": service_provider_name,
+                    "service_provider_uuid": service_provider_uuid,
                 }
             else:
-                offerings[offering.uuid.hex]['aggregated_price'] += item.price
-                offerings[offering.uuid.hex]['aggregated_tax'] += item.tax
-                offerings[offering.uuid.hex]['aggregated_total'] += item.total
+                offerings[offering.uuid.hex]["aggregated_price"] += item.price
+                offerings[offering.uuid.hex]["aggregated_tax"] += item.tax
+                offerings[offering.uuid.hex]["aggregated_total"] += item.total
 
         queryset = [dict(uuid=key, **details) for (key, details) in offerings.items()]
 
         for item in queryset:
-            item['aggregated_price'] = quantize_price(
-                decimal.Decimal(item['aggregated_price'])
+            item["aggregated_price"] = quantize_price(
+                decimal.Decimal(item["aggregated_price"])
             )
-            item['aggregated_tax'] = quantize_price(
-                decimal.Decimal(item['aggregated_tax'])
+            item["aggregated_tax"] = quantize_price(
+                decimal.Decimal(item["aggregated_tax"])
             )
-            item['aggregated_total'] = quantize_price(
-                decimal.Decimal(item['aggregated_total'])
+            item["aggregated_total"] = quantize_price(
+                decimal.Decimal(item["aggregated_total"])
             )
 
         page = self.paginate_queryset(queryset)
@@ -163,18 +163,18 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
         )
 
         customers_count = 4
-        if 'customers_count' in request.query_params:
+        if "customers_count" in request.query_params:
             try:
-                customers_count = int(request.query_params['customers_count'])
+                customers_count = int(request.query_params["customers_count"])
             except ValueError:
-                raise exceptions.ValidationError('customers_count is not a number')
+                raise exceptions.ValidationError("customers_count is not a number")
 
         if customers_count > 20:
             raise exceptions.ValidationError(
-                'customers_count should not be greater than 20'
+                "customers_count should not be greater than 20"
             )
 
-        is_accounting_mode = request.query_params.get('accounting_mode') == 'accounting'
+        is_accounting_mode = request.query_params.get("accounting_mode") == "accounting"
 
         today = datetime.date.today()
         current_month = today - relativedelta(months=12)
@@ -183,10 +183,10 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
             models.Invoice.objects.filter(
                 customer__in=customers, created__gte=current_month
             )
-            .values('customer_id')
-            .annotate(total=Sum('total_cost'))
-            .order_by('-total')
-            .values_list('customer_id', flat=True)[:customers_count]
+            .values("customer_id")
+            .annotate(total=Sum("total_cost"))
+            .order_by("-total")
+            .values_list("customer_id", flat=True)[:customers_count]
         )
 
         minors = customers.exclude(id__in=majors)
@@ -200,7 +200,7 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
                 year=current_month.year,
                 month=current_month.month,
             )
-            key = f'{current_month.year}-{current_month.month}'
+            key = f"{current_month.year}-{current_month.month}"
             row = customer_periods[key] = {}
             subtotal = 0
             for invoice in invoices.filter(customer_id__in=majors):
@@ -215,13 +215,13 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
             current_month += relativedelta(months=1)
 
         result = {
-            'periods': total_periods.keys(),
-            'total_periods': total_periods.values(),
-            'other_periods': other_periods.values(),
-            'customer_periods': [
+            "periods": total_periods.keys(),
+            "total_periods": total_periods.values(),
+            "other_periods": other_periods.values(),
+            "customer_periods": [
                 {
-                    'name': customer.name,
-                    'periods': [
+                    "name": customer.name,
+                    "periods": [
                         customer_periods[period].get(customer.uuid.hex, 0)
                         for period in total_periods.keys()
                     ],
@@ -232,7 +232,7 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
 
         return Response(result, status=status.HTTP_200_OK)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def set_backend_id(self, request, uuid=None):
         serializer = self.get_serializer(instance=self.get_object(), data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -242,7 +242,7 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
     set_backend_id_permissions = [structure_permissions.is_staff]
     set_backend_id_serializer_class = serializers.BackendIdSerializer
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def set_payment_url(self, request, uuid=None):
         serializer = self.get_serializer(instance=self.get_object(), data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -252,7 +252,7 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
     set_payment_url_permissions = [structure_permissions.is_staff]
     set_payment_url_serializer_class = serializers.PaymentURLSerializer
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def set_reference_number(self, request, uuid=None):
         serializer = self.get_serializer(instance=self.get_object(), data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -264,25 +264,25 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
 
 
 class InvoiceItemViewSet(core_views.ActionsViewSet):
-    disabled_actions = ['create']
-    queryset = models.InvoiceItem.objects.all().order_by('start')
+    disabled_actions = ["create"]
+    queryset = models.InvoiceItem.objects.all().order_by("start")
     serializer_class = serializers.InvoiceItemDetailSerializer
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.InvoiceItemFilter
 
     @transaction.atomic
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def create_compensation(self, request, **kwargs):
         invoice_item = self.get_object()
 
         serializer = self.get_serializer_class()(data=request.data)
         serializer.is_valid(raise_exception=True)
-        offering_component_name = serializer.validated_data['offering_component_name']
+        offering_component_name = serializer.validated_data["offering_component_name"]
 
         if invoice_item.unit_price < 0:
             return Response(
-                'Can not create compensation for invoice item with negative unit price.',
+                "Can not create compensation for invoice item with negative unit price.",
                 status=status.HTTP_400_BAD_REQUEST,
             )
         year, month = utils.get_current_year(), utils.get_current_month()
@@ -295,8 +295,8 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
         # Fill new invoice item details
         if not invoice_item.details:
             invoice_item.details = {}
-        invoice_item.details['original_invoice_item_uuid'] = invoice_item.uuid.hex
-        invoice_item.details['offering_component_name'] = offering_component_name
+        invoice_item.details["original_invoice_item_uuid"] = invoice_item.uuid.hex
+        invoice_item.details["offering_component_name"] = offering_component_name
 
         # Save new invoice item to database
         invoice_item.invoice = invoice
@@ -306,15 +306,15 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
         invoice_item.save()
 
         log.event_logger.invoice_item.info(
-            f'Invoice item {invoice_item.name} has been created.',
-            event_type='invoice_item_created',
+            f"Invoice item {invoice_item.name} has been created.",
+            event_type="invoice_item_created",
             event_context={
-                'customer': invoice_item.invoice.customer,
+                "customer": invoice_item.invoice.customer,
             },
         )
 
         return Response(
-            {'invoice_item_uuid': invoice_item.uuid.hex},
+            {"invoice_item_uuid": invoice_item.uuid.hex},
             status=status.HTTP_201_CREATED,
         )
 
@@ -324,18 +324,18 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
             field: getattr(instance, field.attname) for field in instance._meta.fields
         }
         invoice_item = serializer.save()
-        diff = ', '.join(
+        diff = ", ".join(
             [
-                f'{field.name}: {old_values.get(field.name)} -> {getattr(invoice_item, field.name, None)}'
+                f"{field.name}: {old_values.get(field.name)} -> {getattr(invoice_item, field.name, None)}"
                 for field, value in old_values.items()
                 if value != getattr(invoice_item, field.attname, None)
             ]
         )
         log.event_logger.invoice_item.info(
-            f'Invoice item {invoice_item.name} has been updated. Details: {diff}.',
-            event_type='invoice_item_updated',
+            f"Invoice item {invoice_item.name} has been updated. Details: {diff}.",
+            event_type="invoice_item_updated",
             event_context={
-                'customer': invoice_item.invoice.customer,
+                "customer": invoice_item.invoice.customer,
             },
         )
         return invoice_item
@@ -343,31 +343,31 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
     def perform_destroy(self, instance):
         invoice_item = instance
         log.event_logger.invoice_item.info(
-            f'Invoice item {invoice_item.name} has been deleted.',
-            event_type='invoice_item_deleted',
+            f"Invoice item {invoice_item.name} has been deleted.",
+            event_type="invoice_item_deleted",
             event_context={
-                'customer': invoice_item.invoice.customer,
+                "customer": invoice_item.invoice.customer,
             },
         )
         invoice_item.delete()
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def migrate_to(self, request, **kwargs):
         invoice_item = self.get_object()
         serializer = self.get_serializer_class()(data=request.data)
         serializer.is_valid(raise_exception=True)
-        invoice = serializer.validated_data['invoice']
+        invoice = serializer.validated_data["invoice"]
 
         if invoice.customer != invoice_item.invoice.customer:
             raise exceptions.ValidationError(
                 _(
-                    'Moving of items is possible only between invoices of same the customer.'
+                    "Moving of items is possible only between invoices of same the customer."
                 )
             )
 
         if invoice == invoice_item.invoice:
             raise exceptions.ValidationError(
-                _('Invoice item is already in the target invoice.')
+                _("Invoice item is already in the target invoice.")
             )
 
         old_invoice = invoice_item.invoice
@@ -375,15 +375,15 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
         invoice_item.save()
 
         log.event_logger.invoice_item.info(
-            f'Invoice item has been migrated from {old_invoice} to {invoice}',
-            event_type='invoice_item_updated',
+            f"Invoice item has been migrated from {old_invoice} to {invoice}",
+            event_type="invoice_item_updated",
             event_context={
-                'customer': invoice.customer,
+                "customer": invoice.customer,
             },
         )
 
         return Response(
-            {'invoice_item_uuid': invoice_item.uuid.hex},
+            {"invoice_item_uuid": invoice_item.uuid.hex},
             status=status.HTTP_200_OK,
         )
 
@@ -391,22 +391,22 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
         result_list = []
         for invoice in paginated_invoices:
             data = {
-                'price': "{:.2f}".format(invoice['price']),
-                'year': invoice['invoice__year'],
-                'month': invoice['invoice__month'],
+                "price": "{:.2f}".format(invoice["price"]),
+                "year": invoice["invoice__year"],
+                "month": invoice["invoice__month"],
             }
             result_list.append(data)
         return result_list
 
-    @action(detail=False, methods=['get'], filterset_class=filters.InvoiceItemFilter)
+    @action(detail=False, methods=["get"], filterset_class=filters.InvoiceItemFilter)
     def costs(self, request, *args, **kwargs):
-        project_uuid = request.GET.get('project_uuid', '')
+        project_uuid = request.GET.get("project_uuid", "")
         invoices = (
             InvoiceItem.objects.filter(project_uuid=project_uuid)
-            .values('invoice__year', 'invoice__month')
-            .annotate(price=Sum(F('unit_price') * F('quantity')))
-            .values('invoice__year', 'invoice__month', 'price')
-            .order_by('-invoice__year', '-invoice__month')
+            .values("invoice__year", "invoice__month")
+            .annotate(price=Sum(F("unit_price") * F("quantity")))
+            .values("invoice__year", "invoice__month", "price")
+            .order_by("-invoice__year", "-invoice__month")
         )
         page = self.paginate_queryset(invoices)
         if page is not None:
@@ -431,7 +431,7 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
 
 
 class PaymentProfileViewSet(core_views.ActionsViewSet):
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
     filter_backends = (
         structure_filters.GenericRoleFilter,
         DjangoFilterBackend,
@@ -443,23 +443,23 @@ class PaymentProfileViewSet(core_views.ActionsViewSet):
     ) = partial_update_permissions = destroy_permissions = enable_permissions = [
         structure_permissions.is_staff
     ]
-    queryset = models.PaymentProfile.objects.all().order_by('name')
+    queryset = models.PaymentProfile.objects.all().order_by("name")
     serializer_class = serializers.PaymentProfileSerializer
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def enable(self, request, uuid=None):
         profile = self.get_object()
         profile.is_active = True
-        profile.save(update_fields=['is_active'])
+        profile.save(update_fields=["is_active"])
 
         return Response(
-            {'detail': _('Payment profile has been enabled.')},
+            {"detail": _("Payment profile has been enabled.")},
             status=status.HTTP_200_OK,
         )
 
 
 class PaymentViewSet(core_views.ActionsViewSet):
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
     filter_backends = (
         structure_filters.GenericRoleFilter,
         DjangoFilterBackend,
@@ -474,69 +474,69 @@ class PaymentViewSet(core_views.ActionsViewSet):
     ) = link_to_invoice_permissions = unlink_from_invoice_permissions = [
         structure_permissions.is_staff
     ]
-    queryset = models.Payment.objects.all().order_by('created')
+    queryset = models.Payment.objects.all().order_by("created")
     serializer_class = serializers.PaymentSerializer
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def link_to_invoice(self, request, uuid=None):
         payment = self.get_object()
         serializer = self.get_serializer_class()(data=request.data)
         serializer.is_valid(raise_exception=True)
-        invoice = serializer.validated_data['invoice']
+        invoice = serializer.validated_data["invoice"]
 
         if invoice.customer != payment.profile.organization:
             raise exceptions.ValidationError(
-                _('The passed invoice does not belong to the selected customer.')
+                _("The passed invoice does not belong to the selected customer.")
             )
 
         payment.invoice = invoice
-        payment.save(update_fields=['invoice'])
+        payment.save(update_fields=["invoice"])
 
         log.event_logger.invoice.info(
-            'Payment for invoice ({month}/{year}) has been added.',
-            event_type='payment_created',
+            "Payment for invoice ({month}/{year}) has been added.",
+            event_type="payment_created",
             event_context={
-                'month': invoice.month,
-                'year': invoice.year,
-                'customer': invoice.customer,
+                "month": invoice.month,
+                "year": invoice.year,
+                "customer": invoice.customer,
             },
         )
 
         return Response(
-            {'detail': _('An invoice has been linked to payment.')},
+            {"detail": _("An invoice has been linked to payment.")},
             status=status.HTTP_200_OK,
         )
 
     def _link_to_invoice_exists(payment):
         if payment.invoice:
-            raise exceptions.ValidationError(_('Link to an invoice exists.'))
+            raise exceptions.ValidationError(_("Link to an invoice exists."))
 
     link_to_invoice_validators = [_link_to_invoice_exists]
     link_to_invoice_serializer_class = serializers.LinkToInvoiceSerializer
 
     def _link_to_invoice_does_not_exist(payment):
         if not payment.invoice:
-            raise exceptions.ValidationError(_('Link to an invoice does not exist.'))
+            raise exceptions.ValidationError(_("Link to an invoice does not exist."))
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def unlink_from_invoice(self, request, uuid=None):
         payment = self.get_object()
         invoice = payment.invoice
         payment.invoice = None
-        payment.save(update_fields=['invoice'])
+        payment.save(update_fields=["invoice"])
 
         log.event_logger.invoice.info(
-            'Payment for invoice ({month}/{year}) has been removed.',
-            event_type='payment_removed',
+            "Payment for invoice ({month}/{year}) has been removed.",
+            event_type="payment_removed",
             event_context={
-                'month': invoice.month,
-                'year': invoice.year,
-                'customer': invoice.customer,
+                "month": invoice.month,
+                "year": invoice.year,
+                "customer": invoice.customer,
             },
         )
 
         return Response(
-            {'detail': _('An invoice has been unlinked from payment.')},
+            {"detail": _("An invoice has been unlinked from payment.")},
             status=status.HTTP_200_OK,
         )
 
@@ -546,11 +546,11 @@ class PaymentViewSet(core_views.ActionsViewSet):
         super().perform_create(serializer)
         payment = serializer.instance
         log.event_logger.payment.info(
-            'Payment for {customer_name} in the amount of {amount} has been added.',
-            event_type='payment_added',
+            "Payment for {customer_name} in the amount of {amount} has been added.",
+            event_type="payment_added",
             event_context={
-                'amount': payment.sum,
-                'customer': payment.profile.organization,
+                "amount": payment.sum,
+                "customer": payment.profile.organization,
             },
         )
 
@@ -560,26 +560,26 @@ class PaymentViewSet(core_views.ActionsViewSet):
         super().perform_destroy(instance)
 
         log.event_logger.payment.info(
-            'Payment for {customer_name} in the amount of {amount} has been removed.',
-            event_type='payment_removed',
+            "Payment for {customer_name} in the amount of {amount} has been removed.",
+            event_type="payment_removed",
             event_context={
-                'amount': amount,
-                'customer': customer,
+                "amount": amount,
+                "customer": customer,
             },
         )
 
 
-@api_view(['POST'])
+@api_view(["POST"])
 @permission_classes((IsStaffOrSupportUser,))
 def send_financial_report_by_mail(request):
     serializer = serializers.FinancialReportEmailSerializer(data=request.data)
     if serializer.is_valid():
-        year = serializer.data['year']
-        month = serializer.data['month']
-        emails = serializer.data['emails']
+        year = serializer.data["year"]
+        month = serializer.data["month"]
+        emails = serializer.data["emails"]
         tasks.send_invoice_report.delay(year, month, emails, False)
         return Response(
-            {'status': _('The dispatch of reports has been scheduled.')},
+            {"status": _("The dispatch of reports has been scheduled.")},
             status=status.HTTP_202_ACCEPTED,
         )
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

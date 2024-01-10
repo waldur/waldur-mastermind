@@ -8,16 +8,16 @@ class FreeIPAEventLogger(EventLogger):
 
     class Meta:
         event_types = (
-            'freeipa_profile_created',
-            'freeipa_profile_deleted',
-            'freeipa_profile_enabled',
-            'freeipa_profile_disabled',
+            "freeipa_profile_created",
+            "freeipa_profile_deleted",
+            "freeipa_profile_enabled",
+            "freeipa_profile_disabled",
         )
-        event_groups = {'users': event_types}
+        event_groups = {"users": event_types}
 
     @staticmethod
     def get_scopes(event_context):
-        return {event_context['user']}
+        return {event_context["user"]}
 
 
-event_logger.register('freeipa', FreeIPAEventLogger)
+event_logger.register("freeipa", FreeIPAEventLogger)

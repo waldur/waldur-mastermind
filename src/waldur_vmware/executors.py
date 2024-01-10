@@ -28,20 +28,20 @@ def pull_datastores_for_resource(instance, task):
         task,
         core_tasks.IndependentBackendMethodTask().si(
             serialized_settings,
-            'pull_datastores',
+            "pull_datastores",
         ),
     )
 
 
 class VirtualMachinePullExecutor(core_executors.ActionExecutor):
-    action = 'Pull'
+    action = "Pull"
 
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
         return core_tasks.BackendMethodTask().si(
             serialized_instance,
-            'pull_virtual_machine',
-            state_transition='begin_updating',
+            "pull_virtual_machine",
+            state_transition="begin_updating",
         )
 
 
@@ -50,18 +50,18 @@ class VirtualMachineCreateExecutor(core_executors.CreateExecutor):
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
         task = core_tasks.BackendMethodTask().si(
             serialized_instance,
-            'create_virtual_machine',
-            state_transition='begin_creating',
+            "create_virtual_machine",
+            state_transition="begin_creating",
         )
         return chain(
             pull_datastores_for_resource(instance, task),
             core_tasks.BackendMethodTask().si(
                 serialized_instance,
-                'pull_vm_ports',
+                "pull_vm_ports",
             ),
             core_tasks.BackendMethodTask().si(
                 serialized_instance,
-                'pull_virtual_machine',
+                "pull_virtual_machine",
             ),
         )
 
@@ -72,172 +72,172 @@ class VirtualMachineDeleteExecutor(core_executors.DeleteExecutor):
         if instance.backend_id:
             task = core_tasks.BackendMethodTask().si(
                 serialized_instance,
-                'delete_virtual_machine',
-                state_transition='begin_deleting',
+                "delete_virtual_machine",
+                state_transition="begin_deleting",
             )
             return pull_datastores_for_resource(instance, task)
         else:
             return core_tasks.StateTransitionTask().si(
-                serialized_instance, state_transition='begin_deleting'
+                serialized_instance, state_transition="begin_deleting"
             )
 
 
 class VirtualMachineStartExecutor(core_executors.ActionExecutor):
-    action = 'Start'
+    action = "Start"
 
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
         _tasks = [
             core_tasks.BackendMethodTask().si(
                 serialized_instance,
-                'start_virtual_machine',
-                state_transition='begin_updating',
+                "start_virtual_machine",
+                state_transition="begin_updating",
             )
         ]
         if instance.tools_installed:
             _tasks.append(
                 core_tasks.BackendMethodTask().si(
                     serialized_instance,
-                    'pull_virtual_machine',
+                    "pull_virtual_machine",
                 )
             )
             _tasks.append(
                 core_tasks.PollBackendCheckTask().si(
-                    serialized_instance, 'is_virtual_machine_tools_running'
+                    serialized_instance, "is_virtual_machine_tools_running"
                 )
             )
         _tasks.append(
             core_tasks.BackendMethodTask().si(
                 serialized_instance,
-                'pull_virtual_machine',
+                "pull_virtual_machine",
             )
         )
         return chain(_tasks)
 
 
 class VirtualMachineStopExecutor(core_executors.ActionExecutor):
-    action = 'Stop'
+    action = "Stop"
 
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
         return chain(
             core_tasks.BackendMethodTask().si(
                 serialized_instance,
-                'stop_virtual_machine',
-                state_transition='begin_updating',
+                "stop_virtual_machine",
+                state_transition="begin_updating",
             ),
             core_tasks.BackendMethodTask().si(
                 serialized_instance,
-                'pull_virtual_machine',
+                "pull_virtual_machine",
             ),
         )
 
 
 class VirtualMachineResetExecutor(core_executors.ActionExecutor):
-    action = 'Reset'
+    action = "Reset"
 
     @classmethod
     def pre_apply(cls, instance, **kwargs):
         super().pre_apply(instance, **kwargs)
         instance.tools_state = models.VirtualMachine.ToolsStates.NOT_RUNNING
-        instance.save(update_fields=['tools_state'])
+        instance.save(update_fields=["tools_state"])
 
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
         _tasks = [
             core_tasks.BackendMethodTask().si(
                 serialized_instance,
-                'reset_virtual_machine',
-                state_transition='begin_updating',
+                "reset_virtual_machine",
+                state_transition="begin_updating",
             )
         ]
         if instance.tools_installed:
             _tasks.append(
                 core_tasks.PollBackendCheckTask().si(
-                    serialized_instance, 'is_virtual_machine_tools_not_running'
+                    serialized_instance, "is_virtual_machine_tools_not_running"
                 )
             )
             _tasks.append(
                 core_tasks.PollBackendCheckTask().si(
-                    serialized_instance, 'is_virtual_machine_tools_running'
+                    serialized_instance, "is_virtual_machine_tools_running"
                 )
             )
         _tasks.append(
             core_tasks.BackendMethodTask().si(
                 serialized_instance,
-                'pull_virtual_machine',
+                "pull_virtual_machine",
             )
         )
         return chain(_tasks)
 
 
 class VirtualMachineSuspendExecutor(core_executors.ActionExecutor):
-    action = 'Suspend'
+    action = "Suspend"
 
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
         return chain(
             core_tasks.BackendMethodTask().si(
                 serialized_instance,
-                'suspend_virtual_machine',
-                state_transition='begin_updating',
+                "suspend_virtual_machine",
+                state_transition="begin_updating",
             ),
             core_tasks.BackendMethodTask().si(
                 serialized_instance,
-                'pull_virtual_machine',
+                "pull_virtual_machine",
             ),
         )
 
 
 class VirtualMachineShutdownGuestExecutor(core_executors.ActionExecutor):
-    action = 'Shutdown Guest'
+    action = "Shutdown Guest"
 
     @classmethod
     def pre_apply(cls, instance, **kwargs):
         super().pre_apply(instance, **kwargs)
         instance.tools_state = models.VirtualMachine.ToolsStates.NOT_RUNNING
-        instance.save(update_fields=['tools_state'])
+        instance.save(update_fields=["tools_state"])
 
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
         return chain(
             core_tasks.BackendMethodTask().si(
-                serialized_instance, 'shutdown_guest', state_transition='begin_updating'
+                serialized_instance, "shutdown_guest", state_transition="begin_updating"
             ),
             core_tasks.PollBackendCheckTask().si(
-                serialized_instance, 'is_virtual_machine_shutted_down'
+                serialized_instance, "is_virtual_machine_shutted_down"
             ),
             core_tasks.BackendMethodTask().si(
                 serialized_instance,
-                'pull_virtual_machine',
+                "pull_virtual_machine",
             ),
         )
 
 
 class VirtualMachineRebootGuestExecutor(core_executors.ActionExecutor):
-    action = 'Reboot Guest'
+    action = "Reboot Guest"
 
     @classmethod
     def pre_apply(cls, instance, **kwargs):
         super().pre_apply(instance, **kwargs)
         instance.tools_state = models.VirtualMachine.ToolsStates.NOT_RUNNING
-        instance.save(update_fields=['tools_state'])
+        instance.save(update_fields=["tools_state"])
 
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
         return chain(
             core_tasks.BackendMethodTask().si(
-                serialized_instance, 'reboot_guest', state_transition='begin_updating'
+                serialized_instance, "reboot_guest", state_transition="begin_updating"
             ),
             core_tasks.PollBackendCheckTask().si(
-                serialized_instance, 'is_virtual_machine_tools_not_running'
+                serialized_instance, "is_virtual_machine_tools_not_running"
             ),
             core_tasks.PollBackendCheckTask().si(
-                serialized_instance, 'is_virtual_machine_tools_running'
+                serialized_instance, "is_virtual_machine_tools_running"
             ),
             core_tasks.BackendMethodTask().si(
                 serialized_instance,
-                'pull_virtual_machine',
+                "pull_virtual_machine",
             ),
         )
 
@@ -245,15 +245,15 @@ class VirtualMachineRebootGuestExecutor(core_executors.ActionExecutor):
 class VirtualMachineUpdateExecutor(core_executors.UpdateExecutor):
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
-        if {'cores', 'cores_per_socket', 'ram'} & set(kwargs['updated_fields']):
+        if {"cores", "cores_per_socket", "ram"} & set(kwargs["updated_fields"]):
             return core_tasks.BackendMethodTask().si(
                 serialized_instance,
-                'update_virtual_machine',
-                state_transition='begin_updating',
+                "update_virtual_machine",
+                state_transition="begin_updating",
             )
         else:
             return core_tasks.StateTransitionTask().si(
-                serialized_instance, state_transition='begin_updating'
+                serialized_instance, state_transition="begin_updating"
             )
 
 
@@ -261,24 +261,24 @@ class PortCreateExecutor(core_executors.CreateExecutor):
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
         task = core_tasks.BackendMethodTask().si(
-            serialized_instance, 'create_port', state_transition='begin_creating'
+            serialized_instance, "create_port", state_transition="begin_creating"
         )
         return chain(
             task,
             core_tasks.BackendMethodTask().si(
                 serialized_instance,
-                'pull_port',
+                "pull_port",
             ),
         )
 
 
 class PortPullExecutor(core_executors.ActionExecutor):
-    action = 'Pull'
+    action = "Pull"
 
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
         return core_tasks.BackendMethodTask().si(
-            serialized_instance, 'pull_port', state_transition='begin_updating'
+            serialized_instance, "pull_port", state_transition="begin_updating"
         )
 
 
@@ -287,21 +287,21 @@ class PortDeleteExecutor(core_executors.DeleteExecutor):
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
         if instance.backend_id:
             return core_tasks.BackendMethodTask().si(
-                serialized_instance, 'delete_port', state_transition='begin_deleting'
+                serialized_instance, "delete_port", state_transition="begin_deleting"
             )
         else:
             return core_tasks.StateTransitionTask().si(
-                serialized_instance, state_transition='begin_deleting'
+                serialized_instance, state_transition="begin_deleting"
             )
 
 
 class DiskPullExecutor(core_executors.ActionExecutor):
-    action = 'Pull'
+    action = "Pull"
 
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
         return core_tasks.BackendMethodTask().si(
-            serialized_instance, 'pull_disk', state_transition='begin_updating'
+            serialized_instance, "pull_disk", state_transition="begin_updating"
         )
 
 
@@ -309,14 +309,14 @@ class DiskCreateExecutor(core_executors.CreateExecutor):
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
         task = core_tasks.BackendMethodTask().si(
-            serialized_instance, 'create_disk', state_transition='begin_creating'
+            serialized_instance, "create_disk", state_transition="begin_creating"
         )
         task = pull_datastores_for_resource(instance, task)
         return chain(
             task,
             core_tasks.BackendMethodTask().si(
                 serialized_instance,
-                'pull_disk',
+                "pull_disk",
             ),
         )
 
@@ -326,12 +326,12 @@ class DiskDeleteExecutor(core_executors.DeleteExecutor):
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
         if instance.backend_id:
             task = core_tasks.BackendMethodTask().si(
-                serialized_instance, 'delete_disk', state_transition='begin_deleting'
+                serialized_instance, "delete_disk", state_transition="begin_deleting"
             )
             return pull_datastores_for_resource(instance, task)
         else:
             return core_tasks.StateTransitionTask().si(
-                serialized_instance, state_transition='begin_deleting'
+                serialized_instance, state_transition="begin_deleting"
             )
 
     @classmethod
@@ -369,11 +369,11 @@ class VirtualMachineUpdatedNotificationTask(core_tasks.Task):
 
 
 class DiskExtendExecutor(core_executors.ActionExecutor):
-    action = 'Extend'
+    action = "Extend"
 
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
         task = core_tasks.BackendMethodTask().si(
-            serialized_instance, 'extend_disk', state_transition='begin_updating'
+            serialized_instance, "extend_disk", state_transition="begin_updating"
         )
         return pull_datastores_for_resource(instance, task)

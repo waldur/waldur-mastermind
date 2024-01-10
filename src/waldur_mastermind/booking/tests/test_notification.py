@@ -19,13 +19,13 @@ class NotificationsTest(test.APITransactionTestCase):
         self.order = marketplace_factories.OrderFactory(
             offering=offering,
             attributes={
-                'schedules': [
+                "schedules": [
                     {
-                        'start': '2019-01-03T00:00:00.000000Z',
-                        'end': '2019-01-05T23:59:59.000000Z',
+                        "start": "2019-01-03T00:00:00.000000Z",
+                        "end": "2019-01-05T23:59:59.000000Z",
                     },
                 ],
-                'name': 'booking',
+                "name": "booking",
             },
             state=marketplace_models.Order.States.EXECUTING,
         )
@@ -36,17 +36,17 @@ class NotificationsTest(test.APITransactionTestCase):
         self.resource.state = marketplace_models.Resource.States.OK
         self.resource.save()
 
-    @freeze_time('2019-01-02')
+    @freeze_time("2019-01-02")
     def test_send_notification_message_one_day_before_event(self):
-        event_type = 'notification'
+        event_type = "notification"
         structure_factories.NotificationFactory(key=f"booking.{event_type}")
         tasks.send_notifications_about_upcoming_bookings()
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, [self.order.created_by.email])
-        self.assertEqual(mail.outbox[0].subject, 'Reminder about upcoming booking.')
-        self.assertTrue('booking' in mail.outbox[0].body)
+        self.assertEqual(mail.outbox[0].subject, "Reminder about upcoming booking.")
+        self.assertTrue("booking" in mail.outbox[0].body)
 
-    @freeze_time('2019-01-01')
+    @freeze_time("2019-01-01")
     def test_not_send_notification_message_more_one_day_before_event(self):
         tasks.send_notifications_about_upcoming_bookings()
         self.assertEqual(len(mail.outbox), 0)

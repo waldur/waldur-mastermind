@@ -9,40 +9,40 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('contenttypes', '0001_initial'),
+        ("contenttypes", "0001_initial"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Quota',
+            name="Quota",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'threshold',
+                    "threshold",
                     models.FloatField(
                         default=0,
                         validators=[django.core.validators.MinValueValidator(0)],
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('limit', models.FloatField(default=-1)),
-                ('usage', models.FloatField(default=0)),
-                ('name', models.CharField(db_index=True, max_length=150)),
-                ('object_id', models.PositiveIntegerField(null=True)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("limit", models.FloatField(default=-1)),
+                ("usage", models.FloatField(default=0)),
+                ("name", models.CharField(db_index=True, max_length=150)),
+                ("object_id", models.PositiveIntegerField(null=True)),
                 (
-                    'content_type',
+                    "content_type",
                     models.ForeignKey(
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='contenttypes.ContentType',
+                        to="contenttypes.ContentType",
                     ),
                 ),
             ],
@@ -52,7 +52,7 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.AlterUniqueTogether(
-            name='quota',
-            unique_together=set([('name', 'content_type', 'object_id')]),
+            name="quota",
+            unique_together=set([("name", "content_type", "object_id")]),
         ),
     ]

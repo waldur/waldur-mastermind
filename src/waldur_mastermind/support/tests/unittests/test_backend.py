@@ -20,15 +20,15 @@ class BaseBackendTest(TestCase):
         self.fixture = fixtures.SupportFixture()
         self.backend = ServiceDeskBackend()
 
-        jira_patcher = mock.patch('waldur_jira.backend.JIRA')
+        jira_patcher = mock.patch("waldur_jira.backend.JIRA")
         self.mocked_jira = jira_patcher.start()()
 
         self.mocked_jira.fields.return_value = json.loads(
-            load_resource('jira_fields.json')
+            load_resource("jira_fields.json")
         )
 
         mock_backend_users = [
-            User({'server': ''}, None, raw={'key': 'user_1', 'active': True})
+            User({"server": ""}, None, raw={"key": "user_1", "active": True})
         ]
         self.mocked_jira.waldur_search_users.return_value = mock_backend_users
 
@@ -41,42 +41,40 @@ class IssueCreateTest(BaseBackendTest):
     def setUp(self):
         super().setUp()
         issue = self.fixture.issue
-        issue.type = 'Task'
-        issue.priority = 'Major'
+        issue.type = "Task"
+        issue.priority = "Major"
         issue.save()
         self.issue = issue
         factories.RequestTypeFactory(issue_type_name=issue.type)
 
         self.mocked_jira.waldur_create_customer_request.return_value = mock.Mock(
             **{
-                'key': 'TST-101',
-                'fields.assignee.key': '',
-                'fields.assignee.name': '',
-                'fields.assignee.emailAddress': '',
-                'fields.assignee.displayName': '',
-                'fields.creator.key': '',
-                'fields.creator.name': '',
-                'fields.creator.emailAddress': '',
-                'fields.creator.displayName': '',
-                'fields.reporter.key': '',
-                'fields.reporter.name': '',
-                'fields.reporter.emailAddress': '',
-                'fields.reporter.displayName': '',
-                'fields.resolutiondate': '',
-                'fields.summary': '',
-                'fields.description': '',
-                'fields.status.name': '',
-                'fields.resolution': '',
-                'fields.priority.name': 'Major',
-                'fields.issuetype.name': 'Task',
-                'fields.field103.ongoingCycle.breachTime.epochMillis': 1000,  # SLA
-                'fields.field104': 'Critical',  # Impact
-                'permalink()': '',
+                "key": "TST-101",
+                "fields.assignee.key": "",
+                "fields.assignee.name": "",
+                "fields.assignee.emailAddress": "",
+                "fields.assignee.displayName": "",
+                "fields.creator.key": "",
+                "fields.creator.name": "",
+                "fields.creator.emailAddress": "",
+                "fields.creator.displayName": "",
+                "fields.reporter.key": "",
+                "fields.reporter.name": "",
+                "fields.reporter.emailAddress": "",
+                "fields.reporter.displayName": "",
+                "fields.resolutiondate": "",
+                "fields.summary": "",
+                "fields.description": "",
+                "fields.status.name": "",
+                "fields.resolution": "",
+                "fields.priority.name": "Major",
+                "fields.issuetype.name": "Task",
+                "fields.field103.ongoingCycle.breachTime.epochMillis": 1000,  # SLA
+                "fields.field104": "Critical",  # Impact
+                "permalink()": "",
             }
         )
-        self.mocked_jira.waldur_create_customer_request.return_value.permalink.return_value = (
-            'http://example.com/TST-101'
-        )
+        self.mocked_jira.waldur_create_customer_request.return_value.permalink.return_value = "http://example.com/TST-101"
 
     def test_user_for_caller_is_created(self):
         self.mocked_jira.waldur_search_users.return_value = []
@@ -86,21 +84,21 @@ class IssueCreateTest(BaseBackendTest):
         )
 
     @skip(
-        'Skip till the correct behaviour for requestParticipant reference is assured.'
+        "Skip till the correct behaviour for requestParticipant reference is assured."
     )
     def test_caller_is_specified_in_custom_field(self):
         self.backend.create_issue(self.issue)
 
         kwargs = self.mocked_jira.create_customer_request.call_args[0][0]
         self.assertEqual(
-            kwargs['requestParticipants'],
+            kwargs["requestParticipants"],
             [self.issue.caller.supportcustomer.backend_id],
         )
 
     def test_original_reporter_is_specified_in_custom_field(self):
         self.backend.create_issue(self.issue)
         kwargs = self.mocked_jira.waldur_create_customer_request().update.call_args[1]
-        self.assertEqual(kwargs['field102'], self.issue.reporter.name)
+        self.assertEqual(kwargs["field102"], self.issue.reporter.name)
 
 
 class IssueUpdateTest(BaseBackendTest):
@@ -108,32 +106,32 @@ class IssueUpdateTest(BaseBackendTest):
         super().setUp()
         self.mocked_jira.issue.return_value = mock.Mock(
             **{
-                'key': 'TST-101',
-                'fields.assignee.key': '',
-                'fields.assignee.name': '',
-                'fields.assignee.emailAddress': '',
-                'fields.assignee.displayName': '',
-                'fields.creator.key': '',
-                'fields.creator.name': '',
-                'fields.creator.emailAddress': '',
-                'fields.creator.displayName': '',
-                'fields.reporter.key': '',
-                'fields.reporter.name': '',
-                'fields.reporter.emailAddress': '',
-                'fields.reporter.displayName': '',
-                'fields.resolutiondate': '',
-                'fields.summary': '',
-                'fields.description': '',
-                'fields.status.name': '',
-                'fields.resolution': '',
-                'fields.priority.name': 'Major',
-                'fields.issuetype.name': 'Task',
-                'fields.field103.ongoingCycle.breachTime.epochMillis': 1000,  # SLA
-                'fields.field104': 'Critical',  # Impact
+                "key": "TST-101",
+                "fields.assignee.key": "",
+                "fields.assignee.name": "",
+                "fields.assignee.emailAddress": "",
+                "fields.assignee.displayName": "",
+                "fields.creator.key": "",
+                "fields.creator.name": "",
+                "fields.creator.emailAddress": "",
+                "fields.creator.displayName": "",
+                "fields.reporter.key": "",
+                "fields.reporter.name": "",
+                "fields.reporter.emailAddress": "",
+                "fields.reporter.displayName": "",
+                "fields.resolutiondate": "",
+                "fields.summary": "",
+                "fields.description": "",
+                "fields.status.name": "",
+                "fields.resolution": "",
+                "fields.priority.name": "Major",
+                "fields.issuetype.name": "Task",
+                "fields.field103.ongoingCycle.breachTime.epochMillis": 1000,  # SLA
+                "fields.field104": "Critical",  # Impact
             }
         )
         self.mocked_jira.issue.return_value.permalink.return_value = (
-            'http://example.com/TST-101'
+            "http://example.com/TST-101"
         )
 
     def test_sla_is_populated(self):
@@ -141,9 +139,7 @@ class IssueUpdateTest(BaseBackendTest):
         issue = self.fixture.issue
         dt = timezone.now().replace(microsecond=0)
         ts = datetime_to_timestamp(dt) * 1000
-        self.mocked_jira.issue.return_value.fields.field103.ongoingCycle.breachTime.epochMillis = (
-            ts
-        )
+        self.mocked_jira.issue.return_value.fields.field103.ongoingCycle.breachTime.epochMillis = ts
 
         # Act
         self.backend.update_issue_from_jira(issue)
@@ -154,22 +150,22 @@ class IssueUpdateTest(BaseBackendTest):
 
     def test_assignee_is_populated(self):
         issue = self.fixture.issue
-        self.mocked_jira.issue.return_value.fields.assignee.key = 'alice@lebowski.com'
+        self.mocked_jira.issue.return_value.fields.assignee.key = "alice@lebowski.com"
         self.backend.update_issue_from_jira(issue)
         issue.refresh_from_db()
-        self.assertEqual(issue.assignee.backend_id, 'alice@lebowski.com')
+        self.assertEqual(issue.assignee.backend_id, "alice@lebowski.com")
 
     def test_reporter_is_populated(self):
         issue = self.fixture.issue
-        self.mocked_jira.issue.return_value.fields.reporter.key = 'bob@lebowski.com'
+        self.mocked_jira.issue.return_value.fields.reporter.key = "bob@lebowski.com"
         self.backend.update_issue_from_jira(issue)
         issue.refresh_from_db()
-        self.assertEqual(issue.reporter.backend_id, 'bob@lebowski.com')
+        self.assertEqual(issue.reporter.backend_id, "bob@lebowski.com")
 
     def test_issue_is_resolved(self):
         issue = self.fixture.issue
         resolution_date = timezone.now()
-        self.mocked_jira.issue.return_value.fields.status.name = 'Resolved'
+        self.mocked_jira.issue.return_value.fields.status.name = "Resolved"
         self.mocked_jira.issue.return_value.fields.resolutiondate = resolution_date
 
         self.backend.update_issue_from_jira(issue)
@@ -186,51 +182,51 @@ class CommentCreateTest(BaseBackendTest):
             status_code = 201
 
             def json(self):
-                return {'id': '10001'}
+                return {"id": "10001"}
 
         self.mocked_jira._session.post.return_value = Response()
 
     def create_comment(self):
         self.backend.create_comment(self.comment)
         kwargs = self.mocked_jira._session.post.call_args[1]
-        data = json.loads(kwargs['data'])
+        data = json.loads(kwargs["data"])
         return data
 
     def test_backend_id_is_populated(self):
         self.create_comment()
         self.comment.refresh_from_db()
-        self.assertEqual(self.comment.backend_id, '10001')
+        self.assertEqual(self.comment.backend_id, "10001")
 
     def test_original_author_is_specified(self):
-        self.comment.description = 'Comment description'
+        self.comment.description = "Comment description"
         self.comment.save()
 
         user = self.comment.author.user
-        user.full_name = 'Alice Lebowski'
+        user.full_name = "Alice Lebowski"
         user.civil_number = None
         user.save()
 
         data = self.create_comment()
-        self.assertEqual('[Alice Lebowski]: Comment description', data['body'])
+        self.assertEqual("[Alice Lebowski]: Comment description", data["body"])
 
     def test_internal_flag_is_specified(self):
         self.comment.is_public = False
         self.comment.save()
 
         data = self.create_comment()
-        expected = [{'key': 'sd.public.comment', 'value': {'internal': True}}]
-        self.assertEqual(expected, data['properties'])
+        expected = [{"key": "sd.public.comment", "value": {"internal": True}}]
+        self.assertEqual(expected, data["properties"])
 
     def test_of_author_when_create_comment_from_jira(self):
         issue = factories.IssueFactory()
-        backend_comment_raw = json.loads(load_resource('jira_comment_raw.json'))
+        backend_comment_raw = json.loads(load_resource("jira_comment_raw.json"))
         self.backend_comment = jira.resources.Comment(
-            {'server': 'example.com'}, None, backend_comment_raw
+            {"server": "example.com"}, None, backend_comment_raw
         )
         self.mocked_jira.comment.return_value = self.backend_comment
         self.backend.create_comment_from_jira(issue, self.backend_comment.id)
         comment = models.Comment.objects.get(issue=issue)
-        self.assertEqual(comment.author.backend_id, 'user')
+        self.assertEqual(comment.author.backend_id, "user")
 
 
 class CommentUpdateTest(BaseBackendTest):
@@ -238,18 +234,18 @@ class CommentUpdateTest(BaseBackendTest):
         super().setUp()
         self.mocked_jira.comment.return_value = mock.Mock(
             **{
-                'body': '[Alice Lebowski]: New comment description',
-                'author': mock.Mock(**{'key': 'alice@lebowski.com'}),
+                "body": "[Alice Lebowski]: New comment description",
+                "author": mock.Mock(**{"key": "alice@lebowski.com"}),
             }
         )
         self.mocked_jira._session.get.return_value.json.return_value = {
-            'value': {'internal': True}
+            "value": {"internal": True}
         }
 
     def test_description_is_updated(self):
         # Arrange
         comment = self.fixture.comment
-        comment.description = 'Old comment description'
+        comment.description = "Old comment description"
         comment.save()
 
         # Act
@@ -257,14 +253,14 @@ class CommentUpdateTest(BaseBackendTest):
 
         # Assert
         comment.refresh_from_db()
-        self.assertEqual(comment.description, 'New comment description')
+        self.assertEqual(comment.description, "New comment description")
 
     def test_author_is_populated(self):
         comment = self.fixture.comment
         self.backend.update_comment_from_jira(comment)
         comment.refresh_from_db()
 
-        self.assertEqual(comment.author.backend_id, 'alice@lebowski.com')
+        self.assertEqual(comment.author.backend_id, "alice@lebowski.com")
 
     def test_internal_flag_is_updated(self):
         # Arrange

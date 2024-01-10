@@ -6,13 +6,13 @@ import waldur_core.core.fields
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('waldur_auth_saml2', '0001_initial'),
+        ("waldur_auth_saml2", "0001_initial"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='identityprovider',
-            name='metadata',
+            model_name="identityprovider",
+            name="metadata",
             field=waldur_core.core.fields.JSONField(default=dict),
         ),
     ]

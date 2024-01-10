@@ -5,18 +5,18 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace', '0093_offering_endpoints'),
+        ("marketplace", "0093_offering_endpoints"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='resource',
-            name='error_message',
+            model_name="resource",
+            name="error_message",
             field=models.TextField(blank=True),
         ),
         migrations.AddField(
-            model_name='resource',
-            name='error_traceback',
+            model_name="resource",
+            name="error_traceback",
             field=models.TextField(blank=True),
         ),
     ]

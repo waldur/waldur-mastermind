@@ -41,7 +41,7 @@ def order_should_not_be_reviewed_by_consumer(order: models.Order):
         order.offering.shared
         and order.offering.customer == order.project.customer
         and order.offering.plugin_options.get(
-            'auto_approve_in_service_provider_projects'
+            "auto_approve_in_service_provider_projects"
         )
         is True
     ):
@@ -82,7 +82,7 @@ def user_can_list_importable_resources(request, view, offering=None):
 
     if offering.shared:
         raise exceptions.PermissionDenied(
-            'Import is limited to staff for shared offerings.'
+            "Import is limited to staff for shared offerings."
         )
 
     # Import private offerings must be available for admins and managers
@@ -101,12 +101,12 @@ def user_can_list_importable_resources(request, view, offering=None):
 # Service provider is allowed to terminate resource too.
 user_can_terminate_resource = permission_factory(
     PermissionEnum.TERMINATE_RESOURCE,
-    ['project', 'project.customer', 'offering.customer'],
+    ["project", "project.customer", "offering.customer"],
 )
 
 user_can_manage_offering_user_group = permission_factory(
     PermissionEnum.MANAGE_OFFERING_USER_GROUP,
-    ['offering.customer'],
+    ["offering.customer"],
 )
 
 
@@ -151,7 +151,7 @@ def user_can_update_thumbnail(request, view, obj=None):
         models.Offering.States.DRAFT,
         models.Offering.States.PAUSED,
     ):
-        raise exceptions.PermissionDenied(_('You are not allowed to update a logo.'))
+        raise exceptions.PermissionDenied(_("You are not allowed to update a logo."))
     else:
         if has_permission(
             request, PermissionEnum.UPDATE_OFFERING_THUMBNAIL, offering.customer

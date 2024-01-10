@@ -22,9 +22,9 @@ class SettingsMixin(models.Model):
         abstract = True
 
     settings = models.ForeignKey(
-        to='structure.ServiceSettings',
+        to="structure.ServiceSettings",
         on_delete=models.CASCADE,
-        related_name='+',
+        related_name="+",
     )
 
     def get_backend(self):
@@ -33,7 +33,7 @@ class SettingsMixin(models.Model):
 
 class Cluster(SettingsMixin, BaseResource):
     class RuntimeStates:
-        ACTIVE = 'active'
+        ACTIVE = "active"
 
     """
     Rancher generated node installation command base. For example:
@@ -47,7 +47,7 @@ class Cluster(SettingsMixin, BaseResource):
     node_command = models.CharField(
         max_length=1024,
         blank=True,
-        help_text='Rancher generated node installation command base.',
+        help_text="Rancher generated node installation command base.",
     )
     tracker = FieldTracker()
     tenant_settings = models.ForeignKey(
@@ -66,11 +66,11 @@ class Cluster(SettingsMixin, BaseResource):
 
     @classmethod
     def get_url_name(cls):
-        return 'rancher-cluster'
+        return "rancher-cluster"
 
     def get_access_url(self):
         base_url = self.service_settings.backend_url
-        return urljoin(base_url, 'c/' + self.backend_id)
+        return urljoin(base_url, "c/" + self.backend_id)
 
     def __str__(self):
         return self.name
@@ -96,20 +96,20 @@ class Node(
     structure_models.TimeStampedModel,
 ):
     class RuntimeStates:
-        ACTIVE = 'active'
-        REGISTERING = 'registering'
-        UNAVAILABLE = 'unavailable'
+        ACTIVE = "active"
+        REGISTERING = "registering"
+        UNAVAILABLE = "unavailable"
 
     content_type = models.ForeignKey(
-        on_delete=models.CASCADE, to=ContentType, null=True, related_name='+'
+        on_delete=models.CASCADE, to=ContentType, null=True, related_name="+"
     )
     object_id = models.PositiveIntegerField(null=True)
     instance = GenericForeignKey(
-        'content_type', 'object_id'
+        "content_type", "object_id"
     )  # a virtual machine where will deploy k8s node.
     cluster = models.ForeignKey(Cluster, on_delete=models.CASCADE)
     initial_data = models.JSONField(
-        blank=True, default=dict, help_text=_('Initial data for instance creating.')
+        blank=True, default=dict, help_text=_("Initial data for instance creating.")
     )
     runtime_state = models.CharField(max_length=255, blank=True)
     k8s_version = models.CharField(max_length=255, blank=True)
@@ -117,9 +117,9 @@ class Node(
     cpu_allocated = models.FloatField(blank=True, null=True)
     cpu_total = models.IntegerField(blank=True, null=True)
     ram_allocated = models.IntegerField(
-        blank=True, null=True, help_text='Allocated RAM in Mi.'
+        blank=True, null=True, help_text="Allocated RAM in Mi."
     )
-    ram_total = models.IntegerField(blank=True, null=True, help_text='Total RAM in Mi.')
+    ram_total = models.IntegerField(blank=True, null=True, help_text="Total RAM in Mi.")
     pods_allocated = models.IntegerField(blank=True, null=True)
     pods_total = models.IntegerField(blank=True, null=True)
     labels = models.JSONField(blank=True, default=dict)
@@ -130,27 +130,27 @@ class Node(
     def get_node_command(self):
         roles_command = []
         if self.controlplane_role:
-            roles_command.append('--controlplane')
+            roles_command.append("--controlplane")
 
         if self.etcd_role:
-            roles_command.append('--etcd')
+            roles_command.append("--etcd")
 
         if self.worker_role:
-            roles_command.append('--worker')
+            roles_command.append("--worker")
 
-        return self.cluster.node_command + ' ' + ' '.join(roles_command)
+        return self.cluster.node_command + " " + " ".join(roles_command)
 
     class Meta:
-        ordering = ('name',)
-        unique_together = (('content_type', 'object_id'), ('cluster', 'name'))
+        ordering = ("name",)
+        unique_together = (("content_type", "object_id"), ("cluster", "name"))
 
     class Permissions:
-        customer_path = 'cluster__project__customer'
-        project_path = 'cluster__project'
+        customer_path = "cluster__project__customer"
+        project_path = "cluster__project"
 
     @classmethod
     def get_url_name(cls):
-        return 'rancher-node'
+        return "rancher-node"
 
     def get_backend(self):
         return self.cluster.get_backend()
@@ -166,8 +166,8 @@ class RancherUser(
     structure_models.StructureModel,
 ):
     user = models.ForeignKey(core_models.User, on_delete=models.PROTECT)
-    clusters = models.ManyToManyField(Cluster, through='RancherUserClusterLink')
-    settings = models.ForeignKey('structure.ServiceSettings', on_delete=models.PROTECT)
+    clusters = models.ManyToManyField(Cluster, through="RancherUserClusterLink")
+    settings = models.ForeignKey("structure.ServiceSettings", on_delete=models.PROTECT)
     is_active = models.BooleanField(default=True)
 
     @staticmethod
@@ -175,32 +175,32 @@ class RancherUser(
         return core_models.User.objects.make_random_password()
 
     class Meta:
-        unique_together = (('user', 'settings'),)
-        ordering = ('user__username',)
+        unique_together = (("user", "settings"),)
+        ordering = ("user__username",)
 
     class Permissions:
-        customer_path = 'settings__customer'
+        customer_path = "settings__customer"
 
     @classmethod
     def get_url_name(cls):
-        return 'rancher-user'
+        return "rancher-user"
 
     def __str__(self):
         return self.user.username
 
 
 class ClusterRole(models.CharField):
-    CLUSTER_OWNER = 'owner'
-    CLUSTER_MEMBER = 'member'
+    CLUSTER_OWNER = "owner"
+    CLUSTER_MEMBER = "member"
 
     CHOICES = (
-        (CLUSTER_OWNER, 'Cluster owner'),
-        (CLUSTER_MEMBER, 'Cluster member'),
+        (CLUSTER_OWNER, "Cluster owner"),
+        (CLUSTER_MEMBER, "Cluster member"),
     )
 
     def __init__(self, *args, **kwargs):
-        kwargs['max_length'] = 30
-        kwargs['choices'] = self.CHOICES
+        kwargs["max_length"] = 30
+        kwargs["choices"] = self.CHOICES
         super().__init__(*args, **kwargs)
 
 
@@ -210,16 +210,16 @@ class RancherUserClusterLink(BackendMixin):
     role = ClusterRole(db_index=True)
 
     class Meta:
-        unique_together = (('user', 'cluster', 'role'),)
+        unique_together = (("user", "cluster", "role"),)
 
 
 class RancherUserProjectLink(BackendMixin):
     user = models.ForeignKey(RancherUser, on_delete=models.CASCADE)
-    project = models.ForeignKey('Project', on_delete=models.CASCADE)
+    project = models.ForeignKey("Project", on_delete=models.CASCADE)
     role = models.CharField(max_length=255, blank=False)
 
     class Meta:
-        unique_together = (('user', 'project', 'role'),)
+        unique_together = (("user", "project", "role"),)
 
 
 class Catalog(
@@ -233,10 +233,10 @@ class Catalog(
 ):
     # Rancher supports global, cluster and project scope
     content_type = models.ForeignKey(
-        on_delete=models.CASCADE, to=ContentType, null=True, related_name='+'
+        on_delete=models.CASCADE, to=ContentType, null=True, related_name="+"
     )
     object_id = models.PositiveIntegerField(null=True)
-    scope = GenericForeignKey('content_type', 'object_id')
+    scope = GenericForeignKey("content_type", "object_id")
     catalog_url = models.URLField()
     branch = models.CharField(max_length=255)
     commit = models.CharField(max_length=40, blank=True)
@@ -249,11 +249,11 @@ class Catalog(
     @property
     def scope_type(self):
         if isinstance(self.scope, ServiceSettings):
-            return 'global'
+            return "global"
         elif isinstance(self.scope, Cluster):
-            return 'cluster'
+            return "cluster"
         else:
-            return 'project'
+            return "project"
 
     def __str__(self):
         return self.name
@@ -270,19 +270,19 @@ class Project(
     core_models.RuntimeStateMixin,
 ):
     cluster = models.ForeignKey(
-        Cluster, on_delete=models.CASCADE, null=True, related_name='+'
+        Cluster, on_delete=models.CASCADE, null=True, related_name="+"
     )
 
     def __str__(self):
         return self.name
 
     class Permissions:
-        customer_path = 'cluster__project__customer'
-        project_path = 'cluster__project'
+        customer_path = "cluster__project__customer"
+        project_path = "cluster__project"
 
     @classmethod
     def get_url_name(cls):
-        return 'rancher-project'
+        return "rancher-project"
 
 
 class Namespace(
@@ -294,7 +294,7 @@ class Namespace(
     core_models.RuntimeStateMixin,
 ):
     project = models.ForeignKey(
-        Project, on_delete=models.CASCADE, null=True, related_name='namespaces'
+        Project, on_delete=models.CASCADE, null=True, related_name="namespaces"
     )
 
     def __str__(self):
@@ -302,7 +302,7 @@ class Namespace(
 
     @classmethod
     def get_url_name(cls):
-        return 'rancher-namespace'
+        return "rancher-namespace"
 
 
 # Rancher template used for application provisioning
@@ -316,28 +316,28 @@ class Template(
     core_models.RuntimeStateMixin,
 ):
     catalog = models.ForeignKey(
-        Catalog, on_delete=models.CASCADE, null=True, related_name='+'
+        Catalog, on_delete=models.CASCADE, null=True, related_name="+"
     )
     cluster = models.ForeignKey(
-        Cluster, on_delete=models.CASCADE, null=True, related_name='+'
+        Cluster, on_delete=models.CASCADE, null=True, related_name="+"
     )
     project = models.ForeignKey(
-        Project, on_delete=models.CASCADE, null=True, related_name='+'
+        Project, on_delete=models.CASCADE, null=True, related_name="+"
     )
     project_url = models.URLField(max_length=500, blank=True)
     default_version = models.CharField(max_length=255)
     versions = ArrayField(models.CharField(max_length=255))
-    icon = models.FileField(upload_to='rancher_icons', blank=True, null=True)
+    icon = models.FileField(upload_to="rancher_icons", blank=True, null=True)
 
     def __str__(self):
         return self.name
 
     @classmethod
     def get_url_name(cls):
-        return 'rancher-template'
+        return "rancher-template"
 
     class Meta:
-        ordering = ('name',)
+        ordering = ("name",)
 
 
 class Workload(
@@ -349,13 +349,13 @@ class Workload(
     SettingsMixin,
 ):
     cluster = models.ForeignKey(
-        Cluster, on_delete=models.CASCADE, null=True, related_name='+'
+        Cluster, on_delete=models.CASCADE, null=True, related_name="+"
     )
     project = models.ForeignKey(
-        Project, on_delete=models.CASCADE, null=True, related_name='+'
+        Project, on_delete=models.CASCADE, null=True, related_name="+"
     )
     namespace = models.ForeignKey(
-        Namespace, on_delete=models.CASCADE, null=True, related_name='+'
+        Namespace, on_delete=models.CASCADE, null=True, related_name="+"
     )
     scale = models.PositiveSmallIntegerField()
 
@@ -363,15 +363,15 @@ class Workload(
         return self.name
 
     class Permissions:
-        customer_path = 'cluster__project__customer'
-        project_path = 'cluster__project'
+        customer_path = "cluster__project__customer"
+        project_path = "cluster__project"
 
     class Meta:
-        ordering = ('name',)
+        ordering = ("name",)
 
     @classmethod
     def get_url_name(cls):
-        return 'rancher-workload'
+        return "rancher-workload"
 
 
 class HPA(
@@ -389,16 +389,16 @@ class HPA(
     """
 
     cluster = models.ForeignKey(
-        Cluster, on_delete=models.CASCADE, null=True, related_name='+'
+        Cluster, on_delete=models.CASCADE, null=True, related_name="+"
     )
     project = models.ForeignKey(
-        Project, on_delete=models.CASCADE, null=True, related_name='+'
+        Project, on_delete=models.CASCADE, null=True, related_name="+"
     )
     namespace = models.ForeignKey(
-        Namespace, on_delete=models.CASCADE, null=True, related_name='+'
+        Namespace, on_delete=models.CASCADE, null=True, related_name="+"
     )
     workload = models.ForeignKey(
-        Workload, on_delete=models.CASCADE, null=True, related_name='+'
+        Workload, on_delete=models.CASCADE, null=True, related_name="+"
     )
     current_replicas = models.PositiveSmallIntegerField(default=0)
     desired_replicas = models.PositiveSmallIntegerField(default=0)
@@ -410,15 +410,15 @@ class HPA(
         return self.name
 
     class Permissions:
-        customer_path = 'cluster__project__customer'
-        project_path = 'cluster__project'
+        customer_path = "cluster__project__customer"
+        project_path = "cluster__project"
 
     class Meta:
-        ordering = ('name',)
+        ordering = ("name",)
 
     @classmethod
     def get_url_name(cls):
-        return 'rancher-hpa'
+        return "rancher-hpa"
 
 
 # Waldur template is used for cluster provisioning, it doesn't have counterpart is Rancher
@@ -429,21 +429,21 @@ class ClusterTemplate(
     structure_models.TimeStampedModel,
 ):
     class Meta:
-        ordering = ('name',)
+        ordering = ("name",)
 
     @classmethod
     def get_url_name(cls):
-        return 'rancher-cluster-template'
+        return "rancher-cluster-template"
 
 
 class ClusterTemplateNode(RoleMixin):
     template = models.ForeignKey(
-        ClusterTemplate, on_delete=models.CASCADE, related_name='nodes'
+        ClusterTemplate, on_delete=models.CASCADE, related_name="nodes"
     )
-    min_vcpu = models.PositiveSmallIntegerField(verbose_name='Min vCPU (cores)')
-    min_ram = models.PositiveIntegerField(verbose_name='Min RAM (GB)')
+    min_vcpu = models.PositiveSmallIntegerField(verbose_name="Min vCPU (cores)")
+    min_ram = models.PositiveIntegerField(verbose_name="Min RAM (GB)")
     system_volume_size = models.PositiveIntegerField(
-        verbose_name='System volume size (GB)'
+        verbose_name="System volume size (GB)"
     )
     preferred_volume_type = models.CharField(max_length=150, blank=True)
 
@@ -458,7 +458,7 @@ class Application(SettingsMixin, core_models.RuntimeStateMixin, BaseResource):
 
     @classmethod
     def get_url_name(cls):
-        return 'rancher-app'
+        return "rancher-app"
 
     def __str__(self):
         return self.name
@@ -476,7 +476,7 @@ class Ingress(SettingsMixin, core_models.RuntimeStateMixin, BaseResource):
 
     @classmethod
     def get_url_name(cls):
-        return 'rancher-ingress'
+        return "rancher-ingress"
 
     def __str__(self):
         return self.name
@@ -484,13 +484,13 @@ class Ingress(SettingsMixin, core_models.RuntimeStateMixin, BaseResource):
 
 class Service(SettingsMixin, core_models.RuntimeStateMixin, BaseResource):
     namespace = models.ForeignKey(Namespace, on_delete=models.CASCADE)
-    cluster_ip = models.GenericIPAddressField(protocol='IPv4', blank=True, null=True)
+    cluster_ip = models.GenericIPAddressField(protocol="IPv4", blank=True, null=True)
     target_workloads = models.ManyToManyField(Workload)
     selector = models.JSONField(blank=True, null=True)
 
     @classmethod
     def get_url_name(cls):
-        return 'rancher-service'
+        return "rancher-service"
 
     def __str__(self):
         return self.name

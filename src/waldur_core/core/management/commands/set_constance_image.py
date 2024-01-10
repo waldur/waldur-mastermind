@@ -9,7 +9,7 @@ from django.utils.translation import gettext as _
 
 
 def make_constance_file_value(image_path, setting_key):
-    image_content = open(image_path, 'rb')
+    image_content = open(image_path, "rb")
 
     filename = os.path.basename(image_path)
     path = default_storage.save(filename, image_content)
@@ -19,28 +19,28 @@ def make_constance_file_value(image_path, setting_key):
 
 
 class Command(BaseCommand):
-    help = _('A custom command to set Constance image configs with CLI')
+    help = _("A custom command to set Constance image configs with CLI")
 
     def add_arguments(self, parser):
         parser.add_argument(
-            'key',
-            metavar='KEY',
-            help='Constance settings key',
+            "key",
+            metavar="KEY",
+            help="Constance settings key",
         )
 
         parser.add_argument(
-            'path',
-            metavar='PATH',
-            help='Path to a logo',
+            "path",
+            metavar="PATH",
+            help="Path to a logo",
         )
 
     def handle(self, *args, **options):
-        setting_key = options['key']
-        path = options['path']
+        setting_key = options["key"]
+        path = options["path"]
 
         if setting_key not in get_values():
             self.stdout.write(
-                self.style.ERROR(f'{setting_key} is not a valid Constance setting')
+                self.style.ERROR(f"{setting_key} is not a valid Constance setting")
             )
             return
 
@@ -49,11 +49,11 @@ class Command(BaseCommand):
         except FileNotFoundError:
             self.stdout.write(
                 self.style.ERROR(
-                    f'File at {path} does not exist. Make sure the specified path is correct'
+                    f"File at {path} does not exist. Make sure the specified path is correct"
                 )
             )
             return
 
-        cache.delete('API_CONFIGURATION')
+        cache.delete("API_CONFIGURATION")
 
-        self.stdout.write(self.style.SUCCESS(f'{setting_key} has been set to {path}'))
+        self.stdout.write(self.style.SUCCESS(f"{setting_key} has been set to {path}"))

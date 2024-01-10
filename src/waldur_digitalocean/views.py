@@ -11,31 +11,31 @@ from . import executors, filters, log, models, serializers
 
 
 class ImageViewSet(structure_views.BaseServicePropertyViewSet):
-    queryset = models.Image.objects.all().order_by('name')
+    queryset = models.Image.objects.all().order_by("name")
     serializer_class = serializers.ImageSerializer
     filterset_class = filters.ImageFilter
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
 
 
 class RegionViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Region.objects.all()
     serializer_class = serializers.RegionSerializer
     filterset_class = filters.RegionFilter
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
 
     def get_queryset(self):
-        return models.Region.objects.order_by('name')
+        return models.Region.objects.order_by("name")
 
 
 class SizeViewSet(structure_views.BaseServicePropertyViewSet):
-    queryset = models.Size.objects.all().order_by('name')
+    queryset = models.Size.objects.all().order_by("name")
     serializer_class = serializers.SizeSerializer
     filterset_class = filters.SizeFilter
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
 
 
 class DropletViewSet(structure_views.ResourceViewSet):
-    queryset = models.Droplet.objects.all().order_by('name')
+    queryset = models.Droplet.objects.all().order_by("name")
     serializer_class = serializers.DropletSerializer
     filterset_class = filters.DropletFilter
     create_executor = executors.DropletCreateExecutor
@@ -48,10 +48,10 @@ class DropletViewSet(structure_views.ResourceViewSet):
     ]
 
     def perform_create(self, serializer):
-        region = serializer.validated_data['region']
-        image = serializer.validated_data['image']
-        size = serializer.validated_data['size']
-        ssh_key = serializer.validated_data.get('ssh_public_key')
+        region = serializer.validated_data["region"]
+        image = serializer.validated_data["image"]
+        size = serializer.validated_data["size"]
+        ssh_key = serializer.validated_data.get("ssh_public_key")
 
         droplet = serializer.save(
             cores=size.cores, ram=size.ram, disk=size.disk, transfer=size.transfer
@@ -68,12 +68,12 @@ class DropletViewSet(structure_views.ResourceViewSet):
             ssh_key_uuid=ssh_key.uuid.hex if ssh_key else None,
         )
 
-    @decorators.action(detail=True, methods=['post'])
+    @decorators.action(detail=True, methods=["post"])
     def start(self, request, uuid=None):
         instance = self.get_object()
         executors.DropletStartExecutor().execute(instance)
         return response.Response(
-            {'status': _('start was scheduled')}, status=status.HTTP_202_ACCEPTED
+            {"status": _("start was scheduled")}, status=status.HTTP_202_ACCEPTED
         )
 
     start_validators = [
@@ -82,12 +82,12 @@ class DropletViewSet(structure_views.ResourceViewSet):
     ]
     start_serializer_class = rf_serializers.Serializer
 
-    @decorators.action(detail=True, methods=['post'])
+    @decorators.action(detail=True, methods=["post"])
     def stop(self, request, uuid=None):
         instance = self.get_object()
         executors.DropletStopExecutor().execute(instance)
         return response.Response(
-            {'status': _('stop was scheduled')}, status=status.HTTP_202_ACCEPTED
+            {"status": _("stop was scheduled")}, status=status.HTTP_202_ACCEPTED
         )
 
     stop_validators = [
@@ -96,12 +96,12 @@ class DropletViewSet(structure_views.ResourceViewSet):
     ]
     stop_serializer_class = rf_serializers.Serializer
 
-    @decorators.action(detail=True, methods=['post'])
+    @decorators.action(detail=True, methods=["post"])
     def restart(self, request, uuid=None):
         instance = self.get_object()
         executors.DropletRestartExecutor().execute(instance)
         return response.Response(
-            {'status': _('restart was scheduled')}, status=status.HTTP_202_ACCEPTED
+            {"status": _("restart was scheduled")}, status=status.HTTP_202_ACCEPTED
         )
 
     restart_validators = [
@@ -110,7 +110,7 @@ class DropletViewSet(structure_views.ResourceViewSet):
     ]
     restart_serializer_class = rf_serializers.Serializer
 
-    @decorators.action(detail=True, methods=['post'])
+    @decorators.action(detail=True, methods=["post"])
     def resize(self, request, uuid=None):
         """
         To resize droplet, submit a **POST** request to the instance URL, specifying URI of a target size.
@@ -140,8 +140,8 @@ class DropletViewSet(structure_views.ResourceViewSet):
         serializer = self.get_serializer(droplet, data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        size = serializer.validated_data['size']
-        disk = serializer.validated_data['disk']
+        size = serializer.validated_data["size"]
+        disk = serializer.validated_data["disk"]
 
         executors.DropletResizeExecutor.execute(
             droplet,
@@ -151,13 +151,13 @@ class DropletViewSet(structure_views.ResourceViewSet):
             is_async=self.async_executor,
         )
 
-        message = _('Droplet {droplet_name} has been scheduled to %s resize.') % (
-            disk and _('permanent') or _('flexible')
+        message = _("Droplet {droplet_name} has been scheduled to %s resize.") % (
+            disk and _("permanent") or _("flexible")
         )
         log.event_logger.droplet_resize.info(
             message,
-            event_type='droplet_resize_scheduled',
-            event_context={'droplet': droplet, 'size': size},
+            event_type="droplet_resize_scheduled",
+            event_context={"droplet": droplet, "size": size},
         )
 
         droplet.cores = size.cores
@@ -169,7 +169,7 @@ class DropletViewSet(structure_views.ResourceViewSet):
         droplet.save()
 
         return response.Response(
-            {'detail': _('resizing was scheduled')}, status=status.HTTP_202_ACCEPTED
+            {"detail": _("resizing was scheduled")}, status=status.HTTP_202_ACCEPTED
         )
 
     resize_validators = [core_validators.StateValidator(models.Droplet.States.OK)]

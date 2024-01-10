@@ -14,348 +14,348 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('marketplace', '0104_translations'),
-        ('structure', '0040_useragreement_uuid'),
+        ("marketplace", "0104_translations"),
+        ("structure", "0040_useragreement_uuid"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Call',
+            name="Call",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=2000, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name="description"
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('start_time', models.DateTimeField()),
-                ('end_time', models.DateTimeField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("start_time", models.DateTimeField()),
+                ("end_time", models.DateTimeField()),
                 (
-                    'round_strategy',
+                    "round_strategy",
                     django_fsm.FSMIntegerField(
-                        choices=[(1, 'One-time'), (2, 'Regular')], default=2
+                        choices=[(1, "One-time"), (2, "Regular")], default=2
                     ),
                 ),
                 (
-                    'review_strategy',
+                    "review_strategy",
                     django_fsm.FSMIntegerField(
                         choices=[
-                            (1, 'After round is closed'),
-                            (2, 'After proposal submission'),
+                            (1, "After round is closed"),
+                            (2, "After proposal submission"),
                         ],
                         default=1,
                     ),
                 ),
                 (
-                    'allocation_strategy',
+                    "allocation_strategy",
                     django_fsm.FSMIntegerField(
                         choices=[
-                            (1, 'By call manager'),
-                            (2, 'Automatic based on review scoring'),
+                            (1, "By call manager"),
+                            (2, "Automatic based on review scoring"),
                         ],
                         default=2,
                     ),
                 ),
                 (
-                    'state',
+                    "state",
                     django_fsm.FSMIntegerField(
-                        choices=[(1, 'Draft'), (2, 'Active'), (3, 'Archived')],
+                        choices=[(1, "Draft"), (2, "Active"), (3, "Archived")],
                         default=1,
                     ),
                 ),
-                ('offerings', models.ManyToManyField(to='marketplace.Offering')),
+                ("offerings", models.ManyToManyField(to="marketplace.Offering")),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='Proposal',
+            name="Proposal",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'state',
+                    "state",
                     django_fsm.FSMIntegerField(
-                        choices=[(1, 'Draft'), (2, 'Active'), (3, 'Cancelled')],
+                        choices=[(1, "Draft"), (2, "Active"), (3, "Cancelled")],
                         default=1,
                     ),
                 ),
-                ('duration_requested', models.DateTimeField()),
-                ('resource_usage', models.JSONField()),
+                ("duration_requested", models.DateTimeField()),
+                ("resource_usage", models.JSONField()),
                 (
-                    'project',
+                    "project",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.PROTECT,
-                        to='structure.project',
+                        to="structure.project",
                     ),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='Review',
+            name="Review",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'state',
+                    "state",
                     django_fsm.FSMIntegerField(
-                        choices=[(1, 'Draft'), (2, 'Active'), (3, 'Cancelled')],
+                        choices=[(1, "Draft"), (2, "Active"), (3, "Cancelled")],
                         default=1,
                     ),
                 ),
-                ('points', models.CharField(blank=True, max_length=255)),
-                ('type', models.CharField(blank=True, max_length=255)),
-                ('version', models.CharField(blank=True, max_length=255)),
+                ("points", models.CharField(blank=True, max_length=255)),
+                ("type", models.CharField(blank=True, max_length=255)),
+                ("version", models.CharField(blank=True, max_length=255)),
                 (
-                    'proposal',
+                    "proposal",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.PROTECT,
-                        to='proposal.proposal',
+                        to="proposal.proposal",
                     ),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='Round',
+            name="Round",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('start_time', models.DateTimeField()),
-                ('end_time', models.DateTimeField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("start_time", models.DateTimeField()),
+                ("end_time", models.DateTimeField()),
                 (
-                    'call',
+                    "call",
                     models.ForeignKey(
-                        on_delete=django.db.models.deletion.PROTECT, to='proposal.call'
+                        on_delete=django.db.models.deletion.PROTECT, to="proposal.call"
                     ),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='ReviewComment',
+            name="ReviewComment",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('message', models.CharField(max_length=255)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("message", models.CharField(max_length=255)),
                 (
-                    'review',
+                    "review",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='proposal.review',
+                        to="proposal.review",
                     ),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='ResourceAllocator',
+            name="ResourceAllocator",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'call',
+                    "call",
                     models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE, to='proposal.call'
+                        on_delete=django.db.models.deletion.CASCADE, to="proposal.call"
                     ),
                 ),
                 (
-                    'project',
+                    "project",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='structure.project',
+                        to="structure.project",
                     ),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.AddField(
-            model_name='proposal',
-            name='round',
+            model_name="proposal",
+            name="round",
             field=models.ForeignKey(
-                on_delete=django.db.models.deletion.PROTECT, to='proposal.round'
+                on_delete=django.db.models.deletion.PROTECT, to="proposal.round"
             ),
         ),
     ]

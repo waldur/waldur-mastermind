@@ -5,34 +5,34 @@ from . import models
 
 
 class CategoryAdmin(admin.ModelAdmin):
-    fields = ('icon', 'name', 'description')
+    fields = ("icon", "name", "description")
 
 
 class QuestionInline(modeltranslation_admin.TranslationStackedInline):
     model = models.Question
-    fields = ('order', 'description', 'solution', 'correct_answer', 'category', 'image')
+    fields = ("order", "description", "solution", "correct_answer", "category", "image")
 
 
 class ChecklistCustomerRoleInline(admin.StackedInline):
     model = models.ChecklistCustomerRole
-    fields = ('role',)
+    fields = ("role",)
 
 
 class ChecklistProjectRoleInline(admin.StackedInline):
     model = models.ChecklistProjectRole
-    fields = ('role',)
+    fields = ("role",)
 
 
 class ChecklistAdmin(modeltranslation_admin.TranslationAdmin):
     inlines = [QuestionInline, ChecklistCustomerRoleInline, ChecklistProjectRoleInline]
-    list_display = ('name', 'description', 'category', 'uuid')
-    list_filter = ('category',)
-    fields = ('name', 'description', 'category')
+    list_display = ("name", "description", "category", "uuid")
+    list_filter = ("category",)
+    fields = ("name", "description", "category")
 
 
 class AnswerAdmin(admin.ModelAdmin):
-    list_display = ('user', 'question', 'value')
-    list_filter = ('question',)
+    list_display = ("user", "question", "value")
+    list_filter = ("question",)
 
 
 admin.site.register(models.Checklist, ChecklistAdmin)

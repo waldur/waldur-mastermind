@@ -18,4 +18,4 @@ class SetInstanceErredTask(ErrorStateTransitionTask):
             pass
         else:
             volume.set_erred()
-            volume.save(update_fields=['state'])
+            volume.save(update_fields=["state"])

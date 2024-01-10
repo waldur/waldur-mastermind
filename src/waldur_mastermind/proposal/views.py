@@ -20,25 +20,25 @@ from waldur_mastermind.proposal import filters, models, serializers
 
 
 class CallManagingOrganisationViewSet(PublicViewsetMixin, BaseMarketplaceView):
-    lookup_field = 'uuid'
-    queryset = models.CallManagingOrganisation.objects.all().order_by('customer__name')
+    lookup_field = "uuid"
+    queryset = models.CallManagingOrganisation.objects.all().order_by("customer__name")
     serializer_class = serializers.CallManagingOrganisationSerializer
     filterset_class = filters.CallManagingOrganisationFilter
 
 
 class PublicCallViewSet(viewsets.ReadOnlyModelViewSet):
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
     queryset = models.Call.objects.filter(
         state__in=[models.Call.States.ACTIVE, models.Call.States.ARCHIVED]
-    ).order_by('created')
+    ).order_by("created")
     serializer_class = serializers.PublicCallSerializer
     filterset_class = filters.CallFilter
     permission_classes = (rf_permissions.AllowAny,)
 
 
 class ProtectedCallViewSet(core_views.ActionsViewSet):
-    lookup_field = 'uuid'
-    queryset = models.Call.objects.all().order_by('created')
+    lookup_field = "uuid"
+    queryset = models.Call.objects.all().order_by("created")
     serializer_class = serializers.ProtectedCallSerializer
     filterset_class = filters.CallFilter
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
@@ -50,7 +50,7 @@ class ProtectedCallViewSet(core_views.ActionsViewSet):
             call = self.get_object()
             method = self.request.method
 
-            if method == 'POST':
+            if method == "POST":
                 serializer = self.get_serializer(
                     context=self.get_serializer_context(),
                     data=self.request.data,
@@ -86,12 +86,12 @@ class ProtectedCallViewSet(core_views.ActionsViewSet):
             try:
                 obj = getattr(call, set_name).get(uuid=obj_uuid)
 
-                if method == 'DELETE':
+                if method == "DELETE":
                     [validator(obj) for validator in delete_validators]
                     obj.delete()
                     return response.Response(status=status.HTTP_204_NO_CONTENT)
 
-                if method in ['PUT', 'PATCH']:
+                if method in ["PUT", "PATCH"]:
                     [validator(obj) for validator in update_validators]
 
                     serializer = self.get_serializer(
@@ -112,15 +112,15 @@ class ProtectedCallViewSet(core_views.ActionsViewSet):
 
         return func
 
-    @decorators.action(detail=True, methods=['get', 'post'])
+    @decorators.action(detail=True, methods=["get", "post"])
     def offerings(self, request, uuid=None):
-        return self._action_list_method('requestedoffering_set')(self, request, uuid)
+        return self._action_list_method("requestedoffering_set")(self, request, uuid)
 
     offerings_serializer_class = serializers.RequestedOfferingSerializer
 
     def offering_detail(self, request, uuid=None, obj_uuid=None):
         return self._action_detail_method(
-            'requestedoffering_set',
+            "requestedoffering_set",
             delete_validators=[],
             update_validators=[
                 core_validators.StateValidator(
@@ -131,25 +131,25 @@ class ProtectedCallViewSet(core_views.ActionsViewSet):
 
     offering_detail_serializer_class = serializers.RequestedOfferingSerializer
 
-    @decorators.action(detail=True, methods=['post'])
+    @decorators.action(detail=True, methods=["post"])
     def activate(self, request, uuid=None):
         call = self.get_object()
         call.state = models.Call.States.ACTIVE
         call.save()
         return response.Response(
-            'Call has been activated.',
+            "Call has been activated.",
             status=status.HTTP_200_OK,
         )
 
     activate_validators = [core_validators.StateValidator(models.Call.States.DRAFT)]
 
-    @decorators.action(detail=True, methods=['post'])
+    @decorators.action(detail=True, methods=["post"])
     def archive(self, request, uuid=None):
         call = self.get_object()
         call.state = models.Call.States.ARCHIVED
         call.save()
         return response.Response(
-            'Call has been archived.',
+            "Call has been archived.",
             status=status.HTTP_200_OK,
         )
 
@@ -159,9 +159,9 @@ class ProtectedCallViewSet(core_views.ActionsViewSet):
         )
     ]
 
-    @decorators.action(detail=True, methods=['get', 'post'])
+    @decorators.action(detail=True, methods=["get", "post"])
     def rounds(self, request, uuid=None):
-        return self._action_list_method('round_set')(self, request, uuid)
+        return self._action_list_method("round_set")(self, request, uuid)
 
     rounds_serializer_class = serializers.RoundSerializer
 
@@ -180,17 +180,17 @@ class ProtectedCallViewSet(core_views.ActionsViewSet):
                 raise IncorrectStateException()
 
         return self._action_detail_method(
-            'round_set',
+            "round_set",
             delete_validators=[validate_call_state, validate_existing_of_proposals],
             update_validators=[validate_call_state],
         )(self, request, uuid, obj_uuid)
 
     round_detail_serializer_class = serializers.RoundSerializer
 
-    @decorators.action(detail=True, methods=['get', 'post'])
+    @decorators.action(detail=True, methods=["get", "post"])
     def reviewers(self, request, uuid=None):
         return self._action_list_method(
-            'callreviewer_set', ['validate_unique_together']
+            "callreviewer_set", ["validate_unique_together"]
         )(self, request, uuid)
 
     reviewers_serializer_class = serializers.ReviewerSerializer
@@ -200,7 +200,7 @@ class ProtectedCallViewSet(core_views.ActionsViewSet):
             raise IncorrectMethodException()
 
         return self._action_detail_method(
-            'callreviewer_set',
+            "callreviewer_set",
             delete_validators=[],
             update_validators=[update_validator],
         )(self, request, uuid, obj_uuid)
@@ -209,7 +209,7 @@ class ProtectedCallViewSet(core_views.ActionsViewSet):
 
 
 class ProposalViewSet(core_views.ActionsViewSet):
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
     serializer_class = serializers.ProposalSerializer
     filterset_class = filters.ProposalFilter
 
@@ -217,11 +217,11 @@ class ProposalViewSet(core_views.ActionsViewSet):
         user = self.request.user
 
         if user.is_staff:
-            return models.Proposal.objects.all().order_by('round__start_time')
+            return models.Proposal.objects.all().order_by("round__start_time")
 
         customer_ids = permissions_models.UserRole.objects.filter(
             user=user, is_active=True, role__name__in=SYSTEM_CUSTOMER_ROLES
-        ).values_list('object_id', flat=True)
+        ).values_list("object_id", flat=True)
         return models.Proposal.objects.filter(
             Q(round__call__manager__customer__in=customer_ids) | Q(created_by=user)
         )
@@ -237,13 +237,13 @@ class ProposalViewSet(core_views.ActionsViewSet):
     update_permissions = partial_update_permissions = destroy_permissions = [is_creator]
     destroy_validators = [core_validators.StateValidator(models.Proposal.States.DRAFT)]
 
-    @decorators.action(detail=True, methods=['post'])
+    @decorators.action(detail=True, methods=["post"])
     def submit(self, request, uuid=None):
         proposal = self.get_object()
         proposal.state = models.Proposal.States.SUBMITTED
         proposal.save()
         return response.Response(
-            'Proposal has been submitted.',
+            "Proposal has been submitted.",
             status=status.HTTP_200_OK,
         )
 
@@ -253,23 +253,23 @@ class ProposalViewSet(core_views.ActionsViewSet):
 
 
 class ReviewViewSet(ActionsViewSet):
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
     serializer_class = serializers.ReviewSerializer
     filterset_class = filters.ReviewFilter
     disabled_actions = [
-        'create',
-        'destroy',
+        "create",
+        "destroy",
     ]
 
     def get_queryset(self):
         user = self.request.user
 
         if user.is_staff:
-            return models.Review.objects.all().order_by('created')
+            return models.Review.objects.all().order_by("created")
 
         customer_ids = permissions_models.UserRole.objects.filter(
             user=user, is_active=True, role__name__in=SYSTEM_CUSTOMER_ROLES
-        ).values_list('object_id', flat=True)
+        ).values_list("object_id", flat=True)
         return models.Review.objects.filter(
             Q(proposal__round__call__manager__customer__in=customer_ids)
             | Q(reviewer__user=user)
@@ -291,13 +291,13 @@ class ReviewViewSet(ActionsViewSet):
 
         raise exceptions.PermissionDenied()
 
-    @decorators.action(detail=True, methods=['post'])
+    @decorators.action(detail=True, methods=["post"])
     def accept(self, request, uuid=None):
         review = self.get_object()
         review.state = models.Review.States.IN_REVIEW
         review.save()
         return response.Response(
-            'Review has been accepted.',
+            "Review has been accepted.",
             status=status.HTTP_200_OK,
         )
 
@@ -306,13 +306,13 @@ class ReviewViewSet(ActionsViewSet):
         is_proposal_submitted,
     ]
 
-    @decorators.action(detail=True, methods=['post'])
+    @decorators.action(detail=True, methods=["post"])
     def reject(self, request, uuid=None):
         review = self.get_object()
         review.state = models.Review.States.REJECTED
         review.save()
         return response.Response(
-            'Review has been rejected.',
+            "Review has been rejected.",
             status=status.HTTP_200_OK,
         )
 
@@ -322,13 +322,13 @@ class ReviewViewSet(ActionsViewSet):
         ),
     ]
 
-    @decorators.action(detail=True, methods=['post'])
+    @decorators.action(detail=True, methods=["post"])
     def submit(self, request, uuid=None):
         review = self.get_object()
         review.state = models.Review.States.SUBMITTED
         review.save()
         return response.Response(
-            'Review has been submitted.',
+            "Review has been submitted.",
             status=status.HTTP_200_OK,
         )
 

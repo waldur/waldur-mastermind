@@ -25,7 +25,7 @@ class ServiceProviderGetTest(test.APITransactionTestCase):
         self.fixture = fixtures.MarketplaceFixture()
         self.service_provider = self.fixture.service_provider
 
-    @data('staff', 'owner', 'user', 'customer_support', 'admin', 'manager')
+    @data("staff", "owner", "user", "customer_support", "admin", "manager")
     def test_service_provider_should_be_visible_to_all_authenticated_users(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
@@ -49,23 +49,23 @@ class ServiceProviderGetTest(test.APITransactionTestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    @data('staff', 'offering_owner')
+    @data("staff", "offering_owner")
     def test_service_provider_api_secret_code_is_visible(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         url = factories.ServiceProviderFactory.get_url(
-            self.service_provider, 'api_secret_code'
+            self.service_provider, "api_secret_code"
         )
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue('api_secret_code' in response.data.keys())
+        self.assertTrue("api_secret_code" in response.data.keys())
 
-    @data('user', 'customer_support', 'admin', 'manager')
+    @data("user", "customer_support", "admin", "manager")
     def test_service_provider_api_secret_code_is_invisible(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         url = factories.ServiceProviderFactory.get_url(
-            self.service_provider, 'api_secret_code'
+            self.service_provider, "api_secret_code"
         )
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -75,10 +75,10 @@ class ServiceProviderGetTest(test.APITransactionTestCase):
         self.fixture.manager
         self.client.force_authenticate(self.fixture.service_owner)
         url = factories.ServiceProviderFactory.get_url(
-            self.fixture.service_provider, 'users'
+            self.fixture.service_provider, "users"
         )
         response = self.client.get(url)
-        self.assertEqual(response.json()[0]['projects_count'], 1)
+        self.assertEqual(response.json()[0]["projects_count"], 1)
 
 
 @ddt
@@ -87,7 +87,7 @@ class ServiceProviderRegisterTest(test.APITransactionTestCase):
         self.fixture = structure_fixtures.ProjectFixture()
         self.customer = self.fixture.customer
 
-    @data('staff')
+    @data("staff")
     def test_staff_can_register_a_service_provider(self, user):
         response = self.create_service_provider(user)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -95,22 +95,22 @@ class ServiceProviderRegisterTest(test.APITransactionTestCase):
             models.ServiceProvider.objects.filter(customer=self.customer).exists()
         )
 
-    @data('user', 'customer_support', 'admin', 'manager')
+    @data("user", "customer_support", "admin", "manager")
     def test_unauthorized_user_can_not_register_an_service_provider(self, user):
         response = self.create_service_provider(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_owner_can_register_service_provider_with_settings_enabled(self):
         CustomerRole.OWNER.add_permission(PermissionEnum.REGISTER_SERVICE_PROVIDER)
-        response = self.create_service_provider('owner')
+        response = self.create_service_provider("owner")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    @data('owner')
+    @data("owner")
     def test_owner_can_not_register_service_provider_with_settings_disabled(self, user):
         response = self.create_service_provider(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @data('user', 'customer_support', 'admin', 'manager')
+    @data("user", "customer_support", "admin", "manager")
     def test_unauthorized_user_can_not_register_service_provider_with_settings_disabled(
         self, user
     ):
@@ -123,7 +123,7 @@ class ServiceProviderRegisterTest(test.APITransactionTestCase):
         url = factories.ServiceProviderFactory.get_list_url()
 
         payload = {
-            'customer': structure_factories.CustomerFactory.get_url(self.customer),
+            "customer": structure_factories.CustomerFactory.get_url(self.customer),
         }
 
         return self.client.post(url, payload)
@@ -135,7 +135,7 @@ class ServiceProviderUpdateTest(test.APITransactionTestCase):
         self.fixture = structure_fixtures.ProjectFixture()
         self.customer = self.fixture.customer
 
-    @data('staff', 'owner')
+    @data("staff", "owner")
     def test_authorized_user_can_update_service_provider(self, user):
         response, service_provider = self.update_service_provider(user)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
@@ -144,14 +144,14 @@ class ServiceProviderUpdateTest(test.APITransactionTestCase):
             models.ServiceProvider.objects.filter(customer=self.customer).exists()
         )
 
-    @data('user', 'customer_support', 'admin', 'manager')
+    @data("user", "customer_support", "admin", "manager")
     def test_unauthorized_user_can_not_update_service_provider(self, user):
         response, service_provider = self.update_service_provider(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def update_service_provider(self, user, payload=None, **kwargs):
         if not payload:
-            payload = {'enable_notifications': False}
+            payload = {"enable_notifications": False}
 
         service_provider = factories.ServiceProviderFactory(customer=self.customer)
         user = getattr(self.fixture, user)
@@ -163,14 +163,14 @@ class ServiceProviderUpdateTest(test.APITransactionTestCase):
 
         return response, service_provider
 
-    @data('staff', 'owner')
+    @data("staff", "owner")
     def test_generate_api_secret_code(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
 
         service_provider = factories.ServiceProviderFactory(customer=self.customer)
         url = factories.ServiceProviderFactory.get_url(
-            service_provider, 'api_secret_code'
+            service_provider, "api_secret_code"
         )
         old_secret_code = service_provider.api_secret_code
         response = self.client.post(url)
@@ -178,28 +178,28 @@ class ServiceProviderUpdateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertNotEqual(service_provider.api_secret_code, old_secret_code)
 
-    @data('user', 'customer_support', 'admin', 'manager')
+    @data("user", "customer_support", "admin", "manager")
     def test_not_generate_api_secret_code(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
 
         service_provider = factories.ServiceProviderFactory(customer=self.customer)
         url = factories.ServiceProviderFactory.get_url(
-            service_provider, 'api_secret_code'
+            service_provider, "api_secret_code"
         )
         response = self.client.post(url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_upload_service_provider_image(self):
-        payload = {'image': dummy_image()}
+        payload = {"image": dummy_image()}
         response, service_provider = self.update_service_provider(
-            'staff', payload=payload, format='multipart'
+            "staff", payload=payload, format="multipart"
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertTrue(service_provider.image)
 
         url = factories.ServiceProviderFactory.get_url(service_provider)
-        response = self.client.patch(url, {'image': None})
+        response = self.client.patch(url, {"image": None})
         service_provider.refresh_from_db()
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertFalse(service_provider.image)
@@ -212,7 +212,7 @@ class ServiceProviderDeleteTest(test.APITransactionTestCase):
         self.customer = self.fixture.customer
         self.service_provider = factories.ServiceProviderFactory(customer=self.customer)
 
-    @data('staff', 'owner')
+    @data("staff", "owner")
     def test_authorized_user_can_delete_service_provider(self, user):
         response = self.delete_service_provider(user)
         self.assertEqual(
@@ -226,7 +226,7 @@ class ServiceProviderDeleteTest(test.APITransactionTestCase):
         factories.OfferingFactory(
             customer=self.customer, state=models.Offering.States.ACTIVE
         )
-        response = self.delete_service_provider('staff')
+        response = self.delete_service_provider("staff")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertTrue(
             models.ServiceProvider.objects.filter(customer=self.customer).exists()
@@ -236,7 +236,7 @@ class ServiceProviderDeleteTest(test.APITransactionTestCase):
         factories.OfferingFactory(
             customer=self.customer, state=models.Offering.States.ARCHIVED
         )
-        response = self.delete_service_provider('staff')
+        response = self.delete_service_provider("staff")
         self.assertEqual(
             response.status_code, status.HTTP_204_NO_CONTENT, response.data
         )
@@ -244,7 +244,7 @@ class ServiceProviderDeleteTest(test.APITransactionTestCase):
             models.ServiceProvider.objects.filter(customer=self.customer).exists()
         )
 
-    @data('user', 'customer_support', 'admin', 'manager')
+    @data("user", "customer_support", "admin", "manager")
     def test_unauthorized_user_can_not_delete_service_provider(self, user):
         response = self.delete_service_provider(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -275,7 +275,7 @@ class CustomerSerializerTest(test.APITransactionTestCase):
 
         self.client.force_login(user)
         response = self.client.get(url)
-        return response.data['is_service_provider']
+        return response.data["is_service_provider"]
 
 
 class ServiceProviderNotificationTest(test.APITransactionTestCase):
@@ -288,20 +288,20 @@ class ServiceProviderNotificationTest(test.APITransactionTestCase):
         offering = factories.OfferingFactory(
             customer=self.fixture.customer,
             type=PLUGIN_NAME,
-            name='First',
+            name="First",
         )
         self.component = factories.OfferingComponentFactory(
             billing_type=models.OfferingComponent.BillingTypes.USAGE, offering=offering
         )
 
         self.resource = factories.ResourceFactory(
-            offering=offering, state=models.Resource.States.OK, name='My resource'
+            offering=offering, state=models.Resource.States.OK, name="My resource"
         )
 
     def test_get_customer_if_usages_are_not_exist(self):
         self.assertEqual(len(utils.get_info_about_missing_usage_reports()), 1)
         self.assertEqual(
-            utils.get_info_about_missing_usage_reports()[0]['customer'],
+            utils.get_info_about_missing_usage_reports()[0]["customer"],
             self.fixture.customer,
         )
 
@@ -315,7 +315,7 @@ class ServiceProviderNotificationTest(test.APITransactionTestCase):
         other_offering = factories.OfferingFactory(
             customer=self.fixture.customer,
             type=PLUGIN_NAME,
-            name='Second',
+            name="Second",
         )
         factories.OfferingComponentFactory(
             billing_type=models.OfferingComponent.BillingTypes.USAGE,
@@ -325,32 +325,32 @@ class ServiceProviderNotificationTest(test.APITransactionTestCase):
         factories.ResourceFactory(
             offering=other_offering,
             state=models.Resource.States.OK,
-            name='Second resource',
+            name="Second resource",
         )
 
         factories.ResourceFactory(
             offering=other_offering,
             state=models.Resource.States.OK,
-            name='Third resource',
+            name="Third resource",
         )
 
-        event_type = 'notification_usages'
+        event_type = "notification_usages"
         structure_factories.NotificationFactory(key=f"marketplace.{event_type}")
         tasks.send_notifications_about_usages()
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, [self.fixture.owner.email])
         self.assertEqual(
-            mail.outbox[0].subject, 'Reminder about missing usage reports.'
+            mail.outbox[0].subject, "Reminder about missing usage reports."
         )
-        self.assertTrue('My resource' in mail.outbox[0].body)
+        self.assertTrue("My resource" in mail.outbox[0].body)
         public_resources_url = format_homeport_link(
-            'organizations/{organization_uuid}/marketplace-public-resources/',
+            "organizations/{organization_uuid}/marketplace-public-resources/",
             organization_uuid=self.fixture.customer.uuid,
         )
-        body = re.sub(r'\s+|\n+', ' ', mail.outbox[0].body)
+        body = re.sub(r"\s+|\n+", " ", mail.outbox[0].body)
         self.assertTrue(public_resources_url in body)
-        self.assertTrue('1. First: - My resource' in body)
-        self.assertTrue('2. Second: - Second resource - Third resource' in body)
+        self.assertTrue("1. First: - My resource" in body)
+        self.assertTrue("2. Second: - Second resource - Third resource" in body)
 
 
 class ConsumerProjectListTest(test.APITransactionTestCase):
@@ -360,7 +360,7 @@ class ConsumerProjectListTest(test.APITransactionTestCase):
         self.consumer_project = self.mp_fixture.project
         self.consumable_resource = self.mp_fixture.resource
         self.url = factories.ServiceProviderFactory.get_url(
-            self.mp_fixture.service_provider, action='projects'
+            self.mp_fixture.service_provider, action="projects"
         )
 
     def test_service_provider_can_view_project_with_purchased_resource(self):
@@ -369,7 +369,7 @@ class ConsumerProjectListTest(test.APITransactionTestCase):
 
         self.assertEqual(200, response.status_code)
         self.assertIn(
-            self.consumer_project.uuid.hex, [item['uuid'] for item in response.data]
+            self.consumer_project.uuid.hex, [item["uuid"] for item in response.data]
         )
 
 
@@ -385,7 +385,7 @@ class ConsumerSshKeyListTest(test.APITransactionTestCase):
             is_shared=True,
         )
         self.url = factories.ServiceProviderFactory.get_url(
-            self.mp_fixture.service_provider, action='keys'
+            self.mp_fixture.service_provider, action="keys"
         )
 
     def test_service_provider_can_view_ssh_keys_from_project_with_purchased_resource(
@@ -395,7 +395,7 @@ class ConsumerSshKeyListTest(test.APITransactionTestCase):
         response = self.client.get(self.url)
 
         self.assertEqual(200, response.status_code)
-        self.assertIn(self.ssh_key.uuid.hex, [item['uuid'] for item in response.data])
+        self.assertIn(self.ssh_key.uuid.hex, [item["uuid"] for item in response.data])
 
 
 class ConsumerProjectPermissionListTest(test.APITransactionTestCase):
@@ -407,7 +407,7 @@ class ConsumerProjectPermissionListTest(test.APITransactionTestCase):
         self.admin = self.mp_fixture.admin
         self.permission = get_permissions(self.consumer_project, self.admin).get()
         self.url = factories.ServiceProviderFactory.get_url(
-            self.mp_fixture.service_provider, action='project_permissions'
+            self.mp_fixture.service_provider, action="project_permissions"
         )
 
     def test_service_provider_can_view_project_permissions_in_project_with_purchased_resource(
@@ -417,7 +417,7 @@ class ConsumerProjectPermissionListTest(test.APITransactionTestCase):
         response = self.client.get(self.url)
 
         self.assertEqual(200, response.status_code)
-        self.assertIn(self.permission.id, [item['pk'] for item in response.data])
+        self.assertIn(self.permission.id, [item["pk"] for item in response.data])
 
 
 class ConsumerUserListTest(test.APITransactionTestCase):
@@ -428,7 +428,7 @@ class ConsumerUserListTest(test.APITransactionTestCase):
         self.consumable_resource = self.mp_fixture.resource
         self.admin = self.mp_fixture.admin
         self.url = factories.ServiceProviderFactory.get_url(
-            self.mp_fixture.service_provider, action='users'
+            self.mp_fixture.service_provider, action="users"
         )
 
     def test_service_provider_can_view_users_in_project_with_purchased_resource(self):
@@ -436,7 +436,7 @@ class ConsumerUserListTest(test.APITransactionTestCase):
         response = self.client.get(self.url)
 
         self.assertEqual(200, response.status_code)
-        self.assertIn(self.admin.uuid.hex, [item['uuid'] for item in response.data])
+        self.assertIn(self.admin.uuid.hex, [item["uuid"] for item in response.data])
 
     def test_disabled_users_are_excluded(self):
         # Arrange
@@ -449,7 +449,7 @@ class ConsumerUserListTest(test.APITransactionTestCase):
 
         # Assert
         self.assertEqual(200, response.status_code)
-        self.assertNotIn(self.admin.uuid.hex, [item['uuid'] for item in response.data])
+        self.assertNotIn(self.admin.uuid.hex, [item["uuid"] for item in response.data])
 
 
 class SetOfferingUsersTest(test.APITransactionTestCase):
@@ -462,7 +462,7 @@ class SetOfferingUsersTest(test.APITransactionTestCase):
         self.admin = self.fixture.admin
         self.url = factories.ServiceProviderFactory.get_url(
             self.fixture.service_provider,
-            action='set_offerings_username',
+            action="set_offerings_username",
         )
 
     def test_offering_user_creation(self):
@@ -476,8 +476,8 @@ class SetOfferingUsersTest(test.APITransactionTestCase):
         response = self.client.post(
             self.url,
             {
-                'user_uuid': self.admin.uuid,
-                'username': 'SET_OFFERING_USERNAME',
+                "user_uuid": self.admin.uuid,
+                "username": "SET_OFFERING_USERNAME",
             },
         )
 
@@ -491,20 +491,20 @@ class SetOfferingUsersTest(test.APITransactionTestCase):
         offering_user = models.OfferingUser.objects.get(
             user=self.admin, offering=self.offering
         )
-        self.assertEqual('SET_OFFERING_USERNAME', offering_user.username)
+        self.assertEqual("SET_OFFERING_USERNAME", offering_user.username)
 
     def test_offering_user_update(self):
         models.OfferingUser.objects.create(
             offering=self.offering,
             user=self.admin,
-            username='ADMIN_OLD',
+            username="ADMIN_OLD",
         )
         self.client.force_login(self.fixture.offering_owner)
         response = self.client.post(
             self.url,
             {
-                'user_uuid': self.admin.uuid,
-                'username': 'ADMIN_NEW',
+                "user_uuid": self.admin.uuid,
+                "username": "ADMIN_NEW",
             },
         )
 
@@ -518,7 +518,7 @@ class SetOfferingUsersTest(test.APITransactionTestCase):
         offering_user = models.OfferingUser.objects.get(
             user=self.admin, offering=self.offering
         )
-        self.assertEqual('ADMIN_NEW', offering_user.username)
+        self.assertEqual("ADMIN_NEW", offering_user.username)
 
 
 class ServiceProviderUserCustomersTest(test.APITransactionTestCase):
@@ -528,7 +528,7 @@ class ServiceProviderUserCustomersTest(test.APITransactionTestCase):
             customer=self.fixture.customer
         )
         self.url = factories.ServiceProviderFactory.get_url(
-            self.service_provider, 'user_customers'
+            self.service_provider, "user_customers"
         )
 
     def test_get_user_customers_list(self):
@@ -541,13 +541,13 @@ class ServiceProviderUserCustomersTest(test.APITransactionTestCase):
         offering = factories.OfferingFactory(
             customer=self.fixture.customer,
             type=PLUGIN_NAME,
-            name='First',
+            name="First",
         )
 
         resource = factories.ResourceFactory(
-            offering=offering, state=models.Resource.States.OK, name='My resource'
+            offering=offering, state=models.Resource.States.OK, name="My resource"
         )
         resource.project.add_user(self.fixture.user, ProjectRole.ADMIN)
         self.client.force_authenticate(self.fixture.staff)
-        response = self.client.get(self.url, {'user_uuid': self.fixture.user.uuid.hex})
+        response = self.client.get(self.url, {"user_uuid": self.fixture.user.uuid.hex})
         self.assertEqual(response.status_code, status.HTTP_200_OK)

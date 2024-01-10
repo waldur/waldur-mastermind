@@ -58,7 +58,7 @@ def log_order_events(sender, instance, created=False, **kwargs):
         elif order.type == models.Order.Types.UPDATE:
             log.log_resource_update_requested(order.resource)
     else:
-        if not order.tracker.has_changed('state'):
+        if not order.tracker.has_changed("state"):
             return
         if order.state == models.Order.States.EXECUTING:
             log.log_order_approved(order)
@@ -80,7 +80,7 @@ def log_resource_events(sender, instance, created=False, **kwargs):
 
 
 def init_resource_parent(sender, instance, created=False, **kwargs):
-    if not created or instance.tracker.has_changed('parent_id'):
+    if not created or instance.tracker.has_changed("parent_id"):
         return
 
     resource: models.Resource = instance
@@ -100,7 +100,7 @@ def init_resource_parent(sender, instance, created=False, **kwargs):
         return
 
     resource.parent = parent_resource
-    resource.save(update_fields=['parent'])
+    resource.save(update_fields=["parent"])
 
 
 def notify_approvers_when_order_is_created(sender, instance, created=False, **kwargs):
@@ -117,7 +117,7 @@ def notify_approvers_when_order_is_created(sender, instance, created=False, **kw
                 tasks.process_order_on_commit(order, order.created_by)
             else:
                 order.state = models.Order.States.PENDING_PROVIDER
-                order.save(update_fields=['state'])
+                order.save(update_fields=["state"])
                 transaction.on_commit(
                     lambda: tasks.notify_provider_about_pending_order.delay(order.uuid)
                 )
@@ -129,7 +129,7 @@ def notify_approvers_when_order_is_created(sender, instance, created=False, **kw
 
 def update_resource_when_order_is_rejected(sender, instance, created=False, **kwargs):
     order: models.Order = instance
-    if not order.tracker.has_changed('state'):
+    if not order.tracker.has_changed("state"):
         return
     if order.state != models.Order.States.REJECTED:
         return
@@ -137,13 +137,13 @@ def update_resource_when_order_is_rejected(sender, instance, created=False, **kw
         return
     if order.type == models.Order.Types.CREATE:
         order.resource.set_state_terminated()
-        order.resource.save(update_fields=['state'])
+        order.resource.save(update_fields=["state"])
     elif order.type == models.Order.Types.TERMINATE:
         order.resource.set_state_ok()
-        order.resource.save(update_fields=['state'])
+        order.resource.save(update_fields=["state"])
     elif order.type == models.Order.Types.UPDATE:
         order.resource.set_state_ok()
-        order.resource.save(update_fields=['state'])
+        order.resource.save(update_fields=["state"])
 
 
 def sync_resource_limit_when_order(sender, instance, created=False, **kwargs):
@@ -153,7 +153,7 @@ def sync_resource_limit_when_order(sender, instance, created=False, **kwargs):
     if order.resource.state != models.Resource.States.CREATING:
         return
     update_fields = set()
-    for prop in ('limits', 'attributes', 'plan_id'):
+    for prop in ("limits", "attributes", "plan_id"):
         if order.tracker.has_changed(prop):
             setattr(order.resource, prop, getattr(order, prop))
             update_fields.add(prop)
@@ -169,22 +169,22 @@ def update_category_quota_when_offering_is_created(
             if instance.state == models.Offering.States.ACTIVE:
                 return 1
         else:
-            if instance.tracker.has_changed('state'):
+            if instance.tracker.has_changed("state"):
                 if instance.state == models.Offering.States.ACTIVE:
                     return 1
                 elif (
-                    instance.tracker.previous('state') == models.Offering.States.ACTIVE
+                    instance.tracker.previous("state") == models.Offering.States.ACTIVE
                 ):
                     return -1
 
     delta = get_delta()
     if delta:
-        instance.category.add_quota_usage('offering_count', delta)
+        instance.category.add_quota_usage("offering_count", delta)
 
 
 def update_category_quota_when_offering_is_deleted(sender, instance, **kwargs):
     if instance.state == models.Offering.States.ACTIVE:
-        instance.category.add_quota_usage('offering_count', -1)
+        instance.category.add_quota_usage("offering_count", -1)
 
 
 def update_category_offerings_count(sender, **kwargs):
@@ -192,14 +192,14 @@ def update_category_offerings_count(sender, **kwargs):
         value = models.Offering.objects.filter(
             category=category, state=models.Offering.States.ACTIVE
         ).count()
-        category.set_quota_usage('offering_count', value)
+        category.set_quota_usage("offering_count", value)
 
 
 def update_aggregate_resources_count_when_resource_is_updated(
     sender, instance, created=False, **kwargs
 ):
     def apply_change(delta):
-        for field in ('project', 'customer'):
+        for field in ("project", "customer"):
             try:
                 scope = getattr(instance, field)
             except ObjectDoesNotExist:
@@ -215,12 +215,12 @@ def update_aggregate_resources_count_when_resource_is_updated(
             elif delta == -1:
                 counter.count = max(0, counter.count - 1)
 
-            counter.save(update_fields=['count'])
+            counter.save(update_fields=["count"])
 
     if created and instance.state != models.Resource.States.TERMINATED:
         apply_change(1)
     elif (
-        instance.tracker.has_changed('state')
+        instance.tracker.has_changed("state")
         and instance.state == models.Resource.States.TERMINATED
     ):
         apply_change(-1)
@@ -230,22 +230,22 @@ def update_aggregate_resources_count(sender, **kwargs):
     models.AggregateResourceCount.objects.update(count=0)
     for category in models.Category.objects.all():
         for field, content_type in (
-            ('project_id', ContentType.objects.get_for_model(Project)),
-            ('project__customer_id', ContentType.objects.get_for_model(Customer)),
+            ("project_id", ContentType.objects.get_for_model(Project)),
+            ("project__customer_id", ContentType.objects.get_for_model(Customer)),
         ):
             rows = (
                 models.Resource.objects.filter(offering__category=category)
                 .order_by()
                 .exclude(state=models.Resource.States.TERMINATED)
-                .values(field, 'offering__category')
-                .annotate(count=Count('*'))
+                .values(field, "offering__category")
+                .annotate(count=Count("*"))
             )
             for row in rows:
                 models.AggregateResourceCount.objects.update_or_create(
                     content_type=content_type,
                     object_id=row[field],
                     category=category,
-                    defaults={'count': row['count']},
+                    defaults={"count": row["count"]},
                 )
 
 
@@ -259,13 +259,13 @@ def close_resource_plan_period_when_resource_is_terminated(
     if created:
         return
 
-    if not instance.tracker.has_changed('state'):
+    if not instance.tracker.has_changed("state"):
         return
 
     if instance.state != models.Resource.States.TERMINATED:
         return
 
-    if instance.tracker.previous('state') == models.Resource.States.TERMINATING:
+    if instance.tracker.previous("state") == models.Resource.States.TERMINATING:
         # It is expected that this case is handled using callbacks
         return
 
@@ -278,16 +278,16 @@ def close_resource_plan_period_when_resource_is_terminated(
 
 
 def change_order_state(sender, instance, created=False, **kwargs):
-    if created or not instance.tracker.has_changed('state'):
+    if created or not instance.tracker.has_changed("state"):
         return
 
     try:
         resource = models.Resource.objects.get(scope=instance)
     except ObjectDoesNotExist:
         logger.warning(
-            'Skipping resource state synchronization '
-            'because marketplace resource is not found. '
-            'Resource ID: %s',
+            "Skipping resource state synchronization "
+            "because marketplace resource is not found. "
+            "Resource ID: %s",
             core_utils.serialize_instance(instance),
         )
     else:
@@ -299,9 +299,9 @@ def terminate_resource(sender, instance, **kwargs):
         resource = models.Resource.objects.get(scope=instance)
     except ObjectDoesNotExist:
         logger.debug(
-            'Skipping terminate for resource '
-            'because marketplace resource does not exist. '
-            'Resource ID: %s',
+            "Skipping terminate for resource "
+            "because marketplace resource does not exist. "
+            "Resource ID: %s",
             core_utils.serialize_instance(instance),
         )
     else:
@@ -310,29 +310,29 @@ def terminate_resource(sender, instance, **kwargs):
 
 def connect_resource_handlers(*resources):
     for index, model in enumerate(resources):
-        suffix = f'{index}_{model.__class__}'
+        suffix = f"{index}_{model.__class__}"
 
         signals.post_save.connect(
             change_order_state,
             sender=model,
-            dispatch_uid='waldur_mastermind.marketplace.change_order_state_%s' % suffix,
+            dispatch_uid="waldur_mastermind.marketplace.change_order_state_%s" % suffix,
         )
 
         signals.pre_delete.connect(
             terminate_resource,
             sender=model,
-            dispatch_uid='waldur_mastermind.marketplace.terminate_resource_%s' % suffix,
+            dispatch_uid="waldur_mastermind.marketplace.terminate_resource_%s" % suffix,
         )
 
 
 def synchronize_resource_metadata(sender, instance, created=False, **kwargs):
     fields = {
-        'action',
-        'action_details',
-        'state',
-        'runtime_state',
-        'name',
-        'backend_id',
+        "action",
+        "action_details",
+        "state",
+        "runtime_state",
+        "name",
+        "backend_id",
     }
     if not created and not set(instance.tracker.changed()) & fields:
         return
@@ -341,9 +341,9 @@ def synchronize_resource_metadata(sender, instance, created=False, **kwargs):
         resource = models.Resource.objects.get(scope=instance)
     except ObjectDoesNotExist:
         logger.debug(
-            'Skipping resource synchronization for OpenStack resource '
-            'because marketplace resource does not exist. '
-            'Resource ID: %s',
+            "Skipping resource synchronization for OpenStack resource "
+            "because marketplace resource does not exist. "
+            "Resource ID: %s",
             instance.id,
         )
         return
@@ -356,8 +356,8 @@ def connect_resource_metadata_handlers(*resources):
         signals.post_save.connect(
             synchronize_resource_metadata,
             sender=model,
-            dispatch_uid='waldur_mastermind.marketplace.'
-            'synchronize_resource_metadata_{}_{}'.format(index, model.__class__),
+            dispatch_uid="waldur_mastermind.marketplace."
+            f"synchronize_resource_metadata_{index}_{model.__class__}",
         )
 
 
@@ -367,12 +367,12 @@ def update_or_create_quotas(resource):
         component = components_map.get(key)
         if component:
             models.ComponentQuota.objects.update_or_create(
-                resource=resource, component=component, defaults={'limit': value}
+                resource=resource, component=component, defaults={"limit": value}
             )
 
 
 def sync_limits(sender, instance, created=False, **kwargs):
-    if not created and not instance.tracker.has_changed('limits'):
+    if not created and not instance.tracker.has_changed("limits"):
         return
     transaction.on_commit(lambda: update_or_create_quotas(instance))
 
@@ -386,9 +386,9 @@ def limit_update_succeeded(sender, order: models.Order, **kwargs):
         resource.set_state_ok()
     resource.save()
     order.complete()
-    order.save(update_fields=['state'])
+    order.save(update_fields=["state"])
     logger.info(
-        'Resource limits have been updated. Resource: %s, old limits: %s, new limits: %s, created by: %s',
+        "Resource limits have been updated. Resource: %s, old limits: %s, new limits: %s, created by: %s",
         core_utils.serialize_instance(resource),
         old_limits,
         resource.limits,
@@ -403,8 +403,8 @@ def limit_update_failed(sender, order, error_message, **kwargs):
     order.save()
     resource = order.resource
     logger.info(
-        'Resource limit update failed. Resource: %s, requested limits: %s, created by: %s, '
-        'error message: %s',
+        "Resource limit update failed. Resource: %s, requested limits: %s, created by: %s, "
+        "error message: %s",
         core_utils.serialize_instance(resource),
         resource.limits,
         order.created_by,
@@ -433,7 +433,7 @@ def drop_service_manager_role_from_customer(
     if instance.role.name == RoleEnum.OFFERING_MANAGER:
         customer: Customer = instance.scope.customer
         offerings = models.Offering.objects.filter(customer=customer).values_list(
-            'id', flat=True
+            "id", flat=True
         )
         connected_offerings = get_connected_offerings(instance.user)
         if not connected_offerings.intersection(offerings).exists():
@@ -454,7 +454,7 @@ def update_customer_of_offering_if_project_has_been_moved(
 
 
 def disable_empty_service_settings(offering):
-    service_settings = getattr(offering, 'scope', None)
+    service_settings = getattr(offering, "scope", None)
     if not service_settings:
         return
 
@@ -467,11 +467,11 @@ def disable_empty_service_settings(offering):
         .exists()
     ):
         service_settings.is_active = False
-        service_settings.save(update_fields=['is_active'])
+        service_settings.save(update_fields=["is_active"])
 
 
 def enable_nonempty_service_settings(offering):
-    service_settings = getattr(offering, 'scope', None)
+    service_settings = getattr(offering, "scope", None)
     if not service_settings:
         return
 
@@ -484,7 +484,7 @@ def enable_nonempty_service_settings(offering):
         .exists()
     ):
         service_settings.is_active = True
-        service_settings.save(update_fields=['is_active'])
+        service_settings.save(update_fields=["is_active"])
 
 
 def disable_archived_service_settings_without_existing_resource(
@@ -493,7 +493,7 @@ def disable_archived_service_settings_without_existing_resource(
     if created:
         return
 
-    if not instance.tracker.has_changed('state'):
+    if not instance.tracker.has_changed("state"):
         return
 
     if instance.state != models.Resource.States.TERMINATED:
@@ -513,7 +513,7 @@ def disable_service_settings_without_existing_resource_when_archived(
     if created:
         return
 
-    if not instance.tracker.has_changed('state'):
+    if not instance.tracker.has_changed("state"):
         return
 
     if instance.state != models.Offering.States.ARCHIVED:
@@ -528,7 +528,7 @@ def enable_service_settings_with_existing_resource(
     if created:
         return
 
-    if not instance.tracker.has_changed('state'):
+    if not instance.tracker.has_changed("state"):
         return
 
     if instance.state in [
@@ -546,7 +546,7 @@ def enable_service_settings_when_not_archived(
     if created:
         return
 
-    if not instance.tracker.has_changed('state'):
+    if not instance.tracker.has_changed("state"):
         return
 
     if instance.state == models.Offering.States.ARCHIVED:
@@ -559,34 +559,34 @@ def plan_component_has_been_updated(sender, instance, created=False, **kwargs):
     if created:
         return
 
-    if instance.tracker.has_changed('price'):
+    if instance.tracker.has_changed("price"):
         event_logger.marketplace_plan_component.info(
-            f'Current price of component {instance.component.type} in plan {instance.plan.name} has been updated.',
-            event_type='marketplace_plan_component_current_price_updated',
+            f"Current price of component {instance.component.type} in plan {instance.plan.name} has been updated.",
+            event_type="marketplace_plan_component_current_price_updated",
             event_context={
-                'plan_component': instance,
-                'old_value': instance.tracker.previous('price'),
-                'new_value': instance.price,
+                "plan_component": instance,
+                "old_value": instance.tracker.previous("price"),
+                "new_value": instance.price,
             },
         )
-    if instance.tracker.has_changed('future_price'):
+    if instance.tracker.has_changed("future_price"):
         event_logger.marketplace_plan_component.info(
-            f'Future price of component {instance.component.type} in plan {instance.plan.name} has been updated.',
-            event_type='marketplace_plan_component_future_price_updated',
+            f"Future price of component {instance.component.type} in plan {instance.plan.name} has been updated.",
+            event_type="marketplace_plan_component_future_price_updated",
             event_context={
-                'plan_component': instance,
-                'old_value': instance.tracker.previous('future_price'),
-                'new_value': instance.future_price,
+                "plan_component": instance,
+                "old_value": instance.tracker.previous("future_price"),
+                "new_value": instance.future_price,
             },
         )
-    if instance.tracker.has_changed('amount'):
+    if instance.tracker.has_changed("amount"):
         event_logger.marketplace_plan_component.info(
-            f'Quota of component {instance.component.type} in plan {instance.plan.name} has been updated.',
-            event_type='marketplace_plan_component_quota_updated',
+            f"Quota of component {instance.component.type} in plan {instance.plan.name} has been updated.",
+            event_type="marketplace_plan_component_quota_updated",
             event_context={
-                'plan_component': instance,
-                'old_value': instance.tracker.previous('amount'),
-                'new_value': instance.amount,
+                "plan_component": instance,
+                "old_value": instance.tracker.previous("amount"),
+                "new_value": instance.amount,
             },
         )
 
@@ -596,28 +596,28 @@ def offering_component_has_been_created_or_updated(
 ):
     if created:
         event_logger.marketplace_offering_component.info(
-            f'Offering component {instance.name} has been created.',
-            event_type='marketplace_offering_component_created',
+            f"Offering component {instance.name} has been created.",
+            event_type="marketplace_offering_component_created",
             event_context={
-                'offering_component': instance,
+                "offering_component": instance,
             },
         )
     else:
         event_logger.marketplace_offering_component.info(
-            f'Offering component {instance.name} has been updated.',
-            event_type='marketplace_offering_component_updated',
+            f"Offering component {instance.name} has been updated.",
+            event_type="marketplace_offering_component_updated",
             event_context={
-                'offering_component': instance,
+                "offering_component": instance,
             },
         )
 
 
 def offering_component_has_been_deleted(sender, instance, **kwargs):
     event_logger.marketplace_offering_component.info(
-        f'Offering component {instance.name} has been deleted.',
-        event_type='marketplace_offering_component_deleted',
+        f"Offering component {instance.name} has been deleted.",
+        event_type="marketplace_offering_component_deleted",
         event_context={
-            'offering_component': instance,
+            "offering_component": instance,
         },
     )
 
@@ -625,27 +625,27 @@ def offering_component_has_been_deleted(sender, instance, **kwargs):
 def plan_has_been_created_or_updated(sender, instance, created=False, **kwargs):
     if created:
         event_logger.marketplace_plan.info(
-            f'Plan {instance.name} has been created.',
-            event_type='marketplace_plan_created',
+            f"Plan {instance.name} has been created.",
+            event_type="marketplace_plan_created",
             event_context={
-                'plan': instance,
+                "plan": instance,
             },
         )
     else:
-        if instance.tracker.has_changed('archived'):
+        if instance.tracker.has_changed("archived"):
             event_logger.marketplace_plan.info(
-                f'Plan {instance.name} has been archived.',
-                event_type='marketplace_plan_archived',
+                f"Plan {instance.name} has been archived.",
+                event_type="marketplace_plan_archived",
                 event_context={
-                    'plan': instance,
+                    "plan": instance,
                 },
             )
         else:
             event_logger.marketplace_plan.info(
-                f'Plan {instance.name} has been updated.',
-                event_type='marketplace_plan_updated',
+                f"Plan {instance.name} has been updated.",
+                event_type="marketplace_plan_updated",
                 event_context={
-                    'plan': instance,
+                    "plan": instance,
                 },
             )
 
@@ -653,23 +653,23 @@ def plan_has_been_created_or_updated(sender, instance, created=False, **kwargs):
 def offering_has_been_created_or_updated(sender, instance, created=False, **kwargs):
     if created:
         event_logger.marketplace_offering.info(
-            'Offering has been created.',
-            event_type='marketplace_offering_created',
+            "Offering has been created.",
+            event_type="marketplace_offering_created",
             event_context={
-                'offering': instance,
+                "offering": instance,
             },
         )
     else:
-        if instance.tracker.has_changed('state'):
+        if instance.tracker.has_changed("state"):
             event_logger.marketplace_offering.info(
-                'Offering state has been updated.',
-                event_type='marketplace_offering_updated',
+                "Offering state has been updated.",
+                event_type="marketplace_offering_updated",
                 event_context={
-                    'offering': instance,
-                    'old_value': models.Offering(
-                        state=instance.tracker.previous('state')
+                    "offering": instance,
+                    "old_value": models.Offering(
+                        state=instance.tracker.previous("state")
                     ).get_state_display(),
-                    'new_value': instance.get_state_display(),
+                    "new_value": instance.get_state_display(),
                 },
             )
 
@@ -678,11 +678,11 @@ def resource_has_been_renamed(sender, instance, created=False, **kwargs):
     if created:
         return
 
-    if not instance.tracker.has_changed('name'):
+    if not instance.tracker.has_changed("name"):
         return
 
     log.log_marketplace_resource_renamed(
-        instance, instance.tracker.previous('name') or ''
+        instance, instance.tracker.previous("name") or ""
     )
 
 
@@ -692,7 +692,7 @@ def delete_expired_project_if_every_resource_has_been_terminated(
     if created:
         return
 
-    if not instance.tracker.has_changed('state'):
+    if not instance.tracker.has_changed("state"):
         return
 
     if instance.state != models.Resource.States.TERMINATED:
@@ -713,9 +713,9 @@ def delete_expired_project_if_every_resource_has_been_terminated(
         )
         if not resources:
             event_logger.project.info(
-                'Project {project_name} is going to be deleted because end date has been reached and there are no active resources.',
-                event_type='project_deletion_triggered',
-                event_context={'project': project},
+                "Project {project_name} is going to be deleted because end date has been reached and there are no active resources.",
+                event_type="project_deletion_triggered",
+                event_context={"project": project},
             )
             project.delete()
 
@@ -732,7 +732,7 @@ def log_offering_user_deleted(sender, instance, **kwargs):
 
 def generate_changes_string(changed_dict, instance):
     changes_string = ""
-    if 'username' in changed_dict:
+    if "username" in changed_dict:
         changes_string += f"Robot account {changed_dict['username']} has been updated. "
     else:
         changes_string += f"Robot account {instance.username} has been updated. "
@@ -752,22 +752,22 @@ def log_resource_robot_account_created_or_updated(
         changed_string = generate_changes_string(instance.tracker.changed(), instance)
         event_logger.marketplace_robot_account.info(
             changed_string,
-            event_type='resource_robot_account_updated',
-            event_context={'robot_account': instance},
+            event_type="resource_robot_account_updated",
+            event_context={"robot_account": instance},
         )
         return
     event_logger.marketplace_robot_account.info(
-        'Robot account {robot_account_username} has been created.',
-        event_type='resource_robot_account_created',
-        event_context={'robot_account': instance},
+        "Robot account {robot_account_username} has been created.",
+        event_type="resource_robot_account_created",
+        event_context={"robot_account": instance},
     )
 
 
 def log_resource_robot_account_deleted(sender, instance, **kwargs):
     event_logger.marketplace_robot_account.info(
-        'Robot account {robot_account_username} has been deleted.',
-        event_type='resource_robot_account_deleted',
-        event_context={'robot_account': instance},
+        "Robot account {robot_account_username} has been deleted.",
+        event_type="resource_robot_account_deleted",
+        event_context={"robot_account": instance},
     )
 
 
@@ -780,13 +780,13 @@ def create_offering_users_when_project_role_granted(sender, instance, **kwargs):
         state=models.Resource.States.OK,
         offering__type__in=OFFERING_USER_ALLOWED_OFFERING_TYPES,
     )
-    offering_ids = set(resources.values_list('offering_id', flat=True))
+    offering_ids = set(resources.values_list("offering_id", flat=True))
     offerings = models.Offering.objects.filter(id__in=offering_ids)
 
     for offering in offerings:
-        if not offering.secret_options.get('service_provider_can_create_offering_user'):
+        if not offering.secret_options.get("service_provider_can_create_offering_user"):
             logger.info(
-                'It is not allowed to create users for current offering %s.', offering
+                "It is not allowed to create users for current offering %s.", offering
             )
             continue
 
@@ -794,7 +794,7 @@ def create_offering_users_when_project_role_granted(sender, instance, **kwargs):
             offering=offering,
             user=user,
         ).exists():
-            logger.info('An offering user for %s in %s already exists', user, offering)
+            logger.info("An offering user for %s in %s already exists", user, offering)
             continue
 
         username = utils.generate_username(user, offering)
@@ -805,7 +805,7 @@ def create_offering_users_when_project_role_granted(sender, instance, **kwargs):
             username=username,
         )
         utils.setup_linux_related_data(offering_user, offering)
-        offering_user.save(update_fields=['backend_metadata'])
+        offering_user.save(update_fields=["backend_metadata"])
 
 
 def create_offering_user_for_new_resource(sender, instance, **kwargs):
@@ -815,13 +815,13 @@ def create_offering_user_for_new_resource(sender, instance, **kwargs):
     offering = resource.offering
     if offering.type not in OFFERING_USER_ALLOWED_OFFERING_TYPES:
         logger.info(
-            'The offering %s does not support offering users feature.', offering
+            "The offering %s does not support offering users feature.", offering
         )
         return
 
-    if not offering.secret_options.get('service_provider_can_create_offering_user'):
+    if not offering.secret_options.get("service_provider_can_create_offering_user"):
         logger.info(
-            'It is not allowed to create users for current offering %s.', offering
+            "It is not allowed to create users for current offering %s.", offering
         )
         return
 
@@ -830,7 +830,7 @@ def create_offering_user_for_new_resource(sender, instance, **kwargs):
             offering=offering,
             user=user,
         ).exists():
-            logger.info('An offering user for %s in %s already exists', user, offering)
+            logger.info("An offering user for %s in %s already exists", user, offering)
             continue
 
         username = utils.generate_username(user, offering)
@@ -844,9 +844,9 @@ def create_offering_user_for_new_resource(sender, instance, **kwargs):
         offering_user.set_propagation_date()
 
         utils.setup_linux_related_data(offering_user, offering)
-        offering_user.save(update_fields=['propagation_date', 'backend_metadata'])
+        offering_user.save(update_fields=["propagation_date", "backend_metadata"])
 
-        logger.info('The offering user %s has been created', offering_user)
+        logger.info("The offering user %s has been created", offering_user)
 
 
 def update_offering_user_username_after_offering_settings_change(
@@ -859,7 +859,7 @@ def update_offering_user_username_after_offering_settings_change(
 
     if (
         offering.type not in OFFERING_USER_ALLOWED_OFFERING_TYPES
-        or not offering.tracker.has_changed('plugin_options')
+        or not offering.tracker.has_changed("plugin_options")
     ):
         return
 
@@ -867,8 +867,8 @@ def update_offering_user_username_after_offering_settings_change(
 
     for offering_user in offering_users:
         new_username = utils.generate_username(offering_user.user, offering)
-        logger.info('New username for %s is %s', offering_user, new_username)
+        logger.info("New username for %s is %s", offering_user, new_username)
         offering_user.username = new_username
 
         utils.setup_linux_related_data(offering_user, offering)
-        offering_user.save(update_fields=['username', 'backend_metadata'])
+        offering_user.save(update_fields=["username", "backend_metadata"])

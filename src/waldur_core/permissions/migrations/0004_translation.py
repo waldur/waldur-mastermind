@@ -5,92 +5,92 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('permissions', '0003_role_is_system_role'),
+        ("permissions", "0003_role_is_system_role"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='role',
-            name='description_da',
+            model_name="role",
+            name="description_da",
             field=models.CharField(
-                blank=True, max_length=2000, null=True, verbose_name='description'
+                blank=True, max_length=2000, null=True, verbose_name="description"
             ),
         ),
         migrations.AddField(
-            model_name='role',
-            name='description_de',
+            model_name="role",
+            name="description_de",
             field=models.CharField(
-                blank=True, max_length=2000, null=True, verbose_name='description'
+                blank=True, max_length=2000, null=True, verbose_name="description"
             ),
         ),
         migrations.AddField(
-            model_name='role',
-            name='description_en',
+            model_name="role",
+            name="description_en",
             field=models.CharField(
-                blank=True, max_length=2000, null=True, verbose_name='description'
+                blank=True, max_length=2000, null=True, verbose_name="description"
             ),
         ),
         migrations.AddField(
-            model_name='role',
-            name='description_es',
+            model_name="role",
+            name="description_es",
             field=models.CharField(
-                blank=True, max_length=2000, null=True, verbose_name='description'
+                blank=True, max_length=2000, null=True, verbose_name="description"
             ),
         ),
         migrations.AddField(
-            model_name='role',
-            name='description_et',
+            model_name="role",
+            name="description_et",
             field=models.CharField(
-                blank=True, max_length=2000, null=True, verbose_name='description'
+                blank=True, max_length=2000, null=True, verbose_name="description"
             ),
         ),
         migrations.AddField(
-            model_name='role',
-            name='description_fr',
+            model_name="role",
+            name="description_fr",
             field=models.CharField(
-                blank=True, max_length=2000, null=True, verbose_name='description'
+                blank=True, max_length=2000, null=True, verbose_name="description"
             ),
         ),
         migrations.AddField(
-            model_name='role',
-            name='description_it',
+            model_name="role",
+            name="description_it",
             field=models.CharField(
-                blank=True, max_length=2000, null=True, verbose_name='description'
+                blank=True, max_length=2000, null=True, verbose_name="description"
             ),
         ),
         migrations.AddField(
-            model_name='role',
-            name='description_lt',
+            model_name="role",
+            name="description_lt",
             field=models.CharField(
-                blank=True, max_length=2000, null=True, verbose_name='description'
+                blank=True, max_length=2000, null=True, verbose_name="description"
             ),
         ),
         migrations.AddField(
-            model_name='role',
-            name='description_lv',
+            model_name="role",
+            name="description_lv",
             field=models.CharField(
-                blank=True, max_length=2000, null=True, verbose_name='description'
+                blank=True, max_length=2000, null=True, verbose_name="description"
             ),
         ),
         migrations.AddField(
-            model_name='role',
-            name='description_nb',
+            model_name="role",
+            name="description_nb",
             field=models.CharField(
-                blank=True, max_length=2000, null=True, verbose_name='description'
+                blank=True, max_length=2000, null=True, verbose_name="description"
             ),
         ),
         migrations.AddField(
-            model_name='role',
-            name='description_ru',
+            model_name="role",
+            name="description_ru",
             field=models.CharField(
-                blank=True, max_length=2000, null=True, verbose_name='description'
+                blank=True, max_length=2000, null=True, verbose_name="description"
             ),
         ),
         migrations.AddField(
-            model_name='role',
-            name='description_sv',
+            model_name="role",
+            name="description_sv",
             field=models.CharField(
-                blank=True, max_length=2000, null=True, verbose_name='description'
+                blank=True, max_length=2000, null=True, verbose_name="description"
             ),
         ),
     ]

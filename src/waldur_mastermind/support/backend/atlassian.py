@@ -23,16 +23,16 @@ from . import SupportBackend
 logger = logging.getLogger(__name__)
 
 Settings = collections.namedtuple(
-    'Settings', ['backend_url', 'username', 'password', 'email', 'token']
+    "Settings", ["backend_url", "username", "password", "email", "token"]
 )
 
 
 class ServiceDeskBackend(JiraBackend, SupportBackend):
-    servicedeskapi_path = 'servicedeskapi'
+    servicedeskapi_path = "servicedeskapi"
     model_comment = models.Comment
     model_issue = models.Issue
     model_attachment = models.Attachment
-    backend_name = 'atlassian'
+    backend_name = "atlassian"
 
     def __init__(self):
         self.settings = Settings(
@@ -69,17 +69,17 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
             is_internal=not comment.is_public,
         )
         comment.backend_id = backend_comment.id
-        comment.save(update_fields=['backend_id'])
+        comment.save(update_fields=["backend_id"])
 
     def _add_comment(self, issue, body, is_internal):
         data = {
-            'body': body,
-            'properties': [
-                {'key': 'sd.public.comment', 'value': {'internal': is_internal}},
+            "body": body,
+            "properties": [
+                {"key": "sd.public.comment", "value": {"internal": is_internal}},
             ],
         }
 
-        url = self.manager._get_url(f'issue/{issue}/comment')
+        url = self.manager._get_url(f"issue/{issue}/comment")
         response = self.manager._session.post(url, data=json.dumps(data))
 
         comment = Comment(
@@ -91,13 +91,13 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
     def create_issue(self, issue):
         if not issue.caller.email:
             raise ServiceBackendError(
-                'Issue is not created because caller user does not have email.'
+                "Issue is not created because caller user does not have email."
             )
 
         self.create_user(issue.caller)
 
         args = self._issue_to_dict(issue)
-        args['serviceDeskId'] = self.manager.waldur_service_desk(
+        args["serviceDeskId"] = self.manager.waldur_service_desk(
             config.ATLASSIAN_PROJECT_ID
         )
         if not models.RequestType.objects.filter(issue_type_name=issue.type).count():
@@ -105,10 +105,10 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
 
         if not models.RequestType.objects.filter(issue_type_name=issue.type).count():
             raise ServiceBackendError(
-                f'Issue is not created because request type is not found for issue type {issue.type}.'
+                f"Issue is not created because request type is not found for issue type {issue.type}."
             )
 
-        args['requestTypeId'] = (
+        args["requestTypeId"] = (
             models.RequestType.objects.filter(issue_type_name=issue.type)
             .first()
             .backend_id
@@ -122,12 +122,12 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
             # Update an issue, because create_customer_request doesn't allow setting custom fields.
             backend_issue.update(**args)
         except JIRAError as e:
-            logger.error('Error when setting custom field via JIRA API: %s' % e)
+            logger.error("Error when setting custom field via JIRA API: %s" % e)
 
         self._backend_issue_to_issue(backend_issue, issue)
         issue.save()
 
-    def create_confirmation_comment(self, issue, comment_tmpl=''):
+    def create_confirmation_comment(self, issue, comment_tmpl=""):
         if not comment_tmpl:
             try:
                 tmpl = models.TemplateConfirmationComment.objects.get(
@@ -136,18 +136,18 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
             except models.TemplateConfirmationComment.DoesNotExist:
                 try:
                     tmpl = models.TemplateConfirmationComment.objects.get(
-                        issue_type='default'
+                        issue_type="default"
                     )
                 except models.TemplateConfirmationComment.DoesNotExist:
                     logger.debug(
-                        'A confirmation comment hasn\'t been created, because a template does not exist.'
+                        "A confirmation comment hasn't been created, because a template does not exist."
                     )
                     return
             comment_tmpl = tmpl.template
 
         body = (
             Template(comment_tmpl)
-            .render(Context({'issue': issue}, autoescape=False))
+            .render(Context({"issue": issue}, autoescape=False))
             .strip()
         )
         return self._add_comment(issue.backend_id, body, is_internal=False)
@@ -167,11 +167,11 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
             active_user = [u for u in existing_support_user if u.active]
             if not active_user:
                 raise SupportUserInactive(
-                    'Issue is not created because caller user is disabled.'
+                    "Issue is not created because caller user is disabled."
                 )
 
             logger.debug(
-                'Skipping user %s creation because it already exists', user.email
+                "Skipping user %s creation because it already exists", user.email
             )
             backend_customer = active_user[0]
         else:
@@ -189,8 +189,8 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         except ObjectDoesNotExist:
             if models.SupportCustomer.objects.filter(backend_id=backend_id).exists():
                 raise ServiceBackendError(
-                    'Issue is not created because JIRA user with the same '
-                    'email is already associated with another user.'
+                    "Issue is not created because JIRA user with the same "
+                    "email is already associated with another user."
                 )
             support_customer = models.SupportCustomer(user=user, backend_id=backend_id)
             support_customer.save()
@@ -198,7 +198,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
     @reraise_exceptions
     def get_users(self):
         users = self.manager.search_assignable_users_for_projects(
-            '', config.ATLASSIAN_PROJECT_ID, maxResults=False
+            "", config.ATLASSIAN_PROJECT_ID, maxResults=False
         )
         return [
             models.SupportUser(name=user.displayName, backend_id=self.get_user_id(user))
@@ -217,46 +217,46 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
                 self.get_field_id_by_name(config.ATLASSIAN_IMPACT_FIELD)
             ] = issue.impact
         if issue.priority:
-            args['priority'] = {'name': issue.priority}
+            args["priority"] = {"name": issue.priority}
 
         def set_custom_field(field_name, value):
             if value and getattr(config, field_name):
                 args[self.get_field_id_by_name(getattr(config, field_name))] = value
 
         if issue.customer:
-            set_custom_field('ATLASSIAN_ORGANISATION_FIELD', issue.customer.name)
+            set_custom_field("ATLASSIAN_ORGANISATION_FIELD", issue.customer.name)
 
         if issue.project:
-            set_custom_field('ATLASSIAN_PROJECT_FIELD', issue.project.name)
+            set_custom_field("ATLASSIAN_PROJECT_FIELD", issue.project.name)
 
         if issue.resource:
-            set_custom_field('ATLASSIAN_AFFECTED_RESOURCE_FIELD', issue.resource)
+            set_custom_field("ATLASSIAN_AFFECTED_RESOURCE_FIELD", issue.resource)
 
         if issue.template:
-            set_custom_field('ATLASSIAN_TEMPLATE_FIELD', issue.template.name)
+            set_custom_field("ATLASSIAN_TEMPLATE_FIELD", issue.template.name)
 
         return args
 
     def _issue_to_dict(self, issue):
         args = {
-            'requestFieldValues': {
-                'summary': unescape(issue.summary),
-                'description': unescape(issue.description),
+            "requestFieldValues": {
+                "summary": unescape(issue.summary),
+                "description": unescape(issue.description),
             }
         }
 
         if issue.priority:
-            args['requestFieldValues']['priority'] = {'name': issue.priority}
+            args["requestFieldValues"]["priority"] = {"name": issue.priority}
 
         support_customer = issue.caller.supportcustomer
-        args['requestParticipants'] = [support_customer.backend_id]
+        args["requestParticipants"] = [support_customer.backend_id]
 
         return args
 
     def _get_first_sla_field(self, backend_issue):
         field_name = self.get_field_id_by_name(config.ATLASSIAN_SLA_FIELD)
         value = getattr(backend_issue.fields, field_name, None)
-        if value and hasattr(value, 'ongoingCycle'):
+        if value and hasattr(value, "ongoingCycle"):
             epoch_milliseconds = value.ongoingCycle.breachTime.epochMillis
             if epoch_milliseconds:
                 return datetime.fromtimestamp(
@@ -268,13 +268,13 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         issue.backend_id = backend_issue.key
         issue.resolution = (
             backend_issue.fields.resolution and backend_issue.fields.resolution.name
-        ) or ''
-        issue.status = backend_issue.fields.status.name or ''
+        ) or ""
+        issue.status = backend_issue.fields.status.name or ""
         issue.link = backend_issue.permalink()
         issue.priority = backend_issue.fields.priority.name
         issue.first_response_sla = self._get_first_sla_field(backend_issue)
         issue.summary = backend_issue.fields.summary
-        issue.description = backend_issue.fields.description or ''
+        issue.description = backend_issue.fields.description or ""
         issue.type = backend_issue.fields.issuetype.name
         issue.resolution_date = backend_issue.fields.resolutiondate or None
         issue.feedback_request = self.get_request_feedback_field(backend_issue)
@@ -290,11 +290,11 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         if impact:
             issue.impact = impact
 
-        assignee = get_support_user_by_field(backend_issue.fields, 'assignee')
+        assignee = get_support_user_by_field(backend_issue.fields, "assignee")
         if assignee:
             issue.assignee = assignee
 
-        reporter = get_support_user_by_field(backend_issue.fields, 'reporter')
+        reporter = get_support_user_by_field(backend_issue.fields, "reporter")
         if reporter:
             issue.reporter = reporter
 
@@ -320,21 +320,21 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         comment.author = self.get_or_create_support_user(backend_comment.author)
         try:
             internal = self._get_property(
-                'comment', backend_comment.id, 'sd.public.comment'
+                "comment", backend_comment.id, "sd.public.comment"
             )
-            comment.is_public = not internal.get('value', {}).get('internal', False)
+            comment.is_public = not internal.get("value", {}).get("internal", False)
         except JIRAError:
             # workaround for backbone-issue-sync-for-jira plugin
             try:
                 external = self._get_property(
-                    'comment', backend_comment.id, 'sd.allow.public.comment'
+                    "comment", backend_comment.id, "sd.allow.public.comment"
                 )
-                comment.is_public = external.get('value', {}).get('allow', False)
+                comment.is_public = external.get("value", {}).get("allow", False)
             except JIRAError:
                 comment.is_public = False
 
     def _backend_attachment_to_attachment(self, backend_attachment, attachment):
-        attachment.mime_type = getattr(backend_attachment, 'mimeType', '')
+        attachment.mime_type = getattr(backend_attachment, "mimeType", "")
         attachment.file_size = backend_attachment.size
         attachment.created = dateutil.parser.parse(backend_attachment.created)
         attachment.author = self.get_or_create_support_user(backend_attachment.author)
@@ -369,8 +369,8 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
 
             for backend_request_type in backend_request_types:
                 defaults = {
-                    'name': backend_request_type.name,
-                    'fields': self.manager.waldur_request_type_fields(
+                    "name": backend_request_type.name,
+                    "fields": self.manager.waldur_request_type_fields(
                         service_desk_id, backend_request_type.id
                     ),
                 }
@@ -378,7 +378,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
                     issue_type = self.manager.issue_type(
                         backend_request_type.issueTypeId
                     )
-                    defaults['issue_type_name'] = issue_type.name
+                    defaults["issue_type_name"] = issue_type.name
 
                 models.RequestType.objects.update_or_create(
                     backend_id=backend_request_type.id,
@@ -407,9 +407,9 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
                 models.Priority.objects.update_or_create(
                     backend_id=priority.id,
                     defaults={
-                        'name': priority.name,
-                        'description': priority.description,
-                        'icon_url': priority.iconUrl,
+                        "name": priority.name,
+                        "description": priority.description,
+                        "icon_url": priority.iconUrl,
                     },
                 )
 
@@ -443,7 +443,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
                 config.ATLASSIAN_REQUEST_FEEDBACK_FIELD
             )
         except JiraBackendError:
-            logger.warning('Field request_feedback is not defined in Jira support.')
+            logger.warning("Field request_feedback is not defined in Jira support.")
             return True
         value = getattr(backend_issue.fields, field_name, None)
         # we treat any value we receive from backend as True. Unset / missing value means False.
@@ -463,7 +463,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
             user, created = models.SupportUser.objects.get_or_create(
                 backend_id=backend_user.backend_id,
                 backend_name=self.backend_name,
-                defaults={'name': backend_user.name},
+                defaults={"name": backend_user.name},
             )
             if not created and user.name != backend_user.name:
                 user.name = backend_user.name
@@ -477,4 +477,4 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         ).update(is_active=False)
 
     def get_issue_details(self):
-        return {'type': config.ATLASSIAN_DEFAULT_OFFERING_ISSUE_TYPE}
+        return {"type": config.ATLASSIAN_DEFAULT_OFFERING_ISSUE_TYPE}

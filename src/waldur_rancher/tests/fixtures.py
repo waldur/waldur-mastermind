@@ -34,7 +34,7 @@ class RancherFixture(ProjectFixture):
             project=self.project,
             state=models.Cluster.States.OK,
             tenant_settings=self.tenant_settings,
-            name='my-cluster',
+            name="my-cluster",
         )
 
     @cached_property

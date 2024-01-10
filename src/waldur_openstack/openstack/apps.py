@@ -8,10 +8,10 @@ class OpenStackConfig(AppConfig):
     tenants, instances, security groups and networks.
     """
 
-    name = 'waldur_openstack.openstack'
-    label = 'openstack'
-    verbose_name = 'OpenStack'
-    service_name = 'OpenStack'
+    name = "waldur_openstack.openstack"
+    label = "openstack"
+    verbose_name = "OpenStack"
+    service_name = "OpenStack"
 
     def ready(self):
         from waldur_core.core import models as core_models
@@ -22,12 +22,12 @@ class OpenStackConfig(AppConfig):
 
         from . import handlers
 
-        Tenant = self.get_model('Tenant')
-        Network = self.get_model('Network')
-        SubNet = self.get_model('SubNet')
-        SecurityGroup = self.get_model('SecurityGroup')
-        SecurityGroupRule = self.get_model('SecurityGroupRule')
-        ServerGroup = self.get_model('ServerGroup')
+        Tenant = self.get_model("Tenant")
+        Network = self.get_model("Network")
+        SubNet = self.get_model("SubNet")
+        SecurityGroup = self.get_model("SecurityGroup")
+        SecurityGroupRule = self.get_model("SecurityGroupRule")
+        ServerGroup = self.get_model("ServerGroup")
 
         # structure
         from .backend import OpenStackBackend
@@ -37,16 +37,16 @@ class OpenStackConfig(AppConfig):
         signals.post_save.connect(
             handlers.clear_cache_when_service_settings_are_updated,
             sender=structure_models.ServiceSettings,
-            dispatch_uid='openstack.handlers.clear_cache_when_service_settings_are_updated',
+            dispatch_uid="openstack.handlers.clear_cache_when_service_settings_are_updated",
         )
 
         from . import quotas
 
         quotas.inject_tenant_quotas()
 
-        for resource in ('vcpu', 'ram', 'storage'):
+        for resource in ("vcpu", "ram", "storage"):
             structure_models.ServiceSettings.add_quota_field(
-                name='openstack_%s' % resource,
+                name="openstack_%s" % resource,
                 quota_field=QuotaField(
                     creation_condition=lambda service_settings: service_settings.type
                     == OpenStackConfig.service_name
@@ -55,13 +55,13 @@ class OpenStackConfig(AppConfig):
 
         permission_signals.role_revoked.connect(
             handlers.remove_ssh_key_from_tenants,
-            dispatch_uid='openstack.handlers.remove_ssh_key_from_tenants',
+            dispatch_uid="openstack.handlers.remove_ssh_key_from_tenants",
         )
 
         signals.pre_delete.connect(
             handlers.remove_ssh_key_from_all_tenants_on_it_deletion,
             sender=core_models.SshPublicKey,
-            dispatch_uid='openstack.handlers.remove_ssh_key_from_all_tenants_on_it_deletion',
+            dispatch_uid="openstack.handlers.remove_ssh_key_from_all_tenants_on_it_deletion",
         )
 
         from waldur_core.quotas.models import QuotaLimit
@@ -69,41 +69,41 @@ class OpenStackConfig(AppConfig):
         signals.post_save.connect(
             handlers.log_tenant_quota_update,
             sender=QuotaLimit,
-            dispatch_uid='openstack.handlers.log_tenant_quota_update',
+            dispatch_uid="openstack.handlers.log_tenant_quota_update",
         )
 
         signals.post_save.connect(
             handlers.update_service_settings_name,
             sender=Tenant,
-            dispatch_uid='openstack.handlers.update_service_settings_name',
+            dispatch_uid="openstack.handlers.update_service_settings_name",
         )
 
         signals.post_delete.connect(
             handlers.log_security_group_cleaned,
             sender=SecurityGroup,
-            dispatch_uid='openstack.handlers.log_security_group_cleaned',
+            dispatch_uid="openstack.handlers.log_security_group_cleaned",
         )
 
         signals.post_delete.connect(
             handlers.log_security_group_rule_cleaned,
             sender=SecurityGroupRule,
-            dispatch_uid='openstack.handlers.log_security_group_rule_cleaned',
+            dispatch_uid="openstack.handlers.log_security_group_rule_cleaned",
         )
 
         signals.post_delete.connect(
             handlers.log_network_cleaned,
             sender=Network,
-            dispatch_uid='openstack.handlers.log_network_cleaned',
+            dispatch_uid="openstack.handlers.log_network_cleaned",
         )
 
         signals.post_delete.connect(
             handlers.log_subnet_cleaned,
             sender=SubNet,
-            dispatch_uid='openstack.handlers.log_subnet_cleaned',
+            dispatch_uid="openstack.handlers.log_subnet_cleaned",
         )
 
         signals.post_delete.connect(
             handlers.log_server_group_cleaned,
             sender=ServerGroup,
-            dispatch_uid='openstack.handlers.log_server_group_cleaned',
+            dispatch_uid="openstack.handlers.log_server_group_cleaned",
         )

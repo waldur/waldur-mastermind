@@ -16,13 +16,13 @@ class MarketplaceTenantCreateSerializer(openstack_serializers.TenantSerializer):
 
     class Meta(openstack_serializers.TenantSerializer.Meta):
         fields = openstack_serializers.TenantSerializer.Meta.fields + (
-            'skip_connection_extnet',
-            'quotas',
+            "skip_connection_extnet",
+            "quotas",
         )
 
     @transaction.atomic
     def create(self, validated_data):
-        quotas = validated_data.pop('quotas')
+        quotas = validated_data.pop("quotas")
         tenant = super().create(validated_data)
         if quotas:
             _apply_quotas(tenant, quotas)
@@ -41,8 +41,8 @@ def get_marketplace_resource_uuid(serializer, volume):
 
 
 def add_marketplace_resource_uuid(sender, fields, **kwargs):
-    fields['marketplace_resource_uuid'] = serializers.SerializerMethodField()
-    setattr(sender, 'get_marketplace_resource_uuid', get_marketplace_resource_uuid)
+    fields["marketplace_resource_uuid"] = serializers.SerializerMethodField()
+    setattr(sender, "get_marketplace_resource_uuid", get_marketplace_resource_uuid)
 
 
 core_signals.pre_serializer_fields.connect(

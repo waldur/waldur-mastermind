@@ -5,12 +5,12 @@ from django.db import migrations
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace', '0108_rename_orderitem_order'),
+        ("marketplace", "0108_rename_orderitem_order"),
     ]
 
     operations = [
         migrations.AlterModelOptions(
-            name='order',
-            options={'ordering': ('created',), 'verbose_name': 'Order'},
+            name="order",
+            options={"ordering": ("created",), "verbose_name": "Order"},
         ),
     ]

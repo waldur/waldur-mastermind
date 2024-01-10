@@ -19,51 +19,51 @@ from waldur_slurm.tests import fixtures as slurm_fixtures
 @override_plugin_settings(ENABLED=True)
 class BaseProfileTest(test.APITransactionTestCase):
     def setUp(self):
-        self.user = structure_factories.UserFactory(preferred_language='ET')
+        self.user = structure_factories.UserFactory(preferred_language="ET")
         self.client.force_authenticate(self.user)
         self.url = factories.ProfileFactory.get_list_url()
 
 
 class ProfileValidateTest(BaseProfileTest):
     def test_username_should_not_contain_spaces(self):
-        response = self.client.post(self.url, {'username': 'Alice Lebowski'})
+        response = self.client.post(self.url, {"username": "Alice Lebowski"})
         self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
-        self.assertIn('username', response.data)
+        self.assertIn("username", response.data)
 
     def test_username_should_not_contain_special_characters(self):
-        response = self.client.post(self.url, {'username': '#$%^?'})
+        response = self.client.post(self.url, {"username": "#$%^?"})
         self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
-        self.assertIn('username', response.data)
+        self.assertIn("username", response.data)
 
     def test_username_should_not_exceed_limit(self):
-        response = self.client.post(self.url, {'username': 'abc' * 300})
+        response = self.client.post(self.url, {"username": "abc" * 300})
         self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
-        self.assertIn('username', response.data)
+        self.assertIn("username", response.data)
 
-    @override_plugin_settings(ENABLED=True, BLACKLISTED_USERNAMES=['root'])
+    @override_plugin_settings(ENABLED=True, BLACKLISTED_USERNAMES=["root"])
     def test_blacklisted_username_is_not_allowed(self):
-        response = self.client.post(self.url, {'username': 'root'})
+        response = self.client.post(self.url, {"username": "root"})
         self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
-        self.assertIn('username', response.data)
+        self.assertIn("username", response.data)
 
     def test_profile_should_be_unique(self):
         factories.ProfileFactory(user=self.user)
-        response = self.client.post(self.url, {'username': 'VALID'})
+        response = self.client.post(self.url, {"username": "VALID"})
         self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
-        self.assertIn('details', response.data)
+        self.assertIn("details", response.data)
 
 
-@mock.patch('python_freeipa.Client')
+@mock.patch("python_freeipa.Client")
 class ProfileCreateTest(BaseProfileTest):
     def setUp(self):
         super().setUp()
-        self.valid_data = {'username': 'alice'}
+        self.valid_data = {"username": "alice"}
 
     def test_profile_creation_fails_if_username_is_not_available(self, mock_client):
         mock_client().user_add.side_effect = freeipa_exceptions.DuplicateEntry()
         response = self.client.post(self.url, self.valid_data)
         self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
-        self.assertIn('username', response.data)
+        self.assertIn("username", response.data)
 
     def test_if_profile_created_client_is_called(self, mock_client):
         response = self.client.post(self.url, self.valid_data)
@@ -72,19 +72,19 @@ class ProfileCreateTest(BaseProfileTest):
 
     def test_profile_is_not_active_initially(self, mock_client):
         response = self.client.post(self.url, self.valid_data)
-        self.assertFalse(response.data['is_active'])
-        self.assertIsNotNone(response.data['agreement_date'])
+        self.assertFalse(response.data["is_active"])
+        self.assertIsNotNone(response.data["agreement_date"])
 
-    @override_plugin_settings(ENABLED=True, USERNAME_PREFIX='ipa_')
+    @override_plugin_settings(ENABLED=True, USERNAME_PREFIX="ipa_")
     def test_username_is_prefixed(self, mock_client):
         response = self.client.post(self.url, self.valid_data)
         self.assertEqual(status.HTTP_201_CREATED, response.status_code)
-        self.assertEqual('ipa_alice', response.data['username'])
+        self.assertEqual("ipa_alice", response.data["username"])
 
     def test_backend_is_called_with_correct_parameters(self, mock_client):
         self.client.post(self.url, self.valid_data)
         mock_client().user_add.assert_called_once_with(
-            username='waldur_alice',
+            username="waldur_alice",
             first_name=self.user.full_name.split()[0],
             last_name=self.user.full_name.split()[-1],
             full_name=self.user.full_name,
@@ -93,7 +93,7 @@ class ProfileCreateTest(BaseProfileTest):
             telephonenumber=self.user.phone_number,
             preferred_language=self.user.preferred_language,
             ssh_key=[],
-            gecos=','.join(
+            gecos=",".join(
                 [self.user.full_name, self.user.email, self.user.phone_number]
             ),
             user_password=None,
@@ -110,11 +110,11 @@ class ProfileCreateTest(BaseProfileTest):
         self.client.post(self.url, self.valid_data)
 
         args, kwargs = mock_client().user_add.call_args
-        self.assertEqual(sorted(expected_keys), sorted(kwargs.get('ssh_key')))
+        self.assertEqual(sorted(expected_keys), sorted(kwargs.get("ssh_key")))
 
 
 @override_plugin_settings(ENABLED=True)
-@mock.patch('python_freeipa.Client')
+@mock.patch("python_freeipa.Client")
 class ProfileSshKeysTest(test.APITransactionTestCase):
     def setUp(self):
         self.user = structure_factories.UserFactory()
@@ -127,7 +127,7 @@ class ProfileSshKeysTest(test.APITransactionTestCase):
 
     def update_keys(self):
         self.client.force_authenticate(self.user)
-        url = factories.ProfileFactory.get_url(self.profile, 'update_ssh_keys')
+        url = factories.ProfileFactory.get_url(self.profile, "update_ssh_keys")
         return self.client.post(url)
 
     def test_user_can_update_ssh_keys_for_his_profile(self, mock_client):
@@ -138,14 +138,14 @@ class ProfileSshKeysTest(test.APITransactionTestCase):
         )
 
     def test_if_profile_has_same_ssh_keys_profile_is_not_updated(self, mock_client):
-        mock_client().user_show.return_value = {'ipasshpubkey': self.expected_keys}
+        mock_client().user_show.return_value = {"ipasshpubkey": self.expected_keys}
         response = self.update_keys()
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         mock_client().user_mod.assert_not_called()
 
     def test_if_keys_are_sorted_before_comparison(self, mock_client):
         mock_client().user_show.return_value = {
-            'ipasshpubkey': sorted(self.expected_keys, reverse=True)
+            "ipasshpubkey": sorted(self.expected_keys, reverse=True)
         }
         response = self.update_keys()
         self.assertEqual(status.HTTP_200_OK, response.status_code)
@@ -160,17 +160,17 @@ class ProfileSshKeysTest(test.APITransactionTestCase):
         mock_client().user_mod.assert_not_called()
 
     def test_task_is_scheduled_when_key_is_created(self, mock_client):
-        with mock.patch('waldur_freeipa.tasks.sync_profile_ssh_keys') as mock_task:
+        with mock.patch("waldur_freeipa.tasks.sync_profile_ssh_keys") as mock_task:
             structure_factories.SshPublicKeyFactory(user=self.user)
             mock_task.delay.assert_called_once_with(self.profile.id)
 
     def test_task_is_scheduled_when_key_is_deleted(self, mock_client):
-        with mock.patch('waldur_freeipa.tasks.sync_profile_ssh_keys') as mock_task:
+        with mock.patch("waldur_freeipa.tasks.sync_profile_ssh_keys") as mock_task:
             self.user.sshpublickey_set.first().delete()
             mock_task.delay.assert_called_once_with(self.profile.id)
 
     def test_profile_is_updated_when_task_is_called(self, mock_client):
-        mock_client().user_show.return_value = {'ipasshpubkey': self.expected_keys}
+        mock_client().user_show.return_value = {"ipasshpubkey": self.expected_keys}
         self.user.sshpublickey_set.all().delete()
 
         tasks.sync_profile_ssh_keys(self.profile.id)
@@ -181,16 +181,16 @@ class ProfileSshKeysTest(test.APITransactionTestCase):
 
 @ddt
 @override_plugin_settings(ENABLED=True)
-@mock.patch('python_freeipa.Client')
+@mock.patch("python_freeipa.Client")
 class ProfileUpdateTest(test.APITransactionTestCase):
     def setUp(self):
         self.user = structure_factories.UserFactory()
         self.profile = factories.ProfileFactory(user=self.user, is_active=False)
 
     @data(
-        ('Alex Bloggs', 'Alex', 'Bloggs'),
-        ('Alex', 'Alex', ''),
-        ('', '', ''),
+        ("Alex Bloggs", "Alex", "Bloggs"),
+        ("Alex", "Alex", ""),
+        ("", "", ""),
     )
     def test_backend_is_called_with_correct_parameters_if_update_full_name(
         self, names, mock_client
@@ -211,8 +211,8 @@ class ProfileUpdateTest(test.APITransactionTestCase):
             self.profile.username,
             cn=full_name,
             displayname=full_name,
-            givenname=first_name or 'N/A',
-            sn=last_name or 'N/A',
+            givenname=first_name or "N/A",
+            sn=last_name or "N/A",
             mail=user.email,
             organization_unit=user.organization,
             job_title=user.job_title,
@@ -226,14 +226,14 @@ class ProfileUpdateTest(test.APITransactionTestCase):
         FreeIPABackend().update_gecos(self.profile)
         mock_client().user_mod.assert_called_once_with(
             self.profile.username,
-            gecos=','.join(
+            gecos=",".join(
                 [self.user.full_name, self.user.email, self.user.phone_number]
             ),
         )
 
 
 @override_plugin_settings(ENABLED=True)
-@mock.patch('waldur_freeipa.handlers.tasks')
+@mock.patch("waldur_freeipa.handlers.tasks")
 class UpdateUserHandlerTest(test.APITransactionTestCase):
     def setUp(self):
         self.user = structure_factories.UserFactory()
@@ -241,8 +241,8 @@ class UpdateUserHandlerTest(test.APITransactionTestCase):
 
     def test_update_user_name(self, mock_task):
         user = self.profile.user
-        user.first_name = 'Alex'
-        user.last_name = 'Bloggs'
+        user.first_name = "Alex"
+        user.last_name = "Bloggs"
         user.save()
 
         mock_task.update_user.delay.assert_called_once_with(
@@ -251,7 +251,7 @@ class UpdateUserHandlerTest(test.APITransactionTestCase):
 
     def test_update_user_email(self, mock_task):
         user = self.profile.user
-        user.email = 'alex@gmail.com'
+        user.email = "alex@gmail.com"
         user.save()
 
         mock_task.update_user.delay.assert_called_once_with(
@@ -302,7 +302,7 @@ class ProfileAllocationTest(test.APITransactionTestCase):
 
 
 @override_plugin_settings(ENABLED=True)
-@mock.patch('python_freeipa.Client')
+@mock.patch("python_freeipa.Client")
 class ProfileStatusTest(test.APITransactionTestCase):
     def setUp(self):
         self.user = structure_factories.UserFactory()
@@ -310,7 +310,7 @@ class ProfileStatusTest(test.APITransactionTestCase):
     def test_profile_is_enabled(self, mock_client):
         self.profile = factories.ProfileFactory(user=self.user, is_active=True)
         mock_client().user_find.return_value = {
-            'result': [{'uid': [self.profile.username], 'nsaccountlock': True}]
+            "result": [{"uid": [self.profile.username], "nsaccountlock": True}]
         }
 
         FreeIPABackend().synchronize_groups()
@@ -320,7 +320,7 @@ class ProfileStatusTest(test.APITransactionTestCase):
     def test_profile_is_disabled(self, mock_client):
         self.profile = factories.ProfileFactory(user=self.user, is_active=False)
         mock_client().user_find.return_value = {
-            'result': [{'uid': [self.profile.username], 'nsaccountlock': False}]
+            "result": [{"uid": [self.profile.username], "nsaccountlock": False}]
         }
 
         FreeIPABackend().synchronize_groups()
@@ -330,7 +330,7 @@ class ProfileStatusTest(test.APITransactionTestCase):
     def test_profile_is_not_disabled(self, mock_client):
         self.profile = factories.ProfileFactory(user=self.user, is_active=False)
         mock_client().user_find.return_value = {
-            'result': [{'uid': [self.profile.username], 'nsaccountlock': True}]
+            "result": [{"uid": [self.profile.username], "nsaccountlock": True}]
         }
 
         FreeIPABackend().synchronize_groups()
@@ -341,7 +341,7 @@ class ProfileStatusTest(test.APITransactionTestCase):
     def test_profile_is_not_enabled(self, mock_client):
         self.profile = factories.ProfileFactory(user=self.user, is_active=True)
         mock_client().user_find.return_value = {
-            'result': [{'uid': [self.profile.username], 'nsaccountlock': False}]
+            "result": [{"uid": [self.profile.username], "nsaccountlock": False}]
         }
 
         FreeIPABackend().synchronize_groups()
@@ -351,7 +351,7 @@ class ProfileStatusTest(test.APITransactionTestCase):
 
     def test_profile_is_skipped(self, mock_client):
         self.profile = factories.ProfileFactory(user=self.user, is_active=True)
-        mock_client().user_find.return_value = {'result': []}
+        mock_client().user_find.return_value = {"result": []}
 
         FreeIPABackend().synchronize_groups()
 

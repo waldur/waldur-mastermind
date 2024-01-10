@@ -20,9 +20,9 @@ class SetInstanceOKTask(core_tasks.StateTransitionTask):
     """Additionally mark or related floating IPs as free"""
 
     def pre_execute(self, instance):
-        self.kwargs['state_transition'] = 'set_ok'
-        self.kwargs['action'] = ''
-        self.kwargs['action_details'] = {}
+        self.kwargs["state_transition"] = "set_ok"
+        self.kwargs["action"] = ""
+        self.kwargs["action_details"] = {}
         super().pre_execute(instance)
 
     def execute(self, instance, *args, **kwargs):
@@ -46,10 +46,10 @@ class SetInstanceErredTask(core_tasks.ErrorStateTransitionTask):
                 pass
             else:
                 volume.set_erred()
-                volume.save(update_fields=['state'])
+                volume.save(update_fields=["state"])
 
         # set instance floating IPs as free, delete not created ones.
-        instance.floating_ips.filter(backend_id='').delete()
+        instance.floating_ips.filter(backend_id="").delete()
         instance.floating_ips.update(is_booked=False)
 
 
@@ -65,15 +65,12 @@ class SetBackupErredTask(core_tasks.ErrorStateTransitionTask):
                 snapshot.delete()
             else:
                 snapshot.set_erred()
-                snapshot.save(update_fields=['state'])
+                snapshot.save(update_fields=["state"])
 
         # Deactivate schedule if its backup become erred.
         schedule = backup.backup_schedule
         if schedule:
-            schedule.error_message = (
-                'Failed to execute backup schedule for %s. Error: %s'
-                % (backup.instance, backup.error_message)
-            )
+            schedule.error_message = f"Failed to execute backup schedule for {backup.instance}. Error: {backup.error_message}"
             schedule.is_active = False
             schedule.save()
 
@@ -156,7 +153,7 @@ class BaseScheduleTask(core_tasks.BackgroundTask):
     resource_attribute = NotImplemented
 
     def is_equal(self, other_task):
-        return self.name == other_task.get('name')
+        return self.name == other_task.get("name")
 
     @transaction.atomic()
     def run(self):
@@ -173,7 +170,7 @@ class BaseScheduleTask(core_tasks.BackgroundTask):
                     schedule, existing_resources
                 )
                 logger.debug(
-                    'Skipping schedule %s because number of resources %s has reached limit %s.',
+                    "Skipping schedule %s because number of resources %s has reached limit %s.",
                     schedule,
                     existing_resources,
                     schedule.maximal_number_of_resources,
@@ -197,8 +194,7 @@ class BaseScheduleTask(core_tasks.BackgroundTask):
                     e,
                 )
                 logger.debug(
-                    'Resource schedule (PK: %s), (Name: %s) execution failed. %s'
-                    % (schedule.pk, schedule.name, message)
+                    f"Resource schedule (PK: {schedule.pk}), (Name: {schedule.name}) execution failed. {message}"
                 )
                 schedule.is_active = False
                 schedule.error_message = message
@@ -220,7 +216,7 @@ class BaseScheduleTask(core_tasks.BackgroundTask):
 
         if existing_resources.filter(deleting_states).exists():
             logger.debug(
-                'Deletion of exceeding resources for schedule %s is pending.', schedule
+                "Deletion of exceeding resources for schedule %s is pending.", schedule
             )
             return
 
@@ -229,7 +225,7 @@ class BaseScheduleTask(core_tasks.BackgroundTask):
         self._log_backup_cleanup(schedule, amount_to_remove, total)
 
         resources = existing_resources.filter(terminal_states).order_by(
-            'kept_until', 'created'
+            "kept_until", "created"
         )
         resources_to_remove = resources[:amount_to_remove]
         executor = self._get_delete_executor()
@@ -253,14 +249,14 @@ class BaseScheduleTask(core_tasks.BackgroundTask):
 
 
 class ScheduleBackups(BaseScheduleTask):
-    name = 'openstack_tenant.ScheduleBackups'
+    name = "openstack_tenant.ScheduleBackups"
     model = models.BackupSchedule
-    resource_attribute = 'backups'
+    resource_attribute = "backups"
 
     @transaction.atomic()
     def _create_resource(self, schedule, kept_until):
         backup = models.Backup.objects.create(
-            name=f'Backup#{schedule.call_count} of {schedule.instance.name}',
+            name=f"Backup#{schedule.call_count} of {schedule.instance.name}",
             description='Scheduled backup of instance "%s"' % schedule.instance,
             service_settings=schedule.instance.service_settings,
             project=schedule.instance.project,
@@ -292,8 +288,8 @@ class ScheduleBackups(BaseScheduleTask):
         log.event_logger.openstack_backup_schedule.info(
             message_template
             % (schedule.maximal_number_of_resources, amount_to_remove, resources_count),
-            event_type='resource_backup_schedule_cleaned_up',
-            event_context={'resource': schedule.instance, 'backup_schedule': schedule},
+            event_type="resource_backup_schedule_cleaned_up",
+            event_context={"resource": schedule.instance, "backup_schedule": schedule},
         )
 
 
@@ -301,7 +297,7 @@ class BaseDeleteExpiredResourcesTask(core_tasks.BackgroundTask):
     model = NotImplemented
 
     def is_equal(self, other_task):
-        return self.name == other_task.get('name')
+        return self.name == other_task.get("name")
 
     def _get_executor(self):
         raise NotImplementedError()
@@ -317,7 +313,7 @@ class BaseDeleteExpiredResourcesTask(core_tasks.BackgroundTask):
 
 
 class DeleteExpiredBackups(BaseDeleteExpiredResourcesTask):
-    name = 'openstack_tenant.DeleteExpiredBackups'
+    name = "openstack_tenant.DeleteExpiredBackups"
     model = models.Backup
 
     def _get_delete_executor(self):
@@ -327,15 +323,14 @@ class DeleteExpiredBackups(BaseDeleteExpiredResourcesTask):
 
 
 class ScheduleSnapshots(BaseScheduleTask):
-    name = 'openstack_tenant.ScheduleSnapshots'
+    name = "openstack_tenant.ScheduleSnapshots"
     model = models.SnapshotSchedule
-    resource_attribute = 'snapshots'
+    resource_attribute = "snapshots"
 
     @transaction.atomic()
     def _create_resource(self, schedule, kept_until):
         snapshot = models.Snapshot.objects.create(
-            name='Snapshot#%s of %s'
-            % (schedule.call_count, schedule.source_volume.name),
+            name=f"Snapshot#{schedule.call_count} of {schedule.source_volume.name}",
             description='Scheduled snapshot of volume "%s"' % schedule.source_volume,
             service_settings=schedule.source_volume.service_settings,
             project=schedule.source_volume.project,
@@ -365,16 +360,16 @@ class ScheduleSnapshots(BaseScheduleTask):
         log.event_logger.openstack_snapshot_schedule.info(
             message_template
             % (schedule.maximal_number_of_resources, amount_to_remove, resources_count),
-            event_type='resource_snapshot_schedule_cleaned_up',
+            event_type="resource_snapshot_schedule_cleaned_up",
             event_context={
-                'resource': schedule.source_volume,
-                'snapshot_schedule': schedule,
+                "resource": schedule.source_volume,
+                "snapshot_schedule": schedule,
             },
         )
 
 
 class DeleteExpiredSnapshots(BaseDeleteExpiredResourcesTask):
-    name = 'openstack_tenant.DeleteExpiredSnapshots'
+    name = "openstack_tenant.DeleteExpiredSnapshots"
     model = models.Snapshot
 
     def _get_delete_executor(self):
@@ -385,13 +380,13 @@ class DeleteExpiredSnapshots(BaseDeleteExpiredResourcesTask):
 
 class LimitedPerTypeThrottleMixin:
     def get_limit(self, resource):
-        nc_settings = getattr(settings, 'WALDUR_OPENSTACK_TENANT', {})
-        limit_per_type = nc_settings.get('MAX_CONCURRENT_PROVISION', {})
+        nc_settings = getattr(settings, "WALDUR_OPENSTACK_TENANT", {})
+        limit_per_type = nc_settings.get("MAX_CONCURRENT_PROVISION", {})
         model_name = get_resource_type(resource)
         default_limit = limit_per_type.get(model_name)
         tenant = resource.service_settings.scope
         if tenant:
-            key = f'max_concurrent_provision_{resource._meta.object_name.lower()}'
+            key = f"max_concurrent_provision_{resource._meta.object_name.lower()}"
             settings_limit = tenant.service_settings.options.get(key)
             if settings_limit:
                 return settings_limit

@@ -18,14 +18,14 @@ class GoogleCredentialsGetTest(test.APITransactionTestCase):
         )
         self.url = google_factories.GoogleCredentialsFactory.get_url(google_credentials)
 
-    @data('staff', 'owner')
+    @data("staff", "owner")
     def test_user_can_get_google_credentials(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    @data('user')
+    @data("user")
     def test_user_can_not_get_google_credentials(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)

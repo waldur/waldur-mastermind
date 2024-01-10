@@ -18,11 +18,11 @@ class SlurmAssociationSynchronizationTest(TransactionTestCase):
         self.user = structure_factories.UserFactory()
 
         service_settings = self.fixture.settings
-        service_settings.options = {'default_account': 'waldur_user'}
+        service_settings.options = {"default_account": "waldur_user"}
         service_settings.save()
 
         self.freeipa_profile = freeipa_models.Profile.objects.create(
-            user=self.user, username='valid_username'
+            user=self.user, username="valid_username"
         )
         self.serialized_profile = core_utils.serialize_instance(self.freeipa_profile)
 
@@ -33,7 +33,7 @@ class SlurmAssociationSynchronizationTest(TransactionTestCase):
         self.serialized_project = core_utils.serialize_instance(self.project)
 
     def test_when_customer_owner_role_is_granted_profile_is_synchronized(self):
-        with mock.patch('waldur_slurm.tasks.process_role_granted') as mock_task:
+        with mock.patch("waldur_slurm.tasks.process_role_granted") as mock_task:
             self.customer.add_user(self.user, CustomerRole.OWNER)
             mock_task.delay.assert_called_once_with(
                 self.serialized_profile, self.serialized_customer
@@ -41,7 +41,7 @@ class SlurmAssociationSynchronizationTest(TransactionTestCase):
 
     def test_when_customer_owner_role_is_revoked_profile_is_synchronized(self):
         self.customer.add_user(self.user, CustomerRole.OWNER)
-        with mock.patch('waldur_slurm.tasks.process_role_revoked') as mock_task:
+        with mock.patch("waldur_slurm.tasks.process_role_revoked") as mock_task:
             self.customer.remove_user(self.user)
             mock_task.delay.assert_called_once_with(
                 self.serialized_profile, self.serialized_customer
@@ -51,16 +51,16 @@ class SlurmAssociationSynchronizationTest(TransactionTestCase):
         allocation = self.fixture.allocation
         self.customer.add_user(self.user, CustomerRole.OWNER)
 
-        with mock.patch('waldur_slurm.backend.SlurmClient') as mock_client:
+        with mock.patch("waldur_slurm.backend.SlurmClient") as mock_client:
             mock_client().get_association.return_value = False
             tasks.add_user(self.serialized_profile)
             account = allocation.backend_id
             mock_client().create_association.assert_called_once_with(
-                self.freeipa_profile.username, account, 'waldur_user'
+                self.freeipa_profile.username, account, "waldur_user"
             )
 
     def test_when_project_manager_role_is_granted_profile_is_synchronized(self):
-        with mock.patch('waldur_slurm.tasks.process_role_granted') as mock_task:
+        with mock.patch("waldur_slurm.tasks.process_role_granted") as mock_task:
             self.project.add_user(self.user, ProjectRole.MANAGER)
             mock_task.delay.assert_called_once_with(
                 self.serialized_profile, self.serialized_project
@@ -68,7 +68,7 @@ class SlurmAssociationSynchronizationTest(TransactionTestCase):
 
     def test_when_project_manager_role_is_revoked_profile_is_synchronized(self):
         self.project.add_user(self.user, ProjectRole.MANAGER)
-        with mock.patch('waldur_slurm.tasks.process_role_revoked') as mock_task:
+        with mock.patch("waldur_slurm.tasks.process_role_revoked") as mock_task:
             self.project.remove_user(self.user)
             mock_task.delay.assert_called_once_with(
                 self.serialized_profile, self.serialized_project
@@ -78,10 +78,10 @@ class SlurmAssociationSynchronizationTest(TransactionTestCase):
         allocation = self.fixture.allocation
         self.project.add_user(self.user, ProjectRole.MANAGER)
 
-        with mock.patch('waldur_slurm.backend.SlurmClient') as mock_client:
+        with mock.patch("waldur_slurm.backend.SlurmClient") as mock_client:
             mock_client().get_association.return_value = False
             tasks.add_user(self.serialized_profile)
             account = allocation.backend_id
             mock_client().create_association.assert_called_once_with(
-                self.freeipa_profile.username, account, 'waldur_user'
+                self.freeipa_profile.username, account, "waldur_user"
             )

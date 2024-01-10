@@ -4,9 +4,9 @@ from django.db import models
 
 
 def get_upload_path(instance, filename):
-    path = f'{instance._meta.model_name}/{instance.uuid.hex}'
+    path = f"{instance._meta.model_name}/{instance.uuid.hex}"
     _, ext = os.path.splitext(filename)
-    return f'{path}{ext}'
+    return f"{path}{ext}"
 
 
 class ImageModelMixin(models.Model):

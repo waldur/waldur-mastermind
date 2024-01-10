@@ -4,7 +4,7 @@ from waldur_core.core import WaldurExtension
 class OpenStackTenantExtension(WaldurExtension):
     @staticmethod
     def django_app():
-        return 'waldur_openstack.openstack_tenant'
+        return "waldur_openstack.openstack_tenant"
 
     @staticmethod
     def django_urls():
@@ -23,25 +23,25 @@ class OpenStackTenantExtension(WaldurExtension):
         from datetime import timedelta
 
         return {
-            'openstacktenant-schedule-backups': {
-                'task': 'openstack_tenant.ScheduleBackups',
-                'schedule': timedelta(minutes=10),
-                'args': (),
+            "openstacktenant-schedule-backups": {
+                "task": "openstack_tenant.ScheduleBackups",
+                "schedule": timedelta(minutes=10),
+                "args": (),
             },
-            'openstacktenant-delete-expired-backups': {
-                'task': 'openstack_tenant.DeleteExpiredBackups',
-                'schedule': timedelta(minutes=10),
-                'args': (),
+            "openstacktenant-delete-expired-backups": {
+                "task": "openstack_tenant.DeleteExpiredBackups",
+                "schedule": timedelta(minutes=10),
+                "args": (),
             },
-            'openstacktenant-schedule-snapshots': {
-                'task': 'openstack_tenant.ScheduleSnapshots',
-                'schedule': timedelta(minutes=10),
-                'args': (),
+            "openstacktenant-schedule-snapshots": {
+                "task": "openstack_tenant.ScheduleSnapshots",
+                "schedule": timedelta(minutes=10),
+                "args": (),
             },
-            'openstacktenant-delete-expired-snapshots': {
-                'task': 'openstack_tenant.DeleteExpiredSnapshots',
-                'schedule': timedelta(minutes=10),
-                'args': (),
+            "openstacktenant-delete-expired-snapshots": {
+                "task": "openstack_tenant.DeleteExpiredSnapshots",
+                "schedule": timedelta(minutes=10),
+                "args": (),
             },
         }
 

@@ -1,1 +1,1 @@
-PLUGIN_NAME = 'Marketplace.Booking'
+PLUGIN_NAME = "Marketplace.Booking"

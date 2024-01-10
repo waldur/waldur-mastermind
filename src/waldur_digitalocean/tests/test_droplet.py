@@ -25,8 +25,8 @@ class DropletResizeTest(test.APITransactionTestCase):
         new_size = factories.SizeFactory(cores=3, ram=3 * 1024, disk=20 * 1024)
 
         response = self.client.post(
-            factories.DropletFactory.get_url(droplet, 'resize'),
-            {'size': factories.SizeFactory.get_url(new_size), 'disk': True},
+            factories.DropletFactory.get_url(droplet, "resize"),
+            {"size": factories.SizeFactory.get_url(new_size), "disk": True},
         )
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
@@ -45,8 +45,8 @@ class DropletResizeTest(test.APITransactionTestCase):
         new_size = factories.SizeFactory(cores=3, ram=3 * 1024, disk=20 * 1024)
 
         response = self.client.post(
-            factories.DropletFactory.get_url(droplet, 'resize'),
-            {'size': factories.SizeFactory.get_url(new_size), 'disk': True},
+            factories.DropletFactory.get_url(droplet, "resize"),
+            {"size": factories.SizeFactory.get_url(new_size), "disk": True},
         )
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
@@ -65,8 +65,8 @@ class DropletResizeTest(test.APITransactionTestCase):
         new_size = factories.SizeFactory(ram=1024, cores=2, disk=20 * 1024)
 
         response = self.client.post(
-            factories.DropletFactory.get_url(droplet, 'resize'),
-            {'size': factories.SizeFactory.get_url(new_size), 'disk': False},
+            factories.DropletFactory.get_url(droplet, "resize"),
+            {"size": factories.SizeFactory.get_url(new_size), "disk": False},
         )
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
@@ -87,14 +87,14 @@ class DropletResizeTest(test.APITransactionTestCase):
         )
 
         response = self.client.post(
-            factories.DropletFactory.get_url(droplet, 'resize'),
-            {'size': factories.SizeFactory.get_url(new_size), 'disk': True},
+            factories.DropletFactory.get_url(droplet, "resize"),
+            {"size": factories.SizeFactory.get_url(new_size), "disk": True},
         )
         self.assertEqual(
             response.status_code, status.HTTP_400_BAD_REQUEST, response.data
         )
 
-    @mock.patch('waldur_digitalocean.executors.DropletResizeExecutor.execute')
+    @mock.patch("waldur_digitalocean.executors.DropletResizeExecutor.execute")
     def test_droplet_resize(self, executor):
         self.client.force_authenticate(self.fixture.owner)
         droplet = self.fixture.droplet
@@ -105,12 +105,12 @@ class DropletResizeTest(test.APITransactionTestCase):
             cores=droplet.cores + 2, disk=droplet.disk + 2048, ram=droplet.ram + 1024
         )
         payload = {
-            'size': factories.SizeFactory.get_url(size),
-            'disk': True,
+            "size": factories.SizeFactory.get_url(size),
+            "disk": True,
         }
 
         response = self.client.post(
-            factories.DropletFactory.get_url(droplet, 'resize'), payload
+            factories.DropletFactory.get_url(droplet, "resize"), payload
         )
 
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
@@ -131,12 +131,12 @@ class DropletCreateTest(test.APITransactionTestCase):
 
     def _get_valid_payload(self):
         return {
-            'name': 'droplet-name',
-            'service_settings': ServiceSettingsFactory.get_url(self.fixture.settings),
-            'project': ProjectFactory.get_url(self.fixture.project),
-            'image': factories.ImageFactory.get_url(self.fixture.image),
-            'size': factories.SizeFactory.get_url(self.fixture.size),
-            'region': factories.RegionFactory.get_url(self.fixture.region),
+            "name": "droplet-name",
+            "service_settings": ServiceSettingsFactory.get_url(self.fixture.settings),
+            "project": ProjectFactory.get_url(self.fixture.project),
+            "image": factories.ImageFactory.get_url(self.fixture.image),
+            "size": factories.SizeFactory.get_url(self.fixture.size),
+            "region": factories.RegionFactory.get_url(self.fixture.region),
         }
 
 
@@ -144,7 +144,7 @@ class DropletDeleteTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.DigitalOceanFixture()
 
-    @mock.patch('waldur_digitalocean.executors.DropletDeleteExecutor.execute')
+    @mock.patch("waldur_digitalocean.executors.DropletDeleteExecutor.execute")
     def test_droplet_deletion(self, delete_executor_mock):
         self.client.force_authenticate(self.fixture.owner)
         droplet = self.fixture.droplet

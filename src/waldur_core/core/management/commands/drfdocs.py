@@ -11,20 +11,20 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            '--store',
-            '-s',
-            action='store',
-            dest='path',
-            default='docs/drfapi',
-            help='Where to store docs.',
+            "--store",
+            "-s",
+            action="store",
+            dest="path",
+            default="docs/drfapi",
+            help="Where to store docs.",
         )
         parser.add_argument(
-            'args', metavar='app_label', nargs='*', help='Application label.'
+            "args", metavar="app_label", nargs="*", help="Application label."
         )
 
     def handle(self, *app_labels, **options):
-        path = options.get('path', 'docs/drfapi')
-        path = path if path.startswith('/') else os.path.join(settings.BASE_DIR, path)
+        path = options.get("path", "docs/drfapi")
+        path = path if path.startswith("/") else os.path.join(settings.BASE_DIR, path)
 
         if not os.path.isdir(path):
             os.makedirs(path)
@@ -33,7 +33,7 @@ class Command(BaseCommand):
                 if f.endswith(".rst"):
                     os.remove(os.path.join(path, f))
 
-        self.stdout.write(self.style.MIGRATE_HEADING('Gather endpoints info'))
+        self.stdout.write(self.style.MIGRATE_HEADING("Gather endpoints info"))
         docs = ApiDocs(apps=app_labels)
-        self.stdout.write(self.style.MIGRATE_HEADING('Write RST docs'))
+        self.stdout.write(self.style.MIGRATE_HEADING("Write RST docs"))
         docs.generate(path)

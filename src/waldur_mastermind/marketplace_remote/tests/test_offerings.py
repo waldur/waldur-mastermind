@@ -25,17 +25,17 @@ from .. import PLUGIN_NAME
 class RemoteCustomersTest(test.APITransactionTestCase):
     @responses.activate
     def test_remote_customers_are_listed_for_given_token_and_api_url(self):
-        responses.add(responses.GET, 'https://remote-waldur.com/customers/', json=[])
+        responses.add(responses.GET, "https://remote-waldur.com/customers/", json=[])
         self.client.force_login(UserFactory())
         response = self.client.post(
-            '/api/remote-waldur-api/remote_customers/',
+            "/api/remote-waldur-api/remote_customers/",
             {
-                'api_url': 'https://remote-waldur.com/',
-                'token': 'valid_token',
+                "api_url": "https://remote-waldur.com/",
+                "token": "valid_token",
             },
         )
         self.assertEqual(
-            responses.calls[0].request.headers['Authorization'], 'token valid_token'
+            responses.calls[0].request.headers["Authorization"], "token valid_token"
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, [])
@@ -48,11 +48,11 @@ class OfferingDetailsPullTest(test.APITransactionTestCase):
         self.plan: models.Plan = fixture.plan
         self.plan_component: models.PlanComponent = fixture.plan_component
         self.component = fixture.offering_component
-        self.offering.backend_id = 'offering-backend-id'
+        self.offering.backend_id = "offering-backend-id"
         self.offering.secret_options = {
-            'api_url': 'https://remote-waldur.com/',
-            'token': '123',
-            'customer_uuid': '456',
+            "api_url": "https://remote-waldur.com/",
+            "token": "123",
+            "customer_uuid": "456",
         }
         self.task = OfferingPullTask()
         self.remote_plan_uuid = uuid4().hex
@@ -60,31 +60,31 @@ class OfferingDetailsPullTest(test.APITransactionTestCase):
         self.plan.save()
 
         self.remote_offering = {
-            'name': self.offering.name,
-            'description': self.offering.description,
-            'full_description': self.offering.full_description,
-            'terms_of_service': self.offering.terms_of_service,
-            'terms_of_service_link': self.offering.terms_of_service_link,
-            'privacy_policy_link': self.offering.privacy_policy_link,
-            'country': self.offering.country,
-            'getting_started': self.offering.getting_started,
-            'integration_guide': self.offering.integration_guide,
-            'options': self.offering.options,
-            'thumbnail': None,
-            'components': [
+            "name": self.offering.name,
+            "description": self.offering.description,
+            "full_description": self.offering.full_description,
+            "terms_of_service": self.offering.terms_of_service,
+            "terms_of_service_link": self.offering.terms_of_service_link,
+            "privacy_policy_link": self.offering.privacy_policy_link,
+            "country": self.offering.country,
+            "getting_started": self.offering.getting_started,
+            "integration_guide": self.offering.integration_guide,
+            "options": self.offering.options,
+            "thumbnail": None,
+            "components": [
                 {
-                    'name': self.component.name,
-                    'type': self.component.type,
-                    'description': self.component.description,
-                    'article_code': self.component.article_code,
-                    'measured_unit': self.component.measured_unit,
-                    'billing_type': self.component.billing_type,
-                    'min_value': self.component.min_value,
-                    'max_value': self.component.max_value,
-                    'is_boolean': self.component.is_boolean,
-                    'default_limit': self.component.default_limit,
-                    'limit_period': self.component.limit_period,
-                    'limit_amount': self.component.limit_amount,
+                    "name": self.component.name,
+                    "type": self.component.type,
+                    "description": self.component.description,
+                    "article_code": self.component.article_code,
+                    "measured_unit": self.component.measured_unit,
+                    "billing_type": self.component.billing_type,
+                    "min_value": self.component.min_value,
+                    "max_value": self.component.max_value,
+                    "is_boolean": self.component.is_boolean,
+                    "default_limit": self.component.default_limit,
+                    "limit_period": self.component.limit_period,
+                    "limit_amount": self.component.limit_amount,
                 }
             ],
             "plans": [
@@ -123,11 +123,11 @@ class OfferingDetailsPullTest(test.APITransactionTestCase):
     @responses.activate
     @override_settings(task_always_eager=True)
     def test_update_component(self):
-        new_billing_type = 'usage'
-        self.remote_offering['components'][0]['billing_type'] = new_billing_type
+        new_billing_type = "usage"
+        self.remote_offering["components"][0]["billing_type"] = new_billing_type
         responses.add(
             responses.GET,
-            f'https://remote-waldur.com/marketplace-public-offerings/{self.offering.backend_id}/',
+            f"https://remote-waldur.com/marketplace-public-offerings/{self.offering.backend_id}/",
             json=self.remote_offering,
         )
         self.task.pull(self.offering)
@@ -138,17 +138,17 @@ class OfferingDetailsPullTest(test.APITransactionTestCase):
     @responses.activate
     @override_settings(task_always_eager=True)
     def test_stale_and_new_components(self):
-        new_type = 'gpu'
-        self.remote_offering['components'][0]['type'] = new_type
-        self.remote_offering['plans'][0]['prices'] = {
+        new_type = "gpu"
+        self.remote_offering["components"][0]["type"] = new_type
+        self.remote_offering["plans"][0]["prices"] = {
             new_type: float(self.plan_component.price)
         }
-        self.remote_offering['plans'][0]['quotas'] = {
+        self.remote_offering["plans"][0]["quotas"] = {
             new_type: self.plan_component.amount
         }
         responses.add(
             responses.GET,
-            f'https://remote-waldur.com/marketplace-public-offerings/{self.offering.backend_id}/',
+            f"https://remote-waldur.com/marketplace-public-offerings/{self.offering.backend_id}/",
             json=self.remote_offering,
         )
 
@@ -171,30 +171,30 @@ class OfferingDetailsPullTest(test.APITransactionTestCase):
     @responses.activate
     @override_settings(task_always_eager=True)
     def test_update_plan(self):
-        new_plan_name = 'New plan'
+        new_plan_name = "New plan"
         plan_component_new_price = 50.0
         new_plan_component_price = 100.0
         new_plan_component_amount = 1000
-        new_component_type = 'additional'
-        new_component_data = self.remote_offering['components'][0].copy()
-        new_component_data['type'] = new_component_type
+        new_component_type = "additional"
+        new_component_data = self.remote_offering["components"][0].copy()
+        new_component_data["type"] = new_component_type
 
-        self.remote_offering['plans'][0]['name'] = new_plan_name
-        self.remote_offering['plans'][0]['prices'][
+        self.remote_offering["plans"][0]["name"] = new_plan_name
+        self.remote_offering["plans"][0]["prices"][
             self.component.type
         ] = plan_component_new_price
 
-        self.remote_offering['components'].append(new_component_data)
-        self.remote_offering['plans'][0]['prices'][
+        self.remote_offering["components"].append(new_component_data)
+        self.remote_offering["plans"][0]["prices"][
             new_component_type
         ] = new_plan_component_price
-        self.remote_offering['plans'][0]['quotas'][
+        self.remote_offering["plans"][0]["quotas"][
             new_component_type
         ] = new_plan_component_amount
 
         responses.add(
             responses.GET,
-            f'https://remote-waldur.com/marketplace-public-offerings/{self.offering.backend_id}/',
+            f"https://remote-waldur.com/marketplace-public-offerings/{self.offering.backend_id}/",
             json=self.remote_offering,
         )
 
@@ -220,11 +220,11 @@ class OfferingDetailsPullTest(test.APITransactionTestCase):
     @override_settings(task_always_eager=True)
     def test_stale_and_new_plan(self):
         new_plan_uuid = uuid4().hex
-        remote_plan = self.remote_offering['plans'][0]
-        remote_plan['uuid'] = new_plan_uuid
+        remote_plan = self.remote_offering["plans"][0]
+        remote_plan["uuid"] = new_plan_uuid
         responses.add(
             responses.GET,
-            f'https://remote-waldur.com/marketplace-public-offerings/{self.offering.backend_id}/',
+            f"https://remote-waldur.com/marketplace-public-offerings/{self.offering.backend_id}/",
             json=self.remote_offering,
         )
 
@@ -250,19 +250,19 @@ class OfferingDetailsPullTest(test.APITransactionTestCase):
     def test_endpoints_update(self):
         marketplace_models.OfferingAccessEndpoint.objects.create(
             offering=self.offering,
-            name='Stale Endpoint',
-            url='https://stale-endpoint.example.com/',
+            name="Stale Endpoint",
+            url="https://stale-endpoint.example.com/",
         )
 
         existing_endpoint = marketplace_models.OfferingAccessEndpoint.objects.create(
             offering=self.offering,
-            name='Existing endpoint',
-            url='https://existing-endpoint.example.com/',
+            name="Existing endpoint",
+            url="https://existing-endpoint.example.com/",
         )
 
         responses.add(
             responses.GET,
-            f'https://remote-waldur.com/marketplace-public-offerings/{self.offering.backend_id}/',
+            f"https://remote-waldur.com/marketplace-public-offerings/{self.offering.backend_id}/",
             json=self.remote_offering,
         )
 
@@ -271,13 +271,13 @@ class OfferingDetailsPullTest(test.APITransactionTestCase):
         endpoints = self.offering.endpoints.all()
         self.assertEqual(2, len(endpoints))
 
-        self.assertEqual('Updated existing Endpoint', existing_endpoint.name)
+        self.assertEqual("Updated existing Endpoint", existing_endpoint.name)
 
-        new_endpoint = endpoints.filter(name='New Endpoint').first()
+        new_endpoint = endpoints.filter(name="New Endpoint").first()
         self.assertIsNotNone(new_endpoint)
         self.assertEqual("https://new-endpoint.example.com/", new_endpoint.url)
 
-        self.assertIsNone(endpoints.filter(name='Stale Endpoint').first())
+        self.assertIsNone(endpoints.filter(name="Stale Endpoint").first())
 
 
 class OfferingUpdateTest(test.APITransactionTestCase):
@@ -286,20 +286,20 @@ class OfferingUpdateTest(test.APITransactionTestCase):
         self.offering = self.fixture.offering
         self.offering.type = PLUGIN_NAME
         self.offering.save()
-        self.url = factories.OfferingFactory.get_url(self.offering, 'update_overview')
+        self.url = factories.OfferingFactory.get_url(self.offering, "update_overview")
 
     def test_edit_of_fields_that_are_being_pulled_from_remote_waldur_is_not_available(
         self,
     ):
         old_name = self.offering.name
         self.client.force_authenticate(user=self.fixture.staff)
-        response = self.client.post(self.url, {'name': 'new_name'})
+        response = self.client.post(self.url, {"name": "new_name"})
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.offering.refresh_from_db()
         self.assertEqual(self.offering.name, old_name)
 
 
-@override_waldur_core_settings(MASTERMIND_URL='http://localhost')
+@override_waldur_core_settings(MASTERMIND_URL="http://localhost")
 class OfferingRemoteVersionTest(test.APITransactionTestCase):
     def setUp(self) -> None:
         self.fixture = fixtures.MarketplaceFixture()
@@ -307,17 +307,17 @@ class OfferingRemoteVersionTest(test.APITransactionTestCase):
         self.offering.type = PLUGIN_NAME
         self.offering.save()
 
-        self.get_request_mock_patcher = mock.patch('waldur_client.requests.get')
+        self.get_request_mock_patcher = mock.patch("waldur_client.requests.get")
         self.get_request_mock = self.get_request_mock_patcher.start()
         self.get_request_mock.side_effect = lambda url, **kwargs: self.client.get(
-            url + '?' + urlencode(kwargs.get('params', {})), **kwargs
+            url + "?" + urlencode(kwargs.get("params", {})), **kwargs
         )
 
-        self.post_request_mock_patcher = mock.patch('waldur_client.requests.post')
+        self.post_request_mock_patcher = mock.patch("waldur_client.requests.post")
         self.post_request_mock = self.post_request_mock_patcher.start()
 
         def post_request_mock(url, **kwargs):
-            response = self.client.post(url, kwargs['json'])
+            response = self.client.post(url, kwargs["json"])
             response.text = response.content
             return response
 
@@ -330,10 +330,10 @@ class OfferingRemoteVersionTest(test.APITransactionTestCase):
             state=marketplace_models.Offering.States.ACTIVE
         )
         self.offering.secret_options = {
-            'token': '0b67edfecdda37fe4b6e7d6c3e6360acb3a1f2bf',
-            'api_url': 'http://localhost/api/',
-            'customer_uuid': remote_offering.customer.uuid.hex,
-            'service_provider_can_create_offering_user': False,
+            "token": "0b67edfecdda37fe4b6e7d6c3e6360acb3a1f2bf",
+            "api_url": "http://localhost/api/",
+            "customer_uuid": remote_offering.customer.uuid.hex,
+            "service_provider_can_create_offering_user": False,
         }
         self.offering.backend_id = remote_offering.uuid.hex
         self.offering.save()
@@ -341,7 +341,7 @@ class OfferingRemoteVersionTest(test.APITransactionTestCase):
         order = marketplace_factories.OrderFactory(
             project=self.fixture.project,
             offering=self.offering,
-            attributes={'name': 'item_name', 'description': 'Description'},
+            attributes={"name": "item_name", "description": "Description"},
             plan=self.fixture.plan,
         )
 

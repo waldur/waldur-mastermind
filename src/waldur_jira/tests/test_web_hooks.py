@@ -13,14 +13,14 @@ class BaseTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.JiraFixture()
         self.issue = factories.IssueFactory()
-        self.url = reverse('jira-web-hook')
+        self.url = reverse("jira-web-hook")
 
-        self.jira_patcher = mock.patch('waldur_jira.backend.JIRA')
+        self.jira_patcher = mock.patch("waldur_jira.backend.JIRA")
         self.jira_mock = self.jira_patcher.start()
 
         self.jira_mock().comment.return_value = mock.Mock(
             **{
-                'body': 'comment message',
+                "body": "comment message",
             }
         )
 
@@ -29,15 +29,15 @@ class BaseTest(test.APITransactionTestCase):
             pkg_resources.resource_stream(__name__, file_path).read().decode()
         )
         self.request_data = json.loads(jira_request)
-        self.request_data['issue']['key'] = self.issue.backend_id
-        self.request_data['issue']['fields']['project'][
-            'key'
+        self.request_data["issue"]["key"] = self.issue.backend_id
+        self.request_data["issue"]["fields"]["project"][
+            "key"
         ] = self.issue.project.backend_id
-        self.request_data['issue']['fields']['priority'][
-            'id'
+        self.request_data["issue"]["fields"]["priority"][
+            "id"
         ] = self.fixture.priority.backend_id
-        self.request_data['issue']['fields']['issuetype'][
-            'id'
+        self.request_data["issue"]["fields"]["issuetype"][
+            "id"
         ] = self.fixture.issue_type.backend_id
 
 
@@ -53,12 +53,12 @@ class CommentCreateTest(BaseTest):
         self.assertEqual(result.status_code, status.HTTP_201_CREATED)
         self.assertTrue(
             models.Comment.objects.filter(
-                issue=self.issue, backend_id=result.data['comment']['id']
+                issue=self.issue, backend_id=result.data["comment"]["id"]
             ).exists()
         )
 
     def test_dont_create_comment_if_issue_not_exists(self):
-        self.request_data['issue']['key'] = ''
+        self.request_data["issue"]["key"] = ""
         result = self.client.post(self.url, self.request_data)
         self.assertEqual(result.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -70,7 +70,7 @@ class CommentUpdateTest(BaseTest):
         super().setUp()
         self.comment = factories.CommentFactory(issue=self.issue)
         self._create_request_data(self.JIRA_COMMENT_UPDATE_REQUEST_FILE_NAME)
-        self.request_data['comment']['id'] = self.comment.backend_id
+        self.request_data["comment"]["id"] = self.comment.backend_id
 
     def test_comment_update(self):
         old_message = self.comment.message
@@ -80,7 +80,7 @@ class CommentUpdateTest(BaseTest):
         self.assertNotEqual(self.comment.message, old_message)
 
     def test_dont_update_comment_if_issue_not_exists(self):
-        self.request_data['issue']['key'] = ''
+        self.request_data["issue"]["key"] = ""
         result = self.client.post(self.url, self.request_data)
         self.assertEqual(result.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -92,7 +92,7 @@ class CommentDeleteTest(BaseTest):
         super().setUp()
         self.comment = factories.CommentFactory(issue=self.issue)
         self._create_request_data(self.JIRA_COMMENT_DELETE_REQUEST_FILE_NAME)
-        self.request_data['comment']['id'] = self.comment.backend_id
+        self.request_data["comment"]["id"] = self.comment.backend_id
 
     def test_comment_delete(self):
         self.jira_mock().comment.return_value = None

@@ -5,19 +5,19 @@ from django.utils import timezone
 
 
 def populate_with_current_time(apps, schema_editor):
-    Policy = apps.get_model('policy', 'ProjectEstimatedCostPolicy')
+    Policy = apps.get_model("policy", "ProjectEstimatedCostPolicy")
     Policy.objects.filter(has_fired=True).update(fired_datetime=timezone.now())
 
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('policy', '0002_policy_project_not_unique'),
+        ("policy", "0002_policy_project_not_unique"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='projectestimatedcostpolicy',
-            name='fired_datetime',
+            model_name="projectestimatedcostpolicy",
+            name="fired_datetime",
             field=models.DateTimeField(blank=True, editable=False, null=True),
         ),
         migrations.RunPython(populate_with_current_time),

@@ -10,36 +10,36 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.CreateModel(
-            name='Offering',
+            name="Offering",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'datacite_doi',
+                    "datacite_doi",
                     models.CharField(
-                        blank=True, max_length=255, verbose_name='Datacite DOI'
+                        blank=True, max_length=255, verbose_name="Datacite DOI"
                     ),
                 ),
                 (
-                    'citation_count',
+                    "citation_count",
                     models.IntegerField(
-                        default=-1, help_text='Number of citations of a DOI'
+                        default=-1, help_text="Number of citations of a DOI"
                     ),
                 ),
                 (
-                    'error_message',
+                    "error_message",
                     models.TextField(blank=True),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
     ]

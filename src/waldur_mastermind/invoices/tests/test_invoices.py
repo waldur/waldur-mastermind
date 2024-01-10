@@ -26,7 +26,7 @@ class InvoiceRetrieveTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()
 
-    @data('owner', 'staff')
+    @data("owner", "staff")
     def test_user_with_access_can_retrieve_customer_invoice(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(
@@ -34,7 +34,7 @@ class InvoiceRetrieveTest(test.APITransactionTestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    @data('manager', 'admin', 'user')
+    @data("manager", "admin", "user")
     def test_user_cannot_retrieve_customer_invoice(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(
@@ -48,18 +48,18 @@ class InvoiceSendNotificationTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()
         self.url = factories.InvoiceFactory.get_url(
-            self.fixture.invoice, action='send_notification'
+            self.fixture.invoice, action="send_notification"
         )
         self.fixture.invoice.state = models.Invoice.States.CREATED
-        self.fixture.invoice.save(update_fields=['state'])
+        self.fixture.invoice.save(update_fields=["state"])
 
-    @data('staff')
+    @data("staff")
     def test_user_can_send_invoice_notification(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    @data('manager', 'admin', 'user')
+    @data("manager", "admin", "user")
     def test_user_cannot_send_invoice_notification(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.post(self.url)
@@ -67,7 +67,7 @@ class InvoiceSendNotificationTest(test.APITransactionTestCase):
 
     @override_settings(task_always_eager=True)
     def test_notification_email_is_rendered(self):
-        event_type = 'notification'
+        event_type = "notification"
         structure_factories.NotificationFactory(key=f"invoices.{event_type}")
 
         # Arrange
@@ -79,12 +79,12 @@ class InvoiceSendNotificationTest(test.APITransactionTestCase):
 
         # Assert
         self.assertEqual(len(mail.outbox), 1)
-        self.assertTrue('invoice' in mail.outbox[0].subject)
+        self.assertTrue("invoice" in mail.outbox[0].subject)
         self.assertEqual(self.fixture.owner.email, mail.outbox[0].to[0])
 
     def test_user_cannot_send_invoice_notification_in_invalid_state(self):
         self.fixture.invoice.state = models.Invoice.States.PENDING
-        self.fixture.invoice.save(update_fields=['state'])
+        self.fixture.invoice.save(update_fields=["state"])
         self.client.force_authenticate(self.fixture.staff)
 
         response = self.client.post(self.url)
@@ -108,7 +108,7 @@ class UpdateInvoiceItemProjectTest(test.APITransactionTestCase):
         self.check_invoice_item()
 
     def test_when_project_is_updated_invoice_item_is_synced(self):
-        self.fixture.project.name = 'New name'
+        self.fixture.project.name = "New name"
         self.fixture.project.save()
         self.check_invoice_item()
 
@@ -116,7 +116,7 @@ class UpdateInvoiceItemProjectTest(test.APITransactionTestCase):
         self.invoice.state = models.Invoice.States.CANCELED
         self.invoice.save()
         old_name = self.fixture.project.name
-        self.fixture.project.name = 'New name'
+        self.fixture.project.name = "New name"
         self.fixture.project.save()
         self.check_invoice_item(old_name)
 
@@ -129,13 +129,13 @@ class UpdateInvoiceItemProjectTest(test.APITransactionTestCase):
         response = self.client.get(factories.InvoiceFactory.get_url(self.invoice))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        item = response.data['items'][0]
-        self.assertEqual(item['project_name'], project_name)
-        self.assertEqual(item['project_uuid'], self.fixture.project.uuid.hex)
+        item = response.data["items"][0]
+        self.assertEqual(item["project_name"], project_name)
+        self.assertEqual(item["project_uuid"], self.fixture.project.uuid.hex)
 
 
 class MeasuredUnitTest(test.APITransactionTestCase):
-    def get_invoice_item(self, unit, measured_unit=''):
+    def get_invoice_item(self, unit, measured_unit=""):
         return factories.InvoiceItemFactory(
             start=datetime.date(year=2020, month=12, day=1),
             end=datetime.date(year=2020, month=12, day=10),
@@ -145,24 +145,24 @@ class MeasuredUnitTest(test.APITransactionTestCase):
         )
 
     def test_offering_component(self):
-        item = self.get_invoice_item(UnitPriceMixin.Units.PER_DAY, 'kG')
-        self.assertEqual(item.get_measured_unit(), _('kG'))
+        item = self.get_invoice_item(UnitPriceMixin.Units.PER_DAY, "kG")
+        self.assertEqual(item.get_measured_unit(), _("kG"))
 
     def test_days(self):
         item = self.get_invoice_item(UnitPriceMixin.Units.PER_DAY)
-        self.assertEqual(item.get_measured_unit(), _('days'))
+        self.assertEqual(item.get_measured_unit(), _("days"))
 
     def test_hours(self):
         item = self.get_invoice_item(UnitPriceMixin.Units.PER_HOUR)
-        self.assertEqual(item.get_measured_unit(), _('hours'))
+        self.assertEqual(item.get_measured_unit(), _("hours"))
 
     def test_half_month(self):
         item = self.get_invoice_item(UnitPriceMixin.Units.PER_HALF_MONTH)
-        self.assertEqual(item.get_measured_unit(), _('percents from half a month'))
+        self.assertEqual(item.get_measured_unit(), _("percents from half a month"))
 
     def test_month(self):
         item = self.get_invoice_item(UnitPriceMixin.Units.PER_MONTH)
-        self.assertEqual(item.get_measured_unit(), _('percents from a month'))
+        self.assertEqual(item.get_measured_unit(), _("percents from a month"))
 
     def test_quantity(self):
         from waldur_slurm.tests.factories import AllocationFactory
@@ -173,7 +173,7 @@ class MeasuredUnitTest(test.APITransactionTestCase):
         resource.save()
         item.resource = resource
         item.save()
-        self.assertEqual(item.get_measured_unit(), _('allocations'))
+        self.assertEqual(item.get_measured_unit(), _("allocations"))
 
 
 class InvoiceStatsTest(test.APITransactionTestCase):
@@ -215,7 +215,7 @@ class InvoiceStatsTest(test.APITransactionTestCase):
             state=marketplace_models.Resource.States.OK,
             offering=self.offering,
             plan=self.plan,
-            limits={'cpu': 1},
+            limits={"cpu": 1},
         )
 
         self.resource_2 = marketplace_factories.ResourceFactory(
@@ -223,7 +223,7 @@ class InvoiceStatsTest(test.APITransactionTestCase):
             offering=self.offering,
             project=self.resource_1.project,
             plan=self.plan,
-            limits={'cpu': 1},
+            limits={"cpu": 1},
         )
 
         self.resource_3 = marketplace_factories.ResourceFactory(
@@ -231,7 +231,7 @@ class InvoiceStatsTest(test.APITransactionTestCase):
             offering=self.offering_2,
             project=self.resource_1.project,
             plan=self.plan_2,
-            limits={'cpu': 1},
+            limits={"cpu": 1},
         )
 
         self.customer = self.resource_1.project.customer
@@ -262,16 +262,16 @@ class InvoiceStatsTest(test.APITransactionTestCase):
         )
         self.resource_4.save()
 
-    @freeze_time('2019-01-01')
+    @freeze_time("2019-01-01")
     def test_invoice_stats(self):
         tasks.create_monthly_invoices()
         invoice = models.Invoice.objects.get(customer=self.customer, year=2019, month=1)
-        url = factories.InvoiceFactory.get_url(invoice=invoice, action='stats')
+        url = factories.InvoiceFactory.get_url(invoice=invoice, action="stats")
         self.client.force_authenticate(structure_factories.UserFactory(is_staff=True))
         result = self.client.get(url)
         self.assertEqual(len(result.data), 3)
         self.assertEqual(
-            {d['uuid'] for d in result.data},
+            {d["uuid"] for d in result.data},
             {
                 self.offering.uuid.hex,
                 self.marketplace_support_offering.uuid.hex,
@@ -288,16 +288,16 @@ class InvoiceStatsTest(test.APITransactionTestCase):
         )
 
         self.assertEqual(
-            list(filter(lambda x: x['uuid'] == self.offering.uuid.hex, result.data))[0],
+            list(filter(lambda x: x["uuid"] == self.offering.uuid.hex, result.data))[0],
             {
-                'uuid': self.offering.uuid.hex,
-                'offering_name': self.offering.name,
-                'aggregated_price': aggregated_total,
-                'aggregated_tax': Decimal(0),
-                'aggregated_total': aggregated_total,
-                'service_category_title': self.offering.category.title,
-                'service_provider_name': self.offering.customer.name,
-                'service_provider_uuid': self.provider.uuid.hex,
+                "uuid": self.offering.uuid.hex,
+                "offering_name": self.offering.name,
+                "aggregated_price": aggregated_total,
+                "aggregated_tax": Decimal(0),
+                "aggregated_total": aggregated_total,
+                "service_category_title": self.offering.category.title,
+                "service_provider_name": self.offering.customer.name,
+                "service_provider_uuid": self.provider.uuid.hex,
             },
         )
 
@@ -311,18 +311,18 @@ class InvoiceStatsTest(test.APITransactionTestCase):
             ]
         )
         self.assertEqual(
-            list(filter(lambda x: x['uuid'] == self.offering_2.uuid.hex, result.data))[
+            list(filter(lambda x: x["uuid"] == self.offering_2.uuid.hex, result.data))[
                 0
             ],
             {
-                'uuid': self.offering_2.uuid.hex,
-                'offering_name': self.offering_2.name,
-                'aggregated_price': aggregated_total,
-                'aggregated_tax': Decimal(0),
-                'aggregated_total': aggregated_total,
-                'service_category_title': self.offering_2.category.title,
-                'service_provider_name': self.offering_2.customer.name,
-                'service_provider_uuid': self.provider_2.uuid.hex,
+                "uuid": self.offering_2.uuid.hex,
+                "offering_name": self.offering_2.name,
+                "aggregated_price": aggregated_total,
+                "aggregated_tax": Decimal(0),
+                "aggregated_total": aggregated_total,
+                "service_category_title": self.offering_2.category.title,
+                "service_provider_name": self.offering_2.customer.name,
+                "service_provider_uuid": self.provider_2.uuid.hex,
             },
         )
 
@@ -334,19 +334,19 @@ class InvoiceStatsTest(test.APITransactionTestCase):
         self.assertEqual(
             list(
                 filter(
-                    lambda x: x['uuid'] == self.marketplace_support_offering.uuid.hex,
+                    lambda x: x["uuid"] == self.marketplace_support_offering.uuid.hex,
                     result.data,
                 )
             )[0],
             {
-                'uuid': self.marketplace_support_offering.uuid.hex,
-                'offering_name': self.marketplace_support_offering.name,
-                'aggregated_price': aggregated_total,
-                'aggregated_tax': Decimal(0),
-                'aggregated_total': aggregated_total,
-                'service_category_title': self.marketplace_support_offering.category.title,
-                'service_provider_name': self.offering.customer.name,
-                'service_provider_uuid': self.provider.uuid.hex,
+                "uuid": self.marketplace_support_offering.uuid.hex,
+                "offering_name": self.marketplace_support_offering.name,
+                "aggregated_price": aggregated_total,
+                "aggregated_tax": Decimal(0),
+                "aggregated_total": aggregated_total,
+                "service_category_title": self.marketplace_support_offering.category.title,
+                "service_provider_name": self.offering.customer.name,
+                "service_provider_uuid": self.provider.uuid.hex,
             },
         )
 
@@ -412,16 +412,16 @@ class InvoicePaidTest(test.APITransactionTestCase):
         self.invoice = self.fixture.invoice
         self.invoice.state = models.Invoice.States.CREATED
         self.invoice.save()
-        self.url = factories.InvoiceFactory.get_url(self.invoice, 'paid')
+        self.url = factories.InvoiceFactory.get_url(self.invoice, "paid")
 
     def test_staff_can_mark_invoice_as_paid(self):
-        self.client.force_authenticate(getattr(self.fixture, 'staff'))
+        self.client.force_authenticate(getattr(self.fixture, "staff"))
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.invoice.refresh_from_db()
         self.assertEqual(self.invoice.state, models.Invoice.States.PAID)
 
-    @data('owner', 'manager', 'admin', 'user')
+    @data("owner", "manager", "admin", "user")
     def test_other_users_cannot_mark_invoice_as_paid(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.post(self.url)
@@ -430,7 +430,7 @@ class InvoicePaidTest(test.APITransactionTestCase):
     def test_staff_cannot_mark_invoice_as_paid_if_current_state_is_not_created(self):
         self.invoice.state = models.Invoice.States.PENDING
         self.invoice.save()
-        self.client.force_authenticate(getattr(self.fixture, 'staff'))
+        self.client.force_authenticate(getattr(self.fixture, "staff"))
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
@@ -439,10 +439,10 @@ class InvoicePaidTest(test.APITransactionTestCase):
             organization=self.invoice.customer, is_active=True
         )
 
-        self.client.force_authenticate(getattr(self.fixture, 'staff'))
+        self.client.force_authenticate(getattr(self.fixture, "staff"))
         date = datetime.date.today()
         response = self.client.post(
-            self.url, data={'date': date, 'proof': dummy_image()}, format='multipart'
+            self.url, data={"date": date, "proof": dummy_image()}, format="multipart"
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.invoice.refresh_from_db()
@@ -455,10 +455,10 @@ class InvoicePaidTest(test.APITransactionTestCase):
         )
 
     def test_do_not_create_payment_if_profile_does_not_exist(self):
-        self.client.force_authenticate(getattr(self.fixture, 'staff'))
+        self.client.force_authenticate(getattr(self.fixture, "staff"))
         date = datetime.date.today()
         response = self.client.post(
-            self.url, data={'date': date, 'proof': dummy_image()}, format='multipart'
+            self.url, data={"date": date, "proof": dummy_image()}, format="multipart"
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -467,9 +467,9 @@ class InvoicePaidTest(test.APITransactionTestCase):
             organization=self.invoice.customer, is_active=True
         )
 
-        self.client.force_authenticate(getattr(self.fixture, 'staff'))
+        self.client.force_authenticate(getattr(self.fixture, "staff"))
         date = datetime.date.today()
-        response = self.client.post(self.url, data={'date': date}, format='multipart')
+        response = self.client.post(self.url, data={"date": date}, format="multipart")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
@@ -478,24 +478,24 @@ class UpdateBackendIdTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()
         self.url = factories.InvoiceFactory.get_url(
-            self.fixture.invoice, action='set_backend_id'
+            self.fixture.invoice, action="set_backend_id"
         )
 
-    @data('staff')
+    @data("staff")
     def test_user_can_set_backend_id(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
-        response = self.client.post(self.url, {'backend_id': 'backend_id'})
+        response = self.client.post(self.url, {"backend_id": "backend_id"})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.fixture.invoice.refresh_from_db()
-        self.assertEqual(self.fixture.invoice.backend_id, 'backend_id')
+        self.assertEqual(self.fixture.invoice.backend_id, "backend_id")
 
-        response = self.client.post(self.url, {'backend_id': ''})
+        response = self.client.post(self.url, {"backend_id": ""})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.fixture.invoice.refresh_from_db()
-        self.assertEqual(self.fixture.invoice.backend_id, '')
+        self.assertEqual(self.fixture.invoice.backend_id, "")
 
-    @data('manager', 'admin', 'user')
+    @data("manager", "admin", "user")
     def test_user_cannot_set_backend_id(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
-        response = self.client.post(self.url, {'backend_id': 'backend_id'})
+        response = self.client.post(self.url, {"backend_id": "backend_id"})
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

@@ -7,40 +7,40 @@ import waldur_core.core.validators
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace_checklist', '0002_translations'),
+        ("marketplace_checklist", "0002_translations"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='checklist',
-            name='description_ar',
+            model_name="checklist",
+            name="description_ar",
             field=models.CharField(
-                blank=True, max_length=2000, null=True, verbose_name='description'
+                blank=True, max_length=2000, null=True, verbose_name="description"
             ),
         ),
         migrations.AddField(
-            model_name='checklist',
-            name='name_ar',
+            model_name="checklist",
+            name="name_ar",
             field=models.CharField(
                 max_length=150,
                 null=True,
                 validators=[waldur_core.core.validators.validate_name],
-                verbose_name='name',
+                verbose_name="name",
             ),
         ),
         migrations.AddField(
-            model_name='question',
-            name='description_ar',
+            model_name="question",
+            name="description_ar",
             field=models.CharField(
-                blank=True, max_length=2000, null=True, verbose_name='description'
+                blank=True, max_length=2000, null=True, verbose_name="description"
             ),
         ),
         migrations.AddField(
-            model_name='question',
-            name='solution_ar',
+            model_name="question",
+            name="solution_ar",
             field=models.TextField(
                 blank=True,
-                help_text='It is shown when incorrect or N/A answer is chosen',
+                help_text="It is shown when incorrect or N/A answer is chosen",
                 null=True,
             ),
         ),

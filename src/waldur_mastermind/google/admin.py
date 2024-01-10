@@ -4,11 +4,11 @@ from . import models
 
 
 class GoogleCalendarAdmin(admin.ModelAdmin):
-    list_display = ('__str__', 'http_link')
+    list_display = ("__str__", "http_link")
 
 
 class GoogleCredentialsAdmin(admin.ModelAdmin):
-    list_display = ('service_provider',)
+    list_display = ("service_provider",)
 
 
 admin.site.register(models.GoogleCalendar, GoogleCalendarAdmin)

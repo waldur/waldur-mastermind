@@ -11,17 +11,17 @@ class Command(DryRunCommand):
     def add_arguments(self, parser):
         super().add_arguments(parser)
         parser.add_argument(
-            'features_file',
-            help='Specifies location of features file.',
+            "features_file",
+            help="Specifies location of features file.",
         )
 
     def handle(self, *args, **options):
         valid_features = {
             f'{section["key"]}.{feature["key"]}'
             for section in FEATURES
-            for feature in section['items']
+            for feature in section["items"]
         }
-        with open(options['features_file']) as features_file:
+        with open(options["features_file"]) as features_file:
             features = json.load(features_file)
 
             invalid_features = set(features.keys()) - valid_features
@@ -32,7 +32,7 @@ class Command(DryRunCommand):
                     )
                 )
 
-            if options['dry_run']:
+            if options["dry_run"]:
                 for key, new_value in features.items():
                     try:
                         old_value = Feature.objects.get(key=key).value
@@ -41,7 +41,7 @@ class Command(DryRunCommand):
                     if old_value != new_value:
                         self.stdout.write(
                             self.style.SUCCESS(
-                                f'Feature {key} would be changed from {old_value} to {new_value}'
+                                f"Feature {key} would be changed from {old_value} to {new_value}"
                             )
                         )
             else:
@@ -51,19 +51,19 @@ class Command(DryRunCommand):
                         feature = Feature.objects.get(key=key)
                         if feature.value != value:
                             feature.value = value
-                            feature.save(update_fields=['value'])
-                            self.style.NOTICE(f'Setting {key} to {value}.')
+                            feature.save(update_fields=["value"])
+                            self.style.NOTICE(f"Setting {key} to {value}.")
                             changed += 1
                     except Feature.DoesNotExist:
                         Feature.objects.create(key=key, value=value)
                         changed += 1
                 if changed == 0:
                     self.stdout.write(
-                        self.style.SUCCESS('No features have been updated.')
+                        self.style.SUCCESS("No features have been updated.")
                     )
                 elif changed == 1:
-                    self.stdout.write(self.style.SUCCESS('1 feature has been updated.'))
+                    self.stdout.write(self.style.SUCCESS("1 feature has been updated."))
                 else:
                     self.stdout.write(
-                        self.style.SUCCESS(f'{changed} features have been updated.')
+                        self.style.SUCCESS(f"{changed} features have been updated.")
                     )

@@ -2,7 +2,7 @@ from django.core.management.base import BaseCommand
 
 from waldur_core.logging.loggers import event_logger
 
-BLANK_LINE = '\n\n'
+BLANK_LINE = "\n\n"
 
 
 class Command(BaseCommand):

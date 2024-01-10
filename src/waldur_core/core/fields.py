@@ -18,8 +18,8 @@ class CronScheduleField(models.CharField):
     description = "A cron schedule in textual form"
 
     def __init__(self, *args, **kwargs):
-        kwargs['validators'] = [validate_cron_schedule] + kwargs.get('validators', [])
-        kwargs['max_length'] = kwargs.get('max_length', 15)
+        kwargs["validators"] = [validate_cron_schedule] + kwargs.get("validators", [])
+        kwargs["max_length"] = kwargs.get("max_length", 15)
         super().__init__(*args, **kwargs)
 
 
@@ -78,27 +78,27 @@ class MappedChoiceField(serializers.ChoiceField):
 
         assert set(self.choices.keys()) == set(
             choice_mappings.keys()
-        ), 'Choices do not match mappings'
+        ), "Choices do not match mappings"
         assert len(set(choice_mappings.values())) == len(
             choice_mappings
-        ), 'Mappings are not unique'
+        ), "Mappings are not unique"
 
         self.mapped_to_model = choice_mappings
         self.model_to_mapped = {v: k for k, v in choice_mappings.items()}
 
     def to_internal_value(self, data):
-        if data == '' and self.allow_blank:
-            return ''
+        if data == "" and self.allow_blank:
+            return ""
 
         data = super().to_internal_value(data)
 
         try:
             return self.mapped_to_model[str(data)]
         except KeyError:
-            self.fail('invalid_choice', input=data)
+            self.fail("invalid_choice", input=data)
 
     def to_representation(self, value):
-        if value in ('', None):
+        if value in ("", None):
             return value
 
         value = self.model_to_mapped[value]
@@ -111,7 +111,7 @@ class NaturalChoiceField(MappedChoiceField):
         super().__init__(
             choices=[(v, v) for k, v in choices],
             choice_mappings={v: k for k, v in choices},
-            **kwargs
+            **kwargs,
         )
 
 
@@ -159,16 +159,16 @@ class UUIDField(models.UUIDField):
     """
 
     def __init__(self, **kwargs):
-        kwargs['default'] = lambda: StringUUID(uuid.uuid4().hex)
-        kwargs['editable'] = False
-        kwargs['unique'] = True
+        kwargs["default"] = lambda: StringUUID(uuid.uuid4().hex)
+        kwargs["editable"] = False
+        kwargs["unique"] = True
         super().__init__(**kwargs)
 
     def deconstruct(self):
         name, path, args, kwargs = super().deconstruct()
-        del kwargs['default']
-        del kwargs['editable']
-        del kwargs['unique']
+        del kwargs["default"]
+        del kwargs["editable"]
+        del kwargs["unique"]
         return name, path, args, kwargs
 
     def _parse_uuid(self, value):
@@ -193,9 +193,9 @@ class BackendURLField(models.URLField):
 class JSONField(models.TextField):
     def __init__(self, *args, **kwargs):
         self.dump_kwargs = kwargs.pop(
-            'dump_kwargs', {'cls': DjangoJSONEncoder, 'separators': (',', ':')}
+            "dump_kwargs", {"cls": DjangoJSONEncoder, "separators": (",", ":")}
         )
-        self.load_kwargs = kwargs.pop('load_kwargs', {})
+        self.load_kwargs = kwargs.pop("load_kwargs", {})
 
         super().__init__(*args, **kwargs)
 
@@ -207,7 +207,7 @@ class JSONField(models.TextField):
             try:
                 return json.loads(value, **self.load_kwargs)
             except ValueError:
-                raise ValidationError(_('Enter valid JSON'))
+                raise ValidationError(_("Enter valid JSON"))
         return value
 
     def get_prep_value(self, value):
@@ -239,11 +239,11 @@ class YearMonthField(serializers.CharField):
 
     def to_internal_value(self, value):
         try:
-            year, month = (int(el) for el in value.split('-'))
+            year, month = (int(el) for el in value.split("-"))
         except ValueError:
             raise serializers.ValidationError(
                 _('Value "%s" should be in valid format YYYY-MM') % value
             )
         if not 0 < month < 13:
-            raise serializers.ValidationError(_('Month has to be from 1 to 12.'))
+            raise serializers.ValidationError(_("Month has to be from 1 to 12."))
         return year, month

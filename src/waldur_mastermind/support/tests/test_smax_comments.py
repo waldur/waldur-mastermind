@@ -13,19 +13,19 @@ class CommentCreateTest(smax_base.BaseTest):
         self.support_user = factories.SupportUserFactory(
             user=self.fixture.staff, backend_name=self.fixture.backend_name
         )
-        self.url = factories.IssueFactory.get_url(self.fixture.issue, 'comment')
+        self.url = factories.IssueFactory.get_url(self.fixture.issue, "comment")
 
         self.smax_comment = Comment(
-            description='comment text',
+            description="comment text",
             backend_user_id=self.support_user.backend_id,
             is_public=True,
-            id='abc123',
+            id="abc123",
         )
         self.mock_smax().add_comment.return_value = self.smax_comment
 
     def _get_valid_payload(self, **additional):
         payload = {
-            'description': 'comment text',
+            "description": "comment text",
         }
         payload.update(additional)
         return payload
@@ -38,7 +38,7 @@ class CommentCreateTest(smax_base.BaseTest):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.mock_smax().add_comment.assert_called_once()
-        comment = models.Comment.objects.get(uuid=response.data['uuid'])
+        comment = models.Comment.objects.get(uuid=response.data["uuid"])
         self.assertEqual(str(comment.backend_id), str(self.smax_comment.id))
 
 
@@ -55,7 +55,7 @@ class CommentUpdateTest(smax_base.BaseTest):
 
     def _get_valid_payload(self, **additional):
         payload = {
-            'description': 'new comment text',
+            "description": "new comment text",
         }
         payload.update(additional)
         return payload
@@ -94,9 +94,9 @@ class SyncFromSmaxTest(smax_base.BaseTest):
         self.fixture = fixtures.SupportFixture()
         self.issue = self.fixture.issue
         self.comment = self.fixture.comment
-        self.smax_issue = Issue(1, 'test', 'description', 'RequestStatusReady')
+        self.smax_issue = Issue(1, "test", "description", "RequestStatusReady")
         self.smax_comment = Comment(
-            description='new description',
+            description="new description",
             backend_user_id=self.comment.author,
             is_public=False,
             id=self.comment.backend_id,

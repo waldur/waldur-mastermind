@@ -27,13 +27,13 @@ class ActionsTest(test.APITransactionTestCase):
         self.owner = self.fixture.owner
 
         structure_factories.NotificationFactory(
-            key='marketplace_policy.notification_about_project_cost_exceeded_limit'
+            key="marketplace_policy.notification_about_project_cost_exceeded_limit"
         )
         tests_utils.create_system_robot()
 
-    @mock.patch('waldur_core.core.utils.send_mail')
+    @mock.patch("waldur_core.core.utils.send_mail")
     def test_notify_project_team(self, mock_send_mail):
-        self.policy.actions = 'notify_project_team'
+        self.policy.actions = "notify_project_team"
         self.policy.save()
 
         serialized_scope = core_utils.serialize_instance(self.policy.project)
@@ -43,12 +43,12 @@ class ActionsTest(test.APITransactionTestCase):
         mock_send_mail.assert_called_once()
 
         self.assertTrue(
-            logging_models.Event.objects.filter(event_type='policy_notification')
+            logging_models.Event.objects.filter(event_type="policy_notification")
         )
 
-    @mock.patch('waldur_core.core.utils.send_mail')
+    @mock.patch("waldur_core.core.utils.send_mail")
     def test_notify_organization_owners(self, mock_send_mail):
-        self.policy.actions = 'notify_organization_owners'
+        self.policy.actions = "notify_organization_owners"
         self.policy.save()
 
         serialized_scope = core_utils.serialize_instance(self.policy.project.customer)
@@ -56,15 +56,15 @@ class ActionsTest(test.APITransactionTestCase):
         tasks.notify_about_limit_cost(serialized_scope, serialized_policy)
 
         mock_send_mail.assert_called_once()
-        self.assertEqual(mock_send_mail.call_args.kwargs['to'][0], self.owner.email)
+        self.assertEqual(mock_send_mail.call_args.kwargs["to"][0], self.owner.email)
 
         self.assertTrue(
-            logging_models.Event.objects.filter(event_type='policy_notification')
+            logging_models.Event.objects.filter(event_type="policy_notification")
         )
 
-    @mock.patch('waldur_mastermind.policy.policy_actions.tasks')
+    @mock.patch("waldur_mastermind.policy.policy_actions.tasks")
     def test_create_event_log(self, mock_tasks):
-        self.policy.actions = 'notify_organization_owners'
+        self.policy.actions = "notify_organization_owners"
         self.policy.save()
 
         self.estimate.total = self.policy.limit_cost + 1
@@ -72,7 +72,7 @@ class ActionsTest(test.APITransactionTestCase):
 
         mock_tasks.notify_about_limit_cost.delay.assert_called_once()
         self.assertTrue(
-            logging_models.Event.objects.filter(event_type='notify_organization_owners')
+            logging_models.Event.objects.filter(event_type="notify_organization_owners")
         )
 
     def create_order(self):
@@ -83,17 +83,17 @@ class ActionsTest(test.APITransactionTestCase):
         plan_url = marketplace_factories.PlanFactory.get_public_url(self.fixture.plan)
 
         payload = {
-            'project': project_url,
-            'offering': offering_url,
-            'plan': plan_url,
-            'attributes': {'name': 'item_name', 'description': 'Description'},
+            "project": project_url,
+            "offering": offering_url,
+            "plan": plan_url,
+            "attributes": {"name": "item_name", "description": "Description"},
         }
         self.client.force_login(self.fixture.staff)
         url = marketplace_factories.OrderFactory.get_list_url()
         return self.client.post(url, payload)
 
     def test_block_creation_of_new_resources(self):
-        self.policy.actions = 'block_creation_of_new_resources'
+        self.policy.actions = "block_creation_of_new_resources"
         self.policy.save()
 
         response = self.create_order()
@@ -106,13 +106,13 @@ class ActionsTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_block_modification_of_existing_resources(self):
-        self.policy.actions = 'block_modification_of_existing_resources'
+        self.policy.actions = "block_modification_of_existing_resources"
         self.policy.save()
 
         response = self.create_order()
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         resource = marketplace_models.Resource.objects.get(
-            uuid=response.data['marketplace_resource_uuid']
+            uuid=response.data["marketplace_resource_uuid"]
         )
 
         self.estimate.total = self.policy.limit_cost + 1
@@ -121,13 +121,13 @@ class ActionsTest(test.APITransactionTestCase):
         resource.save()
 
         self.client.force_authenticate(self.fixture.staff)
-        url = marketplace_factories.ResourceFactory.get_url(resource, 'update_limits')
-        payload = {'limits': {'cpu': 2}}
+        url = marketplace_factories.ResourceFactory.get_url(resource, "update_limits")
+        payload = {"limits": {"cpu": 2}}
         response = self.client.post(url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_terminate_resources(self):
-        self.policy.actions = 'terminate_resources'
+        self.policy.actions = "terminate_resources"
         self.policy.save()
 
         resource = self.fixture.resource
@@ -150,10 +150,10 @@ class ActionsTest(test.APITransactionTestCase):
             resource=resource,
             type=marketplace_models.Order.Types.TERMINATE,
         ).get()
-        self.assertEqual(order.attributes, {'action': 'force_destroy'})
+        self.assertEqual(order.attributes, {"action": "force_destroy"})
 
     def test_request_downscaling(self):
-        self.policy.actions = 'request_downscaling'
+        self.policy.actions = "request_downscaling"
         self.policy.created_by = self.fixture.user
         self.policy.save()
 

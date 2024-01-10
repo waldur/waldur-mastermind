@@ -5,13 +5,13 @@ from django.db import migrations
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('proposal', '0010_move_allocation_strategy_from_call_to_round'),
+        ("proposal", "0010_move_allocation_strategy_from_call_to_round"),
     ]
 
     operations = [
         migrations.RenameField(
-            model_name='round',
-            old_name='end_time',
-            new_name='cutoff_time',
+            model_name="round",
+            old_name="end_time",
+            new_name="cutoff_time",
         ),
     ]

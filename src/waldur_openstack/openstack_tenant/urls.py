@@ -5,92 +5,92 @@ from . import views
 
 def register_in(router):
     router.register(
-        r'openstacktenant-images', views.ImageViewSet, basename='openstacktenant-image'
+        r"openstacktenant-images", views.ImageViewSet, basename="openstacktenant-image"
     )
     router.register(
-        r'openstacktenant-flavors',
+        r"openstacktenant-flavors",
         views.FlavorViewSet,
-        basename='openstacktenant-flavor',
+        basename="openstacktenant-flavor",
     )
     router.register(
-        r'openstacktenant-floating-ips',
+        r"openstacktenant-floating-ips",
         views.FloatingIPViewSet,
-        basename='openstacktenant-fip',
+        basename="openstacktenant-fip",
     )
     router.register(
-        r'openstacktenant-security-groups',
+        r"openstacktenant-security-groups",
         views.SecurityGroupViewSet,
-        basename='openstacktenant-sgp',
+        basename="openstacktenant-sgp",
     )
     router.register(
-        r'openstacktenant-server-groups',
+        r"openstacktenant-server-groups",
         views.ServerGroupViewSet,
-        basename='openstacktenant-server-group',
+        basename="openstacktenant-server-group",
     )
     router.register(
-        r'openstacktenant-volumes',
+        r"openstacktenant-volumes",
         views.VolumeViewSet,
-        basename='openstacktenant-volume',
+        basename="openstacktenant-volume",
     )
     router.register(
-        r'openstacktenant-snapshots',
+        r"openstacktenant-snapshots",
         views.SnapshotViewSet,
-        basename='openstacktenant-snapshot',
+        basename="openstacktenant-snapshot",
     )
     router.register(
-        r'openstacktenant-instance-availability-zones',
+        r"openstacktenant-instance-availability-zones",
         views.InstanceAvailabilityZoneViewSet,
-        basename='openstacktenant-instance-availability-zone',
+        basename="openstacktenant-instance-availability-zone",
     )
     router.register(
-        r'openstacktenant-instances',
+        r"openstacktenant-instances",
         views.InstanceViewSet,
-        basename='openstacktenant-instance',
+        basename="openstacktenant-instance",
     )
     router.register(
-        r'openstacktenant-backups',
+        r"openstacktenant-backups",
         views.BackupViewSet,
-        basename='openstacktenant-backup',
+        basename="openstacktenant-backup",
     )
     router.register(
-        r'openstacktenant-backup-schedules',
+        r"openstacktenant-backup-schedules",
         views.BackupScheduleViewSet,
-        basename='openstacktenant-backup-schedule',
+        basename="openstacktenant-backup-schedule",
     )
     router.register(
-        r'openstacktenant-snapshot-schedules',
+        r"openstacktenant-snapshot-schedules",
         views.SnapshotScheduleViewSet,
-        basename='openstacktenant-snapshot-schedule',
+        basename="openstacktenant-snapshot-schedule",
     )
     router.register(
-        r'openstacktenant-subnets',
+        r"openstacktenant-subnets",
         views.SubNetViewSet,
-        basename='openstacktenant-subnet',
+        basename="openstacktenant-subnet",
     )
     router.register(
-        r'openstacktenant-networks',
+        r"openstacktenant-networks",
         views.NetworkViewSet,
-        basename='openstacktenant-network',
+        basename="openstacktenant-network",
     )
     router.register(
-        r'openstacktenant-volume-types',
+        r"openstacktenant-volume-types",
         views.VolumeTypeViewSet,
-        basename='openstacktenant-volume-type',
+        basename="openstacktenant-volume-type",
     )
     router.register(
-        r'openstacktenant-volume-availability-zones',
+        r"openstacktenant-volume-availability-zones",
         views.VolumeAvailabilityZoneViewSet,
-        basename='openstacktenant-volume-availability-zone',
+        basename="openstacktenant-volume-availability-zone",
     )
 
 
 urlpatterns = [
     re_path(
-        r'^api/openstack-shared-settings-instances/$',
+        r"^api/openstack-shared-settings-instances/$",
         views.SharedSettingsInstances.as_view(),
     ),
     re_path(
-        r'^api/openstack-shared-settings-customers/$',
+        r"^api/openstack-shared-settings-customers/$",
         views.SharedSettingsCustomers.as_view(),
     ),
 ]

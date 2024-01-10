@@ -16,10 +16,10 @@ class ResourceHandlerTest(APITransactionTestCase):
         )
         instance = structure_factories.TestNewInstanceFactory()
         resource = factories.ResourceFactory(scope=instance)
-        instance.name = 'New name'
+        instance.name = "New name"
         instance.save()
         resource.refresh_from_db()
-        self.assertEqual(resource.name, 'New name')
+        self.assertEqual(resource.name, "New name")
 
     def test_service_settings_should_be_disabled_if_resource_is_terminated(
         self,

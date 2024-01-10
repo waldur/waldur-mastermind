@@ -37,8 +37,8 @@ class GroupSynchronizer:
 
     def __init__(self, client):
         self.client = client
-        self.group_prefix = settings.WALDUR_FREEIPA['GROUPNAME_PREFIX']
-        self.user_prefix = settings.WALDUR_FREEIPA['USERNAME_PREFIX']
+        self.group_prefix = settings.WALDUR_FREEIPA["GROUPNAME_PREFIX"]
+        self.user_prefix = settings.WALDUR_FREEIPA["USERNAME_PREFIX"]
 
         self.profiles = {
             profile.user_id: profile.username
@@ -56,13 +56,13 @@ class GroupSynchronizer:
         self.freeipa_names = dict()
 
     def group_name(self, key):
-        return f'{self.group_prefix}{key}'
+        return f"{self.group_prefix}{key}"
 
     def project_group_name(self, project):
-        return self.group_name('project_%s' % project.uuid)
+        return self.group_name("project_%s" % project.uuid)
 
     def customer_group_name(self, customer):
-        return self.group_name('org_%s' % customer.uuid)
+        return self.group_name("org_%s" % customer.uuid)
 
     def get_group_description(self, name, limit):
         stream = StringIO()
@@ -110,7 +110,7 @@ class GroupSynchronizer:
         ctype = ContentType.objects.get_for_model(model)
         customer_quotas = quota_models.QuotaLimit.objects.filter(
             content_type=ctype, name=utils.QUOTA_NAME
-        ).only('object_id', 'value')
+        ).only("object_id", "value")
         return {quota.object_id: quota.value for quota in customer_quotas}
 
     def collect_waldur_customers(self):
@@ -137,17 +137,17 @@ class GroupSynchronizer:
         self.freeipa_users[groupname].update(users)
 
     def collect_freeipa_groups(self):
-        backend_groups = self.client.group_find()['result']
+        backend_groups = self.client.group_find()["result"]
         for group in backend_groups:
-            groupname = group['cn'][0]
+            groupname = group["cn"][0]
 
             # Ignore groups not marked by own prefix
             if not groupname.startswith(self.group_prefix):
                 continue
 
-            members = group.get('member_user', [])
-            description = group.get('description')
-            children = group.get('member_group', [])
+            members = group.get("member_user", [])
+            description = group.get("description")
+            children = group.get("member_group", [])
             self.add_freeipa_group(groupname, description, children)
             self.add_freeipa_users(groupname, members)
 
@@ -213,9 +213,9 @@ class GroupSynchronizer:
             self.client.group_del(group)
 
     def sync_user_status(self):
-        remote_users = self.client.user_find()['result']
+        remote_users = self.client.user_find()["result"]
         remote_user_status = {
-            user['uid'][0]: not user['nsaccountlock'] for user in remote_users
+            user["uid"][0]: not user["nsaccountlock"] for user in remote_users
         }
         for profile in models.Profile.objects.all():
             utils.renew_task_status()
@@ -252,12 +252,12 @@ class FreeIPABackend:
     def __init__(self):
         options = settings.WALDUR_FREEIPA
         self._client = python_freeipa.Client(
-            host=options['HOSTNAME'], verify_ssl=options['VERIFY_SSL']
+            host=options["HOSTNAME"], verify_ssl=options["VERIFY_SSL"]
         )
-        self._client.login(options['USERNAME'], options['PASSWORD'])
+        self._client.login(options["USERNAME"], options["PASSWORD"])
 
     def _format_ssh_keys(self, user):
-        return list(user.sshpublickey_set.values_list('public_key', flat=True))
+        return list(user.sshpublickey_set.values_list("public_key", flat=True))
 
     def create_profile(self, profile, password=None):
         waldur_user = profile.user
@@ -265,8 +265,8 @@ class FreeIPABackend:
 
         self._client.user_add(
             username=profile.username,
-            first_name=profile.user.first_name or 'N/A',
-            last_name=profile.user.last_name or 'N/A',
+            first_name=profile.user.first_name or "N/A",
+            last_name=profile.user.last_name or "N/A",
             full_name=waldur_user.full_name,
             mail=waldur_user.email,
             organization_unit=waldur_user.organization,
@@ -287,7 +287,7 @@ class FreeIPABackend:
             ssh_keys = None
 
         backend_profile = self._client.user_show(profile.username)
-        backend_keys = backend_profile.get('ipasshpubkey')
+        backend_keys = backend_profile.get("ipasshpubkey")
         if backend_keys:
             backend_keys = sorted(backend_keys)
 
@@ -306,30 +306,30 @@ class FreeIPABackend:
         params = {
             # First name and last name are mandatory in FreeIPA but optional in Waldur.
             # Therefore we use placeholders to avoid validation error.
-            'givenname': profile.user.first_name or 'N/A',
-            'sn': profile.user.last_name or 'N/A',
-            'cn': profile.user.full_name,
-            'displayname': profile.user.full_name,
-            'mail': profile.user.email,
-            'organization_unit': profile.user.organization,
-            'job_title': profile.user.job_title,
-            'preferred_language': profile.user.preferred_language,
-            'telephonenumber': profile.user.phone_number,
+            "givenname": profile.user.first_name or "N/A",
+            "sn": profile.user.last_name or "N/A",
+            "cn": profile.user.full_name,
+            "displayname": profile.user.full_name,
+            "mail": profile.user.email,
+            "organization_unit": profile.user.organization,
+            "job_title": profile.user.job_title,
+            "preferred_language": profile.user.preferred_language,
+            "telephonenumber": profile.user.phone_number,
         }
         self._update_profile(profile, params)
 
     def update_gecos(self, profile):
         params = {
-            'gecos': profile.gecos,
+            "gecos": profile.gecos,
         }
         self._update_profile(profile, params)
 
     def update_name(self, profile):
         params = {
-            'givenname': profile.user.first_name or 'N/A',
-            'sn': profile.user.last_name or 'N/A',
-            'cn': profile.user.full_name,
-            'displayname': profile.user.full_name,
+            "givenname": profile.user.first_name or "N/A",
+            "sn": profile.user.last_name or "N/A",
+            "cn": profile.user.full_name,
+            "displayname": profile.user.full_name,
         }
         self._update_profile(profile, params)
 

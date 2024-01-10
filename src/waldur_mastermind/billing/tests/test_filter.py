@@ -28,7 +28,7 @@ class CustomerEstimatedCostFilterTest(test.APITransactionTestCase):
 
     def execute_request(self, ordering_param=None):
         fixture = structure_fixtures.CustomerFixture()
-        url = '/api/financial-reports/'
+        url = "/api/financial-reports/"
 
         self.client.force_login(fixture.staff)
         params = {}
@@ -37,19 +37,19 @@ class CustomerEstimatedCostFilterTest(test.APITransactionTestCase):
         response = self.client.get(url, params)
 
         return [
-            int(customer['billing_price_estimate']['total'])
+            int(customer["billing_price_estimate"]["total"])
             for customer in response.data
         ]
 
     def test_ascending_ordering(self):
-        actual = self.execute_request('estimated_cost')
+        actual = self.execute_request("estimated_cost")
         self.assertEqual([0, 100, 200, 300], actual)
 
     def test_descending_ordering(self):
-        actual = self.execute_request('-estimated_cost')
+        actual = self.execute_request("-estimated_cost")
         self.assertEqual([300, 200, 100, 0], actual)
 
-    @unittest.skip('Not stable in GitLab CI')
+    @unittest.skip("Not stable in GitLab CI")
     def test_default_ordering(self):
         actual = self.execute_request()
         self.assertEqual([200, 100, 300, 0], actual)
@@ -74,7 +74,7 @@ class CustomerTotalCostFilterTest(test.APITransactionTestCase):
 
     def execute_request(self, ordering_param=None):
         fixture = structure_fixtures.CustomerFixture()
-        url = '/api/financial-reports/'
+        url = "/api/financial-reports/"
 
         self.client.force_login(fixture.staff)
         params = {}
@@ -83,19 +83,19 @@ class CustomerTotalCostFilterTest(test.APITransactionTestCase):
         response = self.client.get(url, params)
 
         return [
-            int(customer['billing_price_estimate']['current'])
+            int(customer["billing_price_estimate"]["current"])
             for customer in response.data
         ]
 
     def test_ascending_ordering(self):
-        actual = self.execute_request('total_cost')
+        actual = self.execute_request("total_cost")
         self.assertEqual([0, 100, 200, 300], actual)
 
     def test_descending_ordering(self):
-        actual = self.execute_request('-total_cost')
+        actual = self.execute_request("-total_cost")
         self.assertEqual([300, 200, 100, 0], actual)
 
-    @unittest.skip('Not stable in GitLab CI')
+    @unittest.skip("Not stable in GitLab CI")
     def test_default_ordering(self):
         actual = self.execute_request()
         self.assertEqual(self.prices, actual)
@@ -105,13 +105,13 @@ class CustomerTotalCostFilterTest(test.APITransactionTestCase):
 class FinancialReportFilterTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = structure_fixtures.CustomerFixture()
-        self.url = '/api/financial-reports/'
+        self.url = "/api/financial-reports/"
 
     def test_if_accounting_start_date_is_none(self):
         self.client.force_authenticate(user=self.fixture.staff)
-        response = self.client.get(self.url, {'accounting_is_running': True})
+        response = self.client.get(self.url, {"accounting_is_running": True})
         self.assertEqual(len(response.data), 0)
-        response = self.client.get(self.url, {'accounting_is_running': False})
+        response = self.client.get(self.url, {"accounting_is_running": False})
         self.assertEqual(len(response.data), 0)
 
     def test_if_accounting_start_date_is_not_none(self):
@@ -119,7 +119,7 @@ class FinancialReportFilterTest(test.APITransactionTestCase):
         self.fixture.customer.accounting_start_date = (
             timezone.now() + datetime.timedelta(days=10)
         )
-        response = self.client.get(self.url, {'accounting_is_running': True})
+        response = self.client.get(self.url, {"accounting_is_running": True})
         self.assertEqual(len(response.data), 1)
-        response = self.client.get(self.url, {'accounting_is_running': False})
+        response = self.client.get(self.url, {"accounting_is_running": False})
         self.assertEqual(len(response.data), 0)

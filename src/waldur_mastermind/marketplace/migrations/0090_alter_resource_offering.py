@@ -6,17 +6,17 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace', '0089_offeringusergroup'),
+        ("marketplace", "0089_offeringusergroup"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='resource',
-            name='offering',
+            model_name="resource",
+            name="offering",
             field=models.ForeignKey(
                 on_delete=django.db.models.deletion.CASCADE,
-                related_name='+',
-                to='marketplace.offering',
+                related_name="+",
+                to="marketplace.offering",
             ),
         ),
     ]

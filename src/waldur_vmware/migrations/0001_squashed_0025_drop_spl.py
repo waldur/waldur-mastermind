@@ -16,531 +16,531 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('structure', '0001_squashed_0036'),
+        ("structure", "0001_squashed_0036"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Template',
+            name="Template",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=2000, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name="description"
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('backend_id', models.CharField(db_index=True, max_length=255)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("backend_id", models.CharField(db_index=True, max_length=255)),
                 (
-                    'guest_os',
+                    "guest_os",
                     models.CharField(
-                        help_text='Defines the valid guest operating system types used for configuring a virtual machine',
+                        help_text="Defines the valid guest operating system types used for configuring a virtual machine",
                         max_length=50,
                     ),
                 ),
                 (
-                    'cores',
+                    "cores",
                     models.PositiveSmallIntegerField(
-                        default=0, help_text='Number of cores in a VM'
+                        default=0, help_text="Number of cores in a VM"
                     ),
                 ),
                 (
-                    'cores_per_socket',
+                    "cores_per_socket",
                     models.PositiveSmallIntegerField(
-                        default=1, help_text='Number of cores per socket in a VM'
+                        default=1, help_text="Number of cores per socket in a VM"
                     ),
                 ),
                 (
-                    'ram',
+                    "ram",
                     models.PositiveIntegerField(
-                        default=0, help_text='Memory size in MiB', verbose_name='RAM'
+                        default=0, help_text="Memory size in MiB", verbose_name="RAM"
                     ),
                 ),
-                ('created', models.DateTimeField()),
-                ('modified', models.DateTimeField()),
+                ("created", models.DateTimeField()),
+                ("modified", models.DateTimeField()),
                 (
-                    'settings',
+                    "settings",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='structure.servicesettings',
+                        related_name="+",
+                        to="structure.servicesettings",
                     ),
                 ),
                 (
-                    'disk',
+                    "disk",
                     models.PositiveIntegerField(
-                        default=0, help_text='Disk size in MiB'
+                        default=0, help_text="Disk size in MiB"
                     ),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
             bases=(waldur_core.core.models.BackendModelMixin, models.Model),
         ),
         migrations.CreateModel(
-            name='Cluster',
+            name="Cluster",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('backend_id', models.CharField(db_index=True, max_length=255)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("backend_id", models.CharField(db_index=True, max_length=255)),
                 (
-                    'settings',
+                    "settings",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='structure.servicesettings',
+                        related_name="+",
+                        to="structure.servicesettings",
                     ),
                 ),
             ],
             options={
-                'abstract': False,
-                'unique_together': {('settings', 'backend_id')},
+                "abstract": False,
+                "unique_together": {("settings", "backend_id")},
             },
             bases=(waldur_core.core.models.BackendModelMixin, models.Model),
         ),
         migrations.CreateModel(
-            name='CustomerCluster',
+            name="CustomerCluster",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'cluster',
+                    "cluster",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='waldur_vmware.cluster',
+                        to="waldur_vmware.cluster",
                     ),
                 ),
                 (
-                    'customer',
+                    "customer",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='structure.customer',
+                        to="structure.customer",
                     ),
                 ),
             ],
             options={
-                'unique_together': {('customer', 'cluster')},
+                "unique_together": {("customer", "cluster")},
             },
         ),
         migrations.CreateModel(
-            name='Network',
+            name="Network",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('backend_id', models.CharField(db_index=True, max_length=255)),
-                ('type', models.CharField(max_length=255)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("backend_id", models.CharField(db_index=True, max_length=255)),
+                ("type", models.CharField(max_length=255)),
                 (
-                    'settings',
+                    "settings",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='structure.servicesettings',
+                        related_name="+",
+                        to="structure.servicesettings",
                     ),
                 ),
             ],
             options={
-                'abstract': False,
-                'unique_together': {('settings', 'backend_id')},
+                "abstract": False,
+                "unique_together": {("settings", "backend_id")},
             },
             bases=(waldur_core.core.models.BackendModelMixin, models.Model),
         ),
         migrations.CreateModel(
-            name='CustomerNetwork',
+            name="CustomerNetwork",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'customer',
+                    "customer",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='structure.customer',
+                        to="structure.customer",
                     ),
                 ),
                 (
-                    'network',
+                    "network",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='waldur_vmware.network',
+                        to="waldur_vmware.network",
                     ),
                 ),
             ],
             options={
-                'unique_together': {('customer', 'network')},
+                "unique_together": {("customer", "network")},
             },
         ),
         migrations.CreateModel(
-            name='Datastore',
+            name="Datastore",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('backend_id', models.CharField(db_index=True, max_length=255)),
-                ('type', models.CharField(max_length=255)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("backend_id", models.CharField(db_index=True, max_length=255)),
+                ("type", models.CharField(max_length=255)),
                 (
-                    'capacity',
+                    "capacity",
                     models.PositiveIntegerField(
-                        blank=True, help_text='Capacity, in MB.', null=True
+                        blank=True, help_text="Capacity, in MB.", null=True
                     ),
                 ),
                 (
-                    'free_space',
+                    "free_space",
                     models.PositiveIntegerField(
-                        blank=True, help_text='Available space, in MB.', null=True
+                        blank=True, help_text="Available space, in MB.", null=True
                     ),
                 ),
                 (
-                    'settings',
+                    "settings",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='structure.servicesettings',
+                        related_name="+",
+                        to="structure.servicesettings",
                     ),
                 ),
             ],
             options={
-                'abstract': False,
-                'unique_together': {('settings', 'backend_id')},
+                "abstract": False,
+                "unique_together": {("settings", "backend_id")},
             },
             bases=(waldur_core.core.models.BackendModelMixin, models.Model),
         ),
         migrations.CreateModel(
-            name='CustomerDatastore',
+            name="CustomerDatastore",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'customer',
+                    "customer",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='structure.customer',
+                        to="structure.customer",
                     ),
                 ),
                 (
-                    'datastore',
+                    "datastore",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='waldur_vmware.datastore',
+                        to="waldur_vmware.datastore",
                     ),
                 ),
             ],
             options={
-                'unique_together': {('customer', 'datastore')},
+                "unique_together": {("customer", "datastore")},
             },
         ),
         migrations.CreateModel(
-            name='Folder',
+            name="Folder",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('backend_id', models.CharField(db_index=True, max_length=255)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("backend_id", models.CharField(db_index=True, max_length=255)),
                 (
-                    'settings',
+                    "settings",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='structure.servicesettings',
+                        related_name="+",
+                        to="structure.servicesettings",
                     ),
                 ),
             ],
             options={
-                'abstract': False,
-                'unique_together': {('settings', 'backend_id')},
+                "abstract": False,
+                "unique_together": {("settings", "backend_id")},
             },
             bases=(waldur_core.core.models.BackendModelMixin, models.Model),
         ),
         migrations.CreateModel(
-            name='VirtualMachine',
+            name="VirtualMachine",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=2000, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name="description"
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('error_message', models.TextField(blank=True)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("error_message", models.TextField(blank=True)),
                 (
-                    'runtime_state',
+                    "runtime_state",
                     models.CharField(
-                        blank=True, max_length=150, verbose_name='runtime state'
+                        blank=True, max_length=150, verbose_name="runtime state"
                     ),
                 ),
                 (
-                    'state',
+                    "state",
                     django_fsm.FSMIntegerField(
                         choices=[
-                            (5, 'Creation Scheduled'),
-                            (6, 'Creating'),
-                            (1, 'Update Scheduled'),
-                            (2, 'Updating'),
-                            (7, 'Deletion Scheduled'),
-                            (8, 'Deleting'),
-                            (3, 'OK'),
-                            (4, 'Erred'),
+                            (5, "Creation Scheduled"),
+                            (6, "Creating"),
+                            (1, "Update Scheduled"),
+                            (2, "Updating"),
+                            (7, "Deletion Scheduled"),
+                            (8, "Deleting"),
+                            (3, "OK"),
+                            (4, "Erred"),
                         ],
                         default=5,
                     ),
                 ),
-                ('backend_id', models.CharField(blank=True, max_length=255)),
+                ("backend_id", models.CharField(blank=True, max_length=255)),
                 (
-                    'guest_os',
+                    "guest_os",
                     models.CharField(
-                        help_text='Defines the valid guest operating system types used for configuring a virtual machine',
+                        help_text="Defines the valid guest operating system types used for configuring a virtual machine",
                         max_length=50,
                     ),
                 ),
                 (
-                    'cores',
+                    "cores",
                     models.PositiveSmallIntegerField(
-                        default=0, help_text='Number of cores in a VM'
+                        default=0, help_text="Number of cores in a VM"
                     ),
                 ),
                 (
-                    'cores_per_socket',
+                    "cores_per_socket",
                     models.PositiveSmallIntegerField(
-                        default=1, help_text='Number of cores per socket in a VM'
+                        default=1, help_text="Number of cores per socket in a VM"
                     ),
                 ),
                 (
-                    'ram',
+                    "ram",
                     models.PositiveIntegerField(
-                        default=0, help_text='Memory size in MiB', verbose_name='RAM'
+                        default=0, help_text="Memory size in MiB", verbose_name="RAM"
                     ),
                 ),
                 (
-                    'disk',
+                    "disk",
                     models.PositiveIntegerField(
-                        default=0, help_text='Disk size in MiB'
+                        default=0, help_text="Disk size in MiB"
                     ),
                 ),
                 (
-                    'template',
+                    "template",
                     models.ForeignKey(
                         null=True,
                         on_delete=django.db.models.deletion.SET_NULL,
-                        to='waldur_vmware.template',
+                        to="waldur_vmware.template",
                     ),
                 ),
                 (
-                    'cluster',
+                    "cluster",
                     models.ForeignKey(
                         null=True,
                         on_delete=django.db.models.deletion.SET_NULL,
-                        to='waldur_vmware.cluster',
+                        to="waldur_vmware.cluster",
                     ),
                 ),
                 (
-                    'networks',
-                    models.ManyToManyField(blank=True, to='waldur_vmware.Network'),
+                    "networks",
+                    models.ManyToManyField(blank=True, to="waldur_vmware.Network"),
                 ),
                 (
-                    'datastore',
+                    "datastore",
                     models.ForeignKey(
                         null=True,
                         on_delete=django.db.models.deletion.SET_NULL,
-                        to='waldur_vmware.datastore',
+                        to="waldur_vmware.datastore",
                     ),
                 ),
                 (
-                    'folder',
+                    "folder",
                     models.ForeignKey(
                         null=True,
                         on_delete=django.db.models.deletion.SET_NULL,
-                        to='waldur_vmware.folder',
+                        to="waldur_vmware.folder",
                     ),
                 ),
                 (
-                    'guest_power_enabled',
+                    "guest_power_enabled",
                     models.BooleanField(
                         default=False,
-                        help_text='Flag indicating if the virtual machine is ready to process soft power operations.',
+                        help_text="Flag indicating if the virtual machine is ready to process soft power operations.",
                     ),
                 ),
                 (
-                    'guest_power_state',
+                    "guest_power_state",
                     models.CharField(
                         blank=True,
                         choices=[
-                            ('RUNNING', 'Running'),
-                            ('SHUTTING_DOWN', 'Shutting down'),
-                            ('RESETTING', 'Resetting'),
-                            ('STANDBY', 'Standby'),
-                            ('NOT_RUNNING', 'Not running'),
-                            ('UNAVAILABLE', 'Unavailable'),
+                            ("RUNNING", "Running"),
+                            ("SHUTTING_DOWN", "Shutting down"),
+                            ("RESETTING", "Resetting"),
+                            ("STANDBY", "Standby"),
+                            ("NOT_RUNNING", "Not running"),
+                            ("UNAVAILABLE", "Unavailable"),
                         ],
                         max_length=150,
-                        verbose_name='The power state of the guest operating system.',
+                        verbose_name="The power state of the guest operating system.",
                     ),
                 ),
                 (
-                    'tools_state',
+                    "tools_state",
                     models.CharField(
                         blank=True,
                         choices=[
-                            ('STARTING', 'Starting'),
-                            ('RUNNING', 'Running'),
-                            ('NOT_RUNNING', 'Not running'),
+                            ("STARTING", "Starting"),
+                            ("RUNNING", "Running"),
+                            ("NOT_RUNNING", "Not running"),
                         ],
                         max_length=50,
-                        verbose_name='Current running status of VMware Tools running in the guest operating system.',
+                        verbose_name="Current running status of VMware Tools running in the guest operating system.",
                     ),
                 ),
-                ('tools_installed', models.BooleanField(default=False)),
-                ('error_traceback', models.TextField(blank=True)),
+                ("tools_installed", models.BooleanField(default=False)),
+                ("error_traceback", models.TextField(blank=True)),
                 (
-                    'project',
+                    "project",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='structure.project',
+                        related_name="+",
+                        to="structure.project",
                     ),
                 ),
                 (
-                    'service_settings',
+                    "service_settings",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='structure.servicesettings',
+                        related_name="+",
+                        to="structure.servicesettings",
                     ),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
             bases=(
                 waldur_core.core.models.DescendantMixin,
@@ -550,158 +550,158 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.CreateModel(
-            name='CustomerFolder',
+            name="CustomerFolder",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'customer',
+                    "customer",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='structure.customer',
+                        to="structure.customer",
                     ),
                 ),
                 (
-                    'folder',
+                    "folder",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='waldur_vmware.folder',
+                        to="waldur_vmware.folder",
                     ),
                 ),
             ],
             options={
-                'unique_together': {('customer', 'folder')},
+                "unique_together": {("customer", "folder")},
             },
         ),
         migrations.CreateModel(
-            name='CustomerNetworkPair',
+            name="CustomerNetworkPair",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'customer',
+                    "customer",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='structure.customer',
+                        to="structure.customer",
                     ),
                 ),
                 (
-                    'network',
+                    "network",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='waldur_vmware.network',
+                        to="waldur_vmware.network",
                     ),
                 ),
             ],
             options={
-                'unique_together': {('customer', 'network')},
+                "unique_together": {("customer", "network")},
             },
         ),
         migrations.CreateModel(
-            name='Disk',
+            name="Disk",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=2000, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name="description"
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('error_message', models.TextField(blank=True)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("error_message", models.TextField(blank=True)),
                 (
-                    'state',
+                    "state",
                     django_fsm.FSMIntegerField(
                         choices=[
-                            (5, 'Creation Scheduled'),
-                            (6, 'Creating'),
-                            (1, 'Update Scheduled'),
-                            (2, 'Updating'),
-                            (7, 'Deletion Scheduled'),
-                            (8, 'Deleting'),
-                            (3, 'OK'),
-                            (4, 'Erred'),
+                            (5, "Creation Scheduled"),
+                            (6, "Creating"),
+                            (1, "Update Scheduled"),
+                            (2, "Updating"),
+                            (7, "Deletion Scheduled"),
+                            (8, "Deleting"),
+                            (3, "OK"),
+                            (4, "Erred"),
                         ],
                         default=5,
                     ),
                 ),
-                ('backend_id', models.CharField(blank=True, max_length=255)),
-                ('size', models.PositiveIntegerField(help_text='Size in MiB')),
+                ("backend_id", models.CharField(blank=True, max_length=255)),
+                ("size", models.PositiveIntegerField(help_text="Size in MiB")),
                 (
-                    'vm',
+                    "vm",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='disks',
-                        to='waldur_vmware.virtualmachine',
+                        related_name="disks",
+                        to="waldur_vmware.virtualmachine",
                     ),
                 ),
-                ('error_traceback', models.TextField(blank=True)),
+                ("error_traceback", models.TextField(blank=True)),
                 (
-                    'project',
+                    "project",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='structure.project',
+                        related_name="+",
+                        to="structure.project",
                     ),
                 ),
                 (
-                    'service_settings',
+                    "service_settings",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='structure.servicesettings',
+                        related_name="+",
+                        to="structure.servicesettings",
                     ),
                 ),
             ],
             options={
-                'abstract': False,
-                'ordering': ['-created'],
+                "abstract": False,
+                "ordering": ["-created"],
             },
             bases=(
                 waldur_core.core.models.DescendantMixin,
@@ -711,112 +711,112 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.CreateModel(
-            name='Port',
+            name="Port",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=2000, verbose_name='description'
+                        blank=True, max_length=2000, verbose_name="description"
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('error_message', models.TextField(blank=True)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("error_message", models.TextField(blank=True)),
                 (
-                    'state',
+                    "state",
                     django_fsm.FSMIntegerField(
                         choices=[
-                            (5, 'Creation Scheduled'),
-                            (6, 'Creating'),
-                            (1, 'Update Scheduled'),
-                            (2, 'Updating'),
-                            (7, 'Deletion Scheduled'),
-                            (8, 'Deleting'),
-                            (3, 'OK'),
-                            (4, 'Erred'),
+                            (5, "Creation Scheduled"),
+                            (6, "Creating"),
+                            (1, "Update Scheduled"),
+                            (2, "Updating"),
+                            (7, "Deletion Scheduled"),
+                            (8, "Deleting"),
+                            (3, "OK"),
+                            (4, "Erred"),
                         ],
                         default=5,
                     ),
                 ),
-                ('backend_id', models.CharField(blank=True, max_length=255)),
+                ("backend_id", models.CharField(blank=True, max_length=255)),
                 (
-                    'mac_address',
+                    "mac_address",
                     models.CharField(
-                        blank=True, max_length=32, verbose_name='MAC address'
+                        blank=True, max_length=32, verbose_name="MAC address"
                     ),
                 ),
                 (
-                    'network',
+                    "network",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='waldur_vmware.network',
+                        to="waldur_vmware.network",
                     ),
                 ),
                 (
-                    'vm',
+                    "vm",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='waldur_vmware.virtualmachine',
+                        to="waldur_vmware.virtualmachine",
                     ),
                 ),
                 (
-                    'runtime_state',
+                    "runtime_state",
                     models.CharField(
-                        blank=True, max_length=150, verbose_name='runtime state'
+                        blank=True, max_length=150, verbose_name="runtime state"
                     ),
                 ),
-                ('error_traceback', models.TextField(blank=True)),
+                ("error_traceback", models.TextField(blank=True)),
                 (
-                    'project',
+                    "project",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='structure.project',
+                        related_name="+",
+                        to="structure.project",
                     ),
                 ),
                 (
-                    'service_settings',
+                    "service_settings",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='structure.servicesettings',
+                        related_name="+",
+                        to="structure.servicesettings",
                     ),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
             bases=(
                 waldur_core.core.models.DescendantMixin,

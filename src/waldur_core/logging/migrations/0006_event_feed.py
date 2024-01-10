@@ -10,63 +10,63 @@ import waldur_core.core.fields
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('contenttypes', '0002_remove_content_type_name'),
-        ('logging', '0005_report'),
+        ("contenttypes", "0002_remove_content_type_name"),
+        ("logging", "0005_report"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Event',
+            name="Event",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
+                ("uuid", waldur_core.core.fields.UUIDField()),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now, editable=False
                     ),
                 ),
-                ('event_type', models.CharField(db_index=True, max_length=100)),
-                ('message', models.TextField()),
-                ('context', django.contrib.postgres.fields.jsonb.JSONField(blank=True)),
+                ("event_type", models.CharField(db_index=True, max_length=100)),
+                ("message", models.TextField()),
+                ("context", django.contrib.postgres.fields.jsonb.JSONField(blank=True)),
             ],
             options={
-                'abstract': False,
-                'ordering': ('-created',),
+                "abstract": False,
+                "ordering": ("-created",),
             },
         ),
         migrations.CreateModel(
-            name='Feed',
+            name="Feed",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
-                ('object_id', models.PositiveIntegerField(db_index=True)),
+                ("object_id", models.PositiveIntegerField(db_index=True)),
                 (
-                    'content_type',
+                    "content_type",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='contenttypes.ContentType',
+                        to="contenttypes.ContentType",
                     ),
                 ),
                 (
-                    'event',
+                    "event",
                     models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE, to='logging.Event'
+                        on_delete=django.db.models.deletion.CASCADE, to="logging.Event"
                     ),
                 ),
             ],

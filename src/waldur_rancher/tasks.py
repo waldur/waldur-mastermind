@@ -28,79 +28,79 @@ class CreateNodeTask(core_tasks.Task):
         content_type = ContentType.objects.get_for_model(
             openstack_tenant_models.Instance
         )
-        flavor = node.initial_data['flavor']
-        system_volume_size = node.initial_data['system_volume_size']
-        system_volume_type = node.initial_data.get('system_volume_type')
-        data_volumes = node.initial_data.get('data_volumes', [])
-        image = node.initial_data['image']
-        subnet = node.initial_data['subnet']
-        security_groups = node.initial_data['security_groups']
-        service_settings = node.initial_data['service_settings']
-        project = node.initial_data['project']
+        flavor = node.initial_data["flavor"]
+        system_volume_size = node.initial_data["system_volume_size"]
+        system_volume_type = node.initial_data.get("system_volume_type")
+        data_volumes = node.initial_data.get("data_volumes", [])
+        image = node.initial_data["image"]
+        subnet = node.initial_data["subnet"]
+        security_groups = node.initial_data["security_groups"]
+        service_settings = node.initial_data["service_settings"]
+        project = node.initial_data["project"]
         user = auth.get_user_model().objects.get(pk=user_id)
-        ssh_public_key = node.initial_data.get('ssh_public_key')
+        ssh_public_key = node.initial_data.get("ssh_public_key")
 
         post_data = {
-            'name': node.name,
-            'flavor': reverse('openstacktenant-flavor-detail', kwargs={'uuid': flavor}),
-            'image': reverse('openstacktenant-image-detail', kwargs={'uuid': image}),
-            'service_settings': reverse(
-                'servicesettings-detail', kwargs={'uuid': service_settings}
+            "name": node.name,
+            "flavor": reverse("openstacktenant-flavor-detail", kwargs={"uuid": flavor}),
+            "image": reverse("openstacktenant-image-detail", kwargs={"uuid": image}),
+            "service_settings": reverse(
+                "servicesettings-detail", kwargs={"uuid": service_settings}
             ),
-            'project': reverse('project-detail', kwargs={'uuid': project}),
-            'system_volume_size': system_volume_size,
-            'system_volume_type': system_volume_type
+            "project": reverse("project-detail", kwargs={"uuid": project}),
+            "system_volume_size": system_volume_size,
+            "system_volume_type": system_volume_type
             and reverse(
-                'openstacktenant-volume-type-detail',
-                kwargs={'uuid': system_volume_type},
+                "openstacktenant-volume-type-detail",
+                kwargs={"uuid": system_volume_type},
             ),
-            'data_volumes': [
+            "data_volumes": [
                 {
-                    'size': volume['size'],
-                    'volume_type': volume.get('volume_type')
+                    "size": volume["size"],
+                    "volume_type": volume.get("volume_type")
                     and reverse(
-                        'openstacktenant-volume-type-detail',
-                        kwargs={'uuid': volume.get('volume_type')},
+                        "openstacktenant-volume-type-detail",
+                        kwargs={"uuid": volume.get("volume_type")},
                     ),
                 }
                 for volume in data_volumes
             ],
-            'security_groups': [
-                {'url': reverse('openstacktenant-sgp-detail', kwargs={'uuid': group})}
+            "security_groups": [
+                {"url": reverse("openstacktenant-sgp-detail", kwargs={"uuid": group})}
                 for group in security_groups
             ],
-            'internal_ips_set': [
+            "internal_ips_set": [
                 {
-                    'subnet': reverse(
-                        'openstacktenant-subnet-detail', kwargs={'uuid': subnet}
+                    "subnet": reverse(
+                        "openstacktenant-subnet-detail", kwargs={"uuid": subnet}
                     )
                 }
             ],
-            'user_data': utils.format_node_cloud_config(node),
+            "user_data": utils.format_node_cloud_config(node),
         }
 
-        if node.cluster.settings.get_option('allocate_floating_ip_to_all_nodes'):
-            post_data['floating_ips'] = [
+        if node.cluster.settings.get_option("allocate_floating_ip_to_all_nodes"):
+            post_data["floating_ips"] = [
                 {
-                    'subnet': reverse(
-                        'openstacktenant-subnet-detail', kwargs={'uuid': subnet}
+                    "subnet": reverse(
+                        "openstacktenant-subnet-detail", kwargs={"uuid": subnet}
                     )
                 }
             ]
 
         if ssh_public_key:
-            post_data['ssh_public_key'] = reverse(
-                'sshpublickey-detail',
-                kwargs={'uuid': ssh_public_key},
+            post_data["ssh_public_key"] = reverse(
+                "sshpublickey-detail",
+                kwargs={"uuid": ssh_public_key},
             )
 
-        view = MarketplaceInstanceViewSet.as_view({'post': 'create'})
+        view = MarketplaceInstanceViewSet.as_view({"post": "create"})
         response = common_utils.create_request(view, user, post_data)
 
         if response.status_code != status.HTTP_201_CREATED:
             raise exceptions.RancherException(response.data)
 
-        instance_uuid = response.data['uuid']
+        instance_uuid = response.data["uuid"]
         instance = openstack_tenant_models.Instance.objects.get(uuid=instance_uuid)
         node.content_type = content_type
         node.object_id = instance.id
@@ -123,12 +123,12 @@ class DeleteNodeTask(core_tasks.Task):
         user = auth.get_user_model().objects.get(pk=user_id)
 
         if node.instance:
-            view = MarketplaceInstanceViewSet.as_view({'delete': 'force_destroy'})
+            view = MarketplaceInstanceViewSet.as_view({"delete": "force_destroy"})
             response = common_utils.delete_request(
                 view,
                 user,
                 uuid=node.instance.uuid.hex,
-                query_params={'delete_volumes': True},
+                query_params={"delete_volumes": True},
             )
 
             if response.status_code != status.HTTP_202_ACCEPTED:
@@ -143,23 +143,23 @@ def pull_cluster_nodes(cluster_id):
     cluster = models.Cluster.objects.get(id=cluster_id)
     backend = cluster.get_backend()
 
-    if cluster.node_set.filter(backend_id='').exists():
+    if cluster.node_set.filter(backend_id="").exists():
         backend_nodes = backend.get_cluster_nodes(cluster.backend_id)
 
         for backend_node in backend_nodes:
-            if cluster.node_set.filter(name=backend_node['name']).exists():
-                node = cluster.node_set.get(name=backend_node['name'])
-                node.backend_id = backend_node['backend_id']
+            if cluster.node_set.filter(name=backend_node["name"]).exists():
+                node = cluster.node_set.get(name=backend_node["name"])
+                node.backend_id = backend_node["backend_id"]
                 node.save()
 
-    for node in cluster.node_set.exclude(backend_id=''):
+    for node in cluster.node_set.exclude(backend_id=""):
         backend.pull_node(node)
         node.refresh_from_db()
 
 
-@shared_task(name='waldur_rancher.pull_all_clusters_nodes')
+@shared_task(name="waldur_rancher.pull_all_clusters_nodes")
 def pull_all_clusters_nodes():
-    for cluster in models.Cluster.objects.exclude(backend_id=''):
+    for cluster in models.Cluster.objects.exclude(backend_id=""):
         pull_cluster_nodes(cluster.id)
         utils.update_cluster_nodes_states(cluster.id)
 
@@ -192,14 +192,13 @@ class PollRuntimeStateNodeTask(core_tasks.Task):
             self.retry()
         elif node.runtime_state:
             raise RuntimeStateException(
-                '%s (PK: %s) runtime state become erred: %s'
-                % (node.__class__.__name__, node.pk, node.runtime_state)
+                f"{node.__class__.__name__} (PK: {node.pk}) runtime state become erred: {node.runtime_state}"
             )
 
         return node
 
 
-@shared_task(name='waldur_rancher.notify_create_user')
+@shared_task(name="waldur_rancher.notify_create_user")
 def notify_create_user(id, password, url):
     user = models.RancherUser.objects.get(id=id).user
 
@@ -207,19 +206,19 @@ def notify_create_user(id, password, url):
         return
 
     context = {
-        'rancher_url': url,
-        'user': user,
-        'password': password,
+        "rancher_url": url,
+        "user": user,
+        "password": password,
     }
 
     core_utils.broadcast_mail(
-        'rancher', 'notification_create_user', context, [user.email]
+        "rancher", "notification_create_user", context, [user.email]
     )
 
 
-@shared_task(name='waldur_rancher.sync_users')
+@shared_task(name="waldur_rancher.sync_users")
 def sync_users():
-    if settings.WALDUR_RANCHER['READ_ONLY_MODE']:
+    if settings.WALDUR_RANCHER["READ_ONLY_MODE"]:
         return
     SyncUser.run()
 
@@ -239,19 +238,18 @@ class PollLonghornApplicationTask(core_tasks.Task):
         )
         backend = app.get_backend()
         backend.check_application_state(app)
-        if app.runtime_state == 'active':
+        if app.runtime_state == "active":
             app.state = models.Application.States.OK
             app.save()
-        elif app.runtime_state == 'error':
+        elif app.runtime_state == "error":
             app.state = models.Application.States.ERRED
             app.save()
 
-        if app.runtime_state not in ('active', 'error'):
+        if app.runtime_state not in ("active", "error"):
             self.retry()
-        elif app.runtime_state == 'error':
+        elif app.runtime_state == "error":
             raise RuntimeStateException(
-                '%s (PK: %s) runtime state become erred: %s'
-                % (app.__class__.__name__, app.pk, app.runtime_state)
+                f"{app.__class__.__name__} (PK: {app.pk}) runtime state become erred: {app.runtime_state}"
             )
 
         return app

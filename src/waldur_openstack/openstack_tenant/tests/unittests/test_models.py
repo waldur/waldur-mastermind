@@ -15,7 +15,7 @@ class InstanceTest(TestCase):
     def test_instance_size_is_sum_of_volumes_size(self):
         fixture = fixtures.OpenStackTenantFixture()
         expected_size = sum(
-            fixture.instance.volumes.all().values_list('size', flat=True)
+            fixture.instance.volumes.all().values_list("size", flat=True)
         )
         self.assertEqual(fixture.instance.size, expected_size)
 
@@ -28,13 +28,13 @@ class BackupScheduleTest(TestCase):
     def test_update_next_trigger_at(self):
         now = timezone.now()
         schedule = factories.BackupScheduleFactory()
-        schedule.schedule = '*/10 * * * *'
+        schedule.schedule = "*/10 * * * *"
         schedule.update_next_trigger_at()
         self.assertTrue(schedule.next_trigger_at)
         self.assertGreater(schedule.next_trigger_at, now)
 
     def test_update_next_trigger_at_with_provided_timezone(self):
-        schedule = factories.BackupScheduleFactory(timezone='Europe/London')
+        schedule = factories.BackupScheduleFactory(timezone="Europe/London")
         schedule.update_next_trigger_at()
 
         # next_trigger_at timezone and schedule's timezone must be equal.
@@ -62,24 +62,24 @@ class BackupScheduleTest(TestCase):
 
         # schedule was changed
         schedule.next_trigger_at = None
-        schedule.schedule = '*/10 * * * *'
+        schedule.schedule = "*/10 * * * *"
         schedule.save()
         schedule = models.BackupSchedule.objects.get(id=schedule.id)
         self.assertGreater(schedule.next_trigger_at, timezone.now())
 
     def test_weekly_backup_schedule_next_trigger_at_is_correct(self):
-        schedule = factories.BackupScheduleFactory(schedule='0 2 * * 4')
+        schedule = factories.BackupScheduleFactory(schedule="0 2 * * 4")
 
-        cron = croniter('0 2 * * 4', timezone.now())
+        cron = croniter("0 2 * * 4", timezone.now())
         next_backup = schedule.next_trigger_at
         self.assertEqual(next_backup, cron.get_next(datetime.datetime))
-        self.assertEqual(next_backup.weekday(), 3, 'Must be Thursday')
+        self.assertEqual(next_backup.weekday(), 3, "Must be Thursday")
 
-        for k, v in {'hour': 2, 'minute': 0, 'second': 0}.items():
-            self.assertEqual(getattr(next_backup, k), v, 'Must be 2:00am')
+        for k, v in {"hour": 2, "minute": 0, "second": 0}.items():
+            self.assertEqual(getattr(next_backup, k), v, "Must be 2:00am")
 
     def test_daily_backup_schedule_next_trigger_at_is_correct(self):
-        schedule = '0 2 * * *'
+        schedule = "0 2 * * *"
 
         today = timezone.now()
         expected = croniter(schedule, today).get_next(datetime.datetime)
@@ -93,18 +93,18 @@ class BackupScheduleTest(TestCase):
 
 class SnapshotScheduleTest(TestCase):
     def test_weekly_snapshot_schedule_next_trigger_at_is_correct(self):
-        schedule = factories.SnapshotScheduleFactory(schedule='0 2 * * 4')
+        schedule = factories.SnapshotScheduleFactory(schedule="0 2 * * 4")
 
-        cron = croniter('0 2 * * 4', timezone.now())
+        cron = croniter("0 2 * * 4", timezone.now())
         next_snapshot = schedule.next_trigger_at
         self.assertEqual(next_snapshot, cron.get_next(datetime.datetime))
-        self.assertEqual(next_snapshot.weekday(), 3, 'Must be Thursday')
+        self.assertEqual(next_snapshot.weekday(), 3, "Must be Thursday")
 
-        for k, v in {'hour': 2, 'minute': 0, 'second': 0}.items():
-            self.assertEqual(getattr(next_snapshot, k), v, 'Must be 2:00am')
+        for k, v in {"hour": 2, "minute": 0, "second": 0}.items():
+            self.assertEqual(getattr(next_snapshot, k), v, "Must be 2:00am")
 
     def test_daily_snapshot_schedule_next_trigger_at_is_correct(self):
-        schedule = '0 2 * * *'
+        schedule = "0 2 * * *"
 
         today = timezone.now()
         expected = croniter(schedule, today).get_next(datetime.datetime)

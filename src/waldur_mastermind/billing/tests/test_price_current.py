@@ -7,7 +7,7 @@ from waldur_mastermind.invoices.tests import factories as invoice_factories
 from waldur_mastermind.invoices.tests import fixtures as invoice_fixtures
 
 
-@freeze_time('2017-01-10')
+@freeze_time("2017-01-10")
 class PriceCurrentTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = invoice_fixtures.InvoiceFixture()
@@ -33,9 +33,9 @@ class PriceCurrentTest(test.APITransactionTestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         data = response.json()
-        self.assertEqual(data['billing_price_estimate']['current'], 100 + 9 * 3)
+        self.assertEqual(data["billing_price_estimate"]["current"], 100 + 9 * 3)
         diff = (
-            data['billing_price_estimate']['total']
-            - data['billing_price_estimate']['current']
+            data["billing_price_estimate"]["total"]
+            - data["billing_price_estimate"]["current"]
         )
         self.assertEqual(diff, 22 * 3)

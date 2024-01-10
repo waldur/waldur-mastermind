@@ -24,18 +24,18 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         super().add_arguments(parser)
         parser.add_argument(
-            'auth_file',
-            help='Specifies location of auth configuration file.',
+            "auth_file",
+            help="Specifies location of auth configuration file.",
         )
 
     def handle(self, *args, **options):
-        with open(options['auth_file']) as auth_file:
+        with open(options["auth_file"]) as auth_file:
             providers = yaml.safe_load(auth_file)
             if providers is None:
                 return
             for data in providers:
                 try:
-                    instance = IdentityProvider.objects.get(provider=data['provider'])
+                    instance = IdentityProvider.objects.get(provider=data["provider"])
                 except IdentityProvider.DoesNotExist:
                     instance = None
 
@@ -49,14 +49,14 @@ class Command(BaseCommand):
                     if not instance:
                         self.stdout.write(
                             self.style.SUCCESS(
-                                'Identity provider %s has been created.'
-                                % data['provider']
+                                "Identity provider %s has been created."
+                                % data["provider"]
                             )
                         )
                     else:
                         self.stdout.write(
                             self.style.SUCCESS(
-                                'Identity provider %s has been updated.'
-                                % data['provider']
+                                "Identity provider %s has been updated."
+                                % data["provider"]
                             )
                         )

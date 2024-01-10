@@ -9,22 +9,22 @@ class AuthResultSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.AuthResult
         fields = (
-            'uuid',
-            'token',
-            'phone',
-            'message',
-            'state',
-            'error_message',
-            'details',
+            "uuid",
+            "token",
+            "phone",
+            "message",
+            "state",
+            "error_message",
+            "details",
         )
-        write_only_fields = ('phone',)
+        write_only_fields = ("phone",)
         read_only_fields = (
-            'uuid',
-            'token',
-            'message',
-            'state',
-            'error_message',
-            'details',
+            "uuid",
+            "token",
+            "message",
+            "state",
+            "error_message",
+            "details",
         )
 
     def get_token(self, auth_result):

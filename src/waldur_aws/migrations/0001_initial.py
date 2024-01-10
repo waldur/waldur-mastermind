@@ -16,164 +16,164 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('structure', '0001_squashed_0036'),
+        ("structure", "0001_squashed_0036"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Image',
+            name="Image",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('backend_id', models.CharField(max_length=255, unique=True)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("backend_id", models.CharField(max_length=255, unique=True)),
             ],
             options={
-                'ordering': ['name'],
+                "ordering": ["name"],
             },
             bases=(waldur_core.core.models.BackendModelMixin, models.Model),
         ),
         migrations.CreateModel(
-            name='Instance',
+            name="Instance",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=500, verbose_name='description'
+                        blank=True, max_length=500, verbose_name="description"
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('error_message', models.TextField(blank=True)),
-                ('latitude', models.FloatField(blank=True, null=True)),
-                ('longitude', models.FloatField(blank=True, null=True)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("error_message", models.TextField(blank=True)),
+                ("latitude", models.FloatField(blank=True, null=True)),
+                ("longitude", models.FloatField(blank=True, null=True)),
                 (
-                    'runtime_state',
+                    "runtime_state",
                     models.CharField(
-                        blank=True, max_length=150, verbose_name='runtime state'
+                        blank=True, max_length=150, verbose_name="runtime state"
                     ),
                 ),
                 (
-                    'state',
+                    "state",
                     django_fsm.FSMIntegerField(
                         choices=[
-                            (5, 'Creation Scheduled'),
-                            (6, 'Creating'),
-                            (1, 'Update Scheduled'),
-                            (2, 'Updating'),
-                            (7, 'Deletion Scheduled'),
-                            (8, 'Deleting'),
-                            (3, 'OK'),
-                            (4, 'Erred'),
+                            (5, "Creation Scheduled"),
+                            (6, "Creating"),
+                            (1, "Update Scheduled"),
+                            (2, "Updating"),
+                            (7, "Deletion Scheduled"),
+                            (8, "Deleting"),
+                            (3, "OK"),
+                            (4, "Erred"),
                         ],
                         default=5,
                     ),
                 ),
-                ('backend_id', models.CharField(blank=True, max_length=255)),
+                ("backend_id", models.CharField(blank=True, max_length=255)),
                 (
-                    'cores',
+                    "cores",
                     models.PositiveSmallIntegerField(
-                        default=0, help_text='Number of cores in a VM'
+                        default=0, help_text="Number of cores in a VM"
                     ),
                 ),
                 (
-                    'ram',
+                    "ram",
                     models.PositiveIntegerField(
-                        default=0, help_text='Memory size in MiB'
+                        default=0, help_text="Memory size in MiB"
                     ),
                 ),
                 (
-                    'disk',
+                    "disk",
                     models.PositiveIntegerField(
-                        default=0, help_text='Disk size in MiB'
+                        default=0, help_text="Disk size in MiB"
                     ),
                 ),
                 (
-                    'min_ram',
+                    "min_ram",
                     models.PositiveIntegerField(
-                        default=0, help_text='Minimum memory size in MiB'
+                        default=0, help_text="Minimum memory size in MiB"
                     ),
                 ),
                 (
-                    'min_disk',
+                    "min_disk",
                     models.PositiveIntegerField(
-                        default=0, help_text='Minimum disk size in MiB'
+                        default=0, help_text="Minimum disk size in MiB"
                     ),
                 ),
-                ('image_name', models.CharField(blank=True, max_length=150)),
-                ('key_name', models.CharField(blank=True, max_length=50)),
-                ('key_fingerprint', models.CharField(blank=True, max_length=47)),
+                ("image_name", models.CharField(blank=True, max_length=150)),
+                ("key_name", models.CharField(blank=True, max_length=50)),
+                ("key_fingerprint", models.CharField(blank=True, max_length=47)),
                 (
-                    'user_data',
+                    "user_data",
                     models.TextField(
                         blank=True,
-                        help_text='Additional data that will be added to instance on provisioning',
+                        help_text="Additional data that will be added to instance on provisioning",
                     ),
                 ),
-                ('start_time', models.DateTimeField(blank=True, null=True)),
+                ("start_time", models.DateTimeField(blank=True, null=True)),
                 (
-                    'public_ips',
+                    "public_ips",
                     waldur_core.core.fields.JSONField(
-                        blank=True, default=[], help_text='List of public IP addresses'
+                        blank=True, default=[], help_text="List of public IP addresses"
                     ),
                 ),
                 (
-                    'private_ips',
+                    "private_ips",
                     waldur_core.core.fields.JSONField(
-                        blank=True, default=[], help_text='List of private IP addresses'
+                        blank=True, default=[], help_text="List of private IP addresses"
                     ),
                 ),
-                ('size_backend_id', models.CharField(blank=True, max_length=150)),
+                ("size_backend_id", models.CharField(blank=True, max_length=150)),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
             bases=(
                 waldur_core.core.models.DescendantMixin,
@@ -183,183 +183,183 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.CreateModel(
-            name='Region',
+            name="Region",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('backend_id', models.CharField(max_length=255, unique=True)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("backend_id", models.CharField(max_length=255, unique=True)),
             ],
             options={
-                'ordering': ['name'],
+                "ordering": ["name"],
             },
             bases=(waldur_core.core.models.BackendModelMixin, models.Model),
         ),
         migrations.CreateModel(
-            name='Size',
+            name="Size",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('backend_id', models.CharField(max_length=255, unique=True)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("backend_id", models.CharField(max_length=255, unique=True)),
                 (
-                    'cores',
+                    "cores",
                     models.PositiveSmallIntegerField(
-                        help_text='Number of cores in a VM'
+                        help_text="Number of cores in a VM"
                     ),
                 ),
-                ('ram', models.PositiveIntegerField(help_text='Memory size in MiB')),
-                ('disk', models.PositiveIntegerField(help_text='Disk size in MiB')),
+                ("ram", models.PositiveIntegerField(help_text="Memory size in MiB")),
+                ("disk", models.PositiveIntegerField(help_text="Disk size in MiB")),
                 (
-                    'price',
+                    "price",
                     models.DecimalField(
                         decimal_places=5,
                         default=0,
                         max_digits=11,
-                        verbose_name='Hourly price rate',
+                        verbose_name="Hourly price rate",
                     ),
                 ),
-                ('regions', models.ManyToManyField(to='waldur_aws.Region')),
+                ("regions", models.ManyToManyField(to="waldur_aws.Region")),
             ],
             options={
-                'ordering': ['cores', 'ram'],
+                "ordering": ["cores", "ram"],
             },
             bases=(waldur_core.core.models.BackendModelMixin, models.Model),
         ),
         migrations.CreateModel(
-            name='Volume',
+            name="Volume",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
                 (
-                    'description',
+                    "description",
                     models.CharField(
-                        blank=True, max_length=500, verbose_name='description'
+                        blank=True, max_length=500, verbose_name="description"
                     ),
                 ),
                 (
-                    'name',
+                    "name",
                     models.CharField(
                         max_length=150,
                         validators=[waldur_core.core.validators.validate_name],
-                        verbose_name='name',
+                        verbose_name="name",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('error_message', models.TextField(blank=True)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("error_message", models.TextField(blank=True)),
                 (
-                    'runtime_state',
+                    "runtime_state",
                     models.CharField(
-                        blank=True, max_length=150, verbose_name='runtime state'
+                        blank=True, max_length=150, verbose_name="runtime state"
                     ),
                 ),
                 (
-                    'state',
+                    "state",
                     django_fsm.FSMIntegerField(
                         choices=[
-                            (5, 'Creation Scheduled'),
-                            (6, 'Creating'),
-                            (1, 'Update Scheduled'),
-                            (2, 'Updating'),
-                            (7, 'Deletion Scheduled'),
-                            (8, 'Deleting'),
-                            (3, 'OK'),
-                            (4, 'Erred'),
+                            (5, "Creation Scheduled"),
+                            (6, "Creating"),
+                            (1, "Update Scheduled"),
+                            (2, "Updating"),
+                            (7, "Deletion Scheduled"),
+                            (8, "Deleting"),
+                            (3, "OK"),
+                            (4, "Erred"),
                         ],
                         default=5,
                     ),
                 ),
-                ('backend_id', models.CharField(blank=True, max_length=255)),
+                ("backend_id", models.CharField(blank=True, max_length=255)),
                 (
-                    'size',
+                    "size",
                     models.PositiveIntegerField(
-                        help_text='Size of volume in gigabytes'
+                        help_text="Size of volume in gigabytes"
                     ),
                 ),
                 (
-                    'volume_type',
+                    "volume_type",
                     models.CharField(
                         choices=[
-                            ('gp2', 'General Purpose SSD'),
-                            ('io1', 'Provisioned IOPS SSD'),
-                            ('standard', 'Magnetic volumes'),
+                            ("gp2", "General Purpose SSD"),
+                            ("io1", "Provisioned IOPS SSD"),
+                            ("standard", "Magnetic volumes"),
                         ],
                         max_length=8,
                     ),
                 ),
-                ('device', models.CharField(blank=True, max_length=128, null=True)),
+                ("device", models.CharField(blank=True, max_length=128, null=True)),
                 (
-                    'instance',
+                    "instance",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='waldur_aws.Instance',
+                        to="waldur_aws.Instance",
                     ),
                 ),
                 (
-                    'region',
+                    "region",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        to='waldur_aws.Region',
+                        to="waldur_aws.Region",
                     ),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
             bases=(
                 waldur_core.core.models.DescendantMixin,
@@ -369,17 +369,17 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.AddField(
-            model_name='instance',
-            name='region',
+            model_name="instance",
+            name="region",
             field=models.ForeignKey(
-                on_delete=django.db.models.deletion.CASCADE, to='waldur_aws.Region'
+                on_delete=django.db.models.deletion.CASCADE, to="waldur_aws.Region"
             ),
         ),
         migrations.AddField(
-            model_name='image',
-            name='region',
+            model_name="image",
+            name="region",
             field=models.ForeignKey(
-                on_delete=django.db.models.deletion.CASCADE, to='waldur_aws.Region'
+                on_delete=django.db.models.deletion.CASCADE, to="waldur_aws.Region"
             ),
         ),
     ]

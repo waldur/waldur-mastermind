@@ -14,7 +14,7 @@ class Command(BaseCommand):
             """/* eslint-disable */
 // WARNING: This file is auto-generated from src/waldur_core/core/management/commands/print_events_enums.py
 // Do not edit it manually. All manual changes would be overridden.""",
-            end='\n',
+            end="\n",
         )
         for event_group, events in groups:
             print(f"\nexport const {str(event_group).capitalize()}Enum = {{")

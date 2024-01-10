@@ -51,4 +51,4 @@ def clean_html(value):
 
 
 def unescape_html(value):
-    return value.replace('&lt;', '<').replace('&gt;', '>')
+    return value.replace("&lt;", "<").replace("&gt;", ">")

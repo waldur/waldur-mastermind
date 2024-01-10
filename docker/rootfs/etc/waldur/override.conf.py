@@ -1,1 +1,1 @@
-EMAIL_HOST = 'waldur-smtp'
+EMAIL_HOST = "waldur-smtp"

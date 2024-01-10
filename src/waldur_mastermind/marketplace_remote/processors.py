@@ -22,8 +22,8 @@ class RemoteClientMixin:
 
 
 def build_callback_url(order):
-    return settings.WALDUR_CORE['MASTERMIND_URL'] + reverse(
-        'pull_remote_order', kwargs={'uuid': order.uuid.hex}
+    return settings.WALDUR_CORE["MASTERMIND_URL"] + reverse(
+        "pull_remote_order", kwargs={"uuid": order.uuid.hex}
     )
 
 
@@ -37,7 +37,7 @@ class RemoteCreateResourceProcessor(RemoteClientMixin, processors.BaseOrderProce
             self.order.offering, self.order.project, self.client
         )
         response = self.client.marketplace_resource_create_order(
-            project_uuid=remote_project['uuid'],
+            project_uuid=remote_project["uuid"],
             offering_uuid=self.order.offering.backend_id,
             plan_uuid=self.order.plan.backend_id,
             attributes=self.order.attributes,
@@ -45,14 +45,14 @@ class RemoteCreateResourceProcessor(RemoteClientMixin, processors.BaseOrderProce
             callback_url=build_callback_url(self.order),
         )
         # NB: As a backend_id of local Order, uuid of a remote Order is used
-        self.order.backend_id = response['uuid']
+        self.order.backend_id = response["uuid"]
         self.order.save()
 
-        if settings.WALDUR_AUTH_SOCIAL['ENABLE_EDUTEAMS_SYNC']:
+        if settings.WALDUR_AUTH_SOCIAL["ENABLE_EDUTEAMS_SYNC"]:
             utils.push_project_users(
                 self.order.offering,
                 self.order.project,
-                remote_project['uuid'],
+                remote_project["uuid"],
             )
 
         transaction.on_commit(
@@ -98,7 +98,7 @@ class RemoteDeleteResourceProcessor(
             utils.pull_resource_state(resource)
         if any(item.type == models.Order.Types.TERMINATE for item in imported_orders):
             self.order.set_state_erred()
-            self.order.error_message = 'Another order exists already.'
+            self.order.error_message = "Another order exists already."
             self.order.save()
             return False
 

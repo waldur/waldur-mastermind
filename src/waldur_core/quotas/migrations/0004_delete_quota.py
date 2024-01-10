@@ -2,9 +2,9 @@ from django.db import migrations
 
 
 def fill_quota_limits_and_usages(apps, schema_editor):
-    Quota = apps.get_model('quotas', 'Quota')
-    QuotaLimit = apps.get_model('quotas', 'QuotaLimit')
-    QuotaUsage = apps.get_model('quotas', 'QuotaUsage')
+    Quota = apps.get_model("quotas", "Quota")
+    QuotaLimit = apps.get_model("quotas", "QuotaLimit")
+    QuotaUsage = apps.get_model("quotas", "QuotaUsage")
 
     for quota in Quota.objects.all():
         QuotaLimit.objects.create(
@@ -23,12 +23,12 @@ def fill_quota_limits_and_usages(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('quotas', '0003_redesign'),
+        ("quotas", "0003_redesign"),
     ]
 
     operations = [
         migrations.RunPython(fill_quota_limits_and_usages),
         migrations.DeleteModel(
-            name='Quota',
+            name="Quota",
         ),
     ]

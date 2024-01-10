@@ -12,12 +12,12 @@ from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME
 logger = logging.getLogger(__name__)
 
 COMPONENT_FIELDS = {
-    'cpu_usage',
-    'gpu_usage',
-    'ram_usage',
-    'cpu_limit',
-    'gpu_limit',
-    'ram_limit',
+    "cpu_usage",
+    "gpu_usage",
+    "ram_usage",
+    "cpu_limit",
+    "gpu_limit",
+    "ram_limit",
 }
 
 
@@ -36,8 +36,8 @@ def update_component_quota(sender, instance, created=False, **kwargs):
         return
 
     for component in manager.get_components(PLUGIN_NAME):
-        usage = getattr(allocation, component.type + '_usage')
-        limit = getattr(allocation, component.type + '_limit')
+        usage = getattr(allocation, component.type + "_usage")
+        limit = getattr(allocation, component.type + "_limit")
 
         try:
             offering_component = marketplace_models.OfferingComponent.objects.get(
@@ -45,16 +45,16 @@ def update_component_quota(sender, instance, created=False, **kwargs):
             )
         except marketplace_models.OfferingComponent.DoesNotExist:
             logger.warning(
-                'Skipping Allocation synchronization because this '
-                'marketplace.OfferingComponent does not exist.'
-                'Allocation ID: %s',
+                "Skipping Allocation synchronization because this "
+                "marketplace.OfferingComponent does not exist."
+                "Allocation ID: %s",
                 allocation.id,
             )
         else:
             marketplace_models.ComponentQuota.objects.update_or_create(
                 resource=resource,
                 component=offering_component,
-                defaults={'limit': limit, 'usage': usage},
+                defaults={"limit": limit, "usage": usage},
             )
             try:
                 plan_period = marketplace_models.ResourcePlanPeriod.objects.get(
@@ -62,9 +62,9 @@ def update_component_quota(sender, instance, created=False, **kwargs):
                 )
             except (ObjectDoesNotExist, MultipleObjectsReturned):
                 logger.warning(
-                    'Skipping component usage synchronization because valid'
-                    'ResourcePlanPeriod is not found.'
-                    'Allocation ID: %s',
+                    "Skipping component usage synchronization because valid"
+                    "ResourcePlanPeriod is not found."
+                    "Allocation ID: %s",
                     allocation.id,
                 )
             else:
@@ -74,7 +74,7 @@ def update_component_quota(sender, instance, created=False, **kwargs):
                     component=offering_component,
                     billing_period=month_start(date),
                     plan_period=plan_period,
-                    defaults={'usage': usage, 'date': date},
+                    defaults={"usage": usage, "date": date},
                 )
 
 
@@ -85,4 +85,4 @@ def terminate_allocation_when_resource_is_terminated(sender, instance, **kwargs)
 
     allocation = resource.scope
     allocation.begin_deleting()
-    allocation.save(update_fields=['state'])
+    allocation.save(update_fields=["state"])

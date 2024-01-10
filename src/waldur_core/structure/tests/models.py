@@ -15,15 +15,15 @@ class TestNewInstance(QuotaModelMixin, structure_models.VirtualMachine):
 
     @classmethod
     def get_url_name(cls):
-        return 'test-new-instances'
+        return "test-new-instances"
 
     @property
     def internal_ips(self):
-        return ['127.0.0.1']
+        return ["127.0.0.1"]
 
     @property
     def external_ips(self):
-        return ['8.8.8.8']
+        return ["8.8.8.8"]
 
 
 class TestSubResource(structure_models.SubResource):

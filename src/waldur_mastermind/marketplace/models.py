@@ -51,37 +51,37 @@ class ServiceProvider(
         null=True,
         blank=True,
         help_text=_(
-            'Email for notification about new request based orders. '
-            'If this field is set, notifications will be sent.'
+            "Email for notification about new request based orders. "
+            "If this field is set, notifications will be sent."
         ),
     )
     lead_subject = models.CharField(
         max_length=255,
         blank=True,
         help_text=_(
-            'Notification subject template. ' 'Django template variables can be used.'
+            "Notification subject template. " "Django template variables can be used."
         ),
     )
     lead_body = models.TextField(
         blank=True,
         help_text=_(
-            'Notification body template. ' 'Django template variables can be used.'
+            "Notification body template. " "Django template variables can be used."
         ),
         validators=[core_validators.validate_template_syntax],
     )
 
     class Permissions:
-        customer_path = 'customer'
+        customer_path = "customer"
 
     class Meta:
-        verbose_name = _('Service provider')
+        verbose_name = _("Service provider")
 
     def __str__(self):
         return str(self.customer)
 
     @classmethod
     def get_url_name(cls):
-        return 'marketplace-service-provider'
+        return "marketplace-service-provider"
 
     @property
     def has_active_offerings(self):
@@ -106,7 +106,7 @@ class CategoryGroup(
 ):
     title = models.CharField(blank=False, max_length=255)
     icon = models.FileField(
-        upload_to='marketplace_category_group_icons',
+        upload_to="marketplace_category_group_icons",
         blank=True,
         null=True,
         validators=[ImageValidator],
@@ -114,16 +114,16 @@ class CategoryGroup(
     description = models.TextField(blank=True)
 
     class Meta:
-        verbose_name = _('Category group')
-        verbose_name_plural = _('Category groups')
-        ordering = ('title',)
+        verbose_name = _("Category group")
+        verbose_name_plural = _("Category groups")
+        ordering = ("title",)
 
     def __str__(self):
         return str(self.title)
 
     @classmethod
     def get_url_name(cls):
-        return 'marketplace-category-group'
+        return "marketplace-category-group"
 
 
 class Category(
@@ -134,7 +134,7 @@ class Category(
 ):
     title = models.CharField(blank=False, max_length=255)
     icon = models.FileField(
-        upload_to='marketplace_category_icons',
+        upload_to="marketplace_category_icons",
         blank=True,
         null=True,
         validators=[ImageValidator],
@@ -168,9 +168,9 @@ class Category(
         super().clean_fields(exclude=exclude)
 
         for flag in [
-            'default_volume_category',
-            'default_vm_category',
-            'default_tenant_category',
+            "default_volume_category",
+            "default_vm_category",
+            "default_tenant_category",
         ]:
             if getattr(self, flag):
                 category = (
@@ -179,8 +179,8 @@ class Category(
                 if category:
                     raise ValidationError(
                         {
-                            flag: _('%s is already %s.')
-                            % (category, flag.replace('_', ' ')),
+                            flag: _("%s is already %s.")
+                            % (category, flag.replace("_", " ")),
                         }
                     )
 
@@ -188,16 +188,16 @@ class Category(
         offering_count = quotas_fields.QuotaField(is_backend=True)
 
     class Meta:
-        verbose_name = _('Category')
-        verbose_name_plural = _('Categories')
-        ordering = ('title',)
+        verbose_name = _("Category")
+        verbose_name_plural = _("Categories")
+        ordering = ("title",)
 
     def __str__(self):
         return str(self.title)
 
     @classmethod
     def get_url_name(cls):
-        return 'marketplace-category'
+        return "marketplace-category"
 
 
 class CategoryColumn(models.Model):
@@ -210,27 +210,27 @@ class CategoryColumn(models.Model):
     """
 
     class Meta:
-        ordering = ('category', 'index')
+        ordering = ("category", "index")
 
     category = models.ForeignKey(
-        on_delete=models.CASCADE, to=Category, related_name='columns'
+        on_delete=models.CASCADE, to=Category, related_name="columns"
     )
     index = models.PositiveSmallIntegerField(
-        help_text=_('Index allows to reorder columns.')
+        help_text=_("Index allows to reorder columns.")
     )
     title = models.CharField(
-        blank=False, max_length=255, help_text=_('Title is rendered as column header.')
+        blank=False, max_length=255, help_text=_("Title is rendered as column header.")
     )
     attribute = models.CharField(
         blank=True,
         max_length=255,
-        help_text=_('Resource attribute is rendered as table cell.'),
+        help_text=_("Resource attribute is rendered as table cell."),
     )
     widget = models.CharField(
         blank=True,
         null=True,
         max_length=255,
-        help_text=_('Widget field allows to customise table cell rendering.'),
+        help_text=_("Widget field allows to customise table cell rendering."),
     )
 
     def __str__(self):
@@ -239,7 +239,7 @@ class CategoryColumn(models.Model):
     def clean(self):
         if not self.attribute and not self.widget:
             raise ValidationError(
-                _('Either attribute or widget field should be specified.')
+                _("Either attribute or widget field should be specified.")
             )
 
 
@@ -247,17 +247,17 @@ class Section(TimeStampedModel):
     key = models.CharField(primary_key=True, max_length=255)
     title = models.CharField(blank=False, max_length=255)
     category = models.ForeignKey(
-        on_delete=models.CASCADE, to=Category, related_name='sections'
+        on_delete=models.CASCADE, to=Category, related_name="sections"
     )
     is_standalone = models.BooleanField(
-        default=False, help_text=_('Whether section is rendered as a separate tab.')
+        default=False, help_text=_("Whether section is rendered as a separate tab.")
     )
 
     def __str__(self):
         return str(self.title)
 
 
-InternalNameValidator = RegexValidator(r'^[a-zA-Z0-9_\-\/:]+$')
+InternalNameValidator = RegexValidator(r"^[a-zA-Z0-9_\-\/:]+$")
 
 
 class Attribute(TimeStampedModel):
@@ -266,11 +266,11 @@ class Attribute(TimeStampedModel):
     )
     title = models.CharField(blank=False, max_length=255)
     section = models.ForeignKey(
-        on_delete=models.CASCADE, to=Section, related_name='attributes'
+        on_delete=models.CASCADE, to=Section, related_name="attributes"
     )
     type = models.CharField(max_length=255, choices=ATTRIBUTE_TYPES)
     required = models.BooleanField(
-        default=False, help_text=_('A value must be provided for the attribute.')
+        default=False, help_text=_("A value must be provided for the attribute.")
     )
     default = models.JSONField(null=True, blank=True)
 
@@ -280,13 +280,13 @@ class Attribute(TimeStampedModel):
 
 class AttributeOption(models.Model):
     attribute = models.ForeignKey(
-        Attribute, related_name='options', on_delete=models.CASCADE
+        Attribute, related_name="options", on_delete=models.CASCADE
     )
     key = models.CharField(max_length=255, validators=[InternalNameValidator])
     title = models.CharField(max_length=255)
 
     class Meta:
-        unique_together = ('attribute', 'key')
+        unique_together = ("attribute", "key")
 
     def __str__(self):
         return str(self.title)
@@ -298,37 +298,37 @@ class BaseComponent(LoggableMixin, core_models.DescribableMixin):
 
     name = models.CharField(
         max_length=150,
-        help_text=_('Display name for the measured unit, for example, Floating IP.'),
+        help_text=_("Display name for the measured unit, for example, Floating IP."),
     )
     type = models.CharField(
         max_length=50,
         help_text=_(
-            'Unique internal name of the measured unit, for example floating_ip.'
+            "Unique internal name of the measured unit, for example floating_ip."
         ),
         validators=[InternalNameValidator],
     )
     measured_unit = models.CharField(
-        max_length=30, help_text=_('Unit of measurement, for example, GB.'), blank=True
+        max_length=30, help_text=_("Unit of measurement, for example, GB."), blank=True
     )
 
     def get_log_fields(self):
         return (
-            'name',
-            'type',
-            'measured_unit',
+            "name",
+            "type",
+            "measured_unit",
         )
 
 
 class CategoryComponent(BaseComponent, core_models.UuidMixin):
     class Meta:
-        unique_together = ('type', 'category')
+        unique_together = ("type", "category")
 
     category = models.ForeignKey(
-        on_delete=models.CASCADE, to=Category, related_name='components'
+        on_delete=models.CASCADE, to=Category, related_name="components"
     )
 
     def __str__(self):
-        return f'{self.name}, category: {self.category.title}'
+        return f"{self.name}, category: {self.category.title}"
 
 
 class CategoryComponentUsage(core_mixins.ScopeMixin):
@@ -336,10 +336,10 @@ class CategoryComponentUsage(core_mixins.ScopeMixin):
     date = models.DateField()
     reported_usage = models.BigIntegerField(null=True)
     fixed_usage = models.BigIntegerField(null=True)
-    objects = managers.MixinManager('scope')
+    objects = managers.MixinManager("scope")
 
     def __str__(self):
-        return f'component: {str(self.component.name)}, date: {self.date}'
+        return f"component: {str(self.component.name)}, date: {self.date}"
 
 
 def offering_has_plans(offering):
@@ -368,14 +368,14 @@ class Offering(
         ARCHIVED = 4
 
         CHOICES = (
-            (DRAFT, 'Draft'),
-            (ACTIVE, 'Active'),
-            (PAUSED, 'Paused'),
-            (ARCHIVED, 'Archived'),
+            (DRAFT, "Draft"),
+            (ACTIVE, "Active"),
+            (PAUSED, "Paused"),
+            (ARCHIVED, "Archived"),
         )
 
     thumbnail = models.FileField(
-        upload_to='marketplace_service_offering_thumbnails',
+        upload_to="marketplace_service_offering_thumbnails",
         blank=True,
         null=True,
         validators=[ImageValidator],
@@ -387,62 +387,62 @@ class Offering(
     rating = models.IntegerField(
         null=True,
         validators=[MaxValueValidator(5), MinValueValidator(1)],
-        help_text=_('Rating is value from 1 to 5.'),
+        help_text=_("Rating is value from 1 to 5."),
     )
     category = models.ForeignKey(
-        on_delete=models.CASCADE, to=Category, related_name='offerings'
+        on_delete=models.CASCADE, to=Category, related_name="offerings"
     )
     customer: structure_models.Customer = models.ForeignKey(
         on_delete=models.CASCADE,
         to=structure_models.Customer,
-        related_name='+',
+        related_name="+",
         null=True,
     )
     project = models.ForeignKey(
         on_delete=models.CASCADE,
         to=structure_models.Project,
-        related_name='+',
+        related_name="+",
         null=True,
         blank=True,
     )
     # Volume offering is linked with VPC offering via parent field
     parent = models.ForeignKey(
         on_delete=models.CASCADE,
-        to='Offering',
+        to="Offering",
         null=True,
         blank=True,
-        related_name='children',
+        related_name="children",
     )
     attributes = models.JSONField(
-        blank=True, default=dict, help_text=_('Fields describing Category.')
+        blank=True, default=dict, help_text=_("Fields describing Category.")
     )
     options = models.JSONField(
         blank=True,
         default=dict,
-        help_text=_('Fields describing resource provision form.'),
+        help_text=_("Fields describing resource provision form."),
     )
     resource_options = models.JSONField(
         blank=True,
         default=dict,
-        help_text=_('Fields describing resource report form.'),
+        help_text=_("Fields describing resource report form."),
     )
     plugin_options = models.JSONField(
         blank=True,
         default=dict,
         help_text=_(
-            'Public data used by specific plugin, such as storage mode for OpenStack.'
+            "Public data used by specific plugin, such as storage mode for OpenStack."
         ),
     )
     secret_options = models.JSONField(
         blank=True,
         default=dict,
         help_text=_(
-            'Private data used by specific plugin, such as credentials and hooks.'
+            "Private data used by specific plugin, such as credentials and hooks."
         ),
     )
 
-    native_name = models.CharField(max_length=160, default='', blank=True)
-    native_description = models.CharField(max_length=500, default='', blank=True)
+    native_name = models.CharField(max_length=160, default="", blank=True)
+    native_description = models.CharField(max_length=500, default="", blank=True)
     terms_of_service = models.TextField(blank=True)
     terms_of_service_link = models.URLField(blank=True)
     privacy_policy_link = models.URLField(blank=True)
@@ -452,7 +452,7 @@ class Offering(
     state = FSMIntegerField(default=States.DRAFT, choices=States.CHOICES)
     paused_reason = models.TextField(blank=True)
     divisions = models.ManyToManyField(
-        structure_models.Division, related_name='offerings', blank=True
+        structure_models.Division, related_name="offerings", blank=True
     )
 
     # If offering is not shared, it is available only to following user categories:
@@ -461,27 +461,27 @@ class Offering(
     # 3) users with active permission in original customer;
     # 4) users with active permission in related project.
     shared = models.BooleanField(
-        default=True, help_text=_('Accessible to all customers.')
+        default=True, help_text=_("Accessible to all customers.")
     )
 
     billable = models.BooleanField(
-        default=True, help_text=_('Purchase and usage is invoiced.')
+        default=True, help_text=_("Purchase and usage is invoiced.")
     )
 
     objects = managers.OfferingManager()
     tracker = FieldTracker()
 
     class Permissions:
-        customer_path = 'customer'
+        customer_path = "customer"
 
     class Meta:
-        verbose_name = _('Offering')
-        ordering = ['name']
+        verbose_name = _("Offering")
+        ordering = ["name"]
 
     class Quotas(quotas_models.QuotaModelMixin.Quotas):
         order_count = quotas_fields.CounterQuotaField(
             target_models=lambda: [Order],
-            path_to_scope='offering',
+            path_to_scope="offering",
         )
 
     @transition(
@@ -506,11 +506,11 @@ class Offering(
     def unpause(self):
         pass
 
-    @transition(field=state, source='*', target=States.ARCHIVED)
+    @transition(field=state, source="*", target=States.ARCHIVED)
     def archive(self):
         pass
 
-    @transition(field=state, source='*', target=States.DRAFT)
+    @transition(field=state, source="*", target=States.DRAFT)
     def draft(self):
         pass
 
@@ -519,7 +519,7 @@ class Offering(
 
     @classmethod
     def get_url_name(cls):
-        return 'marketplace-provider-offering'
+        return "marketplace-provider-offering"
 
     @cached_property
     def component_factors(self):
@@ -567,7 +567,7 @@ class Offering(
 
     def get_datacite_url(self):
         return core_utils.format_homeport_link(
-            'marketplace-public-offering/{offering_uuid}/', offering_uuid=self.uuid.hex
+            "marketplace-public-offering/{offering_uuid}/", offering_uuid=self.uuid.hex
         )
 
     def get_users(self, role=None):
@@ -586,54 +586,54 @@ class OfferingComponent(
     core_models.BackendMixin,
 ):
     class Meta:
-        unique_together = ('type', 'offering')
-        ordering = ('name',)
+        unique_together = ("type", "offering")
+        ordering = ("name",)
 
     class BillingTypes:
-        FIXED = 'fixed'
-        USAGE = 'usage'
-        ONE_TIME = 'one'
-        ON_PLAN_SWITCH = 'few'
-        LIMIT = 'limit'
+        FIXED = "fixed"
+        USAGE = "usage"
+        ONE_TIME = "one"
+        ON_PLAN_SWITCH = "few"
+        LIMIT = "limit"
 
         CHOICES = (
             # if billing type is fixed, service provider specifies exact values of amount field of plan component model
-            (FIXED, 'Fixed-price'),
+            (FIXED, "Fixed-price"),
             # if billing type is usage-based billing is applied when usage report is submitted
-            (USAGE, 'Usage-based'),
+            (USAGE, "Usage-based"),
             # if billing type is limit, user specifies limit when resource is provisioned or updated
-            (LIMIT, 'Limit-based'),
+            (LIMIT, "Limit-based"),
             # if billing type is one-time, billing is applied once on resource activation
-            (ONE_TIME, 'One-time'),
+            (ONE_TIME, "One-time"),
             # applies fee on resource activation and every time a plan has changed, using pricing of a new plan
-            (ON_PLAN_SWITCH, 'One-time on plan switch'),
+            (ON_PLAN_SWITCH, "One-time on plan switch"),
         )
 
     class LimitPeriods:
-        MONTH = 'month'
-        ANNUAL = 'annual'
-        TOTAL = 'total'
+        MONTH = "month"
+        ANNUAL = "annual"
+        TOTAL = "total"
 
         CHOICES = (
             (
                 MONTH,
-                'Maximum monthly - every month service provider '
-                'can report up to the amount requested by user.',
+                "Maximum monthly - every month service provider "
+                "can report up to the amount requested by user.",
             ),
             (
                 ANNUAL,
-                'Maximum annually - every year service provider '
-                'can report up to the amount requested by user.',
+                "Maximum annually - every year service provider "
+                "can report up to the amount requested by user.",
             ),
             (
                 TOTAL,
-                'Maximum total - SP can report up to the requested '
-                'amount over the whole active state of resource.',
+                "Maximum total - SP can report up to the requested "
+                "amount over the whole active state of resource.",
             ),
         )
 
     offering = models.ForeignKey(
-        on_delete=models.CASCADE, to=Offering, related_name='components'
+        on_delete=models.CASCADE, to=Offering, related_name="components"
     )
     parent = models.ForeignKey(
         on_delete=models.CASCADE, to=CategoryComponent, null=True, blank=True
@@ -654,7 +654,7 @@ class OfferingComponent(
     is_boolean = models.BooleanField(default=False)
     # default_limit field is used by UI to prefill limit values
     default_limit = models.IntegerField(blank=True, null=True)
-    objects = managers.MixinManager('scope')
+    objects = managers.MixinManager("scope")
 
     def validate_amount(self, resource, amount, date):
         if not self.limit_period or not self.limit_amount:
@@ -667,11 +667,11 @@ class OfferingComponent(
         elif self.limit_period == OfferingComponent.LimitPeriods.ANNUAL:
             usages = usages.filter(date__year=date.year)
 
-        total = usages.aggregate(models.Sum('usage'))['usage__sum'] or 0
+        total = usages.aggregate(models.Sum("usage"))["usage__sum"] or 0
 
         if total + amount > self.limit_amount:
             raise rf_exceptions.ValidationError(
-                _('Total amount exceeds limit. Total amount: %s, limit: %s.')
+                _("Total amount exceeds limit. Total amount: %s, limit: %s.")
                 % (total + amount, self.limit_amount)
             )
 
@@ -704,36 +704,36 @@ class Plan(
     """
 
     offering = models.ForeignKey(
-        on_delete=models.CASCADE, to=Offering, related_name='plans'
+        on_delete=models.CASCADE, to=Offering, related_name="plans"
     )
     archived = models.BooleanField(
-        default=False, help_text=_('Forbids creation of new resources.')
+        default=False, help_text=_("Forbids creation of new resources.")
     )
-    objects = managers.MixinManager('scope')
+    objects = managers.MixinManager("scope")
     max_amount = models.PositiveSmallIntegerField(
         blank=True,
         null=True,
         validators=[MinValueValidator(1)],
         help_text=_(
-            'Maximum number of plans that could be active. '
-            'Plan is disabled when maximum amount is reached.'
+            "Maximum number of plans that could be active. "
+            "Plan is disabled when maximum amount is reached."
         ),
     )
     divisions = models.ManyToManyField(
-        structure_models.Division, related_name='plans', blank=True
+        structure_models.Division, related_name="plans", blank=True
     )
     objects = managers.PlanManager()
     tracker = FieldTracker()
 
     class Meta:
-        ordering = ('name',)
+        ordering = ("name",)
 
     @classmethod
     def get_url_name(cls):
-        return 'marketplace-plan'
+        return "marketplace-plan"
 
     class Permissions:
-        customer_path = 'offering__customer'
+        customer_path = "offering__customer"
 
     def get_estimate(self, limits=None):
         cost = self.unit_price
@@ -771,7 +771,7 @@ class Plan(
 
     def sum_components(self, billing_type):
         components = self.components.filter(component__billing_type=billing_type)
-        return components.aggregate(sum=models.Sum('price'))['sum'] or 0
+        return components.aggregate(sum=models.Sum("price"))["sum"] or 0
 
     @property
     def has_connected_resources(self):
@@ -790,24 +790,24 @@ class Plan(
 
     def get_log_fields(self):
         return (
-            'name',
-            'uuid',
-            'offering',
+            "name",
+            "uuid",
+            "offering",
         )
 
 
 class PlanComponent(LoggableMixin, models.Model):
     class Meta:
-        unique_together = ('plan', 'component')
-        ordering = ('component__name',)
+        unique_together = ("plan", "component")
+        ordering = ("component__name",)
 
     plan = models.ForeignKey(
-        on_delete=models.CASCADE, to=Plan, related_name='components'
+        on_delete=models.CASCADE, to=Plan, related_name="components"
     )
     component = models.ForeignKey(
         on_delete=models.CASCADE,
         to=OfferingComponent,
-        related_name='components',
+        related_name="components",
         null=True,
     )
     amount = models.PositiveIntegerField(default=0)
@@ -815,14 +815,14 @@ class PlanComponent(LoggableMixin, models.Model):
         default=0,
         max_digits=common_mixins.PRICE_MAX_DIGITS,
         decimal_places=common_mixins.PRICE_DECIMAL_PLACES,
-        validators=[MinValueValidator(Decimal('0'))],
-        verbose_name=_('Price per unit per billing period.'),
+        validators=[MinValueValidator(Decimal("0"))],
+        verbose_name=_("Price per unit per billing period."),
     )
     future_price = models.DecimalField(
         max_digits=common_mixins.PRICE_MAX_DIGITS,
         decimal_places=common_mixins.PRICE_DECIMAL_PLACES,
-        validators=[MinValueValidator(Decimal('0'))],
-        verbose_name=_('Price per unit for future month.'),
+        validators=[MinValueValidator(Decimal("0"))],
+        verbose_name=_("Price per unit for future month."),
         null=True,
     )
     tracker = FieldTracker()
@@ -834,16 +834,16 @@ class PlanComponent(LoggableMixin, models.Model):
     def __str__(self):
         name = self.component and self.component.name
         if name:
-            return f'{name}, plan: {self.plan.name}'
-        return 'for plan: %s' % self.plan.name
+            return f"{name}, plan: {self.plan.name}"
+        return "for plan: %s" % self.plan.name
 
     def get_log_fields(self):
         return (
-            'plan',
-            'component',
-            'amount',
-            'price',
-            'future_price',
+            "plan",
+            "component",
+            "amount",
+            "price",
+            "future_price",
         )
 
 
@@ -857,21 +857,21 @@ class Screenshot(
     image = models.ImageField(upload_to=get_upload_path)
     thumbnail = models.ImageField(upload_to=get_upload_path, editable=False, null=True)
     offering = models.ForeignKey(
-        on_delete=models.CASCADE, to=Offering, related_name='screenshots'
+        on_delete=models.CASCADE, to=Offering, related_name="screenshots"
     )
 
     class Permissions:
-        customer_path = 'offering__customer'
+        customer_path = "offering__customer"
 
     class Meta:
-        verbose_name = _('Screenshot')
+        verbose_name = _("Screenshot")
 
     def __str__(self):
         return str(self.name)
 
     @classmethod
     def get_url_name(cls):
-        return 'marketplace-screenshot'
+        return "marketplace-screenshot"
 
 
 class CostEstimateMixin(models.Model):
@@ -890,7 +890,7 @@ class CostEstimateMixin(models.Model):
             self.cost = self.plan.get_estimate(self.limits)
         except PolicyException:
             self.set_state_erred()
-            self.error_message = 'Policy is violated.'
+            self.error_message = "Policy is violated."
 
 
 class RequestTypeMixin(CostEstimateMixin):
@@ -900,9 +900,9 @@ class RequestTypeMixin(CostEstimateMixin):
         TERMINATE = 3
 
         CHOICES = (
-            (CREATE, 'Create'),
-            (UPDATE, 'Update'),
-            (TERMINATE, 'Terminate'),
+            (CREATE, "Create"),
+            (UPDATE, "Update"),
+            (TERMINATE, "Terminate"),
         )
 
     type = models.PositiveSmallIntegerField(choices=Types.CHOICES, default=Types.CREATE)
@@ -937,7 +937,7 @@ class SafeAttributesMixin(models.Model):
     class Meta:
         abstract = True
 
-    offering = models.ForeignKey(Offering, related_name='+', on_delete=models.CASCADE)
+    offering = models.ForeignKey(Offering, related_name="+", on_delete=models.CASCADE)
     attributes = models.JSONField(blank=True, default=dict)
 
     @property
@@ -958,21 +958,21 @@ class CartItem(
     SafeAttributesMixin, core_models.UuidMixin, TimeStampedModel, RequestTypeMixin
 ):
     user = models.ForeignKey(
-        core_models.User, related_name='+', on_delete=models.CASCADE
+        core_models.User, related_name="+", on_delete=models.CASCADE
     )
     project = models.ForeignKey(
-        structure_models.Project, related_name='+', on_delete=models.CASCADE
+        structure_models.Project, related_name="+", on_delete=models.CASCADE
     )
 
     class Permissions:
-        customer_path = 'project__customer'
-        project_path = 'project'
+        customer_path = "project__customer"
+        project_path = "project"
 
     class Meta:
-        ordering = ('created',)
+        ordering = ("created",)
 
     def __str__(self):
-        return f'user: {self.user.username}, offering: {self.offering.name}'
+        return f"user: {self.user.username}, offering: {self.offering.name}"
 
 
 class ResourceDetailsMixin(
@@ -988,7 +988,7 @@ class ResourceDetailsMixin(
         null=True,
         blank=True,
         help_text=_(
-            'The date is inclusive. Once reached, a resource will be scheduled for termination.'
+            "The date is inclusive. Once reached, a resource will be scheduled for termination."
         ),
     )
     end_date_requested_by = models.ForeignKey(
@@ -996,7 +996,7 @@ class ResourceDetailsMixin(
         to=core_models.User,
         blank=True,
         null=True,
-        related_name='+',
+        related_name="+",
     )
 
 
@@ -1033,28 +1033,28 @@ class Resource(
         TERMINATED = 6
 
         CHOICES = (
-            (CREATING, 'Creating'),
-            (OK, 'OK'),
-            (ERRED, 'Erred'),
-            (UPDATING, 'Updating'),
-            (TERMINATING, 'Terminating'),
-            (TERMINATED, 'Terminated'),
+            (CREATING, "Creating"),
+            (OK, "OK"),
+            (ERRED, "Erred"),
+            (UPDATING, "Updating"),
+            (TERMINATING, "Terminating"),
+            (TERMINATED, "Terminated"),
         )
 
     class Permissions:
-        customer_path = 'project__customer'
-        project_path = 'project'
+        customer_path = "project__customer"
+        project_path = "project"
 
     class Meta:
-        ordering = ['created']
-        unique_together = ('content_type', 'object_id')
+        ordering = ["created"]
+        unique_together = ("content_type", "object_id")
 
     state = FSMIntegerField(default=States.CREATING, choices=States.CHOICES)
     project = models.ForeignKey(structure_models.Project, on_delete=models.CASCADE)
     parent = models.ForeignKey(
         on_delete=models.SET_NULL,
-        to='Resource',
-        related_name='children',
+        to="Resource",
+        related_name="children",
         null=True,
         blank=True,
     )
@@ -1079,19 +1079,19 @@ class Resource(
     def set_state_ok(self):
         pass
 
-    @transition(field=state, source='*', target=States.ERRED)
+    @transition(field=state, source="*", target=States.ERRED)
     def set_state_erred(self):
         pass
 
-    @transition(field=state, source='*', target=States.UPDATING)
+    @transition(field=state, source="*", target=States.UPDATING)
     def set_state_updating(self):
         pass
 
-    @transition(field=state, source='*', target=States.TERMINATING)
+    @transition(field=state, source="*", target=States.TERMINATING)
     def set_state_terminating(self):
         pass
 
-    @transition(field=state, source='*', target=States.TERMINATED)
+    @transition(field=state, source="*", target=States.TERMINATED)
     def set_state_terminated(self):
         pass
 
@@ -1104,24 +1104,24 @@ class Resource(
     def backend_type(self):
         if self.scope:
             scope_type = self.scope.get_scope_type()
-            return scope_type if scope_type else 'Marketplace.Resource'
+            return scope_type if scope_type else "Marketplace.Resource"
 
     def get_log_fields(self):
         return (
-            'uuid',
-            'name',
-            'project',
-            'offering',
-            'created',
-            'modified',
-            'attributes',
-            'cost',
-            'plan',
-            'limits',
-            'get_state_display',
-            'backend_metadata',
-            'backend_uuid',
-            'backend_type',
+            "uuid",
+            "name",
+            "project",
+            "offering",
+            "created",
+            "modified",
+            "attributes",
+            "cost",
+            "plan",
+            "limits",
+            "get_state_display",
+            "backend_metadata",
+            "backend_uuid",
+            "backend_type",
         )
 
     @property
@@ -1130,11 +1130,11 @@ class Resource(
 
     @classmethod
     def get_scope_type(cls):
-        return 'Marketplace.Resource'
+        return "Marketplace.Resource"
 
     @classmethod
     def get_url_name(cls):
-        return 'marketplace-resource'
+        return "marketplace-resource"
 
     @property
     def is_expired(self):
@@ -1142,11 +1142,11 @@ class Resource(
 
     def __str__(self):
         if self.name:
-            return f'{self.name} ({self.offering.name})'
+            return f"{self.name} ({self.offering.name})"
         if self.scope:
-            return f'{self.name} ({self.content_type} / {self.object_id})'
+            return f"{self.name} ({self.content_type} / {self.object_id})"
 
-        return f'{self.uuid} ({self.offering.name})'
+        return f"{self.uuid} ({self.offering.name})"
 
     @property
     @lru_cache(maxsize=1)
@@ -1172,7 +1172,7 @@ class ResourcePlanPeriod(TimeStampedModel, TimeFramedModel, core_models.UuidMixi
     """
 
     resource = models.ForeignKey(
-        on_delete=models.CASCADE, to=Resource, related_name='+'
+        on_delete=models.CASCADE, to=Resource, related_name="+"
     )
     plan = models.ForeignKey(on_delete=models.CASCADE, to=Plan)
 
@@ -1204,38 +1204,38 @@ class Order(
         REJECTED = 6
 
         CHOICES = (
-            (PENDING_CONSUMER, 'pending-consumer'),
-            (PENDING_PROVIDER, 'pending-provider'),
-            (EXECUTING, 'executing'),
-            (DONE, 'done'),
-            (ERRED, 'erred'),
-            (CANCELED, 'canceled'),
-            (REJECTED, 'rejected'),
+            (PENDING_CONSUMER, "pending-consumer"),
+            (PENDING_PROVIDER, "pending-provider"),
+            (EXECUTING, "executing"),
+            (DONE, "done"),
+            (ERRED, "erred"),
+            (CANCELED, "canceled"),
+            (REJECTED, "rejected"),
         )
 
         TERMINAL_STATES = {DONE, ERRED, CANCELED, REJECTED}
 
     old_plan = models.ForeignKey(
-        on_delete=models.CASCADE, to=Plan, related_name='+', null=True, blank=True
+        on_delete=models.CASCADE, to=Plan, related_name="+", null=True, blank=True
     )
     project = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.Project)
     resource = models.ForeignKey(on_delete=models.CASCADE, to=Resource)
     state = FSMIntegerField(default=States.PENDING_CONSUMER, choices=States.CHOICES)
-    activated = models.DateTimeField(_('activation date'), null=True, blank=True)
+    activated = models.DateTimeField(_("activation date"), null=True, blank=True)
     output = models.TextField(blank=True)
     tracker = FieldTracker()
 
     created_by = models.ForeignKey(
         on_delete=models.CASCADE,
         to=core_models.User,
-        related_name='+',
+        related_name="+",
     )
     consumer_reviewed_by = models.ForeignKey(
         on_delete=models.CASCADE,
         to=core_models.User,
         blank=True,
         null=True,
-        related_name='+',
+        related_name="+",
     )
     consumer_reviewed_at = models.DateTimeField(editable=False, null=True, blank=True)
     provider_reviewed_by = models.ForeignKey(
@@ -1243,23 +1243,23 @@ class Order(
         to=core_models.User,
         blank=True,
         null=True,
-        related_name='+',
+        related_name="+",
     )
     provider_reviewed_at = models.DateTimeField(editable=False, null=True, blank=True)
     callback_url = models.URLField(null=True, blank=True)
     termination_comment = models.CharField(blank=True, null=True, max_length=255)
 
     class Permissions:
-        customer_path = 'project__customer'
-        project_path = 'project'
+        customer_path = "project__customer"
+        project_path = "project"
 
     class Meta:
-        verbose_name = _('Order')
-        ordering = ('created',)
+        verbose_name = _("Order")
+        ordering = ("created",)
 
     @classmethod
     def get_url_name(cls):
-        return 'marketplace-order'
+        return "marketplace-order"
 
     def review_by_consumer(self, user=None):
         self.consumer_reviewed_by = user
@@ -1276,7 +1276,7 @@ class Order(
         self.activated = timezone.now()
         self.save()
 
-    @transition(field=state, source='*', target=States.CANCELED)
+    @transition(field=state, source="*", target=States.CANCELED)
     def cancel(self, termination_comment=None):
         if termination_comment:
             self.termination_comment = termination_comment
@@ -1291,7 +1291,7 @@ class Order(
     def reject(self):
         pass
 
-    @transition(field=state, source='*', target=States.ERRED)
+    @transition(field=state, source="*", target=States.ERRED)
     def fail(self):
         pass
 
@@ -1303,33 +1303,33 @@ class Order(
     def set_state_executing(self):
         pass
 
-    @transition(field=state, source='*', target=States.ERRED)
+    @transition(field=state, source="*", target=States.ERRED)
     def set_state_erred(self):
         pass
 
     def get_log_fields(self):
         return (
-            'uuid',
-            'created',
-            'modified',
-            'cost',
-            'limits',
-            'attributes',
-            'offering',
-            'resource',
-            'project',
-            'plan',
-            'get_state_display',
-            'get_type_display',
-            'created_by',
-            'consumer_reviewed_by',
-            'consumer_reviewed_at',
-            'provider_reviewed_by',
-            'provider_reviewed_at',
+            "uuid",
+            "created",
+            "modified",
+            "cost",
+            "limits",
+            "attributes",
+            "offering",
+            "resource",
+            "project",
+            "plan",
+            "get_state_display",
+            "get_type_display",
+            "created_by",
+            "consumer_reviewed_by",
+            "consumer_reviewed_at",
+            "provider_reviewed_by",
+            "provider_reviewed_at",
         )
 
     def __str__(self):
-        return 'type: {}, offering: {}, created_by: {}'.format(
+        return "type: {}, offering: {}, created_by: {}".format(
             self.get_type_display(),
             self.offering,
             self.created_by,
@@ -1338,7 +1338,7 @@ class Order(
 
 class ComponentQuota(TimeStampedModel):
     resource = models.ForeignKey(
-        on_delete=models.CASCADE, to=Resource, related_name='quotas'
+        on_delete=models.CASCADE, to=Resource, related_name="quotas"
     )
     component = models.ForeignKey(
         on_delete=models.CASCADE,
@@ -1348,10 +1348,10 @@ class ComponentQuota(TimeStampedModel):
     usage = models.DecimalField(default=0, decimal_places=2, max_digits=20)
 
     class Meta:
-        unique_together = ('resource', 'component')
+        unique_together = ("resource", "component")
 
     def __str__(self):
-        return f'resource: {self.resource.name}, component: {self.component.name}'
+        return f"resource: {self.resource.name}, component: {self.component.name}"
 
 
 class ComponentUsage(
@@ -1362,7 +1362,7 @@ class ComponentUsage(
     LoggableMixin,
 ):
     resource = models.ForeignKey(
-        on_delete=models.CASCADE, to=Resource, related_name='usages'
+        on_delete=models.CASCADE, to=Resource, related_name="usages"
     )
     component = models.ForeignKey(
         on_delete=models.CASCADE,
@@ -1372,28 +1372,28 @@ class ComponentUsage(
     date = models.DateTimeField()
     plan_period = models.ForeignKey(
         on_delete=models.CASCADE,
-        to='ResourcePlanPeriod',
-        related_name='components',
+        to="ResourcePlanPeriod",
+        related_name="components",
         null=True,
     )
     billing_period = models.DateField()
     recurring = models.BooleanField(
-        default=False, help_text='Reported value is reused every month until changed.'
+        default=False, help_text="Reported value is reused every month until changed."
     )
     modified_by = models.ForeignKey(
-        to=User, related_name='+', blank=True, null=True, on_delete=models.SET_NULL
+        to=User, related_name="+", blank=True, null=True, on_delete=models.SET_NULL
     )
 
     tracker = FieldTracker()
 
     class Meta:
-        unique_together = ('resource', 'component', 'plan_period', 'billing_period')
+        unique_together = ("resource", "component", "plan_period", "billing_period")
 
     def __str__(self):
-        return f'resource: {self.resource.name}, component: {self.component.name}'
+        return f"resource: {self.resource.name}, component: {self.component.name}"
 
     def get_log_fields(self):
-        return ('uuid', 'description', 'usage', 'date', 'resource', 'component')
+        return ("uuid", "description", "usage", "date", "resource", "component")
 
 
 class AggregateResourceCount(core_mixins.ScopeMixin):
@@ -1402,13 +1402,13 @@ class AggregateResourceCount(core_mixins.ScopeMixin):
     """
 
     category = models.ForeignKey(
-        on_delete=models.CASCADE, to=Category, related_name='+'
+        on_delete=models.CASCADE, to=Category, related_name="+"
     )
     count = models.PositiveIntegerField(default=0)
-    objects = managers.MixinManager('scope')
+    objects = managers.MixinManager("scope")
 
     class Meta:
-        unique_together = ('category', 'content_type', 'object_id')
+        unique_together = ("category", "content_type", "object_id")
 
     def __str__(self):
         return str(self.category.title)
@@ -1421,19 +1421,19 @@ class OfferingFile(
     TimeStampedModel,
 ):
     offering = models.ForeignKey(
-        on_delete=models.CASCADE, to=Offering, related_name='files'
+        on_delete=models.CASCADE, to=Offering, related_name="files"
     )
-    file = models.FileField(upload_to='offering_files')
+    file = models.FileField(upload_to="offering_files")
 
     class Permissions:
-        customer_path = 'offering__customer'
+        customer_path = "offering__customer"
 
     @classmethod
     def get_url_name(cls):
-        return 'marketplace-offering-file'
+        return "marketplace-offering-file"
 
     def __str__(self):
-        return 'offering: %s' % self.offering
+        return "offering: %s" % self.offering
 
 
 class OfferingUser(
@@ -1446,11 +1446,11 @@ class OfferingUser(
     propagation_date = models.DateTimeField(blank=True, null=True)
 
     class Meta:
-        unique_together = ('offering', 'user')
-        ordering = ['username']
+        unique_together = ("offering", "user")
+        ordering = ["username"]
 
     def get_log_fields(self):
-        return ('offering', 'user', 'username')
+        return ("offering", "user", "username")
 
     def set_propagation_date(self):
         now = timezone.datetime.today()
@@ -1471,7 +1471,7 @@ class OfferingUserGroup(TimeStampedModel, common_mixins.BackendMetadataMixin):
 class CategoryHelpArticle(models.Model):
     title = models.CharField(max_length=255, null=True, blank=True)
     url = models.URLField()
-    categories = models.ManyToManyField(Category, related_name='articles', blank=True)
+    categories = models.ManyToManyField(Category, related_name="articles", blank=True)
 
     def __str__(self):
         return self.title
@@ -1495,38 +1495,38 @@ class RobotAccount(
         to=User,
         null=True,
         blank=True,
-        related_name='+',
+        related_name="+",
     )
     keys = models.JSONField(blank=True, default=list)
 
-    tracker = FieldTracker(fields=['resource', 'type', 'username', 'users', 'keys'])
+    tracker = FieldTracker(fields=["resource", "type", "username", "users", "keys"])
 
     class Meta:
-        unique_together = ('resource', 'type')
+        unique_together = ("resource", "type")
 
     def get_log_fields(self):
         return (
-            'type',
-            'username',
+            "type",
+            "username",
         )
 
 
 class OfferingAccessEndpoint(core_models.UuidMixin, core_models.NameMixin):
     url = core_fields.BackendURLField()
     offering = models.ForeignKey(
-        on_delete=models.CASCADE, to=Offering, related_name='endpoints'
+        on_delete=models.CASCADE, to=Offering, related_name="endpoints"
     )
 
 
 class ResourceAccessEndpoint(core_models.UuidMixin, core_models.NameMixin):
     url = core_fields.BackendURLField()
     resource = models.ForeignKey(
-        on_delete=models.CASCADE, to=Resource, related_name='endpoints'
+        on_delete=models.CASCADE, to=Resource, related_name="endpoints"
     )
 
 
 reversion.register(Screenshot)
 reversion.register(OfferingComponent)
 reversion.register(PlanComponent)
-reversion.register(Plan, follow=('components',))
-reversion.register(Offering, follow=('components', 'plans', 'screenshots'))
+reversion.register(Plan, follow=("components",))
+reversion.register(Offering, follow=("components", "plans", "screenshots"))

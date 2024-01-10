@@ -19,5 +19,5 @@ class TestSetAllocationState(test.APITransactionTestCase):
             ServiceResourcesPullTask().pull(self.service_settings)
         except ServiceBackendNotImplemented:
             self.fail(
-                'ServiceResourcesPullTask does not work for %s settings.' % PLUGIN_NAME
+                "ServiceResourcesPullTask does not work for %s settings." % PLUGIN_NAME
             )

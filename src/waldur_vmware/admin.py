@@ -14,11 +14,11 @@ from . import executors, models
 class DiskAdmin(structure_admin.ResourceAdmin):
     class Pull(ExecutorAdminAction):
         executor = executors.DiskPullExecutor
-        short_description = _('Pull')
+        short_description = _("Pull")
 
         def validate(self, instance):
             if instance.state not in (models.Disk.States.OK, models.Disk.States.ERRED):
-                raise ValidationError(_('Disk has to be in OK or ERRED state.'))
+                raise ValidationError(_("Disk has to be in OK or ERRED state."))
 
     pull = Pull()
 
@@ -26,7 +26,7 @@ class DiskAdmin(structure_admin.ResourceAdmin):
 class VirtualMachineAdmin(structure_admin.ResourceAdmin):
     class Pull(ExecutorAdminAction):
         executor = executors.VirtualMachinePullExecutor
-        short_description = _('Pull')
+        short_description = _("Pull")
 
         def validate(self, instance):
             if instance.state not in (
@@ -34,7 +34,7 @@ class VirtualMachineAdmin(structure_admin.ResourceAdmin):
                 models.VirtualMachine.States.ERRED,
             ):
                 raise ValidationError(
-                    _('Virtual machine has to be in OK or ERRED state.')
+                    _("Virtual machine has to be in OK or ERRED state.")
                 )
 
     pull = Pull()
@@ -53,14 +53,14 @@ class CustomerInlineFormset(BaseInlineFormSet):
         if is_basic_mode():
             enabled_settings = {}
             for form in self.forms:
-                cleaned_data = getattr(form, 'cleaned_data', None)
+                cleaned_data = getattr(form, "cleaned_data", None)
 
                 # Skip empty form
                 if not cleaned_data:
                     continue
 
                 # Skip deleted form
-                if cleaned_data.get('DELETE'):
+                if cleaned_data.get("DELETE"):
                     continue
 
                 # Ensure that the same service settings are not used multiple times
@@ -68,8 +68,8 @@ class CustomerInlineFormset(BaseInlineFormSet):
                 if service_settings in enabled_settings:
                     raise ValidationError(
                         _(
-                            'There should be exactly one property '
-                            'assigned to the each service settings.'
+                            "There should be exactly one property "
+                            "assigned to the each service settings."
                         )
                     )
                 else:
@@ -77,52 +77,52 @@ class CustomerInlineFormset(BaseInlineFormSet):
 
 
 class CustomerClusterInlineFormset(CustomerInlineFormset):
-    service_property_field = 'cluster'
+    service_property_field = "cluster"
 
 
 class CustomerClusterInline(options.TabularInline):
     model = models.CustomerCluster
     extra = 1
-    classes = ['collapse']
-    verbose_name_plural = 'Customer VMware clusters'
+    classes = ["collapse"]
+    verbose_name_plural = "Customer VMware clusters"
     formset = CustomerClusterInlineFormset
 
 
 class CustomerNetworkInlineFormset(CustomerInlineFormset):
-    service_property_field = 'network'
+    service_property_field = "network"
 
 
 class CustomerNetworkInline(options.TabularInline):
     model = models.CustomerNetwork
     extra = 1
-    classes = ['collapse']
-    verbose_name_plural = 'Customer VMware networks for new VMs'
+    classes = ["collapse"]
+    verbose_name_plural = "Customer VMware networks for new VMs"
     formset = CustomerNetworkInlineFormset
 
 
 class CustomerNetworkPairInline(options.TabularInline):
     model = models.CustomerNetworkPair
     extra = 1
-    classes = ['collapse']
-    verbose_name_plural = 'Customer VMware networks for existing VMs'
+    classes = ["collapse"]
+    verbose_name_plural = "Customer VMware networks for existing VMs"
 
 
 class CustomerDatastoreInline(options.TabularInline):
     model = models.CustomerDatastore
     extra = 1
-    classes = ['collapse']
-    verbose_name_plural = 'Customer VMware datastores'
+    classes = ["collapse"]
+    verbose_name_plural = "Customer VMware datastores"
 
 
 class CustomerFolderInlineInlineFormset(CustomerInlineFormset):
-    service_property_field = 'folder'
+    service_property_field = "folder"
 
 
 class CustomerFolderInline(options.TabularInline):
     model = models.CustomerFolder
     extra = 1
-    classes = ['collapse']
-    verbose_name_plural = 'Customer VMware folders'
+    classes = ["collapse"]
+    verbose_name_plural = "Customer VMware folders"
     formset = CustomerFolderInlineInlineFormset
 
 

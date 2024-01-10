@@ -5,13 +5,13 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace', '0091_alter_offering_access_url'),
+        ("marketplace", "0091_alter_offering_access_url"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='resource',
-            name='requested_downscaling',
+            model_name="resource",
+            name="requested_downscaling",
             field=models.BooleanField(default=False),
         ),
     ]

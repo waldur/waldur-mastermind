@@ -6,31 +6,31 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('proposal', '0008_drop_round_strategy_from_call'),
+        ("proposal", "0008_drop_round_strategy_from_call"),
     ]
 
     operations = [
         migrations.RemoveField(
-            model_name='call',
-            name='review_strategy',
+            model_name="call",
+            name="review_strategy",
         ),
         migrations.AddField(
-            model_name='round',
-            name='minimum_number_of_reviewers',
+            model_name="round",
+            name="minimum_number_of_reviewers",
             field=models.PositiveIntegerField(blank=True, null=True),
         ),
         migrations.AddField(
-            model_name='round',
-            name='review_duration_in_days',
+            model_name="round",
+            name="review_duration_in_days",
             field=models.PositiveIntegerField(blank=True, null=True),
         ),
         migrations.AddField(
-            model_name='round',
-            name='review_strategy',
+            model_name="round",
+            name="review_strategy",
             field=django_fsm.FSMIntegerField(
                 choices=[
-                    (1, 'After round is closed'),
-                    (2, 'After proposal submission'),
+                    (1, "After round is closed"),
+                    (2, "After proposal submission"),
                 ],
                 default=1,
             ),

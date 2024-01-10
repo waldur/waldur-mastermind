@@ -20,29 +20,29 @@ class BasePaymentTest(test.APITransactionTestCase):
         self.other = structure_factories.UserFactory()
 
         self.valid_request = {
-            'amount': decimal.Decimal('9.99'),
-            'customer': structure_factories.CustomerFactory.get_url(self.customer),
-            'return_url': 'http://example.com/return/',
-            'cancel_url': 'http://example.com/cancel/',
+            "amount": decimal.Decimal("9.99"),
+            "customer": structure_factories.CustomerFactory.get_url(self.customer),
+            "return_url": "http://example.com/return/",
+            "cancel_url": "http://example.com/cancel/",
         }
 
         self.valid_response = {
-            'approval_url': 'https://www.paypal.com/webscr?cmd=_express-checkout&token=EC-60U79048BN7719609',
-            'payer_id': '7E7MGXCWTTKK2',
-            'token': 'EC-60U79048BN7719609',
+            "approval_url": "https://www.paypal.com/webscr?cmd=_express-checkout&token=EC-60U79048BN7719609",
+            "payer_id": "7E7MGXCWTTKK2",
+            "token": "EC-60U79048BN7719609",
         }
 
 
 class PaymentCreateTest(BasePaymentTest):
     def create_payment(self, user, fail=False):
-        with mock.patch('waldur_paypal.backend.PaypalBackend') as backend:
+        with mock.patch("waldur_paypal.backend.PaypalBackend") as backend:
             if fail:
                 backend().make_payment.side_effect = PayPalError()
             else:
                 backend().make_payment.return_value = PaypalPayment(
-                    payment_id='PAY-6RV70583SB702805EKEYSZ6Y',
-                    approval_url=self.valid_response['approval_url'],
-                    token=self.valid_response['token'],
+                    payment_id="PAY-6RV70583SB702805EKEYSZ6Y",
+                    approval_url=self.valid_response["approval_url"],
+                    token=self.valid_response["token"],
                 )
 
             self.client.force_authenticate(user)
@@ -54,7 +54,7 @@ class PaymentCreateTest(BasePaymentTest):
         response = self.create_payment(self.fixture.staff)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertEqual(
-            self.valid_response['approval_url'], response.data['approval_url']
+            self.valid_response["approval_url"], response.data["approval_url"]
         )
 
     def test_user_can_create_payment_for_owned_customer(self):
@@ -81,17 +81,17 @@ class PaymentApprovalTest(BasePaymentTest):
             customer=self.customer, state=Payment.States.CREATED, amount=amount or 100.0
         )
 
-        with mock.patch('waldur_paypal.backend.PaypalBackend') as backend:
+        with mock.patch("waldur_paypal.backend.PaypalBackend") as backend:
             if fail:
                 backend().approve_payment.side_effect = PayPalError()
 
             self.client.force_authenticate(user)
             return self.client.post(
-                factories.PaypalPaymentFactory.get_list_url() + 'approve/',
+                factories.PaypalPaymentFactory.get_list_url() + "approve/",
                 data={
-                    'payment_id': payment.backend_id,
-                    'payer_id': self.valid_response['payer_id'],
-                    'token': payment.token,
+                    "payment_id": payment.backend_id,
+                    "payer_id": self.valid_response["payer_id"],
+                    "token": payment.token,
                 },
             )
 
@@ -115,8 +115,8 @@ class PaymentCancellationTest(BasePaymentTest):
             customer=self.customer, state=Payment.States.CREATED
         )
         return self.client.post(
-            factories.PaypalPaymentFactory.get_list_url() + 'cancel/',
-            data={'token': payment.token},
+            factories.PaypalPaymentFactory.get_list_url() + "cancel/",
+            data={"token": payment.token},
         )
 
     def test_staff_can_cancel_any_payment(self):

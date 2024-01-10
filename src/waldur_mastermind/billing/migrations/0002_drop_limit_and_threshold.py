@@ -5,16 +5,16 @@ from django.db import migrations
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('billing', '0001_initial'),
+        ("billing", "0001_initial"),
     ]
 
     operations = [
         migrations.RemoveField(
-            model_name='priceestimate',
-            name='limit',
+            model_name="priceestimate",
+            name="limit",
         ),
         migrations.RemoveField(
-            model_name='priceestimate',
-            name='threshold',
+            model_name="priceestimate",
+            name="threshold",
         ),
     ]

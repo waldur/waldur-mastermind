@@ -12,24 +12,24 @@ import waldur_core.core.fields
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('marketplace', '0104_translations'),
+        ("marketplace", "0104_translations"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('structure', '0040_useragreement_uuid'),
-        ('proposal', '0002_callmanager'),
+        ("structure", "0040_useragreement_uuid"),
+        ("proposal", "0002_callmanager"),
     ]
 
     operations = [
         migrations.RenameModel(
-            old_name='CallManager',
-            new_name='CallManagingOrganisation',
+            old_name="CallManager",
+            new_name="CallManagingOrganisation",
         ),
         migrations.AlterModelOptions(
-            name='callmanagingorganisation',
-            options={'verbose_name': 'Call managing organisation'},
+            name="callmanagingorganisation",
+            options={"verbose_name": "Call managing organisation"},
         ),
         migrations.AddField(
-            model_name='call',
-            name='created_by',
+            model_name="call",
+            name="created_by",
             field=models.ForeignKey(
                 null=True,
                 on_delete=django.db.models.deletion.PROTECT,
@@ -37,99 +37,99 @@ class Migration(migrations.Migration):
             ),
         ),
         migrations.AddField(
-            model_name='call',
-            name='manager',
+            model_name="call",
+            name="manager",
             field=models.ForeignKey(
                 default=0,
                 on_delete=django.db.models.deletion.PROTECT,
-                to='proposal.callmanagingorganisation',
+                to="proposal.callmanagingorganisation",
             ),
             preserve_default=False,
         ),
         migrations.CreateModel(
-            name='RequestedOffering',
+            name="RequestedOffering",
             fields=[
                 (
-                    'id',
+                    "id",
                     models.AutoField(
                         auto_created=True,
                         primary_key=True,
                         serialize=False,
-                        verbose_name='ID',
+                        verbose_name="ID",
                     ),
                 ),
                 (
-                    'created',
+                    "created",
                     model_utils.fields.AutoCreatedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='created',
+                        verbose_name="created",
                     ),
                 ),
                 (
-                    'modified',
+                    "modified",
                     model_utils.fields.AutoLastModifiedField(
                         default=django.utils.timezone.now,
                         editable=False,
-                        verbose_name='modified',
+                        verbose_name="modified",
                     ),
                 ),
-                ('uuid', waldur_core.core.fields.UUIDField()),
-                ('attributes', models.JSONField(blank=True, default=dict)),
+                ("uuid", waldur_core.core.fields.UUIDField()),
+                ("attributes", models.JSONField(blank=True, default=dict)),
                 (
-                    'state',
+                    "state",
                     django_fsm.FSMIntegerField(
-                        choices=[(1, 'Requested'), (2, 'Accepted'), (3, 'Canceled')],
+                        choices=[(1, "Requested"), (2, "Accepted"), (3, "Canceled")],
                         default=1,
                     ),
                 ),
                 (
-                    'approved_by',
+                    "approved_by",
                     models.ForeignKey(
                         blank=True,
                         null=True,
                         on_delete=django.db.models.deletion.PROTECT,
-                        related_name='+',
+                        related_name="+",
                         to=settings.AUTH_USER_MODEL,
                     ),
                 ),
                 (
-                    'call',
+                    "call",
                     models.ForeignKey(
-                        on_delete=django.db.models.deletion.CASCADE, to='proposal.call'
+                        on_delete=django.db.models.deletion.CASCADE, to="proposal.call"
                     ),
                 ),
                 (
-                    'created_by',
+                    "created_by",
                     models.ForeignKey(
                         null=True,
                         on_delete=django.db.models.deletion.PROTECT,
-                        related_name='+',
+                        related_name="+",
                         to=settings.AUTH_USER_MODEL,
                     ),
                 ),
                 (
-                    'offering',
+                    "offering",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name='+',
-                        to='marketplace.offering',
+                        related_name="+",
+                        to="marketplace.offering",
                     ),
                 ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.RemoveField(
-            model_name='call',
-            name='offerings',
+            model_name="call",
+            name="offerings",
         ),
         migrations.AddField(
-            model_name='call',
-            name='offerings',
+            model_name="call",
+            name="offerings",
             field=models.ManyToManyField(
-                through='proposal.RequestedOffering', to='marketplace.Offering'
+                through="proposal.RequestedOffering", to="marketplace.Offering"
             ),
         ),
     ]

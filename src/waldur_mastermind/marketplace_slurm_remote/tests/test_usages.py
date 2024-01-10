@@ -24,27 +24,27 @@ class AllocationUserUsageCreationTest(test.APITransactionTestCase):
         offering.save()
 
         self.url = (
-            'http://testserver'
+            "http://testserver"
             + reverse(
-                'marketplace-slurm-remote-detail',
-                kwargs={'uuid': self.resource.uuid.hex},
+                "marketplace-slurm-remote-detail",
+                kwargs={"uuid": self.resource.uuid.hex},
             )
-            + 'set_usage'
-            + '/'
+            + "set_usage"
+            + "/"
         )
         self.user = self.fixture.user
 
         self.new_usage = {
-            'cpu_usage': 1,
-            'gpu_usage': 2,
-            'ram_usage': 3,
-            'month': 1,
-            'year': 2022,
-            'user': structure_factories.UserFactory.get_url(self.user),
-            'username': self.user.username,
+            "cpu_usage": 1,
+            "gpu_usage": 2,
+            "ram_usage": 3,
+            "month": 1,
+            "year": 2022,
+            "user": structure_factories.UserFactory.get_url(self.user),
+            "username": self.user.username,
         }
 
-    @data('staff', 'offering_owner', 'service_manager')
+    @data("staff", "offering_owner", "service_manager")
     def test_usage_setting_is_allowed(self, user):
         self.client.force_login(getattr(self.fixture, user))
         response = self.client.post(self.url, self.new_usage)
@@ -59,15 +59,15 @@ class AllocationUserUsageCreationTest(test.APITransactionTestCase):
                 year=2022,
             ).count(),
         )
-        self.new_usage.update({'user': None, 'username': 'TOTAL_ACCOUNT_USAGE'})
+        self.new_usage.update({"user": None, "username": "TOTAL_ACCOUNT_USAGE"})
         response = self.client.post(self.url, self.new_usage)
         self.assertEqual(200, response.status_code)
         self.allocation.refresh_from_db()
-        self.assertEqual(self.new_usage['cpu_usage'], self.allocation.cpu_usage)
-        self.assertEqual(self.new_usage['gpu_usage'], self.allocation.gpu_usage)
-        self.assertEqual(self.new_usage['ram_usage'], self.allocation.ram_usage)
+        self.assertEqual(self.new_usage["cpu_usage"], self.allocation.cpu_usage)
+        self.assertEqual(self.new_usage["gpu_usage"], self.allocation.gpu_usage)
+        self.assertEqual(self.new_usage["ram_usage"], self.allocation.ram_usage)
 
-    @data('owner', 'admin', 'manager', 'member')
+    @data("owner", "admin", "manager", "member")
     def test_usage_setting_is_forbidden(self, user):
         self.client.force_login(getattr(self.fixture, user))
         response = self.client.post(self.url, self.new_usage)

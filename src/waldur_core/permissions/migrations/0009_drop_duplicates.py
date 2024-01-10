@@ -2,13 +2,13 @@ from django.db import migrations
 
 
 def drop_duplicates(apps, schema_editor):
-    Role = apps.get_model('permissions', 'Role')
-    RolePermission = apps.get_model('permissions', 'RolePermission')
+    Role = apps.get_model("permissions", "Role")
+    RolePermission = apps.get_model("permissions", "RolePermission")
 
     for role in Role.objects.all():
         permissions = set(
             RolePermission.objects.filter(role=role).values_list(
-                'permission', flat=True
+                "permission", flat=True
             )
         )
         role.permissions.all().delete()
@@ -22,7 +22,7 @@ def drop_duplicates(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('permissions', '0008_customer_role'),
+        ("permissions", "0008_customer_role"),
     ]
 
     operations = [migrations.RunPython(drop_duplicates)]

@@ -15,13 +15,13 @@ class BrowsableAPIRenderer(renderers.BrowsableAPIRenderer):
 
     def get_context(self, data, accepted_media_type, renderer_context):
         context = super().get_context(data, accepted_media_type, renderer_context)
-        context['version'] = __version__
+        context["version"] = __version__
         return context
 
 
 class PlainTextRenderer(renderers.BaseRenderer):
-    media_type = 'text/plain'
-    format = 'txt'
+    media_type = "text/plain"
+    format = "txt"
 
     def render(self, data, accepted_media_type=None, renderer_context=None):
         if isinstance(data, dict):

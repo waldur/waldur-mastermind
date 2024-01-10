@@ -11,13 +11,13 @@ class BaseOpenStackTest(test.APITransactionTestCase):
     def setUp(self):
         super().setUp()
         self.tenant_category = marketplace_factories.CategoryFactory(
-            title='Tenant', default_tenant_category=True
+            title="Tenant", default_tenant_category=True
         )
         self.instance_category = marketplace_factories.CategoryFactory(
-            title='Instance', default_vm_category=True
+            title="Instance", default_vm_category=True
         )
         self.volume_category = marketplace_factories.CategoryFactory(
-            title='Volume', default_volume_category=True
+            title="Volume", default_volume_category=True
         )
 
 

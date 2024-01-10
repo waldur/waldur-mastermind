@@ -32,12 +32,12 @@ class LimitViewSet(RetrieveModelMixin, GenericViewSet):
     queryset = structure_models.ServiceSettings.objects.filter(
         type=VMwareConfig.service_name
     )
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
     serializer_class = serializers.LimitSerializer
 
 
 class VirtualMachineViewSet(structure_views.ResourceViewSet):
-    queryset = models.VirtualMachine.objects.all().order_by('name')
+    queryset = models.VirtualMachine.objects.all().order_by("name")
     serializer_class = serializers.VirtualMachineSerializer
     filterset_class = filters.VirtualMachineFilter
     pull_executor = executors.VirtualMachinePullExecutor
@@ -57,12 +57,12 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
         )
     ]
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def start(self, request, uuid=None):
         instance = self.get_object()
         executors.VirtualMachineStartExecutor().execute(instance)
         return Response(
-            {'status': _('start was scheduled')}, status=status.HTTP_202_ACCEPTED
+            {"status": _("start was scheduled")}, status=status.HTTP_202_ACCEPTED
         )
 
     start_validators = [
@@ -74,12 +74,12 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
     ]
     start_serializer_class = rf_serializers.Serializer
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def stop(self, request, uuid=None):
         instance = self.get_object()
         executors.VirtualMachineStopExecutor().execute(instance)
         return Response(
-            {'status': _('stop was scheduled')}, status=status.HTTP_202_ACCEPTED
+            {"status": _("stop was scheduled")}, status=status.HTTP_202_ACCEPTED
         )
 
     stop_validators = [
@@ -91,12 +91,12 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
     ]
     stop_serializer_class = rf_serializers.Serializer
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def reset(self, request, uuid=None):
         instance = self.get_object()
         executors.VirtualMachineResetExecutor().execute(instance)
         return Response(
-            {'status': _('reset was scheduled')}, status=status.HTTP_202_ACCEPTED
+            {"status": _("reset was scheduled")}, status=status.HTTP_202_ACCEPTED
         )
 
     reset_validators = [
@@ -107,12 +107,12 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
     ]
     reset_serializer_class = rf_serializers.Serializer
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def suspend(self, request, uuid=None):
         instance = self.get_object()
         executors.VirtualMachineSuspendExecutor().execute(instance)
         return Response(
-            {'status': _('suspend was scheduled')}, status=status.HTTP_202_ACCEPTED
+            {"status": _("suspend was scheduled")}, status=status.HTTP_202_ACCEPTED
         )
 
     suspend_validators = [
@@ -125,14 +125,14 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
 
     def vm_tools_are_running(vm):
         if vm.tools_state != models.VirtualMachine.ToolsStates.RUNNING:
-            raise rf_serializers.ValidationError('VMware Tools are not running.')
+            raise rf_serializers.ValidationError("VMware Tools are not running.")
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def shutdown_guest(self, request, uuid=None):
         instance = self.get_object()
         executors.VirtualMachineShutdownGuestExecutor().execute(instance)
         return Response(
-            {'status': _('shutdown was scheduled')}, status=status.HTTP_202_ACCEPTED
+            {"status": _("shutdown was scheduled")}, status=status.HTTP_202_ACCEPTED
         )
 
     shutdown_guest_validators = reboot_guest_validators = [
@@ -144,17 +144,17 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
     ]
     shutdown_guest_serializer_class = rf_serializers.Serializer
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def reboot_guest(self, request, uuid=None):
         instance = self.get_object()
         executors.VirtualMachineRebootGuestExecutor().execute(instance)
         return Response(
-            {'status': _('reboot was scheduled')}, status=status.HTTP_202_ACCEPTED
+            {"status": _("reboot was scheduled")}, status=status.HTTP_202_ACCEPTED
         )
 
     reboot_guest_serializer_class = rf_serializers.Serializer
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def create_port(self, request, uuid=None):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -167,7 +167,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
         # Limit of the network adapter per VM is 10 in vSphere 6.7, 6.5 and 6.0
         if vm.port_set.count() >= 10:
             raise rf_serializers.ValidationError(
-                'Virtual machine can have at most 10 network adapters.'
+                "Virtual machine can have at most 10 network adapters."
             )
 
     create_port_validators = [
@@ -176,7 +176,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
     ]
     create_port_serializer_class = serializers.PortSerializer
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def create_disk(self, request, uuid=None):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -187,13 +187,13 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
 
     def validate_total_size(vm):
         max_disk_total = serializers.get_int_or_none(
-            vm.service_settings.options, 'max_disk_total'
+            vm.service_settings.options, "max_disk_total"
         )
 
         if max_disk_total:
             remaining_quota = max_disk_total - vm.total_disk
             if remaining_quota < 1024:
-                raise rf_serializers.ValidationError('Storage quota has been reached.')
+                raise rf_serializers.ValidationError("Storage quota has been reached.")
 
     create_disk_validators = [
         core_validators.StateValidator(models.VirtualMachine.States.OK),
@@ -201,7 +201,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
     ]
     create_disk_serializer_class = serializers.DiskSerializer
 
-    @action(detail=True, methods=['get'])
+    @action(detail=True, methods=["get"])
     def console(self, request, uuid=None):
         """
         This endpoint provides access to Virtual Machine Remote Console aka VMRC.
@@ -211,15 +211,15 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
         try:
             url = backend.get_console_url(instance)
         except Exception:
-            logger.exception('Unable to get console URL.')
-            raise rf_serializers.ValidationError('Unable to get console URL.')
-        return Response({'url': url}, status=status.HTTP_200_OK)
+            logger.exception("Unable to get console URL.")
+            raise rf_serializers.ValidationError("Unable to get console URL.")
+        return Response({"url": url}, status=status.HTTP_200_OK)
 
     console_validators = [
         core_validators.StateValidator(models.VirtualMachine.States.OK)
     ]
 
-    @action(detail=True, methods=['get'])
+    @action(detail=True, methods=["get"])
     def web_console(self, request, uuid=None):
         """
         This endpoint provides access to HTML Console aka WMKS.
@@ -229,9 +229,9 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
         try:
             url = backend.get_web_console_url(instance)
         except Exception:
-            logger.exception('Unable to get web console URL.')
-            raise rf_serializers.ValidationError('Unable to get web console URL.')
-        return Response({'url': url}, status=status.HTTP_200_OK)
+            logger.exception("Unable to get web console URL.")
+            raise rf_serializers.ValidationError("Unable to get web console URL.")
+        return Response({"url": url}, status=status.HTTP_200_OK)
 
     web_console_validators = [
         core_validators.StateValidator(models.VirtualMachine.States.OK),
@@ -242,23 +242,23 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
 
 
 class PortViewSet(structure_views.ResourceViewSet):
-    queryset = models.Port.objects.all().order_by('-created')
+    queryset = models.Port.objects.all().order_by("-created")
     serializer_class = serializers.PortSerializer
     filterset_class = filters.PortFilter
-    disabled_actions = ['create', 'update', 'partial_update']
+    disabled_actions = ["create", "update", "partial_update"]
     pull_executor = executors.PortPullExecutor
     delete_executor = executors.PortDeleteExecutor
 
 
 class DiskViewSet(structure_views.ResourceViewSet):
-    queryset = models.Disk.objects.all().order_by('-created')
+    queryset = models.Disk.objects.all().order_by("-created")
     serializer_class = serializers.DiskSerializer
     filterset_class = filters.DiskFilter
-    disabled_actions = ['create', 'update', 'partial_update']
+    disabled_actions = ["create", "update", "partial_update"]
     pull_executor = executors.DiskPullExecutor
     delete_executor = executors.DiskDeleteExecutor
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def extend(self, request, uuid=None):
         """Increase disk capacity"""
         disk = self.get_object()
@@ -270,22 +270,22 @@ class DiskViewSet(structure_views.ResourceViewSet):
         transaction.on_commit(lambda: executors.DiskExtendExecutor().execute(disk))
 
         return Response(
-            {'status': _('extend was scheduled')}, status=status.HTTP_202_ACCEPTED
+            {"status": _("extend was scheduled")}, status=status.HTTP_202_ACCEPTED
         )
 
     def validate_total_size(disk):
         options = disk.vm.service_settings.options
 
-        max_disk = serializers.get_int_or_none(options, 'max_disk')
+        max_disk = serializers.get_int_or_none(options, "max_disk")
         if max_disk and abs(max_disk - disk.size) < 1024:
-            raise rf_serializers.ValidationError('Storage limit has been reached.')
+            raise rf_serializers.ValidationError("Storage limit has been reached.")
 
-        max_disk_total = serializers.get_int_or_none(options, 'max_disk_total')
+        max_disk_total = serializers.get_int_or_none(options, "max_disk_total")
 
         if max_disk_total:
             remaining_quota = max_disk_total - disk.vm.total_disk
             if remaining_quota < 1024:
-                raise rf_serializers.ValidationError('Storage quota has been reached.')
+                raise rf_serializers.ValidationError("Storage quota has been reached.")
 
     extend_validators = [
         core_validators.StateValidator(models.Disk.States.OK),
@@ -295,35 +295,35 @@ class DiskViewSet(structure_views.ResourceViewSet):
 
 
 class TemplateViewSet(structure_views.BaseServicePropertyViewSet):
-    queryset = models.Template.objects.all().order_by('name')
+    queryset = models.Template.objects.all().order_by("name")
     serializer_class = serializers.TemplateSerializer
     filterset_class = filters.TemplateFilter
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
 
 
 class ClusterViewSet(structure_views.BaseServicePropertyViewSet):
-    queryset = models.Cluster.objects.all().order_by('name')
+    queryset = models.Cluster.objects.all().order_by("name")
     serializer_class = serializers.ClusterSerializer
     filterset_class = filters.ClusterFilter
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
 
 
 class NetworkViewSet(structure_views.BaseServicePropertyViewSet):
-    queryset = models.Network.objects.all().order_by('name')
+    queryset = models.Network.objects.all().order_by("name")
     serializer_class = serializers.NetworkSerializer
     filterset_class = filters.NetworkFilter
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
 
 
 class DatastoreViewSet(structure_views.BaseServicePropertyViewSet):
-    queryset = models.Datastore.objects.all().order_by('name')
+    queryset = models.Datastore.objects.all().order_by("name")
     serializer_class = serializers.DatastoreSerializer
     filterset_class = filters.DatastoreFilter
-    lookup_field = 'uuid'
+    lookup_field = "uuid"
 
 
 class FolderViewSet(structure_views.BaseServicePropertyViewSet):
-    queryset = models.Folder.objects.all().order_by('name')
+    queryset = models.Folder.objects.all().order_by("name")
     serializer_class = serializers.FolderSerializer
     filterset_class = filters.FolderFilter
-    lookup_field = 'uuid'
+    lookup_field = "uuid"

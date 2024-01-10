@@ -13,7 +13,7 @@ class SmaxServiceBackend(SupportBackend):
     def __init__(self):
         self.manager = SmaxBackend()
 
-    backend_name = 'smax'
+    backend_name = "smax"
 
     def get_or_create_support_user_by_waldur_user(
         self, waldur_user: WaldurUser
@@ -21,7 +21,7 @@ class SmaxServiceBackend(SupportBackend):
         support_user, _ = models.SupportUser.objects.get_or_create(
             user=waldur_user,
             backend_name=self.backend_name,
-            defaults={'name': waldur_user.full_name or waldur_user.username},
+            defaults={"name": waldur_user.full_name or waldur_user.username},
         )
 
         if support_user.backend_id:
@@ -106,7 +106,7 @@ class SmaxServiceBackend(SupportBackend):
 
                 if created:
                     logger.info(
-                        f'Smax support user {backend_user.name} has been created.'
+                        f"Smax support user {backend_user.name} has been created."
                     )
 
                 models.Comment.objects.create(
@@ -118,7 +118,7 @@ class SmaxServiceBackend(SupportBackend):
                     backend_id=backend_comment.id,
                     state=models.Comment.States.OK,
                 )
-                logger.info(f'Smax comment {backend_comment.id} has been created.')
+                logger.info(f"Smax comment {backend_comment.id} has been created.")
 
     def create_smax_user_for_support_user(
         self, support_user: models.SupportUser

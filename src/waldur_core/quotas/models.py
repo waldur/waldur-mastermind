@@ -28,13 +28,13 @@ class QuotaLimit(models.Model):
         on_delete=models.CASCADE, to=ct_models.ContentType, null=True
     )
     object_id = models.PositiveIntegerField(null=True)
-    scope = ct_fields.GenericForeignKey('content_type', 'object_id')
+    scope = ct_fields.GenericForeignKey("content_type", "object_id")
 
-    tracker = FieldTracker(fields=['value'])
-    objects = managers.QuotaManager('scope')
+    tracker = FieldTracker(fields=["value"])
+    objects = managers.QuotaManager("scope")
 
     class Meta:
-        unique_together = (('name', 'content_type', 'object_id'),)
+        unique_together = (("name", "content_type", "object_id"),)
 
 
 class QuotaUsage(models.Model):
@@ -45,9 +45,9 @@ class QuotaUsage(models.Model):
         on_delete=models.CASCADE, to=ct_models.ContentType, null=True
     )
     object_id = models.PositiveIntegerField(null=True)
-    scope = ct_fields.GenericForeignKey('content_type', 'object_id')
+    scope = ct_fields.GenericForeignKey("content_type", "object_id")
 
-    objects = managers.QuotaManager('scope')
+    objects = managers.QuotaManager("scope")
 
 
 class QuotaModelMixin(models.Model):
@@ -89,14 +89,14 @@ class QuotaModelMixin(models.Model):
             object_id=self.id,
             content_type=ct_models.ContentType.objects.get_for_model(self),
             name=quota_name,
-            defaults={'value': limit},
+            defaults={"value": limit},
         )
 
     def get_quota_usage(self, quota_name):
         qs = QuotaUsage.objects.filter(scope=self, name=quota_name)
         return max(
             0,
-            qs.aggregate(sum=Sum('delta'))['sum'] or 0,
+            qs.aggregate(sum=Sum("delta"))["sum"] or 0,
         )
 
     @transaction.atomic
@@ -137,15 +137,15 @@ class QuotaModelMixin(models.Model):
             if limit == -1:
                 continue
             if usage + delta > limit:
-                errors.append(f'{name} quota limit: {limit}, requires {usage + delta}')
+                errors.append(f"{name} quota limit: {limit}, requires {usage + delta}")
         if errors:
             raise exceptions.QuotaValidationError(
-                _('One or more quotas were exceeded: %s') % ';'.join(errors)
+                _("One or more quotas were exceeded: %s") % ";".join(errors)
             )
 
     @classmethod
     def get_quotas_fields(cls, field_class=None) -> list[fields.QuotaField]:
-        if not hasattr(cls, '_quota_fields') or not cls.Quotas.enable_fields_caching:
+        if not hasattr(cls, "_quota_fields") or not cls.Quotas.enable_fields_caching:
             cls._quota_fields = dict(
                 inspect.getmembers(
                     cls.Quotas, lambda m: isinstance(m, fields.QuotaField)
@@ -162,17 +162,17 @@ class QuotaModelMixin(models.Model):
     @property
     def quota_usages(self):
         return {
-            row['name']: row['value'] or 0
+            row["name"]: row["value"] or 0
             for row in QuotaUsage.objects.filter(scope=self)
-            .values('name')
-            .annotate(value=Sum('delta'))
+            .values("name")
+            .annotate(value=Sum("delta"))
         }
 
     @property
     def quota_limits(self):
         return {
-            row['name']: row['value'] or -1
-            for row in QuotaLimit.objects.filter(scope=self).values('name', 'value')
+            row["name"]: row["value"] or -1
+            for row in QuotaLimit.objects.filter(scope=self).values("name", "value")
         }
 
     @property
@@ -181,9 +181,9 @@ class QuotaModelMixin(models.Model):
         limits = self.quota_limits
         return [
             {
-                'name': name,
-                'usage': usages.get(name) or 0,
-                'limit': limits.get(name) or -1,
+                "name": name,
+                "usage": usages.get(name) or 0,
+                "limit": limits.get(name) or -1,
             }
             for name in self.get_quotas_names()
         ]
