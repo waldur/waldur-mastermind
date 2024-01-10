@@ -1,6 +1,5 @@
 import datetime
 import logging
-from typing import Dict
 
 import jwt
 from dateutil.parser import parse as parse_datetime
@@ -2730,7 +2729,7 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
         return plan_period
 
     @classmethod
-    def get_components_map(cls, offering) -> Dict[str, models.OfferingComponent]:
+    def get_components_map(cls, offering) -> dict[str, models.OfferingComponent]:
         # Allow to report usage for limit-based components
         components = offering.components.filter(
             billing_type__in=[BillingTypes.USAGE, BillingTypes.LIMIT]

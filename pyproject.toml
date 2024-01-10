@@ -175,4 +175,4 @@ select = [
   "UP",  # pyupgrade
 ]
 
-target-version = "py38"
+target-version = "py311"

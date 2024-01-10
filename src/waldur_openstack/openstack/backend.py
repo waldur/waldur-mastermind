@@ -1,7 +1,6 @@
 import logging
 import re
 from collections import defaultdict
-from typing import Dict
 
 from cinderclient import exceptions as cinder_exceptions
 from django.core.exceptions import ValidationError
@@ -219,7 +218,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             ).delete()
 
     @log_backend_action("push quotas for tenant")
-    def push_tenant_quotas(self, tenant, quotas: Dict[str, int]):
+    def push_tenant_quotas(self, tenant, quotas: dict[str, int]):
         cinder_quotas = {
             "gigabytes": self.mb2gb(quotas.get("storage"))
             if "storage" in quotas

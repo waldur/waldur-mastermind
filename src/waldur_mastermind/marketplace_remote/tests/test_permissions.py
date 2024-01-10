@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest import mock
 
 from django.test import override_settings
@@ -109,9 +109,7 @@ class RemoteProjectPermissionsTestCase(test.APITransactionTestCase):
 
     def test_update_remote_permission(self):
         old_expiration_time = datetime.now() + timedelta(days=1)
-        new_expiration_time = (datetime.now() + timedelta(days=2)).replace(
-            tzinfo=timezone.utc
-        )
+        new_expiration_time = (datetime.now() + timedelta(days=2)).replace(tzinfo=UTC)
         permission = self.project.add_user(
             user=self.new_user,
             role=ProjectRole.ADMIN,

@@ -25,7 +25,7 @@ def change_users_quota(sender, instance: UserRole, **kwargs):
     if not instance.role.is_system_role:
         return
 
-    if not isinstance(instance.scope, (Customer, Project)):
+    if not isinstance(instance.scope, Customer | Project):
         return
 
     customer = get_customer(instance.scope)

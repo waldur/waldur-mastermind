@@ -155,7 +155,7 @@ class PermissionListSerializer(serializers.ListSerializer):
         except (KeyError, AttributeError):
             pass
         else:
-            if isinstance(data, (django_models.Manager, django_models.query.QuerySet)):
+            if isinstance(data, django_models.Manager | django_models.query.QuerySet):
                 data = filter_queryset_for_user(data.all(), user)
 
         return super().to_representation(data)

@@ -1,5 +1,4 @@
 import logging
-from typing import List
 
 
 class Component:
@@ -85,7 +84,7 @@ class PluginManager:
         """
         return self.backends.get(offering_type, {}).get("service_type")
 
-    def get_components(self, offering_type: str) -> List[Component]:
+    def get_components(self, offering_type: str) -> list[Component]:
         """
         Return a list of components for given offering_type.
         :param offering_type: offering type name

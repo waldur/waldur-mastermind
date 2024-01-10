@@ -1,5 +1,4 @@
 import logging
-from typing import List
 
 import requests
 
@@ -456,7 +455,7 @@ class RancherClient:
         description: str,
         min_replicas: int,
         max_replicas: int,
-        metrics: List[dict],
+        metrics: list[dict],
     ):
         """
         Create horizontal pod autoscaler.
@@ -484,7 +483,7 @@ class RancherClient:
         description: str,
         min_replicas: int,
         max_replicas: int,
-        metrics: List[dict],
+        metrics: list[dict],
     ):
         """
         Update horizontal pod autoscaler.

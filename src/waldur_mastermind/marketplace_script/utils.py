@@ -262,9 +262,7 @@ class ContainerExecutorMixin:
 
         try:
             environment = {
-                key: json.dumps(value)
-                if isinstance(value, (dict, list))
-                else str(value)
+                key: json.dumps(value) if isinstance(value, dict | list) else str(value)
                 for key, value in environment.items()
             }
             output = execute_script(

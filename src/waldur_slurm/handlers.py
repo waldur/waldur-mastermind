@@ -45,7 +45,7 @@ def process_role_granted(sender, instance: UserRole, **kwargs):
     if not instance.role.is_system_role:
         return
 
-    if not isinstance(instance.scope, (Customer, Project)):
+    if not isinstance(instance.scope, Customer | Project):
         return
 
     try:
@@ -67,7 +67,7 @@ def process_role_revoked(sender, instance, **kwargs):
     if not instance.role.is_system_role:
         return
 
-    if not isinstance(instance.scope, (Customer, Project)):
+    if not isinstance(instance.scope, Customer | Project):
         return
 
     try:

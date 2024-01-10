@@ -1,6 +1,5 @@
 import datetime
 from datetime import timedelta
-from typing import List, Optional, Tuple
 
 import saml2
 from pydantic import BaseModel, Field
@@ -18,7 +17,7 @@ class WaldurCore(BaseModel):
         description="Defines whether extensions should be automatically registered.",
     )
     TOKEN_KEY = Field("x-auth-token", description="Header for token authentication.")
-    AUTHENTICATION_METHODS: List[str] = Field(
+    AUTHENTICATION_METHODS: list[str] = Field(
         ["LOCAL_SIGNIN"], description="List of enabled authentication methods."
     )
     INVITATIONS_ENABLED = Field(
@@ -66,7 +65,7 @@ class WaldurCore(BaseModel):
         },
         description="Configure notifications about profile changes of organization owners.",
     )
-    COUNTRIES: List[str] = Field(
+    COUNTRIES: list[str] = Field(
         [
             "AL",
             "AT",
@@ -134,7 +133,7 @@ class WaldurCore(BaseModel):
     ONLY_STAFF_CAN_INVITE_USERS = Field(
         False, description="Allow to limit invitation management to staff only."
     )
-    INVITATION_MAX_AGE: Optional[timedelta] = Field(
+    INVITATION_MAX_AGE: timedelta | None = Field(
         None,
         description="Max age of invitation token. It is used in approve and reject actions.",
     )
@@ -146,7 +145,7 @@ class WaldurCore(BaseModel):
         False,
         description="Do not allow user to grant multiple roles in the same project or organization using invitation.",
     )
-    PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS: List[str] = Field(
+    PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS: list[str] = Field(
         [],
         description="List of authentication methods which are not allowed to update user details.",
     )
@@ -167,7 +166,7 @@ class WaldurCore(BaseModel):
     ENABLE_GEOIP = Field(
         True, description="Enable detection of coordinates of virtual machines."
     )
-    SELLER_COUNTRY_CODE: Optional[str] = Field(
+    SELLER_COUNTRY_CODE: str | None = Field(
         description="Specifies seller legal or effective country of registration or residence as an "
         "ISO 3166-1 alpha-2 country code. It is used for computing VAT charge rate."
     )
@@ -187,20 +186,20 @@ class WaldurCore(BaseModel):
     SUPPORT_PORTAL_URL = Field(
         "", description="Support portal URL is rendered as a shortcut on dashboard"
     )
-    EXTERNAL_LINKS: List[ExternalLink] = Field(
+    EXTERNAL_LINKS: list[ExternalLink] = Field(
         [],
         description="Render external links in dropdown in header. "
         "Each item should be object with label and url fields. "
         'For example: {"label": "Helpdesk", "url": "`https://example.com/`"}',
     )
-    USER_MANDATORY_FIELDS: List[str] = Field(
+    USER_MANDATORY_FIELDS: list[str] = Field(
         ["full_name", "email"],
         description="List of user profile attributes that would be required for filling in HomePort. "
         "Note that backend will not be affected. If a mandatory field is missing in profile, "
         "a profile edit view will be forced upon user on any HomePort logged in action. "
         "Possible values are: description, email, full_name, job_title, organization, phone_number",
     )
-    USER_REGISTRATION_HIDDEN_FIELDS: List[str] = Field(
+    USER_REGISTRATION_HIDDEN_FIELDS: list[str] = Field(
         [
             "registration_method",
             "job_title",
@@ -221,7 +220,7 @@ class WaldurCore(BaseModel):
         description="Custom label for tax number field in invitation creation dialog.",
     )
 
-    HOMEPORT_SENTRY_DSN: Optional[str] = Field(
+    HOMEPORT_SENTRY_DSN: str | None = Field(
         description="Sentry Data Source Name for Waldur HomePort project."
     )
 
@@ -243,7 +242,7 @@ class WaldurCore(BaseModel):
         "", description="The URL for management of local user details."
     )
 
-    LOCAL_IDP_PROTECTED_FIELDS: List[str] = Field(
+    LOCAL_IDP_PROTECTED_FIELDS: list[str] = Field(
         [],
         description="The list of protected fields for local IdP.",
     )
@@ -329,19 +328,19 @@ class WaldurHPC(BaseModel):
         "",
         description="UUID of a Waldur organization (aka customer) where new external users would be added",
     )
-    INTERNAL_AFFILIATIONS: List[str] = Field(
+    INTERNAL_AFFILIATIONS: list[str] = Field(
         [],
         description="List of user affiliations (eduPersonScopedAffiliation fields) that define if the user belongs to internal organization.",
     )
-    EXTERNAL_AFFILIATIONS: List[str] = Field(
+    EXTERNAL_AFFILIATIONS: list[str] = Field(
         [],
         description="List of user affiliations (eduPersonScopedAffiliation fields) that define if the user belongs to external organization.",
     )
-    INTERNAL_EMAIL_PATTERNS: List[str] = Field(
+    INTERNAL_EMAIL_PATTERNS: list[str] = Field(
         [],
         description="List of user email patterns (as regex) that define if the user belongs to internal organization.",
     )
-    EXTERNAL_EMAIL_PATTERNS: List[str] = Field(
+    EXTERNAL_EMAIL_PATTERNS: list[str] = Field(
         [],
         description="List of user email patterns (as regex) that define if the user belongs to external organization.",
     )
@@ -818,7 +817,7 @@ class WaldurConfiguration(BaseModel):
         "",
         description="Default email address to use for email replies.",
     )
-    IPSTACK_ACCESS_KEY: Optional[str] = Field(
+    IPSTACK_ACCESS_KEY: str | None = Field(
         description="Unique authentication key used to gain access to the ipstack API."
     )
     IMPORT_EXPORT_USE_TRANSACTIONS = Field(
@@ -826,7 +825,7 @@ class WaldurConfiguration(BaseModel):
         description="Controls if resource importing should use database transactions. "
         "Using transactions makes imports safer as a failure during import won’t import only part of the data set.",
     )
-    LANGUAGES: List[Tuple[str, str]] = Field(
+    LANGUAGES: list[tuple[str, str]] = Field(
         (
             ("en", "English"),
             ("et", "Eesti"),
@@ -834,7 +833,7 @@ class WaldurConfiguration(BaseModel):
         description="The list is a list of two-tuples in the format "
         "(language code, language name) – for example, ('ja', 'Japanese').",
     )
-    LANGUAGE_CHOICES: List[str] = Field(
+    LANGUAGE_CHOICES: list[str] = Field(
         ["en"],
         description="This specifies which languages are available for language selection.",
     )

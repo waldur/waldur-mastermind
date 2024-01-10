@@ -279,7 +279,7 @@ class AugmentedSerializerMixin:
                 "related_paths can be defined only for ModelSerializer."
             )
 
-        if isinstance(related_paths, (list, tuple)):
+        if isinstance(related_paths, list | tuple):
             related_paths = {path: ("name", "uuid") for path in related_paths}
 
         return related_paths

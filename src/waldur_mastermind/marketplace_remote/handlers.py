@@ -31,7 +31,7 @@ def sync_permission_with_remote(sender, instance: UserRole, signal, **kwargs):
         return
 
     if not isinstance(
-        instance.scope, (structure_models.Customer, structure_models.Project)
+        instance.scope, structure_models.Customer | structure_models.Project
     ):
         return
 

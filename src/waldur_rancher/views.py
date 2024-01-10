@@ -402,7 +402,7 @@ class CatalogViewSet(OptionalReadonlyViewset, core_views.ActionsViewSet):
             service_settings = scope
             if scope.type != RancherConfig.service_name:
                 raise ValidationError(_("Invalid provider detected."))
-        elif isinstance(scope, (models.Cluster, models.Project)):
+        elif isinstance(scope, models.Cluster | models.Project):
             service_settings = scope.settings
         else:
             raise ValidationError(_("Invalid scope provided."))

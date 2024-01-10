@@ -134,7 +134,7 @@ class BaseLogger:
 
             if isinstance(entity, LoggableMixin):
                 context.update(entity._get_log_context(entity_name))
-            elif isinstance(entity, (int, float, str, dict, tuple, list, bool)):
+            elif isinstance(entity, int | float | str | dict | tuple | list | bool):
                 context[entity_name] = entity
             elif entity is None:
                 pass

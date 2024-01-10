@@ -38,9 +38,7 @@ def pull_resource(resource_id):
         return
     serializer = serializers.ResourceSerializer(instance=resource)
     environment = {
-        key.upper(): json.dumps(value)
-        if isinstance(value, (dict, list))
-        else str(value)
+        key.upper(): json.dumps(value) if isinstance(value, dict | list) else str(value)
         for key, value in dict(serializer.data).items()
     }
     for opt in options.get("environ", []):

@@ -7,7 +7,7 @@ from . import models
 
 def update_daily_quotas(sender, instance, created=False, **kwargs):
     if not isinstance(
-        instance.scope, (structure_models.Project, structure_models.Customer)
+        instance.scope, structure_models.Project | structure_models.Customer
     ):
         return
 

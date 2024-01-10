@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import Dict, List
 
 from azure.identity import ClientSecretCredential
 from azure.mgmt.compute import ComputeManagementClient
@@ -151,7 +150,7 @@ class AzureClient:
 
     def list_virtual_machine_size_availability_zones(
         self, location: str
-    ) -> Dict[str, List[str]]:
+    ) -> dict[str, list[str]]:
         try:
             all_skus = self.compute_client.resource_skus.list(
                 filter=f"location eq '{location}'"
@@ -168,7 +167,7 @@ class AzureClient:
 
     def list_virtual_machine_images(
         self, location, selected_provider=None
-    ) -> List[AzureImage]:
+    ) -> list[AzureImage]:
         try:
             publishers = self.compute_client.virtual_machine_images.list_publishers(
                 location

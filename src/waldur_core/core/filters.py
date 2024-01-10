@@ -333,7 +333,7 @@ class ExtendedOrderingFilter(django_filters.OrderingFilter):
         param = param[1:] if descending else param
         field_name = self.param_map.get(param, param)
 
-        if not isinstance(field_name, (tuple, list)):
+        if not isinstance(field_name, tuple | list):
             field_name = [field_name]
 
         return list(map(lambda x: "-%s" % x if descending else x, field_name))

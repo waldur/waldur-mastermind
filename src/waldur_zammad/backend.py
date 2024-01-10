@@ -1,7 +1,6 @@
 import functools
 import re
 from dataclasses import dataclass
-from typing import List
 
 from constance import config
 from requests import exceptions as requests_exceptions
@@ -286,7 +285,7 @@ class ZammadBackend:
         customer_id,
         waldur_user_email,
         group=None,
-        tags: List[str] = "",
+        tags: list[str] = "",
     ):
         group = group or config.ZAMMAD_GROUP or self.get_groups()[0]["name"]
         tags = ",".join(tags)

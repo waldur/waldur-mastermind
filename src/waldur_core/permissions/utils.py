@@ -76,14 +76,14 @@ def get_scope_ids(user, content_type, role=None):
         is_active=True, user=user, content_type=content_type
     )
     if role:
-        if not isinstance(role, (list, tuple)):
+        if not isinstance(role, list | tuple):
             role = [role]
         qs = qs.filter(role__name__in=role)
     return qs.values_list("object_id", flat=True).distinct()
 
 
 def get_user_ids(content_type, scope_ids, role=None):
-    if not isinstance(scope_ids, (list, tuple, QuerySet)):
+    if not isinstance(scope_ids, list | tuple | QuerySet):
         scope_ids = [scope_ids]
     qs = models.UserRole.objects.filter(
         is_active=True, object_id__in=scope_ids, content_type=content_type
@@ -92,7 +92,7 @@ def get_user_ids(content_type, scope_ids, role=None):
         if isinstance(role, models.Role):
             qs = qs.filter(role=role)
         else:
-            if not isinstance(role, (list, tuple)):
+            if not isinstance(role, list | tuple):
                 role = [role]
             qs = qs.filter(role__name__in=role)
     return qs.values_list("user_id", flat=True)
