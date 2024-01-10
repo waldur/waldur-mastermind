@@ -1,7 +1,6 @@
 from django.utils.translation import gettext_lazy as _
-from rest_framework import decorators, response
+from rest_framework import decorators, response, status
 from rest_framework import serializers as rf_serializers
-from rest_framework import status
 
 from waldur_core.core import executors as core_executors
 from waldur_core.core import validators as core_validators

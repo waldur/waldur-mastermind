@@ -14,10 +14,9 @@ from django.http import FileResponse, HttpResponse, HttpResponseRedirect, JsonRe
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import TemplateView
-from rest_framework import exceptions
+from rest_framework import exceptions, status, viewsets
 from rest_framework import mixins as rf_mixins
 from rest_framework import permissions as rf_permissions
-from rest_framework import status, viewsets
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response

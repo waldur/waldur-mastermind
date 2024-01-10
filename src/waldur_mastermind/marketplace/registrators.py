@@ -13,9 +13,8 @@ from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import registrators
 from waldur_mastermind.invoices.registrators import RegistrationManager
 from waldur_mastermind.invoices.utils import get_current_month_end, get_full_days
-from waldur_mastermind.marketplace import PLUGIN_NAME
+from waldur_mastermind.marketplace import PLUGIN_NAME, utils
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace import utils
 from waldur_mastermind.promotions import models as promotions_models
 
 logger = logging.getLogger(__name__)

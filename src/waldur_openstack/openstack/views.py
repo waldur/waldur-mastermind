@@ -2,9 +2,8 @@ import logging
 
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import decorators, exceptions, response
+from rest_framework import decorators, exceptions, response, status
 from rest_framework import serializers as rf_serializers
-from rest_framework import status
 
 from waldur_core.core import exceptions as core_exceptions
 from waldur_core.core import utils as core_utils

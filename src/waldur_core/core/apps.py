@@ -14,8 +14,10 @@ class CoreConfig(AppConfig):
     def ready(self):
         from rest_framework.authtoken.models import Token
 
-        from waldur_core.core import checks  # noqa
-        from waldur_core.core import handlers
+        from waldur_core.core import (
+            checks,  # noqa
+            handlers,
+        )
         from waldur_core.core.models import StateMixin
 
         User = get_user_model()

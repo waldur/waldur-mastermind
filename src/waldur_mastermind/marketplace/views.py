@@ -33,9 +33,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django_filters.rest_framework import DjangoFilterBackend
 from django_fsm import TransitionNotAllowed
 from rest_framework import exceptions as rf_exceptions
-from rest_framework import mixins
+from rest_framework import mixins, status, views
 from rest_framework import permissions as rf_permissions
-from rest_framework import status, views
 from rest_framework import viewsets as rf_viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
