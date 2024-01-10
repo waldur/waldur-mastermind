@@ -98,7 +98,7 @@ class RoundFactory(factory.django.DjangoModelFactory):
 
     call = factory.SubFactory(CallFactory)
     start_time = datetime.date.today() + datetime.timedelta(days=5)
-    end_time = datetime.date.today() + datetime.timedelta(days=10)
+    cutoff_time = datetime.date.today() + datetime.timedelta(days=10)
 
     @classmethod
     def get_url(cls, call=None, call_round=None):

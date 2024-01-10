@@ -92,9 +92,9 @@ class RoundCreateTest(test.APITransactionTestCase):
 
         payload = {
             'start_time': (datetime.date.today()).strftime("%Y-%m-%dT%H:%M:%S"),
-            'end_time': (datetime.date.today() + datetime.timedelta(days=2)).strftime(
-                "%Y-%m-%dT%H:%M:%S"
-            ),
+            'cutoff_time': (
+                datetime.date.today() + datetime.timedelta(days=2)
+            ).strftime("%Y-%m-%dT%H:%M:%S"),
             'review_strategy': models.Round.ReviewStrategies.AFTER_PROPOSAL,
             'deciding_entity': models.Round.AllocationStrategies.BY_CALL_MANAGER,
             'review_duration_in_days': 2,
@@ -138,9 +138,9 @@ class RoundUpdateTest(test.APITransactionTestCase):
 
         payload = {
             'start_time': datetime.date.today().strftime("%Y-%m-%dT%H:%M:%S"),
-            'end_time': (datetime.date.today() + datetime.timedelta(days=3)).strftime(
-                "%Y-%m-%dT%H:%M:%S"
-            ),
+            'cutoff_time': (
+                datetime.date.today() + datetime.timedelta(days=3)
+            ).strftime("%Y-%m-%dT%H:%M:%S"),
         }
         response = self.client.patch(self.url, payload)
         self.round.refresh_from_db()

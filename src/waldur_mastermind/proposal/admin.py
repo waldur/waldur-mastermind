@@ -24,7 +24,7 @@ class CallAdmin(admin.ModelAdmin):
 
 
 class RoundAdmin(admin.ModelAdmin):
-    list_display = ('call', 'start_time', 'end_time')
+    list_display = ('call', 'start_time', 'cutoff_time')
 
 
 class ProposalAdmin(admin.ModelAdmin):
