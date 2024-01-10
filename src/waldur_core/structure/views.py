@@ -1013,6 +1013,8 @@ class NotificationTemplateViewSet(ActionsViewSet):
 class CommonMailFooterViewSet(viewsets.ModelViewSet):
     queryset = core_models.CommonMailFooter.objects.all()
     serializer_class = serializers.CommonMailFooterSerializer
+    lookup_field = 'uuid'
+    permission_classes = (core_permissions.IsAdminOrReadOnly,)
 
 
 class AuthTokenViewSet(ActionsViewSet):
