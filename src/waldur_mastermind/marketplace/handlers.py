@@ -138,10 +138,7 @@ def update_resource_when_order_is_rejected(sender, instance, created=False, **kw
     if order.type == models.Order.Types.CREATE:
         order.resource.set_state_terminated()
         order.resource.save(update_fields=["state"])
-    elif order.type == models.Order.Types.TERMINATE:
-        order.resource.set_state_ok()
-        order.resource.save(update_fields=["state"])
-    elif order.type == models.Order.Types.UPDATE:
+    elif order.resource.state != models.Resource.States.OK:
         order.resource.set_state_ok()
         order.resource.save(update_fields=["state"])
 
