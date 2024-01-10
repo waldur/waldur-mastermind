@@ -141,6 +141,8 @@ class PublicCallSerializer(
         many=True, read_only=True, source="requestedoffering_set"
     )
     rounds = NestedRoundSerializer(many=True, read_only=True, source="round_set")
+    start_date = serializers.SerializerMethodField()
+    end_date = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Call
@@ -148,6 +150,8 @@ class PublicCallSerializer(
             "url",
             "uuid",
             "created",
+            "start_date",
+            "end_date",
             "name",
             "description",
             "description",
@@ -172,6 +176,14 @@ class PublicCallSerializer(
                 "view_name": "user-detail",
             },
         }
+
+    def get_start_date(self, obj):
+        first_round = obj.round_set.order_by("start_time").first()
+        return first_round.start_time if first_round else None
+
+    def get_end_date(self, obj):
+        last_round = obj.round_set.order_by("-cutoff_time").first()
+        return last_round.cutoff_time if last_round else None
 
 
 class RequestedOfferingSerializer(
