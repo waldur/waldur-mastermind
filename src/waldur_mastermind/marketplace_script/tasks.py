@@ -10,9 +10,8 @@ from waldur_core.core.utils import get_fake_context, get_system_robot
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace import serializers as marketplace_serializer
-from waldur_mastermind.marketplace_script import PLUGIN_NAME
+from waldur_mastermind.marketplace_script import PLUGIN_NAME, serializers, utils
 from waldur_mastermind.marketplace_script import models as marketplace_script_models
-from waldur_mastermind.marketplace_script import serializers, utils
 
 logger = logging.getLogger(__name__)
 

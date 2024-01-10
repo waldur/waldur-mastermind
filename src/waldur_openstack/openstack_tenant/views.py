@@ -4,9 +4,8 @@ from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext_lazy as _
 from keystoneauth1.exceptions.connection import ConnectFailure
-from rest_framework import decorators, exceptions, generics, response
+from rest_framework import decorators, exceptions, generics, response, status
 from rest_framework import serializers as rf_serializers
-from rest_framework import status
 
 from waldur_core.core import exceptions as core_exceptions
 from waldur_core.core import utils as core_utils

@@ -1,7 +1,6 @@
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import exceptions
+from rest_framework import exceptions, response, status, views
 from rest_framework import filters as rf_filters
-from rest_framework import response, status, views
 
 from waldur_core.core import views as core_views
 from waldur_core.structure import filters as structure_filters

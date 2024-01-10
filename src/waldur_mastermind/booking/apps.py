@@ -10,9 +10,8 @@ class BookingConfig(AppConfig):
         from waldur_mastermind.marketplace import models as marketplace_models
         from waldur_mastermind.marketplace.plugins import manager
 
-        from . import PLUGIN_NAME, handlers, processors
+        from . import PLUGIN_NAME, handlers, processors, utils
         from . import registrators as booking_registrators
-        from . import utils
 
         manager.register(
             offering_type=PLUGIN_NAME,

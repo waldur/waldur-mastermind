@@ -10,9 +10,8 @@ from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure.tests.factories import UserFactory
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.tests import factories
+from waldur_mastermind.marketplace.tests import factories, fixtures
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.marketplace.tests import fixtures
 from waldur_mastermind.marketplace.tests.factories import OfferingFactory
 from waldur_mastermind.marketplace_remote.processors import (
     RemoteCreateResourceProcessor,

@@ -15,10 +15,9 @@ from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters as rf_filters
-from rest_framework import mixins
+from rest_framework import mixins, status, viewsets
 from rest_framework import permissions as rf_permissions
 from rest_framework import serializers as rf_serializers
-from rest_framework import status, viewsets
 from rest_framework.authtoken import models as authtoken_models
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
