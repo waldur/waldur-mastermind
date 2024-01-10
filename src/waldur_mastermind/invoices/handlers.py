@@ -188,13 +188,16 @@ def create_recurring_usage_if_invoice_has_been_created(
         return
 
     for usage in usages:
-        marketplace_models.ComponentUsage.objects.create(
+        marketplace_models.ComponentUsage.objects.update_or_create(
             resource=usage.resource,
             component=usage.component,
-            usage=usage.usage,
-            description=usage.description,
-            date=now,
             plan_period=usage.plan_period,
-            recurring=usage.recurring,
             billing_period=core_utils.month_start(now),
+            defaults={
+                "usage": usage.usage,
+                "date": now,
+                "description": usage.description,
+                "recurring": usage.recurring,
+                "modified_by": usage.modified_by,
+            },
         )

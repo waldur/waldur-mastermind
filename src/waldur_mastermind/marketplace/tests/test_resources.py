@@ -6,6 +6,7 @@ from ddt import data, ddt
 from freezegun import freeze_time
 from rest_framework import status, test
 
+from waldur_core.core.utils import month_start
 from waldur_core.logging import models as logging_models
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, OfferingRole, ProjectRole
@@ -1259,11 +1260,15 @@ class ResourceUsageLimitsTest(test.APITransactionTestCase):
         factories.ComponentUsageFactory(
             resource=self.resource, component=self.offering_component, usage=10
         )
+        new_date = datetime.datetime(
+            year=datetime.date.today().year - 1, month=1, day=1
+        )
         factories.ComponentUsageFactory(
             resource=self.resource,
             component=self.offering_component,
             usage=5,
-            date=datetime.datetime(year=datetime.date.today().year - 1, month=1, day=1),
+            date=new_date,
+            billing_period=month_start(new_date),
         )
 
     def test_if_limit_period_is_total(self):
