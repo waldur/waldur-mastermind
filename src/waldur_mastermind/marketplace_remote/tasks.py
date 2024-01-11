@@ -561,8 +561,10 @@ class ResourceInvoiceListPullTask(BackgroundListPullTask):
     pull_task = ResourceInvoicePullTask
 
     def get_pulled_objects(self):
-        return models.Resource.objects.filter(offering__type=PLUGIN_NAME).exclude(
-            state=models.Resource.States.TERMINATED
+        return (
+            models.Resource.objects.filter(offering__type=PLUGIN_NAME)
+            .exclude(state=models.Resource.States.TERMINATED)
+            .exclude(backend_id="")
         )
 
 
@@ -625,16 +627,20 @@ class ResourceRobotAccountListPullTask(BackgroundListPullTask):
     pull_task = ResourceRobotAccountPullTask
 
     def get_pulled_objects(self):
-        return models.Resource.objects.filter(offering__type=PLUGIN_NAME).exclude(
-            state=models.Resource.States.TERMINATED
+        return (
+            models.Resource.objects.filter(offering__type=PLUGIN_NAME)
+            .exclude(state=models.Resource.States.TERMINATED)
+            .exclude(backend_id="")
         )
 
 
 @shared_task
 def pull_offering_robot_accounts(serialized_offering):
     offering = deserialize_instance(serialized_offering)
-    resources = models.Resource.objects.filter(offering=offering).exclude(
-        state=models.Resource.States.TERMINATED
+    resources = (
+        models.Resource.objects.filter(offering=offering)
+        .exclude(state=models.Resource.States.TERMINATED)
+        .exclude(backend_id="")
     )
     for resource in resources:
         ResourceRobotAccountPullTask().delay(serialize_instance(resource))
@@ -643,8 +649,10 @@ def pull_offering_robot_accounts(serialized_offering):
 @shared_task
 def pull_offering_invoices(serialized_offering):
     offering = deserialize_instance(serialized_offering)
-    resources = models.Resource.objects.filter(offering=offering).exclude(
-        state=models.Resource.States.TERMINATED
+    resources = (
+        models.Resource.objects.filter(offering=offering)
+        .exclude(state=models.Resource.States.TERMINATED)
+        .exclude(backend_id="")
     )
     for resource in resources:
         ResourceInvoicePullTask().delay(serialize_instance(resource))
