@@ -453,13 +453,15 @@ class UsageListPullTask(BackgroundListPullTask):
     pull_task = UsagePullTask
 
     def get_pulled_objects(self):
-        return models.Resource.objects.filter(offering__type=PLUGIN_NAME)
+        return models.Resource.objects.exclude(backend_id="").filter(
+            offering__type=PLUGIN_NAME
+        )
 
 
 @shared_task
 def pull_offering_usage(serialized_offering):
     offering = deserialize_instance(serialized_offering)
-    resources = models.Resource.objects.filter(offering=offering)
+    resources = models.Resource.objects.exclude(backend_id="").filter(offering=offering)
     for resource in resources:
         UsagePullTask().delay(serialize_instance(resource))
 
