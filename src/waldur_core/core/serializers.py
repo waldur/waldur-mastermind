@@ -469,6 +469,7 @@ class ConstanceSettingsSerializer(serializers.Serializer):
                 "SUPPORT_PORTAL_URL",
                 "ATLASSIAN_API_URL",
                 "ZAMMAD_API_URL",
+                "SMAX_API_URL",
             ]:
                 kwargs["validators"] = [URLValidator()]
             fields[name] = field_class(**kwargs)
