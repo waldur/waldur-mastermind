@@ -368,11 +368,18 @@ class OrderPullTask(BackgroundPullTask):
             new_state = OrderInvertStates[remote_order["state"]]
             sync_order_state(local_order, new_state)
 
+        local_resource = local_order.resource
+
+        backend_id = remote_order.get("marketplace_resource_uuid")
+        if backend_id and local_resource.backend_id != backend_id:
+            local_resource.backend_id = backend_id
+            local_resource.save(update_fields=["backend_id"])
+
         # resource_uuid is resource.backend_uuid
         effective_id = remote_order.get("resource_uuid") or ""
-        if local_order.resource.effective_id != effective_id:
-            local_order.resource.effective_id = effective_id
-            local_order.resource.save(update_fields=["effective_id"])
+        if local_resource.effective_id != effective_id:
+            local_resource.effective_id = effective_id
+            local_resource.save(update_fields=["effective_id"])
 
         pull_fields(("error_message",), local_order, remote_order)
 
