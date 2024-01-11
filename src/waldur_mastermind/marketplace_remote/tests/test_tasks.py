@@ -453,6 +453,7 @@ class ResourceOrderImportTest(test.APITransactionTestCase):
             "backend_id": "effective_id",
             "state": "OK",
             "attributes": {"sample_attr": 1},
+            "options": {},
         }
 
         # Act

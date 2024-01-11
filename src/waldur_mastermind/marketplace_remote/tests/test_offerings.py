@@ -69,6 +69,7 @@ class OfferingDetailsPullTest(test.APITransactionTestCase):
             "getting_started": self.offering.getting_started,
             "integration_guide": self.offering.integration_guide,
             "options": self.offering.options,
+            "resource_options": {},
             "thumbnail": None,
             "components": [
                 {
