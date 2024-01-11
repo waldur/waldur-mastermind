@@ -1752,7 +1752,7 @@ class BaseRequestSerializer(BaseItemSerializer):
         fields = BaseItemSerializer.Meta.fields + ("type",)
 
 
-class NestedOrderSerializer(BaseRequestSerializer):
+class BaseOrderSerializer(BaseRequestSerializer):
     class Meta(BaseRequestSerializer.Meta):
         model = models.Order
         fields = BaseRequestSerializer.Meta.fields + (
@@ -1799,9 +1799,9 @@ class NestedOrderSerializer(BaseRequestSerializer):
         return fields
 
 
-class OrderDetailsSerializer(NestedOrderSerializer):
-    class Meta(NestedOrderSerializer.Meta):
-        fields = NestedOrderSerializer.Meta.fields + (
+class OrderDetailsSerializer(BaseOrderSerializer):
+    class Meta(BaseOrderSerializer.Meta):
+        fields = BaseOrderSerializer.Meta.fields + (
             "consumer_reviewed_by",
             "consumer_reviewed_by_full_name",
             "consumer_reviewed_at",
@@ -1825,6 +1825,7 @@ class OrderDetailsSerializer(NestedOrderSerializer):
             "fixed_price",
             "activation_price",
             "termination_comment",
+            "backend_id",
         )
 
     consumer_reviewed_by = serializers.ReadOnlyField(
@@ -2117,7 +2118,7 @@ def validate_order(order: models.Order, request):
 
 
 class OrderCreateSerializer(
-    NestedOrderSerializer,
+    BaseOrderSerializer,
     structure_serializers.PermissionFieldFilteringMixin,
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
@@ -2130,7 +2131,7 @@ class OrderCreateSerializer(
 
     class Meta:
         model = models.Order
-        fields = NestedOrderSerializer.Meta.fields + (
+        fields = BaseOrderSerializer.Meta.fields + (
             "url",
             "uuid",
             "created",
@@ -2161,13 +2162,13 @@ class OrderCreateSerializer(
         )
         protected_fields = ("project",)
         related_paths = {
-            **NestedOrderSerializer.Meta.related_paths,
+            **BaseOrderSerializer.Meta.related_paths,
             "created_by": ("username", "full_name"),
             "consumer_reviewed_by": ("username", "full_name"),
             "project": ("uuid",),
         }
         extra_kwargs = {
-            **NestedOrderSerializer.Meta.extra_kwargs,
+            **BaseOrderSerializer.Meta.extra_kwargs,
             "url": {"lookup_field": "uuid"},
             "created_by": {"lookup_field": "uuid", "view_name": "user-detail"},
             "consumer_reviewed_by": {
