@@ -1767,6 +1767,7 @@ class NestedOrderSerializer(BaseRequestSerializer):
             "error_traceback",
             "accepting_terms_of_service",
             "callback_url",
+            "backend_id",
         )
 
         read_only_fields = (
@@ -1775,6 +1776,7 @@ class NestedOrderSerializer(BaseRequestSerializer):
             "error_message",
             "error_traceback",
             "output",
+            "backend_id",
         )
         protected_fields = ("offering", "plan", "callback_url")
 
