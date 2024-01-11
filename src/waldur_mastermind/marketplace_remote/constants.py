@@ -9,6 +9,7 @@ OFFERING_FIELDS = (
     "integration_guide",
     "country",
     "options",
+    "resource_options",
 )
 
 OFFERING_COMPONENT_FIELDS = (
@@ -33,4 +34,4 @@ PLAN_FIELDS = (
     "archived",
 )
 
-RESOURCE_FIELDS = ("report", "attributes")
+RESOURCE_FIELDS = ("report", "attributes", "options")
