@@ -437,6 +437,11 @@ class UsagePullTask(BackgroundPullTask):
             except ObjectDoesNotExist:
                 continue
             usage_date = parse_date(remote_usage["date"])
+            if usage_date < local_resource.created:
+                logger.info(
+                    f"Invalid component usage date detected for resource {local_resource.id}"
+                )
+                continue
             defaults = {
                 "usage": remote_usage["usage"],
                 "description": remote_usage["description"],
