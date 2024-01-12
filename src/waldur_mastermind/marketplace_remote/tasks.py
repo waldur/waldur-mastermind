@@ -322,14 +322,10 @@ class OfferingUserListPullTask(BackgroundListPullTask):
 
 
 class ResourcePullTask(BackgroundPullTask):
-    def pull(self, local_resource):
+    def pull(self, local_resource: models.Resource):
         client = get_client_for_offering(local_resource.offering)
         remote_resource = client.get_marketplace_resource(local_resource.backend_id)
-        pull_fields(
-            RESOURCE_FIELDS,
-            local_resource,
-            remote_resource,
-        )
+        pull_fields(RESOURCE_FIELDS, local_resource, remote_resource)
         if local_resource.effective_id != remote_resource["backend_id"]:
             local_resource.effective_id = remote_resource["backend_id"]
             local_resource.save(update_fields=["effective_id"])
@@ -352,7 +348,7 @@ class ResourceListPullTask(BackgroundListPullTask):
 @shared_task
 def pull_offering_resources(serialized_offering):
     offering = deserialize_instance(serialized_offering)
-    resources = models.Resource.objects.filter(offering=offering)
+    resources = models.Resource.objects.filter(offering=offering).exclude(backend_id="")
     for resource in resources:
         ResourcePullTask().delay(serialize_instance(resource))
 
@@ -374,12 +370,6 @@ class OrderPullTask(BackgroundPullTask):
         if backend_id and local_resource.backend_id != backend_id:
             local_resource.backend_id = backend_id
             local_resource.save(update_fields=["backend_id"])
-
-        # resource_uuid is resource.backend_uuid
-        effective_id = remote_order.get("resource_uuid") or ""
-        if local_resource.effective_id != effective_id:
-            local_resource.effective_id = effective_id
-            local_resource.save(update_fields=["effective_id"])
 
         pull_fields(("error_message",), local_order, remote_order)
 
