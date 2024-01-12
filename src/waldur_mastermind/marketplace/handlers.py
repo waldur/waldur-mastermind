@@ -246,6 +246,27 @@ def update_aggregate_resources_count(sender, **kwargs):
                 )
 
 
+def create_resource_plan_period_when_resource_is_created(
+    sender, instance, created=False, **kwargs
+):
+    if created:
+        return
+
+    if not instance.tracker.has_changed("state"):
+        return
+
+    if instance.state != models.Resource.States.OK:
+        return
+
+    if instance.tracker.previous("state") != models.Resource.States.CREATING:
+        return
+
+    if not instance.plan:
+        return
+
+    callbacks.create_resource_plan_period(instance)
+
+
 def close_resource_plan_period_when_resource_is_terminated(
     sender, instance, created=False, **kwargs
 ):
@@ -262,16 +283,31 @@ def close_resource_plan_period_when_resource_is_terminated(
     if instance.state != models.Resource.States.TERMINATED:
         return
 
-    if instance.tracker.previous("state") == models.Resource.States.TERMINATING:
-        # It is expected that this case is handled using callbacks
-        return
-
     if not instance.plan:
         return
 
-    models.ResourcePlanPeriod.objects.filter(
-        resource=instance, plan=instance.plan, end=None
-    ).update(end=now())
+    callbacks.close_resource_plan_period(instance)
+
+
+def switch_resource_plan_period_when_plan_is_updated(
+    sender, instance, created=False, **kwargs
+):
+    if created:
+        return
+
+    if not instance.tracker.has_changed("plan_id"):
+        return
+
+    previous_plan_id = instance.tracker.previous("plan_id")
+    if previous_plan_id:
+        models.ResourcePlanPeriod.objects.filter(
+            resource=instance,
+            plan_id=previous_plan_id,
+            end=None,
+        ).update(end=now())
+
+    if instance.plan:
+        callbacks.create_resource_plan_period(instance)
 
 
 def change_order_state(sender, instance, created=False, **kwargs):

@@ -857,7 +857,8 @@ def get_plan_period(resource, date):
             Q(start__lte=date) | Q(start__isnull=True)
         )
         .filter(Q(end__gt=date) | Q(end__isnull=True))
-        .get(resource=resource)
+        .filter(resource=resource)
+        .first()
     )
 
 
@@ -878,16 +879,7 @@ def import_current_usages(resource):
             )
             continue
 
-        try:
-            plan_period = get_plan_period(resource, date)
-        except models.ResourcePlanPeriod.DoesNotExist:
-            logger.warning(
-                "Skipping current usage synchronization because related "
-                "ResourcePlanPeriod does not exist."
-                "Resource ID: %s",
-                resource.id,
-            )
-            continue
+        plan_period = get_plan_period(resource, date)
 
         try:
             component_usage_object = models.ComponentUsage.objects.get(

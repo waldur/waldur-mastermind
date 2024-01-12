@@ -2720,7 +2720,12 @@ class ComponentUsageItemSerializer(serializers.Serializer):
 class ComponentUsageCreateSerializer(serializers.Serializer):
     usages = ComponentUsageItemSerializer(many=True)
     plan_period = serializers.SlugRelatedField(
-        queryset=models.ResourcePlanPeriod.objects.all(), slug_field="uuid"
+        queryset=models.ResourcePlanPeriod.objects.all(),
+        slug_field="uuid",
+        required=False,
+    )
+    resource = serializers.SlugRelatedField(
+        queryset=models.Resource.objects.all(), slug_field="uuid", required=False
     )
 
     def validate_plan_period(self, plan_period):
@@ -2739,9 +2744,13 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
-        plan_period = attrs["plan_period"]
-        resource = plan_period.resource
-        offering = resource.plan.offering
+        plan_period = attrs.get("plan_period")
+        resource = plan_period and plan_period.resource or attrs.get("resource")
+        if not resource:
+            raise rf_exceptions.ValidationError(
+                _("Either plan_period or resource should be provided.")
+            )
+        offering = resource.offering
 
         States = models.Resource.States
         if resource.state not in (States.OK, States.UPDATING, States.TERMINATING):
@@ -2762,8 +2771,11 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
         return attrs
 
     def save(self):
-        plan_period = self.validated_data["plan_period"]
-        resource = plan_period.resource
+        plan_period = self.validated_data.get("plan_period")
+        resource = (
+            plan_period and plan_period.resource or self.validated_data.get("resource")
+        )
+
         components_map = self.get_components_map(resource.plan.offering)
         now = timezone.now()
         billing_period = core_utils.month_start(now)
@@ -2785,6 +2797,9 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
                 billing_period=billing_period,
             ).update(recurring=False)
 
+            if not plan_period:
+                plan_period = utils.get_plan_period(resource, now)
+
             usage, created = models.ComponentUsage.objects.update_or_create(
                 resource=resource,
                 component=component,
@@ -2799,23 +2814,21 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
                 },
             )
             if created:
-                message = (
+                logger.info(
                     "Usage has been created for {}, component: {}, value: {}".format(
                         resource,
                         component.type,
                         amount,
                     )
                 )
-                logger.info(message)
             else:
-                message = (
+                logger.info(
                     "Usage has been updated for {}, component: {}, value: {}".format(
                         resource,
                         component.type,
                         amount,
                     )
                 )
-                logger.info(message)
         resource.current_usages = {
             usage["type"]: str(usage["amount"])
             for usage in self.validated_data["usages"]
