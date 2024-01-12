@@ -91,10 +91,24 @@ class MarketplaceConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.create_resource_plan_period_when_resource_is_created,
+            sender=models.Resource,
+            dispatch_uid="waldur_mastermind.marketplace."
+            "create_resource_plan_period_when_resource_is_created",
+        )
+
+        signals.post_save.connect(
             handlers.close_resource_plan_period_when_resource_is_terminated,
             sender=models.Resource,
             dispatch_uid="waldur_mastermind.marketplace."
             "close_resource_plan_period_when_resource_is_terminated",
+        )
+
+        signals.post_save.connect(
+            handlers.switch_resource_plan_period_when_plan_is_updated,
+            sender=models.Resource,
+            dispatch_uid="waldur_mastermind.marketplace."
+            "switch_resource_plan_period_when_plan_is_updated",
         )
 
         signals.post_save.connect(

@@ -23,30 +23,12 @@ def create_resource_plan_period(resource: models.Resource):
     )
 
 
-@transaction.atomic()
 def close_resource_plan_period(resource: models.Resource):
-    try:
-        previous_period = models.ResourcePlanPeriod.objects.select_for_update().get(
-            resource=resource,
-            plan=resource.plan,
-            end=None,
-        )
-        previous_period.end = now()
-        previous_period.save(update_fields=["end"])
-    except django_exceptions.ObjectDoesNotExist:
-        logger.warning(
-            "Skipping previous resource plan period update "
-            "because it does not exist. Resource ID: %s, plan ID: %s.",
-            resource.id,
-            resource.plan.id,
-        )
-    except django_exceptions.MultipleObjectsReturned:
-        logger.warning(
-            "Skipping previous resource plan period update "
-            "because multiple objects found. Resource ID: %s, plan ID: %s.",
-            resource.id,
-            resource.plan.id,
-        )
+    models.ResourcePlanPeriod.objects.filter(
+        resource=resource,
+        plan=resource.plan,
+        end=None,
+    ).update(end=now())
 
 
 def resource_creation_succeeded(resource: models.Resource, validate=False):
@@ -60,9 +42,6 @@ def resource_creation_succeeded(resource: models.Resource, validate=False):
     if resource.state != resource.States.OK:
         resource.set_state_ok()
         resource.save(update_fields=["state"])
-
-    if resource.plan:
-        create_resource_plan_period(resource)
 
     signals.resource_creation_succeeded.send(sender=models.Resource, instance=resource)
     log.log_resource_creation_succeeded(resource)
@@ -133,13 +112,10 @@ def resource_update_succeeded(resource: models.Resource, validate=False):
                 }
             )
 
-        close_resource_plan_period(resource)
-
         resource.plan = order.plan
         resource.init_cost()
         resource.save()
 
-        create_resource_plan_period(resource)
         transaction.on_commit(
             lambda: tasks.notify_about_resource_change.delay(
                 "marketplace_resource_update_succeeded", email_context, resource.uuid
@@ -212,9 +188,6 @@ def resource_deletion_succeeded(resource: models.Resource, validate=False):
     )
     resource.set_state_terminated()
     resource.save(update_fields=["state"])
-
-    if resource.plan:
-        close_resource_plan_period(resource)
 
     signals.resource_deletion_succeeded.send(models.Resource, instance=resource)
     log.log_resource_terminate_succeeded(resource)
