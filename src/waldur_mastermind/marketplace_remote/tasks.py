@@ -21,7 +21,7 @@ from waldur_core.core.utils import (
 )
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tasks import BackgroundListPullTask, BackgroundPullTask
-from waldur_mastermind.common.utils import parse_date
+from waldur_mastermind.common.utils import parse_datetime
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices.registrators import RegistrationManager
 from waldur_mastermind.invoices.utils import get_previous_month
@@ -426,7 +426,7 @@ class UsagePullTask(BackgroundPullTask):
                 )
             except ObjectDoesNotExist:
                 continue
-            usage_date = parse_date(remote_usage["date"])
+            usage_date = parse_datetime(remote_usage["date"])
             if usage_date < local_resource.created:
                 logger.info(
                     f"Invalid component usage date detected for resource {local_resource.id}"
