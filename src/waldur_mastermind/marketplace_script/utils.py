@@ -33,6 +33,7 @@ def execute_script_in_docker(image, command, src, **kwargs):
     ) as docker_script:
         docker_script.write(src)
         docker_script.flush()
+        logger.info(f"Wrote script to {docker_script.name}")
         client = docker.DockerClient(
             **settings.WALDUR_MARKETPLACE_SCRIPT["DOCKER_CLIENT"]
         )
