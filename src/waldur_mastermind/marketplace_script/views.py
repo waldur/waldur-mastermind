@@ -102,12 +102,13 @@ class DryRunView(ActionsViewSet):
         project = structure_models.Project.objects.create(
             name="Dry-run project", customer=offering.customer
         )
+        attributes = serializer.validated_data.get("attributes", {})
         resource = marketplace_models.Resource(
             project=project,
             offering=offering,
             plan=serializer.validated_data.get("plan"),
-            attributes=serializer.validated_data["attributes"],
-            name=serializer.validated_data["attributes"].get("name", "test-resource"),
+            attributes=attributes,
+            name=attributes.get("name", "test-resource"),
             state=marketplace_models.Resource.States.CREATING,
         )
         resource.init_cost()
