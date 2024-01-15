@@ -94,15 +94,16 @@ class SyncFromSmaxTest(smax_base.BaseTest):
         self.fixture = fixtures.SupportFixture()
         self.issue = self.fixture.issue
         self.comment = self.fixture.comment
-        self.smax_issue = Issue(1, "test", "description", "RequestStatusReady")
         self.smax_comment = Comment(
             description="new description",
             backend_user_id=self.comment.author,
             is_public=False,
             id=self.comment.backend_id,
         )
+        self.smax_issue = Issue(
+            1, "test", "description", "RequestStatusReady", comments=[self.smax_comment]
+        )
         self.mock_smax().get_issue.return_value = self.smax_issue
-        self.mock_smax().get_comments.return_value = [self.smax_comment]
         self.backend = SmaxServiceBackend()
 
     def test_sync_comment(self):
