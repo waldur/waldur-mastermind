@@ -126,8 +126,11 @@ class HeappeBackend:
 
         ssh_key = response.json()
         ssh_key_rsa = ssh_key["PublicKeyOpenSSH"]
-        lexis_link.robot_account.keys = [ssh_key_rsa]
-        lexis_link.robot_account.save(update_fields=["keys"])
+
+        existing_keys = set(lexis_link.robot_account.keys)
+        if ssh_key_rsa not in existing_keys:
+            lexis_link.robot_account.keys.append(ssh_key_rsa)
+            lexis_link.robot_account.save(update_fields=["keys"])
 
     def delete_ssh_key(self, lexis_link):
         heappe_session_code = self.get_heappe_session_code()
