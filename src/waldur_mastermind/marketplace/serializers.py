@@ -23,7 +23,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
 from waldur_core.core.clean_html import clean_html
 from waldur_core.core.fields import NaturalChoiceField
-from waldur_core.core.models import User
+from waldur_core.core.models import User, get_ssh_key_fingerprint
 from waldur_core.core.serializers import GenericRelatedField
 from waldur_core.core.validators import validate_ssh_public_key
 from waldur_core.media.serializers import (
@@ -3462,6 +3462,7 @@ class RobotAccountSerializer(
             "keys",
             "backend_id",
             "responsible_user",
+            "fingerprints",
         )
         read_only_fields = ["backend_id"]
         protected_fields = ["resource"]
@@ -3473,6 +3474,12 @@ class RobotAccountSerializer(
             users={"lookup_field": "uuid", "view_name": "user-detail"},
             responsible_user={"lookup_field": "uuid", "view_name": "user-detail"},
         )
+
+    fingerprints = serializers.SerializerMethodField()
+
+    def get_fingerprints(self, robot_account):
+        fingerprints = [get_ssh_key_fingerprint(key) for key in robot_account.keys]
+        return fingerprints
 
     def validate_keys(self, keys):
         if not isinstance(keys, list):

@@ -100,7 +100,6 @@ class LexisLink(core_models.UuidMixin, core_models.ErrorMessageMixin, TimeStampe
                 "Offering %s does not include heappe_local_base_path option" % offering
             )
 
-        # TODO: use secret_options instead
         heappe_cluster_password = offering.secret_options.get("heappe_cluster_password")
 
         return structures.HeappeConfig(
