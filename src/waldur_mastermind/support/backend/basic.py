@@ -2,6 +2,8 @@ from . import SupportBackend
 
 
 class BasicBackend(SupportBackend):
+    backend_name = "basic"
+
     def create_issue(self, issue):
         return
 

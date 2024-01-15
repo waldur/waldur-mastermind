@@ -37,5 +37,11 @@ class SupportFixture(structure_fixtures.ServiceFixture):
         )
 
     @cached_property
+    def attachment(self):
+        return factories.AttachmentFactory(
+            issue=self.issue, backend_name=self.backend_name
+        )
+
+    @cached_property
     def feedback(self):
         return factories.FeedbackFactory(issue=self.issue)

@@ -44,7 +44,6 @@ class SyncFromSmaxTest(smax_base.BaseTest):
         )
         self.smax_issue = Issue(1, "test", "description", "RequestStatusReady")
         self.mock_smax().get_issue.return_value = self.smax_issue
-        self.mock_smax().get_comments.return_value = []
         self.backend = SmaxServiceBackend()
 
     def test_sync_issue(self):

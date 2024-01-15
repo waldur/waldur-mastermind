@@ -1,6 +1,8 @@
 import functools
+import json
 import logging
-from dataclasses import dataclass
+import os
+from dataclasses import dataclass, field
 from html import unescape
 
 import requests
@@ -37,6 +39,7 @@ class User:
     name: str
     id: int = None
     upn: str = None
+    external_id: str = None
 
 
 @dataclass
@@ -45,6 +48,18 @@ class Issue:
     summary: str
     description: str
     status: str
+    attachments: list = field(default_factory=list)
+    comments: list = field(default_factory=list)
+
+
+@dataclass
+class Attachment:
+    filename: str
+    size: str
+    content_type: str
+    id: str = None
+    backend_issue_id: str = None
+    backend_user_id: str = None
 
 
 @dataclass
@@ -53,6 +68,7 @@ class Comment:
     backend_user_id: str
     is_public: bool = False
     id: str = None
+    backend_issue_id: str = None
 
 
 class SmaxBackend:
@@ -76,6 +92,7 @@ class SmaxBackend:
                     email=e["properties"]["Email"],
                     name=e["properties"]["Name"],
                     upn=e["properties"]["Upn"],
+                    external_id=e["properties"].get("ExternalId"),
                 )
             )
 
@@ -92,6 +109,18 @@ class SmaxBackend:
                     summary=e["properties"]["DisplayLabel"],
                     description=e["properties"]["Description"],
                     status=e["properties"]["Status"],
+                    attachments=self._smax_entities_to_attachments(
+                        json.loads(e["properties"].get("RequestAttachments", "{}")).get(
+                            "complexTypeProperties", []
+                        ),
+                        e["properties"]["Id"],
+                    ),
+                    comments=self._smax_entities_to_comments(
+                        json.loads(e["properties"].get("Comments", "{}")).get(
+                            "Comment", []
+                        ),
+                        e["properties"]["Id"],
+                    ),
                 )
             )
 
@@ -108,6 +137,43 @@ class SmaxBackend:
                     is_public=False if e["PrivacyType"] == "INTERNAL" else True,
                     description=unescape(e["Body"]),
                     backend_user_id=e["Submitter"]["UserId"],
+                )
+            )
+
+        return result
+
+    def _smax_entities_to_comments(self, entities, backend_issue_id):
+        result = []
+
+        for e in entities:
+            result.append(
+                Comment(
+                    id=e["CommentId"],
+                    is_public=False if e["PrivacyType"] == "INTERNAL" else True,
+                    description=unescape(e["CommentBody"]),
+                    backend_user_id=e["Submitter"].replace("Person/", ""),
+                    backend_issue_id=backend_issue_id,
+                )
+            )
+
+        return result
+
+    def _smax_entities_to_attachments(self, entities, backend_issue_id):
+        result = []
+
+        for e in entities:
+            data = e["properties"]
+            user = self.get_user_by_external_id(data["Creator"]) or self.get_user(
+                data["Creator"]
+            )
+            result.append(
+                Attachment(
+                    filename=data["file_name"],
+                    size=data["size"],
+                    content_type=data["mime_type"],
+                    id=data["id"],
+                    backend_issue_id=backend_issue_id,
+                    backend_user_id=user.id,
                 )
             )
 
@@ -164,11 +230,13 @@ class SmaxBackend:
 
     def _request(self, path, method="post", data=None, json=None, **kwargs):
         self.lwsso_cookie_key or self.auth()
+        user_headers = kwargs.pop("headers", {})
+        headers = {"Cookie": f"LWSSO_COOKIE_KEY={self.lwsso_cookie_key}"}
 
-        headers = {
-            "Cookie": f"LWSSO_COOKIE_KEY={self.lwsso_cookie_key}",
-            "Content-Type": "application/json",
-        }
+        if "files" not in kwargs.keys():
+            headers["Content-Type"] = "application/json"
+
+        headers.update(user_headers)
 
         url = self.rest_api + path + f"?TENANTID={config.SMAX_TENANT_ID}"
         response = getattr(requests, method)(
@@ -188,11 +256,25 @@ class SmaxBackend:
     def put(self, path, data=None, json=None, **kwargs):
         return self._request(path, method="put", data=data, json=json, **kwargs)
 
+    def patch(self, path, data=None, json=None, **kwargs):
+        return self._request(path, method="patch", data=data, json=json, **kwargs)
+
     def delete(self, path, **kwargs):
         return self._request(path, method="delete", **kwargs)
 
     def get_user(self, user_id):
-        response = self.get(f"ems/Person/{user_id}?layout=Name,Email,Upn")
+        response = self.get(f"ems/Person/{user_id}?layout=Name,Email,Upn,ExternalId")
+        user = self._smax_response_to_user(response)
+
+        if not user:
+            return
+        else:
+            return user[0]
+
+    def get_user_by_external_id(self, external_id):
+        response = self.get(
+            f"ems/Person?filter=ExternalId+%3D+%27{external_id}%27&layout=Id,Name,Email,Upn"
+        )
         user = self._smax_response_to_user(response)
 
         if not user:
@@ -309,3 +391,94 @@ class SmaxBackend:
     def delete_comment(self, issue_id, comment_id):
         self.delete(f"/collaboration/comments/Request/{issue_id}/{comment_id}")
         return
+
+    def attachment_download(self, attachment):
+        return self.get(f"/frs/file-list/{attachment.id}").content
+
+    def file_upload(self, file_name, mime_type, file):
+        url = "ces/attachment"
+        files = [("files[]", (file_name, file, mime_type))]
+        response = self.post(url, files=files)
+        return response.json()
+
+    def create_attachment(self, issue_id, user_id, file_name, mime_type, file):
+        url = "ems/bulk"
+        response = self.file_upload(file_name, mime_type, file)
+        file_extension = ""
+
+        if len(os.path.splitext(response["name"])) > 1:
+            file_extension = os.path.splitext(response["name"])[1].replace(".", "")
+
+        backend_issue = self.get(f"ems/Request?layout=FULL_LAYOUT&filter=Id={issue_id}")
+        attachments = json.loads(
+            backend_issue.json()["entities"][0]["properties"].get(
+                "RequestAttachments", '{"complexTypeProperties":[]}'
+            )
+        ).get("complexTypeProperties", [])
+        backend_user = self.get_user(user_id)
+        attachments.append(
+            {
+                "properties": {
+                    "id": response["guid"],
+                    "file_name": response["name"],
+                    "file_extension": file_extension,
+                    "size": response["contentLength"],
+                    "mime_type": response["contentType"],
+                    "Creator": backend_user.external_id,
+                    "LastUpdateTime": response["lastModified"],
+                }
+            }
+        )
+
+        payload = {
+            "entities": [
+                {
+                    "entity_type": "Request",
+                    "properties": {
+                        "Id": issue_id,
+                        "RequestAttachments": json.dumps(
+                            {"complexTypeProperties": attachments}
+                        ),
+                    },
+                }
+            ],
+            "operation": "UPDATE",
+        }
+
+        self.post(url, json=payload)
+        return Attachment(
+            filename=response["name"],
+            size=response["contentLength"],
+            content_type=response["contentType"],
+            id=response["guid"],
+            backend_issue_id=issue_id,
+            backend_user_id=user_id,
+        )
+
+    def delete_attachment(self, issue_id, attachment_id):
+        url = "ems/bulk"
+        backend_issue = self.get(f"ems/Request?layout=FULL_LAYOUT&filter=Id={issue_id}")
+        attachments = json.loads(
+            backend_issue.json()["entities"][0]["properties"].get(
+                "RequestAttachments", '{"complexTypeProperties":[]}'
+            )
+        ).get("complexTypeProperties", [])
+        attachments = list(
+            filter(lambda x: x["properties"]["id"] != attachment_id, attachments)
+        )
+        payload = {
+            "entities": [
+                {
+                    "entity_type": "Request",
+                    "properties": {
+                        "Id": issue_id,
+                        "RequestAttachments": json.dumps(
+                            {"complexTypeProperties": attachments}
+                        ),
+                    },
+                }
+            ],
+            "operation": "UPDATE",
+        }
+
+        self.post(url, json=payload)
