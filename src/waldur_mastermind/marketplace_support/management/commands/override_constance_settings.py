@@ -1,8 +1,22 @@
 import json
+import os
 
 import yaml
 from constance import config
+from django.core.files.storage import default_storage
 from django.core.management.base import BaseCommand
+
+from waldur_core.core import logos
+
+WHITELABELING_LOGOS = logos.LOGO_MAP.keys()
+
+
+def make_constance_file_value(image_path):
+    image_content = open(image_path, "rb")
+
+    filename = os.path.basename(image_path)
+    path = default_storage.save(filename, image_content)
+    return os.path.split(path)[1]
 
 
 class Command(BaseCommand):
@@ -33,10 +47,20 @@ class Command(BaseCommand):
             return
 
         for setting_key, setting_value in constance_settings.items():
+            if setting_key.upper() in WHITELABELING_LOGOS:
+                if os.path.exists(setting_value):
+                    setting_value = make_constance_file_value(setting_value)
+                else:
+                    self.stdout.write(
+                        self.style.ERROR(f"{setting_key.upper()} file does not exist.")
+                    )
+                    continue
             if isinstance(setting_value, dict):
                 setting_value = json.dumps(setting_value)
 
-            setattr(config, setting_key, setting_value)
+            setattr(config, setting_key.upper(), setting_value)
             self.stdout.write(
-                self.style.SUCCESS(f"{setting_key} has been set to {setting_value}.")
+                self.style.SUCCESS(
+                    f"{setting_key.upper()} has been set to {setting_value}."
+                )
             )
