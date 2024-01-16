@@ -48,11 +48,6 @@ class AuthResult(
     )
     backend_transaction_id = models.CharField(max_length=100, blank=True)
 
-    # for consistency with other models with state
-    @property
-    def human_readable_state(self):
-        return self.state
-
     @transition(field=state, source=States.SCHEDULED, target=States.PROCESSING)
     def begin_processing(self):
         pass

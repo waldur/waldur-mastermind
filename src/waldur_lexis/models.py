@@ -39,10 +39,6 @@ class LexisLink(core_models.UuidMixin, core_models.ErrorMessageMixin, TimeStampe
         verbose_name = _("Lexis Link")
         ordering = ("created",)
 
-    @property
-    def human_readable_state(self):
-        return str(dict(self.States.CHOICES)[self.state])
-
     @transition(
         field=state, source=[States.PENDING, States.ERRED], target=States.EXECUTING
     )
@@ -115,5 +111,5 @@ class LexisLink(core_models.UuidMixin, core_models.ErrorMessageMixin, TimeStampe
         return "Lexis link {} <-> {} ({})".format(
             self.robot_account.username,
             self.robot_account.resource.name,
-            self.human_readable_state,
+            self.get_state_display(),
         )

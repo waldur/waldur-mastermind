@@ -499,10 +499,6 @@ class StateMixin(ErrorMessageMixin, ConcurrentTransitionMixin):
         choices=States.CHOICES,
     )
 
-    @property
-    def human_readable_state(self):
-        return str(dict(self.States.CHOICES)[self.state])
-
     @transition(field=state, source=States.CREATION_SCHEDULED, target=States.CREATING)
     def begin_creating(self):
         pass

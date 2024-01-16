@@ -60,7 +60,7 @@ class LexisLinkSerializer(serializers.HyperlinkedModelSerializer):
     )
     robot_account_username = serializers.ReadOnlyField(source="robot_account.username")
     robot_account_type = serializers.ReadOnlyField(source="robot_account.type")
-    state = serializers.ReadOnlyField(source="human_readable_state")
+    state = serializers.ReadOnlyField(source="get_state_display")
 
 
 class LexisLinkCreateSerializer(serializers.HyperlinkedModelSerializer):
