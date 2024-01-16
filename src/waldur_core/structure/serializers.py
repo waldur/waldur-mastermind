@@ -1342,7 +1342,7 @@ class BaseResourceSerializer(
     )
     service_settings_uuid = serializers.ReadOnlyField(source="service_settings.uuid")
     service_settings_state = serializers.ReadOnlyField(
-        source="service_settings.human_readable_state"
+        source="service_settings.get_state_display"
     )
     service_settings_error_message = serializers.ReadOnlyField(
         source="service_settings.error_message"

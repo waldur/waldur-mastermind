@@ -46,10 +46,6 @@ class DryRun(
     class Permissions:
         customer_path = "order_offering__customer"
 
-    @property
-    def human_readable_state(self):
-        return str(dict(self.States.CHOICES)[self.state])
-
     @transition(field=state, source=States.PENDING, target=States.EXECUTING)
     def set_state_executing(self):
         pass

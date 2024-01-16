@@ -153,7 +153,7 @@ class StateTransitionTask(Task):
             instance,
             instance.pk,
         )
-        old_state = instance.human_readable_state
+        old_state = instance.get_state_display()
         try:
             getattr(instance, transition_method)()
             if action is not None:
@@ -168,7 +168,7 @@ class StateTransitionTask(Task):
             message = "Could not change state of {}, using method `{}`. Current instance state: {}.".format(
                 instance_description,
                 transition_method,
-                instance.human_readable_state,
+                instance.get_state_display(),
             )
             raise StateChangeError(message)
         else:
@@ -176,7 +176,7 @@ class StateTransitionTask(Task):
                 "State of %s changed from %s to %s, with method `%s`",
                 instance_description,
                 old_state,
-                instance.human_readable_state,
+                instance.get_state_display(),
                 transition_method,
             )
 

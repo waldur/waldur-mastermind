@@ -506,9 +506,7 @@ class SnapshotRestorationSerializer(
     description = serializers.CharField(
         required=False, help_text=_("New volume description.")
     )
-    volume_state = serializers.CharField(
-        source="volume.human_readable_state", read_only=True
-    )
+    volume_state = serializers.ReadOnlyField(source="volume.get_state_display")
 
     class Meta:
         model = models.SnapshotRestoration
@@ -679,7 +677,7 @@ class NestedSecurityGroupSerializer(
         many=True,
         read_only=True,
     )
-    state = serializers.ReadOnlyField(source="human_readable_state")
+    state = serializers.ReadOnlyField(source="get_state_display")
 
     class Meta:
         model = models.SecurityGroup
@@ -692,7 +690,7 @@ class NestedServerGroupSerializer(
     core_serializers.AugmentedSerializerMixin,
     core_serializers.HyperlinkedRelatedModelSerializer,
 ):
-    state = serializers.ReadOnlyField(source="human_readable_state")
+    state = serializers.ReadOnlyField(source="get_state_display")
 
     class Meta:
         model = models.ServerGroup
