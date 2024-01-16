@@ -67,6 +67,8 @@ class PluginManager:
         :key get_importable_resources_backend_method:
         :key import_resource_backend_method:
         :key import_resource_executor:
+        :key get_available_resource_actions: function which returns list of strings
+        identifying available resource actions
         """
         self.backends[offering_type] = kwargs
 
@@ -220,6 +222,17 @@ class PluginManager:
         Returns true if creating/deleting of plans and plan components via api is available.
         """
         return self.backends.get(offering_type, {}).get("can_manage_plans", True)
+
+    def get_available_resource_actions(self, resource):
+        """
+        Returns list of strings identifying available resource actions
+        """
+        actions = []
+        for backend in self.backends.values():
+            fn = backend.get("get_available_resource_actions")
+            if fn:
+                actions.extend(fn(resource))
+        return actions
 
 
 manager = PluginManager()

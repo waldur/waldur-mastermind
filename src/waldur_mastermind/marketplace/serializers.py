@@ -2269,6 +2269,7 @@ class ResourceSerializer(BaseItemSerializer):
             "error_traceback",
             "offering_customer_uuid",
             "options",
+            "available_actions",
         )
         read_only_fields = (
             "backend_metadata",
@@ -2325,6 +2326,7 @@ class ResourceSerializer(BaseItemSerializer):
     limit_usage = serializers.SerializerMethodField()
     endpoints = NestedEndpointSerializer(many=True, read_only=True)
     offering_customer_uuid = serializers.ReadOnlyField(source="offering.customer.uuid")
+    available_actions = serializers.SerializerMethodField()
 
     def get_can_terminate(self, resource):
         view = self.context["view"]
@@ -2391,6 +2393,9 @@ class ResourceSerializer(BaseItemSerializer):
                 ] = resource.current_usages.get(plan_component.component.type)
 
         return limit_usage
+
+    def get_available_actions(self, resource: models.Resource):
+        return plugins.manager.get_available_resource_actions(resource)
 
     def get_fields(self):
         fields = super().get_fields()
