@@ -44,7 +44,7 @@ class LexisLinkCreateTest(test.APITransactionTestCase):
             json="557bf7e928b64fd0bcc41579b5888967",
         )
 
-        CustomerRole.MANAGER.add_permission(PermissionEnum.DELETE_LEXIS_LINK_PERMISSION)
+        CustomerRole.MANAGER.add_permission(PermissionEnum.DELETE_LEXIS_LINK)
 
     def tearDown(self):
         super().tearDown()

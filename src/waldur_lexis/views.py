@@ -22,13 +22,13 @@ class LexisLinkViewSet(core_views.ActionsViewSet):
 
     create_permissions = [
         permission_factory(
-            PermissionEnum.CREATE_LEXIS_LINK_PERMISSION,
+            PermissionEnum.CREATE_LEXIS_LINK,
             ["*", "robot_account.resource.offering.customer"],
         )
     ]
     destroy_permissions = [
         permission_factory(
-            PermissionEnum.DELETE_LEXIS_LINK_PERMISSION,
+            PermissionEnum.DELETE_LEXIS_LINK,
             ["*", "robot_account.resource.offering.customer"],
         )
     ]
