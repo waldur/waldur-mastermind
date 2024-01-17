@@ -31,7 +31,9 @@ class DryRun(
         null=True,
     )
     order_attributes = models.JSONField(blank=True, default=dict)
-    order_plan = models.ForeignKey(on_delete=models.CASCADE, to=marketplace_models.Plan)
+    order_plan = models.ForeignKey(
+        on_delete=models.CASCADE, to=marketplace_models.Plan, blank=True, null=True
+    )
     order_offering = models.ForeignKey(
         on_delete=models.SET_NULL, null=True, to=marketplace_models.Offering
     )
