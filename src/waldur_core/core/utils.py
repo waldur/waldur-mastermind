@@ -17,6 +17,7 @@ from operator import itemgetter
 import httpagentparser
 import jwt
 import requests
+from constance import config
 from django.apps import apps
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -224,8 +225,6 @@ def send_mail(
     reply_to=None,
     fail_silently=False,
 ):
-    from .models import CommonMailFooter
-
     from_email = from_email or settings.DEFAULT_FROM_EMAIL
     reply_to = reply_to or settings.DEFAULT_REPLY_TO_EMAIL
     email = EmailMultiAlternatives(
@@ -237,10 +236,9 @@ def send_mail(
         reply_to=[reply_to],
     )
 
-    common_footer = CommonMailFooter.objects.first()
-    if common_footer:
-        footer_html = common_footer.html_content
-        footer_text = common_footer.text_content
+    footer_text = config.COMMON_FOOTER_TEXT
+    footer_html = config.COMMON_FOOTER_HTML
+    if footer_text != "" or footer_html != "":
         email.body += f"\n\n{footer_text}"
 
         if html_message:
