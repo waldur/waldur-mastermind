@@ -607,11 +607,6 @@ class NotificationTemplate(UuidMixin, NameMixin, TimeStampedModel):
         return self.path
 
 
-class CommonMailFooter(UuidMixin, models.Model):
-    html_content = models.TextField(blank=True)
-    text_content = models.TextField(blank=True)
-
-
 class Notification(UuidMixin, DescribableMixin, TimeStampedModel):
     key = models.CharField(max_length=255, unique=True, blank=False)
     enabled = models.BooleanField(

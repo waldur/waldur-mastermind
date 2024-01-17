@@ -325,6 +325,8 @@ CONSTANCE_CONFIG = {
         "",
         "Link URL to support portal. Rendered as a shortcut on dashboard",
     ),
+    "COMMON_FOOTER_TEXT": ("", "Common footer in txt format for all emails."),
+    "COMMON_FOOTER_HTML": ("", "Common footer in html format for all emails."),
     # images, logos, favicons
     "POWERED_BY_LOGO": (
         "",
@@ -471,6 +473,8 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "HERO_LINK_LABEL",
         "HERO_LINK_URL",
         "SUPPORT_PORTAL_URL",
+        "COMMON_FOOTER_TEXT",
+        "COMMON_FOOTER_HTML",
     ),
     "Whitelabeling settings (Logos, images, favicons)": (
         "SITE_LOGO",
@@ -553,6 +557,8 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "HERO_IMAGE",
     "LOGIN_LOGO",
     "FAVICON",
+    "COMMON_FOOTER_TEXT",
+    "COMMON_FOOTER_HTML",
     # Support plugin
     "WALDUR_SUPPORT_ENABLED",
     "WALDUR_SUPPORT_DISPLAY_REQUEST_TYPE",

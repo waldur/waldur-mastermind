@@ -55,11 +55,6 @@ def register_in(router):
         basename="notification-messages-templates",
     )
     router.register(
-        r"common-footer",
-        views.CommonMailFooterViewSet,
-        basename="common-footer",
-    )
-    router.register(
         r"auth-tokens",
         views.AuthTokenViewSet,
         basename="auth-tokens",
