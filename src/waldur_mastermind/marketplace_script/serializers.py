@@ -57,6 +57,8 @@ class DryRunSerializer(
         lookup_field="uuid",
         queryset=models.Plan.objects.all(),
         write_only=True,
+        allow_null=True,
+        required=False,
     )
     type = NaturalChoiceField(
         choices=DryRunTypes.CHOICES,
