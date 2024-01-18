@@ -2017,37 +2017,36 @@ class CartSubmitSerializer(serializers.Serializer):
         request = self.context["request"]
         project = validated_data["project"]
 
-        item = models.CartItem.objects.filter(
-            user=request.user, project=project
-        ).first()
-        if not item:
+        items = models.CartItem.objects.filter(user=request.user, project=project)
+        if not items.exists():
             raise serializers.ValidationError(_("Shopping cart is empty"))
 
-        resource = models.Resource(
-            project=project,
-            offering=item.offering,
-            plan=item.plan,
-            limits=item.limits,
-            attributes=item.attributes,
-            name=item.attributes.get("name") or "",
-        )
-        resource.init_cost()
-        resource.save()
+        for item in items:
+            resource = models.Resource(
+                project=project,
+                offering=item.offering,
+                plan=item.plan,
+                limits=item.limits,
+                attributes=item.attributes,
+                name=item.attributes.get("name") or "",
+            )
+            resource.init_cost()
+            resource.save()
 
-        order = models.Order(
-            resource=resource,
-            project=project,
-            created_by=request.user,
-            offering=item.offering,
-            attributes=item.attributes,
-            plan=item.plan,
-            limits=item.limits,
-            type=item.type,
-        )
-        validate_order(order, request)
-        order.init_cost()
-        order.save()
-        item.delete()
+            order = models.Order(
+                resource=resource,
+                project=project,
+                created_by=request.user,
+                offering=item.offering,
+                attributes=item.attributes,
+                plan=item.plan,
+                limits=item.limits,
+                type=item.type,
+            )
+            validate_order(order, request)
+            order.init_cost()
+            order.save()
+            item.delete()
         return order
 
 
