@@ -18,6 +18,7 @@ from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_mastermind.notifications.models import BroadcastMessage
+from waldur_mastermind.support.backend.smax import SmaxServiceBackend
 from waldur_mastermind.support.backend.zammad import ZammadServiceBackend
 
 from . import backend, exceptions, executors, filters, models, serializers
@@ -337,4 +338,26 @@ class ZammadWebHookReceiverView(CheckExtensionMixin, views.APIView):
         )
         ZammadServiceBackend().update_waldur_issue_from_zammad(issue)
         ZammadServiceBackend().update_waldur_comments_from_zammad(issue)
+        return response.Response(status=status.HTTP_200_OK)
+
+
+class SmaxWebHookReceiverView(CheckExtensionMixin, views.APIView):
+    authentication_classes = ()
+    permission_classes = ()
+
+    def post(self, request):
+        issue_id = request.data.get("id")
+
+        if not issue_id:
+            raise ValidationError("Key id is required.")
+
+        issue: models.Issue = get_object_or_404(
+            models.Issue,
+            backend_id=issue_id,
+            backend_name=SmaxServiceBackend.backend_name,
+        )
+        logger.info(
+            f"Updating issue {issue.key} based on data from ticket with id {issue_id}."
+        )
+        SmaxServiceBackend().update_waldur_issue_from_smax(issue)
         return response.Response(status=status.HTTP_200_OK)

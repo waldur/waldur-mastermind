@@ -39,6 +39,3 @@ class BasicBackend(SupportBackend):
 
     def get_issue_details(self):
         return {}
-
-    def periodic_task(self):
-        return

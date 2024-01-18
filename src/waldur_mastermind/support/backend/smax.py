@@ -77,128 +77,127 @@ class SmaxServiceBackend(SupportBackend):
         issue.save()
         return smax_issue
 
-    def periodic_task(self):
+    def update_waldur_issue_from_smax(self, issue):
+        # update an issue
+        backend_issue = self.manager.get_issue(issue.backend_id)
+        issue.description = backend_issue.description
+        issue.summary = backend_issue.summary
+        issue.status = backend_issue.status
+        issue.save()
+
+        # update comments
+        issue_comments = backend_issue.comments
+
+        for backend_comment in issue_comments:
+            waldur_comment = models.Comment.objects.filter(
+                backend_name=self.backend_name, backend_id=backend_comment.id
+            )
+            if waldur_comment.exists():
+                waldur_comment = waldur_comment.get()
+                waldur_comment.description = backend_comment.description
+                waldur_comment.is_public = backend_comment.is_public
+                waldur_comment.save()
+                continue
+
+            backend_user = self.manager.get_user(backend_comment.backend_user_id)
+            support_user, created = models.SupportUser.objects.get_or_create(
+                backend_id=backend_user.id,
+                backend_name=self.backend_name,
+                defaults=dict(
+                    name=backend_user.name,
+                ),
+            )
+
+            if created:
+                logger.info(f"Smax support user {backend_user.name} has been created.")
+
+            models.Comment.objects.create(
+                backend_name=self.backend_name,
+                issue_id=issue.id,
+                author=support_user,
+                description=backend_comment.description,
+                is_public=backend_comment.is_public,
+                backend_id=backend_comment.id,
+                state=models.Comment.States.OK,
+            )
+            logger.info(f"Smax comment {backend_comment.id} has been created.")
+
+        issue_comments_ids = [c.id for c in issue_comments]
+        count = (
+            models.Comment.objects.filter(
+                backend_name=self.backend_name,
+                issue=issue,
+            )
+            .exclude(backend_id__in=issue_comments_ids)
+            .delete()[0]
+        )
+
+        if count:
+            logger.info(
+                f"Smax comments have been deleted. Count: {count}, issue ID: {issue.id}"
+            )
+
+        # update attachments
+        issue_attachments = backend_issue.attachments
+
+        for backend_attachment in issue_attachments:
+            waldur_attachment = models.Attachment.objects.filter(
+                backend_name=self.backend_name, backend_id=backend_attachment.id
+            )
+            if waldur_attachment.exists():
+                continue
+
+            backend_user = self.manager.get_user(backend_attachment.backend_user_id)
+            support_user, created = models.SupportUser.objects.get_or_create(
+                backend_id=backend_user.id,
+                backend_name=self.backend_name,
+                defaults=dict(
+                    name=backend_user.name,
+                ),
+            )
+
+            if created:
+                logger.info(f"Smax support user {backend_user.name} has been created.")
+
+            if not issue.reporter:
+                logger.info("Issue reporter does not exist.")
+                continue
+
+            waldur_attachment = models.Attachment.objects.create(
+                issue=issue,
+                backend_id=backend_attachment.id,
+                backend_name=self.backend_name,
+                mime_type=backend_attachment.content_type or "",
+                file_size=backend_attachment.size,
+                state=models.Attachment.States.OK,
+                author=support_user,
+            )
+
+            waldur_attachment.file.save(
+                backend_attachment.filename,
+                ContentFile(self.manager.attachment_download(backend_attachment)),
+            )
+
+        issue_attachments_ids = [a.id for a in issue_attachments]
+        count = (
+            models.Attachment.objects.filter(
+                backend_name=self.backend_name,
+                issue=issue,
+            )
+            .exclude(backend_id__in=issue_attachments_ids)
+            .delete()[0]
+        )
+
+        if count:
+            logger.info(
+                f"Smax attachments have been deleted. Count: {count}, issue ID: {issue.id}"
+            )
+
+    def sync_issues(self):
         issues = models.Issue.objects.filter(backend_name=self.backend_name)
 
         for issue in issues:
-            # update an issue
-            backend_issue = self.manager.get_issue(issue.backend_id)
-            issue.description = backend_issue.description
-            issue.summary = backend_issue.summary
-            issue.status = backend_issue.status
-            issue.save()
-
-            # update comments
-            issue_comments = backend_issue.comments
-
-            for backend_comment in issue_comments:
-                waldur_comment = models.Comment.objects.filter(
-                    backend_name=self.backend_name, backend_id=backend_comment.id
-                )
-                if waldur_comment.exists():
-                    waldur_comment = waldur_comment.get()
-                    waldur_comment.description = backend_comment.description
-                    waldur_comment.is_public = backend_comment.is_public
-                    waldur_comment.save()
-                    continue
-
-                backend_user = self.manager.get_user(backend_comment.backend_user_id)
-                support_user, created = models.SupportUser.objects.get_or_create(
-                    backend_id=backend_user.id,
-                    backend_name=self.backend_name,
-                    defaults=dict(
-                        name=backend_user.name,
-                    ),
-                )
-
-                if created:
-                    logger.info(
-                        f"Smax support user {backend_user.name} has been created."
-                    )
-
-                models.Comment.objects.create(
-                    backend_name=self.backend_name,
-                    issue_id=issue.id,
-                    author=support_user,
-                    description=backend_comment.description,
-                    is_public=backend_comment.is_public,
-                    backend_id=backend_comment.id,
-                    state=models.Comment.States.OK,
-                )
-                logger.info(f"Smax comment {backend_comment.id} has been created.")
-
-            issue_comments_ids = [c.id for c in issue_comments]
-            count = (
-                models.Comment.objects.filter(
-                    backend_name=self.backend_name,
-                    issue=issue,
-                )
-                .exclude(backend_id__in=issue_comments_ids)
-                .delete()[0]
-            )
-
-            if count:
-                logger.info(
-                    f"Smax comments have been deleted. Count: {count}, issue ID: {issue.id}"
-                )
-
-            # update attachments
-            issue_attachments = backend_issue.attachments
-
-            for backend_attachment in issue_attachments:
-                waldur_attachment = models.Attachment.objects.filter(
-                    backend_name=self.backend_name, backend_id=backend_attachment.id
-                )
-                if waldur_attachment.exists():
-                    continue
-
-                backend_user = self.manager.get_user(backend_attachment.backend_user_id)
-                support_user, created = models.SupportUser.objects.get_or_create(
-                    backend_id=backend_user.id,
-                    backend_name=self.backend_name,
-                    defaults=dict(
-                        name=backend_user.name,
-                    ),
-                )
-
-                if created:
-                    logger.info(
-                        f"Smax support user {backend_user.name} has been created."
-                    )
-
-                if not issue.reporter:
-                    logger.info("Issue reporter is not exist.")
-                    continue
-
-                waldur_attachment = models.Attachment.objects.create(
-                    issue=issue,
-                    backend_id=backend_attachment.id,
-                    backend_name=self.backend_name,
-                    mime_type=backend_attachment.content_type or "",
-                    file_size=backend_attachment.size,
-                    state=models.Attachment.States.OK,
-                    author=support_user,
-                )
-
-                waldur_attachment.file.save(
-                    backend_attachment.filename,
-                    ContentFile(self.manager.attachment_download(backend_attachment)),
-                )
-
-            issue_attachments_ids = [a.id for a in issue_attachments]
-            count = (
-                models.Attachment.objects.filter(
-                    backend_name=self.backend_name,
-                    issue=issue,
-                )
-                .exclude(backend_id__in=issue_attachments_ids)
-                .delete()[0]
-            )
-
-            if count:
-                logger.info(
-                    f"Smax attachments have been deleted. Count: {count}, issue ID: {issue.id}"
-                )
+            self.update_waldur_issue_from_smax(issue)
 
     def create_smax_user_for_support_user(
         self, support_user: models.SupportUser

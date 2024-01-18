@@ -47,11 +47,20 @@ class SyncFromSmaxTest(smax_base.BaseTest):
         self.backend = SmaxServiceBackend()
 
     def test_sync_issue(self):
-        self.backend.periodic_task()
+        self.backend.sync_issues()
         self.issue.refresh_from_db()
         self.assertEqual(self.issue.summary, self.smax_issue.summary)
         self.assertEqual(self.issue.description, self.smax_issue.description)
         self.assertEqual(self.issue.status, self.smax_issue.status)
+
+    def test_web_hook(self):
+        url = "/api/support-smax-webhook/"
+        response = self.client.post(url, data={"id": self.issue.backend_id})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.mock_smax().get_issue.assert_called_once()
+        self.issue.refresh_from_db()
+        self.assertEqual(self.issue.status, self.smax_issue.status)
+        self.assertEqual(self.issue.summary, self.smax_issue.summary)
 
 
 class IssueLinksTest(smax_base.BaseTest):
