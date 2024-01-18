@@ -98,7 +98,7 @@ class MarketplaceOrderLogger(EventLogger):
     @staticmethod
     def get_scopes(event_context):
         order = event_context["order"]
-        return {order, order.project, order.project.customer}
+        return {order, order.project, order.project.customer, order.resource}
 
 
 class MarketplaceResourceLogger(EventLogger):
