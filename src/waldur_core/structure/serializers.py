@@ -190,7 +190,11 @@ class PermissionProjectSerializer(BasicProjectSerializer):
 
     class Meta(BasicProjectSerializer.Meta):
         list_serializer_class = PermissionListSerializer
-        fields = BasicProjectSerializer.Meta.fields + ("image", "resource_count")
+        fields = BasicProjectSerializer.Meta.fields + (
+            "image",
+            "resource_count",
+            "end_date",
+        )
 
     def get_resource_count(self, project):
         from waldur_mastermind.marketplace import models as marketplace_models
