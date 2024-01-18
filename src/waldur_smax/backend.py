@@ -179,6 +179,7 @@ class SmaxBackend:
 
         return result
 
+    @reraise_exceptions
     def auth(self):
         response = requests.post(
             f"{self.api_url}auth/authentication-endpoint/"
@@ -188,12 +189,13 @@ class SmaxBackend:
 
         if response.status_code != status.HTTP_200_OK:
             logger.error("Unable to receive session token.")
-            raise requests_exceptions.RequestException(
+            raise SmaxBackendError(
                 f"Status code {response.status_code}, body {response.text}"
             )
         self.lwsso_cookie_key = response.text
         return self.lwsso_cookie_key
 
+    @reraise_exceptions
     def _get(self, path, params=None):
         params = params or {}
         self.lwsso_cookie_key or self.auth()
@@ -222,12 +224,13 @@ class SmaxBackend:
             response = self._get(path, params)
 
         if response.status_code >= 400:
-            raise requests_exceptions.RequestException(
+            raise SmaxBackendError(
                 f"Status code {response.status_code}, body {response.text}"
             )
 
         return response
 
+    @reraise_exceptions
     def _request(self, path, method="post", data=None, json=None, **kwargs):
         self.lwsso_cookie_key or self.auth()
         user_headers = kwargs.pop("headers", {})
@@ -244,7 +247,7 @@ class SmaxBackend:
         )
 
         if response.status_code > 299:
-            raise requests_exceptions.RequestException(
+            raise SmaxBackendError(
                 f"Status code {response.status_code}, body {response.text}"
             )
 
@@ -297,7 +300,7 @@ class SmaxBackend:
         last_name = name[1] if len(name) > 1 else ""
 
         if not first_name or not last_name:
-            raise requests_exceptions.RequestException(
+            raise SmaxBackendError(
                 "User creation has failed because first or last names have not been passed."
             )
 
@@ -320,7 +323,7 @@ class SmaxBackend:
         backend_user = self.search_user_by_email(user.email)
 
         if not backend_user:
-            raise requests_exceptions.RequestException("User creation is failed.")
+            raise SmaxBackendError("User creation is failed.")
 
         return backend_user
 
@@ -481,4 +484,18 @@ class SmaxBackend:
             "operation": "UPDATE",
         }
 
+        self.post(url, json=payload)
+
+    def create_issue_link(self, issue_id, linked_issue_id):
+        url = "ems/bulk"
+        payload = {
+            "relationships": [
+                {
+                    "name": "RequestCausedByRequest",
+                    "firstEndpoint": {"Request": issue_id},
+                    "secondEndpoint": {"Request": linked_issue_id},
+                }
+            ],
+            "operation": "CREATE",
+        }
         self.post(url, json=payload)

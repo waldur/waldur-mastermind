@@ -4,7 +4,6 @@ from django.contrib.contenttypes.models import ContentType
 from django.template import Context
 from django.template.loader import get_template
 from django.utils.translation import gettext_lazy as _
-from jira import JIRAError
 from rest_framework import exceptions as rf_exceptions
 
 from waldur_core.core.utils import format_homeport_link
@@ -118,6 +117,7 @@ def create_issue(order, description, summary, confirmation_comment=None):
     issue = support_models.Issue.objects.create(**issue_details)
     try:
         active_backend.create_issue(issue)
+        issue.refresh_from_db()
     except support_exceptions.SupportUserInactive:
         issue.delete()
         order.resource.set_state_erred()
@@ -143,13 +143,13 @@ def create_issue(order, description, summary, confirmation_comment=None):
     ).exclude(id=issue.id)
     try:
         active_backend.create_issue_links(issue, list(linked_issues))
-    except JIRAError as e:
+    except ServiceBackendError as e:
         logger.exception("Linked issues have not been added: %s", e)
 
     if confirmation_comment:
         try:
             active_backend.create_confirmation_comment(issue, confirmation_comment)
-        except JIRAError as e:
+        except ServiceBackendError as e:
             logger.exception("Unable to create confirmation comment: %s", e)
 
     return issue
