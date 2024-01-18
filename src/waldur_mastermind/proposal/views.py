@@ -1,3 +1,6 @@
+import logging
+from datetime import datetime
+
 from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import Q
 from django_filters.rest_framework import DjangoFilterBackend
@@ -16,6 +19,8 @@ from waldur_core.permissions.enums import SYSTEM_CUSTOMER_ROLES
 from waldur_core.structure import filters as structure_filters
 from waldur_mastermind.marketplace.views import BaseMarketplaceView, PublicViewsetMixin
 from waldur_mastermind.proposal import filters, models, serializers
+
+logger = logging.getLogger(__name__)
 
 
 class CallManagingOrganisationViewSet(PublicViewsetMixin, BaseMarketplaceView):
@@ -50,20 +55,64 @@ class ProtectedCallViewSet(core_views.ActionsViewSet):
             method = self.request.method
 
             if method == "POST":
-                serializer = self.get_serializer(
-                    context=self.get_serializer_context(),
-                    data=self.request.data,
-                )
-                serializer.is_valid(raise_exception=True)
+                repeat = request.query_params.get("repeat", "false")
+                count = request.query_params.get("count", "1")
 
-                for validator in additional_validators:
-                    getattr(serializer, validator)(call)
+                if (
+                    set_name == "round_set"
+                    and repeat in ["true", "True"]
+                    and int(count) > 1
+                ):
+                    cutoff_time_str = request.data.get("cutoff_time")
+                    start_time_str = request.data.get("start_time")
 
-                serializer.save(call=call)
-                return response.Response(
-                    serializer.data,
-                    status=status.HTTP_201_CREATED,
-                )
+                    cutoff_time = datetime.strptime(cutoff_time_str, "%Y-%m-%dT%H:%M")
+                    start_time = datetime.strptime(start_time_str, "%Y-%m-%dT%H:%M")
+
+                    duration = cutoff_time - start_time
+                    data = request.data.copy()
+                    all_created_data = []
+
+                    for i in range(int(count)):
+                        new_start_time = start_time + i * duration
+                        new_cutoff_time = cutoff_time + i * duration
+
+                        data["start_time"] = new_start_time.strftime(
+                            "%Y-%m-%dT%H:%M:%S%z"
+                        )
+                        data["cutoff_time"] = new_cutoff_time.strftime(
+                            "%Y-%m-%dT%H:%M:%S%z"
+                        )
+
+                        serializer = self.get_serializer(
+                            context=self.get_serializer_context(),
+                            data=data,
+                        )
+                        serializer.is_valid(raise_exception=True)
+                        serializer.save(call=call)
+                        all_created_data.append(serializer.data)
+                        logger.info(
+                            f"Round is created with start_time: {new_start_time}, cutoff_time: {new_cutoff_time}"
+                        )
+                    return response.Response(
+                        all_created_data,
+                        status=status.HTTP_201_CREATED,
+                    )
+                else:
+                    serializer = self.get_serializer(
+                        context=self.get_serializer_context(),
+                        data=self.request.data,
+                    )
+                    serializer.is_valid(raise_exception=True)
+
+                    for validator in additional_validators:
+                        getattr(serializer, validator)(call)
+
+                    serializer.save(call=call)
+                    return response.Response(
+                        serializer.data,
+                        status=status.HTTP_201_CREATED,
+                    )
 
             return response.Response(
                 self.get_serializer(
