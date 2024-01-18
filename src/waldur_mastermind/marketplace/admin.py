@@ -722,8 +722,19 @@ class CategoryHelpArticleAdmin(admin.ModelAdmin):
     search_fields = ("title",)
 
 
+class CartItemAdmin(admin.ModelAdmin):
+    list_display = ("user", "offering", "project")
+    search_fields = ("user", "project")
+    list_filter = (
+        ("user", RelatedOnlyDropdownFilter),
+        ("offering", RelatedOnlyDropdownFilter),
+        ("project", RelatedOnlyDropdownFilter),
+    )
+
+
 admin.site.register(models.ServiceProvider, ServiceProviderAdmin)
 admin.site.register(models.Category)
+admin.site.register(models.CartItem, CartItemAdmin)
 admin.site.register(models.CategoryGroup, CategoryGroupAdmin)
 admin.site.register(models.Offering, OfferingAdmin)
 admin.site.register(models.Section, SectionAdmin)
