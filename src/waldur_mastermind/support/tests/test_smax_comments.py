@@ -107,7 +107,7 @@ class SyncFromSmaxTest(smax_base.BaseTest):
         self.backend = SmaxServiceBackend()
 
     def test_sync_comment(self):
-        self.backend.periodic_task()
+        self.backend.sync_issues()
         self.comment.refresh_from_db()
         self.assertEqual(self.comment.description, self.smax_comment.description)
         self.assertEqual(self.comment.is_public, self.smax_comment.is_public)

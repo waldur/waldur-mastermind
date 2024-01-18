@@ -101,7 +101,7 @@ class SyncFromSmaxTest(smax_base.BaseTest):
 
     def test_create_attachment(self):
         self.assertEqual(self.issue.attachments.count(), 0)
-        self.backend.periodic_task()
+        self.backend.sync_issues()
         self.issue.refresh_from_db()
         self.assertEqual(self.issue.attachments.count(), 1)
 
@@ -109,6 +109,6 @@ class SyncFromSmaxTest(smax_base.BaseTest):
         self.attachment = self.fixture.attachment
         self.assertEqual(self.issue.attachments.count(), 1)
         self.smax_issue.attachments = []
-        self.backend.periodic_task()
+        self.backend.sync_issues()
         self.issue.refresh_from_db()
         self.assertEqual(self.issue.attachments.count(), 0)

@@ -47,6 +47,11 @@ urlpatterns = [
         name="zammad-web-hook-receiver",
     ),
     re_path(
+        r"^api/support-smax-webhook/$",
+        views.SmaxWebHookReceiverView.as_view(),
+        name="smax-web-hook-receiver",
+    ),
+    re_path(
         r"^api/support-statistics/$",
         views.SupportStatsViewSet.as_view(),
         name="support-statistics",
