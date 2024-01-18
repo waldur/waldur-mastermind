@@ -52,3 +52,19 @@ class SyncFromSmaxTest(smax_base.BaseTest):
         self.assertEqual(self.issue.summary, self.smax_issue.summary)
         self.assertEqual(self.issue.description, self.smax_issue.description)
         self.assertEqual(self.issue.status, self.smax_issue.status)
+
+
+class IssueLinksTest(smax_base.BaseTest):
+    def setUp(self):
+        super().setUp()
+        self.issue = factories.IssueFactory(
+            backend_name=SmaxServiceBackend.backend_name
+        )
+        self.linked_issues = [
+            factories.IssueFactory(backend_name=SmaxServiceBackend.backend_name)
+        ]
+        self.backend = SmaxServiceBackend()
+
+    def test_create_issue_link(self):
+        self.backend.create_issue_links(self.issue, self.linked_issues)
+        self.mock_smax().create_issue_link.assert_called_once()

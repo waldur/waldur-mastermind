@@ -127,23 +127,13 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         self._backend_issue_to_issue(backend_issue, issue)
         issue.save()
 
+    @reraise_exceptions
     def create_confirmation_comment(self, issue, comment_tmpl=""):
         if not comment_tmpl:
-            try:
-                tmpl = models.TemplateConfirmationComment.objects.get(
-                    issue_type=issue.type
-                )
-            except models.TemplateConfirmationComment.DoesNotExist:
-                try:
-                    tmpl = models.TemplateConfirmationComment.objects.get(
-                        issue_type="default"
-                    )
-                except models.TemplateConfirmationComment.DoesNotExist:
-                    logger.debug(
-                        "A confirmation comment hasn't been created, because a template does not exist."
-                    )
-                    return
-            comment_tmpl = tmpl.template
+            comment_tmpl = self.get_confirmation_comment_template(issue.type)
+
+        if not comment_tmpl:
+            return
 
         body = (
             Template(comment_tmpl)
@@ -413,6 +403,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
                     },
                 )
 
+    @reraise_exceptions
     def create_issue_links(self, issue, linked_issues):
         for linked_issue in linked_issues:
             link_type = config.ATLASSIAN_LINKED_ISSUE_TYPE

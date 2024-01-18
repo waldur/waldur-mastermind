@@ -3,6 +3,7 @@ import mimetypes
 import os
 
 from django.core.files.base import ContentFile
+from django.template import Context, Template
 
 from waldur_core.core.models import User as WaldurUser
 from waldur_mastermind.support import models
@@ -75,9 +76,6 @@ class SmaxServiceBackend(SupportBackend):
         issue.set_ok()
         issue.save()
         return smax_issue
-
-    def create_confirmation_comment(self, *args, **kwargs):
-        pass
 
     def periodic_task(self):
         issues = models.Issue.objects.filter(backend_name=self.backend_name)
@@ -216,7 +214,7 @@ class SmaxServiceBackend(SupportBackend):
         support_user.save()
         return smax_user
 
-    def get_or_create_smax_user_for_support_user(self, support_user):
+    def get_smax_user_id_for_support_user(self, support_user):
         if (
             not support_user.backend_name
             or support_user.backend_name != self.backend_name
@@ -230,7 +228,7 @@ class SmaxServiceBackend(SupportBackend):
         comment.begin_creating()
         comment.save()
 
-        backend_user_id = self.get_or_create_smax_user_for_support_user(comment.author)
+        backend_user_id = self.get_smax_user_id_for_support_user(comment.author)
         smax_comment = Comment(
             description=comment.description,
             backend_user_id=backend_user_id,
@@ -280,12 +278,10 @@ class SmaxServiceBackend(SupportBackend):
         ):
             return
 
-        if (
-            not attachment.author
-            or not attachment.author.backend_id
-            or attachment.author.backend_name != self.backend_name
-        ):
+        if not attachment.author:
             return
+
+        backend_user_id = self.get_smax_user_id_for_support_user(attachment.author)
 
         file_name = os.path.basename(attachment.file.name)
         mime_type = attachment.mime_type
@@ -300,7 +296,7 @@ class SmaxServiceBackend(SupportBackend):
 
         backend_attachment = self.manager.create_attachment(
             attachment.issue.backend_id,
-            attachment.author.backend_id,
+            backend_user_id,
             file_name,
             mime_type,
             file_content,
@@ -329,3 +325,31 @@ class SmaxServiceBackend(SupportBackend):
 
     def attachment_destroy_is_available(self, *args, **kwargs):
         return True
+
+    def create_issue_links(self, issue, linked_issues):
+        if not issue.backend_id or issue.backend_name != self.backend_name:
+            return
+
+        for linked_issue in linked_issues:
+            if (
+                not linked_issue.backend_id
+                or linked_issue.backend_name != self.backend_name
+            ):
+                continue
+
+            self.manager.create_issue_link(issue.backend_id, linked_issue.backend_id)
+
+    def create_confirmation_comment(self, issue, comment_tmpl=""):
+        if not comment_tmpl:
+            comment_tmpl = self.get_confirmation_comment_template(issue.type)
+
+        if not comment_tmpl:
+            return
+
+        body = (
+            Template(comment_tmpl)
+            .render(Context({"issue": issue}, autoescape=False))
+            .strip()
+        )
+        comment = Comment(description=body, backend_user_id=issue.reporter.backend_id)
+        return self.manager.add_comment(issue.backend_id, comment)

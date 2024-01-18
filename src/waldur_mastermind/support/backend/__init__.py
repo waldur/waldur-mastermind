@@ -1,6 +1,11 @@
 import importlib
+import logging
 
 from constance import config
+
+from waldur_mastermind.support import models
+
+logger = logging.getLogger(__name__)
 
 
 class SupportBackendType:
@@ -88,3 +93,18 @@ class SupportBackend:
 
     def pull_support_users(self):
         raise NotImplementedError
+
+    def get_confirmation_comment_template(self, issue_type):
+        try:
+            tmpl = models.TemplateConfirmationComment.objects.get(issue_type=issue_type)
+        except models.TemplateConfirmationComment.DoesNotExist:
+            try:
+                tmpl = models.TemplateConfirmationComment.objects.get(
+                    issue_type="default"
+                )
+            except models.TemplateConfirmationComment.DoesNotExist:
+                logger.debug(
+                    "A confirmation comment hasn't been created, because a template does not exist."
+                )
+                return
+        return tmpl.template

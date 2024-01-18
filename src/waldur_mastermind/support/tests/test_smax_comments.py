@@ -111,3 +111,20 @@ class SyncFromSmaxTest(smax_base.BaseTest):
         self.comment.refresh_from_db()
         self.assertEqual(self.comment.description, self.smax_comment.description)
         self.assertEqual(self.comment.is_public, self.smax_comment.is_public)
+
+
+class ConfirmationCommentTest(smax_base.BaseTest):
+    def setUp(self):
+        super().setUp()
+        self.fixture = fixtures.SupportFixture()
+        self.issue = self.fixture.issue
+        self.backend = SmaxServiceBackend()
+
+    def test_create_confirmation_comment_if_template_exists(self):
+        factories.TemplateConfirmationCommentFactory(template="template")
+        self.backend.create_confirmation_comment(self.issue)
+        self.mock_smax().add_comment.assert_called_once()
+
+    def test_not_create_confirmation_comment_if_template_does_not_exist(self):
+        self.backend.create_confirmation_comment(self.issue)
+        self.mock_smax().add_comment.assert_not_called()
