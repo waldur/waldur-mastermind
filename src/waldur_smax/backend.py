@@ -19,18 +19,15 @@ class SmaxBackendError(ServiceBackendError):
     pass
 
 
-def reraise_exceptions(msg=None):
-    def wrap(func):
-        @functools.wraps(func)
-        def wrapped(self, *args, **kwargs):
-            try:
-                return func(self, *args, **kwargs)
-            except requests_exceptions.RequestException as e:
-                raise SmaxBackendError(f"{msg}. {e}")
+def reraise_exceptions(func):
+    @functools.wraps(func)
+    def wrapped(self, *args, **kwargs):
+        try:
+            return func(self, *args, **kwargs)
+        except requests_exceptions.RequestException as e:
+            raise SmaxBackendError(e)
 
-        return wrapped
-
-    return wrap
+    return wrapped
 
 
 @dataclass
@@ -71,6 +68,12 @@ class Comment:
     backend_issue_id: str = None
 
 
+@dataclass
+class Category:
+    name: str
+    id: str = None
+
+
 class SmaxBackend:
     def __init__(self):
         if not config.SMAX_API_URL.endswith("/"):
@@ -93,6 +96,20 @@ class SmaxBackend:
                     name=e["properties"]["Name"],
                     upn=e["properties"]["Upn"],
                     external_id=e["properties"].get("ExternalId"),
+                )
+            )
+
+        return result
+
+    def _smax_response_to_categories(self, response):
+        entities = response.json()["entities"]
+        result = []
+
+        for e in entities:
+            result.append(
+                Category(
+                    id=e["properties"]["Id"],
+                    name=e["properties"]["DisplayLabel"],
                 )
             )
 
@@ -499,3 +516,31 @@ class SmaxBackend:
             "operation": "CREATE",
         }
         self.post(url, json=payload)
+
+    def add_category_to_issue(self, issue_id, category_id):
+        url = "ems/bulk"
+        payload = {
+            "entities": [
+                {
+                    "entity_type": "Request",
+                    "properties": {
+                        "Id": issue_id,
+                        "Category": category_id,
+                    },
+                }
+            ],
+            "operation": "UPDATE",
+        }
+
+        self.post(url, json=payload)
+
+    def get_all_categories(self):
+        url = "ems/ITProcessRecordCategory?layout=DisplayLabel"
+        response = self.get(url)
+        return self._smax_response_to_categories(response)
+
+    def get_category_by_name(self, name):
+        url = f"ems/ITProcessRecordCategory?filter=DisplayLabel+%3D+%27{name}%27&layout=DisplayLabel"
+        response = self.get(url)
+        categories = self._smax_response_to_categories(response)
+        return categories[0] if categories else None

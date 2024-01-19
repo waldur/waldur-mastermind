@@ -21,7 +21,7 @@ from waldur_mastermind.notifications.models import BroadcastMessage
 from waldur_mastermind.support.backend.smax import SmaxServiceBackend
 from waldur_mastermind.support.backend.zammad import ZammadServiceBackend
 
-from . import backend, exceptions, executors, filters, models, serializers
+from . import backend, exceptions, executors, filters, models, serializers, tasks
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +127,14 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
     comment_serializer_class = serializers.CommentSerializer
     comment_permissions = [_comment_permission]
+
+    @decorators.action(detail=True, methods=["post"])
+    def sync(self, request, uuid=None):
+        issue = self.get_object()
+        backend.get_active_backend().sync_issues(issue.id)
+        return response.Response(status=status.HTTP_200_OK)
+
+    sync_permissions = [is_staff_or_support]
 
 
 class PriorityViewSet(viewsets.ReadOnlyModelViewSet):
@@ -361,3 +369,14 @@ class SmaxWebHookReceiverView(CheckExtensionMixin, views.APIView):
         )
         SmaxServiceBackend().update_waldur_issue_from_smax(issue)
         return response.Response(status=status.HTTP_200_OK)
+
+
+@decorators.api_view(["GET", "POST"])
+def sync_issues(request):
+    if not request.user.is_active or not (
+        request.user.is_staff or request.user.is_support
+    ):
+        return response.Response(status=status.HTTP_403_FORBIDDEN)
+
+    tasks.sync_issues.delay()
+    return response.Response(status=status.HTTP_202_ACCEPTED)

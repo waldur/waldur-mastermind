@@ -52,6 +52,11 @@ urlpatterns = [
         name="smax-web-hook-receiver",
     ),
     re_path(
+        r"^api/sync-issues/$",
+        views.sync_issues,
+        name="sync-issues",
+    ),
+    re_path(
         r"^api/support-statistics/$",
         views.SupportStatsViewSet.as_view(),
         name="support-statistics",

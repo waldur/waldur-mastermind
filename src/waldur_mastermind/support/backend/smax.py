@@ -75,6 +75,13 @@ class SmaxServiceBackend(SupportBackend):
         issue.backend_name = self.backend_name
         issue.set_ok()
         issue.save()
+
+        # add category to issue
+        smax_category = self.manager.get_category_by_name(issue.type)
+
+        if smax_category:
+            self.manager.add_category_to_issue(smax_issue.id, smax_category.id)
+
         return smax_issue
 
     def update_waldur_issue_from_smax(self, issue):
@@ -193,8 +200,11 @@ class SmaxServiceBackend(SupportBackend):
                 f"Smax attachments have been deleted. Count: {count}, issue ID: {issue.id}"
             )
 
-    def sync_issues(self):
+    def sync_issues(self, issue_id=None):
         issues = models.Issue.objects.filter(backend_name=self.backend_name)
+
+        if issue_id:
+            issues = issues.filter(id=issue_id)
 
         for issue in issues:
             self.update_waldur_issue_from_smax(issue)
