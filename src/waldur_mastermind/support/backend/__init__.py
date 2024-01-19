@@ -108,3 +108,6 @@ class SupportBackend:
                 )
                 return
         return tmpl.template
+
+    def sync_issues(self, *args, **kwargs):
+        return

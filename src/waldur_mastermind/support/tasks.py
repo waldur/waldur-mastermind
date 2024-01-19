@@ -212,3 +212,8 @@ def sync_request_types():
         return
 
     backend.get_active_backend().pull_request_types()
+
+
+@shared_task(name="waldur_mastermind.support.sync_issues")
+def sync_issues():
+    backend.get_active_backend().sync_issues()

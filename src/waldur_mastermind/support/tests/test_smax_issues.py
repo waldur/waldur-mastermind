@@ -4,7 +4,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.support import models
 from waldur_mastermind.support.backend.smax import SmaxServiceBackend
 from waldur_mastermind.support.tests import factories, fixtures, smax_base
-from waldur_smax.backend import Issue
+from waldur_smax.backend import Category, Issue
 
 
 class IssueCreateTest(smax_base.BaseTest):
@@ -15,6 +15,9 @@ class IssueCreateTest(smax_base.BaseTest):
         self.caller = self.fixture.support_user.user
         self.smax_issue = Issue(1, "test", "description", "RequestStatusReady")
         self.mock_smax().add_issue.return_value = self.smax_issue
+
+        self.smax_category = Category(id=1, name="test")
+        self.mock_smax().get_category_by_name.return_value = self.smax_category
 
     def _get_valid_payload(self, **additional):
         payload = {
@@ -34,6 +37,8 @@ class IssueCreateTest(smax_base.BaseTest):
         self.mock_smax().add_issue.assert_called_once()
         issue = models.Issue.objects.get(uuid=response.data["uuid"])
         self.assertEqual(str(issue.backend_id), str(self.smax_issue.id))
+
+        self.mock_smax().add_category_to_issue.assert_called_once()
 
 
 class SyncFromSmaxTest(smax_base.BaseTest):
