@@ -28,13 +28,3 @@ class JiraExtension(WaldurExtension):
         from .urls import register_in
 
         return register_in
-
-    # @staticmethod
-    # def celery_tasks():
-    #     return {
-    #         'waldur-import-jira-projects': {
-    #             'task': 'waldur_jira.ImportProjects',
-    #             'schedule': timedelta(minutes=1),
-    #             'args': (),
-    #         },
-    #     }
