@@ -36,7 +36,7 @@ def update_resource_for_orders(apps, schema_editor):
         creation_order = Order.objects.filter(
             resource=resource, type=OrderTypes.CREATE
         ).first()
-        if creation_order.state != OrderStates.ERRED:
+        if not creation_order or creation_order.state != OrderStates.ERRED:
             continue
 
         if resource.backend_id in [None, ""]:
