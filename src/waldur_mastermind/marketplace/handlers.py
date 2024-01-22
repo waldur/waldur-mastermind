@@ -127,20 +127,31 @@ def notify_approvers_when_order_is_created(sender, instance, created=False, **kw
             )
 
 
-def update_resource_when_order_is_rejected(sender, instance, created=False, **kwargs):
+def update_resource_when_order_is_rejected_or_erred(
+    sender, instance, created=False, **kwargs
+):
     order: models.Order = instance
     if not order.tracker.has_changed("state"):
         return
-    if order.state != models.Order.States.REJECTED:
-        return
-    if not order.resource:
-        return
-    if order.type == models.Order.Types.CREATE:
-        order.resource.set_state_terminated()
-        order.resource.save(update_fields=["state"])
-    elif order.resource.state != models.Resource.States.OK:
-        order.resource.set_state_ok()
-        order.resource.save(update_fields=["state"])
+    resource = order.resource
+    if order.state == models.Order.States.REJECTED:
+        if order.type == models.Order.Types.CREATE:
+            resource.set_state_terminated()
+            resource.save(update_fields=["state"])
+        elif resource.state != models.Resource.States.OK:
+            resource.set_state_ok()
+            resource.save(update_fields=["state"])
+    elif order.state == models.Order.States.ERRED:
+        if resource.state != models.Resource.States.CREATING:
+            return
+        if resource.backend_id in [None, ""]:
+            logger.info("Terminating %s", resource)
+            resource.set_state_terminated()
+        else:
+            logger.info("Setting state of %s to Erred", resource)
+            resource.set_state_erred()
+
+        resource.save(update_fields=["state"])
 
 
 def sync_resource_limit_when_order(sender, instance, created=False, **kwargs):

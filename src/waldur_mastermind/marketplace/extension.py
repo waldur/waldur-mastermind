@@ -64,9 +64,4 @@ class MarketplaceExtension(WaldurExtension):
                 "schedule": timedelta(days=1),
                 "args": (),
             },
-            "drop_dangling_resources": {
-                "task": "waldur_mastermind.marketplace.drop_dangling_resources",
-                "schedule": timedelta(days=1),
-                "args": (),
-            },
         }
