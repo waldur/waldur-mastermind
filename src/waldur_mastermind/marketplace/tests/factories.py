@@ -372,6 +372,7 @@ class ResourceFactory(factory.django.DjangoModelFactory):
         model = models.Resource
 
     offering = factory.SubFactory(OfferingFactory)
+    plan = factory.LazyAttribute(lambda o: PlanFactory(offering=o.offering))
     project = factory.SubFactory(structure_factories.ProjectFactory)
     backend_metadata = factory.Sequence(backend_metadata_generator)
     name = factory.Sequence(lambda n: "resource-%s" % n)
@@ -422,6 +423,13 @@ class ComponentUsageFactory(factory.django.DjangoModelFactory):
     usage = 1
     date = timezone.now()
     billing_period = core_utils.month_start(timezone.now())
+    plan_period = factory.LazyAttribute(
+        lambda o: ResourcePlanPeriodFactory(
+            resource=o.resource,
+            plan=o.resource.plan,
+            start=core_utils.month_start(timezone.now()),
+        )
+    )
 
 
 class ResourcePlanPeriodFactory(factory.django.DjangoModelFactory):

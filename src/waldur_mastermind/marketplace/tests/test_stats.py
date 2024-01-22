@@ -341,17 +341,11 @@ class ComponentStatsTest(StatsBaseTest):
         )
 
         self._create_items()
-        plan_period = factories.ResourcePlanPeriodFactory(
-            resource=self.resource,
-            plan=self.plan,
-            start=core_utils.month_start(timezone.now()),
-        )
         factories.ComponentUsageFactory(
             resource=self.resource,
             date=timezone.now(),
             billing_period=core_utils.month_start(timezone.now()),
             component=new_component,
-            plan_period=plan_period,
             usage=2,
         )
         self.client.force_authenticate(self.fixture.staff)
