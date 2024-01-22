@@ -1,4 +1,5 @@
 - role: CUSTOMER.OWNER
+  description: Owner
   permissions:
     - OFFERING.CREATE
     - OFFERING.DELETE
@@ -57,6 +58,7 @@
     - PROJECT.DELETE
 
 - role: CUSTOMER.MANAGER
+  description: Manager
   permissions:
     - RESOURCE.SET_END_DATE
     - RESOURCE.SET_BACKEND_ID
@@ -86,6 +88,7 @@
     - OFFERING.MANAGE_USER_GROUP
 
 - role: PROJECT.ADMIN
+  description: Project administrator
   permissions:
     - ORDER.APPROVE_PRIVATE
     - ORDER.DESTROY
@@ -97,6 +100,7 @@
     - RESOURCE.SET_LIMITS
 
 - role: PROJECT.MANAGER
+  description: Project manager
   permissions:
     - ORDER.APPROVE_PRIVATE
     - ORDER.DESTROY
@@ -112,6 +116,7 @@
     - PROJECT.UPDATE
 
 - role: OFFERING.MANAGER
+  description: Offering manager
   permissions:
     - OFFERING.UPDATE
     - OFFERING.UPDATE_ATTRIBUTES
