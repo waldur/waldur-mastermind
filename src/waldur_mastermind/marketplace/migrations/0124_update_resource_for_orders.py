@@ -49,7 +49,7 @@ def update_resource_for_orders(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("marketplace", "0122_add_missing_plan_periods"),
+        ("marketplace", "0123_drop_druplicate_usage"),
     ]
 
     operations = [
