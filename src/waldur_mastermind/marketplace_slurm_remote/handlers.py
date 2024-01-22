@@ -8,6 +8,7 @@ from waldur_core.core.utils import month_start
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME
+from waldur_slurm import models as slurm_models
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +84,7 @@ def terminate_allocation_when_resource_is_terminated(sender, instance, **kwargs)
     if resource.offering.type != PLUGIN_NAME:
         return
 
-    allocation = resource.scope
+    allocation: slurm_models.Allocation = resource.scope
+    allocation.schedule_deleting()
     allocation.begin_deleting()
     allocation.save(update_fields=["state"])
