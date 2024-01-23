@@ -47,7 +47,7 @@ class SyncFromSmaxTest(smax_base.BaseTest):
         self.issue = factories.IssueFactory(
             backend_name=SmaxServiceBackend.backend_name
         )
-        self.smax_issue = Issue(1, "test", "description", "RequestStatusReady")
+        self.smax_issue = Issue("1", "test", "description", "RequestStatusReady")
         self.mock_smax().get_issue.return_value = self.smax_issue
         self.backend = SmaxServiceBackend()
 

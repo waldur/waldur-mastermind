@@ -41,10 +41,10 @@ class User:
 
 @dataclass
 class Issue:
-    id: str
     summary: str
     description: str
-    status: str
+    id: str = None
+    status: str = ""
     attachments: list = field(default_factory=list)
     comments: list = field(default_factory=list)
 
@@ -349,7 +349,7 @@ class SmaxBackend:
         issues = self._smax_response_to_issue(response)
         return issues[0] if issues else None
 
-    def add_issue(self, subject, user: User, description="", entity_type="Request"):
+    def add_issue(self, user: User, issue: Issue, entity_type="Request"):
         user = self.search_user_by_email(user.email) or self.add_user(user)
 
         response = self.post(
@@ -359,8 +359,8 @@ class SmaxBackend:
                     {
                         "entity_type": entity_type,
                         "properties": {
-                            "Description": description,
-                            "DisplayLabel": subject,
+                            "Description": issue.description,
+                            "DisplayLabel": issue.summary,
                             "RequestedByPerson": user.id,
                         },
                     }
