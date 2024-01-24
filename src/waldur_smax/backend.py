@@ -47,6 +47,10 @@ class Issue:
     status: str = ""
     attachments: list = field(default_factory=list)
     comments: list = field(default_factory=list)
+    organisation_name: str = None
+    project_name: str = None
+    resource_name: str = None
+    category_name: str = None
 
 
 @dataclass
@@ -138,6 +142,19 @@ class SmaxBackend:
                         ),
                         e["properties"]["Id"],
                     ),
+                    organisation_name=e["properties"].get(
+                        config.SMAX_ORGANISATION_FIELD
+                    )
+                    if config.SMAX_ORGANISATION_FIELD
+                    else None,
+                    project_name=e["properties"].get(config.SMAX_PROJECT_FIELD)
+                    if config.SMAX_PROJECT_FIELD
+                    else None,
+                    resource_name=e["properties"].get(
+                        config.SMAX_AFFECTED_RESOURCE_FIELD
+                    )
+                    if config.SMAX_AFFECTED_RESOURCE_FIELD
+                    else None,
                 )
             )
 
@@ -352,17 +369,34 @@ class SmaxBackend:
     def add_issue(self, user: User, issue: Issue, entity_type="Request"):
         user = self.search_user_by_email(user.email) or self.add_user(user)
 
+        properties = {
+            "Description": issue.description,
+            "DisplayLabel": issue.summary,
+            "RequestedByPerson": user.id,
+        }
+
+        if config.SMAX_ORGANISATION_FIELD and issue.organisation_name:
+            properties[config.SMAX_ORGANISATION_FIELD] = issue.organisation_name
+
+        if config.SMAX_PROJECT_FIELD and issue.project_name:
+            properties[config.SMAX_PROJECT_FIELD] = issue.project_name
+
+        if config.SMAX_AFFECTED_RESOURCE_FIELD and issue.resource_name:
+            properties[config.SMAX_AFFECTED_RESOURCE_FIELD] = issue.resource_name
+
+        if issue.category_name:
+            category = self.get_category_by_name(issue.category_name)
+
+            if category:
+                properties["Category"] = category.id
+
         response = self.post(
             "ems/bulk",
             json={
                 "entities": [
                     {
                         "entity_type": entity_type,
-                        "properties": {
-                            "Description": issue.description,
-                            "DisplayLabel": issue.summary,
-                            "RequestedByPerson": user.id,
-                        },
+                        "properties": properties,
                     }
                 ],
                 "operation": "CREATE",
