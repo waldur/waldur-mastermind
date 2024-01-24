@@ -68,6 +68,10 @@ class SmaxServiceBackend(SupportBackend):
         new_smax_issue = Issue(
             summary=issue.summary,
             description=self.formatting_for_smax(issue.description),
+            organisation_name=issue.customer.name if issue.customer else None,
+            project_name=issue.project.name if issue.project else None,
+            resource_name=issue.resource.name if issue.resource else None,
+            category_name=issue.type,
         )
 
         smax_issue = self.manager.add_issue(user, new_smax_issue)
@@ -77,13 +81,6 @@ class SmaxServiceBackend(SupportBackend):
         issue.backend_name = self.backend_name
         issue.set_ok()
         issue.save()
-
-        # add category to issue
-        smax_category = self.manager.get_category_by_name(issue.type)
-
-        if smax_category:
-            self.manager.add_category_to_issue(smax_issue.id, smax_category.id)
-
         return smax_issue
 
     def update_waldur_issue_from_smax(self, issue):

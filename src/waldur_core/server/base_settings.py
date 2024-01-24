@@ -455,6 +455,9 @@ CONSTANCE_CONFIG = {
     "SMAX_TENANT_ID": ("", "User tenant ID."),
     "SMAX_LOGIN": ("", "Authorization login."),
     "SMAX_PASSWORD": ("", "Authorization password."),
+    "SMAX_ORGANISATION_FIELD": ("", "Organisation field."),
+    "SMAX_PROJECT_FIELD": ("", "Project field."),
+    "SMAX_AFFECTED_RESOURCE_FIELD": ("", "Resource field."),
 }
 
 CONSTANCE_CONFIG_FIELDSETS = {
@@ -531,7 +534,15 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "ZAMMAD_COMMENT_PREFIX",
         "ZAMMAD_COMMENT_COOLDOWN_DURATION",
     ),
-    "SMAX settings": ("SMAX_API_URL", "SMAX_TENANT_ID", "SMAX_LOGIN", "SMAX_PASSWORD"),
+    "SMAX settings": (
+        "SMAX_API_URL",
+        "SMAX_TENANT_ID",
+        "SMAX_LOGIN",
+        "SMAX_PASSWORD",
+        "SMAX_ORGANISATION_FIELD",
+        "SMAX_PROJECT_FIELD",
+        "SMAX_AFFECTED_RESOURCE_FIELD",
+    ),
 }
 
 PUBLIC_CONSTANCE_SETTINGS = (
