@@ -40,8 +40,13 @@ class Command(BaseCommand):
             permissions_drop = row.get("drop_permissions")
 
             if description is not None and description != role.description:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f'Updating description of role {row["role"]} from {role.description} to {description}.'
+                    )
+                )
                 role.description = description
-                role.save(update_fields=["description"])
+                role.save()
 
             if permissions_add:
                 for permission in permissions_add:
@@ -63,4 +68,4 @@ class Command(BaseCommand):
                     )
                 )
                 role.is_active = is_active
-                role.save(update_fields=["is_active"])
+                role.save()
