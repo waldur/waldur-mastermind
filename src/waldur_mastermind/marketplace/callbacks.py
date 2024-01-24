@@ -224,6 +224,13 @@ def resource_deletion_canceled(resource: models.Resource, validate=False):
     return order
 
 
+def resource_erred_on_backend(resource: models.Resource, validate=False):
+    resource.set_state_erred()
+    resource.save(update_fields=["state"])
+
+    log.log_resource_erred_on_backend(resource)
+
+
 def set_order_state(resource: models.Resource, order_type, new_state, validate=False):
     try:
         order = models.Order.objects.get(
@@ -269,6 +276,7 @@ StateRouter = {
     (States.UPDATING, States.OK): resource_update_succeeded,
     (States.UPDATING, States.ERRED): resource_update_failed,
     (States.DELETING, States.ERRED): resource_deletion_failed,
+    (States.OK, States.ERRED): resource_erred_on_backend,
 }
 
 
