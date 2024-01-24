@@ -162,6 +162,7 @@ class MarketplaceResourceLogger(EventLogger):
             "marketplace_resource_renamed",
             "marketplace_resource_update_end_date_succeeded",
             "marketplace_resource_downscaled",
+            "marketplace_resource_erred_on_backend",
         )
         nullable_fields = ["old_name"]
         event_groups = {"resources": event_types}
@@ -482,5 +483,13 @@ def log_resource_downscaled(resource):
     event_logger.marketplace_resource.info(
         "Resource {resource_name} has been downscaled.",
         event_type="marketplace_resource_downscaled",
+        event_context={"resource": resource},
+    )
+
+
+def log_resource_erred_on_backend(resource):
+    event_logger.marketplace_resource.info(
+        "Resource {resource_name} got error on backend.",
+        event_type="marketplace_resource_erred_on_backend",
         event_context={"resource": resource},
     )
