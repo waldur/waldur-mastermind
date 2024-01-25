@@ -10,6 +10,7 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 
+from waldur_core.core import log as core_log
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import validators as core_validators
 from waldur_core.core.views import ProtectedViewSet, ReadOnlyActionsViewSet
@@ -186,12 +187,7 @@ class InvitationViewSet(ProtectedViewSet):
 
         replace_email = False
         if invitation.email != request.user.email:
-            # Ensure that user wouldn't reuse existing email
-            if bool(request.data.get("replace_email")):
-                if User.objects.filter(email=invitation.email).exists():
-                    raise ValidationError(_("This email is already taken."))
-                else:
-                    replace_email = True
+            replace_email = bool(request.data.get("replace_email"))
 
         if settings.WALDUR_CORE["INVITATION_DISABLE_MULTIPLE_ROLES"]:
             if UserRole.objects.filter(user=request.user, is_active=True).exists():
@@ -201,8 +197,14 @@ class InvitationViewSet(ProtectedViewSet):
 
         invitation.accept(request.user)
         if replace_email:
+            old_mail = request.user.email
             request.user.email = invitation.email
             request.user.save(update_fields=["email"])
+            core_log.event_logger.user.info(
+                f"User email has been changed via invitation from {old_mail} to {invitation.email}",
+                event_type="user_profile_changed",
+                event_context={"affected_user": request.user},
+            )
 
         return Response(
             {"detail": _("Invitation has been successfully accepted.")},
