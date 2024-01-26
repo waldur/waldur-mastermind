@@ -271,3 +271,27 @@ class MarketplaceConfig(AppConfig):
             sender=models.Offering,
             dispatch_uid="waldur_mastermind.marketplace.update_offering_user_username_after_offering_settings_change",
         )
+
+        signals.post_save.connect(
+            handlers.log_offering_role_created_or_updated,
+            sender=models.OfferingUserRole,
+            dispatch_uid="waldur_mastermind.marketplace.log_offering_role_created_or_updated",
+        )
+
+        signals.post_delete.connect(
+            handlers.log_offering_role_deleted,
+            sender=models.OfferingUserRole,
+            dispatch_uid="waldur_mastermind.marketplace.log_offering_role_deleted",
+        )
+
+        signals.post_save.connect(
+            handlers.log_resource_user_created,
+            sender=models.ResourceUser,
+            dispatch_uid="waldur_mastermind.marketplace.log_resource_user_created",
+        )
+
+        signals.post_delete.connect(
+            handlers.log_resource_user_deleted,
+            sender=models.ResourceUser,
+            dispatch_uid="waldur_mastermind.marketplace.log_resource_user_deleted",
+        )

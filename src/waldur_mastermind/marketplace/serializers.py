@@ -988,6 +988,18 @@ class EndpointDeleteSerializer(serializers.Serializer):
     uuid = serializers.UUIDField()
 
 
+class NestedRoleSerializer(serializers.HyperlinkedModelSerializer):
+    class Meta:
+        model = models.OfferingUserRole
+        fields = ("uuid", "name", "url")
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "marketplace-offering-user-role-detail",
+            },
+        }
+
+
 class ProviderOfferingDetailsSerializer(
     core_serializers.RestrictedSerializerMixin,
     structure_serializers.CountrySerializerMixin,
@@ -1019,6 +1031,7 @@ class ProviderOfferingDetailsSerializer(
     total_cost = serializers.ReadOnlyField()
     total_cost_estimated = serializers.ReadOnlyField()
     endpoints = NestedEndpointSerializer(many=True, read_only=True)
+    roles = NestedRoleSerializer(many=True, read_only=True)
 
     class Meta:
         model = models.Offering
@@ -1033,6 +1046,7 @@ class ProviderOfferingDetailsSerializer(
             "terms_of_service_link",
             "privacy_policy_link",
             "endpoints",
+            "roles",
             "customer",
             "customer_uuid",
             "customer_name",
@@ -2942,6 +2956,77 @@ class OfferingUserSerializer(
             )
 
         return super().create(validated_data)
+
+
+class FilterForUserField(serializers.HyperlinkedRelatedField):
+    def get_queryset(self):
+        user = self.context["request"].user
+        return self.queryset.filter_for_user(user)
+
+
+class OfferingUserRoleSerializer(serializers.HyperlinkedModelSerializer):
+    offering = FilterForUserField(
+        lookup_field="uuid",
+        view_name="marketplace-provider-offering-detail",
+        queryset=models.Offering.objects.all(),
+    )
+    offering_uuid = serializers.ReadOnlyField(source="offering.uuid")
+    offering_name = serializers.ReadOnlyField(source="offering.name")
+
+    class Meta:
+        model = models.OfferingUserRole
+        fields = (
+            "name",
+            "uuid",
+            "offering",
+            "offering_uuid",
+            "offering_name",
+        )
+
+
+class ResourceUserSerializer(serializers.HyperlinkedModelSerializer):
+    resource = FilterForUserField(
+        lookup_field="uuid",
+        view_name="marketplace-resource-detail",
+        queryset=models.Resource.objects.all(),
+    )
+    resource_uuid = serializers.ReadOnlyField(source="resource.uuid")
+    role_uuid = serializers.ReadOnlyField(source="role.uuid")
+    user_uuid = serializers.ReadOnlyField(source="user.uuid")
+    resource_name = serializers.ReadOnlyField(source="resource.name")
+    role_name = serializers.ReadOnlyField(source="role.name")
+    user_username = serializers.ReadOnlyField(source="user.username")
+    user_full_name = serializers.ReadOnlyField(source="user.full_name")
+
+    class Meta:
+        model = models.ResourceUser
+        fields = (
+            "uuid",
+            "resource",
+            "role",
+            "user",
+            "resource_uuid",
+            "role_uuid",
+            "user_uuid",
+            "resource_name",
+            "role_name",
+            "user_username",
+            "user_full_name",
+        )
+        extra_kwargs = dict(
+            user={"lookup_field": "uuid", "view_name": "user-detail"},
+            role={
+                "lookup_field": "uuid",
+                "view_name": "marketplace-offering-user-role-detail",
+            },
+        )
+
+    def validate(self, attrs):
+        if attrs["role"].offering != attrs["resource"].offering:
+            raise ValidationError(
+                "Role and resource should belong to the same offering."
+            )
+        return attrs
 
 
 class OfferingUserGroupDetailsSerializer(

@@ -1471,6 +1471,53 @@ class OfferingReferralsViewSet(PublicViewsetMixin, rf_viewsets.ReadOnlyModelView
     filterset_class = filters.OfferingReferralFilter
 
 
+class OfferingUserRoleViewSet(core_views.ActionsViewSet):
+    queryset = models.OfferingUserRole.objects.all()
+    serializer_class = serializers.OfferingUserRoleSerializer
+    lookup_field = "uuid"
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.OfferingUserRoleFilter
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if user.is_staff or user.is_support:
+            return qs
+        offerings = models.Offering.objects.filter_for_user(user)
+        return qs.filter(offering__in=offerings)
+
+    unsafe_methods_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_OFFERING_USER_ROLE,
+            ["offering.customer"],
+        )
+    ]
+
+
+class ResourceUserViewSet(core_views.ActionsViewSet):
+    queryset = models.ResourceUser.objects.all()
+    serializer_class = serializers.ResourceUserSerializer
+    lookup_field = "uuid"
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.ResourceUserFilter
+    disabled_actions = ["update", "partial_update"]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if user.is_staff or user.is_support:
+            return qs
+        resources = models.Resource.objects.filter_for_user(user)
+        return qs.filter(resource__in=resources)
+
+    unsafe_methods_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_RESOURCE_USERS,
+            ["resource.offering.customer"],
+        )
+    ]
+
+
 class OfferingPermissionViewSet(rf_viewsets.ReadOnlyModelViewSet):
     serializer_class = serializers.OfferingPermissionSerializer
     filterset_class = filters.OfferingPermissionFilter

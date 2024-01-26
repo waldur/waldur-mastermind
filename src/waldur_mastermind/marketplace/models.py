@@ -1536,6 +1536,30 @@ class ResourceAccessEndpoint(core_models.UuidMixin, core_models.NameMixin):
     )
 
 
+class OfferingUserRole(core_models.UuidMixin, core_models.NameMixin):
+    offering = models.ForeignKey(
+        on_delete=models.CASCADE, to=Offering, related_name="roles"
+    )
+
+    class Meta:
+        ordering = ["name"]
+
+
+class ResourceUser(TimeStampedModel, core_models.UuidMixin):
+    resource = models.ForeignKey(
+        on_delete=models.CASCADE, to=Resource, related_name="users"
+    )
+    user = models.ForeignKey(
+        core_models.User, related_name="+", on_delete=models.CASCADE
+    )
+    role = models.ForeignKey(
+        OfferingUserRole, related_name="+", on_delete=models.CASCADE
+    )
+
+    class Meta:
+        ordering = ["created"]
+
+
 reversion.register(Screenshot)
 reversion.register(OfferingComponent)
 reversion.register(PlanComponent)

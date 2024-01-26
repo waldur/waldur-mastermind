@@ -63,6 +63,39 @@ class MarketplacePlanLogger(EventLogger):
         return {offering, offering.customer}
 
 
+class MarketplaceOfferingRoleLogger(EventLogger):
+    offering_role = models.OfferingUserRole
+
+    class Meta:
+        event_types = (
+            "marketplace_offering_role_created",
+            "marketplace_offering_role_updated",
+            "marketplace_offering_role_deleted",
+        )
+
+    @staticmethod
+    def get_scopes(event_context):
+        offering_role: models.OfferingUserRole = event_context["offering_role"]
+        offering = offering_role.offering
+        return {offering, offering.customer}
+
+
+class MarketplaceResourceUserLogger(EventLogger):
+    resource_user = models.ResourceUser
+
+    class Meta:
+        event_types = (
+            "marketplace_resource_user_created",
+            "marketplace_resource_user_deleted",
+        )
+
+    @staticmethod
+    def get_scopes(event_context):
+        resource_user: models.ResourceUser = event_context["resource_user"]
+        offering = resource_user.resource.offering
+        return {offering, offering.customer}
+
+
 class MarketplaceOfferingLogger(EventLogger):
     offering = models.Offering
     old_value = str
@@ -243,6 +276,8 @@ event_logger.register(
 )
 event_logger.register("marketplace_plan", MarketplacePlanLogger)
 event_logger.register("marketplace_offering", MarketplaceOfferingLogger)
+event_logger.register("marketplace_offering_role", MarketplaceOfferingRoleLogger)
+event_logger.register("marketplace_resource_user", MarketplaceResourceUserLogger)
 
 
 def log_order_created(order):
