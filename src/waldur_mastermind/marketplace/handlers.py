@@ -11,7 +11,6 @@ from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import get_permissions
 from waldur_core.structure import models as structure_models
-from waldur_core.structure.log import event_logger
 from waldur_core.structure.models import Customer, Project
 from waldur_mastermind.marketplace.managers import get_connected_offerings
 from waldur_mastermind.marketplace.permissions import (
@@ -23,6 +22,7 @@ from waldur_mastermind.marketplace_slurm_remote import (
 )
 
 from . import PLUGIN_NAME, callbacks, log, models, tasks, utils
+from .log import event_logger
 
 logger = logging.getLogger(__name__)
 
@@ -916,3 +916,53 @@ def update_offering_user_username_after_offering_settings_change(
 
         utils.setup_linux_related_data(offering_user, offering)
         offering_user.save(update_fields=["username", "backend_metadata"])
+
+
+def log_offering_role_created_or_updated(sender, instance, created=False, **kwargs):
+    if created:
+        event_logger.marketplace_offering_role.info(
+            f"Offering role {instance.name} has been created.",
+            event_type="marketplace_offering_role_created",
+            event_context={
+                "offering_role": instance,
+            },
+        )
+    else:
+        event_logger.marketplace_offering_role.info(
+            f"Offering role {instance.name} has been updated.",
+            event_type="marketplace_offering_role_updated",
+            event_context={
+                "offering_role": instance,
+            },
+        )
+
+
+def log_resource_user_created(sender, instance, created=False, **kwargs):
+    if created:
+        event_logger.marketplace_resource_user.info(
+            f"Resource user {instance.name} has been created.",
+            event_type="marketplace_resource_user_created",
+            event_context={
+                "resource_user": instance,
+            },
+        )
+
+
+def log_offering_role_deleted(sender, instance, **kwargs):
+    event_logger.marketplace_offering_role.info(
+        f"Offering role {instance.name} has been deleted.",
+        event_type="marketplace_offering_role_deleted",
+        event_context={
+            "offering_role": instance,
+        },
+    )
+
+
+def log_resource_user_deleted(sender, instance, **kwargs):
+    event_logger.marketplace_resource_user.info(
+        f"Resource user {instance.name} has been deleted.",
+        event_type="marketplace_resource_user_deleted",
+        event_context={
+            "resource_user": instance,
+        },
+    )

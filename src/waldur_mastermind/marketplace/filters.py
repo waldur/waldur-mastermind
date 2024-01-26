@@ -485,6 +485,20 @@ class RobotAccountFilter(django_filters.FilterSet):
         fields = ["type"]
 
 
+class ResourceUserFilter(django_filters.FilterSet):
+    resource = core_filters.URLFilter(
+        view_name="marketplace-resource-detail", field_name="resource__uuid"
+    )
+    resource_uuid = django_filters.UUIDFilter(field_name="resource__uuid")
+    role_uuid = django_filters.UUIDFilter(field_name="role__uuid")
+    role_name = django_filters.CharFilter(field_name="role__name")
+    user_uuid = django_filters.UUIDFilter(field_name="user__uuid")
+
+    class Meta:
+        model = models.ResourceUser
+        fields = []
+
+
 # TODO: Remove after migration of clients to a new endpoint
 class PlanFilter(OfferingFilterMixin, django_filters.FilterSet):
     class Meta:
@@ -609,6 +623,12 @@ class CustomerCallManagingOrganisationFilter(core_filters.BaseFilterBackend):
             )
             return queryset.filter(pk__in=customers)
         return queryset
+
+
+class OfferingUserRoleFilter(OfferingFilterMixin):
+    class Meta:
+        model = models.OfferingUserRole
+        fields = []
 
 
 class OfferingUserFilter(OfferingFilterMixin, core_filters.CreatedModifiedFilter):

@@ -86,6 +86,16 @@ def register_in(router):
         basename="marketplace-offering-referral",
     )
     router.register(
+        r"marketplace-offering-user-roles",
+        views.OfferingUserRoleViewSet,
+        basename="marketplace-offering-user-role",
+    )
+    router.register(
+        r"marketplace-resource-users",
+        views.ResourceUserViewSet,
+        basename="marketplace-resource-user",
+    )
+    router.register(
         r"marketplace-offering-users",
         views.OfferingUsersViewSet,
         basename="marketplace-offering-user",
