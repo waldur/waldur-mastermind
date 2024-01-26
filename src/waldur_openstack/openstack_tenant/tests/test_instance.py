@@ -333,13 +333,21 @@ class InstanceCreateTest(test.APITransactionTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_can_create_instance_without_internal_ips(self):
+    def test_can_not_create_instance_without_internal_ips(self):
         data = self.get_valid_data()
         del data["internal_ips_set"]
 
         response = self.create_instance(data)
 
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_can_not_create_instance_with_empty_internal_ips_list(self):
+        data = self.get_valid_data()
+        data["internal_ips_set"] = []
+
+        response = self.create_instance(data)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_show_volume_type_in_instance_serializer(self):
         instance = factories.InstanceFactory()
