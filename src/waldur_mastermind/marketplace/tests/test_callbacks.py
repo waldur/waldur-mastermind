@@ -4,6 +4,7 @@ from rest_framework import test
 from waldur_mastermind.common.utils import parse_datetime
 from waldur_mastermind.marketplace import callbacks, models
 from waldur_mastermind.marketplace.tests import factories
+from waldur_openstack.openstack_tenant.tests.factories import InstanceFactory
 
 
 @freeze_time("2018-11-01")
@@ -112,3 +113,29 @@ class CallbacksTest(test.APITransactionTestCase):
         # Assert
         period.refresh_from_db()
         self.assertEqual(period.end, end)
+
+    def test_error_message_is_propagated(self):
+        # Arrange
+        error_message = "Provision failed."
+        error_traceback = "Invalid credentials."
+
+        resource = factories.ResourceFactory(
+            scope=InstanceFactory(
+                error_message="Provision failed.",
+                error_traceback="Invalid credentials.",
+            )
+        )
+
+        order = factories.OrderFactory(
+            state=models.Order.States.EXECUTING,
+            type=models.Order.Types.CREATE,
+            resource=resource,
+        )
+
+        # Act
+        callbacks.resource_creation_failed(resource)
+
+        # Assert
+        order.refresh_from_db()
+        self.assertEqual(order.error_message, error_message)
+        self.assertEqual(order.error_traceback, error_traceback)
