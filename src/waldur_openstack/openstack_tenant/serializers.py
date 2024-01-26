@@ -1018,7 +1018,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
     server_group = NestedServerGroupSerializer(
         queryset=models.ServerGroup.objects.all(), required=False
     )
-    internal_ips_set = NestedInternalIPSerializer(many=True, required=False)
+    internal_ips_set = NestedInternalIPSerializer(many=True, required=True)
     floating_ips = NestedFloatingIPSerializer(
         queryset=models.FloatingIP.objects.all().filter(internal_ip__isnull=True),
         many=True,
@@ -1203,6 +1203,11 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
             )
 
         internal_ips = attrs.get("internal_ips_set", [])
+        if len(internal_ips) == 0:
+            raise serializers.ValidationError(
+                gettext("Please specify at least one network.")
+            )
+
         _validate_instance_security_groups(
             attrs.get("security_groups", []), service_settings
         )
