@@ -58,8 +58,21 @@ def resource_creation_failed(resource: models.Resource, validate=False):
     resource.set_state_erred()
     resource.save(update_fields=["state"])
 
+    copy_error_from_resource_to_order(resource, order)
+
     log.log_resource_creation_failed(resource)
     return order
+
+
+def copy_error_from_resource_to_order(resource, order):
+    update_fields = set()
+    for field in ("error_message", "error_traceback"):
+        new_value = getattr(resource.scope, field, "")
+        if new_value != getattr(order, field):
+            setattr(order, field, new_value)
+            update_fields.add(field)
+    if update_fields:
+        order.save(update_fields=update_fields)
 
 
 def resource_creation_canceled(resource: models.Resource, validate=False):
