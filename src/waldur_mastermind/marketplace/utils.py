@@ -773,17 +773,41 @@ def serialize_resource_limit_period(period):
     }
 
 
-def schedule_resources_termination(resources, termination_comment=None):
+def terminate_resource(resource, user, termination_comment=None):
     from waldur_mastermind.marketplace import views
-
-    if not resources:
-        return
 
     view = views.ResourceViewSet.as_view({"post": "terminate"})
 
+    # Terminate pending orders if they exist
+    for order in models.Order.objects.filter(
+        resource=resource,
+        state__in=(
+            models.Order.States.PENDING_CONSUMER,
+            models.Order.States.PENDING_PROVIDER,
+        ),
+    ):
+        order.cancel(termination_comment)
+        order.save()
+
+    if models.Order.objects.filter(
+        resource=resource, state=models.Order.States.EXECUTING
+    ):
+        logger.info(
+            "Terminate order has not been created because other executing orders exist."
+        )
+        return
+
+    return create_request(view, user, {}, uuid=resource.uuid.hex)
+
+
+def schedule_resources_termination(resources, termination_comment=None, user=None):
+    if not resources:
+        return
+
     for resource in resources:
         user = (
-            resource.end_date_requested_by
+            user
+            or resource.end_date_requested_by
             or resource.project.end_date_requested_by
             or core_utils.get_system_robot()
         )
@@ -794,20 +818,9 @@ def schedule_resources_termination(resources, termination_comment=None):
             )
             return
 
-        # Terminate pending orders if they exist
-        for order in models.Order.objects.filter(
-            resource=resource,
-            state__in=(
-                models.Order.States.PENDING_CONSUMER,
-                models.Order.States.PENDING_PROVIDER,
-            ),
-        ):
-            order.cancel(termination_comment)
-            order.save()
+        response = terminate_resource(resource, user, termination_comment)
 
-        response = create_request(view, user, {}, uuid=resource.uuid.hex)
-
-        if response.status_code != status.HTTP_200_OK:
+        if response and response.status_code != status.HTTP_200_OK:
             logger.error(
                 "Terminating resource %s has failed. %s",
                 resource.uuid.hex,

@@ -12,7 +12,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tests import factories as invoices_factories
-from waldur_mastermind.marketplace import exceptions, models, tasks
+from waldur_mastermind.marketplace import models, tasks
 from waldur_mastermind.marketplace.tests.helpers import override_marketplace_settings
 from waldur_mastermind.marketplace.tests.utils import create_system_robot
 
@@ -143,12 +143,14 @@ class TerminateResource(test.APITransactionTestCase):
             state=models.Order.States.EXECUTING,
         )
 
-    def test_raise_exception_if_order_has_not_been_created(self):
-        self.assertRaises(
-            exceptions.ResourceTerminateException,
-            tasks.terminate_resource,
+    @patch("waldur_mastermind.marketplace.utils.logger")
+    def test_not_raise_exception_if_order_has_not_been_created(self, mock_logger):
+        tasks.terminate_resource(
             core_utils.serialize_instance(self.resource),
             core_utils.serialize_instance(self.user),
+        )
+        mock_logger.info.assert_called_once_with(
+            "Terminate order has not been created because other executing orders exist."
         )
 
 
