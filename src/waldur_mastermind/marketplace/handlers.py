@@ -937,10 +937,13 @@ def log_offering_role_created_or_updated(sender, instance, created=False, **kwar
         )
 
 
-def log_resource_user_created(sender, instance, created=False, **kwargs):
+def log_resource_user_created(
+    sender, instance: models.ResourceUser, created=False, **kwargs
+):
     if created:
         event_logger.marketplace_resource_user.info(
-            f"Resource user {instance.name} has been created.",
+            f"User {instance.user.username} has been assigned"
+            f" role {instance.role.name} in resource {instance.resource.name}.",
             event_type="marketplace_resource_user_created",
             event_context={
                 "resource_user": instance,
@@ -958,9 +961,10 @@ def log_offering_role_deleted(sender, instance, **kwargs):
     )
 
 
-def log_resource_user_deleted(sender, instance, **kwargs):
+def log_resource_user_deleted(sender, instance: models.ResourceUser, **kwargs):
     event_logger.marketplace_resource_user.info(
-        f"Resource user {instance.name} has been deleted.",
+        f"User {instance.user.username} has been unassigned"
+        f" role {instance.role.name} in resource {instance.resource.name}.",
         event_type="marketplace_resource_user_deleted",
         event_context={
             "resource_user": instance,

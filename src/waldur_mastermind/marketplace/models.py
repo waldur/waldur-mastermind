@@ -1559,6 +1559,13 @@ class ResourceUser(TimeStampedModel, core_models.UuidMixin):
     class Meta:
         ordering = ["created"]
 
+    def get_log_fields(self):
+        return (
+            "resource",
+            "user",
+            "role",
+        )
+
 
 reversion.register(Screenshot)
 reversion.register(OfferingComponent)
