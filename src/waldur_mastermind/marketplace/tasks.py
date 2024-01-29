@@ -21,7 +21,6 @@ from waldur_core.logging import models as logging_models
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.log import event_logger
 from waldur_mastermind import __version__ as mastermind_version
-from waldur_mastermind.common.utils import create_request
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import utils as invoice_utils
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -31,7 +30,7 @@ from waldur_mastermind.marketplace.utils import (
 )
 from waldur_mastermind.support.backend import get_active_backend
 
-from . import exceptions, models, utils, views
+from . import exceptions, models, utils
 
 logger = logging.getLogger(__name__)
 
@@ -226,10 +225,9 @@ def send_notifications_about_usages():
 def terminate_resource(serialized_resource, serialized_user):
     resource = core_utils.deserialize_instance(serialized_resource)
     user = core_utils.deserialize_instance(serialized_user)
-    view = views.ResourceViewSet.as_view({"post": "terminate"})
-    response = create_request(view, user, {}, uuid=resource.uuid.hex)
+    response = utils.terminate_resource(resource, user)
 
-    if response.status_code != status.HTTP_200_OK:
+    if response and response.status_code != status.HTTP_200_OK:
         raise exceptions.ResourceTerminateException(response.rendered_content)
 
 
