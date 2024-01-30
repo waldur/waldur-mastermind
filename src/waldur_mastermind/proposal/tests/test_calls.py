@@ -267,7 +267,7 @@ class RequestedOfferingsCreateTest(test.APITransactionTestCase):
         "customer_support",
     )
     def test_user_can_add_offering_to_call(self, user):
-        response = self.create_call(user)
+        response = self.add_offering(user)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(
             models.RequestedOffering.objects.filter(uuid=response.data["uuid"]).exists()
@@ -275,10 +275,35 @@ class RequestedOfferingsCreateTest(test.APITransactionTestCase):
 
     @data("user")
     def test_user_can_not_add_offering_to_call(self, user):
-        response = self.create_call(user)
+        response = self.add_offering(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def create_call(self, user):
+    def test_validate_attributes(self):
+        user = getattr(self.fixture, "staff")
+        self.client.force_authenticate(user)
+
+        payload = {
+            "offering": marketplace_factories.OfferingFactory.get_public_url(
+                self.fixture.offering
+            ),
+            "attributes": None,
+        }
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_attributes_are_not_required(self):
+        user = getattr(self.fixture, "staff")
+        self.client.force_authenticate(user)
+
+        payload = {
+            "offering": marketplace_factories.OfferingFactory.get_public_url(
+                self.fixture.offering
+            )
+        }
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def add_offering(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
 

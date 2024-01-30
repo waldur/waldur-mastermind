@@ -224,6 +224,12 @@ class RequestedOfferingSerializer(
 
         return offering
 
+    def validate_attributes(self, attributes):
+        if not attributes:
+            return {}
+
+        return attributes
+
     def create(self, validated_data):
         validated_data["created_by"] = self.context["request"].user
         return super().create(validated_data)
