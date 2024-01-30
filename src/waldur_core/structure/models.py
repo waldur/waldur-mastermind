@@ -525,7 +525,7 @@ PROJECT_DETAILS_FIELDS = (
 )
 
 
-class ProjectDetailsMixin(core_models.DescribableMixin):
+class ProjectOECDFOS2007CodeMixin(models.Model):
     class Meta:
         abstract = True
 
@@ -581,6 +581,14 @@ class ProjectDetailsMixin(core_models.DescribableMixin):
     )
 
     OECD_FOS_2007_CODES_DICT = dict(OECD_FOS_2007_CODES)
+    oecd_fos_2007_code = models.CharField(
+        choices=OECD_FOS_2007_CODES, null=True, blank=True, max_length=80
+    )
+
+
+class ProjectDetailsMixin(core_models.DescribableMixin, ProjectOECDFOS2007CodeMixin):
+    class Meta:
+        abstract = True
 
     # NameMixin is not used because it has too strict limitation for max_length.
     name = models.CharField(
@@ -607,9 +615,6 @@ class ProjectDetailsMixin(core_models.DescribableMixin):
         blank=True,
         null=True,
         on_delete=models.PROTECT,
-    )
-    oecd_fos_2007_code = models.CharField(
-        choices=OECD_FOS_2007_CODES, null=True, blank=True, max_length=80
     )
     is_industry = models.BooleanField(default=False)
 

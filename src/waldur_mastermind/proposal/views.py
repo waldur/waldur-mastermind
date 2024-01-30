@@ -299,6 +299,45 @@ class ProposalViewSet(core_views.ActionsViewSet):
 
     submit_permissions = [is_creator]
 
+    def perform_update(self, serializer):
+        try:
+            supporting_documentation_data = self.request.data.getlist(
+                "supporting_documentation", []
+            )
+            instance = serializer.save()
+
+            existing_files = set(
+                instance.proposaldocumentation_set.values_list("uuid", flat=True)
+            )
+
+            for file_data in supporting_documentation_data:
+                obj, created = models.ProposalDocumentation.objects.get_or_create(
+                    proposal=instance, file=file_data
+                )
+                existing_files.discard(obj.uuid)
+
+            models.ProposalDocumentation.objects.filter(
+                uuid__in=existing_files
+            ).delete()
+
+        except AttributeError:
+            return super().perform_update(serializer)
+
+    def perform_create(self, serializer):
+        try:
+            supporting_documentation_data = self.request.data.getlist(
+                "supporting_documentation", []
+            )
+            instance = serializer.save()
+
+            for file_data in supporting_documentation_data:
+                models.ProposalDocumentation.objects.create(
+                    proposal=instance, file=file_data
+                )
+
+        except AttributeError:
+            return super().perform_create(serializer)
+
 
 class ReviewViewSet(ActionsViewSet):
     lookup_field = "uuid"

@@ -356,6 +356,12 @@ class RoundSerializer(core_serializers.AugmentedSerializerMixin, NestedRoundSeri
         return attrs
 
 
+class ProposalDocumentationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.ProposalDocumentation
+        fields = ["file"]
+
+
 class ProposalSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
@@ -363,6 +369,9 @@ class ProposalSerializer(
     state = serializers.ReadOnlyField(source="get_state_display")
     round = NestedRoundSerializer(read_only=True)
     round_uuid = serializers.UUIDField(write_only=True, required=True)
+    supporting_documentation = ProposalDocumentationSerializer(
+        many=True, required=False
+    )
 
     class Meta:
         model = models.Proposal
@@ -370,6 +379,10 @@ class ProposalSerializer(
             "uuid",
             "url",
             "name",
+            "project_summary",
+            "project_is_confidential",
+            "project_has_civilian_purpose",
+            "supporting_documentation",
             "state",
             "approved_by",
             "created_by",
@@ -385,6 +398,7 @@ class ProposalSerializer(
             "created_by": {"lookup_field": "uuid", "view_name": "user-detail"},
             "approved_by": {"lookup_field": "uuid", "view_name": "user-detail"},
             "project": {"lookup_field": "uuid", "view_name": "project-detail"},
+            "supporting_documentation": {"required": False},
         }
 
     def validate(self, attrs):
