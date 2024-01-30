@@ -188,10 +188,24 @@ class Round(
         return f"{self.call.name} | {self.start_time} - {self.cutoff_time}"
 
 
+class ProposalDocumentation(
+    TimeStampedModel,
+    core_models.UuidMixin,
+):
+    proposal = models.ForeignKey("Proposal", on_delete=models.CASCADE)
+    file = models.FileField(
+        upload_to="proposal_project_supporting_documentation",
+        blank=True,
+        null=True,
+        help_text="Upload supporting documentation in PDF format.",
+    )
+
+
 class Proposal(
     TimeStampedModel,
     core_models.UuidMixin,
     core_models.NameMixin,
+    structure_models.ProjectOECDFOS2007CodeMixin,
 ):
     class States:
         DRAFT = 1
@@ -234,6 +248,14 @@ class Proposal(
         on_delete=models.PROTECT,
         null=True,
         related_name="+",
+    )
+    project_summary = models.TextField(blank=True)
+    project_duration = models.PositiveIntegerField(null=True, blank=True)
+    project_is_confidential = models.BooleanField(default=False)
+    project_has_civilian_purpose = models.BooleanField(default=False)
+
+    supporting_documentation = models.ManyToManyField(
+        ProposalDocumentation, related_name="supporting_documentation_set"
     )
 
     tracker = FieldTracker()
