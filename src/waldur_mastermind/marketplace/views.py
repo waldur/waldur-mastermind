@@ -1483,7 +1483,7 @@ class OfferingUserRoleViewSet(core_views.ActionsViewSet):
         user = self.request.user
         if user.is_staff or user.is_support:
             return qs
-        offerings = models.Offering.objects.filter_for_user(user)
+        offerings = models.Offering.objects.all().filter_for_user(user)
         return qs.filter(offering__in=offerings)
 
     unsafe_methods_permissions = [
@@ -1507,7 +1507,7 @@ class ResourceUserViewSet(core_views.ActionsViewSet):
         user = self.request.user
         if user.is_staff or user.is_support:
             return qs
-        resources = models.Resource.objects.filter_for_user(user)
+        resources = models.Resource.objects.all().filter_for_user(user)
         return qs.filter(resource__in=resources)
 
     unsafe_methods_permissions = [
