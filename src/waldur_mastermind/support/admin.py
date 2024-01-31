@@ -31,8 +31,13 @@ class SupportUserAdminForm(forms.ModelForm):
 
 
 class SupportUserAdmin(admin.ModelAdmin):
-    list_display = ("user", "backend_id", "is_active", "backend_name")
-    search_fields = ("user__first_name", "user__last_name", "user__email")
+    list_display = (
+        "user",
+        "backend_id",
+        "is_active",
+        "backend_name",
+    )
+    search_fields = ("user__first_name", "user__last_name", "user__email", "backend_id")
     form = SupportUserAdminForm
 
 
