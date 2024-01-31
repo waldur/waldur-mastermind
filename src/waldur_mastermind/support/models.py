@@ -428,7 +428,9 @@ class SupportCustomer(models.Model):
         return self.user.full_name
 
 
-class RequestType(core_models.UuidMixin, core_models.NameMixin, models.Model):
+class RequestType(
+    BackendNameMixin, core_models.UuidMixin, core_models.NameMixin, models.Model
+):
     backend_id = models.IntegerField(unique=True)
     issue_type_name = models.CharField(max_length=255)
     fields = models.JSONField(

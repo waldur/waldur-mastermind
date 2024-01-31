@@ -128,7 +128,7 @@ class TemplateAdmin(core_admin.ExcludedFieldsAdminMixin, admin.ModelAdmin):
 
 
 class RequestTypeAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
-    list_display = ("name", "issue_type_name", "backend_id")
+    list_display = ("name", "issue_type_name", "backend_id", "backend_name")
     search_fields = ("name",)
 
     def get_extra_actions(self):

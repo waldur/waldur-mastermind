@@ -3,6 +3,7 @@ import mimetypes
 import os
 
 import bleach
+from constance import config
 from django.core.files.base import ContentFile
 from django.template import Context, Template
 
@@ -65,13 +66,22 @@ class SmaxServiceBackend(SupportBackend):
             upn=support_user.uuid.hex,
         )
 
+        # check issue type to category mapping
+        category_id = ""
+        if models.RequestType.objects.filter(
+            issue_type_name=issue.type, backend_name=self.backend_name
+        ).exists():
+            category_id = models.RequestType.objects.get(
+                issue_type_name=issue.type, backend_name=self.backend_name
+            ).backend_id
+
         new_smax_issue = Issue(
             summary=issue.summary,
             description=self.formatting_for_smax(issue.description),
             organisation_name=issue.customer.name if issue.customer else None,
             project_name=issue.project.name if issue.project else None,
             resource_name=issue.resource.name if issue.resource else None,
-            category_name=issue.type,
+            category_id=category_id,
         )
 
         smax_issue = self.manager.add_issue(user, new_smax_issue)
@@ -361,9 +371,12 @@ class SmaxServiceBackend(SupportBackend):
             .render(Context({"issue": issue}, autoescape=False))
             .strip()
         )
+
+        integration_user_upn = self.manager.get_user_by_upn(config.SMAX_LOGIN)
         comment = Comment(
             description=self.formatting_for_smax(body),
-            backend_user_id=issue.reporter.backend_id,
+            backend_user_id=integration_user_upn.id,
+            is_public=True,
         )
         return self.manager.add_comment(issue.backend_id, comment)
 

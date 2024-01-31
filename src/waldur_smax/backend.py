@@ -50,7 +50,7 @@ class Issue:
     organisation_name: str = None
     project_name: str = None
     resource_name: str = None
-    category_name: str = None
+    category_id: str = None
 
 
 @dataclass
@@ -129,7 +129,7 @@ class SmaxBackend:
                     id=e["properties"]["Id"],
                     summary=e["properties"]["DisplayLabel"],
                     description=e["properties"]["Description"],
-                    status=e["properties"]["Status"],
+                    status=e["properties"]["PhaseId"],
                     attachments=self._smax_entities_to_attachments(
                         json.loads(e["properties"].get("RequestAttachments", "{}")).get(
                             "complexTypeProperties", []
@@ -319,6 +319,17 @@ class SmaxBackend:
         else:
             return user[0]
 
+    def get_user_by_upn(self, upn):
+        response = self.get(
+            f"ems/Person?filter=Upn+%3D+%27{upn}%27&layout=Id,Name,Email,Upn"
+        )
+        user = self._smax_response_to_user(response)
+
+        if not user:
+            return
+        else:
+            return user[0]
+
     def get_all_users(self):
         response = self.get("ems/Person/?layout=Name,Email,Upn")
         return self._smax_response_to_user(response)
@@ -357,7 +368,7 @@ class SmaxBackend:
         backend_user = self.search_user_by_email(user.email)
 
         if not backend_user:
-            raise SmaxBackendError("User creation is failed.")
+            raise SmaxBackendError("User creation has failed.")
 
         return backend_user
 
@@ -373,6 +384,7 @@ class SmaxBackend:
             "Description": issue.description,
             "DisplayLabel": issue.summary,
             "RequestedByPerson": user.id,
+            "CreationSource": "CreationSourceExternal",  # to avoid any internal SMAX notification logic
         }
 
         if config.SMAX_ORGANISATION_FIELD and issue.organisation_name:
@@ -384,11 +396,8 @@ class SmaxBackend:
         if config.SMAX_AFFECTED_RESOURCE_FIELD and issue.resource_name:
             properties[config.SMAX_AFFECTED_RESOURCE_FIELD] = issue.resource_name
 
-        if issue.category_name:
-            category = self.get_category_by_name(issue.category_name)
-
-            if category:
-                properties["Category"] = category.id
+        if issue.category_id:
+            properties["Category"] = issue.category_id
 
         response = self.post(
             "ems/bulk",
