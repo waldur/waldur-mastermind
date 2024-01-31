@@ -8,6 +8,7 @@ from django.core.files.base import ContentFile
 from django.template import Context, Template
 
 from waldur_core.core.models import User as WaldurUser
+from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.support import models
 from waldur_smax.backend import Comment, Issue, SmaxBackend, User
 
@@ -28,6 +29,7 @@ class SmaxServiceBackend(SupportBackend):
         support_user, _ = models.SupportUser.objects.get_or_create(
             user=waldur_user,
             backend_name=self.backend_name,
+            is_active=True,
             defaults={"name": waldur_user.full_name or waldur_user.username},
         )
 
@@ -75,12 +77,20 @@ class SmaxServiceBackend(SupportBackend):
                 issue_type_name=issue.type, backend_name=self.backend_name
             ).backend_id
 
+        if issue.resource:
+            if type(issue.resource) == marketplace_models.Order:
+                resource_name = issue.resource.resource.name
+            else:
+                resource_name = issue.resource.name
+        else:
+            resource_name = None
+
         new_smax_issue = Issue(
             summary=issue.summary,
             description=self.formatting_for_smax(issue.description),
             organisation_name=issue.customer.name if issue.customer else None,
             project_name=issue.project.name if issue.project else None,
-            resource_name=issue.resource.name if issue.resource else None,
+            resource_name=resource_name,
             category_id=category_id,
         )
 
@@ -358,6 +368,9 @@ class SmaxServiceBackend(SupportBackend):
                 continue
 
             self.manager.create_issue_link(issue.backend_id, linked_issue.backend_id)
+            logger.info(
+                f"Created issue link between {issue.backend_id} and {linked_issue.backend_id}."
+            )
 
     def create_confirmation_comment(self, issue, comment_tmpl=""):
         if not comment_tmpl:

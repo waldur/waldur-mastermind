@@ -260,7 +260,7 @@ class SmaxBackend:
 
         if response.status_code >= 400:
             raise SmaxBackendError(
-                f"Status code {response.status_code}, body {response.text}"
+                f"Status code {response.status_code}, body {response.text}, path {path}, params {params}"
             )
 
         return response
@@ -283,7 +283,7 @@ class SmaxBackend:
 
         if response.status_code > 299:
             raise SmaxBackendError(
-                f"Status code {response.status_code}, body {response.text}"
+                f"Status code {response.status_code}, body {response.text}. For request to {url}."
             )
 
         return response
@@ -350,7 +350,7 @@ class SmaxBackend:
                 "User creation has failed because first or last names have not been passed."
             )
 
-        self.post(
+        response = self.post(
             "ums/managePersons",
             json={
                 "operation": "CREATE_OR_UPDATE",
@@ -369,7 +369,9 @@ class SmaxBackend:
         backend_user = self.wait_result(self.search_user_by_email, user.email)
 
         if not backend_user:
-            raise SmaxBackendError("User creation has failed.")
+            raise SmaxBackendError(
+                f"User creation has failed. Creation response: {response.text}"
+            )
 
         return backend_user
 
@@ -383,7 +385,7 @@ class SmaxBackend:
 
         properties = {
             "Description": issue.description,
-            "DisplayLabel": issue.summary,
+            "DisplayLabel": issue.summary[:140],  # maximal length in SMAX
             "RequestedByPerson": user.id,
             "CreationSource": "CreationSourceExternal",  # to avoid any internal SMAX notification logic
         }
@@ -412,9 +414,12 @@ class SmaxBackend:
                 "operation": "CREATE",
             },
         )
-        issue_id = response.json()["entity_result_list"][0]["entity"]["properties"][
-            "Id"
-        ]
+        result = response.json()["entity_result_list"][0]
+        if result["completion_status"] == "FAILED":
+            raise SmaxBackendError(
+                f"Could not create issue. Creation response: {response.json()}"
+            )
+        issue_id = result["entity"]["properties"]["Id"]
         return self.get_issue(issue_id)
 
     def get_comments(self, issue_id):
