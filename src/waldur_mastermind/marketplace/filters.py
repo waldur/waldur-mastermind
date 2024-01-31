@@ -403,6 +403,9 @@ class ResourceFilter(
     requested_downscaling = django_filters.BooleanFilter(
         field_name="requested_downscaling"
     )
+    lexis_links_supported = django_filters.BooleanFilter(
+        method="filter_lexis_links_supported", label="LEXIS links supported"
+    )
     o = django_filters.OrderingFilter(
         fields=(
             "name",
@@ -457,6 +460,12 @@ class ResourceFilter(
                 continue
 
         return queryset.none()
+
+    def filter_lexis_links_supported(self, queryset, name, value):
+        if value:
+            return queryset.filter(offering__plugin_options__has_key="heappe_url")
+        else:
+            return queryset.exclude(offering__plugin_options__has_key="heappe_url")
 
 
 class ResourceScopeFilterBackend(core_filters.GenericKeyFilterBackend):
