@@ -21,14 +21,17 @@ def make_constance_file_value(image_path):
 
 class Command(BaseCommand):
     help = """
-    Override settings stored in django-constance.The example of .yaml file:
-        -   WALDUR_SUPPORT_ENABLED: true # Enables support plugin
-            WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE: 'zammad' # Specifies zammad as service desk plugin
-            ZAMMAD_API_URL: "https://zammad.example.com/api/" # Specifies zammad API URL
-            ZAMMAD_TOKEN: "1282361723491" # Specifies zammad token
-            ZAMMAD_GROUP: "default-group" # Specifies zammad group
-            ZAMMAD_ARTICLE_TYPE: "email" # Specifies zammad article type
-            ZAMMAD_COMMENT_COOLDOWN_DURATION: 7 # Specifies zammad comment cooldown duration
+    Override settings stored in django-constance. The example of .yaml file:
+
+    ```yaml
+      - WALDUR_SUPPORT_ENABLED: true # Enables support plugin
+        WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE: 'zammad' # Specifies zammad as service desk plugin
+        ZAMMAD_API_URL: "https://zammad.example.com/api/" # Specifies zammad API URL
+        ZAMMAD_TOKEN: "1282361723491" # Specifies zammad token
+        ZAMMAD_GROUP: "default-group" # Specifies zammad group
+        ZAMMAD_ARTICLE_TYPE: "email" # Specifies zammad article type
+        ZAMMAD_COMMENT_COOLDOWN_DURATION: 7 # Specifies zammad comment cooldown duration
+    ```
     """
 
     def add_arguments(self, parser):
