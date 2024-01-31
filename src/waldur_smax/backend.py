@@ -2,6 +2,7 @@ import functools
 import json
 import logging
 import os
+import time
 from dataclasses import dataclass, field
 from html import unescape
 
@@ -365,7 +366,7 @@ class SmaxBackend:
                 ],
             },
         )
-        backend_user = self.search_user_by_email(user.email)
+        backend_user = self.wait_result(self.search_user_by_email, user.email)
 
         if not backend_user:
             raise SmaxBackendError("User creation has failed.")
@@ -587,3 +588,15 @@ class SmaxBackend:
         response = self.get(url)
         categories = self._smax_response_to_categories(response)
         return categories[0] if categories else None
+
+    def wait_result(self, func, *args, **kwargs):
+        result = None
+
+        for i in range(config.SMAX_TIMES_TO_PULL):
+            result = func(*args, **kwargs)
+            if result:
+                break
+            else:
+                time.sleep(config.SMAX_SECONDS_TO_WAIT)
+
+        return result

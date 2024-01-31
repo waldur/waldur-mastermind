@@ -458,6 +458,8 @@ CONSTANCE_CONFIG = {
     "SMAX_ORGANISATION_FIELD": ("", "Organisation field."),
     "SMAX_PROJECT_FIELD": ("", "Project field."),
     "SMAX_AFFECTED_RESOURCE_FIELD": ("", "Resource field."),
+    "SMAX_TIMES_TO_PULL": (10, "Times to pulling from backend."),
+    "SMAX_SECONDS_TO_WAIT": (1, "Duration of delay between server pull attempts."),
 }
 
 CONSTANCE_CONFIG_FIELDSETS = {
