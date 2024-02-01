@@ -35,6 +35,21 @@ class IssueCreateTest(smax_base.BaseTest):
         issue = models.Issue.objects.get(uuid=response.data["uuid"])
         self.assertEqual(str(issue.backend_id), str(self.smax_issue.id))
 
+    def test_validate_summary_length(self):
+        user = self.fixture.staff
+        self.client.force_authenticate(user)
+        response = self.client.post(
+            self.url, data=self._get_valid_payload(summary="a" * 140)
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        response = self.client.post(
+            self.url, data=self._get_valid_payload(summary="a" * 150)
+        )
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+
 
 class SyncFromSmaxTest(smax_base.BaseTest):
     def setUp(self):

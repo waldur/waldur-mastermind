@@ -18,7 +18,7 @@ from waldur_jira.backend import JiraBackend, JiraBackendError, reraise_exception
 from waldur_mastermind.support import models
 from waldur_mastermind.support.exceptions import SupportUserInactive
 
-from . import SupportBackend
+from . import SupportBackend, SupportBackendType
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
     model_comment = models.Comment
     model_issue = models.Issue
     model_attachment = models.Attachment
-    backend_name = "atlassian"
+    backend_name = SupportBackendType.ATLASSIAN
 
     def __init__(self):
         self.settings = Settings(

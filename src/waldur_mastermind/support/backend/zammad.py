@@ -15,7 +15,7 @@ from waldur_mastermind.support import models
 from waldur_zammad.backend import User as ZammadUser
 from waldur_zammad.backend import ZammadBackend, ZammadBackendError
 
-from . import SupportBackend
+from . import SupportBackend, SupportBackendType
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ class ZammadServiceBackend(SupportBackend):
     def __init__(self):
         self.manager = ZammadBackend()
 
-    backend_name = "zammad"
+    backend_name = SupportBackendType.ZAMMAD
 
     def comment_destroy_is_available(self, comment):
         if not comment.backend_id:
