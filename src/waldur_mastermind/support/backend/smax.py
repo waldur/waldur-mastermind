@@ -12,7 +12,7 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.support import models
 from waldur_smax.backend import Comment, Issue, SmaxBackend, User
 
-from . import SupportBackend
+from . import SupportBackend, SupportBackendType
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,8 @@ class SmaxServiceBackend(SupportBackend):
     def __init__(self):
         self.manager = SmaxBackend()
 
-    backend_name = "smax"
+    backend_name = SupportBackendType.SMAX
+    summary_max_length = 140
 
     def get_or_create_support_user_by_waldur_user(
         self, waldur_user: WaldurUser

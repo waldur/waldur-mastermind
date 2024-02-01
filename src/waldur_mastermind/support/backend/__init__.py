@@ -38,6 +38,9 @@ class SupportBackendError(Exception):
 class SupportBackend:
     """Interface for support backend"""
 
+    backend_name = None
+    summary_max_length = 255
+
     def create_issue(self, issue):
         raise NotImplementedError
 

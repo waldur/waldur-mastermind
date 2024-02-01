@@ -271,7 +271,19 @@ class IssueSerializer(
         """
         Remove leading and trailing spaces from summary.
         """
-        return summary.strip()
+        summary = summary.strip()
+
+        if len(summary) > backend.get_active_backend().summary_max_length:
+            raise serializers.ValidationError(
+                {
+                    "summary": _(
+                        "The length of the summary field exceeds the allowed limit of %s."
+                    )
+                    % backend.get_active_backend().summary_max_length
+                }
+            )
+
+        return summary
 
     def validate_customer(self, customer):
         """User has to be customer owner, staff or global support"""

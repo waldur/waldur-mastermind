@@ -35,6 +35,7 @@ class BaseTest(test.APITransactionTestCase):
         )
         self.mock_get_active_backend().get_users.return_value = [1]
         self.mock_get_active_backend().get_issue_details.return_value = {}
+        self.mock_get_active_backend().summary_max_length = 255
 
     def tearDown(self):
         mock.patch.stopall()
