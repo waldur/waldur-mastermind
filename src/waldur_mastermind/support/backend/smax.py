@@ -43,7 +43,6 @@ class SmaxServiceBackend(SupportBackend):
             user = User(
                 support_user.user.email,
                 support_user.user.full_name,
-                upn=support_user.uuid.hex,
             )
             backend_user = self.manager.add_user(user)
 
@@ -66,7 +65,6 @@ class SmaxServiceBackend(SupportBackend):
         user = User(
             support_user.user.email,
             support_user.user.full_name,
-            upn=support_user.uuid.hex,
         )
 
         # check issue type to category mapping
@@ -237,7 +235,6 @@ class SmaxServiceBackend(SupportBackend):
         smax_user = User(
             email=support_user.user.email,
             name=support_user.user.full_name,
-            upn=support_user.uuid.hex,
         )
         self.manager.add_user(smax_user)
         support_user.backend_id = smax_user.id
