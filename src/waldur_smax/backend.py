@@ -321,24 +321,21 @@ class SmaxBackend:
             return user[0]
 
     def get_user_by_upn(self, upn):
-        response = self.get(
-            f"ems/Person?filter=Upn+%3D+%27{upn}%27&layout=Id,Name,Email,Upn"
-        )
-        user = self._smax_response_to_user(response)
-
-        if not user:
-            return
-        else:
-            return user[0]
-
-    def get_all_users(self):
-        response = self.get("ems/Person/?layout=Name,Email,Upn")
-        return self._smax_response_to_user(response)
-
-    def search_user_by_email(self, email):
-        response = self.get(f"ems/Person/?layout=Name,Email,Upn&filter=Email='{email}'")
+        response = self.get(f"ems/Person/?layout=FULL_LAYOUT&filter=Upn='{upn}'")
         users = self._smax_response_to_user(response)
         return users[0] if users else None
+
+    def get_all_users(self):
+        response = self.get("ems/Person/?layout=FULL_LAYOUT")
+        return self._smax_response_to_user(response)
+
+    def get_user_by_email(self, email):
+        response = self.get(f"ems/Person/?layout=FULL_LAYOUT&filter=Email='{email}'")
+        users = self._smax_response_to_user(response)
+        return users[0] if users else None
+
+    def search_user(self, keyword):
+        return self.get_user_by_upn(keyword) or self.get_user_by_email(keyword)
 
     def add_user(self, user: User):
         name = user.name.split()
@@ -357,16 +354,17 @@ class SmaxBackend:
                 "users": [
                     {
                         "properties": {
-                            "Upn": user.upn,
+                            "Upn": user.email,
                             "FirstName": first_name,
                             "LastName": last_name,
                             "Email": user.email,
+                            "IsMaasUser": False,
                         }
                     }
                 ],
             },
         )
-        backend_user = self.wait_result(self.search_user_by_email, user.email)
+        backend_user = self.wait_result(self.search_user, user.email)
 
         if not backend_user:
             raise SmaxBackendError(
@@ -381,7 +379,7 @@ class SmaxBackend:
         return issues[0] if issues else None
 
     def add_issue(self, user: User, issue: Issue, entity_type="Request"):
-        user = self.search_user_by_email(user.email) or self.add_user(user)
+        user = self.search_user(user.email) or self.add_user(user)
 
         properties = {
             "Description": issue.description,
