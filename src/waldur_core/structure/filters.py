@@ -1,4 +1,5 @@
 import django_filters
+from dbtemplates.models import Template
 from django import forms
 from django.conf import settings as django_settings
 from django.contrib import auth
@@ -743,24 +744,39 @@ class ProjectEstimatedCostFilter(BaseFilterBackend):
 class NotificationTemplateFilter(NameFilterSet):
     path = django_filters.CharFilter(lookup_expr="icontains")
     path_exact = django_filters.CharFilter(field_name="path", lookup_expr="exact")
+    is_overridden = django_filters.BooleanFilter(method="filter_is_overridden")
 
     class Meta:
         model = core_models.NotificationTemplate
         fields = [
             "name",
             "path",
+            "is_overridden",
         ]
+
+    def filter_is_overridden(self, queryset, name, value):
+        return queryset.filter(path__in=Template.objects.values_list("name"))
 
 
 class NotificationFilter(NameFilterSet):
     query = django_filters.CharFilter(method="filter_query")
+    is_overridden = django_filters.BooleanFilter(method="filter_is_overridden")
 
     class Meta:
         model = core_models.Notification
-        fields = ["key", "description"]
+        fields = ["key", "description", "is_overridden"]
 
     def filter_query(self, queryset, name, value):
         query = queryset.filter(
             Q(key__icontains=value) | Q(description__icontains=value)
         )
         return query
+
+    def filter_is_overridden(self, queryset, name, value):
+        template_names = Template.objects.values_list("name", flat=True)
+        overridden_notifications = [
+            notification.uuid
+            for notification in queryset
+            if notification.templates.filter(path__in=template_names).exists() == value
+        ]
+        return queryset.filter(uuid__in=overridden_notifications)
