@@ -1594,10 +1594,19 @@ class UserAgreementSerializer(serializers.HyperlinkedModelSerializer):
 class NotificationTemplateDetailSerializers(serializers.ModelSerializer):
     content = serializers.SerializerMethodField()
     original_content = serializers.SerializerMethodField()
+    is_content_overridden = serializers.SerializerMethodField()
 
     class Meta:
         model = core_models.NotificationTemplate
-        fields = ("uuid", "url", "path", "name", "content", "original_content")
+        fields = (
+            "uuid",
+            "url",
+            "path",
+            "name",
+            "content",
+            "original_content",
+            "is_content_overridden",
+        )
         extra_kwargs = {
             "url": {
                 "view_name": "notification-messages-templates-detail",
@@ -1620,6 +1629,9 @@ class NotificationTemplateDetailSerializers(serializers.ModelSerializer):
                 continue
             if source:
                 return source
+
+    def get_is_content_overridden(self, obj):
+        return self.get_content(obj) != self.get_original_content(obj)
 
 
 class NotificationSerializer(serializers.HyperlinkedModelSerializer):
