@@ -39,6 +39,9 @@ class Role(DescribableMixin, UuidMixin):
     def add_permission(self, name):
         RolePermission.objects.get_or_create(role=self, permission=name)
 
+    def delete_permission(self, name):
+        RolePermission.objects.filter(role=self, permission=name).delete()
+
     def __str__(self):
         return f"{self.name}"
 

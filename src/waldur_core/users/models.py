@@ -7,11 +7,12 @@ from model_utils.models import TimeStampedModel
 
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models
-from waldur_core.structure import models as structure_models
+from waldur_core.permissions.models import Role
+from waldur_core.structure.models import Customer
 from waldur_core.structure.signals import permissions_request_approved
 
 
-class BaseInvitation(core_models.UuidMixin, TimeStampedModel):
+class BaseInvitation(core_models.UuidMixin, core_mixins.ScopeMixin, TimeStampedModel):
     class Meta:
         abstract = True
 
@@ -25,20 +26,12 @@ class BaseInvitation(core_models.UuidMixin, TimeStampedModel):
 
     customer = models.ForeignKey(
         on_delete=models.CASCADE,
-        to=structure_models.Customer,
-        verbose_name=_("organization"),
+        to=Customer,
     )
-    customer_role = structure_models.CustomerRole(
-        verbose_name=_("organization role"), null=True, blank=True
-    )
-
-    project = models.ForeignKey(
+    role = models.ForeignKey(
         on_delete=models.CASCADE,
-        to=structure_models.Project,
-        blank=True,
-        null=True,
+        to=Role,
     )
-    project_role = structure_models.ProjectRole(null=True, blank=True)
 
 
 class GroupInvitation(BaseInvitation):
@@ -55,10 +48,7 @@ class GroupInvitation(BaseInvitation):
         self.save(update_fields=["is_active"])
 
     def __str__(self):
-        if self.customer_role:
-            return f"{self.customer} {self.customer_role}"
-
-        return f"{self.project} {self.project_role}"
+        return f"{self.scope} {self.role.description}"
 
 
 class Invitation(
@@ -118,10 +108,7 @@ class Invitation(
         return self.created + settings.WALDUR_CORE["INVITATION_LIFETIME"]
 
     def accept(self, user):
-        if self.project_role is not None:
-            self.project.add_user(user, self.project_role, self.created_by)
-        else:
-            self.customer.add_user(user, self.customer_role, self.created_by)
+        self.scope.add_user(user, self.role, self.created_by)
 
         self.state = self.State.ACCEPTED
         self.save(update_fields=["state"])
@@ -164,21 +151,14 @@ class PermissionRequest(core_mixins.ReviewMixin, core_models.UuidMixin):
     def approve(self, user, comment=None):
         super().approve(user, comment)
 
-        if self.invitation.project_role:
-            permission = self.invitation.project.add_user(
-                self.created_by, self.invitation.project_role
-            )
-            structure = self.invitation.project
-        elif self.invitation.customer_role:
-            permission = self.invitation.customer.add_user(
-                self.created_by, self.invitation.customer_role
-            )
-            structure = self.invitation.customer
+        permission = self.invitation.scope.add_user(
+            self.created_by, self.invitation.role
+        )
 
         permissions_request_approved.send(
             sender=self.__class__,
             permission=permission,
-            structure=structure,
+            structure=self.invitation.scope,
         )
 
     tracker = FieldTracker()

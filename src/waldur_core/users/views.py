@@ -14,11 +14,10 @@ from waldur_core.core import log as core_log
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import validators as core_validators
 from waldur_core.core.views import ProtectedViewSet, ReadOnlyActionsViewSet
-from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import serializers as structure_serializers
-from waldur_core.structure.managers import get_connected_customers
+from waldur_core.structure.models import Customer
 from waldur_core.users import filters, models, serializers, tasks
 from waldur_core.users.utils import can_manage_invitation_with, parse_invitation_token
 
@@ -30,24 +29,15 @@ class InvitationViewSet(ProtectedViewSet):
     serializer_class = serializers.InvitationSerializer
     filter_backends = (
         DjangoFilterBackend,
-        filters.InvitationCustomerFilterBackend,
+        filters.InvitationScopeFilterBackend,
+        filters.InvitationFilterBackend,
     )
     filterset_class = filters.InvitationFilter
     lookup_field = "uuid"
 
     def perform_create(self, serializer):
-        project = serializer.validated_data.get("project")
-        if project:
-            customer = project.customer
-        else:
-            customer = serializer.validated_data.get("customer")
-
-        customer_role = serializer.validated_data.get("customer_role")
-        project_role = serializer.validated_data.get("project_role")
-
-        if not can_manage_invitation_with(
-            self.request, customer, customer_role, project_role, project
-        ):
+        scope = serializer.validated_data["scope"]
+        if not can_manage_invitation_with(self.request, scope):
             raise PermissionDenied()
 
         invitation = serializer.save()
@@ -117,15 +107,9 @@ class InvitationViewSet(ProtectedViewSet):
 
     @action(detail=True, methods=["post"])
     def send(self, request, uuid=None):
-        invitation = self.get_object()
+        invitation: models.Invitation = self.get_object()
 
-        if not can_manage_invitation_with(
-            self.request,
-            invitation.customer,
-            invitation.customer_role,
-            invitation.project_role,
-            invitation.project,
-        ):
+        if not can_manage_invitation_with(self.request, invitation.scope):
             raise PermissionDenied()
         elif invitation.state not in (
             models.Invitation.State.PENDING,
@@ -149,15 +133,9 @@ class InvitationViewSet(ProtectedViewSet):
 
     @action(detail=True, methods=["post"])
     def cancel(self, request, uuid=None):
-        invitation = self.get_object()
+        invitation: models.Invitation = self.get_object()
 
-        if not can_manage_invitation_with(
-            self.request,
-            invitation.customer,
-            invitation.customer_role,
-            invitation.project_role,
-            invitation.project,
-        ):
+        if not can_manage_invitation_with(self.request, invitation.scope):
             raise PermissionDenied()
         elif invitation.state != models.Invitation.State.PENDING:
             raise ValidationError(_("Only pending invitation can be canceled."))
@@ -177,13 +155,10 @@ class InvitationViewSet(ProtectedViewSet):
         To replace user's email with email from invitation - add parameter
         'replace_email' to request POST body.
         """
-        invitation = self.get_object()
+        invitation: models.Invitation = self.get_object()
 
-        if invitation.project:
-            if invitation.project.has_user(request.user):
-                raise ValidationError(_("User already has role within this project."))
-        elif invitation.customer.has_user(request.user):
-            raise ValidationError(_("User already has role within this customer."))
+        if invitation.scope.has_user(request.user):
+            raise ValidationError(_("User already has role within this scope."))
 
         replace_email = False
         if invitation.email != request.user.email:
@@ -191,9 +166,7 @@ class InvitationViewSet(ProtectedViewSet):
 
         if settings.WALDUR_CORE["INVITATION_DISABLE_MULTIPLE_ROLES"]:
             if UserRole.objects.filter(user=request.user, is_active=True).exists():
-                raise ValidationError(
-                    _("User already has role within another customer or project.")
-                )
+                raise ValidationError(_("User already has role within another scope."))
 
         invitation.accept(request.user)
         if replace_email:
@@ -213,7 +186,7 @@ class InvitationViewSet(ProtectedViewSet):
 
     @action(detail=True, methods=["post"], filter_backends=[], permission_classes=[])
     def check(self, request, uuid=None):
-        invitation = self.get_object()
+        invitation: models.Invitation = self.get_object()
 
         if invitation.state != models.Invitation.State.PENDING:
             return Response(status=status.HTTP_404_NOT_FOUND)
@@ -227,7 +200,7 @@ class InvitationViewSet(ProtectedViewSet):
 
     @action(detail=True, filter_backends=[filters.PendingInvitationFilter])
     def details(self, request, uuid=None):
-        invitation = self.get_object()
+        invitation: models.Invitation = self.get_object()
         serializer = serializers.PendingInvitationDetailsSerializer(instance=invitation)
         return Response(serializer.data)
 
@@ -235,32 +208,20 @@ class InvitationViewSet(ProtectedViewSet):
 class GroupInvitationViewSet(ProtectedViewSet):
     queryset = models.GroupInvitation.objects.all().order_by("-created")
     serializer_class = serializers.GroupInvitationSerializer
-    filter_backends = (DjangoFilterBackend,)
+    filter_backends = (
+        filters.InvitationScopeFilterBackend,
+        filters.GroupInvitationFilterBackend,
+        DjangoFilterBackend,
+    )
     permission_classes = (rf_permissions.IsAuthenticated,)
     filterset_class = filters.GroupInvitationFilter
     lookup_field = "uuid"
 
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-
-        user = request.user
-        if not user.is_staff:
-            customer_ids = get_connected_customers(user, RoleEnum.CUSTOMER_OWNER)
-            queryset = queryset.filter(customer_id__in=customer_ids)
-
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
-
-    @action(detail=True, methods=["get"])
+    @action(detail=True, methods=["get"], filter_backends=[])
     def projects(self, request, uuid=None):
-        invitation = self.get_object()
+        invitation: models.GroupInvitation = self.get_object()
 
-        if invitation.project:
+        if not isinstance(invitation.scope, Customer):
             return Response(status=status.HTTP_404_NOT_FOUND)
 
         projects = structure_serializers.NestedProjectSerializer(
@@ -269,21 +230,13 @@ class GroupInvitationViewSet(ProtectedViewSet):
             context={"request": request},
             many=True,
         )
-        return Response(
-            projects.data,
-            status=status.HTTP_200_OK,
-        )
+        return Response(projects.data, status=status.HTTP_200_OK)
 
-    @action(detail=True, methods=["post"])
+    @action(detail=True, methods=["post"], filter_backends=[])
     def cancel(self, request, uuid=None):
-        invitation = self.get_object()
+        invitation: models.GroupInvitation = self.get_object()
 
-        if not can_manage_invitation_with(
-            self.request,
-            invitation.customer,
-            invitation.customer_role,
-            invitation.project_role,
-        ):
+        if not can_manage_invitation_with(request, invitation.scope):
             raise PermissionDenied()
         elif not invitation.is_active:
             raise ValidationError(_("Only pending invitation can be canceled."))
@@ -294,16 +247,16 @@ class GroupInvitationViewSet(ProtectedViewSet):
             status=status.HTTP_200_OK,
         )
 
-    @action(detail=True, methods=["post"])
+    @action(detail=True, methods=["post"], filter_backends=[])
     def request(self, request, uuid=None):
-        invitation = self.get_object()
+        invitation: models.GroupInvitation = self.get_object()
 
         if not invitation.is_active:
             raise ValidationError(_("Only pending invitation can be requested."))
 
         if (
             models.PermissionRequest.objects.filter(
-                invitation=invitation, created_by=self.request.user
+                invitation=invitation, created_by=request.user
             )
             .exclude(state=models.PermissionRequest.States.REJECTED)
             .exists()
@@ -312,7 +265,7 @@ class GroupInvitationViewSet(ProtectedViewSet):
 
         permission_request = models.PermissionRequest.objects.create(
             invitation=invitation,
-            created_by=self.request.user,
+            created_by=request.user,
         )
 
         permission_request.submit()
@@ -322,18 +275,8 @@ class GroupInvitationViewSet(ProtectedViewSet):
         )
 
     def perform_create(self, serializer):
-        project = serializer.validated_data.get("project")
-        if project:
-            customer = project.customer
-        else:
-            customer = serializer.validated_data.get("customer")
-
-        customer_role = serializer.validated_data.get("customer_role")
-        project_role = serializer.validated_data.get("project_role")
-
-        if not can_manage_invitation_with(
-            self.request, customer, customer_role, project_role
-        ):
+        scope = serializer.validated_data["scope"]
+        if not can_manage_invitation_with(self.request, scope):
             raise PermissionDenied()
 
         serializer.save()
@@ -342,18 +285,19 @@ class GroupInvitationViewSet(ProtectedViewSet):
 class PermissionRequestViewSet(ReadOnlyActionsViewSet):
     queryset = models.PermissionRequest.objects.all().order_by("-created")
     serializer_class = serializers.PermissionRequestSerializer
-    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    filter_backends = (
+        structure_filters.GenericRoleFilter,
+        filters.PermissionRequestScopeFilterBackend,
+        DjangoFilterBackend,
+    )
     filterset_class = filters.PermissionRequestFilter
     lookup_field = "uuid"
 
     def perform_action(self, request, uuid, action_name):
-        permission_request = self.get_object()
+        permission_request: models.PermissionRequest = self.get_object()
 
         if not can_manage_invitation_with(
-            self.request,
-            permission_request.invitation.customer,
-            permission_request.invitation.customer_role,
-            permission_request.invitation.project_role,
+            self.request, permission_request.invitation.scope
         ):
             raise PermissionDenied()
 
