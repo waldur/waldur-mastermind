@@ -693,7 +693,7 @@ class Project(
         return f"{self.name} | {self.customer.name}"
 
     def get_log_fields(self):
-        return ("uuid", "customer", "name")
+        return ("uuid", "customer", "name", "end_date")
 
     def get_parents(self):
         return [self.customer]
