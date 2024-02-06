@@ -229,6 +229,14 @@ class OfferingUserGlauthConfigTest(test.APITransactionTestCase):
     def test_glauth_config_file_fetching(self):
         ssh_key = structure_factories.SshPublicKeyFactory(user=self.manager)
         self.client.force_login(self.fixture.offering_owner)
+        self.assertEqual(
+            0,
+            marketplace_models.IntegrationStatus.objects.filter(
+                offering=self.offering,
+                agent_type=marketplace_models.IntegrationStatus.AgentTypes.GLAUTH_SYNC,
+                status=marketplace_models.IntegrationStatus.States.ACTIVE,
+            ).count(),
+        )
         response = self.client.get(self.url)
         self.assertEqual(200, response.status_code)
 
@@ -265,3 +273,18 @@ class OfferingUserGlauthConfigTest(test.APITransactionTestCase):
         """
         )
         self.assertEqual(expected_config_file, response.data)
+
+        self.assertEqual(
+            1,
+            marketplace_models.IntegrationStatus.objects.filter(
+                offering=self.offering,
+                agent_type=marketplace_models.IntegrationStatus.AgentTypes.GLAUTH_SYNC,
+                status=marketplace_models.IntegrationStatus.States.ACTIVE,
+            ).count(),
+        )
+        integration_status = marketplace_models.IntegrationStatus.objects.get(
+            offering=self.offering,
+            agent_type=marketplace_models.IntegrationStatus.AgentTypes.GLAUTH_SYNC,
+            status=marketplace_models.IntegrationStatus.States.ACTIVE,
+        )
+        self.assertIsNotNone(integration_status.last_request_timestamp)

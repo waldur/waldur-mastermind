@@ -31,7 +31,7 @@ from waldur_core.core import serializers as core_serializers
 from waldur_core.core import utils as core_utils
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.models import UserRole
-from waldur_core.permissions.utils import get_users_with_permission
+from waldur_core.permissions.utils import get_users_with_permission, has_permission
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
@@ -1381,3 +1381,34 @@ def get_provider_approvers(order):
     )
 
     return approvers
+
+
+def refresh_integration_agent_status(request, agent_type):
+    user_agent = core_utils.get_user_agent(request)
+    if "waldur-slurm-agent" not in user_agent:
+        return
+
+    offering_uuid = request.query_params.get("offering_uuid")
+    if offering_uuid is None:
+        logger.warning("Offering UUID is missing, skipping integration status update")
+        return
+
+    offering = models.Offering.objects.filter(uuid=offering_uuid).first()
+
+    if offering is None:
+        logger.warning(
+            "Offering with UUID %s doesn't exist, skipping integration status update"
+        )
+        return
+
+    if not has_permission(request, PermissionEnum.UPDATE_OFFERING, offering.customer):
+        logger.error("User doesn't have permission for offering management")
+        return
+
+    integration_status, _ = models.IntegrationStatus.objects.get_or_create(
+        offering=offering,
+        agent_type=agent_type,
+    )
+    integration_status.set_last_request_timestamp()
+    integration_status.set_backend_active()
+    integration_status.save()

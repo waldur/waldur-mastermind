@@ -26,4 +26,9 @@ class MarketplaceSlurmRemoteExtension(WaldurExtension):
                 "schedule": timedelta(days=1),
                 "args": (),
             },
+            "mark-offering-backend-as-disconnected-after-timeout": {
+                "task": "waldur_mastermind.marketplace_slurm_remote.mark_offering_backend_as_disconnected_after_timeout",
+                "schedule": timedelta(hours=1),
+                "args": (),
+            },
         }

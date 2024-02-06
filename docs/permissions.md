@@ -75,7 +75,7 @@ class ProviderPlanViewSet:
   ]
 ```
 
-Here we use `permission_factory` function which accepts permission string and list of paths to scopes, either customer, project or offering. It returns function which accepts requst and raises an exception if user doesn't have specified permission in roles connected to current user and one of these scopes.
+Here we use `permission_factory` function which accepts permission string and list of paths to scopes, either customer, project or offering. It returns function which accepts request and raises an exception if user doesn't have specified permission in roles connected to current user and one of these scopes.
 
 ## Permissions for viewing
 
@@ -90,7 +90,7 @@ class PaymentProfileViewSet(core_views.ActionsViewSet):
     )
 ```
 
-Altough this approach works fine for trivial use cases, often enough permission filtering logic is more involved and we implement `get_queryset` method instead.
+Although this approach works fine for trivial use cases, often enough permission filtering logic is more involved and we implement `get_queryset` method instead.
 
 ```python
 class OfferingUserGroupViewSet(core_views.ActionsViewSet):
