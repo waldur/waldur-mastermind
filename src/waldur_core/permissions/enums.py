@@ -109,3 +109,9 @@ class PermissionEnum(str, Enum):
     CREATE_PROJECT = "PROJECT.CREATE"
     DELETE_PROJECT = "PROJECT.DELETE"
     UPDATE_PROJECT = "PROJECT.UPDATE"
+
+
+PERMISSIONS_MAP = {
+    "customer": PermissionEnum.CREATE_CUSTOMER_PERMISSION,
+    "project": PermissionEnum.CREATE_PROJECT_PERMISSION,
+}

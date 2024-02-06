@@ -1,26 +1,88 @@
 import django_filters
 from django.conf import settings
+from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from rest_framework.filters import BaseFilterBackend
 
 from waldur_core.core import filters as core_filters
-from waldur_core.core.utils import is_uuid_like
-from waldur_core.permissions.enums import RoleEnum
-from waldur_core.structure.managers import (
-    get_connected_customers,
-    get_connected_projects,
+from waldur_core.core.models import User
+from waldur_core.permissions.enums import TYPE_MAP
+from waldur_core.permissions.utils import (
+    get_creation_permission,
+    get_scope_ids,
+    get_valid_content_types,
 )
-from waldur_core.users import models
+from waldur_core.structure.managers import get_connected_customers
+
+from . import models
 
 
-class InvitationFilter(django_filters.FilterSet):
-    project = django_filters.UUIDFilter(
-        field_name="project__uuid",
-    )
-    project_url = core_filters.URLFilter(
-        view_name="project-detail",
-        field_name="project__uuid",
-    )
+class InvitationScopeFilterBackend(core_filters.GenericKeyFilterBackend):
+    def get_related_models(self):
+        return [ct.model_class() for ct in get_valid_content_types()]
+
+    def get_field_name(self):
+        return "scope"
+
+
+class InvitationFilterBackend(BaseFilterBackend):
+    def filter_queryset(self, request, queryset, view):
+        user: User = request.user
+
+        if user.is_staff or user.is_support:
+            return queryset
+
+        subquery = Q(customer__in=get_connected_customers(user))
+        for content_type in get_valid_content_types():
+            permission = get_creation_permission(content_type.model_class())
+            if not permission:
+                continue
+            scopes = get_scope_ids(user, content_type, permission=permission)
+            subquery |= Q(content_type=content_type, object_id__in=scopes)
+
+        return queryset.filter(subquery)
+
+
+class BaseInvitationFilter(django_filters.FilterSet):
+    role_uuid = django_filters.UUIDFilter(field_name="role__uuid")
+    customer_uuid = django_filters.UUIDFilter(field_name="customer__uuid")
+    scope_type = django_filters.CharFilter(method="filter_by_scope_type")
+
+    class Meta:
+        model = models.BaseInvitation
+        fields = [
+            "customer_uuid",
+            "role_uuid",
+        ]
+
+    def filter_by_scope_type(self, queryset, name, value):
+        if value in TYPE_MAP:
+            ctype = ContentType.objects.get_by_natural_key(*TYPE_MAP[value])
+            return queryset.filter(content_type=ctype)
+
+
+class GroupInvitationFilterBackend(BaseFilterBackend):
+    def filter_queryset(self, request, queryset, view):
+        user: User = request.user
+
+        if user.is_staff or user.is_support:
+            return queryset
+
+        if view.detail:
+            return queryset
+
+        return queryset.filter(customer_id__in=get_connected_customers(user))
+
+
+class GroupInvitationFilter(BaseInvitationFilter):
+    o = django_filters.OrderingFilter(fields=("created",))
+
+    class Meta:
+        model = models.GroupInvitation
+        fields = BaseInvitationFilter.Meta.fields + ["is_active"]
+
+
+class InvitationFilter(BaseInvitationFilter):
     state = django_filters.MultipleChoiceFilter(choices=models.Invitation.State.CHOICES)
     email = django_filters.CharFilter(lookup_expr="icontains")
 
@@ -28,45 +90,17 @@ class InvitationFilter(django_filters.FilterSet):
 
     class Meta:
         model = models.Invitation
-        fields = [
-            "email",
-            "civil_number",
-            "customer_role",
-            "project_role",
-        ]
+        fields = BaseInvitationFilter.Meta.fields + ["email", "state", "civil_number"]
 
 
-class GroupInvitationFilter(django_filters.FilterSet):
-    project = django_filters.UUIDFilter(
-        field_name="project__uuid",
-    )
-    project_url = core_filters.URLFilter(
-        view_name="project-detail",
-        field_name="project__uuid",
-    )
-    customer = django_filters.UUIDFilter(
-        field_name="customer__uuid",
-    )
-    customer_url = core_filters.URLFilter(
-        view_name="customer-detail",
-        field_name="customer__uuid",
-    )
-
-    o = django_filters.OrderingFilter(fields=("state", "created"))
-
-    class Meta:
-        model = models.GroupInvitation
-        fields = [
-            "customer_role",
-            "project_role",
-            "is_active",
-        ]
+class PermissionRequestScopeFilterBackend(InvitationScopeFilterBackend):
+    content_type_field = "invitation__content_type"
+    object_id_field = "invitation__object_id"
 
 
 class PermissionRequestFilter(django_filters.FilterSet):
     state = core_filters.ReviewStateFilter()
-    project = django_filters.UUIDFilter(field_name="invitation__project__uuid")
-    customer = django_filters.UUIDFilter(field_name="invitation__customer__uuid")
+    customer_uuid = django_filters.UUIDFilter(field_name="invitation__customer__uuid")
     invitation = django_filters.UUIDFilter(field_name="invitation__uuid")
     created_by = django_filters.UUIDFilter(field_name="created_by__uuid")
     o = django_filters.OrderingFilter(fields=("state", "created"))
@@ -75,45 +109,8 @@ class PermissionRequestFilter(django_filters.FilterSet):
         model = models.PermissionRequest
         fields = [
             "state",
-            "customer",
-            "project",
             "invitation",
         ]
-
-
-class InvitationCustomerFilterBackend(BaseFilterBackend):
-    url_filter = core_filters.URLFilter(
-        view_name="customer-detail",
-        field_name="customer__uuid",
-    )
-
-    def filter_queryset(self, request, queryset, view):
-        user = request.user
-
-        if not (user.is_staff or user.is_support):
-            customer_ids = get_connected_customers(user)
-            project_ids = get_connected_projects(user, RoleEnum.PROJECT_MANAGER)
-            queryset = queryset.filter(
-                Q(customer__in=customer_ids) | Q(project__in=project_ids)
-            ).distinct()
-
-        customer_uuid = self.extract_customer_uuid(request)
-        if not customer_uuid:
-            return queryset
-
-        if not is_uuid_like(customer_uuid):
-            return queryset.none()
-
-        query = Q(customer__uuid=customer_uuid)
-        query |= Q(project__customer__uuid=customer_uuid)
-        return queryset.filter(query)
-
-    def extract_customer_uuid(self, request):
-        if "customer_url" in request.query_params:
-            return self.url_filter.get_uuid(request.query_params["customer_url"])
-
-        if "customer" in request.query_params:
-            return request.query_params["customer"]
 
 
 class PendingInvitationFilter(BaseFilterBackend):

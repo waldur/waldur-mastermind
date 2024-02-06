@@ -8,9 +8,9 @@ from rest_framework import status
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
+from waldur_core.permissions.models import Role
 from waldur_core.permissions.utils import has_user
-from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.users import models, tasks
 from waldur_core.users.tests import factories
@@ -22,11 +22,11 @@ class BaseGroupInvitationTest(BaseInvitationTest):
     def setUp(self):
         super().setUp()
         self.customer_group_invitation = factories.CustomerGroupInvitationFactory(
-            customer=self.customer
+            scope=self.customer
         )
 
         self.project_group_invitation = factories.ProjectGroupInvitationFactory(
-            project=self.project
+            scope=self.project
         )
 
         factories.CustomerGroupInvitationFactory()
@@ -78,22 +78,7 @@ class GroupInvitationRetrieveTest(BaseGroupInvitationTest):
         self.client.force_authenticate(user=self.staff)
         response = self.client.get(
             factories.GroupInvitationBaseFactory.get_list_url(),
-            {"customer": self.customer.uuid.hex},
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2)
-
-    def test_filtering_by_customer_url_includes_project_invitations_for_that_customer_too(
-        self,
-    ):
-        self.client.force_authenticate(user=self.staff)
-        response = self.client.get(
-            factories.GroupInvitationBaseFactory.get_list_url(),
-            {
-                "customer_url": structure_factories.CustomerFactory.get_url(
-                    self.customer
-                )
-            },
+            {"customer_uuid": self.customer.uuid.hex},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 2)
@@ -105,7 +90,7 @@ class GroupInvitationRetrieveTest(BaseGroupInvitationTest):
         self.client.force_authenticate(user=self.staff)
         response = self.client.get(
             factories.GroupInvitationBaseFactory.get_list_url(),
-            {"customer": other_customer.uuid.hex},
+            {"customer_uuid": other_customer.uuid.hex},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 0)
@@ -139,7 +124,7 @@ class GroupInvitationCreateTest(BaseGroupInvitationTest):
         self.client.force_authenticate(user=getattr(self, user))
         payload = self._get_valid_project_invitation_payload(
             self.project_group_invitation,
-            project_role=structure_models.ProjectRole.ADMINISTRATOR,
+            role=ProjectRole.ADMIN,
         )
         response = self.client.post(
             factories.GroupInvitationBaseFactory.get_list_url(), data=payload
@@ -153,7 +138,7 @@ class GroupInvitationCreateTest(BaseGroupInvitationTest):
         self.client.force_authenticate(user=getattr(self, user))
         payload = self._get_valid_project_invitation_payload(
             self.project_group_invitation,
-            project_role=structure_models.ProjectRole.MANAGER,
+            role=ProjectRole.MANAGER,
         )
         response = self.client.post(
             factories.GroupInvitationBaseFactory.get_list_url(), data=payload
@@ -165,14 +150,14 @@ class GroupInvitationCreateTest(BaseGroupInvitationTest):
         self.client.force_authenticate(user=self.customer_owner)
         payload = self._get_valid_project_invitation_payload(
             self.project_group_invitation,
-            project_role=structure_models.ProjectRole.MANAGER,
+            role=ProjectRole.MANAGER,
         )
         response = self.client.post(
             factories.GroupInvitationBaseFactory.get_list_url(), data=payload
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    @data("project_admin", "project_manager", "user")
+    @data("project_admin", "project_manager")
     def test_user_without_access_cannot_create_project_invitation(self, user):
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
         self.client.force_authenticate(user=getattr(self, user))
@@ -183,10 +168,20 @@ class GroupInvitationCreateTest(BaseGroupInvitationTest):
             factories.GroupInvitationBaseFactory.get_list_url(), data=payload
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertEqual(
-            response.data,
-            {"detail": "You do not have permission to perform this action."},
+
+    @data(
+        "user",
+    )
+    def test_unauthorized_user_cannot_create_project_invitation(self, user):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
+        self.client.force_authenticate(user=getattr(self, user))
+        payload = self._get_valid_project_invitation_payload(
+            self.project_group_invitation
         )
+        response = self.client.post(
+            factories.GroupInvitationBaseFactory.get_list_url(), data=payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     @data("staff", "customer_owner")
     def test_user_with_access_can_create_customer_owner_invitation(self, user):
@@ -203,6 +198,7 @@ class GroupInvitationCreateTest(BaseGroupInvitationTest):
     def test_owner_can_not_create_customer_owner_invitation(
         self,
     ):
+        CustomerRole.OWNER.delete_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
         self.client.force_authenticate(user=self.customer_owner)
         payload = self._get_valid_customer_invitation_payload(
             self.customer_group_invitation
@@ -225,7 +221,7 @@ class GroupInvitationCreateTest(BaseGroupInvitationTest):
         invitation = models.GroupInvitation.objects.get(uuid=response.data["uuid"])
         self.assertEqual(invitation.created_by, getattr(self, user))
 
-    @data("project_admin", "project_manager", "user")
+    @data("project_admin", "project_manager")
     def test_user_without_access_cannot_create_customer_owner_invitation(self, user):
         self.client.force_authenticate(user=getattr(self, user))
         payload = self._get_valid_customer_invitation_payload(
@@ -235,83 +231,55 @@ class GroupInvitationCreateTest(BaseGroupInvitationTest):
             factories.GroupInvitationBaseFactory.get_list_url(), data=payload
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertEqual(
-            response.data,
-            {"detail": "You do not have permission to perform this action."},
-        )
 
-    def test_user_cannot_create_invitation_for_project_and_customer_simultaneously(
-        self,
-    ):
-        self.client.force_authenticate(user=self.staff)
-        payload = self._get_valid_project_invitation_payload(
-            self.project_group_invitation
-        )
-        customer_payload = self._get_valid_customer_invitation_payload(
+    @data(
+        "user",
+    )
+    def test_unauthorized_user_cannot_create_customer_owner_invitation(self, user):
+        self.client.force_authenticate(user=getattr(self, user))
+        payload = self._get_valid_customer_invitation_payload(
             self.customer_group_invitation
         )
-        payload["customer"] = customer_payload["customer"]
-        payload["customer_role"] = customer_payload["customer_role"]
-
         response = self.client.post(
             factories.GroupInvitationBaseFactory.get_list_url(), data=payload
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(
-            response.data,
-            {
-                "non_field_errors": [
-                    "Cannot create invitation to project and customer simultaneously."
-                ]
-            },
-        )
 
-    def test_user_cannot_create_invitation_without_customer_or_project(self):
+    def test_user_cannot_create_invitation_without_scope(self):
         self.client.force_authenticate(user=self.staff)
         payload = self._get_valid_project_invitation_payload(
             self.project_group_invitation
         )
-        payload.pop("project")
+        payload.pop("scope")
 
         response = self.client.post(
             factories.GroupInvitationBaseFactory.get_list_url(), data=payload
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(
-            response.data,
-            {"non_field_errors": ["Customer or project must be provided."]},
-        )
 
-    def test_user_cannot_create_project_invitation_without_project_role(self):
+    def test_user_cannot_create_project_invitation_without_role(self):
         self.client.force_authenticate(user=self.staff)
         payload = self._get_valid_project_invitation_payload(
             self.project_group_invitation
         )
-        payload.pop("project_role")
+        payload.pop("role")
 
         response = self.client.post(
             factories.GroupInvitationBaseFactory.get_list_url(), data=payload
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(
-            response.data, {"project_role": ["Project and its role must be provided."]}
-        )
 
     def test_user_cannot_create_customer_invitation_without_customer_role(self):
         self.client.force_authenticate(user=self.staff)
         payload = self._get_valid_customer_invitation_payload(
             self.customer_group_invitation
         )
-        payload.pop("customer_role")
+        payload.pop("role")
 
         response = self.client.post(
             factories.GroupInvitationBaseFactory.get_list_url(), data=payload
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(
-            response.data,
-            {"customer_role": ["Customer and its role must be provided."]},
-        )
 
     @override_waldur_core_settings(ONLY_STAFF_CAN_INVITE_USERS=True)
     def test_if_only_staff_can_create_invitation_then_owner_creates_invitation_request(
@@ -330,22 +298,24 @@ class GroupInvitationCreateTest(BaseGroupInvitationTest):
         self.assertEqual(invitation.is_active, True)
 
     # Helper methods
-    def _get_valid_project_invitation_payload(self, invitation=None, project_role=None):
+    def _get_valid_project_invitation_payload(
+        self, invitation: models.Invitation = None, role: Role = None
+    ):
         invitation = invitation or factories.ProjectInvitationFactory.build()
+        role = role or ProjectRole.ADMIN
         return {
-            "project": structure_factories.ProjectFactory.get_url(invitation.project),
-            "project_role": project_role or structure_models.ProjectRole.ADMINISTRATOR,
+            "scope": structure_factories.ProjectFactory.get_url(invitation.scope),
+            "role": role.uuid.hex,
         }
 
     def _get_valid_customer_invitation_payload(
-        self, invitation=None, customer_role=None
+        self, invitation: models.Invitation = None, role: Role = None
     ):
         invitation = invitation or factories.CustomerInvitationFactory.build()
+        role = role or CustomerRole.OWNER
         return {
-            "customer": structure_factories.CustomerFactory.get_url(
-                invitation.customer
-            ),
-            "customer_role": customer_role or structure_models.CustomerRole.OWNER,
+            "scope": structure_factories.CustomerFactory.get_url(invitation.scope),
+            "role": role.uuid.hex,
         }
 
 
@@ -389,6 +359,7 @@ class GroupInvitationCancelTest(BaseGroupInvitationTest):
         self.assertEqual(self.customer_group_invitation.is_active, False)
 
     def test_owner_can_not_cancel_customer_invitation(self):
+        CustomerRole.OWNER.delete_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
         self.client.force_authenticate(user=self.customer_owner)
         response = self.client.post(
             factories.CustomerGroupInvitationFactory.get_url(
@@ -417,7 +388,7 @@ class RequestCreateTest(BaseInvitationTest):
     def setUp(self):
         super().setUp()
         self.group_invitation = factories.CustomerGroupInvitationFactory(
-            customer=self.customer
+            scope=self.customer
         )
         self.url = factories.CustomerGroupInvitationFactory.get_url(
             self.group_invitation, "request"
@@ -439,8 +410,9 @@ class RequestCreateTest(BaseInvitationTest):
 
     @mock.patch("waldur_core.users.handlers.tasks")
     def test_notification_about_permission_request_has_been_submitted(self, mock_tasks):
-        self.client.force_authenticate(user=getattr(self, "user"))
-        self.client.post(self.url)
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         permission_request = models.PermissionRequest.objects.get(
             invitation=self.group_invitation
         )
@@ -454,7 +426,7 @@ class RequestRetrieveTest(BaseInvitationTest):
     def setUp(self):
         super().setUp()
         self.customer_group_invitation = factories.CustomerGroupInvitationFactory(
-            customer=self.customer
+            scope=self.customer
         )
         self.permission_request = factories.PermissionRequestFactory(
             invitation=self.customer_group_invitation,
@@ -497,7 +469,7 @@ class RequestApproveTest(BaseInvitationTest):
     def setUp(self):
         super().setUp()
         self.customer_group_invitation = factories.CustomerGroupInvitationFactory(
-            customer=self.customer
+            scope=self.customer
         )
         self.permission_request = factories.PermissionRequestFactory(
             invitation=self.customer_group_invitation,
@@ -524,6 +496,7 @@ class RequestApproveTest(BaseInvitationTest):
 
     @data("customer_owner", "created_by")
     def test_user_cannot_approve_request(self, user):
+        CustomerRole.OWNER.delete_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
         self.client.force_authenticate(user=getattr(self, user))
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -538,7 +511,7 @@ class RequestRejectTest(BaseInvitationTest):
     def setUp(self):
         super().setUp()
         self.customer_group_invitation = factories.CustomerGroupInvitationFactory(
-            customer=self.customer
+            scope=self.customer
         )
         self.permission_request = factories.PermissionRequestFactory(
             invitation=self.customer_group_invitation,
@@ -563,6 +536,7 @@ class RequestRejectTest(BaseInvitationTest):
 
     @data("customer_owner")
     def test_user_cannot_reject_request(self, user):
+        CustomerRole.OWNER.delete_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
         self.client.force_authenticate(user=getattr(self, user))
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

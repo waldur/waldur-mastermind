@@ -1,61 +1,94 @@
 from django.contrib.auth import get_user_model
-from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
-from waldur_core.structure import models as structure_models
+from waldur_core.core.serializers import GenericRelatedField
+from waldur_core.permissions.enums import TYPE_MAP
+from waldur_core.permissions.models import Role
+from waldur_core.structure.permissions import _get_customer
 from waldur_core.users import models
 
 User = get_user_model()
 
 
-class GroupInvitationSerializer(serializers.HyperlinkedModelSerializer):
-    project = serializers.HyperlinkedRelatedField(
-        view_name="project-detail",
-        lookup_field="uuid",
-        queryset=structure_models.Project.available_objects.all(),
-        required=False,
-        allow_null=True,
-    )
-    project_name = serializers.ReadOnlyField(source="project.name")
-    project_uuid = serializers.ReadOnlyField(source="project.uuid")
+class BaseInvitationDetailsSerializer(serializers.HyperlinkedModelSerializer):
     created_by_full_name = serializers.ReadOnlyField(source="created_by.full_name")
     created_by_username = serializers.ReadOnlyField(source="created_by.username")
-    customer = serializers.HyperlinkedRelatedField(
-        view_name="customer-detail",
-        lookup_field="uuid",
-        queryset=structure_models.Customer.objects.all(),
-        required=False,
-        allow_null=True,
-    )
-    customer_name = serializers.ReadOnlyField(source="customer.name")
+    scope_uuid = serializers.ReadOnlyField(source="scope.uuid")
+    scope_name = serializers.ReadOnlyField(source="scope.name")
+    scope_type = serializers.SerializerMethodField()
     customer_uuid = serializers.ReadOnlyField(source="customer.uuid")
+    customer_name = serializers.ReadOnlyField(source="customer.name")
+    role_description = serializers.ReadOnlyField(source="role.description")
 
+    class Meta:
+        model = models.BaseInvitation
+        fields = (
+            "scope_uuid",
+            "scope_name",
+            "scope_type",
+            "customer_uuid",
+            "customer_name",
+            "role_description",
+            "created_by_full_name",
+            "created_by_username",
+        )
+
+    def get_scope_type(self, invitation: models.Invitation):
+        if not invitation.content_type:
+            return
+        for name, (app_label, model_name) in TYPE_MAP.items():
+            ctype = invitation.content_type
+            if ctype.model != model_name:
+                continue
+            if ctype.app_label != app_label:
+                continue
+            return name
+
+
+class BaseInvitationSerializer(BaseInvitationDetailsSerializer):
+    scope = GenericRelatedField()
+    role = serializers.SlugRelatedField(
+        queryset=Role.objects.filter(is_active=True), slug_field="uuid"
+    )
     expires = serializers.DateTimeField(source="get_expiration_time", read_only=True)
 
     class Meta:
-        model = models.GroupInvitation
-        fields = (
+        model = models.BaseInvitation
+        fields = BaseInvitationDetailsSerializer.Meta.fields + (
             "url",
             "uuid",
-            "project",
-            "project_role",
-            "project_name",
-            "customer",
-            "customer_role",
-            "customer_name",
+            "role",
+            "scope",
             "created",
             "expires",
-            "created_by_full_name",
-            "created_by_username",
-            "is_active",
-            "project_uuid",
-            "customer_uuid",
         )
         read_only_fields = (
             "url",
             "uuid",
             "created",
             "expires",
+        )
+
+    def validate(self, attrs):
+        role: Role = attrs["role"]
+        scope = attrs["scope"]
+        if not isinstance(scope, role.content_type.model_class()):
+            raise serializers.ValidationError(
+                "Role and scope should belong to the same content type."
+            )
+        return attrs
+
+    def create(self, validated_data):
+        validated_data["customer"] = _get_customer(validated_data["scope"])
+        validated_data["created_by"] = self.context["request"].user
+        return super().create(validated_data)
+
+
+class GroupInvitationSerializer(BaseInvitationSerializer):
+    class Meta:
+        model = models.GroupInvitation
+        fields = BaseInvitationSerializer.Meta.fields + ("is_active",)
+        read_only_fields = BaseInvitationSerializer.Meta.read_only_fields + (
             "is_active",
         )
         extra_kwargs = {
@@ -63,119 +96,41 @@ class GroupInvitationSerializer(serializers.HyperlinkedModelSerializer):
                 "lookup_field": "uuid",
                 "view_name": "user-group-invitation-detail",
             },
-            "project_role": {"required": False, "allow_null": True},
-            "customer_role": {"required": False, "allow_null": True},
         }
 
-    def validate(self, attrs):
-        project = attrs.get("project")
-        customer = attrs.get("customer")
 
-        project_role = attrs.get("project_role", "")
-        customer_role = attrs.get("customer_role", "")
-
-        if customer and project:
-            raise serializers.ValidationError(
-                _("Cannot create invitation to project and customer simultaneously.")
-            )
-        elif not (customer or project):
-            raise serializers.ValidationError(
-                _("Customer or project must be provided.")
-            )
-        elif (customer and not customer_role) or (customer_role and not customer):
-            raise serializers.ValidationError(
-                {"customer_role": _("Customer and its role must be provided.")}
-            )
-        elif (project and not project_role) or (project_role and not project):
-            raise serializers.ValidationError(
-                {"project_role": _("Project and its role must be provided.")}
-            )
-
-        return attrs
-
-    def create(self, validated_data):
-        validated_data["created_by"] = self.context["request"].user
-        project = validated_data.get("project")
-        if project:
-            validated_data["customer"] = project.customer
-        return super().create(validated_data)
-
-
-class InvitationSerializer(GroupInvitationSerializer):
+class InvitationSerializer(BaseInvitationSerializer):
     class Meta:
         model = models.Invitation
-        detail_fields = (
+        fields = BaseInvitationSerializer.Meta.fields + (
             "full_name",
             "native_name",
             "tax_number",
             "phone_number",
             "organization",
             "job_title",
-        )
-        fields = (
-            "url",
-            "uuid",
             "email",
             "civil_number",
-            "project",
-            "project_role",
-            "project_name",
-            "customer",
-            "customer_role",
-            "customer_name",
             "state",
             "error_message",
-            "created",
-            "expires",
-            "created_by_full_name",
-            "created_by_username",
             "extra_invitation_text",
-        ) + detail_fields
-        read_only_fields = (
-            "url",
-            "uuid",
+        )
+        read_only_fields = BaseInvitationSerializer.Meta.read_only_fields + (
             "state",
             "error_message",
-            "created",
-            "expires",
         )
         extra_kwargs = {
             "url": {
                 "lookup_field": "uuid",
                 "view_name": "user-invitation-detail",
             },
-            "project_role": {
-                "required": False,
-                "allow_null": True,
-            },
-            "customer_role": {
-                "required": False,
-                "allow_null": True,
-            },
         }
 
 
-class PendingInvitationDetailsSerializer(serializers.ModelSerializer):
-    project_name = serializers.ReadOnlyField(source="project.name")
-    customer_name = serializers.ReadOnlyField(source="customer.name")
-    project_uuid = serializers.ReadOnlyField(source="project.uuid")
-    customer_uuid = serializers.ReadOnlyField(source="customer.uuid")
-    created_by_full_name = serializers.ReadOnlyField(source="created_by.full_name")
-    created_by_username = serializers.ReadOnlyField(source="created_by.username")
-
+class PendingInvitationDetailsSerializer(BaseInvitationDetailsSerializer):
     class Meta:
         model = models.Invitation
-        fields = (
-            "email",
-            "project_name",
-            "project_role",
-            "project_uuid",
-            "customer_name",
-            "customer_role",
-            "customer_uuid",
-            "created_by_full_name",
-            "created_by_username",
-        )
+        fields = BaseInvitationDetailsSerializer.Meta.fields + ("email",)
 
 
 class PermissionRequestSerializer(serializers.HyperlinkedModelSerializer):
@@ -184,12 +139,11 @@ class PermissionRequestSerializer(serializers.HyperlinkedModelSerializer):
     reviewed_by_full_name = serializers.ReadOnlyField(source="reviewed_by.full_name")
     reviewed_by_username = serializers.ReadOnlyField(source="reviewed_by.username")
     state = serializers.ReadOnlyField(source="get_state_display")
-    project_uuid = serializers.ReadOnlyField(source="invitation.project.uuid")
-    project_role = serializers.ReadOnlyField(source="invitation.project_role")
-    project_name = serializers.ReadOnlyField(source="invitation.project.name")
+    scope_uuid = serializers.ReadOnlyField(source="invitation.scope.uuid")
+    scope_name = serializers.ReadOnlyField(source="invitation.scope.name")
     customer_uuid = serializers.ReadOnlyField(source="invitation.customer.uuid")
-    customer_role = serializers.ReadOnlyField(source="invitation.customer_role")
     customer_name = serializers.ReadOnlyField(source="invitation.customer.name")
+    role_description = serializers.ReadOnlyField(source="invitation.role.description")
 
     class Meta:
         model = models.PermissionRequest
@@ -205,12 +159,11 @@ class PermissionRequestSerializer(serializers.HyperlinkedModelSerializer):
             "reviewed_by_username",
             "reviewed_at",
             "review_comment",
-            "project_uuid",
-            "project_role",
-            "project_name",
+            "scope_uuid",
+            "scope_name",
             "customer_uuid",
-            "customer_role",
             "customer_name",
+            "role_description",
         )
 
         extra_kwargs = {

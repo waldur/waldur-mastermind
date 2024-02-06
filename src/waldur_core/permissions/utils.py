@@ -4,7 +4,7 @@ from django.db.models import Q
 from django.db.models.query import QuerySet
 from rest_framework import exceptions
 
-from . import models, signals
+from . import enums, models, signals
 
 User = get_user_model()
 
@@ -71,7 +71,7 @@ def get_users_with_permission(scope, permission):
     return User.objects.filter(id__in=user_ids)
 
 
-def get_scope_ids(user, content_type, role=None):
+def get_scope_ids(user, content_type, role=None, permission=None):
     qs = models.UserRole.objects.filter(
         is_active=True, user=user, content_type=content_type
     )
@@ -79,6 +79,8 @@ def get_scope_ids(user, content_type, role=None):
         if not isinstance(role, list | tuple):
             role = [role]
         qs = qs.filter(role__name__in=role)
+    if permission:
+        qs = qs.filter(role__permissions__permission=permission)
     return qs.values_list("object_id", flat=True).distinct()
 
 
@@ -186,3 +188,14 @@ def get_customer(scope):
         return scope
     else:
         return scope.customer
+
+
+def get_valid_content_types():
+    return [
+        ContentType.objects.get_by_natural_key(*pair)
+        for pair in enums.TYPE_MAP.values()
+    ]
+
+
+def get_creation_permission(model_class):
+    return enums.PERMISSIONS_MAP.get(model_class._meta.model_name)

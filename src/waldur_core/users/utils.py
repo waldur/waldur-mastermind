@@ -1,15 +1,18 @@
 from django.conf import settings
 from django.core.signing import BadSignature, TimestampSigner
 from django.db import transaction
-from django.utils.translation import gettext_lazy as _
 from python_freeipa import exceptions as freeipa_exceptions
 from rest_framework import serializers
 
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.utils import pwgen
-from waldur_core.permissions.enums import PermissionEnum, RoleEnum
-from waldur_core.permissions.utils import has_permission, role_has_permission
+from waldur_core.permissions.utils import (
+    get_creation_permission,
+    get_customer,
+    get_users_with_permission,
+    has_permission,
+)
 from waldur_core.users import models
 from waldur_freeipa import tasks
 from waldur_freeipa.backend import FreeIPABackend
@@ -20,27 +23,13 @@ from waldur_freeipa.utils import generate_username
 def get_invitation_context(invitation: models.Invitation, sender):
     context = {"extra_invitation_text": invitation.extra_invitation_text}
 
-    if invitation.project_role is not None:
-        role = invitation.project.get_or_create_role(invitation.project_role)
-        context.update(
-            dict(
-                type=_("project"),
-                name=invitation.project.name,
-                role=role.description,
-                org_name=invitation.customer.name,
-            )
+    context.update(
+        dict(
+            type=invitation.scope._meta.verbose_name,
+            name=invitation.scope.name,
+            role=invitation.role.description,
         )
-    else:
-        role = invitation.customer.get_or_create_role(invitation.customer_role)
-        context.update(
-            dict(
-                type=_("organization"),
-                name=invitation.customer.name,
-                role=role.description,
-                org_name=invitation.customer.name,
-            )
-        )
-
+    )
     context["sender"] = sender
     context["invitation"] = invitation
     return context
@@ -166,42 +155,44 @@ def get_invitation_link(uuid):
     return core_utils.format_homeport_link("invitation/{uuid}/", uuid=uuid)
 
 
-def can_manage_invitation_with(
-    request, customer, customer_role=None, project_role=None, project=None
-):
+def can_manage_invitation_with(request, scope):
     if request.user.is_staff:
         return True
 
-    # It is assumed that either customer_role or project_role is not None
-    if customer_role:
-        return has_permission(
-            request, PermissionEnum.CREATE_CUSTOMER_PERMISSION, customer
-        )
-    if project_role and not project:
-        return has_permission(
-            request, PermissionEnum.CREATE_PROJECT_PERMISSION, customer
-        )
-    if project_role and project:
-        return has_permission(
-            request, PermissionEnum.CREATE_PROJECT_PERMISSION, customer
-        ) or has_permission(request, PermissionEnum.CREATE_PROJECT_PERMISSION, project)
+    permission = get_creation_permission(scope)
+    if not permission:
+        return False
+
+    if has_permission(request, permission, scope):
+        return True
+
+    customer = get_customer(scope)
+    if has_permission(request, permission, customer):
+        return True
+
+    return False
 
 
-def get_users_for_notification_about_request_has_been_submitted(permission_request):
-    can_manage_owners = role_has_permission(
-        RoleEnum.CUSTOMER_OWNER, PermissionEnum.CREATE_CUSTOMER_PERMISSION
-    )
-    project_role = permission_request.invitation.project_role
-    owners = permission_request.invitation.customer.get_owners()
+def get_users_for_notification_about_request_has_been_submitted(
+    permission_request: models.PermissionRequest,
+):
     staff_users = (
         core_models.User.objects.filter(is_staff=True, is_active=True)
         .exclude(email="")
         .exclude(notifications_enabled=False)
     )
 
-    if project_role:
-        return owners
-    elif can_manage_owners:
-        return owners
-    else:
+    scope = permission_request.invitation.scope
+
+    permission = get_creation_permission(scope)
+    if not permission:
         return staff_users
+
+    users = get_users_with_permission(scope, permission)
+    customer = get_customer(scope)
+    if customer != scope:
+        users |= get_users_with_permission(customer, permission)
+
+    users = users.exclude(email="").exclude(notifications_enabled=False)
+
+    return users or staff_users

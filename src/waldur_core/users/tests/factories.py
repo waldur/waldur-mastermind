@@ -1,7 +1,8 @@
 import factory.fuzzy
 from rest_framework.reverse import reverse
 
-from waldur_core.structure import models as structure_models
+from waldur_core.core.types import BaseMetaFactory
+from waldur_core.permissions import fixtures as permission_fixtures
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.users import models
 
@@ -24,21 +25,26 @@ class InvitationBaseFactory(factory.django.DjangoModelFactory):
         return url if action is None else url + action + "/"
 
 
-class ProjectInvitationFactory(InvitationBaseFactory):
+class ProjectInvitationFactory(
+    InvitationBaseFactory, metaclass=BaseMetaFactory[models.Invitation]
+):
     class Meta:
         model = models.Invitation
 
-    customer = factory.SelfAttribute("project.customer")
-    project = factory.SubFactory(structure_factories.ProjectFactory)
-    project_role = structure_models.ProjectRole.MANAGER
+    customer = factory.SelfAttribute("scope.customer")
+    scope = factory.SubFactory(structure_factories.ProjectFactory)
+    role = factory.LazyAttribute(lambda _: permission_fixtures.ProjectRole.MANAGER)
 
 
-class CustomerInvitationFactory(InvitationBaseFactory):
+class CustomerInvitationFactory(
+    InvitationBaseFactory, metaclass=BaseMetaFactory[models.Invitation]
+):
     class Meta:
         model = models.Invitation
 
-    customer = factory.SubFactory(structure_factories.CustomerFactory)
-    customer_role = structure_models.CustomerRole.OWNER
+    customer = factory.SelfAttribute("scope")
+    scope = factory.SubFactory(structure_factories.CustomerFactory)
+    role = factory.LazyAttribute(lambda _: permission_fixtures.CustomerRole.OWNER)
 
 
 class GroupInvitationBaseFactory(factory.django.DjangoModelFactory):
@@ -57,24 +63,32 @@ class GroupInvitationBaseFactory(factory.django.DjangoModelFactory):
         return url if action is None else url + action + "/"
 
 
-class ProjectGroupInvitationFactory(GroupInvitationBaseFactory):
+class ProjectGroupInvitationFactory(
+    GroupInvitationBaseFactory, metaclass=BaseMetaFactory[models.GroupInvitation]
+):
     class Meta:
         model = models.GroupInvitation
 
-    customer = factory.SelfAttribute("project.customer")
-    project = factory.SubFactory(structure_factories.ProjectFactory)
-    project_role = structure_models.ProjectRole.MANAGER
+    customer = factory.SelfAttribute("scope.customer")
+    scope = factory.SubFactory(structure_factories.ProjectFactory)
+    role = factory.LazyAttribute(lambda _: permission_fixtures.ProjectRole.MANAGER)
 
 
-class CustomerGroupInvitationFactory(GroupInvitationBaseFactory):
+class CustomerGroupInvitationFactory(
+    GroupInvitationBaseFactory, metaclass=BaseMetaFactory[models.GroupInvitation]
+):
     class Meta:
         model = models.GroupInvitation
 
-    customer = factory.SubFactory(structure_factories.CustomerFactory)
-    customer_role = structure_models.CustomerRole.OWNER
+    customer = factory.SelfAttribute("scope")
+    scope = factory.SubFactory(structure_factories.CustomerFactory)
+    role = factory.LazyAttribute(lambda _: permission_fixtures.CustomerRole.OWNER)
 
 
-class PermissionRequestFactory(factory.django.DjangoModelFactory):
+class PermissionRequestFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.PermissionRequest],
+):
     class Meta:
         model = models.PermissionRequest
 
