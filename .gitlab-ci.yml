@@ -225,3 +225,9 @@ Upload HomePort enums:
     - git branch new-enums
     - git push --set-upstream origin new-enums:develop
   before_script: []
+
+Lint MD links:
+  before_script:
+    - touch docs/core_structure.png
+    - touch docs/core_permissions.png
+    - touch docs/marketplace.png

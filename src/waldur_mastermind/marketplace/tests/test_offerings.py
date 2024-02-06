@@ -2174,3 +2174,31 @@ class OfferingRemoveComponentsTest(test.APITransactionTestCase):
         response = self.client.post(self.url, [])
 
         self.assertEqual(403, response.status_code)
+
+
+@ddt
+class OfferingBackendMetadataTest(test.APITransactionTestCase):
+    def setUp(self) -> None:
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.offering = self.fixture.offering
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING)
+        CustomerRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING)
+
+    @data("offering_owner", "service_manager")
+    def test_offering_backend_metadata_setting_is_allowed(self, user):
+        self.client.force_login(getattr(self.fixture, user))
+        url = factories.OfferingFactory.get_url(self.offering, "set_backend_metadata")
+        backend_metadata = {"field1": "value1", "field2": {"field3": "value3"}}
+        payload = {"backend_metadata": backend_metadata}
+        response = self.client.post(url, payload)
+        self.assertEqual(200, response.status_code)
+        self.offering.refresh_from_db()
+        self.assertEqual(backend_metadata, self.offering.backend_metadata)
+
+    @data("offering_manager", "offering_admin")
+    def test_offering_backend_metadata_setting_is_not_allowed(self, user):
+        self.client.force_login(getattr(self.fixture, user))
+        url = factories.OfferingFactory.get_url(self.offering, "set_backend_metadata")
+        payload = {"backend_metadata": {}}
+        response = self.client.post(url, payload)
+        self.assertEqual(403, response.status_code)

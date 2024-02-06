@@ -1000,6 +1000,12 @@ class NestedRoleSerializer(serializers.HyperlinkedModelSerializer):
         }
 
 
+class OfferingBackendMetadataSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Offering
+        fields = ("backend_metadata",)
+
+
 class ProviderOfferingDetailsSerializer(
     core_serializers.RestrictedSerializerMixin,
     structure_serializers.CountrySerializerMixin,
@@ -1094,6 +1100,7 @@ class ProviderOfferingDetailsSerializer(
             "parent_description",
             "parent_uuid",
             "parent_name",
+            "backend_metadata",
         )
         related_paths = {
             "customer": ("uuid", "name"),
@@ -3679,3 +3686,35 @@ class SectionSerializer(serializers.HyperlinkedModelSerializer):
             },
         )
         read_only_fields = ["created"]
+
+
+class IntegrationStatusSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.IntegrationStatus
+        fields = (
+            "agent_type",
+            "status",
+            "last_request_timestamp",
+        )
+
+
+def get_integration_status(serializer, offering):
+    if not has_permission(
+        serializer.context["request"], PermissionEnum.UPDATE_OFFERING, offering.customer
+    ):
+        return None
+
+    statuses = models.IntegrationStatus.objects.filter(offering=offering)
+    serializer = IntegrationStatusSerializer(instance=statuses, many=True)
+    return serializer.data
+
+
+def add_integration_status(sender, fields, **kwargs):
+    fields["integration_status"] = serializers.SerializerMethodField()
+    setattr(sender, "get_integration_status", get_integration_status)
+
+
+core_signals.pre_serializer_fields.connect(
+    sender=ProviderOfferingDetailsSerializer,
+    receiver=add_integration_status,
+)

@@ -361,6 +361,7 @@ class Offering(
     pid_mixins.DataciteMixin,
     CoordinatesMixin,
     structure_models.ImageModelMixin,
+    common_mixins.BackendMetadataMixin,
 ):
     class States:
         DRAFT = 1
@@ -1565,6 +1566,64 @@ class ResourceUser(TimeStampedModel, core_models.UuidMixin):
             "user",
             "role",
         )
+
+
+class IntegrationStatus(core_models.UuidMixin):
+    class States:
+        UNKNOWN = 1
+        ACTIVE = 2
+        DISCONNECTED = 3
+
+        CHOICES = (
+            (UNKNOWN, "Unknown"),
+            (ACTIVE, "Active"),
+            (DISCONNECTED, "Disconnected"),
+        )
+
+    class AgentTypes:
+        ORDER_PROCESSING = 1
+        USAGE_REPORTING = 2
+        GLAUTH_SYNC = 3
+
+        CHOICES = (
+            (ORDER_PROCESSING, "Order processing"),
+            (USAGE_REPORTING, "Usage reporting"),
+            (GLAUTH_SYNC, "Glauth sync"),
+        )
+
+    agent_type = models.CharField(
+        max_length=15, choices=AgentTypes.CHOICES, default=AgentTypes.ORDER_PROCESSING
+    )
+    offering = models.ForeignKey(
+        Offering,
+        on_delete=models.CASCADE,
+    )
+    status = FSMIntegerField(default=States.UNKNOWN, choices=States.CHOICES)
+    last_request_timestamp = models.DateTimeField(
+        _("time of latest backend request"), null=True, blank=True, editable=False
+    )
+
+    class Meta:
+        unique_together = ("offering", "agent_type")
+
+    @transition(
+        field=status,
+        source="*",
+        target=States.ACTIVE,
+    )
+    def set_backend_active(self):
+        pass
+
+    @transition(
+        field=status,
+        source=States.ACTIVE,
+        target=States.DISCONNECTED,
+    )
+    def set_backend_disconnected(self):
+        pass
+
+    def set_last_request_timestamp(self):
+        self.last_request_timestamp = timezone.now()
 
 
 reversion.register(Screenshot)

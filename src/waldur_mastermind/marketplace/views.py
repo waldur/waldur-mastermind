@@ -1213,6 +1213,14 @@ class ProviderOfferingViewSet(
                 % offering,
             )
 
+        integration_status, _ = models.IntegrationStatus.objects.get_or_create(
+            offering=offering,
+            agent_type=models.IntegrationStatus.AgentTypes.GLAUTH_SYNC,
+        )
+        integration_status.set_last_request_timestamp()
+        integration_status.set_backend_active()
+        integration_status.save()
+
         offering_users = models.OfferingUser.objects.filter(offering=offering).exclude(
             username=""
         )
@@ -1417,6 +1425,30 @@ class ProviderOfferingViewSet(
     sync_permissions = [
         permission_factory(
             PermissionEnum.UPDATE_OFFERING_COMPONENTS,
+            ["*", "customer"],
+        )
+    ]
+
+    @action(detail=True, methods=["POST"])
+    def set_backend_metadata(self, request, uuid=None):
+        offering = self.get_object()
+        offering_data = request.data
+        serializer = self.get_serializer(offering, data=offering_data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response(
+            status=status.HTTP_200_OK,
+            data="Offering backend metadata has been updated.",
+        )
+
+    set_backend_metadata_serializer_class = (
+        serializers.OfferingBackendMetadataSerializer
+    )
+
+    set_backend_metadata_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING,
             ["*", "customer"],
         )
     ]
@@ -1839,6 +1871,12 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
         )
     ]
 
+    def list(self, request, *args, **kwargs):
+        utils.refresh_integration_agent_status(
+            request, models.IntegrationStatus.AgentTypes.ORDER_PROCESSING
+        )
+        return super().list(request, *args, **kwargs)
+
     @action(detail=True, methods=["post"])
     def approve_by_consumer(self, request, uuid=None):
         order: models.Order = self.get_object()
@@ -2070,6 +2108,12 @@ class ResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
 
     def get_queryset(self):
         return self.queryset.filter_for_user(self.request.user)
+
+    def list(self, request, *args, **kwargs):
+        utils.refresh_integration_agent_status(
+            request, models.IntegrationStatus.AgentTypes.USAGE_REPORTING
+        )
+        return super().list(request, *args, **kwargs)
 
     @action(detail=True, methods=["get"])
     def details(self, request, uuid=None):
@@ -2405,6 +2449,14 @@ class ResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
                 data="Offering %s doesn't have feature service_provider_can_create_offering_user enabled"
                 % offering,
             )
+
+        integration_status, _ = models.IntegrationStatus.objects.get_or_create(
+            offering=offering,
+            agent_type=models.IntegrationStatus.AgentTypes.GLAUTH_SYNC,
+        )
+        integration_status.set_last_request_timestamp()
+        integration_status.set_backend_active()
+        integration_status.save()
 
         user_ids = get_project_users(project.id)
 

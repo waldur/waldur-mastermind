@@ -9,7 +9,8 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
 from waldur_core.core import views as core_views
-from waldur_mastermind.marketplace import models, permissions
+from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace import permissions
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
 from waldur_slurm import models as slurm_models
 from waldur_slurm import serializers as slurm_serializers
@@ -23,9 +24,9 @@ User = get_user_model()
 
 class SlurmViewSet(core_views.ActionsViewSet):
     lookup_field = "uuid"
-    queryset = models.Resource.objects.filter(offering__type=PLUGIN_NAME).exclude(
-        object_id=None
-    )
+    queryset = marketplace_models.Resource.objects.filter(
+        offering__type=PLUGIN_NAME
+    ).exclude(object_id=None)
     serializer_class = marketplace_serializers.ResourceSerializer
     disabled_actions = [
         "retrieve",
@@ -152,7 +153,7 @@ class SlurmViewSet(core_views.ActionsViewSet):
         )
         if created:
             logger.info("The association %s has been created", association)
-            offering_users = models.OfferingUser.objects.filter(
+            offering_users = marketplace_models.OfferingUser.objects.filter(
                 offering=offering, username=username
             )
             if offering_users.count() == 0:

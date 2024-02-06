@@ -481,3 +481,23 @@ class SectionFactory(factory.django.DjangoModelFactory):
     @classmethod
     def get_list_url(cls):
         return "http://testserver" + reverse("marketplace-section-list")
+
+
+class IntegrationStatusFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = models.IntegrationStatus
+
+    @classmethod
+    def get_url(cls, integration_status=None, action=None):
+        if integration_status is None:
+            integration_status = IntegrationStatusFactory()
+        url = "http://testserver" + reverse(
+            "marketplace-integration-status-detail",
+            kwargs={"uuid": integration_status.uuid.hex},
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = "http://testserver" + reverse("marketplace-integration-status-list")
+        return url if action is None else url + action + "/"
