@@ -96,7 +96,7 @@ class ProjectQuotasViewSet(viewsets.GenericViewSet):
                 content_type=content_type,
                 name=quota_name,
             )
-            .annotate(usage=Sum("usage"))
+            .annotate(usage=Sum("delta"))
             .values("usage")
         )
         subquery = Subquery(quotas)
