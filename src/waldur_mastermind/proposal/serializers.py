@@ -131,6 +131,12 @@ class NestedRoundSerializer(serializers.HyperlinkedModelSerializer):
         ]
 
 
+class CallDocumentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.CallDocument
+        fields = ["file"]
+
+
 class PublicCallSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
@@ -143,6 +149,7 @@ class PublicCallSerializer(
     rounds = NestedRoundSerializer(many=True, read_only=True, source="round_set")
     start_date = serializers.SerializerMethodField()
     end_date = serializers.SerializerMethodField()
+    documents = CallDocumentSerializer(many=True, read_only=True)
 
     class Meta:
         model = models.Call
@@ -160,6 +167,7 @@ class PublicCallSerializer(
             "customer_name",
             "offerings",
             "rounds",
+            "documents",
         )
         view_name = "proposal-public-call-detail"
         read_only_fields = ("created_by",)
@@ -175,6 +183,7 @@ class PublicCallSerializer(
                 "lookup_field": "uuid",
                 "view_name": "user-detail",
             },
+            "documents": {"required": False},
         }
 
     def get_start_date(self, obj):
