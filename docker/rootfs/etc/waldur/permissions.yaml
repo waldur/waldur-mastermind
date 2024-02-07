@@ -1,5 +1,5 @@
 - role: CUSTOMER.OWNER
-  description: Owner
+  description: Organization owner
   permissions:
     - OFFERING.CREATE
     - OFFERING.DELETE
@@ -60,7 +60,7 @@
     - PROJECT.DELETE
 
 - role: CUSTOMER.MANAGER
-  description: Manager
+  description: Organization manager
   permissions:
     - RESOURCE.SET_END_DATE
     - RESOURCE.SET_BACKEND_ID
