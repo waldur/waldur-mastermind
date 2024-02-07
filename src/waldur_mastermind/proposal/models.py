@@ -15,6 +15,19 @@ from waldur_mastermind.marketplace.models import SafeAttributesMixin
 logger = logging.getLogger(__name__)
 
 
+class CallDocument(
+    TimeStampedModel,
+    core_models.UuidMixin,
+):
+    call = models.ForeignKey("Call", on_delete=models.CASCADE)
+    file = models.FileField(
+        upload_to="call_documents",
+        blank=True,
+        null=True,
+        help_text="Documentation for call for proposals.",
+    )
+
+
 class CallManagingOrganisation(
     core_models.UuidMixin,
     core_models.DescribableMixin,
@@ -69,6 +82,7 @@ class Call(
     reviewers = models.ManyToManyField(
         core_models.User, through="CallReviewer", through_fields=("call", "user")
     )
+    documents = models.ManyToManyField(CallDocument, related_name="call_documents")
 
     class Permissions:
         customer_path = "manager__customer"

@@ -20,6 +20,8 @@ from waldur_core.structure import filters as structure_filters
 from waldur_mastermind.marketplace.views import BaseMarketplaceView, PublicViewsetMixin
 from waldur_mastermind.proposal import filters, models, serializers
 
+from . import log
+
 logger = logging.getLogger(__name__)
 
 
@@ -254,6 +256,45 @@ class ProtectedCallViewSet(core_views.ActionsViewSet):
         )(self, request, uuid, obj_uuid)
 
     reviewer_detail_serializer_class = serializers.ReviewerSerializer
+
+    @decorators.action(detail=True, methods=["post"])
+    def attach_documents(self, request, uuid=None):
+        try:
+            instance = self.get_object()
+
+            documents = request.data.getlist("documents", [])
+            existing_files = set(instance.documents.values_list("uuid", flat=True))
+
+            for file_data in documents:
+                obj, created = models.CallDocument.objects.get_or_create(
+                    call=instance, file=file_data
+                )
+                log.event_logger.proposal.info(
+                    f"Attachment for {instance.name} has been added.",
+                    event_type="call_proposal_document_added",
+                )
+                logger.info(f"Attachment for {instance.name} has been added.")
+                existing_files.discard(obj.uuid)
+
+            models.CallDocument.objects.filter(uuid__in=existing_files).delete()
+            log.event_logger.proposal.info(
+                f"Attachment for {instance.name} has been removed.",
+                event_type="call_proposal_document_removed",
+            )
+            logger.info(f"Attachment for {instance.name} has been removed.")
+
+            return response.Response(
+                "Documents attached successfully",
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception:
+            return response.Response(
+                "Error attaching documents",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    attach_documents_serializer_class = serializers.CallDocumentSerializer
 
 
 class ProposalViewSet(core_views.ActionsViewSet):

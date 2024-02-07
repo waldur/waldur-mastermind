@@ -1,6 +1,7 @@
 from ddt import data, ddt
 from rest_framework import status, test
 
+from waldur_core.media.utils import dummy_image
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.proposal import models
 from waldur_mastermind.proposal.tests import fixtures
@@ -103,6 +104,7 @@ class CallUpdateTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.call = self.fixture.call
+        self.manager = self.fixture.manager
 
     @data("staff", "owner", "customer_support")
     def test_user_can_update_call(self, user):
@@ -125,6 +127,33 @@ class CallUpdateTest(test.APITransactionTestCase):
         response = self.client.patch(url, payload, **kwargs)
         self.call.refresh_from_db()
         return response
+
+    @data("staff", "owner", "customer_support")
+    def test_upload_documents(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        url = factories.CallFactory.get_protected_url(
+            self.call, action="attach_documents"
+        )
+        payload = {
+            "documents": [
+                {"file": dummy_image()},
+                {"file": dummy_image()},
+            ],
+        }
+
+        response = self.client.post(url, payload, format="multipart")
+        call = models.Call.objects.get(uuid=self.call.uuid)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(call.calldocument_set.all()), 2)
+
+        payload = {
+            "documents": [],
+        }
+        response = self.client.post(url, payload, format="multipart")
+        call = models.Call.objects.get(uuid=self.call.uuid)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(call.documents.all()), 0)
 
 
 @ddt
