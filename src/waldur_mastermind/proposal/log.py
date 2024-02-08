@@ -13,7 +13,6 @@ class CallProposalLogger(EventLogger):
 
     @staticmethod
     def get_scopes(event_context):
-        print(event_context)
         return {event_context["customer"]}
 
 
