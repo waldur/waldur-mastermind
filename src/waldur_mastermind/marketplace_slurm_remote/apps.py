@@ -38,6 +38,7 @@ class MarketplaceSlurmConfig(AppConfig):
             create_resource_processor=processor.CreateAllocationProcessor,
             update_resource_processor=processor.UpdateAllocationLimitsProcessor,
             delete_resource_processor=processor.DeleteAllocationProcessor,
+            can_update_limits=True,
         )
 
         marketplace_signals.resource_deletion_succeeded.connect(
