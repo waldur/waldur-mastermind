@@ -37,7 +37,7 @@ class SmaxServiceBackend(SupportBackend):
         if support_user.backend_id:
             return support_user
 
-        backend_user = self.manager.search_user_by_email(waldur_user.email)
+        backend_user = self.manager.get_user_by_email(waldur_user.email)
 
         if not backend_user:
             user = User(
