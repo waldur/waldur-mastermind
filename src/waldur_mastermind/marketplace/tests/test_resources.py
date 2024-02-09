@@ -728,6 +728,75 @@ class ResourceUpdateTest(test.APITransactionTestCase):
                 ).exists()
             )
 
+    def test_resource_end_date_is_set_to_default_termination_if_required_and_not_provided(
+        self,
+    ):
+        self.fixture.resource.offering.plugin_options = {
+            "is_resource_termination_date_required": True,
+            "default_resource_termination_offset_in_days": 7,
+        }
+        self.fixture.resource.offering.save()
+        payload = {
+            "name": "resource name update",
+        }
+        response = self.make_request(self.fixture.staff, payload)
+        self.fixture.resource.refresh_from_db()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data["end_date"].date(), self.fixture.resource.end_date
+        )
+
+    def test_end_date_is_not_updated_if_later_than_max_end_date(self):
+        self.fixture.resource.offering.plugin_options = {
+            "is_resource_termination_date_required": True,
+            "default_resource_termination_offset_in_days": 7,
+            "max_resource_termination_offset_in_days": 30,
+        }
+        self.fixture.resource.offering.save()
+        end_date = self.fixture.resource.created + datetime.timedelta(days=50)
+        end_date = end_date.date()
+        payload = {
+            "end_date": end_date,
+        }
+        response = self.make_request(self.fixture.staff, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_end_date_is_updated_if_earlier_than_max_end_date(self):
+        self.fixture.resource.offering.plugin_options = {
+            "is_resource_termination_date_required": True,
+            "default_resource_termination_offset_in_days": 7,
+            "max_resource_termination_offset_in_days": 30,
+        }
+        self.fixture.resource.offering.save()
+        end_date = self.fixture.resource.created + datetime.timedelta(days=15)
+        end_date = end_date.date()
+        payload = {
+            "end_date": end_date,
+        }
+        response = self.make_request(self.fixture.staff, payload)
+        self.fixture.resource.refresh_from_db()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data["end_date"], self.fixture.resource.end_date, end_date
+        )
+
+    def test_end_date_is_not_updated_if_later_than_latest_date_for_resource_termination(
+        self,
+    ):
+        with freeze_time("2022-01-01"):
+            self.fixture.resource.offering.plugin_options = {
+                "is_resource_termination_date_required": True,
+                "default_resource_termination_offset_in_days": 7,
+                "latest_date_for_resource_termination": "2030-01-01",
+            }
+            self.fixture.resource.offering.save()
+            end_date = "2031-01-01"
+            payload = {
+                "end_date": end_date,
+            }
+            response = self.make_request(self.fixture.staff, payload)
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
 
 @ddt
 class ResourceSetEndDateByProviderTest(test.APITransactionTestCase):

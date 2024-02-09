@@ -1,7 +1,9 @@
+import datetime
 import unittest
 from unittest.mock import patch
 
 import ddt
+from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.permissions.enums import PermissionEnum
@@ -101,6 +103,95 @@ class CartSubmitTest(test.APITransactionTestCase):
 
         order = models.Order.objects.last()
         self.assertEqual(order.limits["cpu_count"], 5)
+
+    def test_resource_end_date_set_to_default_if_required_but_not_provided(self):
+        self.client.force_authenticate(self.fixture.owner)
+        self.offering.plugin_options = {
+            "is_resource_termination_date_required": True,
+            "default_resource_termination_offset_in_days": 7,
+        }
+        self.offering.save()
+
+        url = factories.CartItemFactory.get_list_url()
+        payload = self.get_payload(self.fixture.project)
+        response = self.client.post(url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        response = self.submit(self.fixture.project)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        resource = models.Resource.objects.last()
+        end_date = resource.created + datetime.timedelta(days=7)
+        self.assertEqual(resource.end_date, end_date.date())
+
+    def test_resource_is_not_created_if_end_date_later_than_max_end_date(self):
+        with freeze_time("2022-01-01"):
+            self.client.force_authenticate(self.fixture.owner)
+            self.offering.plugin_options = {
+                "is_resource_termination_date_required": True,
+                "default_resource_termination_offset_in_days": 7,
+                "max_resource_termination_offset_in_days": 30,
+            }
+            self.offering.save()
+            end_date = datetime.date(2025, 12, 25)
+
+            url = factories.CartItemFactory.get_list_url()
+            payload = self.get_payload(self.fixture.project)
+            payload["attributes"] = {"name": "test", "end_date": end_date}
+
+            response = self.client.post(url, payload)
+            self.assertEqual(
+                response.status_code, status.HTTP_201_CREATED, response.data
+            )
+
+            response = self.submit(self.fixture.project)
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_resource_is_created_if_end_date_earlier_than_max_end_date(self):
+        self.client.force_authenticate(self.fixture.owner)
+        self.offering.plugin_options = {
+            "is_resource_termination_date_required": True,
+            "default_resource_termination_offset_in_days": 7,
+            "max_resource_termination_offset_in_days": 30,
+        }
+        self.offering.save()
+        end_date = datetime.date.today() + datetime.timedelta(days=10)
+
+        url = factories.CartItemFactory.get_list_url()
+        payload = self.get_payload(self.fixture.project)
+        payload["attributes"] = {"name": "test", "end_date": end_date}
+
+        response = self.client.post(url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        response = self.submit(self.fixture.project)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        resource = models.Resource.objects.last()
+        self.assertEqual(resource.end_date, end_date)
+
+    def test_resource_is_not_created_if_end_date_later_than_latest_date_for_resource_termination(
+        self,
+    ):
+        with freeze_time("2022-01-01"):
+            self.client.force_authenticate(self.fixture.owner)
+            self.offering.plugin_options = {
+                "is_resource_termination_date_required": True,
+                "default_resource_termination_offset_in_days": 7,
+                "latest_date_for_resource_termination": "2030-01-01",
+            }
+            self.offering.save()
+            end_date = datetime.date(2031, 12, 25)
+
+            url = factories.CartItemFactory.get_list_url()
+            payload = self.get_payload(self.fixture.project)
+            payload["attributes"] = {"name": "test", "end_date": end_date}
+
+            response = self.client.post(url, payload)
+            self.assertEqual(
+                response.status_code, status.HTTP_201_CREATED, response.data
+            )
+
+            response = self.submit(self.fixture.project)
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_plan_validate(self):
         self.client.force_authenticate(self.fixture.owner)
