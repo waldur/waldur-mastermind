@@ -2,7 +2,7 @@ import json
 
 from django.core.management.base import BaseCommand
 
-from waldur_core.core.models import Notification
+from waldur_core.core.models import Notification, NotificationTemplate
 from waldur_core.structure.notifications import NOTIFICATIONS
 
 
@@ -43,9 +43,21 @@ class Command(BaseCommand):
             notification, created = Notification.objects.get_or_create(
                 key=valid_notification_data["path"],
             )
+
+            for notification_template_path in valid_notification_data[
+                "templates"
+            ].keys():
+                (
+                    created_notification_template,
+                    _,
+                ) = NotificationTemplate.objects.get_or_create(
+                    path=notification_template_path
+                )
+                notification.templates.add(created_notification_template)
+
             file_enabled_status = notifications[valid_notification_data["path"]]
             if notification.enabled != file_enabled_status:
-                notification.enabled = notifications[valid_notification_data["path"]]
+                notification.enabled = file_enabled_status
                 notification.save()
                 self.stdout.write(
                     self.style.WARNING(
