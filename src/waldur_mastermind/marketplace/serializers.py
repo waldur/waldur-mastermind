@@ -54,6 +54,7 @@ from waldur_mastermind.marketplace.utils import (
     get_service_provider_resources,
     get_service_provider_user_ids,
     validate_attributes,
+    validate_end_date,
 )
 from waldur_mastermind.proposal import models as proposal_models
 from waldur_pid import models as pid_models
@@ -2037,6 +2038,7 @@ class CartSubmitSerializer(serializers.Serializer):
     def create(self, validated_data):
         request = self.context["request"]
         project = validated_data["project"]
+        user = self.context["request"].user
 
         items = models.CartItem.objects.filter(user=request.user, project=project)
         if not items.exists():
@@ -2051,6 +2053,7 @@ class CartSubmitSerializer(serializers.Serializer):
                 attributes=item.attributes,
                 name=item.attributes.get("name") or "",
             )
+            validate_end_date(resource, user, item.attributes.get("end_date"))
             resource.init_cost()
             resource.save()
 
@@ -2485,10 +2488,9 @@ class ResourceUpdateSerializer(serializers.ModelSerializer):
         resource = super().save(**kwargs)
         user = self.context["request"].user
 
-        if "end_date" in self.validated_data:
-            resource.end_date_requested_by = user
-            resource.save()
-            log.log_marketplace_resource_end_date_has_been_updated(resource, user)
+        validate_end_date(resource, user, self.validated_data.get("end_date"))
+        resource.save()
+        log.log_marketplace_resource_end_date_has_been_updated(resource, user)
 
 
 class ResourceEndDateByProviderSerializer(serializers.ModelSerializer):

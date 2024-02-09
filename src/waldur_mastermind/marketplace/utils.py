@@ -1412,3 +1412,72 @@ def refresh_integration_agent_status(request, agent_type):
     integration_status.set_last_request_timestamp()
     integration_status.set_backend_active()
     integration_status.save()
+
+
+def validate_end_date(
+    resource,
+    user,
+    end_date=None,
+):
+    is_resource_termination_date_required = resource.offering.plugin_options.get(
+        "is_resource_termination_date_required"
+    )
+    max_resource_termination_offset_in_days = resource.offering.plugin_options.get(
+        "max_resource_termination_offset_in_days"
+    )
+    default_resource_termination_offset_in_days = resource.offering.plugin_options.get(
+        "default_resource_termination_offset_in_days"
+    )
+    latest_date_for_resource_termination = resource.offering.plugin_options.get(
+        "latest_date_for_resource_termination"
+    )
+
+    if latest_date_for_resource_termination:
+        latest_date_for_resource_termination = datetime.datetime.strptime(
+            latest_date_for_resource_termination, "%Y-%m-%d"
+        ).date()
+
+    if is_resource_termination_date_required:
+        if not end_date:
+            resource_termination_date = resource.created + datetime.timedelta(
+                days=int(default_resource_termination_offset_in_days)
+            )
+            if latest_date_for_resource_termination:
+                resource_termination_date = min(
+                    resource_termination_date, latest_date_for_resource_termination
+                )
+            resource.end_date = resource_termination_date
+        elif max_resource_termination_offset_in_days:
+            calculated_max_end_date = resource.created + datetime.timedelta(
+                days=int(max_resource_termination_offset_in_days)
+            )
+            resource_termination_date = datetime.datetime.strptime(
+                str(end_date), "%Y-%m-%d"
+            ).date()
+            calculated_max_end_date_date = calculated_max_end_date.date()
+            if resource_termination_date > calculated_max_end_date_date:
+                raise serializers.ValidationError(
+                    {
+                        "end_date": _(
+                            "End date can not be later than the maximal date set for termination."
+                        )
+                    }
+                )
+            resource.end_date = resource_termination_date
+        else:
+            resource_termination_date = datetime.datetime.strptime(
+                str(end_date), "%Y-%m-%d"
+            ).date()
+            if latest_date_for_resource_termination:
+                if resource_termination_date > latest_date_for_resource_termination:
+                    raise serializers.ValidationError(
+                        {
+                            "end_date": _(
+                                "End date can not be later than the maximal date set for termination."
+                            )
+                        }
+                    )
+            resource.end_date = resource_termination_date
+
+    if end_date:
+        resource.end_date_requested_by = user
