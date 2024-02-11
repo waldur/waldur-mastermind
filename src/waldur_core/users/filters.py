@@ -11,6 +11,7 @@ from waldur_core.permissions.utils import (
     get_creation_permission,
     get_scope_ids,
     get_valid_content_types,
+    get_valid_models,
 )
 from waldur_core.structure.managers import get_connected_customers
 
@@ -19,7 +20,7 @@ from . import models
 
 class InvitationScopeFilterBackend(core_filters.GenericKeyFilterBackend):
     def get_related_models(self):
-        return [ct.model_class() for ct in get_valid_content_types()]
+        return get_valid_models()
 
     def get_field_name(self):
         return "scope"

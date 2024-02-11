@@ -4,6 +4,7 @@ from rest_framework import serializers
 from waldur_core.core.serializers import GenericRelatedField
 from waldur_core.permissions.enums import TYPE_MAP
 from waldur_core.permissions.models import Role
+from waldur_core.permissions.utils import get_valid_models
 from waldur_core.structure.permissions import _get_customer
 from waldur_core.users import models
 
@@ -46,7 +47,7 @@ class BaseInvitationDetailsSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class BaseInvitationSerializer(BaseInvitationDetailsSerializer):
-    scope = GenericRelatedField()
+    scope = GenericRelatedField(get_valid_models)
     role = serializers.SlugRelatedField(
         queryset=Role.objects.filter(is_active=True), slug_field="uuid"
     )

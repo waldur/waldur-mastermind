@@ -1,5 +1,6 @@
 import logging
 
+from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils.translation import gettext_lazy as _
@@ -8,6 +9,7 @@ from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
 
 from waldur_core.core import models as core_models
+from waldur_core.permissions.utils import get_users
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.models import SafeAttributesMixin
@@ -79,9 +81,6 @@ class Call(
     offerings = models.ManyToManyField(
         marketplace_models.Offering, through="RequestedOffering"
     )
-    reviewers = models.ManyToManyField(
-        core_models.User, through="CallReviewer", through_fields=("call", "user")
-    )
     documents = models.ManyToManyField(CallDocument, related_name="call_documents")
 
     class Permissions:
@@ -89,6 +88,10 @@ class Call(
 
     def __str__(self):
         return f"{self.name} | {self.manager.customer}"
+
+    @property
+    def reviewers(self):
+        return get_users(self)
 
 
 class RequestedOffering(SafeAttributesMixin, core_models.UuidMixin, TimeStampedModel):
@@ -118,26 +121,6 @@ class RequestedOffering(SafeAttributesMixin, core_models.UuidMixin, TimeStampedM
     )
     state = FSMIntegerField(default=States.REQUESTED, choices=States.CHOICES)
     call = models.ForeignKey(Call, on_delete=models.CASCADE)
-
-
-class CallReviewer(core_models.UuidMixin, TimeStampedModel):
-    created_by = models.ForeignKey(
-        core_models.User,
-        on_delete=models.CASCADE,
-        related_name="+",
-    )
-    user = models.ForeignKey(
-        core_models.User,
-        on_delete=models.CASCADE,
-        related_name="+",
-    )
-    call = models.ForeignKey(Call, on_delete=models.CASCADE)
-
-    class Meta:
-        unique_together = ("user", "call")
-
-    def __str__(self):
-        return self.user.full_name
 
 
 class Round(
@@ -307,7 +290,9 @@ class Review(
     summary_score = models.PositiveSmallIntegerField(blank=True, default=0)
     summary_public_comment = models.TextField(blank=True)
     summary_private_comment = models.TextField(blank=True)
-    reviewer = models.ForeignKey(CallReviewer, on_delete=models.CASCADE)
+    reviewer = models.ForeignKey(
+        to=settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="+"
+    )
 
     tracker = FieldTracker()
 

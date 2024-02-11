@@ -2,7 +2,7 @@ from waldur_mastermind.proposal import models
 
 
 def create_reviews(sender, instance, created=False, **kwargs):
-    proposal = instance
+    proposal: models.Proposal = instance
 
     if created:
         return
@@ -19,5 +19,5 @@ def create_reviews(sender, instance, created=False, **kwargs):
     if proposal.round.review_strategy != models.Round.ReviewStrategies.AFTER_PROPOSAL:
         return
 
-    for reviewer in proposal.round.call.callreviewer_set.all():
+    for reviewer in proposal.round.call.reviewers:
         models.Review.objects.create(reviewer=reviewer, proposal=proposal)

@@ -197,5 +197,9 @@ def get_valid_content_types():
     ]
 
 
+def get_valid_models():
+    return [ct.model_class() for ct in get_valid_content_types()]
+
+
 def get_creation_permission(model_class):
     return enums.PERMISSIONS_MAP.get(model_class._meta.model_name)
