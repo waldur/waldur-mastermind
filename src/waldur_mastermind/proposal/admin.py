@@ -13,13 +13,8 @@ class RoundInline(admin.TabularInline):
     extra = 1
 
 
-class CallReviewersInline(admin.TabularInline):
-    model = models.CallReviewer
-    extra = 1
-
-
 class CallAdmin(admin.ModelAdmin):
-    inlines = [RequestedOfferingInline, RoundInline, CallReviewersInline]
+    inlines = [RequestedOfferingInline, RoundInline]
     list_display = ("name",)
 
 

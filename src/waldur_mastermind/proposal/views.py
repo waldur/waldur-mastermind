@@ -9,13 +9,11 @@ from rest_framework import permissions as rf_permissions
 
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
-from waldur_core.core.exceptions import (
-    IncorrectMethodException,
-    IncorrectStateException,
-)
+from waldur_core.core.exceptions import IncorrectStateException
 from waldur_core.core.views import ActionsViewSet
 from waldur_core.permissions import models as permissions_models
 from waldur_core.permissions.enums import SYSTEM_CUSTOMER_ROLES
+from waldur_core.permissions.views import UserRoleMixin
 from waldur_core.structure import filters as structure_filters
 from waldur_mastermind.marketplace.views import BaseMarketplaceView, PublicViewsetMixin
 from waldur_mastermind.proposal import filters, models, serializers
@@ -42,7 +40,7 @@ class PublicCallViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = (rf_permissions.AllowAny,)
 
 
-class ProtectedCallViewSet(core_views.ActionsViewSet):
+class ProtectedCallViewSet(UserRoleMixin, core_views.ActionsViewSet):
     lookup_field = "uuid"
     queryset = models.Call.objects.all().order_by("created")
     serializer_class = serializers.ProtectedCallSerializer
@@ -237,26 +235,6 @@ class ProtectedCallViewSet(core_views.ActionsViewSet):
 
     round_detail_serializer_class = serializers.RoundSerializer
 
-    @decorators.action(detail=True, methods=["get", "post"])
-    def reviewers(self, request, uuid=None):
-        return self._action_list_method(
-            "callreviewer_set", ["validate_unique_together"]
-        )(self, request, uuid)
-
-    reviewers_serializer_class = serializers.ReviewerSerializer
-
-    def reviewer_detail(self, request, uuid=None, obj_uuid=None):
-        def update_validator(*args, **kwargs):
-            raise IncorrectMethodException()
-
-        return self._action_detail_method(
-            "callreviewer_set",
-            delete_validators=[],
-            update_validators=[update_validator],
-        )(self, request, uuid, obj_uuid)
-
-    reviewer_detail_serializer_class = serializers.ReviewerSerializer
-
     @decorators.action(detail=True, methods=["post"])
     def attach_documents(self, request, uuid=None):
         try:
@@ -400,7 +378,7 @@ class ReviewViewSet(ActionsViewSet):
         ).values_list("object_id", flat=True)
         return models.Review.objects.filter(
             Q(proposal__round__call__manager__customer__in=customer_ids)
-            | Q(reviewer__user=user)
+            | Q(reviewer=user)
             | Q(state=models.Review.States.SUBMITTED, proposal__created_by=user)
         )
 
@@ -408,13 +386,13 @@ class ReviewViewSet(ActionsViewSet):
         if review.proposal.state != models.Proposal.States.SUBMITTED:
             raise IncorrectStateException()
 
-    def action_permission_check(request, view, obj=None):
+    def action_permission_check(request, view, obj: models.Review = None):
         if not obj:
             return
 
         user = request.user
 
-        if user.is_staff or obj.reviewer.user == user:
+        if user.is_staff or obj.reviewer == user:
             return
 
         raise exceptions.PermissionDenied()

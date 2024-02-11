@@ -244,76 +244,7 @@ class RequestedOfferingSerializer(
         return super().create(validated_data)
 
 
-class ReviewerSerializer(
-    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
-):
-    url = serializers.SerializerMethodField()
-
-    class Meta:
-        model = models.CallReviewer
-        fields = (
-            "url",
-            "uuid",
-            "user",
-            "user_full_name",
-            "user_native_name",
-            "user_username",
-            "user_uuid",
-            "user_email",
-            "created",
-            "created_by",
-            "created_by_full_name",
-            "created_by_native_name",
-            "created_by_username",
-            "created_by_uuid",
-            "created_by_email",
-        )
-        read_only_fields = ("created_by",)
-        related_paths = {
-            "user": ("username", "full_name", "native_name", "uuid", "email"),
-            "created_by": ("username", "full_name", "native_name", "uuid", "email"),
-        }
-        extra_kwargs = {
-            "url": {
-                "lookup_field": "uuid",
-            },
-            "user": {
-                "lookup_field": "uuid",
-                "view_name": "user-detail",
-            },
-            "created_by": {
-                "lookup_field": "uuid",
-                "view_name": "user-detail",
-            },
-        }
-
-    def get_url(self, reviewer):
-        return self.context["request"].build_absolute_uri(
-            reverse(
-                "proposal-call-reviewer-detail",
-                kwargs={
-                    "uuid": reviewer.call.uuid.hex,
-                    "obj_uuid": reviewer.uuid.hex,
-                },
-            )
-        )
-
-    def validate_unique_together(self, call):
-        user = self.validated_data["user"]
-
-        if call.callreviewer_set.filter(user_id=user.id).exists():
-            raise serializers.ValidationError(
-                {"user": _("User must by unique for a call.")}
-            )
-
-    def create(self, validated_data):
-        validated_data["created_by"] = self.context["request"].user
-        return super().create(validated_data)
-
-
 class ProtectedCallSerializer(PublicCallSerializer):
-    reviewers = ReviewerSerializer(many=True, read_only=True, source="callreviewer_set")
-
     class Meta(PublicCallSerializer.Meta):
         fields = PublicCallSerializer.Meta.fields + (
             "reviewers",
@@ -323,7 +254,7 @@ class ProtectedCallSerializer(PublicCallSerializer):
         protected_fields = ("manager",)
 
     def validate(self, attrs):
-        manager = attrs.get("manager")
+        manager: models.CallManagingOrganisation = attrs.get("manager")
         user = self.context["request"].user
 
         if manager and not user.is_staff and user not in manager.customer.get_users():
@@ -443,7 +374,6 @@ class ReviewSerializer(
     serializers.HyperlinkedModelSerializer,
 ):
     state = serializers.ReadOnlyField(source="get_state_display")
-    reviewer = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Review
@@ -466,18 +396,11 @@ class ReviewSerializer(
                 "lookup_field": "uuid",
                 "view_name": "proposal-proposal-detail",
             },
+            "reviewer": {
+                "lookup_field": "uuid",
+                "view_name": "user-detail",
+            },
         }
-
-    def get_reviewer(self, review):
-        return self.context["request"].build_absolute_uri(
-            reverse(
-                "proposal-call-reviewer-detail",
-                kwargs={
-                    "uuid": review.proposal.round.call.uuid.hex,
-                    "obj_uuid": review.uuid.hex,
-                },
-            )
-        )
 
     def get_fields(self):
         fields = super().get_fields()
@@ -487,7 +410,7 @@ class ReviewSerializer(
         elif isinstance(self.instance, list):
             review = self.instance[0]
         else:
-            review = self.instance
+            review: models.Review = self.instance
 
         try:
             request = self.context["view"].request
@@ -497,7 +420,7 @@ class ReviewSerializer(
 
         if (
             user.is_staff
-            or review.reviewer.user == user
+            or review.reviewer == user
             or user in review.proposal.round.call.manager.customer.get_users()
         ):
             return fields
