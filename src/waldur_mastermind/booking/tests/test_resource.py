@@ -4,7 +4,7 @@ from ddt import data, ddt
 from rest_framework import status, test
 from rest_framework.reverse import reverse
 
-from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -56,7 +56,9 @@ class OrderGetTest(test.APITransactionTestCase):
         self.assertEqual(
             marketplace_models.Offering.objects.get(
                 uuid=response.data[0]["offering_uuid"]
-            ).customer.get_owners()[0],
+            )
+            .customer.get_users(RoleEnum.CUSTOMER_OWNER)
+            .first(),
             self.fixture.owner,
         )
 

@@ -412,31 +412,19 @@ class Customer(
     def get_log_fields(self):
         return ("uuid", "name", "abbreviation", "contact_details")
 
-    def get_owners(self):
-        return self.get_users_by_role(RoleEnum.CUSTOMER_OWNER)
-
     def get_owner_mails(self):
         return (
-            self.get_owners()
+            self.get_users(RoleEnum.CUSTOMER_OWNER)
             .exclude(email="")
             .exclude(notifications_enabled=False)
             .values_list("email", flat=True)
         )
 
-    def get_support_users(self):
-        return self.get_users_by_role(RoleEnum.CUSTOMER_SUPPORT)
-
-    def get_service_managers(self):
-        return self.get_users_by_role(RoleEnum.CUSTOMER_MANAGER)
-
-    def get_users_by_role(self, role):
-        users = get_customer_users(self.id, role)
-        return get_user_model().objects.filter(id__in=users)
-
     def get_users(self, role=None):
         """Return all connected to customer users"""
         if role:
-            return self.get_users_by_role(role)
+            users = get_customer_users(self.id, role)
+            return get_user_model().objects.filter(id__in=users)
 
         return (
             get_user_model()

@@ -11,7 +11,6 @@ API_GROUPS = {
         "/api/customers/",
         "/api/customer-permissions-log/",
         "/api/customer-permissions-reviews/",
-        "/api/customer-permissions/",
     ],
     "marketplace": [
         "/api/marketplace-bookings/",

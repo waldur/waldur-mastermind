@@ -18,6 +18,7 @@ from rest_framework import status
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.logging import models as logging_models
+from waldur_core.permissions.enums import RoleEnum
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.log import event_logger
 from waldur_mastermind import __version__ as mastermind_version
@@ -386,7 +387,7 @@ def notification_about_project_ending():
             .exclude(notifications_enabled=False)
         )
         owners = (
-            project.customer.get_owners()
+            project.customer.get_users(RoleEnum.CUSTOMER_OWNER)
             .exclude(email="")
             .exclude(notifications_enabled=False)
         )

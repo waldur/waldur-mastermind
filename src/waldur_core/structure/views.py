@@ -587,15 +587,6 @@ class UserViewSet(viewsets.ModelViewSet):
         return Response(status=status.HTTP_200_OK)
 
 
-class ProjectPermissionViewSet(viewsets.ReadOnlyModelViewSet):
-    serializer_class = serializers.ProjectPermissionSerializer
-    filter_backends = (DjangoFilterBackend,)
-    filterset_class = filters.ProjectPermissionFilter
-
-    def get_queryset(self):
-        return filter_project_permissions(self.request.user)
-
-
 class ProjectPermissionLogViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = serializers.ProjectPermissionLogSerializer
     filter_backends = (DjangoFilterBackend,)
@@ -603,14 +594,6 @@ class ProjectPermissionLogViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         return filter_project_permissions(self.request.user, is_active=None)
-
-
-class CustomerPermissionViewSet(viewsets.ReadOnlyModelViewSet):
-    serializer_class = serializers.CustomerPermissionSerializer
-    filterset_class = filters.CustomerPermissionFilter
-
-    def get_queryset(self):
-        return filter_customer_permissions(self.request.user)
 
 
 class CustomerPermissionLogViewSet(viewsets.ReadOnlyModelViewSet):

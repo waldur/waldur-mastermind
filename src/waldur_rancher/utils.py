@@ -8,6 +8,7 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
 from waldur_core.core.models import User
+from waldur_core.permissions.enums import RoleEnum
 from waldur_core.quotas import exceptions as quotas_exceptions
 from waldur_core.structure.models import ProjectRole, ServiceSettings
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
@@ -310,7 +311,7 @@ class SyncUser:
             service_settings = cluster.service_settings
             project = cluster.project
             users = project.get_users()
-            owners = project.customer.get_owners()
+            owners = project.customer.get_users(RoleEnum.CUSTOMER_OWNER)
 
             for user in users:
                 role = (
