@@ -397,6 +397,9 @@ class SmaxBackend:
         if config.SMAX_AFFECTED_RESOURCE_FIELD and issue.resource_name:
             properties[config.SMAX_AFFECTED_RESOURCE_FIELD] = issue.resource_name
 
+        if config.SMAX_CREATION_SOURCE_NAME:
+            properties["CreationSourceName_c"] = config.SMAX_CREATION_SOURCE_NAME
+
         if issue.category_id:
             properties["Category"] = issue.category_id
 

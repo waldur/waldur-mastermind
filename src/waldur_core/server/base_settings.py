@@ -460,6 +460,7 @@ CONSTANCE_CONFIG = {
     "SMAX_AFFECTED_RESOURCE_FIELD": ("", "Resource field."),
     "SMAX_TIMES_TO_PULL": (10, "Times to pulling from backend."),
     "SMAX_SECONDS_TO_WAIT": (1, "Duration of delay between server pull attempts."),
+    "SMAX_CREATION_SOURCE_NAME": ("", "Creation source name."),
 }
 
 CONSTANCE_CONFIG_FIELDSETS = {
@@ -546,6 +547,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "SMAX_AFFECTED_RESOURCE_FIELD",
         "SMAX_SECONDS_TO_WAIT",
         "SMAX_TIMES_TO_PULL",
+        "SMAX_CREATION_SOURCE_NAME",
     ),
 }
 
