@@ -244,6 +244,15 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
         serializer = self.get_serializer(queryset, many=True)
         return self.get_paginated_response(serializer.data)
 
+    @action(detail=False)
+    def countries(self, request):
+        return Response(
+            [
+                {"label": item[1], "value": item[0]}
+                for item in serializers.CountrySerializerMixin.COUNTRIES
+            ]
+        )
+
 
 class ProjectTypeViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = models.ProjectType.objects.all()
