@@ -3691,6 +3691,8 @@ class SectionSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class IntegrationStatusSerializer(serializers.ModelSerializer):
+    status = serializers.ReadOnlyField(source="get_status_display")
+
     class Meta:
         model = models.IntegrationStatus
         fields = (
