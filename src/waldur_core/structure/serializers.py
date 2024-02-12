@@ -30,8 +30,6 @@ from waldur_core.structure import models, utils
 from waldur_core.structure.filters import filter_visible_users
 from waldur_core.structure.managers import (
     count_customer_users,
-    filter_customer_permissions,
-    filter_project_permissions,
     filter_queryset_for_user,
 )
 from waldur_core.structure.models import CUSTOMER_DETAILS_FIELDS, get_old_role_name
@@ -373,14 +371,6 @@ class CustomerSerializer(
     serializers.HyperlinkedModelSerializer,
 ):
     projects = serializers.SerializerMethodField()
-    owners = BasicUserSerializer(source="get_owners", many=True, read_only=True)
-    support_users = BasicUserSerializer(
-        source="get_support_users", many=True, read_only=True
-    )
-    service_managers = BasicUserSerializer(
-        source="get_service_managers", many=True, read_only=True
-    )
-
     display_name = serializers.ReadOnlyField(source="get_display_name")
     division_name = serializers.ReadOnlyField(source="division.name")
     division_uuid = serializers.ReadOnlyField(source="division.uuid")
@@ -407,9 +397,6 @@ class CustomerSerializer(
             "division_type_uuid",
             "display_name",
             "projects",
-            "owners",
-            "support_users",
-            "service_managers",
             "backend_id",
             "image",
             "blocked",
@@ -583,9 +570,6 @@ class NestedProjectPermissionSerializer(serializers.ModelSerializer):
     )
     uuid = serializers.ReadOnlyField(source="scope.uuid")
     name = serializers.ReadOnlyField(source="scope.name")
-    permission = serializers.HyperlinkedRelatedField(
-        source="pk", view_name="project_permission-detail", read_only=True
-    )
     role = serializers.SerializerMethodField()
     role_name = serializers.SerializerMethodField()
 
@@ -597,7 +581,6 @@ class NestedProjectPermissionSerializer(serializers.ModelSerializer):
             "name",
             "role",
             "role_name",
-            "permission",
             "expiration_time",
         ]
 
@@ -615,11 +598,6 @@ class CustomerUserSerializer(
     role = serializers.ReadOnlyField()
     is_service_manager = serializers.ReadOnlyField()
     expiration_time = serializers.ReadOnlyField(source="perm.expiration_time")
-    permission = serializers.HyperlinkedRelatedField(
-        source="perm.pk",
-        view_name="customer_permission-detail",
-        read_only=True,
-    )
     projects = NestedProjectPermissionSerializer(many=True, read_only=True)
     role_name = serializers.SerializerMethodField()
 
@@ -633,7 +611,6 @@ class CustomerUserSerializer(
             "email",
             "role",
             "role_name",
-            "permission",
             "projects",
             "is_service_manager",
             "expiration_time",
@@ -681,11 +658,6 @@ class CustomerUserSerializer(
 class ProjectUserSerializer(serializers.ModelSerializer):
     role = serializers.ReadOnlyField()
     expiration_time = serializers.ReadOnlyField(source="perm.expiration_time")
-    permission = serializers.HyperlinkedRelatedField(
-        source="perm.pk",
-        view_name="project_permission-detail",
-        read_only=True,
-    )
 
     class Meta:
         model = User
@@ -696,7 +668,6 @@ class ProjectUserSerializer(serializers.ModelSerializer):
             "full_name",
             "email",
             "role",
-            "permission",
             "expiration_time",
         ]
         extra_kwargs = {
@@ -734,38 +705,7 @@ class BasePermissionSerializer(
         return get_old_role_name(instance.role.name)
 
 
-class BasicCustomerPermissionSerializer(BasePermissionSerializer):
-    customer = serializers.HyperlinkedRelatedField(
-        source="scope",
-        view_name="customer-detail",
-        read_only=True,
-        lookup_field="uuid",
-    )
-    customer_name = serializers.ReadOnlyField(source="scope.name")
-    customer_uuid = serializers.ReadOnlyField(source="scope.uuid")
-    customer_native_name = serializers.ReadOnlyField(source="scope.native_name")
-    customer_abbreviation = serializers.ReadOnlyField(source="scope.abbreviation")
-    customer_division_name = serializers.ReadOnlyField(source="scope.division.name")
-    customer_division_uuid = serializers.ReadOnlyField(source="scope.division.uuid")
-
-    class Meta(BasePermissionSerializer.Meta):
-        model = UserRole
-        fields = (
-            "url",
-            "pk",
-            "role",
-            "customer",
-            "customer_uuid",
-            "customer_name",
-            "customer_native_name",
-            "customer_abbreviation",
-            "customer_division_name",
-            "customer_division_uuid",
-        )
-        view_name = "customer_permission-detail"
-
-
-class CustomerPermissionSerializer(BasePermissionSerializer):
+class CustomerPermissionLogSerializer(BasePermissionSerializer):
     customer_name = serializers.ReadOnlyField(source="scope.name")
     customer_uuid = serializers.ReadOnlyField(source="scope.uuid")
     customer_native_name = serializers.ReadOnlyField(source="scope.native_name")
@@ -807,7 +747,7 @@ class CustomerPermissionSerializer(BasePermissionSerializer):
             created_by=("full_name", "username"),
             **BasePermissionSerializer.Meta.related_paths,
         )
-        view_name = "customer_permission-detail"
+        view_name = "customer_permission_log-detail"
         extra_kwargs = {
             "user": {
                 "view_name": "user-detail",
@@ -819,11 +759,6 @@ class CustomerPermissionSerializer(BasePermissionSerializer):
                 "read_only": True,
             },
         }
-
-
-class CustomerPermissionLogSerializer(CustomerPermissionSerializer):
-    class Meta(CustomerPermissionSerializer.Meta):
-        view_name = "customer_permission_log-detail"
 
 
 class CustomerPermissionReviewSerializer(
@@ -856,7 +791,7 @@ class CustomerPermissionReviewSerializer(
         }
 
 
-class ProjectPermissionSerializer(BasePermissionSerializer):
+class ProjectPermissionLogSerializer(BasePermissionSerializer):
     customer_uuid = serializers.ReadOnlyField(source="scope.customer.uuid")
     customer_name = serializers.ReadOnlyField(source="scope.customer.name")
     project_uuid = serializers.ReadOnlyField(source="scope.uuid")
@@ -894,7 +829,7 @@ class ProjectPermissionSerializer(BasePermissionSerializer):
             created_by=("full_name", "username"),
             **BasePermissionSerializer.Meta.related_paths,
         )
-        view_name = "project_permission-detail"
+        view_name = "project_permission_log-detail"
         extra_kwargs = {
             "user": {
                 "view_name": "user-detail",
@@ -907,36 +842,6 @@ class ProjectPermissionSerializer(BasePermissionSerializer):
                 "read_only": True,
             },
         }
-
-
-class BasicProjectPermissionSerializer(BasePermissionSerializer):
-    project_uuid = serializers.ReadOnlyField(source="scope.uuid")
-    project_name = serializers.ReadOnlyField(source="scope.name")
-    customer_name = serializers.ReadOnlyField(source="scope.customer.name")
-
-    class Meta:
-        model = UserRole
-        fields = (
-            "url",
-            "pk",
-            "role",
-            "project_uuid",
-            "project_name",
-            "customer_name",
-        )
-        view_name = "project_permission-detail"
-        extra_kwargs = {
-            "project": {
-                "view_name": "project-detail",
-                "lookup_field": "uuid",
-                "queryset": models.Project.objects.all(),
-            }
-        }
-
-
-class ProjectPermissionLogSerializer(ProjectPermissionSerializer):
-    class Meta(ProjectPermissionSerializer.Meta):
-        view_name = "project_permission_log-detail"
 
 
 class UserSerializer(
@@ -957,8 +862,6 @@ class UserSerializer(
         required=False,
     )
     token = serializers.ReadOnlyField(source="auth_token.key")
-    customer_permissions = serializers.SerializerMethodField()
-    project_permissions = serializers.SerializerMethodField()
     permissions = serializers.SerializerMethodField()
     requested_email = serializers.SerializerMethodField()
     full_name = serializers.CharField(max_length=200, required=False)
@@ -970,20 +873,6 @@ class UserSerializer(
     def get_permissions(self, user):
         perms = UserRole.objects.filter(user=user, is_active=True)
         serializer = PermissionSerializer(instance=perms, many=True)
-        return serializer.data
-
-    def get_customer_permissions(self, user):
-        permissions = filter_customer_permissions(user, target_user=user)
-        serializer = BasicCustomerPermissionSerializer(
-            instance=permissions, many=True, context=self.context
-        )
-        return serializer.data
-
-    def get_project_permissions(self, user):
-        permissions = filter_project_permissions(user, target_user=user)
-        serializer = BasicProjectPermissionSerializer(
-            instance=permissions, many=True, context=self.context
-        )
         return serializer.data
 
     def get_requested_email(self, user):
@@ -1031,8 +920,6 @@ class UserSerializer(
             "preferred_language",
             "competence",
             "permissions",
-            "customer_permissions",
-            "project_permissions",
             "requested_email",
             "affiliations",
             "first_name",
@@ -1049,8 +936,6 @@ class UserSerializer(
             "registration_method",
             "date_joined",
             "agreement_date",
-            "customer_permissions",
-            "project_permissions",
             "affiliations",
         )
         extra_kwargs = {

@@ -49,8 +49,8 @@ class CustomerUserTest(CustomerBaseTest):
         self.assertEqual(permission.user, self.user)
         self.assertEqual(permission.scope, self.customer)
 
-    def test_get_owners_returns_empty_list(self):
-        self.assertEqual(0, self.customer.get_owners().count())
+    def test_get_users_returns_empty_list(self):
+        self.assertEqual(0, self.customer.get_users().count())
 
 
 @ddt
@@ -109,19 +109,6 @@ class CustomerListTest(CustomerBaseTest):
             project_urls,
             "User should not see project",
         )
-
-    # Direct instance access tests
-    @data(("owner", "owners"), ("customer_support", "support_users"))
-    def test_user_can_see_its_owner_membership_in_a_service_he_is_owner_of(
-        self, user_data
-    ):
-        user, response_field = user_data
-        self.client.force_authenticate(user=getattr(self.fixture, user))
-        response = self.client.get(self._get_customer_url(self.fixture.customer))
-        users = set(c["url"] for c in response.data[response_field])
-
-        user_url = self._get_user_url(getattr(self.fixture, user))
-        self.assertEqual([user_url], list(users))
 
     @data("staff", "global_support")
     def test_user_can_access_all_customers_if_he_is_staff(self, user):
@@ -303,7 +290,8 @@ class CustomerCreateTest(BaseCustomerMutationTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         # User became owner of created customer
-        self.assertEqual(response.data["owners"][0]["uuid"], self.fixture.user.uuid.hex)
+        customer = Customer.objects.get(uuid=response.data["uuid"])
+        self.assertTrue(customer.has_user(self.fixture.user, CustomerRole.OWNER))
 
     def test_user_can_create_customer_if_he_is_staff(self):
         self.client.force_authenticate(user=self.fixture.staff)

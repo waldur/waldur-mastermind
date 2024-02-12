@@ -181,9 +181,10 @@ class CustomerAdminForm(ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if self.instance and self.instance.pk:
-            self.owners = self.instance.get_owners()
-            self.support_users = self.instance.get_support_users()
-            self.service_managers = self.instance.get_service_managers()
+            customer: models.Customer = self.instance
+            self.owners = customer.get_users(RoleEnum.CUSTOMER_OWNER)
+            self.support_users = customer.get_users(RoleEnum.CUSTOMER_SUPPORT)
+            self.service_managers = customer.get_users(RoleEnum.CUSTOMER_MANAGER)
             self.fields["owners"].initial = self.owners
             self.fields["support_users"].initial = self.support_users
             self.fields["service_managers"].initial = self.service_managers

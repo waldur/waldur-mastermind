@@ -11,6 +11,7 @@ from rest_framework.viewsets import GenericViewSet
 
 from waldur_core.core.models import User
 from waldur_core.core.utils import is_uuid_like
+from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.structure.filters import filter_visible_users
 from waldur_core.structure.models import Customer, Project, get_old_role_name
@@ -169,7 +170,7 @@ class CustomerStatsView(APIView):
             "name"
         ):
             project_users = project.get_users()
-            customer_users = customer.get_owners()
+            customer_users = customer.get_users(RoleEnum.CUSTOMER_OWNER)
             users_count = project_users.count() + customer_users.count()
             correct_count = (
                 models.Answer.objects.filter(
