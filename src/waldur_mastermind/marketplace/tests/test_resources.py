@@ -742,9 +742,7 @@ class ResourceUpdateTest(test.APITransactionTestCase):
         response = self.make_request(self.fixture.staff, payload)
         self.fixture.resource.refresh_from_db()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(
-            response.data["end_date"].date(), self.fixture.resource.end_date
-        )
+        self.assertEqual(response.data["end_date"], self.fixture.resource.end_date)
 
     def test_end_date_is_not_updated_if_later_than_max_end_date(self):
         self.fixture.resource.offering.plugin_options = {
