@@ -241,25 +241,19 @@ class ProtectedCallViewSet(UserRoleMixin, core_views.ActionsViewSet):
             instance = self.get_object()
 
             documents = request.data.getlist("documents", [])
-            existing_files = set(instance.documents.values_list("uuid", flat=True))
 
             for file_data in documents:
                 obj, created = models.CallDocument.objects.get_or_create(
-                    call=instance, file=file_data
+                    call=instance,
+                    file=file_data,
                 )
-                log.event_logger.proposal.info(
-                    f"Attachment for {instance.name} has been added.",
-                    event_type="call_proposal_document_added",
-                )
-                logger.info(f"Attachment for {instance.name} has been added.")
-                existing_files.discard(obj.uuid)
-
-            models.CallDocument.objects.filter(uuid__in=existing_files).delete()
-            log.event_logger.proposal.info(
-                f"Attachment for {instance.name} has been removed.",
-                event_type="call_proposal_document_removed",
-            )
-            logger.info(f"Attachment for {instance.name} has been removed.")
+                if created:
+                    instance.documents.add(obj)
+                    log.event_logger.proposal.info(
+                        f"Attachment for {instance.name} has been added.",
+                        event_type="call_proposal_document_added",
+                    )
+                    logger.info(f"Attachment for {instance.name} has been added.")
 
             return response.Response(
                 "Documents attached successfully",
@@ -273,6 +267,32 @@ class ProtectedCallViewSet(UserRoleMixin, core_views.ActionsViewSet):
             )
 
     attach_documents_serializer_class = serializers.CallDocumentSerializer
+
+    @decorators.action(detail=True, methods=["post"])
+    def detach_documents(self, request, uuid=None):
+        try:
+            instance = self.get_object()
+            documents = request.data.getlist("documents", [])
+            for file_data in documents:
+                models.CallDocument.objects.get(
+                    call=instance,
+                    uuid=file_data,
+                ).delete()
+                log.event_logger.proposal.info(
+                    f"Attachment for {instance.name} has been removed.",
+                    event_type="call_proposal_document_removed",
+                )
+                logger.info(f"Attachment for {instance.name} has been removed.")
+
+            return response.Response(
+                "Documents removed successfully",
+                status=status.HTTP_200_OK,
+            )
+        except Exception:
+            return response.Response(
+                "Error removed documents",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
 
 class ProposalViewSet(core_views.ActionsViewSet):

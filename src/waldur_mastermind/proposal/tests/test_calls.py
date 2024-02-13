@@ -128,10 +128,7 @@ class CallUpdateTest(test.APITransactionTestCase):
         self.call.refresh_from_db()
         return response
 
-    @data("staff", "owner", "customer_support")
-    def test_upload_documents(self, user):
-        user = getattr(self.fixture, user)
-        self.client.force_authenticate(user)
+    def _upload_call_document(self):
         url = factories.CallFactory.get_protected_url(
             self.call, action="attach_documents"
         )
@@ -141,19 +138,33 @@ class CallUpdateTest(test.APITransactionTestCase):
                 {"file": dummy_image()},
             ],
         }
+        return self.client.post(url, payload, format="multipart")
 
-        response = self.client.post(url, payload, format="multipart")
+    @data("staff", "owner", "customer_support")
+    def test_upload_documents(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self._upload_call_document()
         call = models.Call.objects.get(uuid=self.call.uuid)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(call.calldocument_set.all()), 2)
 
+    @data("staff", "owner", "customer_support")
+    def test_remove_documents(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        url = factories.CallFactory.get_protected_url(
+            self.call, action="detach_documents"
+        )
+        self._upload_call_document()
+        call_document_for_removal = models.CallDocument.objects.last()
         payload = {
-            "documents": [],
+            "documents": [call_document_for_removal.uuid],
         }
         response = self.client.post(url, payload, format="multipart")
         call = models.Call.objects.get(uuid=self.call.uuid)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(call.documents.all()), 0)
+        self.assertEqual(len(call.documents.all()), 1)
 
 
 @ddt
