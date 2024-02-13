@@ -134,7 +134,7 @@ class NestedRoundSerializer(serializers.HyperlinkedModelSerializer):
 class CallDocumentSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.CallDocument
-        fields = ["file"]
+        fields = ["uuid", "file"]
 
 
 class PublicCallSerializer(
