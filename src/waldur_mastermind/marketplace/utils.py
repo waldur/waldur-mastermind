@@ -1442,6 +1442,7 @@ def validate_end_date(
             resource_termination_date = resource.created + datetime.timedelta(
                 days=int(default_resource_termination_offset_in_days)
             )
+            resource_termination_date = resource_termination_date.date()
             if latest_date_for_resource_termination:
                 resource_termination_date = min(
                     resource_termination_date, latest_date_for_resource_termination
