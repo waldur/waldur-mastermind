@@ -84,7 +84,11 @@ def init_resource_parent(sender, instance, created=False, **kwargs):
         return
 
     resource: models.Resource = instance
-    service = resource.offering.scope
+    try:
+        service = resource.offering.scope
+    except AttributeError:
+        # Skipping support offering
+        return
 
     if not isinstance(service, structure_models.ServiceSettings):
         return
