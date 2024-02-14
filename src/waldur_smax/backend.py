@@ -278,7 +278,12 @@ class SmaxBackend:
 
         url = self.rest_api + path + f"?TENANTID={config.SMAX_TENANT_ID}"
         response = getattr(requests, method)(
-            url=url, headers=headers, data=data, json=json, **kwargs
+            url=url,
+            headers=headers,
+            data=data,
+            json=json,
+            verify=config.SMAX_VERIFY_SSL,
+            **kwargs,
         )
 
         if response.status_code > 299:

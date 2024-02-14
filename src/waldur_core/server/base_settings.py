@@ -461,6 +461,7 @@ CONSTANCE_CONFIG = {
     "SMAX_TIMES_TO_PULL": (10, "Times to pulling from backend."),
     "SMAX_SECONDS_TO_WAIT": (1, "Duration of delay between server pull attempts."),
     "SMAX_CREATION_SOURCE_NAME": ("", "Creation source name."),
+    "SMAX_VERIFY_SSL": (True, "Toggler for SSL verification"),
 }
 
 CONSTANCE_CONFIG_FIELDSETS = {
@@ -548,6 +549,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "SMAX_SECONDS_TO_WAIT",
         "SMAX_TIMES_TO_PULL",
         "SMAX_CREATION_SOURCE_NAME",
+        "SMAX_VERIFY_SSL",
     ),
 }
 
