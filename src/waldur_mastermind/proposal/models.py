@@ -107,6 +107,9 @@ class RequestedOffering(SafeAttributesMixin, core_models.UuidMixin, TimeStampedM
             (CANCELED, "Canceled"),
         )
 
+    class Permissions:
+        customer_path = "offering__customer"
+
     approved_by = models.ForeignKey(
         core_models.User,
         on_delete=models.PROTECT,

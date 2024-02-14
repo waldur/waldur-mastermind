@@ -244,6 +244,46 @@ class RequestedOfferingSerializer(
         return super().create(validated_data)
 
 
+class ProviderRequestedOfferingSerializer(NestedRequestedOfferingSerializer):
+    url = serializers.SerializerMethodField()
+    call_name = serializers.ReadOnlyField(source="call.name")
+
+    class Meta(NestedRequestedOfferingSerializer.Meta):
+        fields = NestedRequestedOfferingSerializer.Meta.fields + [
+            "url",
+            "call_name",
+            "call",
+        ]
+        extra_kwargs = {
+            "approved_by": {
+                "lookup_field": "uuid",
+                "view_name": "user-detail",
+            },
+            "created_by": {
+                "lookup_field": "uuid",
+                "view_name": "user-detail",
+            },
+            "offering": {
+                "lookup_field": "uuid",
+                "view_name": "marketplace-provider-offering-detail",
+            },
+            "call": {
+                "lookup_field": "uuid",
+                "view_name": "proposal-public-call-detail",
+            },
+        }
+
+    def get_url(self, requested_offering):
+        return self.context["request"].build_absolute_uri(
+            reverse(
+                "proposal-requested-offering-detail",
+                kwargs={
+                    "uuid": requested_offering.uuid.hex,
+                },
+            )
+        )
+
+
 class ProtectedCallSerializer(PublicCallSerializer):
     class Meta(PublicCallSerializer.Meta):
         fields = PublicCallSerializer.Meta.fields + (

@@ -10,13 +10,20 @@ from rest_framework import permissions as rf_permissions
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.exceptions import IncorrectStateException
-from waldur_core.core.views import ActionsViewSet
+from waldur_core.core.views import ActionsViewSet, ReadOnlyActionsViewSet
 from waldur_core.permissions import models as permissions_models
 from waldur_core.permissions.enums import SYSTEM_CUSTOMER_ROLES
 from waldur_core.permissions.views import UserRoleMixin
 from waldur_core.structure import filters as structure_filters
 from waldur_mastermind.marketplace.views import BaseMarketplaceView, PublicViewsetMixin
-from waldur_mastermind.proposal import filters, models, serializers
+from waldur_mastermind.proposal import (
+    filters,
+    models,
+    serializers,
+)
+from waldur_mastermind.proposal import (
+    permissions as proposal_permissions,
+)
 
 from . import log
 
@@ -479,4 +486,48 @@ class ReviewViewSet(ActionsViewSet):
         reject_permissions
     ) = submit_permissions = update_permissions = partial_update_permissions = [
         action_permission_check
+    ]
+
+
+class RequestedOfferingViewSet(ReadOnlyActionsViewSet):
+    lookup_field = "uuid"
+    queryset = models.RequestedOffering.objects.filter().order_by(
+        "offering", "call", "created"
+    )
+    serializer_class = serializers.ProviderRequestedOfferingSerializer
+    filterset_class = filters.RequestedOfferingFilter
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+
+    @decorators.action(detail=True, methods=["post"])
+    def accept(self, request, uuid=None):
+        requested_offering = self.get_object()
+        requested_offering.state = models.RequestedOffering.States.ACCEPTED
+        requested_offering.approved_by = self.request.user
+        requested_offering.save()
+        return response.Response(
+            "The request on offering has been accepted.",
+            status=status.HTTP_200_OK,
+        )
+
+    accept_validators = [
+        core_validators.StateValidator(models.RequestedOffering.States.REQUESTED)
+    ]
+
+    @decorators.action(detail=True, methods=["post"])
+    def cancel(self, request, uuid=None):
+        requested_offering = self.get_object()
+        requested_offering.state = models.RequestedOffering.States.CANCELED
+        requested_offering.approved_by = self.request.user
+        requested_offering.save()
+        return response.Response(
+            "The request on offering has been canceled.",
+            status=status.HTTP_200_OK,
+        )
+
+    cancel_validators = [
+        core_validators.StateValidator(models.RequestedOffering.States.REQUESTED)
+    ]
+
+    accept_permissions = cancel_permissions = [
+        proposal_permissions.user_can_accept_requested_offering
     ]

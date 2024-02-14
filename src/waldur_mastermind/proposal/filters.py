@@ -74,3 +74,25 @@ class ReviewFilter(django_filters.FilterSet):
     class Meta:
         model = models.Review
         fields = ["state"]
+
+
+class RequestedOfferingFilter(django_filters.FilterSet):
+    offering = core_filters.URLFilter(
+        view_name="marketplace-provider-offering-detail",
+        field_name="offering__uuid",
+        label="Offering",
+    )
+    offering_uuid = django_filters.UUIDFilter(field_name="offering__uuid")
+    call = core_filters.URLFilter(
+        view_name="proposal-public-call-detail",
+        field_name="call__uuid",
+        label="Call",
+    )
+    call_uuid = django_filters.UUIDFilter(field_name="call__uuid")
+    o = django_filters.OrderingFilter(
+        fields=("created", "state", "offering__name", "call__name")
+    )
+
+    class Meta:
+        model = models.RequestedOffering
+        fields = ["state"]
