@@ -21,6 +21,7 @@ from waldur_core.structure.registry import get_resource_type
 from waldur_jira import serializers as jira_serializers
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
+from waldur_mastermind.support.backend.smax import formatting_for_smax
 
 from . import backend, models, utils
 
@@ -353,9 +354,7 @@ class IssueSerializer(
             "ATLASSIAN_DESCRIPTION_TEMPLATE", "description", validated_data
         )
         if config.WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE == backend.SupportBackendType.SMAX:
-            rendered_description = rendered_description.replace("\r", "").replace(
-                "\n", "<br />"
-            )
+            rendered_description = formatting_for_smax(rendered_description)
         validated_data["description"] = rendered_description
         validated_data["summary"] = render_issue_template(
             "ATLASSIAN_SUMMARY_TEMPLATE", "summary", validated_data
@@ -436,7 +435,7 @@ class CommentSerializer(
 
     def validate_description(self, description):
         if config.WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE == backend.SupportBackendType.SMAX:
-            return description.replace("\r", "").replace("\n", "<br />")
+            return formatting_for_smax(description)
 
         return description
 

@@ -1,5 +1,6 @@
 import logging
 
+from constance import config
 from django.contrib.contenttypes.models import ContentType
 from django.template import Context
 from django.template.loader import get_template
@@ -14,6 +15,7 @@ from waldur_mastermind.support import backend as support_backend
 from waldur_mastermind.support import exceptions as support_exceptions
 from waldur_mastermind.support import models as support_models
 from waldur_mastermind.support import serializers as support_serializers
+from waldur_mastermind.support.backend.smax import formatting_for_smax
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +116,13 @@ def create_issue(order, description, summary, confirmation_comment=None):
     issue_details["description"] = support_serializers.render_issue_template(
         "ATLASSIAN_DESCRIPTION_TEMPLATE", "description", issue_details
     )
+
+    if (
+        config.WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE
+        == support_backend.SupportBackendType.SMAX
+    ):
+        issue_details["description"] = formatting_for_smax(issue_details["description"])
+
     issue = support_models.Issue.objects.create(**issue_details)
     try:
         active_backend.create_issue(issue)

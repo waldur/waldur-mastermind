@@ -11,6 +11,7 @@ from django.template.loader import get_template
 from waldur_core.core import utils as core_utils
 
 from . import backend, models
+from .backend.smax import formatting_for_waldur
 from .utils import get_feedback_link
 
 logger = logging.getLogger(__name__)
@@ -73,6 +74,9 @@ def send_issue_updated_notification(serialized_issue, changed):
 def send_comment_added_notification(serialized_comment):
     comment = core_utils.deserialize_instance(serialized_comment)
 
+    if config.WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE == backend.SupportBackendType.SMAX:
+        comment = formatting_for_waldur(comment)
+
     _send_issue_notification(
         issue=comment.issue,
         template="comment_added",
@@ -84,7 +88,11 @@ def send_comment_added_notification(serialized_comment):
 def send_comment_updated_notification(serialized_comment, old_description):
     comment = core_utils.deserialize_instance(serialized_comment)
 
-    _send_issue_notification(
+    if config.WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE == backend.SupportBackendType.SMAX:
+        comment = formatting_for_waldur(comment)
+        old_description = formatting_for_waldur(old_description)
+
+    return _send_issue_notification(
         issue=comment.issue,
         template="comment_updated",
         extra_context={

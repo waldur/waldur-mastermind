@@ -2,6 +2,7 @@ import logging
 import mimetypes
 import os
 
+import bleach
 from constance import config
 from django.core.files.base import ContentFile
 from django.template import Context, Template
@@ -14,6 +15,19 @@ from waldur_smax.backend import Comment, Issue, SmaxBackend, User
 from . import SupportBackend, SupportBackendType
 
 logger = logging.getLogger(__name__)
+
+
+def formatting_for_smax(msg):
+    return msg.replace("\r", "").replace("\n", "<br />")
+
+
+def formatting_for_waldur(msg):
+    return (
+        bleach.clean(msg, tags=["br"], strip=True)
+        .replace("\r", "")
+        .replace("\n", "")
+        .replace("<br>", "\r\n")
+    )
 
 
 class SmaxServiceBackend(SupportBackend):
@@ -381,7 +395,7 @@ class SmaxServiceBackend(SupportBackend):
         )
 
         # SMAX doesn't support new lines
-        body = body.replace("\r", "").replace("\n", "<br />")
+        body = formatting_for_smax(body)
 
         integration_user_upn = self.manager.get_user_by_upn(config.SMAX_LOGIN)
         comment = Comment(
