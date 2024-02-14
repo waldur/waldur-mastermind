@@ -429,3 +429,11 @@ class ReviewSerializer(
         del fields["reviewer"]
 
         return fields
+
+
+class CallReferenceCodeSerializer(serializers.ModelSerializer):
+    reference_code = serializers.CharField(source="backend_id")
+
+    class Meta:
+        model = models.Call
+        fields = ("reference_code",)

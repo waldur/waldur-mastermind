@@ -166,6 +166,18 @@ class CallUpdateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(call.documents.all()), 1)
 
+    @data("staff")
+    def test_set_reference_code_to_call(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        url = factories.CallFactory.get_protected_url(
+            self.call, action="set_reference_code"
+        )
+        response = self.client.post(url, {"reference_code": "123"})
+        self.call.refresh_from_db()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self.call.backend_id, "123")
+
 
 @ddt
 class CallDeleteTest(test.APITransactionTestCase):
