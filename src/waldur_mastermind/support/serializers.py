@@ -349,9 +349,14 @@ class IssueSerializer(
         if project:
             validated_data["customer"] = project.customer
 
-        validated_data["description"] = render_issue_template(
+        rendered_description = render_issue_template(
             "ATLASSIAN_DESCRIPTION_TEMPLATE", "description", validated_data
         )
+        if config.WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE == backend.SupportBackendType.SMAX:
+            rendered_description = rendered_description.replace("\r", "").replace(
+                "\n", "<br />"
+            )
+        validated_data["description"] = rendered_description
         validated_data["summary"] = render_issue_template(
             "ATLASSIAN_SUMMARY_TEMPLATE", "summary", validated_data
         )
@@ -428,6 +433,12 @@ class CommentSerializer(
 
     def get_destroy_is_available(self, obj):
         return backend.get_active_backend().comment_update_is_available(obj)
+
+    def validate_description(self, description):
+        if config.WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE == backend.SupportBackendType.SMAX:
+            return description.replace("\r", "").replace("\n", "<br />")
+
+        return description
 
     @transaction.atomic()
     def create(self, validated_data):
