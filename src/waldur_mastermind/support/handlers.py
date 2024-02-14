@@ -101,11 +101,12 @@ def send_comment_added_notification(sender, instance, created=False, **kwargs):
         )
     else:
         old_description = comment.tracker.previous("description")
-        transaction.on_commit(
-            lambda: tasks.send_comment_updated_notification.delay(
-                serialized_comment, old_description
+        if old_description != comment.description:
+            transaction.on_commit(
+                lambda: tasks.send_comment_updated_notification.delay(
+                    serialized_comment, old_description
+                )
             )
-        )
 
 
 def send_issue_updated_notification(sender, instance, created=False, **kwargs):
