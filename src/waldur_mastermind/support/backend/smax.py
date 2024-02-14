@@ -2,7 +2,6 @@ import logging
 import mimetypes
 import os
 
-import bleach
 from constance import config
 from django.core.files.base import ContentFile
 from django.template import Context, Template
@@ -86,7 +85,7 @@ class SmaxServiceBackend(SupportBackend):
 
         new_smax_issue = Issue(
             summary=issue.summary,
-            description=self.formatting_for_smax(issue.description),
+            description=issue.description,
             organisation_name=issue.customer.name if issue.customer else None,
             project_name=issue.project.name if issue.project else None,
             resource_name=resource_name,
@@ -105,7 +104,7 @@ class SmaxServiceBackend(SupportBackend):
     def update_waldur_issue_from_smax(self, issue):
         # update an issue
         backend_issue = self.manager.get_issue(issue.backend_id)
-        issue.description = self.formatting_for_waldur(backend_issue.description)
+        issue.description = backend_issue.description
         issue.summary = backend_issue.summary
         issue.status = backend_issue.status
         issue.save()
@@ -119,9 +118,7 @@ class SmaxServiceBackend(SupportBackend):
             )
             if waldur_comment.exists():
                 waldur_comment = waldur_comment.get()
-                waldur_comment.description = self.formatting_for_waldur(
-                    backend_comment.description
-                )
+                waldur_comment.description = backend_comment.description
                 waldur_comment.is_public = backend_comment.is_public
                 waldur_comment.save()
                 continue
@@ -258,7 +255,7 @@ class SmaxServiceBackend(SupportBackend):
 
         backend_user_id = self.get_smax_user_id_for_support_user(comment.author)
         smax_comment = Comment(
-            description=self.formatting_for_smax(comment.description),
+            description=comment.description,
             backend_user_id=backend_user_id,
             is_public=comment.is_public,
         )
@@ -276,7 +273,7 @@ class SmaxServiceBackend(SupportBackend):
         comment.save()
 
         smax_comment = Comment(
-            description=self.formatting_for_smax(comment.description),
+            description=comment.description,
             backend_user_id=comment.author.backend_id,
             is_public=comment.is_public,
             id=comment.backend_id,
@@ -383,21 +380,13 @@ class SmaxServiceBackend(SupportBackend):
             .strip()
         )
 
+        # SMAX doesn't support new lines
+        body = body.replace("\r", "").replace("\n", "<br />")
+
         integration_user_upn = self.manager.get_user_by_upn(config.SMAX_LOGIN)
         comment = Comment(
-            description=self.formatting_for_smax(body),
+            description=body,
             backend_user_id=integration_user_upn.id,
             is_public=True,
         )
         return self.manager.add_comment(issue.backend_id, comment)
-
-    def formatting_for_smax(self, msg):
-        return msg.replace("\r", "").replace("\n", "<br>")
-
-    def formatting_for_waldur(self, msg):
-        return (
-            bleach.clean(msg, tags=["br"], strip=True)
-            .replace("\r", "")
-            .replace("\n", "")
-            .replace("<br>", "\r\n")
-        )
