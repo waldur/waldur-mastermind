@@ -1917,7 +1917,6 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
 
     reject_by_consumer_validators = [
         structure_utils.check_customer_blocked_or_archived,
-        structure_utils.check_project_end_date,
         core_validators.StateValidator(models.Order.States.PENDING_CONSUMER),
     ]
 
@@ -1941,7 +1940,6 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
 
     reject_by_provider_validators = [
         structure_utils.check_customer_blocked_or_archived,
-        structure_utils.check_project_end_date,
         core_validators.StateValidator(models.Order.States.PENDING_PROVIDER),
     ]
 
