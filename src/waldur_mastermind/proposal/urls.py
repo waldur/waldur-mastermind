@@ -29,6 +29,11 @@ def register_in(router):
         views.ReviewViewSet,
         basename="proposal-review",
     )
+    router.register(
+        r"proposal-requested-offerings",
+        views.RequestedOfferingViewSet,
+        basename="proposal-requested-offering",
+    )
 
 
 urlpatterns = [

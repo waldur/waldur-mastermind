@@ -91,6 +91,21 @@ class RequestedOfferingFactory(factory.django.DjangoModelFactory):
     def get_list_url(cls, call):
         return CallFactory.get_protected_url(call, action="offerings")
 
+    @classmethod
+    def get_provider_list_url(cls):
+        url = "http://testserver" + reverse("proposal-requested-offering-list")
+        return url
+
+    @classmethod
+    def get_provider_url(cls, requested_offering=None, action=None):
+        if requested_offering is None:
+            requested_offering = RequestedOfferingFactory()
+        url = "http://testserver" + reverse(
+            "proposal-requested-offering-detail",
+            kwargs={"uuid": requested_offering.uuid.hex},
+        )
+        return url if action is None else url + action + "/"
+
 
 class RoundFactory(factory.django.DjangoModelFactory):
     class Meta:
