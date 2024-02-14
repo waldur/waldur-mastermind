@@ -114,3 +114,6 @@ class SupportBackend:
 
     def sync_issues(self, *args, **kwargs):
         return
+
+    def get_issue_details(self, *args, **kwargs):
+        return {}
