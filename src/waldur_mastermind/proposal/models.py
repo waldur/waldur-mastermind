@@ -58,6 +58,7 @@ class Call(
     core_models.UuidMixin,
     core_models.NameMixin,
     core_models.DescribableMixin,
+    core_models.BackendMixin,
 ):
     class States:
         DRAFT = 1
