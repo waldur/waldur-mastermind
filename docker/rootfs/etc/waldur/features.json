@@ -14,6 +14,7 @@
   "support.offering_comments": false,
   "marketplace.private_offerings": true,
   "marketplace.terms_of_service": true,
+  "marketplace.lexis_links": false,
   "user.ssh_keys": true,
   "customer.events": true,
   "project.events": true

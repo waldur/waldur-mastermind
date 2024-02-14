@@ -133,6 +133,7 @@ class MarketplaceSection(FeatureSection):
     show_call_management_functionality = Feature(
         "Enabled display of call management functionality."
     )
+    lexis_links = Feature("Enabled LEXIS link integrations for offerings.")
 
 
 class SupportSection(FeatureSection):
