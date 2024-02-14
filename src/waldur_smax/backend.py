@@ -198,19 +198,24 @@ class SmaxBackend:
 
         for e in entities:
             data = e["properties"]
-            user = self.get_user_by_external_id(data["Creator"]) or self.get_user(
-                data["Creator"]
+            attachment = Attachment(
+                filename=data["file_name"],
+                size=data["size"],
+                content_type=data["mime_type"],
+                id=data["id"],
+                backend_issue_id=backend_issue_id,
             )
-            result.append(
-                Attachment(
-                    filename=data["file_name"],
-                    size=data["size"],
-                    content_type=data["mime_type"],
-                    id=data["id"],
-                    backend_issue_id=backend_issue_id,
-                    backend_user_id=user.id,
-                )
+            creator = data.get("Creator")
+            user = (
+                self.get_user_by_external_id(creator) or self.get_user(creator)
+                if creator
+                else None
             )
+
+            if user:
+                attachment.backend_user_id = user.id
+
+            result.append(attachment)
 
         return result
 
