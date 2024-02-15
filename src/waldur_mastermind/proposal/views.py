@@ -171,7 +171,7 @@ class ProtectedCallViewSet(UserRoleMixin, core_views.ActionsViewSet):
     def offerings(self, request, uuid=None):
         return self._action_list_method("requestedoffering_set")(self, request, uuid)
 
-    offerings_serializer_class = serializers.RequestedOfferingSerializer
+    offerings_serializer_class = serializers.ProtectedRequestedOfferingSerializer
 
     def offering_detail(self, request, uuid=None, obj_uuid=None):
         return self._action_detail_method(
@@ -184,7 +184,7 @@ class ProtectedCallViewSet(UserRoleMixin, core_views.ActionsViewSet):
             ],
         )(self, request, uuid, obj_uuid)
 
-    offering_detail_serializer_class = serializers.RequestedOfferingSerializer
+    offering_detail_serializer_class = serializers.ProtectedRequestedOfferingSerializer
 
     @decorators.action(detail=True, methods=["post"])
     def activate(self, request, uuid=None):
