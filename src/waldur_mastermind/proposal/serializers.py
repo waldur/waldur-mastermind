@@ -285,10 +285,13 @@ class ProviderRequestedOfferingSerializer(NestedRequestedOfferingSerializer):
 
 
 class ProtectedCallSerializer(PublicCallSerializer):
+    reference_code = serializers.CharField(source="backend_id", required=False)
+
     class Meta(PublicCallSerializer.Meta):
         fields = PublicCallSerializer.Meta.fields + (
             "reviewers",
             "created_by",
+            "reference_code",
         )
         view_name = "proposal-protected-call-detail"
         protected_fields = ("manager",)
@@ -469,11 +472,3 @@ class ReviewSerializer(
         del fields["reviewer"]
 
         return fields
-
-
-class CallReferenceCodeSerializer(serializers.ModelSerializer):
-    reference_code = serializers.CharField(source="backend_id")
-
-    class Meta:
-        model = models.Call
-        fields = ("reference_code",)
