@@ -450,6 +450,12 @@ class UserViewSet(viewsets.ModelViewSet):
     )
     filterset_class = filters.UserFilter
 
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if self.request.user.is_staff or self.request.user.is_support:
+            return qs
+        return qs.filter(is_active=True)
+
     def list(self, request, *args, **kwargs):
         """
         User list is available to all authenticated users. To get a list,
