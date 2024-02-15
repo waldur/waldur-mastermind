@@ -2678,6 +2678,22 @@ class ComponentUsageSerializer(BaseComponentUsageSerializer):
     def get_customer_name(self, instance):
         return instance.resource.project.customer.name
 
+    def get_fields(self):
+        fields = super().get_fields()
+
+        query_fields = self.context["request"].query_params.getlist("field")
+
+        if self.instance and query_fields:
+            selected_field = {}
+
+            for f in fields.keys():
+                if f in query_fields:
+                    selected_field[f] = fields[f]
+
+            return selected_field
+
+        return fields
+
 
 class ResourcePlanPeriodSerializer(serializers.ModelSerializer):
     class Meta:
