@@ -301,20 +301,6 @@ class ProtectedCallViewSet(UserRoleMixin, core_views.ActionsViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-    @decorators.action(detail=True, methods=["post"])
-    def set_reference_code(self, request, uuid=None):
-        call = self.get_object()
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        call.backend_id = serializer.validated_data["backend_id"]
-        call.save()
-        return response.Response(
-            "Reference code has been set.",
-            status=status.HTTP_200_OK,
-        )
-
-    set_reference_code_serializer_class = serializers.CallReferenceCodeSerializer
-
 
 class ProposalViewSet(core_views.ActionsViewSet):
     lookup_field = "uuid"
