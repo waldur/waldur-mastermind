@@ -185,7 +185,7 @@ class PublicCallSerializer(
         return last_round.cutoff_time if last_round else None
 
 
-class RequestedOfferingSerializer(
+class ProtectedRequestedOfferingSerializer(
     core_serializers.AugmentedSerializerMixin, NestedRequestedOfferingSerializer
 ):
     url = serializers.SerializerMethodField()
@@ -199,6 +199,7 @@ class RequestedOfferingSerializer(
             "created_by",
             "created_by_name",
             "approved_by_name",
+            "description",
         ]
         read_only_fields = (
             "created_by",
@@ -264,7 +265,9 @@ class ProviderRequestedOfferingSerializer(NestedRequestedOfferingSerializer):
             "url",
             "call_name",
             "call",
+            "description",
         ]
+        read_only_fields = ("description",)
         extra_kwargs = {
             "approved_by": {
                 "lookup_field": "uuid",

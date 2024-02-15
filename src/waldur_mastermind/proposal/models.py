@@ -95,7 +95,12 @@ class Call(
         return get_users(self)
 
 
-class RequestedOffering(SafeAttributesMixin, core_models.UuidMixin, TimeStampedModel):
+class RequestedOffering(
+    SafeAttributesMixin,
+    core_models.UuidMixin,
+    TimeStampedModel,
+    core_models.DescribableMixin,
+):
     class States:
         REQUESTED = 1
         ACCEPTED = 2
