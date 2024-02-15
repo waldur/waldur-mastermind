@@ -70,27 +70,19 @@ class CallManagingOrganisationSerializer(
 class NestedRequestedOfferingSerializer(serializers.HyperlinkedModelSerializer):
     state = serializers.ReadOnlyField(source="get_state_display")
     offering_name = serializers.ReadOnlyField(source="offering.name")
+    provider_name = serializers.ReadOnlyField(source="offering.customer.name")
 
     class Meta:
         model = models.RequestedOffering
         fields = [
             "uuid",
-            "approved_by",
-            "created_by",
             "state",
             "offering",
+            "provider_name",
             "offering_name",
             "attributes",
         ]
         extra_kwargs = {
-            "approved_by": {
-                "lookup_field": "uuid",
-                "view_name": "user-detail",
-            },
-            "created_by": {
-                "lookup_field": "uuid",
-                "view_name": "user-detail",
-            },
             "offering": {
                 "lookup_field": "uuid",
                 "view_name": "marketplace-public-offering-detail",
@@ -161,7 +153,6 @@ class PublicCallSerializer(
             "end_date",
             "name",
             "description",
-            "description",
             "state",
             "manager",
             "customer_name",
@@ -170,7 +161,6 @@ class PublicCallSerializer(
             "documents",
         )
         view_name = "proposal-public-call-detail"
-        read_only_fields = ("created_by",)
         extra_kwargs = {
             "url": {
                 "lookup_field": "uuid",
@@ -199,14 +189,35 @@ class RequestedOfferingSerializer(
     core_serializers.AugmentedSerializerMixin, NestedRequestedOfferingSerializer
 ):
     url = serializers.SerializerMethodField()
+    created_by_name = serializers.ReadOnlyField(source="created_by.full_name")
+    approved_by_name = serializers.ReadOnlyField(source="approved_by.full_name")
 
     class Meta(NestedRequestedOfferingSerializer.Meta):
-        fields = NestedRequestedOfferingSerializer.Meta.fields + ["url"]
+        fields = NestedRequestedOfferingSerializer.Meta.fields + [
+            "url",
+            "approved_by",
+            "created_by",
+            "created_by_name",
+            "approved_by_name",
+        ]
         read_only_fields = (
             "created_by",
             "approved_by",
         )
         protected_fields = ("offering",)
+        extra_kwargs = {
+            **NestedRequestedOfferingSerializer.Meta.extra_kwargs,
+            **{
+                "approved_by": {
+                    "lookup_field": "uuid",
+                    "view_name": "user-detail",
+                },
+                "created_by": {
+                    "lookup_field": "uuid",
+                    "view_name": "user-detail",
+                },
+            },
+        }
 
     def get_url(self, requested_offering):
         return self.context["request"].build_absolute_uri(
