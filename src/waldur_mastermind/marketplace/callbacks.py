@@ -68,7 +68,8 @@ def copy_error_from_resource_to_order(resource, order):
     update_fields = set()
     for field in ("error_message", "error_traceback"):
         new_value = getattr(resource.scope, field, "")
-        if new_value != getattr(order, field):
+        current_value = getattr(order, field, "")
+        if new_value != current_value:
             setattr(order, field, new_value)
             update_fields.add(field)
     if update_fields:
