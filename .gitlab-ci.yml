@@ -55,7 +55,7 @@ Run linters:
         - poetry.lock
         - gitlab-ci-test/**/*
   services:
-    - name: "registry.hpc.ut.ee/mirror/library/postgres:12.14-alpine"
+    - name: "registry.hpc.ut.ee/mirror/library/postgres:15-alpine"
       alias: postgres
       command:
         [
