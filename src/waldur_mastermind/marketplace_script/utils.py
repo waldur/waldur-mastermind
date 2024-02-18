@@ -5,9 +5,9 @@ from enum import Enum
 from time import sleep
 
 import docker
+import kubernetes as k8s
 from django.conf import settings
 from docker.errors import ContainerError, DockerException
-from kubernetes import kubernetes as k8s
 from kubernetes.client.rest import ApiException
 from rest_framework import serializers as rf_serializers
 
