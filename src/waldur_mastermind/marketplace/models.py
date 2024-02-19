@@ -1625,6 +1625,9 @@ class IntegrationStatus(core_models.UuidMixin):
     def set_last_request_timestamp(self):
         self.last_request_timestamp = timezone.now()
 
+    def get_agent_type_display(self):
+        return dict(self.AgentTypes.CHOICES).get(int(self.agent_type))
+
 
 reversion.register(Screenshot)
 reversion.register(OfferingComponent)
