@@ -55,6 +55,7 @@ class ProposalFilter(django_filters.FilterSet):
     call = core_filters.URLFilter(
         view_name="proposal-public-call-detail", field_name="round__call__uuid"
     )
+    round = django_filters.UUIDFilter(field_name="round__uuid")
     customer_uuid = django_filters.UUIDFilter(field_name="round__call__uuid")
     o = django_filters.OrderingFilter(
         fields=("round__call__name", "start_time", "end_time", "state")

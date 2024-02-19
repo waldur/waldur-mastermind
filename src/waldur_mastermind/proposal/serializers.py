@@ -101,6 +101,27 @@ class NestedRequestedOfferingSerializer(serializers.HyperlinkedModelSerializer):
         )
 
 
+class ProposalListSerializer(serializers.HyperlinkedModelSerializer):
+    state = serializers.ReadOnlyField(source="get_state_display")
+    created_by_name = serializers.ReadOnlyField(source="created_by.full_name")
+    approved_by_name = serializers.ReadOnlyField(source="approved_by.full_name")
+
+    class Meta:
+        model = models.Proposal
+        fields = [
+            "uuid",
+            "name",
+            "state",
+            "approved_by_name",
+            "created_by_name",
+            "created",
+        ]
+        extra_kwargs = {
+            "created_by": {"lookup_field": "uuid", "view_name": "user-detail"},
+            "approved_by": {"lookup_field": "uuid", "view_name": "user-detail"},
+        }
+
+
 class NestedRoundSerializer(serializers.HyperlinkedModelSerializer):
     review_strategy = serializers.ReadOnlyField(source="get_review_strategy_display")
     deciding_entity = serializers.ReadOnlyField(source="get_deciding_entity_display")
@@ -330,11 +351,14 @@ class ProtectedCallSerializer(PublicCallSerializer):
         return super().create(validated_data)
 
 
-class RoundSerializer(core_serializers.AugmentedSerializerMixin, NestedRoundSerializer):
+class ProtectedRoundSerializer(
+    core_serializers.AugmentedSerializerMixin, NestedRoundSerializer
+):
     url = serializers.SerializerMethodField()
+    proposals = ProposalListSerializer(many=True, read_only=True, source="proposal_set")
 
     class Meta(NestedRoundSerializer.Meta):
-        fields = NestedRoundSerializer.Meta.fields + ["url"]
+        fields = NestedRoundSerializer.Meta.fields + ["url", "proposals"]
 
     def get_url(self, call_round):
         return self.context["request"].build_absolute_uri(

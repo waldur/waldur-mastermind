@@ -218,7 +218,7 @@ class ProtectedCallViewSet(UserRoleMixin, core_views.ActionsViewSet):
     def rounds(self, request, uuid=None):
         return self._action_list_method("round_set")(self, request, uuid)
 
-    rounds_serializer_class = serializers.RoundSerializer
+    rounds_serializer_class = serializers.ProtectedRoundSerializer
 
     def round_detail(self, request, uuid=None, obj_uuid=None):
         def validate_call_state(call_round):
@@ -240,7 +240,7 @@ class ProtectedCallViewSet(UserRoleMixin, core_views.ActionsViewSet):
             update_validators=[validate_call_state],
         )(self, request, uuid, obj_uuid)
 
-    round_detail_serializer_class = serializers.RoundSerializer
+    round_detail_serializer_class = serializers.ProtectedRoundSerializer
 
     @decorators.action(detail=True, methods=["post"])
     def attach_documents(self, request, uuid=None):
