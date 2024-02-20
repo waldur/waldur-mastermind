@@ -1,6 +1,10 @@
+from unittest import mock
+
+from dbtemplates.models import Template
 from rest_framework import status
 
-from waldur_mastermind.support import models
+from waldur_core.core import utils as core_utils
+from waldur_mastermind.support import models, tasks
 from waldur_mastermind.support.backend.smax import SmaxServiceBackend
 from waldur_mastermind.support.tests import factories, fixtures, smax_base
 from waldur_smax.backend import Comment, Issue
@@ -128,3 +132,57 @@ class ConfirmationCommentTest(smax_base.BaseTest):
     def test_not_create_confirmation_comment_if_template_does_not_exist(self):
         self.backend.create_confirmation_comment(self.issue)
         self.mock_smax().add_comment.assert_not_called()
+
+
+@mock.patch("waldur_mastermind.support.tasks.core_utils.send_mail")
+class CommentNotificationTest(smax_base.BaseTest):
+    def setUp(self):
+        super().setUp()
+        self.fixture = fixtures.SupportFixture()
+        self.comment = self.fixture.comment
+        self.comment.description = "<p>message</p>"
+        self.comment.save()
+
+    def test_add_comment_notification(self, mock_send_mail):
+        Template.objects.create(
+            name="support/notification_comment_added.html",
+            content="{{ description|safe }}",
+        )
+        Template.objects.create(
+            name="support/notification_comment_added.txt", content="{{ description }}"
+        )
+        Template.objects.create(
+            name="support/notification_comment_added_subject.txt",
+            content="New comment.",
+        )
+        serialized_comment = core_utils.serialize_instance(self.comment)
+        tasks.send_comment_added_notification(serialized_comment)
+        mock_send_mail.assert_called_once_with(
+            "New comment.",
+            "message\n\n",
+            [self.fixture.issue.caller.email],
+            html_message="<p>message</p>",
+        )
+
+    def test_update_comment_notification(self, mock_send_mail):
+        Template.objects.create(
+            name="support/notification_comment_updated.html",
+            content="New: {{ description|safe }}, old: {{ old_description|safe }}",
+        )
+        Template.objects.create(
+            name="support/notification_comment_updated.txt",
+            content="New: {{ description }}, old: {{ old_description|safe }}",
+        )
+        Template.objects.create(
+            name="support/notification_comment_updated_subject.txt",
+            content="Update comment.",
+        )
+        serialized_comment = core_utils.serialize_instance(self.comment)
+        old_description = "<p>old message</p>"
+        tasks.send_comment_updated_notification(serialized_comment, old_description)
+        mock_send_mail.assert_called_once_with(
+            "Update comment.",
+            "New: message\n\n, old: old message\n\n",
+            [self.fixture.issue.caller.email],
+            html_message="New: <p>message</p>, old: <p>old message</p>",
+        )

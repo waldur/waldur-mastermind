@@ -13,6 +13,7 @@ from django.template.loader import get_template
 from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions, serializers
 
+import textile
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.media.serializers import ProtectedMediaSerializerMixin
@@ -21,7 +22,6 @@ from waldur_core.structure.registry import get_resource_type
 from waldur_jira import serializers as jira_serializers
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
-from waldur_mastermind.support.backend.smax import formatting_for_smax
 
 from . import backend, models, utils
 
@@ -353,8 +353,10 @@ class IssueSerializer(
         rendered_description = render_issue_template(
             "ATLASSIAN_DESCRIPTION_TEMPLATE", "description", validated_data
         )
-        if config.WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE == backend.SupportBackendType.SMAX:
-            rendered_description = formatting_for_smax(rendered_description)
+
+        if backend.get_active_backend().message_format == backend.SupportedFormat.HTML:
+            rendered_description = textile.textile(rendered_description)
+
         validated_data["description"] = rendered_description
         validated_data["summary"] = render_issue_template(
             "ATLASSIAN_SUMMARY_TEMPLATE", "summary", validated_data
@@ -434,8 +436,8 @@ class CommentSerializer(
         return backend.get_active_backend().comment_update_is_available(obj)
 
     def validate_description(self, description):
-        if config.WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE == backend.SupportBackendType.SMAX:
-            return formatting_for_smax(description)
+        if backend.get_active_backend().message_format == backend.SupportedFormat.HTML:
+            return textile.textile(description)
 
         return description
 

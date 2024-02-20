@@ -12,9 +12,9 @@
     Status has been changed from <strong>{{ changed.status }}</strong> to <strong>{{ issue.status }}</strong>.
 </p>
 {% endif %}
-{% if changed.description %}
+{% if old_description %}
 <p>
-    Description has been changed from <strong>{{ changed.description }}</strong> to <strong>{{ issue.description }}</strong>.
+    Description has been changed from <strong>{{ old_description }}</strong> to <strong>{{ description }}</strong>.
 </p>
 {% endif %}
 {% if changed.summary %}

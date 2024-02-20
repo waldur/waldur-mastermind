@@ -90,6 +90,8 @@ httpagentparser = "^1.9.2"
 bleach = {extras = ["css"], version = "^5.0.1"}
 django-constance = {extras = ["database"], version = "^2.9.1"}
 zammad-py = "1.1.0"
+html2text = "^2020.1.16"
+textile = "^4.0.2"
 
 [tool.poetry.dev-dependencies]
 pytest = "7.2.0"
