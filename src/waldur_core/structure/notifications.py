@@ -58,15 +58,18 @@ class StructureSection(NotificationSection):
         key = "structure"
 
     notifications_profile_changes_operator = Notification(
-        "notifications_profile_changes_operator", "A notification of changing a profile"
+        "notifications_profile_changes_operator",
+        "A notification sent out to notify about profile changes. The recipients are Waldur operators.",
     )
 
     change_email_request = Notification(
-        "change_email_request", "A notification of an email change request"
+        "change_email_request",
+        "A notification sent out when an email change is requested. Recipient is the old email address.",
     )
 
     structure_role_granted = Notification(
-        "structure_role_granted", "A notification of a granted role"
+        "structure_role_granted",
+        "A notification sent out when a role is granted. The recipient is the user who received the role.",
     )
 
 
@@ -75,28 +78,33 @@ class UserSection(NotificationSection):
         key = "users"
 
     invitation_created = Notification(
-        "invitation_created", "A notification of invitation creation"
+        "invitation_created",
+        "A notification sent to the user so that he can accept it and receive permissions. The recipient is the user who's being invited.",
     )
 
     invitation_requested = Notification(
-        "invitation_requested", "A notification of invitation request"
+        "invitation_requested",
+        "A notification sent to staff users so that they can approve or reject invitation. The recipients are active staff users.",
     )
 
     invitation_rejected = Notification(
-        "invitation_rejected", "A notification of invitation rejection"
+        "invitation_rejected",
+        "A notification sent to notify the user that his invitation has been rejected. The recipient is the user who's being invited.",
     )
 
     invitation_approved = Notification(
-        "invitation_approved", "A notification of invitation approval"
+        "invitation_approved",
+        "A notification sent to notify the user that his invitation has been approved. The recipient is the user who's being invited.",
     )
 
     invitation_expired = Notification(
-        "invitation_expired", "A notification of expired invitation"
+        "invitation_expired",
+        "A notification sent out to notify the user that his invitation has expired. The recipient is the user who's being invited.",
     )
 
     permission_request_submitted = Notification(
         "permission_request_submitted",
-        "A notification of a submitted invitation request",
+        "A notification sent out to notify about submitted permission request. The recipients are active staff users or customer owners.",
     )
 
 
@@ -105,7 +113,8 @@ class BookingSection(NotificationSection):
         key = "booking"
 
     notification = Notification(
-        "notification", "A notification about upcoming bookings"
+        "notification",
+        "A notification sent out to notify about upcoming bookings. The recipients are users who have upcoming bookings.",
     )
 
 
@@ -114,9 +123,13 @@ class InvoiceSection(NotificationSection):
         key = "invoices"
 
     upcoming_ends_notification = Notification(
-        "upcoming_ends_notification", "A notification about upcoming ends"
+        "upcoming_ends_notification",
+        "A notification about upcoming contract ending. The recipients are organization owners.",
     )
-    notification = Notification("notification", "A notification of invoice")
+    notification = Notification(
+        "notification",
+        "A notification of invoice. The recipients are organization owners.",
+    )
 
 
 class MarketplaceSection(NotificationSection):
@@ -125,35 +138,37 @@ class MarketplaceSection(NotificationSection):
 
     notify_consumer_about_pending_order = Notification(
         "notify_consumer_about_pending_order",
-        "A notification for consumer about pending order",
+        "A notification for consumer about pending order. The recipients are users that have permissions to approve the order.",
     )
 
     notify_provider_about_pending_order = Notification(
         "notify_provider_about_pending_order",
-        "A notification for provider about pending order",
+        "A notification for provider about pending order. The recipients are users that have permissions to approve the order.",
     )
 
     notification_usages = Notification(
-        "notification_usages", "A notification about usages"
+        "notification_usages",
+        "A notification about usages. The recipients are organization owners.",
     )
 
     notification_about_stale_resources = Notification(
-        "notification_about_stale_resources", "A notification about stale resources"
+        "notification_about_stale_resources",
+        "A notification about stale resources. The recipients are organization owners.",
     )
 
     marketplace_resource_termination_scheduled_staff = Notification(
         "marketplace_resource_termination_scheduled_staff",
-        "A notification of a resource termination",
+        "A notification of a resource termination. The recipients are project administrators and managers.",
     )
 
     marketplace_resource_update_succeeded = Notification(
         "marketplace_resource_update_succeeded",
-        "A notification of a successful resource update",
+        "A notification of a successful resource update. The recipients are all the users in the project.",
     )
 
     marketplace_resource_update_limits_succeeded = Notification(
         "marketplace_resource_update_limits_succeeded",
-        "A notification of a successful resource limit update",
+        "A notification of a successful resource limit update. The recipients are all the users in the project.",
     )
 
     marketplace_resource_create_succeeded = Notification(
@@ -163,11 +178,12 @@ class MarketplaceSection(NotificationSection):
 
     marketplace_resource_termination_scheduled = Notification(
         "marketplace_resource_termination_scheduled",
-        "A notification of a scheduled resource termination",
+        "A notification of a scheduled resource termination. The recipients are project administrators and managers",
     )
 
     notification_about_project_ending = Notification(
-        "notification_about_project_ending", "A notification about project ending"
+        "notification_about_project_ending",
+        "A notification about project ending. The recipients are project managers and customer owners.",
     )
 
     marketplace_resource_update_limits_failed = Notification(
@@ -183,7 +199,6 @@ class MarketplaceSection(NotificationSection):
         "marketplace_resource_create_failed",
         "A notification of a failed resource creation",
     )
-
     marketplace_resource_terminate_succeeded = Notification(
         "marketplace_resource_terminate_succeeded",
         "A notification of a successful resource termination",
@@ -200,11 +215,13 @@ class MarketplaceFlowsSection(NotificationSection):
         key = "marketplace_flows"
 
     flow_submitted = Notification(
-        "flow_submitted", "A notification for a submitted marketplace flow"
+        "flow_submitted",
+        "A notification for a submitted marketplace flow. The recipients are customer owners.",
     )
 
     flow_rejected = Notification(
-        "flow_rejected", "A notification for a rejected marketplace flow"
+        "flow_rejected",
+        "A notification for a rejected marketplace flow. The recipient is the user who requested the flow.",
     )
 
 
@@ -213,7 +230,8 @@ class RancherSection(NotificationSection):
         key = "rancher"
 
     notification_create_user = Notification(
-        "notification_create_user", "A notification for created rancher user"
+        "notification_create_user",
+        "A notification for created rancher user. The recipients is the user who requested the creation.",
     )
 
 
@@ -223,12 +241,12 @@ class MarketplaceRemoteSection(NotificationSection):
 
     notification_about_pending_project_updates = Notification(
         "notification_about_pending_project_updates",
-        "A notification about pending project updates",
+        "A notification about pending project updates. The recipients are customer owners",
     )
 
     notification_about_project_details_update = Notification(
         "notification_about_project_details_update",
-        "A notification about project details update",
+        "A notification about project details update. The recipients the user who requested project details update and the user that reviewed it.",
     )
 
 
@@ -238,5 +256,5 @@ class PolicySection(NotificationSection):
 
     notification_project_cost_limit = Notification(
         "notification_about_project_cost_exceeded_limit",
-        "Notification about project cost exceeded limit.",
+        "Notification about project cost exceeded limit. The recipients are all customer owners of the project.",
     )

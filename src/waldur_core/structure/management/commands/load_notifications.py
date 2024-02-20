@@ -32,6 +32,7 @@ class Command(BaseCommand):
                             f"{key}/{template.path}": template.name
                             for template in notification["templates"]
                         },
+                        "description": notification.get("description"),
                     }
                     valid_notifications_data.append(notification_data)
                 else:
@@ -43,7 +44,6 @@ class Command(BaseCommand):
             notification, created = Notification.objects.get_or_create(
                 key=valid_notification_data["path"],
             )
-
             for notification_template_path in valid_notification_data[
                 "templates"
             ].keys():
@@ -54,7 +54,8 @@ class Command(BaseCommand):
                     path=notification_template_path
                 )
                 notification.templates.add(created_notification_template)
-
+                notification.description = valid_notification_data.get("description")
+                notification.save()
             file_enabled_status = notifications[valid_notification_data["path"]]
             if notification.enabled != file_enabled_status:
                 notification.enabled = file_enabled_status
