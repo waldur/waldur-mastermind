@@ -1,7 +1,11 @@
+from unittest import mock
+
+from dbtemplates.models import Template
 from rest_framework import status
 
+from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.support import models
+from waldur_mastermind.support import models, tasks
 from waldur_mastermind.support.backend.smax import SmaxServiceBackend
 from waldur_mastermind.support.tests import factories, fixtures, smax_base
 from waldur_smax.backend import Issue
@@ -92,3 +96,34 @@ class IssueLinksTest(smax_base.BaseTest):
     def test_create_issue_link(self):
         self.backend.create_issue_links(self.issue, self.linked_issues)
         self.mock_smax().create_issue_link.assert_called_once()
+
+
+@mock.patch("waldur_mastermind.support.tasks.core_utils.send_mail")
+class IssueNotificationTest(smax_base.BaseTest):
+    def setUp(self):
+        super().setUp()
+        self.fixture = fixtures.SupportFixture()
+        self.issue = self.fixture.issue
+        self.issue.description = "<p>message</p>"
+        self.issue.summary = "summary"
+        self.issue.save()
+
+    def test_update_issue_notification(self, mock_send_mail):
+        Template.objects.create(
+            name="support/notification_issue_updated.html",
+            content="New: {{ description|safe }}, old: {{ old_description|safe }}",
+        )
+        Template.objects.create(
+            name="support/notification_issue_updated.txt",
+            content="New: {{ description }}, old: {{ old_description }}",
+        )
+        serialized_issue = core_utils.serialize_instance(self.issue)
+        tasks.send_issue_updated_notification(
+            serialized_issue, {"description": "<p>old message</p>"}
+        )
+        mock_send_mail.assert_called_once_with(
+            f"Updated issue: {self.issue.key} {self.issue.summary}",
+            "New: message\n\n, old: old message\n\n",
+            [self.issue.caller.email],
+            html_message="New: <p>message</p>, old: <p>old message</p>",
+        )

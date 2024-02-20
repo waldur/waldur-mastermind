@@ -2,32 +2,19 @@ import logging
 import mimetypes
 import os
 
-import bleach
 from constance import config
 from django.core.files.base import ContentFile
 from django.template import Context, Template
 
+import textile
 from waldur_core.core.models import User as WaldurUser
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.support import models
 from waldur_smax.backend import Comment, Issue, SmaxBackend, User
 
-from . import SupportBackend, SupportBackendType
+from . import SupportBackend, SupportBackendType, SupportedFormat
 
 logger = logging.getLogger(__name__)
-
-
-def formatting_for_smax(msg):
-    return msg.replace("\r", "").replace("\n", "<br />")
-
-
-def formatting_for_waldur(msg):
-    return (
-        bleach.clean(msg, tags=["br"], strip=True)
-        .replace("\r", "")
-        .replace("\n", "")
-        .replace("<br>", "\r\n")
-    )
 
 
 class SmaxServiceBackend(SupportBackend):
@@ -36,6 +23,7 @@ class SmaxServiceBackend(SupportBackend):
 
     backend_name = SupportBackendType.SMAX
     summary_max_length = 140
+    message_format = SupportedFormat.HTML
 
     def get_or_create_support_user_by_waldur_user(
         self, waldur_user: WaldurUser
@@ -395,7 +383,7 @@ class SmaxServiceBackend(SupportBackend):
         )
 
         # SMAX doesn't support new lines
-        body = formatting_for_smax(body)
+        body = textile.textile(body)
 
         integration_user_upn = self.manager.get_user_by_upn(config.SMAX_LOGIN)
         comment = Comment(

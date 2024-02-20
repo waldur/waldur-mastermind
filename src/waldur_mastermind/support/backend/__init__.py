@@ -14,6 +14,11 @@ class SupportBackendType:
     SMAX = "smax"
 
 
+class SupportedFormat:
+    HTML = "html"
+    TEXT = "text"
+
+
 def get_active_backend():
     backend_type = config.WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE
     if backend_type == SupportBackendType.ATLASSIAN:
@@ -40,6 +45,7 @@ class SupportBackend:
 
     backend_name = None
     summary_max_length = 255
+    message_format = SupportedFormat.TEXT
 
     def create_issue(self, issue):
         raise NotImplementedError

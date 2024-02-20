@@ -1,3 +1,4 @@
+import copy
 import logging
 from smtplib import SMTPException
 
@@ -8,10 +9,11 @@ from django.core import signing
 from django.template import Context, Template
 from django.template.loader import get_template
 
+import html2text
+import textile
 from waldur_core.core import utils as core_utils
 
 from . import backend, models
-from .backend.smax import formatting_for_waldur
 from .utils import get_feedback_link
 
 logger = logging.getLogger(__name__)
@@ -62,11 +64,16 @@ def create_confirmation_comment(serialized_issue, comment_tmpl=""):
 @shared_task(name="waldur_mastermind.support.send_issue_updated_notification")
 def send_issue_updated_notification(serialized_issue, changed):
     issue = core_utils.deserialize_instance(serialized_issue)
+    extra_context = {
+        "changed": changed,
+        "format_description": issue.description,
+        "format_old_description": changed.get("description", ""),
+    }
 
     _send_issue_notification(
         issue=issue,
         template="issue_updated",
-        extra_context={"changed": changed},
+        extra_context=extra_context,
     )
 
 
@@ -74,13 +81,10 @@ def send_issue_updated_notification(serialized_issue, changed):
 def send_comment_added_notification(serialized_comment):
     comment = core_utils.deserialize_instance(serialized_comment)
 
-    if config.WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE == backend.SupportBackendType.SMAX:
-        comment = formatting_for_waldur(comment)
-
     _send_issue_notification(
         issue=comment.issue,
         template="comment_added",
-        extra_context={"comment": comment},
+        extra_context={"comment": comment, "format_description": comment.description},
     )
 
 
@@ -88,16 +92,13 @@ def send_comment_added_notification(serialized_comment):
 def send_comment_updated_notification(serialized_comment, old_description):
     comment = core_utils.deserialize_instance(serialized_comment)
 
-    if config.WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE == backend.SupportBackendType.SMAX:
-        comment = formatting_for_waldur(comment)
-        old_description = formatting_for_waldur(old_description)
-
-    return _send_issue_notification(
+    _send_issue_notification(
         issue=comment.issue,
         template="comment_updated",
         extra_context={
             "comment": comment,
-            "old_description": old_description,
+            "format_description": comment.description,
+            "format_old_description": old_description,
         },
     )
 
@@ -135,8 +136,34 @@ def _send_email(
     if extra_context:
         context.update(extra_context)
 
-    html_message = html_template.render(Context(context))
-    text_message = text_template.render(Context(context, autoescape=False))
+    html_context = copy.deepcopy(context)
+    text_context = copy.deepcopy(context)
+
+    if backend.get_active_backend().message_format == backend.SupportedFormat.HTML:
+        html_format = True
+    else:
+        html_format = False
+
+    for k in list(text_context):
+        if k.startswith("format_"):
+            if html_format:
+                text_context[k.replace("format_", "")] = html2text.html2text(
+                    text_context[k]
+                )
+            else:
+                text_context[k.replace("format_", "")] = text_context[k]
+
+    for k in list(html_context):
+        if k.startswith("format_"):
+            if not html_format:
+                html_context[k.replace("format_", "")] = textile.textile(
+                    html_context[k]
+                )
+            else:
+                html_context[k.replace("format_", "")] = html_context[k]
+
+    html_message = html_template.render(Context(html_context))
+    text_message = text_template.render(Context(text_context, autoescape=False))
     subject = subject_template.render(Context(context, autoescape=False)).strip()
 
     logger.info("About to send an issue update notification to %s" % receiver.email)
