@@ -506,7 +506,7 @@ class OfferingUserAdmin(admin.ModelAdmin):
 
 class OrderAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
     list_display = ("uuid", "project", "created", "created_by", "state", "cost")
-    search_fields = ("query", "project__name", "resource__name", "uuid")
+    search_fields = ("project__name", "resource__name", "uuid")
     fields = (
         "offering",
         "state",
