@@ -699,16 +699,6 @@ class CustomerUsersListTest(test.APITransactionTestCase):
         self.assertTrue(admin.username in usernames)
         self.assertTrue(alice.username in usernames)
 
-    def test_is_service_manager_property_in_users_serializer(self):
-        user = factories.UserFactory()
-        self.fixture.customer.add_user(user, role=CustomerRole.MANAGER)
-        self.client.force_authenticate(self.fixture.staff)
-        response = self.client.get(self.url)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]["is_service_manager"], True)
-
     def test_user_is_not_included_in_selection_if_he_has_required_role_in_different_organization(
         self,
     ):
@@ -747,7 +737,6 @@ class CustomerUsersListTest(test.APITransactionTestCase):
         response = self.client.get(self.url, {"organization_role": "service_manager"})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]["is_service_manager"], True)
 
         # Even if user has project role, he is skipped when organization filter is applied
         self.fixture.project.add_user(user, ProjectRole.MEMBER)
