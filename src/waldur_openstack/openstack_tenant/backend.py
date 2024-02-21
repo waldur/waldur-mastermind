@@ -13,6 +13,7 @@ from novaclient import exceptions as nova_exceptions
 
 from waldur_core.structure.backend import log_backend_action
 from waldur_core.structure.registry import get_resource_type
+from waldur_core.structure.signals import resource_pulled
 from waldur_core.structure.utils import (
     handle_resource_not_found,
     handle_resource_update_success,
@@ -911,6 +912,8 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                 update_fields = models.Volume.get_backend_fields()
 
             update_pulled_fields(volume, imported_volume, update_fields)
+
+        resource_pulled.send(sender=volume.__class__, instance=volume)
 
     @log_backend_action()
     def pull_volume_runtime_state(self, volume):
