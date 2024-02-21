@@ -8,3 +8,6 @@ project_moved = Signal()
 
 # providing_args=['permission', 'structure']
 permissions_request_approved = Signal()
+
+# providing_args=['instance']
+resource_pulled = Signal()

@@ -59,7 +59,7 @@ def archive_offering(sender, instance, **kwargs):
         )
 
 
-def synchronize_volume_metadata(sender, instance, created=False, **kwargs):
+def synchronize_volume_metadata_on_save(sender, instance, created=False, **kwargs):
     volume = instance
     if not created and not set(volume.tracker.changed()) & {
         "size",
@@ -67,6 +67,23 @@ def synchronize_volume_metadata(sender, instance, created=False, **kwargs):
         "type_id",
     }:
         return
+
+    try:
+        resource = marketplace_models.Resource.objects.get(scope=volume)
+    except ObjectDoesNotExist:
+        logger.debug(
+            "Skipping resource synchronization for OpenStack volume "
+            "because marketplace resource does not exist. "
+            "Resource ID: %s",
+            instance.id,
+        )
+        return
+
+    utils.import_volume_metadata(resource)
+
+
+def synchronize_volume_metadata_on_pull(sender, instance, **kwargs):
+    volume = instance
 
     try:
         resource = marketplace_models.Resource.objects.get(scope=volume)

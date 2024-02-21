@@ -178,9 +178,15 @@ class MarketplaceOpenStackConfig(AppConfig):
         )
 
         signals.post_save.connect(
-            handlers.synchronize_volume_metadata,
+            handlers.synchronize_volume_metadata_on_save,
             sender=tenant_models.Volume,
-            dispatch_uid="waldur_mastermind.marketplace_openstack.synchronize_volume_metadata",
+            dispatch_uid="waldur_mastermind.marketplace_openstack.synchronize_volume_metadata_on_save",
+        )
+
+        structure_signals.resource_pulled.connect(
+            handlers.synchronize_volume_metadata_on_pull,
+            sender=tenant_models.Volume,
+            dispatch_uid="waldur_mastermind.marketplace_openstack.synchronize_volume_metadata_on_pull",
         )
 
         signals.post_save.connect(
