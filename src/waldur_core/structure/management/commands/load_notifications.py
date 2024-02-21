@@ -6,6 +6,14 @@ from waldur_core.core.models import Notification, NotificationTemplate
 from waldur_core.structure.notifications import NOTIFICATIONS
 
 
+def check_notification_existence(notification_key):
+    for key, section in NOTIFICATIONS.items():
+        for notification in section:
+            if notification_key == f"{key}.{notification['path']}":
+                return True
+    return False
+
+
 class Command(BaseCommand):
     help = "Import notifications to DB"
 
@@ -21,11 +29,17 @@ class Command(BaseCommand):
             notifications = json.load(notifications_file)
 
         valid_notifications_data = []
-
+        for notification_from_file in notifications:
+            if not check_notification_existence(notification_from_file):
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Invalid notifications detected: {notification_from_file}"
+                    )
+                )
         for key, section in NOTIFICATIONS.items():
             for notification in section:
                 path = f"{key}.{notification['path']}"
-                if path in notifications:
+                if check_notification_existence(path):
                     notification_data = {
                         "path": path,
                         "templates": {
@@ -35,10 +49,6 @@ class Command(BaseCommand):
                         "description": notification.get("description"),
                     }
                     valid_notifications_data.append(notification_data)
-                else:
-                    self.stdout.write(
-                        self.style.WARNING(f"Invalid notifications detected: {path}")
-                    )
 
         for valid_notification_data in valid_notifications_data:
             notification, created = Notification.objects.get_or_create(
