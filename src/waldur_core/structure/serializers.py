@@ -596,7 +596,6 @@ class CustomerUserSerializer(
     serializers.ModelSerializer,
 ):
     role = serializers.ReadOnlyField()
-    is_service_manager = serializers.ReadOnlyField()
     expiration_time = serializers.ReadOnlyField(source="perm.expiration_time")
     projects = NestedProjectPermissionSerializer(many=True, read_only=True)
     role_name = serializers.SerializerMethodField()
@@ -612,7 +611,6 @@ class CustomerUserSerializer(
             "role",
             "role_name",
             "projects",
-            "is_service_manager",
             "expiration_time",
             "image",
         ]
@@ -645,13 +643,9 @@ class CustomerUserSerializer(
             user=user,
             is_active=True,
         )
-        is_service_manager = customer.has_user(
-            user, role=models.CustomerRole.SERVICE_MANAGER
-        )
         setattr(user, "perm", permission)
         setattr(user, "role", permission and get_old_role_name(permission.role.name))
         setattr(user, "projects", projects)
-        setattr(user, "is_service_manager", is_service_manager)
         return super().to_representation(user)
 
 
