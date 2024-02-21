@@ -324,7 +324,6 @@ class ProtectedCallSerializer(PublicCallSerializer):
 
     class Meta(PublicCallSerializer.Meta):
         fields = PublicCallSerializer.Meta.fields + (
-            "reviewers",
             "created_by",
             "reference_code",
         )

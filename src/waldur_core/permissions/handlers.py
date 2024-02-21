@@ -18,7 +18,9 @@ def get_event_context(instance, current_user=None):
 
 def log(instance, current_user, message, event_type):
     model_name = instance.scope._meta.model_name
-    logger = getattr(event_logger, f"{model_name}_role")
+    logger = getattr(event_logger, f"{model_name}_role", None)
+    if not logger:
+        return
     event_context = get_event_context(instance, current_user)
     logger.info(message, event_type=event_type, event_context=event_context)
 
