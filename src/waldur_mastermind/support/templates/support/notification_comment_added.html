@@ -10,8 +10,8 @@
 <p>
     <a href="{{ issue_url }}">[{{ issue.key }}] {{ issue.summary }}</a>
 </p>
-<pre>
-    {{ description }}
-</pre>
+<div>
+    {{ description|safe }}
+</div>
 </body>
 </html>
