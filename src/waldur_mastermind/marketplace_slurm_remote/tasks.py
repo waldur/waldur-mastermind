@@ -36,4 +36,4 @@ def mark_offering_backend_as_disconnected_after_timeout():
     )
     for integration_status in integration_statuses:
         integration_status.set_backend_disconnected()
-        integration_status.save(update_fields=["state"])
+        integration_status.save(update_fields=["status"])
