@@ -35,6 +35,7 @@ class CallFilter(django_filters.FilterSet):
     )
     customer_uuid = django_filters.UUIDFilter(field_name="manager__customer__uuid")
     customer_keyword = django_filters.CharFilter(method="filter_customer_keyword")
+    state = django_filters.MultipleChoiceFilter(choices=models.Call.States.CHOICES)
     o = django_filters.OrderingFilter(
         fields=("manager__customer__name", "created", "name")
     )
