@@ -396,6 +396,8 @@ class ProposalSerializer(
     state = serializers.ReadOnlyField(source="get_state_display")
     round = NestedRoundSerializer(read_only=True)
     round_uuid = serializers.UUIDField(write_only=True, required=True)
+    call_uuid = serializers.UUIDField(source="round.call.uuid", read_only=True)
+    call_name = serializers.ReadOnlyField(source="round.call.name", read_only=True)
     supporting_documentation = ProposalDocumentationSerializer(
         many=True, required=False
     )
@@ -417,6 +419,8 @@ class ProposalSerializer(
             "project",
             "round",
             "round_uuid",
+            "call_uuid",
+            "call_name",
         ]
         read_only_fields = ("created_by", "approved_by", "project")
         protected_fields = ("round_uuid",)
