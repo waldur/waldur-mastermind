@@ -107,9 +107,9 @@ def process_order(order: models.Order, user):
         order.set_state_erred()
         order.resource.set_state_erred()
         logger.error(
-            f"Error processing order { order }. "
-            f"Order ID: { order.id }. "
-            f"Exception: { order.error_message }."
+            f"Error processing order {order}. "
+            f"Order ID: {order.id}. "
+            f"Exception: {order.error_message}."
         )
 
         order.save(
@@ -773,7 +773,7 @@ def serialize_resource_limit_period(period):
     }
 
 
-def terminate_resource(resource, user, termination_comment=None):
+def terminate_resource(resource, user, termination_comment=None, scheduled=False):
     from waldur_mastermind.marketplace import views
 
     view = views.ResourceViewSet.as_view({"post": "terminate"})
@@ -781,10 +781,12 @@ def terminate_resource(resource, user, termination_comment=None):
     # Terminate pending orders if they exist
     for order in models.Order.objects.filter(
         resource=resource,
-        state__in=(
+        state__in=[models.Order.States.PENDING_CONSUMER]
+        if scheduled
+        else [
             models.Order.States.PENDING_CONSUMER,
             models.Order.States.PENDING_PROVIDER,
-        ),
+        ],
     ):
         order.cancel(termination_comment)
         order.save()
@@ -818,7 +820,9 @@ def schedule_resources_termination(resources, termination_comment=None, user=Non
             )
             return
 
-        response = terminate_resource(resource, user, termination_comment)
+        response = terminate_resource(
+            resource, user, termination_comment, scheduled=True
+        )
 
         if response and response.status_code != status.HTTP_200_OK:
             logger.error(
