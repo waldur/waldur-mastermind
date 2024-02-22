@@ -66,6 +66,14 @@ class AttachmentCreateTest(AttachmentTest):
             "file": self.file,
         }
 
+    def test_create_attachment_if_issue_is_resolved(self):
+        self.client.force_authenticate(self.fixture.staff)
+        self.fixture.issue.set_resolved()
+        response = self.client.post(
+            self.url, data=self._get_valid_payload(), format="multipart"
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
 
 @ddt
 class AttachmentDeleteTest(AttachmentTest):

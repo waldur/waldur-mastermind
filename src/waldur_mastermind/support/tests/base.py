@@ -4,6 +4,7 @@ import pkg_resources
 import pytest
 from rest_framework import test
 
+from waldur_mastermind.support import models
 from waldur_mastermind.support.backend import SupportBackendType, atlassian
 
 from . import fixtures
@@ -29,6 +30,10 @@ class BaseTest(test.APITransactionTestCase):
         self.mock_get_active_backend().attachment_destroy_is_available.return_value = (
             True
         )
+        self.mock_get_active_backend().comment_create_is_available.return_value = True
+        self.mock_get_active_backend().attachment_create_is_available.return_value = (
+            True
+        )
         self.mock_get_active_backend().backend_name = None
         self.mock_get_active_backend().pull_support_users = (
             atlassian.ServiceDeskBackend.pull_support_users
@@ -36,6 +41,13 @@ class BaseTest(test.APITransactionTestCase):
         self.mock_get_active_backend().get_users.return_value = [1]
         self.mock_get_active_backend().get_issue_details.return_value = {}
         self.mock_get_active_backend().summary_max_length = 255
+
+        models.IssueStatus.objects.create(
+            name="done", type=models.IssueStatus.Types.RESOLVED
+        )
+        models.IssueStatus.objects.create(
+            name="rejected", type=models.IssueStatus.Types.CANCELED
+        )
 
     def tearDown(self):
         mock.patch.stopall()

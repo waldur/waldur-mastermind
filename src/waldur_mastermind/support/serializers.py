@@ -106,6 +106,8 @@ class IssueSerializer(
     feedback = NestedFeedbackSerializer(required=False, read_only=True)
     update_is_available = serializers.SerializerMethodField()
     destroy_is_available = serializers.SerializerMethodField()
+    add_comment_is_available = serializers.SerializerMethodField()
+    add_attachment_is_available = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Issue
@@ -150,6 +152,8 @@ class IssueSerializer(
             "resolved",
             "update_is_available",
             "destroy_is_available",
+            "add_comment_is_available",
+            "add_attachment_is_available",
         )
         read_only_fields = (
             "key",
@@ -220,10 +224,16 @@ class IssueSerializer(
             return "Marketplace.Resource"
 
     def get_update_is_available(self, obj):
-        return backend.get_active_backend().comment_update_is_available(obj)
+        return backend.get_active_backend().update_is_available(obj)
 
     def get_destroy_is_available(self, obj):
-        return backend.get_active_backend().comment_update_is_available(obj)
+        return backend.get_active_backend().destroy_is_available(obj)
+
+    def get_add_comment_is_available(self, obj):
+        return backend.get_active_backend().comment_create_is_available(obj)
+
+    def get_add_attachment_is_available(self, obj):
+        return backend.get_active_backend().attachment_create_is_available(obj)
 
     def validate(self, attrs):
         if self.instance is not None:
@@ -433,7 +443,7 @@ class CommentSerializer(
         return backend.get_active_backend().comment_update_is_available(obj)
 
     def get_destroy_is_available(self, obj):
-        return backend.get_active_backend().comment_update_is_available(obj)
+        return backend.get_active_backend().comment_destroy_is_available(obj)
 
     def validate_description(self, description):
         if backend.get_active_backend().message_format == backend.SupportedFormat.HTML:
@@ -563,6 +573,10 @@ class AttachmentSerializer(
         ) = models.SupportUser.objects.get_or_create_from_user(author_user)
 
         issue = attrs["issue"]
+
+        if not backend.get_active_backend().attachment_create_is_available(issue):
+            raise serializers.ValidationError(_("Adding attachments is not available."))
+
         if (
             user.is_staff
             or (

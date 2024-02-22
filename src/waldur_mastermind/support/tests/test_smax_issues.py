@@ -72,6 +72,14 @@ class SyncFromSmaxTest(smax_base.BaseTest):
         self.assertEqual(self.issue.description, self.smax_issue.description)
         self.assertEqual(self.issue.status, self.smax_issue.status)
 
+    def test_resolve_issue_from_backend(self):
+        self.assertEqual(self.issue.resolved, None)
+        self.smax_issue = Issue("1", "test", "description", "done")
+        self.mock_smax().get_issue.return_value = self.smax_issue
+        self.backend.sync_issues()
+        self.issue.refresh_from_db()
+        self.assertEqual(self.issue.resolved, True)
+
     def test_web_hook(self):
         url = "/api/support-smax-webhook/"
         response = self.client.post(url, data={"id": self.issue.backend_id})
