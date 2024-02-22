@@ -46,6 +46,17 @@ class AttachmentCreateTest(smax_base.BaseTest):
         attachment = models.Attachment.objects.get(uuid=response.data["uuid"])
         self.assertEqual(str(attachment.backend_id), str(self.smax_attachment.id))
 
+    def test_create_attachment_if_issue_is_resolved(self):
+        user = self.fixture.staff
+        self.client.force_authenticate(user)
+        self.fixture.issue.set_resolved()
+
+        response = self.client.post(
+            self.url, data=self._get_valid_payload(), format="multipart"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
 
 class AttachmentDeleteTest(smax_base.BaseTest):
     def setUp(self):

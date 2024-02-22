@@ -350,9 +350,6 @@ class SmaxServiceBackend(SupportBackend):
         attachment.save()
         return
 
-    def attachment_destroy_is_available(self, *args, **kwargs):
-        return True
-
     def create_issue_links(self, issue, linked_issues):
         if not issue.backend_id or issue.backend_name != self.backend_name:
             return
@@ -392,3 +389,21 @@ class SmaxServiceBackend(SupportBackend):
             is_public=True,
         )
         return self.manager.add_comment(issue.backend_id, comment)
+
+    def _is_issue_active(self, issue):
+        return issue.resolved is None
+
+    def comment_create_is_available(self, issue=None):
+        return self._is_issue_active(issue)
+
+    def comment_update_is_available(self, comment=None):
+        return self._is_issue_active(comment.issue)
+
+    def comment_destroy_is_available(self, comment=None):
+        return self._is_issue_active(comment.issue)
+
+    def attachment_destroy_is_available(self, attachment=None):
+        return self._is_issue_active(attachment.issue)
+
+    def attachment_create_is_available(self, issue=None):
+        return self._is_issue_active(issue)

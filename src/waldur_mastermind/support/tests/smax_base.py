@@ -3,6 +3,7 @@ from unittest import mock
 import pytest
 from rest_framework import test
 
+from waldur_mastermind.support import models
 from waldur_mastermind.support.backend import SupportBackendType
 
 from . import fixtures
@@ -22,6 +23,13 @@ class BaseTest(test.APITransactionTestCase):
 
         mock_patch = mock.patch("waldur_mastermind.support.backend.smax.SmaxBackend")
         self.mock_smax = mock_patch.start()
+
+        models.IssueStatus.objects.create(
+            name="done", type=models.IssueStatus.Types.RESOLVED
+        )
+        models.IssueStatus.objects.create(
+            name="rejected", type=models.IssueStatus.Types.CANCELED
+        )
 
     def tearDown(self):
         mock.patch.stopall()

@@ -1,3 +1,4 @@
+from constance.test.pytest import override_config
 from ddt import data, ddt
 from django.utils import timezone
 from freezegun import freeze_time
@@ -7,6 +8,87 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.support import models
 from waldur_mastermind.support.backend.zammad import ZammadServiceBackend
 from waldur_mastermind.support.tests import base, factories
+
+
+@ddt
+class CommentCreateTest(base.BaseTest):
+    def _get_url(self, issue):
+        return factories.IssueFactory.get_url(issue, action="comment")
+
+    @data("staff", "global_support", "owner", "admin", "manager")
+    def test_user_with_access_to_issue_can_comment(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        issue = factories.IssueFactory(
+            customer=self.fixture.customer, project=self.fixture.project
+        )
+        payload = self._get_valid_payload()
+
+        response = self.client.post(self._get_url(issue), data=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(
+            models.Comment.objects.filter(
+                issue=issue, description=payload["description"]
+            )
+        )
+
+    @data("owner", "admin", "manager", "user")
+    def test_user_can_comment_on_issue_where_he_is_caller_without_project_and_customer(
+        self, user
+    ):
+        current_user = getattr(self.fixture, user)
+        self.client.force_authenticate(current_user)
+        issue = factories.IssueFactory(caller=current_user, project=None)
+        payload = self._get_valid_payload()
+
+        response = self.client.post(self._get_url(issue), data=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(
+            models.Comment.objects.filter(
+                issue=issue, description=payload["description"]
+            )
+        )
+
+    @data("admin", "manager", "user")
+    def test_user_without_access_to_instance_cannot_comment(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        issue = factories.IssueFactory(customer=self.fixture.customer)
+        payload = self._get_valid_payload()
+
+        response = self.client.post(self._get_url(issue), data=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertFalse(
+            models.Comment.objects.filter(
+                issue=issue, description=payload["description"]
+            )
+        )
+
+    @override_config(WALDUR_SUPPORT_ENABLED=False)
+    def test_user_can_not_comment_issue_if_support_extension_is_disabled(self):
+        self.client.force_authenticate(self.fixture.staff)
+        issue = factories.IssueFactory(customer=self.fixture.customer)
+        payload = self._get_valid_payload()
+
+        response = self.client.post(self._get_url(issue), data=payload)
+        self.assertEqual(response.status_code, status.HTTP_424_FAILED_DEPENDENCY)
+
+    def test_create_comment_if_issue_is_resolved(self):
+        self.client.force_authenticate(self.fixture.staff)
+        issue = factories.IssueFactory(
+            customer=self.fixture.customer, project=self.fixture.project
+        )
+        issue.set_resolved()
+
+        response = self.client.post(
+            self._get_url(issue), data=self._get_valid_payload()
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def _get_valid_payload(self):
+        return {"description": "Comment description"}
 
 
 @ddt

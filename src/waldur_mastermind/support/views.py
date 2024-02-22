@@ -116,6 +116,10 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
             return
         raise rf_exceptions.PermissionDenied()
 
+    def _comment_create_is_available_validator(issue):
+        if not backend.get_active_backend().comment_create_is_available(issue):
+            raise ValidationError("Creating is not available.")
+
     @decorators.action(detail=True, methods=["post"])
     def comment(self, request, uuid=None):
         serializer = self.get_serializer(data=request.data)
@@ -127,6 +131,7 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
     comment_serializer_class = serializers.CommentSerializer
     comment_permissions = [_comment_permission]
+    comment_validators = [_comment_create_is_available_validator]
 
     @decorators.action(detail=True, methods=["post"])
     def sync(self, request, uuid=None):
@@ -154,6 +159,7 @@ class CommentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     )
     filterset_class = filters.CommentFilter
     queryset = models.Comment.objects.all()
+    disabled_actions = ["create"]
 
     @transaction.atomic()
     def perform_update(self, serializer):

@@ -91,6 +91,9 @@ class SupportBackend:
     def destroy_is_available(self, issue=None):
         return False
 
+    def comment_create_is_available(self, issue=None):
+        return True
+
     def comment_update_is_available(self, comment=None):
         return True
 
@@ -99,6 +102,9 @@ class SupportBackend:
 
     def attachment_destroy_is_available(self, attachment=None):
         return False
+
+    def attachment_create_is_available(self, issue=None):
+        return True
 
     def pull_support_users(self):
         raise NotImplementedError

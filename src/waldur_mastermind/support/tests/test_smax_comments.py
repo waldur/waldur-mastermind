@@ -34,7 +34,7 @@ class CommentCreateTest(smax_base.BaseTest):
         payload.update(additional)
         return payload
 
-    def test_create_issue(self):
+    def test_create_comment(self):
         user = self.fixture.staff
         self.client.force_authenticate(user)
 
@@ -44,6 +44,15 @@ class CommentCreateTest(smax_base.BaseTest):
         self.mock_smax().add_comment.assert_called_once()
         comment = models.Comment.objects.get(uuid=response.data["uuid"])
         self.assertEqual(str(comment.backend_id), str(self.smax_comment.id))
+
+    def test_create_comment_if_issue_is_resolved(self):
+        user = self.fixture.staff
+        self.client.force_authenticate(user)
+        self.fixture.issue.set_resolved()
+
+        response = self.client.post(self.url, data=self._get_valid_payload())
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
 class CommentUpdateTest(smax_base.BaseTest):
