@@ -118,6 +118,12 @@ def notify_approvers_when_order_is_created(sender, instance, created=False, **kw
             if utils.order_should_not_be_reviewed_by_provider(order):
                 order.set_state_executing()
                 order.save()
+                logger.info(
+                    "Processing order %s (%s) without approvals, resource %s",
+                    order,
+                    order.id,
+                    order.resource,
+                )
                 tasks.process_order_on_commit(order, order.created_by)
             else:
                 order.state = models.Order.States.PENDING_PROVIDER

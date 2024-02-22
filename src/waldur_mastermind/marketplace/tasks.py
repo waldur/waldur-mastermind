@@ -260,6 +260,10 @@ def terminate_resources_if_project_end_date_has_been_reached():
             state__in=(models.Resource.States.OK, models.Resource.States.ERRED),
             offering__parent=None,
         )
+        logger.info(
+            "About to terminate resources from expired project: %s",
+            ",".join([f"{r.uuid}, {r.name}" for r in terminatable_resources]),
+        )
         utils.schedule_resources_termination(
             terminatable_resources,
             termination_comment=f"Project end date has been reached on {timezone.datetime.today()}",
@@ -326,6 +330,10 @@ def terminate_expired_resources():
     expired_resources = models.Resource.objects.filter(
         end_date__lte=timezone.datetime.today(),
         state__in=(models.Resource.States.OK, models.Resource.States.ERRED),
+    )
+    logger.info(
+        "About to terminate expired resources: %s",
+        ",".join([f"{r.uuid}, {r.name}" for r in expired_resources]),
     )
     utils.schedule_resources_termination(
         expired_resources,
