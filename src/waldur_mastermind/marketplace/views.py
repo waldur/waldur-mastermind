@@ -1884,6 +1884,12 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
         if utils.order_should_not_be_reviewed_by_provider(order):
             order.set_state_executing()
             order.save(update_fields=["state"])
+            logger.info(
+                "Processing order %s (%s) after consumer approval, resource %s",
+                order,
+                order.id,
+                order.resource,
+            )
             tasks.process_order_on_commit(order, request.user)
         else:
             order.state = models.Order.States.PENDING_PROVIDER
@@ -1912,6 +1918,12 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
         order.review_by_provider(request.user)
         order.set_state_executing()
         order.save(update_fields=["state"])
+        logger.info(
+            "Processing order %s (%s) after provider approval, resource %s",
+            order,
+            order.id,
+            order.resource,
+        )
         tasks.process_order_on_commit(order, request.user)
         return Response(status=status.HTTP_200_OK)
 
