@@ -77,7 +77,9 @@ class UserRoleMixin:
             else:
                 queryset = queryset.filter(role__name=role)
         queryset = self.paginate_queryset(queryset)
-        serializer = serializers.UserRoleDetailsSerializer(queryset, many=True)
+        serializer = serializers.UserRoleDetailsSerializer(
+            queryset, many=True, context={"request": request}
+        )
         return self.get_paginated_response(serializer.data)
 
     @action(detail=True, methods=["POST"])
