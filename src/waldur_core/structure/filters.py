@@ -207,6 +207,7 @@ class ProjectFilter(NameFilterSet):
             ("customer__native_name", "customer_native_name"),
             ("customer__abbreviation", "customer_abbreviation"),
             ("estimated_cost", "estimated_cost"),
+            ("end_date", "end_date"),
         )
     )
 
