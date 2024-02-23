@@ -379,7 +379,7 @@ def connect_resource_handlers(*resources):
         )
 
 
-def synchronize_resource_metadata(sender, instance, created=False, **kwargs):
+def synchronize_resource_metadata_on_save(sender, instance, created=False, **kwargs):
     fields = {
         "action",
         "action_details",
@@ -405,13 +405,35 @@ def synchronize_resource_metadata(sender, instance, created=False, **kwargs):
     utils.import_resource_metadata(resource)
 
 
+def synchronize_resource_metadata_on_delete(sender, instance, **kwargs):
+    try:
+        resource = models.Resource.objects.get(scope=instance)
+    except ObjectDoesNotExist:
+        logger.debug(
+            "Skipping resource synchronization for OpenStack resource "
+            "because marketplace resource does not exist. "
+            "Resource ID: %s",
+            instance.id,
+        )
+        return
+    resource.backend_metadata = {"state": "Deleted"}
+    resource.save()
+
+
 def connect_resource_metadata_handlers(*resources):
     for index, model in enumerate(resources):
         signals.post_save.connect(
-            synchronize_resource_metadata,
+            synchronize_resource_metadata_on_save,
             sender=model,
             dispatch_uid="waldur_mastermind.marketplace."
-            f"synchronize_resource_metadata_{index}_{model.__class__}",
+            f"synchronize_resource_metadata_on_save_{index}_{model.__class__}",
+        )
+
+        signals.post_delete.connect(
+            synchronize_resource_metadata_on_delete,
+            sender=model,
+            dispatch_uid="waldur_mastermind.marketplace."
+            f"synchronize_resource_metadata_on_delete_{index}_{model.__class__}",
         )
 
 
