@@ -387,6 +387,7 @@ class SmaxServiceBackend(SupportBackend):
             description=body,
             backend_user_id=integration_user_upn.id,
             is_public=True,
+            is_system=True,
         )
         return self.manager.add_comment(issue.backend_id, comment)
 

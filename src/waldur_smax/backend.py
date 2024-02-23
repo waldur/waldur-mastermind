@@ -71,6 +71,7 @@ class Comment:
     is_public: bool = False
     id: str = None
     backend_issue_id: str = None
+    is_system: bool = False
 
 
 @dataclass
@@ -172,6 +173,9 @@ class SmaxBackend:
                     is_public=False if e["PrivacyType"] == "INTERNAL" else True,
                     description=unescape(e["Body"]),
                     backend_user_id=e["Submitter"]["UserId"],
+                    is_system=False
+                    if e.get("FunctionalPurpose") == "EndUserComment"
+                    else True,
                 )
             )
 
@@ -438,16 +442,21 @@ class SmaxBackend:
         return self._smax_response_to_comment(response)
 
     def add_comment(self, issue_id, comment: Comment):
+        payload = {
+            "IsSystem": False,
+            "Body": comment.description,
+            "PrivacyType": "PUBLIC" if comment.is_public else "INTERNAL",
+            "Submitter": {"UserId": comment.backend_user_id},
+            "ActualInterface": "API",
+            "CommentFrom": "User",
+        }
+
+        if not comment.is_system:
+            payload["FunctionalPurpose"] = "EndUserComment"
+
         response = self.post(
             f"/collaboration/comments/Request/{issue_id}/",
-            json={
-                "IsSystem": False,
-                "Body": comment.description,
-                "PrivacyType": "PUBLIC" if comment.is_public else "INTERNAL",
-                "Submitter": {"UserId": comment.backend_user_id},
-                "ActualInterface": "API",
-                "CommentFrom": "User",
-            },
+            json=payload,
         )
 
         comment.id = response.json()["Id"]
