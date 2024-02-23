@@ -602,7 +602,7 @@ class ProjectDetailsMixin(core_models.DescribableMixin, ProjectOECDFOS2007CodeMi
         verbose_name=_("project type"),
         blank=True,
         null=True,
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
     )
     is_industry = models.BooleanField(default=False)
 

@@ -233,7 +233,7 @@ class Snapshot(TenantQuotaMixin, structure_models.Snapshot):
     backend_id = models.CharField(max_length=255, blank=True, null=True)
 
     source_volume: Volume = models.ForeignKey(
-        Volume, related_name="snapshots", null=True, on_delete=models.PROTECT
+        Volume, related_name="snapshots", null=True, on_delete=models.CASCADE
     )
     metadata = JSONField(blank=True)
     # TODO: Move this fields to resource model.
@@ -451,7 +451,7 @@ class Instance(TenantQuotaMixin, structure_models.VirtualMachine):
 
 class Backup(structure_models.SubResource):
     instance = models.ForeignKey(
-        Instance, related_name="backups", on_delete=models.PROTECT
+        Instance, related_name="backups", on_delete=models.CASCADE
     )
     backup_schedule = models.ForeignKey(
         "BackupSchedule",
