@@ -11,6 +11,7 @@ from django.template.loader import get_template
 
 import html2text
 import textile
+from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 
 from . import backend, models
@@ -104,11 +105,11 @@ def send_comment_updated_notification(serialized_comment, old_description):
 
 
 def _send_email(
-    issue,
+    issue: models.Issue,
     html_template,
     text_template,
     subject_template,
-    receiver=None,
+    receiver: core_models.User = None,
     extra_context=None,
 ):
     if not config.WALDUR_SUPPORT_ENABLED:
@@ -124,6 +125,11 @@ def _send_email(
 
     if not receiver:
         receiver = issue.caller
+        if receiver is None:
+            logger.warning(
+                f"Issue has no connected caller, cannot send an update for issue {issue.uuid}."
+            )
+            return
 
     context = {
         "issue_url": core_utils.format_homeport_link(
@@ -180,7 +186,7 @@ def _send_email(
         logger.warning(message)
 
 
-def _send_issue_notification(issue, template, *args, **kwargs):
+def _send_issue_notification(issue: models.Issue, template, *args, **kwargs):
     try:
         notification_template = models.TemplateStatusNotification.objects.get(
             status=issue.status
