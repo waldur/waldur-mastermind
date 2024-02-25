@@ -81,11 +81,22 @@ def send_issue_updated_notification(serialized_issue, changed):
 @shared_task(name="waldur_mastermind.support.send_comment_added_notification")
 def send_comment_added_notification(serialized_comment):
     comment = core_utils.deserialize_instance(serialized_comment)
+    is_system_comment = False
+
+    if (
+        config.WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE == backend.SupportBackendType.SMAX
+        and comment.author.name == config.SMAX_LOGIN
+    ):
+        is_system_comment = True
 
     _send_issue_notification(
         issue=comment.issue,
         template="comment_added",
-        extra_context={"comment": comment, "format_description": comment.description},
+        extra_context={
+            "comment": comment,
+            "format_description": comment.description,
+            "is_system_comment": is_system_comment,
+        },
     )
 
 
