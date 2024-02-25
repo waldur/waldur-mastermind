@@ -83,7 +83,8 @@ def mark_terminating_tenant_as_erred_after_timeout():
         order.save()
         resource = order.resource
         resource.set_state_erred()
-        resource.save(update_fields=["state"])
+        resource.backend_metadata.update({"state": "Erred"})
+        resource.save(update_fields=["state", "backend_metadata"])
         tenant = resource.scope
         tenant.set_erred()
         tenant.save(update_fields=["state"])
