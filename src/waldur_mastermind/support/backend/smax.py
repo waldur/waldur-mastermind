@@ -228,6 +228,10 @@ class SmaxServiceBackend(SupportBackend):
         for issue in issues:
             self.update_waldur_issue_from_smax(issue)
 
+    def pull_support_users(self):
+        # placeholder, traversing all SMAX users might be overly costly
+        pass
+
     def create_smax_user_for_support_user(
         self, support_user: models.SupportUser
     ) -> User:
