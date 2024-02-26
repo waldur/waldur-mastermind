@@ -62,9 +62,6 @@ class CallFilter(django_filters.FilterSet):
 
 
 class ProposalFilter(django_filters.FilterSet):
-    call = core_filters.URLFilter(
-        view_name="proposal-public-call-detail", field_name="round__call__uuid"
-    )
     round = django_filters.UUIDFilter(field_name="round__uuid")
     state = core_filters.MappedMultipleChoiceFilter(
         choices=[
@@ -77,14 +74,14 @@ class ProposalFilter(django_filters.FilterSet):
         },
     )
     name = django_filters.CharFilter(lookup_expr="icontains")
-    customer_uuid = django_filters.UUIDFilter(field_name="round__call__uuid")
+    call = django_filters.UUIDFilter(field_name="round__call__uuid")
     o = django_filters.OrderingFilter(
         fields=("round__call__name", "start_time", "end_time", "state")
     )
 
     class Meta:
         model = models.Proposal
-        fields = ["state", "name", "customer_uuid", "round", "call"]
+        fields = ["state", "name", "round", "call"]
 
 
 class ReviewFilter(django_filters.FilterSet):
