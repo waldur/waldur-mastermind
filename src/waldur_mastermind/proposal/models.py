@@ -9,10 +9,13 @@ from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
 
 from waldur_core.core import models as core_models
+from waldur_core.logging.loggers import LoggableMixin
 from waldur_core.permissions.utils import get_users
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.models import SafeAttributesMixin
+
+from . import managers
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +58,7 @@ class CallManagingOrganisation(
 
 class Call(
     TimeStampedModel,
+    LoggableMixin,
     core_models.UuidMixin,
     core_models.NameMixin,
     core_models.DescribableMixin,
@@ -84,6 +88,7 @@ class Call(
         marketplace_models.Offering, through="RequestedOffering"
     )
     documents = models.ManyToManyField(CallDocument, related_name="call_documents")
+    objects = managers.CallManager()
 
     class Permissions:
         customer_path = "manager__customer"
@@ -94,6 +99,10 @@ class Call(
     @property
     def reviewers(self):
         return get_users(self)
+
+    @classmethod
+    def get_permitted_objects(cls, user):
+        return cls.objects.all().filter_for_user(user)
 
 
 class RequestedOffering(

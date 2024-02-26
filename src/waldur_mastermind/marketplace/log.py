@@ -243,9 +243,6 @@ class MarketplaceServiceProviderLogger(EventLogger):
 
     class Meta:
         event_types = (
-            "role_granted",
-            "role_updated",
-            "role_revoked",
             "resource_robot_account_created",
             "resource_robot_account_updated",
             "resource_robot_account_deleted",
