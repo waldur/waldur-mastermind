@@ -43,8 +43,6 @@ from waldur_core.permissions.views import UserRoleMixin
 from waldur_core.structure import filters, models, permissions, serializers, utils
 from waldur_core.structure.managers import (
     count_customer_users,
-    filter_customer_permissions,
-    filter_project_permissions,
     filter_queryset_for_user,
     get_connected_customers,
     get_connected_projects,
@@ -600,24 +598,6 @@ class UserViewSet(viewsets.ModelViewSet):
             )
         pull_remote_eduteams_user(user.username)
         return Response(status=status.HTTP_200_OK)
-
-
-class ProjectPermissionLogViewSet(viewsets.ReadOnlyModelViewSet):
-    serializer_class = serializers.ProjectPermissionLogSerializer
-    filter_backends = (DjangoFilterBackend,)
-    filterset_class = filters.ProjectPermissionFilter
-
-    def get_queryset(self):
-        return filter_project_permissions(self.request.user, is_active=None)
-
-
-class CustomerPermissionLogViewSet(viewsets.ReadOnlyModelViewSet):
-    serializer_class = serializers.CustomerPermissionLogSerializer
-    filter_backends = (DjangoFilterBackend,)
-    filterset_class = filters.CustomerPermissionFilter
-
-    def get_queryset(self):
-        return filter_customer_permissions(self.request.user, is_active=None)
 
 
 class CustomerPermissionReviewViewSet(

@@ -9,7 +9,6 @@ API_GROUPS = {
     ],
     "organization": [
         "/api/customers/",
-        "/api/customer-permissions-log/",
         "/api/customer-permissions-reviews/",
     ],
     "marketplace": [

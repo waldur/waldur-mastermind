@@ -16,7 +16,6 @@ from waldur_core.core import models as core_models
 from waldur_core.core.filters import ExternalFilterBackend
 from waldur_core.core.utils import get_ordering, is_uuid_like, order_with_nulls
 from waldur_core.permissions.enums import RoleEnum
-from waldur_core.permissions.models import UserRole
 from waldur_core.structure import models
 from waldur_core.structure.managers import (
     filter_queryset_by_user_ip,
@@ -446,56 +445,6 @@ class UserPermissionFilter(django_filters.FilterSet):
             ("role", "role"),
         )
     )
-
-
-class ProjectPermissionFilter(UserPermissionFilter):
-    class Meta:
-        fields = []
-        model = UserRole
-
-    customer = django_filters.UUIDFilter(method="filter_by_customer")
-    project = django_filters.UUIDFilter(method="filter_by_project")
-    role = django_filters.CharFilter(method="filter_by_role")
-
-    def filter_by_role(self, queryset, name, value):
-        role_name = get_new_role_name(models.Project, value)
-        return queryset.filter(role__name=role_name)
-
-    def filter_by_customer(self, queryset, name, value):
-        try:
-            customer = models.Customer.objects.get(uuid=value)
-        except models.Customer.DoesNotExist:
-            return queryset.none()
-        return queryset.filter(
-            object_id__in=customer.projects.values_list("id", flat=True)
-        )
-
-    def filter_by_project(self, queryset, name, value):
-        try:
-            project = models.Project.objects.get(uuid=value)
-        except models.Project.DoesNotExist:
-            return queryset.none()
-        return queryset.filter(object_id=project.id)
-
-
-class CustomerPermissionFilter(UserPermissionFilter):
-    class Meta:
-        fields = []
-        model = UserRole
-
-    customer = django_filters.UUIDFilter(method="filter_by_customer")
-    role = django_filters.CharFilter(method="filter_by_role")
-
-    def filter_by_role(self, queryset, name, value):
-        role_name = get_new_role_name(models.Customer, value)
-        return queryset.filter(role__name=role_name)
-
-    def filter_by_customer(self, queryset, name, value):
-        try:
-            customer = models.Customer.objects.get(uuid=value)
-        except models.Customer.DoesNotExist:
-            return queryset.none()
-        return queryset.filter(object_id=customer.id)
 
 
 class CustomerPermissionReviewFilter(django_filters.FilterSet):

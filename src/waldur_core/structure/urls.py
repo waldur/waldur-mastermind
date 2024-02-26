@@ -8,19 +8,9 @@ def register_in(router):
     router.register(r"project-types", views.ProjectTypeViewSet, basename="project_type")
     router.register(r"projects", views.ProjectViewSet)
     router.register(
-        r"customer-permissions-log",
-        views.CustomerPermissionLogViewSet,
-        basename="customer_permission_log",
-    )
-    router.register(
         r"customer-permissions-reviews",
         views.CustomerPermissionReviewViewSet,
         basename="customer_permission_review",
-    )
-    router.register(
-        r"project-permissions-log",
-        views.ProjectPermissionLogViewSet,
-        basename="project_permission_log",
     )
     router.register(r"service-settings", views.ServiceSettingsViewSet)
     router.register(r"users", views.UserViewSet)
