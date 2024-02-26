@@ -156,9 +156,7 @@ class PublicCallSerializer(
 ):
     state = serializers.ReadOnlyField(source="get_state_display")
     customer_name = serializers.ReadOnlyField(source="manager.customer.name")
-    offerings = NestedRequestedOfferingSerializer(
-        many=True, read_only=True, source="requestedoffering_set"
-    )
+    offerings = serializers.SerializerMethodField(method_name="get_offerings")
     rounds = NestedRoundSerializer(many=True, read_only=True, source="round_set")
     start_date = serializers.SerializerMethodField()
     end_date = serializers.SerializerMethodField()
@@ -204,6 +202,18 @@ class PublicCallSerializer(
     def get_end_date(self, obj):
         last_round = obj.round_set.order_by("-cutoff_time").first()
         return last_round.cutoff_time if last_round else None
+
+    def get_offerings(self, obj):
+        queryset = obj.requestedoffering_set.filter(
+            state=models.RequestedOffering.States.ACCEPTED
+        )
+        serializer = NestedRequestedOfferingSerializer(
+            queryset,
+            many=True,
+            read_only=True,
+            context={"request": self.context["request"]},
+        )
+        return serializer.data
 
 
 class ProtectedRequestedOfferingSerializer(
