@@ -47,7 +47,7 @@ class BaseInvitationDetailsSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class BaseInvitationSerializer(BaseInvitationDetailsSerializer):
-    scope = GenericRelatedField(get_valid_models)
+    scope = GenericRelatedField(get_valid_models, write_only=True)
     role = serializers.SlugRelatedField(
         queryset=Role.objects.filter(is_active=True), slug_field="uuid"
     )
