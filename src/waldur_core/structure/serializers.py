@@ -699,62 +699,6 @@ class BasePermissionSerializer(
         return get_old_role_name(instance.role.name)
 
 
-class CustomerPermissionLogSerializer(BasePermissionSerializer):
-    customer_name = serializers.ReadOnlyField(source="scope.name")
-    customer_uuid = serializers.ReadOnlyField(source="scope.uuid")
-    customer_native_name = serializers.ReadOnlyField(source="scope.native_name")
-    customer_abbreviation = serializers.ReadOnlyField(source="scope.abbreviation")
-    customer_division_name = serializers.ReadOnlyField(source="scope.division.name")
-    customer_division_uuid = serializers.ReadOnlyField(source="scope.division.uuid")
-    customer_created = serializers.ReadOnlyField(source="scope.created")
-    customer_email = serializers.ReadOnlyField(source="scope.email")
-    customer = serializers.HyperlinkedRelatedField(
-        source="scope",
-        view_name="customer-detail",
-        read_only=True,
-        lookup_field="uuid",
-    )
-    role = serializers.SerializerMethodField()
-
-    class Meta(BasePermissionSerializer.Meta):
-        model = UserRole
-        fields = (
-            "url",
-            "pk",
-            "role",
-            "created",
-            "expiration_time",
-            "created_by",
-            "created_by_full_name",
-            "created_by_username",
-            "customer",
-            "customer_uuid",
-            "customer_name",
-            "customer_native_name",
-            "customer_abbreviation",
-            "customer_division_name",
-            "customer_division_uuid",
-            "customer_created",
-            "customer_email",
-        ) + BasePermissionSerializer.Meta.fields
-        related_paths = dict(
-            created_by=("full_name", "username"),
-            **BasePermissionSerializer.Meta.related_paths,
-        )
-        view_name = "customer_permission_log-detail"
-        extra_kwargs = {
-            "user": {
-                "view_name": "user-detail",
-                "lookup_field": "uuid",
-            },
-            "created_by": {
-                "view_name": "user-detail",
-                "lookup_field": "uuid",
-                "read_only": True,
-            },
-        }
-
-
 class CustomerPermissionReviewSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
@@ -803,8 +747,6 @@ class ProjectPermissionLogSerializer(BasePermissionSerializer):
     class Meta(BasePermissionSerializer.Meta):
         model = UserRole
         fields = (
-            "url",
-            "pk",
             "role",
             "created",
             "expiration_time",

@@ -417,7 +417,7 @@ class ConsumerProjectPermissionListTest(test.APITransactionTestCase):
         response = self.client.get(self.url)
 
         self.assertEqual(200, response.status_code)
-        self.assertIn(self.permission.id, [item["pk"] for item in response.data])
+        self.assertEqual(len(response.data), 1)
 
 
 class ConsumerUserListTest(test.APITransactionTestCase):

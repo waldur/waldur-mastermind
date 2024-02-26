@@ -3,7 +3,7 @@ from django.db import models
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.managers import GenericKeyMixin
-from waldur_core.permissions.models import Role, UserRole
+from waldur_core.permissions.models import Role
 from waldur_core.permissions.utils import get_scope_ids, get_user_ids
 from waldur_core.structure import models as structure_models
 
@@ -258,37 +258,3 @@ def get_divisions(user):
     return structure_models.Customer.objects.filter(
         id__in=get_visible_customers(user)
     ).values("division")
-
-
-def filter_customer_permissions(user, is_active=True, target_user=None):
-    queryset = UserRole.objects.filter(
-        content_type=ContentType.objects.get_for_model(structure_models.Customer),
-        role__is_system_role=True,
-        is_active=is_active,
-    ).order_by("-created")
-
-    if target_user:
-        queryset = queryset.filter(user=target_user)
-    elif not (user.is_staff or user.is_support):
-        queryset = queryset.filter(
-            models.Q(user=user) | models.Q(object_id__in=get_visible_customers(user))
-        ).distinct()
-
-    return queryset
-
-
-def filter_project_permissions(user, is_active=True, target_user=None):
-    queryset = UserRole.objects.filter(
-        content_type=ContentType.objects.get_for_model(structure_models.Project),
-        role__is_system_role=True,
-        is_active=is_active,
-    ).order_by("-created")
-
-    if target_user:
-        queryset = queryset.filter(user=target_user)
-    elif not (user.is_staff or user.is_support):
-        queryset = queryset.filter(
-            models.Q(user=user) | models.Q(object_id__in=get_visible_projects(user))
-        ).distinct()
-
-    return queryset
