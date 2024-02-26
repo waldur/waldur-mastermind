@@ -34,8 +34,8 @@ class UnitPriceMixin(models.Model):
 
     unit_price = models.DecimalField(
         default=0,
-        max_digits=22,
-        decimal_places=7,
+        max_digits=PRICE_MAX_DIGITS,
+        decimal_places=PRICE_DECIMAL_PLACES,
         validators=[MinValueValidator(Decimal("0"))],
     )
     unit = models.CharField(default=Units.PER_DAY, max_length=30, choices=Units.CHOICES)

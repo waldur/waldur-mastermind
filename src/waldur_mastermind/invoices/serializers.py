@@ -11,6 +11,7 @@ from waldur_core.core import signals as core_signals
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
+from waldur_mastermind.common.mixins import PRICE_DECIMAL_PLACES, PRICE_MAX_DIGITS
 from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.marketplace import models as marketplace_models
 
@@ -18,8 +19,8 @@ from . import models, utils
 
 
 class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
-    tax = serializers.DecimalField(max_digits=15, decimal_places=7)
-    total = serializers.DecimalField(max_digits=15, decimal_places=7)
+    tax = serializers.DecimalField(max_digits=PRICE_DECIMAL_PLACES, decimal_places=2)
+    total = serializers.DecimalField(max_digits=PRICE_MAX_DIGITS, decimal_places=2)
     factor = serializers.ReadOnlyField(source="get_factor")
     measured_unit = serializers.ReadOnlyField(source="get_measured_unit")
     resource_uuid = serializers.ReadOnlyField(source="resource.uuid")
@@ -186,9 +187,15 @@ class InvoiceItemMigrateToSerializer(serializers.HyperlinkedModelSerializer):
 class InvoiceSerializer(
     core_serializers.RestrictedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
-    price = serializers.DecimalField(max_digits=15, decimal_places=7)
-    tax = serializers.DecimalField(max_digits=15, decimal_places=7)
-    total = serializers.DecimalField(max_digits=15, decimal_places=7)
+    price = serializers.DecimalField(
+        max_digits=PRICE_MAX_DIGITS, decimal_places=PRICE_DECIMAL_PLACES
+    )
+    tax = serializers.DecimalField(
+        max_digits=PRICE_MAX_DIGITS, decimal_places=PRICE_DECIMAL_PLACES
+    )
+    total = serializers.DecimalField(
+        max_digits=PRICE_MAX_DIGITS, decimal_places=PRICE_DECIMAL_PLACES
+    )
     items = serializers.SerializerMethodField()
     issuer_details = serializers.SerializerMethodField()
     customer_details = serializers.SerializerMethodField()

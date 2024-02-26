@@ -70,7 +70,7 @@ class Invoice(core_models.UuidMixin, core_models.BackendMixin, models.Model):
     )
     total_cost = models.DecimalField(
         default=0,
-        max_digits=10,
+        max_digits=common_mixins.PRICE_MAX_DIGITS,
         decimal_places=2,
         help_text=_("Cached value for total cost."),
         editable=False,
@@ -226,7 +226,11 @@ class InvoiceItem(
     invoice = models.ForeignKey(
         on_delete=models.CASCADE, to=Invoice, related_name="items"
     )
-    quantity = models.DecimalField(default=0, max_digits=22, decimal_places=7)
+    quantity = models.DecimalField(
+        default=0,
+        max_digits=common_mixins.PRICE_MAX_DIGITS,
+        decimal_places=common_mixins.PRICE_DECIMAL_PLACES,
+    )
     measured_unit = models.CharField(
         max_length=30, help_text=_("Unit of measurement, for example, GB."), blank=True
     )
