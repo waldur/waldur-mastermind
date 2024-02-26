@@ -14,6 +14,10 @@ def update_daily_quotas(sender, instance, created=False, **kwargs):
     if not created:
         return
 
+    # Consider dropping daily-quotas since it is actually used only by nc_user_count
+    if instance.name != "nc_user_count":
+        return
+
     models.DailyQuotaHistory.objects.update_or_create_quota(
         scope=instance.scope,
         name=instance.name,
