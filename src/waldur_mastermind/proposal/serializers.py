@@ -515,7 +515,7 @@ class ReviewSerializer(
         if (
             user.is_staff
             or review.reviewer == user
-            or user in review.proposal.round.call.manager.customer.get_users()
+            or review.proposal.round.call.manager.customer.has_user(user)
         ):
             return fields
 
