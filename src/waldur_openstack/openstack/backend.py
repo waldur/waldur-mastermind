@@ -465,6 +465,9 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     def _remove_stale_security_groups(self, tenants, backend_security_groups):
         remote_ids = {ip["id"] for ip in backend_security_groups}
+        if len(remote_ids) > 0:
+            logger.info(f"Remote IDs of detected security groups are: {remote_ids}")
+
         stale_groups = models.SecurityGroup.objects.filter(
             tenant__in=tenants,
             state__in=[
@@ -472,6 +475,8 @@ class OpenStackBackend(BaseOpenStackBackend):
                 models.SecurityGroup.States.ERRED,
             ],
         ).exclude(backend_id__in=remote_ids)
+
+        logger.info(f"Removing {stale_groups.count()} sec groups from {tenants}.")
         for security_group in stale_groups:
             event_logger.openstack_security_group.info(
                 "Security group %s has been cleaned from cache." % security_group.name,
