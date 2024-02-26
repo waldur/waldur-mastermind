@@ -93,6 +93,11 @@ def update_pulled_fields(instance, imported_instance, fields):
     for field in fields:
         pulled_value = getattr(imported_instance, field)
         current_value = getattr(instance, field)
+
+        if field == "directly_connected_ips":
+            pulled_value = set(pulled_value.split(","))
+            current_value = set(current_value.split(","))
+
         if current_value != pulled_value:
             setattr(instance, field, pulled_value)
             logger.info(
