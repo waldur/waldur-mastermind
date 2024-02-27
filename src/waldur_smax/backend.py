@@ -203,7 +203,7 @@ class SmaxBackend:
         for e in entities:
             data = e["properties"]
             attachment = Attachment(
-                filename=data["file_name"],
+                filename=data.get("file_name") or data.get("name", "Unknown"),
                 size=data["size"],
                 content_type=data["mime_type"],
                 id=data["id"],
