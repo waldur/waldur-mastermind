@@ -62,6 +62,10 @@ class Command(BaseCommand):
                 setting_value = json.dumps(setting_value)
 
             setattr(config, setting_key.upper(), setting_value)
+
+            if "password" in setting_key.lower() or "token" in setting_key.lower():
+                setting_value = "<redacted>"
+
             self.stdout.write(
                 self.style.SUCCESS(
                     f"{setting_key.upper()} has been set to {setting_value}."
