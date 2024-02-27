@@ -95,8 +95,8 @@ def update_pulled_fields(instance, imported_instance, fields):
         current_value = getattr(instance, field)
 
         if field == "directly_connected_ips":
-            pulled_value = set(pulled_value.split(","))
-            current_value = set(current_value.split(","))
+            pulled_value = ",".join(sorted(pulled_value.split(",")))
+            current_value = ",".join(sorted(current_value.split(",")))
 
         if current_value != pulled_value:
             setattr(instance, field, pulled_value)
