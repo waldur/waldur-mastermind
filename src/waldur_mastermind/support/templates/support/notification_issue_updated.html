@@ -14,7 +14,7 @@
 {% endif %}
 {% if old_description %}
 <p>
-    Description has been changed from <strong>{{ old_description }}</strong> to <strong>{{ description }}</strong>.
+    Description has been changed from <strong>{{ old_description|safe }}</strong> to <strong>{{ description|safe }}</strong>.
 </p>
 {% endif %}
 {% if changed.summary %}
