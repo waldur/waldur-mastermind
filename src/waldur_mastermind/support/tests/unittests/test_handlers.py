@@ -1,25 +1,16 @@
 from constance import config
 from constance.test.pytest import override_config
-from django.conf import settings
 from django.core import mail
 from django.template import Context, Template
-from django.test import TransactionTestCase
+from django.test import TransactionTestCase, override_settings
 from django.utils import timezone
 
 from waldur_mastermind.support.tests import factories
 
 
-class BaseHandlerTest(TransactionTestCase):
-    @override_config(WALDUR_SUPPORT_ENABLED=True)
-    def setUp(self):
-        settings.task_always_eager = True
-
-    @override_config(WALDUR_SUPPORT_ENABLED=False)
-    def tearDown(self):
-        settings.task_always_eager = False
-
-
-class IssueUpdatedHandlerTest(BaseHandlerTest):
+@override_config(WALDUR_SUPPORT_ENABLED=True)
+@override_settings(task_always_eager=True)
+class IssueUpdatedHandlerTest(TransactionTestCase):
     def test_email_notification_is_sent_when_issue_is_updated(self):
         issue = factories.IssueFactory()
 
@@ -174,7 +165,9 @@ class IssueUpdatedHandlerTest(BaseHandlerTest):
         self.assertEqual(body, mail.outbox[0].body)
 
 
-class CommentCreatedHandlerTest(BaseHandlerTest):
+@override_config(WALDUR_SUPPORT_ENABLED=True)
+@override_settings(task_always_eager=True)
+class CommentCreatedHandlerTest(TransactionTestCase):
     def test_email_is_sent_when_public_comment_is_created(self):
         factories.CommentFactory(is_public=True)
 
