@@ -1,5 +1,8 @@
+import logging
+
 from django.contrib.auth import get_user_model
 from django.db.models import Q
+from django.utils.translation import gettext_lazy as _
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -15,9 +18,10 @@ from waldur_core.permissions.utils import (
     update_user,
 )
 
-from . import models, serializers
+from . import filters, models, serializers
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
 def can_destroy_role(role):
@@ -32,7 +36,7 @@ class RoleViewSet(ActionsViewSet):
     serializer_class = serializers.RoleDetailsSerializer
     lookup_field = "uuid"
     permission_classes = [IsAdminOrReadOnly]
-
+    filterset_class = filters.RoleFilter
     destroy_validators = [can_destroy_role]
 
     def create(self, request):
@@ -49,6 +53,32 @@ class RoleViewSet(ActionsViewSet):
         role = serializer.save()
         serializer = serializers.RoleDetailsSerializer(instance=role)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"])
+    def enable(self, request, uuid=None):
+        role: models.Role = self.get_object()
+        message = f"The role {role.name} has been enabled"
+        if not role.is_active:
+            role.is_active = True
+            role.save()
+            logger.info(message)
+        return Response(
+            {"detail": _(message)},
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=True, methods=["post"])
+    def disable(self, request, uuid=None):
+        role: models.Role = self.get_object()
+        message = f"The role {role.name} has been disabled"
+        if role.is_active:
+            role.is_active = False
+            role.save()
+            logger.info(message)
+        return Response(
+            {"detail": _(message)},
+            status=status.HTTP_200_OK,
+        )
 
 
 class UserRoleMixin:
