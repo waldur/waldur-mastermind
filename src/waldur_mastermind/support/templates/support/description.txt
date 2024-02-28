@@ -1,6 +1,5 @@
 {{issue.description}}
 
----
 Additional Info:
 {% if issue.customer %}- Organization: {{issue.customer.name}}{% endif %}
 {% if issue.project %}- Project: {{issue.project.name}}{% endif %}

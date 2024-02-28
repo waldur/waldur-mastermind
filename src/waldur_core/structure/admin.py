@@ -816,6 +816,7 @@ class NotificationTemplateAdmin(admin.ModelAdmin):
 
 admin.site.register(models.Customer, CustomerAdmin)
 admin.site.register(models.ProjectType, admin.ModelAdmin)
+admin.site.register(models.CustomerPermissionReview, admin.ModelAdmin)
 admin.site.register(models.Project, ProjectAdmin)
 admin.site.register(models.PrivateServiceSettings, PrivateServiceSettingsAdmin)
 admin.site.register(models.SharedServiceSettings, SharedServiceSettingsAdmin)
