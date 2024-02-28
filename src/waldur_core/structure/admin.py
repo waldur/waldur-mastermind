@@ -814,9 +814,13 @@ class NotificationTemplateAdmin(admin.ModelAdmin):
     ]
 
 
+class CustomerPermissionReviewAdmin(admin.ModelAdmin):
+    list_display = ("customer", "is_pending", "reviewer", "created")
+
+
 admin.site.register(models.Customer, CustomerAdmin)
 admin.site.register(models.ProjectType, admin.ModelAdmin)
-admin.site.register(models.CustomerPermissionReview, admin.ModelAdmin)
+admin.site.register(models.CustomerPermissionReview, CustomerPermissionReviewAdmin)
 admin.site.register(models.Project, ProjectAdmin)
 admin.site.register(models.PrivateServiceSettings, PrivateServiceSettingsAdmin)
 admin.site.register(models.SharedServiceSettings, SharedServiceSettingsAdmin)
