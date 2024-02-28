@@ -2299,7 +2299,7 @@ class ResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
     set_backend_id_permissions = [
         permission_factory(
             PermissionEnum.SET_RESOURCE_BACKEND_ID,
-            ["project.customer", "offering", "offering.customer"],
+            ["offering", "offering.customer"],
         )
     ]
     set_backend_id_serializer_class = serializers.ResourceBackendIDSerializer
