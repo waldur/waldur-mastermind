@@ -111,3 +111,59 @@ class RoleTest(test.APITransactionTestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 0)
+
+    def test_staff_can_disable_role(self):
+        # pre-populate the DB with a role
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING)
+        user = UserFactory(is_staff=True)
+        self.client.force_login(user)
+        response = self.client.get(ROLE_ENDPOINT)
+        role = response.data[0]
+        self.assertEqual(role["is_active"], True)
+        self.client.post(
+            f"{ROLE_ENDPOINT}{role['uuid']}/disable/",
+        )
+        response = self.client.get(ROLE_ENDPOINT)
+        self.assertEqual(response.data[0]["is_active"], False)
+
+    def test_non_staff_can_not_disable_role(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING)
+        user = UserFactory(is_staff=False)
+        self.client.force_login(user)
+        response = self.client.get(ROLE_ENDPOINT)
+        role = response.data[0]
+        self.assertEqual(role["is_active"], True)
+        self.client.post(
+            f"{ROLE_ENDPOINT}{role['uuid']}/disable/",
+        )
+        response = self.client.get(ROLE_ENDPOINT)
+        self.assertEqual(response.data[0]["is_active"], True)
+
+    def test_staff_can_enable_role(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING)
+        user = UserFactory(is_staff=True)
+        self.client.force_login(user)
+        response = self.client.get(ROLE_ENDPOINT)
+        role = response.data[0]
+        self.assertEqual(role["is_active"], True)
+        self.client.post(
+            f"{ROLE_ENDPOINT}{role['uuid']}/disable/",
+        )
+        response = self.client.get(ROLE_ENDPOINT)
+        self.assertEqual(response.data[0]["is_active"], False)
+        self.client.post(
+            f"{ROLE_ENDPOINT}{role['uuid']}/enable/",
+        )
+        response = self.client.get(ROLE_ENDPOINT)
+        self.assertEqual(response.data[0]["is_active"], True)
+
+    def test_non_staff_can_not_enable_role(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING)
+        user = UserFactory(is_staff=False)
+        self.client.force_login(user)
+        response = self.client.get(ROLE_ENDPOINT)
+        role = response.data[0]
+        action_response = self.client.post(
+            f"{ROLE_ENDPOINT}{role['uuid']}/enable/",
+        )
+        self.assertEqual(action_response.status_code, status.HTTP_403_FORBIDDEN)
