@@ -229,11 +229,8 @@ class BaseOpenStackBackend(ServiceBackend):
             return OpenStackClient(**credentials)
 
         client = None
-        attr_name = "admin_session" if admin else "session"
         key = get_cached_session_key(self.settings, admin, self.tenant_id)
-        if hasattr(self, attr_name):  # try to get client from object
-            client = getattr(self, attr_name)
-        elif key in cache:  # try to get session from cache
+        if key in cache:  # try to get session from cache
             session = cache.get(key)
             # Cache miss is signified by a return value of None
             if session is not None:
@@ -244,7 +241,6 @@ class BaseOpenStackBackend(ServiceBackend):
 
         if client is None:  # create new token if session is not cached or expired
             client = OpenStackClient(**credentials)
-            setattr(self, attr_name, client)  # Cache client in the object
             cache.set(key, dict(client.session), 10 * 60 * 60)  # Add session to cache
 
         if name:
