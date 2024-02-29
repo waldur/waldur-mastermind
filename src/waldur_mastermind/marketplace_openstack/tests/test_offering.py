@@ -24,6 +24,7 @@ from waldur_mastermind.marketplace_openstack import (
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack.tests import fixtures as openstack_fixtures
 from waldur_openstack.openstack.tests.factories import VolumeTypeFactory
+from waldur_openstack.openstack.tests.unittests.test_backend import BaseBackendTestCase
 from waldur_openstack.openstack_base.tests.fixtures import OpenStackFixture
 
 from .. import INSTANCE_TYPE, TENANT_TYPE, VOLUME_TYPE
@@ -270,18 +271,15 @@ class OfferingComponentForVolumeTypeTest(test.APITransactionTestCase):
         )
 
 
-class OfferingCreateTest(test.APITransactionTestCase):
+class OfferingCreateTest(BaseBackendTestCase):
     def setUp(self):
+        super().setUp()
         self.fixture = openstack_fixtures.OpenStackFixture()
         self.customer_url = structure_factories.CustomerFactory.get_url(
             customer=self.fixture.customer
         )
         self.category_url = marketplace_factories.CategoryFactory.get_url()
         self.url = marketplace_factories.OfferingFactory.get_list_url()
-        mock_backend_patch = mock.patch(
-            "waldur_openstack.openstack_base.backend.BaseOpenStackBackend.get_client"
-        )
-        mock_backend_patch.start()
         mock_executors_patch = mock.patch(
             "waldur_mastermind.marketplace_openstack.views.executors"
         )

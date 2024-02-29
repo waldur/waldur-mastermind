@@ -27,7 +27,7 @@ class OpenStackTenantServiceSettingsFactory(structure_factories.ServiceSettingsF
     password = factory.SelfAttribute("tenant.user_password")
     type = "OpenStackTenant"
     tenant = factory.SubFactory(openstack_factories.TenantFactory)
-    options = {"tenant_id": uuid.uuid4()}
+    options = {"tenant_id": uuid.uuid4().hex}
 
 
 class FlavorFactory(factory.django.DjangoModelFactory):
@@ -88,7 +88,7 @@ class VolumeFactory(factory.django.DjangoModelFactory):
     service_settings = factory.SubFactory(OpenStackTenantServiceSettingsFactory)
     project = factory.SubFactory(ProjectFactory)
     size = 10 * 1024
-    backend_id = factory.LazyAttribute(lambda _: str(uuid.uuid4()))
+    backend_id = factory.LazyAttribute(lambda _: uuid.uuid4().hex)
 
     @classmethod
     def get_url(cls, instance=None, action=None):

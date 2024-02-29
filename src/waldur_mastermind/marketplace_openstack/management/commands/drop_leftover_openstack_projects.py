@@ -2,6 +2,7 @@ from django.core.exceptions import MultipleObjectsReturned
 from django.core.management.base import BaseCommand
 
 from waldur_mastermind.marketplace.models import Offering, Resource
+from waldur_openstack.openstack_base.session import get_keystone_client
 
 
 class Command(BaseCommand):
@@ -82,7 +83,7 @@ class Command(BaseCommand):
             )
             return
 
-        keystone = backend.keystone_admin_client
+        keystone = get_keystone_client(backend.session)
         remote_projects = keystone.projects.list()
 
         leftovers = self.collect_leftovers_by_id(offering, remote_projects)

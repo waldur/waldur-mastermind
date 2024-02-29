@@ -21,7 +21,7 @@ from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack import views as openstack_views
 from waldur_openstack.openstack.apps import OpenStackConfig
 from waldur_openstack.openstack_base import views as openstack_base_views
-from waldur_openstack.openstack_base.backend import OpenStackBackendError
+from waldur_openstack.openstack_base.exceptions import OpenStackBackendError
 from waldur_openstack.openstack_tenant import backend as openstack_tenant_backend
 
 from . import executors, filters, models, serializers
