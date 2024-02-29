@@ -317,6 +317,9 @@ class CategorySerializer(
             "title",
             "description",
             "icon",
+            "default_vm_category",
+            "default_volume_category",
+            "default_tenant_category",
             "offering_count",
             "available_offerings_count",
             "sections",
@@ -332,6 +335,31 @@ class CategorySerializer(
                 "view_name": "marketplace-category-group-detail",
             },
         }
+
+    def validate(self, data):
+        data = super().validate(data)
+
+        for flag in [
+            "default_volume_category",
+            "default_vm_category",
+            "default_tenant_category",
+        ]:
+            if data.get(flag):
+                category_exists = (
+                    models.Category.objects.filter(**{flag: True})
+                    .exclude(id=self.instance.id if self.instance else None)
+                    .exists()
+                )
+                if category_exists:
+                    raise serializers.ValidationError(
+                        {
+                            flag: _("A category with {} as {} already exists.").format(
+                                flag.replace("_", " "), data[flag]
+                            ),
+                        }
+                    )
+
+        return data
 
 
 PriceSerializer = serializers.DecimalField(
