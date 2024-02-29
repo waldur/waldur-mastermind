@@ -4,6 +4,7 @@ from dbtemplates.models import Template
 from rest_framework import status
 
 from waldur_core.core import utils as core_utils
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.support import models, tasks
 from waldur_mastermind.support.backend.smax import SmaxServiceBackend
 from waldur_mastermind.support.tests import factories, fixtures, smax_base
@@ -153,6 +154,9 @@ class CommentNotificationTest(smax_base.BaseTest):
         self.comment.save()
 
     def test_add_comment_notification(self, mock_send_mail):
+        structure_factories.NotificationFactory(
+            key="support.notification_comment_added", enabled=True
+        )
         Template.objects.create(
             name="support/notification_comment_added.html",
             content="{{ description|safe }}",
@@ -174,6 +178,9 @@ class CommentNotificationTest(smax_base.BaseTest):
         )
 
     def test_update_comment_notification(self, mock_send_mail):
+        structure_factories.NotificationFactory(
+            key="support.notification_comment_updated", enabled=True
+        )
         Template.objects.create(
             name="support/notification_comment_updated.html",
             content="New: {{ description|safe }}, old: {{ old_description|safe }}",

@@ -117,6 +117,9 @@ class IssueNotificationTest(smax_base.BaseTest):
         self.issue.save()
 
     def test_update_issue_notification(self, mock_send_mail):
+        structure_factories.NotificationFactory(
+            key="support.notification_issue_updated", enabled=True
+        )
         Template.objects.create(
             name="support/notification_issue_updated.html",
             content="New: {{ description|safe }}, old: {{ old_description|safe }}",
