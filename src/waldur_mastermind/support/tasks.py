@@ -4,7 +4,6 @@ from smtplib import SMTPException
 
 from celery import shared_task
 from constance import config
-from django.conf import settings
 from django.core import signing
 from django.template import Context, Template
 from django.template.loader import get_template
@@ -75,6 +74,7 @@ def send_issue_updated_notification(serialized_issue, changed):
         issue=issue,
         template="issue_updated",
         extra_context=extra_context,
+        notification_key="support.notification_issue_updated",
     )
 
 
@@ -97,6 +97,7 @@ def send_comment_added_notification(serialized_comment):
             "format_description": comment.description,
             "is_system_comment": is_system_comment,
         },
+        notification_key="support.notification_comment_added",
     )
 
 
@@ -112,6 +113,7 @@ def send_comment_updated_notification(serialized_comment, old_description):
             "format_description": comment.description,
             "format_old_description": old_description,
         },
+        notification_key="support.notification_comment_updated",
     )
 
 
@@ -122,17 +124,26 @@ def _send_email(
     subject_template,
     receiver: core_models.User = None,
     extra_context=None,
+    notification_key=None,
 ):
     if not config.WALDUR_SUPPORT_ENABLED:
         return
 
-    if settings.SUPPRESS_NOTIFICATION_EMAILS:
-        message = (
-            "Issue notifications are suppressed. "
-            "Please set SUPPRESS_NOTIFICATION_EMAILS to False to send notifications."
-        )
-        logger.info(message)
-        return
+    # Since support email notifications are sent out through this function rather that broadcast_email()
+    # we need to check if the notification is enabled here. For that we introduce a new parameter notification_key
+    # which is used to identify the notification..
+    if notification_key:
+        try:
+            notification = core_models.Notification.objects.get(key=notification_key)
+            if not notification.enabled:
+                message = (
+                    "Notification %s is disabled. ",
+                    "Please enable it to send notifications." % notification_key,
+                )
+                logger.info(message)
+                return
+        except core_models.Notification.DoesNotExist:
+            return
 
     if not receiver:
         receiver = issue.caller
@@ -242,6 +253,7 @@ def send_issue_feedback_notification(serialized_issue):
         issue=issue,
         template="issue_feedback",
         extra_context=extra_context,
+        notification_key="support.notification_issue_feedback",
     )
 
 

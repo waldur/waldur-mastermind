@@ -5,12 +5,27 @@ from django.template import Context, Template
 from django.test import TransactionTestCase, override_settings
 from django.utils import timezone
 
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.support.tests import factories
 
 
 @override_config(WALDUR_SUPPORT_ENABLED=True)
 @override_settings(task_always_eager=True)
 class IssueUpdatedHandlerTest(TransactionTestCase):
+    def setUp(self):
+        self.notification1 = structure_factories.NotificationFactory(
+            key="support.notification_comment_added", enabled=True
+        )
+        self.notification2 = structure_factories.NotificationFactory(
+            key="support.notification_issue_feedback", enabled=True
+        )
+        self.notification3 = structure_factories.NotificationFactory(
+            key="support.notification_comment_updated", enabled=True
+        )
+        self.notification4 = structure_factories.NotificationFactory(
+            key="support.notification_issue_updated", enabled=True
+        )
+
     def test_email_notification_is_sent_when_issue_is_updated(self):
         issue = factories.IssueFactory()
 
@@ -46,13 +61,16 @@ class IssueUpdatedHandlerTest(TransactionTestCase):
         self.assertEqual(len(mail.outbox), 0)
 
     def test_email_notification_is_not_sent_if_feature_is_suppressed(self):
-        with self.settings(SUPPRESS_NOTIFICATION_EMAILS=True):
-            issue = factories.IssueFactory()
+        self.notification1.enabled = False
+        self.notification2.enabled = False
+        self.notification3.enabled = False
+        self.notification4.enabled = False
+        issue = factories.IssueFactory()
 
-            issue.summary = "new_summary"
-            issue.save()
+        issue.summary = "new_summary"
+        issue.save()
 
-            self.assertEqual(len(mail.outbox), 0)
+        self.assertEqual(len(mail.outbox), 0)
 
     def test_email_notification_is_not_sent_if_assignee_changes(self):
         issue = factories.IssueFactory()
@@ -168,6 +186,20 @@ class IssueUpdatedHandlerTest(TransactionTestCase):
 @override_config(WALDUR_SUPPORT_ENABLED=True)
 @override_settings(task_always_eager=True)
 class CommentCreatedHandlerTest(TransactionTestCase):
+    def setUp(self):
+        self.notification1 = structure_factories.NotificationFactory(
+            key="support.notification_comment_added", enabled=True
+        )
+        self.notification2 = structure_factories.NotificationFactory(
+            key="support.notification_issue_feedback", enabled=True
+        )
+        self.notification3 = structure_factories.NotificationFactory(
+            key="support.notification_comment_updated", enabled=True
+        )
+        self.notification4 = structure_factories.NotificationFactory(
+            key="support.notification_issue_updated", enabled=True
+        )
+
     def test_email_is_sent_when_public_comment_is_created(self):
         factories.CommentFactory(is_public=True)
 
@@ -194,7 +226,10 @@ class CommentCreatedHandlerTest(TransactionTestCase):
         self.assertEqual(len(mail.outbox), 0)
 
     def test_email_is_not_sent_if_feature_is_suppressed(self):
-        with self.settings(SUPPRESS_NOTIFICATION_EMAILS=True):
-            factories.CommentFactory(is_public=True)
+        self.notification1.enabled = False
+        self.notification2.enabled = False
+        self.notification3.enabled = False
+        self.notification4.enabled = False
+        factories.CommentFactory(is_public=True)
 
-            self.assertEqual(len(mail.outbox), 0)
+        self.assertEqual(len(mail.outbox), 0)

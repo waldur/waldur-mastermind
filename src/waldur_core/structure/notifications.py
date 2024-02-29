@@ -258,3 +258,86 @@ class PolicySection(NotificationSection):
         "notification_about_project_cost_exceeded_limit",
         "Notification about project cost exceeded limit. The recipients are all customer owners of the project.",
     )
+
+
+class SupportSection(NotificationSection):
+    class Meta:
+        key = "support"
+
+    notification_comment_added = Notification(
+        "notification_comment_added",
+        "Notification about a new comment in the issue. The recipient is issue caller.",
+        templates=[
+            NotificationTemplate(
+                "notification_comment_added.txt", "notification_comment_added"
+            ),
+            NotificationTemplate(
+                "notification_comment_added.html", "notification_comment_added"
+            ),
+            NotificationTemplate(
+                "notification_comment_added_subject.txt", "notification_comment_added"
+            ),
+        ],
+    )
+    notification_comment_updated = Notification(
+        "notification_comment_updated",
+        "Notification about an update in the issue comment. The recipient is issue caller.",
+        templates=[
+            NotificationTemplate(
+                "notification_comment_updated.txt", "notification_comment_added"
+            ),
+            NotificationTemplate(
+                "notification_comment_updated.html", "notification_comment_added"
+            ),
+            NotificationTemplate(
+                "notification_comment_updated_subject.txt", "notification_comment_added"
+            ),
+        ],
+    )
+    notification_issue_feedback = Notification(
+        "notification_issue_feedback",
+        "Notification about a feedback related to the issue. The recipient is issue caller.",
+        templates=[
+            NotificationTemplate(
+                "notification_issue_feedback.txt", "notification_issue_feedback"
+            ),
+            NotificationTemplate(
+                "notification_issue_feedback.html", "notification_issue_feedback"
+            ),
+            NotificationTemplate(
+                "notification_issue_feedback_subject.txt", "notification_issue_feedback"
+            ),
+        ],
+    )
+
+    notification_issue_updated = Notification(
+        "notification_issue_updated",
+        "Notification about an update in the issue. The recipient is issue caller.",
+        templates=[
+            NotificationTemplate(
+                "notification_issue_updated.txt", "notification_issue_updated"
+            ),
+            NotificationTemplate(
+                "notification_issue_updated.html", "notification_issue_updated"
+            ),
+            NotificationTemplate(
+                "notification_issue_updated_subject.txt", "notification_issue_updated"
+            ),
+        ],
+    )
+
+    description = Notification(
+        "description",
+        "A notification used for issue creation.",
+        templates=[
+            NotificationTemplate("description.txt", "description"),
+        ],
+    )
+
+    summary = Notification(
+        "summary",
+        "A notification used for issue creation.",
+        templates=[
+            NotificationTemplate("summary.txt", "summary"),
+        ],
+    )

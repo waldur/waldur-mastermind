@@ -66,8 +66,8 @@ class Command(BaseCommand):
                 notification.templates.add(created_notification_template)
                 notification.description = valid_notification_data.get("description")
                 notification.save()
-            file_enabled_status = notifications[valid_notification_data["path"]]
-            if notification.enabled != file_enabled_status:
+            file_enabled_status = notifications.get(valid_notification_data.get("path"))
+            if file_enabled_status and notification.enabled != file_enabled_status:
                 notification.enabled = file_enabled_status
                 notification.save()
                 self.stdout.write(

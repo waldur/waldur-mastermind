@@ -31,5 +31,10 @@
   "marketplace.marketplace_resource_termination_scheduled": false,
   "marketplace_remote.notification_about_pending_project_updates": false,
   "marketplace_remote.notification_about_project_details_update": false,
-  "marketplace_policy.notification_about_project_cost_exceeded_limit": false
+  "marketplace_policy.notification_about_project_cost_exceeded_limit": false,
+  "support.notification_comment_added": true,
+  "support.notification_comment_updated": true,
+  "support.notification_issue_feedback": true,
+  "support.notification_issue_updated": true
+
 }

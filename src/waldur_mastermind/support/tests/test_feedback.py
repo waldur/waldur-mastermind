@@ -8,6 +8,7 @@ from django.urls import reverse
 from rest_framework import status
 
 from waldur_core.core import utils as core_utils
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.support import models, tasks
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 from waldur_mastermind.support.tests import base, factories
@@ -105,6 +106,9 @@ class FeedbackNotificationTest(base.BaseTest):
         mock_tasks.delay.assert_not_called()
 
     def test_feedback_notification_text(self):
+        structure_factories.NotificationFactory(
+            key="support.notification_issue_feedback", enabled=True
+        )
         issue = factories.IssueFactory()
         serialized_issue = core_utils.serialize_instance(issue)
         tasks.send_issue_feedback_notification(serialized_issue)
