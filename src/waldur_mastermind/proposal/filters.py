@@ -76,7 +76,7 @@ class ProposalFilter(django_filters.FilterSet):
     name = django_filters.CharFilter(lookup_expr="icontains")
     call = django_filters.UUIDFilter(field_name="round__call__uuid")
     o = django_filters.OrderingFilter(
-        fields=("round__call__name", "start_time", "end_time", "state")
+        fields=("round__call__name", "round__start_time", "round__cutoff_time", "state")
     )
 
     class Meta:
