@@ -28,6 +28,7 @@ class OrderSerializer(CommonSerializer):
     resource_backend_metadata = serializers.ReadOnlyField(
         source="resource.backend_metadata"
     )
+    resource_attributes = serializers.ReadOnlyField(source="resource.attributes")
 
 
 class ResourceSerializer(CommonSerializer):
