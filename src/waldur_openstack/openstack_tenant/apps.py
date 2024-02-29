@@ -35,12 +35,6 @@ class OpenStackTenantConfig(AppConfig):
 
         SupportedServices.register_backend(OpenStackTenantBackend)
 
-        signals.post_save.connect(
-            handlers.clear_cache_when_service_settings_are_updated,
-            sender=ServiceSettings,
-            dispatch_uid="openstack_tenant.handlers.clear_cache_when_service_settings_are_updated",
-        )
-
         # Initialize service settings quotas based on tenant.
         for quota in Tenant.get_quotas_fields():
             ServiceSettings.add_quota_field(

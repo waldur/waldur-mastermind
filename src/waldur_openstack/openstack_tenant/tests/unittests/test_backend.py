@@ -7,6 +7,7 @@ from django.test import TestCase
 from novaclient.v2.flavors import Flavor
 from novaclient.v2.servers import Server
 
+from waldur_openstack.openstack_base.tests.fixtures import mock_session
 from waldur_openstack.openstack_tenant import models
 from waldur_openstack.openstack_tenant.backend import OpenStackTenantBackend
 
@@ -18,15 +19,15 @@ class BaseBackendTest(TestCase):
         self.fixture = fixtures.OpenStackTenantFixture()
         self.settings = self.fixture.openstack_tenant_service_settings
         self.tenant = self.fixture.openstack_tenant_service_settings.scope
+        self.mocked_neutron = mock.patch("neutronclient.v2_0.client.Client").start()()
+        self.mocked_cinder = mock.patch("cinderclient.v3.client.Client").start()()
+        self.mocked_nova = mock.patch("novaclient.v2.client.Client").start()()
         self.tenant_backend = OpenStackTenantBackend(self.settings)
-        self.neutron_client_mock = mock.Mock()
-        self.cinder_client_mock = mock.Mock()
-        self.nova_client_mock = mock.Mock()
-        self.get_admin_tenant_client = mock.Mock()
-        self.tenant_backend.neutron_client = self.neutron_client_mock
-        self.tenant_backend.cinder_client = self.cinder_client_mock
-        self.tenant_backend.nova_client = self.nova_client_mock
-        self.tenant_backend.get_admin_tenant_client = self.get_admin_tenant_client
+        mock_session()
+
+    def tearDown(self) -> None:
+        super().tearDown()
+        mock.patch.stopall()
 
     def _get_valid_volume(self, backend_id):
         return Volume(
@@ -92,7 +93,7 @@ class PullFloatingIPTest(BaseBackendTest):
         internal_ip = factories.InternalIPFactory(instance=self.fixture.instance)
         backend_floating_ips = self._get_valid_new_backend_ip(internal_ip)
         internal_ip.delete()
-        self.neutron_client_mock.list_floatingips.return_value = backend_floating_ips
+        self.mocked_neutron.list_floatingips.return_value = backend_floating_ips
         self.assertEqual(models.FloatingIP.objects.count(), 0)
 
         self.tenant_backend.pull_floating_ips()
@@ -103,7 +104,7 @@ class PullFloatingIPTest(BaseBackendTest):
         internal_ip = factories.InternalIPFactory(instance=self.fixture.instance)
         backend_floating_ips = self._get_valid_new_backend_ip(internal_ip)
         internal_ip.delete()
-        self.neutron_client_mock.list_floatingips.return_value = backend_floating_ips
+        self.mocked_neutron.list_floatingips.return_value = backend_floating_ips
         backend_ip = backend_floating_ips["floatingips"][0]
         floating_ip = factories.FloatingIPFactory(
             settings=self.settings,
@@ -131,7 +132,7 @@ class PullFloatingIPTest(BaseBackendTest):
     ):
         internal_ip = factories.InternalIPFactory(subnet=self.fixture.subnet)
         backend_floating_ips = self._get_valid_new_backend_ip(internal_ip)
-        self.neutron_client_mock.list_floatingips.return_value = backend_floating_ips
+        self.mocked_neutron.list_floatingips.return_value = backend_floating_ips
 
         backend_ip = backend_floating_ips["floatingips"][0]
         floating_ip = factories.FloatingIPFactory(
@@ -161,7 +162,7 @@ class PullFloatingIPTest(BaseBackendTest):
         )
         backend_floating_ips = self._get_valid_new_backend_ip(internal_ip)
         backend_ip = backend_floating_ips["floatingips"][0]
-        self.neutron_client_mock.list_floatingips.return_value = backend_floating_ips
+        self.mocked_neutron.list_floatingips.return_value = backend_floating_ips
 
         self.tenant_backend.pull_floating_ips()
 
@@ -175,7 +176,7 @@ class PullFloatingIPTest(BaseBackendTest):
 
     def test_floating_ip_is_deleted_if_it_is_not_returned_by_neutron(self):
         floating_ip = factories.FloatingIPFactory(settings=self.settings)
-        self.neutron_client_mock.list_floatingips.return_value = dict(floatingips=[])
+        self.mocked_neutron.list_floatingips.return_value = dict(floatingips=[])
 
         self.tenant_backend.pull_floating_ips()
 
@@ -184,7 +185,7 @@ class PullFloatingIPTest(BaseBackendTest):
     def test_floating_ip_is_not_updated_if_it_is_in_booked_state(self):
         internal_ip = factories.InternalIPFactory(instance=self.fixture.instance)
         backend_floating_ips = self._get_valid_new_backend_ip(internal_ip)
-        self.neutron_client_mock.list_floatingips.return_value = backend_floating_ips
+        self.mocked_neutron.list_floatingips.return_value = backend_floating_ips
         backend_ip = backend_floating_ips["floatingips"][0]
         expected_name = "booked ip"
         expected_address = "127.0.0.1"
@@ -208,7 +209,7 @@ class PullFloatingIPTest(BaseBackendTest):
     def test_floating_ip_is_not_duplicated_if_it_is_in_booked_state(self):
         internal_ip = factories.InternalIPFactory(instance=self.fixture.instance)
         backend_floating_ips = self._get_valid_new_backend_ip(internal_ip)
-        self.neutron_client_mock.list_floatingips.return_value = backend_floating_ips
+        self.mocked_neutron.list_floatingips.return_value = backend_floating_ips
         backend_ip = backend_floating_ips["floatingips"][0]
         factories.FloatingIPFactory(
             is_booked=True,
@@ -228,7 +229,7 @@ class PullFloatingIPTest(BaseBackendTest):
 
     def test_backend_id_is_filled_up_when_floating_ip_is_looked_up_by_address(self):
         backend_floating_ips = self._get_valid_new_backend_ip(self.fixture.internal_ip)
-        self.neutron_client_mock.list_floatingips.return_value = backend_floating_ips
+        self.mocked_neutron.list_floatingips.return_value = backend_floating_ips
         backend_ip = backend_floating_ips["floatingips"][0]
         factories.FloatingIPFactory(
             is_booked=True,
@@ -251,7 +252,7 @@ class PullFloatingIPTest(BaseBackendTest):
     def test_floating_ip_name_is_not_update_if_it_was_set_by_user(self):
         internal_ip = factories.InternalIPFactory(instance=self.fixture.instance)
         backend_floating_ips = self._get_valid_new_backend_ip(internal_ip)
-        self.neutron_client_mock.list_floatingips.return_value = backend_floating_ips
+        self.mocked_neutron.list_floatingips.return_value = backend_floating_ips
         backend_ip = backend_floating_ips["floatingips"][0]
         expected_name = "user defined ip"
         floating_ip = factories.FloatingIPFactory(
@@ -278,14 +279,14 @@ class PullSecurityGroupsTest(BaseBackendTest):
                 }
             ]
         }
-        self.neutron_client_mock.list_security_groups.return_value = (
+        self.mocked_neutron.list_security_groups.return_value = (
             self.backend_security_groups
         )
 
     def test_pull_creates_missing_security_group(self):
         self.tenant_backend.pull_security_groups()
 
-        self.neutron_client_mock.list_security_groups.assert_called_once_with(
+        self.mocked_neutron.list_security_groups.assert_called_once_with(
             tenant_id=self.tenant.backend_id
         )
         self.assertEqual(models.SecurityGroup.objects.count(), 1)
@@ -327,9 +328,7 @@ class PullSecurityGroupsTest(BaseBackendTest):
 
     def test_stale_security_groups_are_deleted(self):
         factories.SecurityGroupFactory(settings=self.settings)
-        self.neutron_client_mock.list_security_groups.return_value = dict(
-            security_groups=[]
-        )
+        self.mocked_neutron.list_security_groups.return_value = dict(security_groups=[])
         self.tenant_backend.pull_security_groups()
         self.assertEqual(models.SecurityGroup.objects.count(), 0)
 
@@ -356,7 +355,7 @@ class PullNetworksTest(BaseBackendTest):
                 }
             ]
         }
-        self.neutron_client_mock.list_networks.return_value = self.backend_networks
+        self.mocked_neutron.list_networks.return_value = self.backend_networks
 
     def test_missing_networks_are_created(self):
         self.tenant_backend.pull_networks()
@@ -371,7 +370,7 @@ class PullNetworksTest(BaseBackendTest):
 
     def test_stale_networks_are_deleted(self):
         factories.NetworkFactory(settings=self.settings)
-        self.neutron_client_mock.list_networks.return_value = dict(networks=[])
+        self.mocked_neutron.list_networks.return_value = dict(networks=[])
         self.tenant_backend.pull_networks()
         self.assertEqual(models.Network.objects.count(), 0)
 
@@ -410,12 +409,12 @@ class PullSubnetsTest(BaseBackendTest):
                 }
             ]
         }
-        self.neutron_client_mock.list_subnets.return_value = self.backend_subnets
+        self.mocked_neutron.list_subnets.return_value = self.backend_subnets
 
     def test_missing_subnets_are_created(self):
         self.tenant_backend.pull_subnets()
 
-        self.neutron_client_mock.list_subnets.assert_called_once_with(
+        self.mocked_neutron.list_subnets.assert_called_once_with(
             tenant_id=self.tenant.backend_id
         )
         self.assertEqual(models.SubNet.objects.count(), 1)
@@ -443,7 +442,7 @@ class PullSubnetsTest(BaseBackendTest):
 
     def test_stale_subnets_are_deleted(self):
         factories.NetworkFactory(settings=self.settings)
-        self.neutron_client_mock.list_subnets.return_value = dict(subnets=[])
+        self.mocked_neutron.list_subnets.return_value = dict(subnets=[])
         self.tenant_backend.pull_subnets()
         self.assertEqual(models.SubNet.objects.count(), 0)
 
@@ -476,7 +475,7 @@ class GetVolumesTest(VolumesBaseTest):
     def test_all_backend_volumes_are_returned(self):
         backend_volumes = self._generate_volumes(backend=True, count=2)
         volumes = backend_volumes + self._generate_volumes()
-        self.cinder_client_mock.volumes.list.return_value = volumes
+        self.mocked_cinder.volumes.list.return_value = volumes
 
         result = self.tenant_backend.get_volumes()
 
@@ -488,17 +487,7 @@ class GetVolumesTest(VolumesBaseTest):
 class CreateVolumesTest(VolumesBaseTest):
     def setUp(self):
         super().setUp()
-        self.patcher = mock.patch(
-            "waldur_openstack.openstack_base.backend.OpenStackClient"
-        )
-        mock_client = self.patcher.start()
-        cinder = mock.MagicMock()
-        cinder.volumes.create.return_value = self._generate_volumes()[0]
-        mock_client().cinder = cinder
-
-    def tearDown(self):
-        super().tearDown()
-        mock.patch.stopall()
+        self.mocked_cinder.volumes.create.return_value = self._generate_volumes()[0]
 
     def test_use_default_volume_type_if_type_not_populated(self):
         volume_type = factories.VolumeTypeFactory(settings=self.settings)
@@ -578,7 +567,7 @@ class ImportVolumeTest(BaseBackendTest):
         self.backend_volume_id = "backend_id"
         self.backend_volume = self._get_valid_volume(self.backend_volume_id)
 
-        self.cinder_client_mock.volumes.get.return_value = self.backend_volume
+        self.mocked_cinder.volumes.get.return_value = self.backend_volume
 
     def test_volume_is_imported(self):
         volume = self.tenant_backend.import_volume(
@@ -622,7 +611,7 @@ class PullVolumeTest(BaseBackendTest):
         self.backend_volume_id = "backend_id"
         self.backend_volume = self._get_valid_volume(self.backend_volume_id)
 
-        self.cinder_client_mock.volumes.get.return_value = self.backend_volume
+        self.mocked_cinder.volumes.get.return_value = self.backend_volume
 
     def test_volume_instance_is_pulled(self):
         vm = factories.InstanceFactory(
@@ -670,14 +659,14 @@ class PullVolumeTest(BaseBackendTest):
 
 class PullInstanceAvailabilityZonesTest(BaseBackendTest):
     def test_default_zone_is_not_pulled(self):
-        self.nova_client_mock.availability_zones.list.return_value = [
+        self.mocked_nova.availability_zones.list.return_value = [
             mock.Mock(**{"zoneName": "nova", "zoneState": {"available": True}})
         ]
         self.tenant_backend.pull_instance_availability_zones()
         self.assertEqual(models.InstanceAvailabilityZone.objects.count(), 0)
 
     def test_missing_zone_is_created(self):
-        self.nova_client_mock.availability_zones.list.return_value = [
+        self.mocked_nova.availability_zones.list.return_value = [
             mock.Mock(**{"zoneName": "AZ_T1", "zoneState": {"available": True}})
         ]
 
@@ -690,14 +679,14 @@ class PullInstanceAvailabilityZonesTest(BaseBackendTest):
 
     def test_stale_zone_is_removed(self):
         self.fixture.instance_availability_zone
-        self.nova_client_mock.availability_zones.list.return_value = []
+        self.mocked_nova.availability_zones.list.return_value = []
 
         self.tenant_backend.pull_instance_availability_zones()
         self.assertEqual(models.InstanceAvailabilityZone.objects.count(), 0)
 
     def test_existing_zone_is_updated(self):
         zone = self.fixture.instance_availability_zone
-        self.nova_client_mock.availability_zones.list.return_value = [
+        self.mocked_nova.availability_zones.list.return_value = [
             mock.Mock(**{"zoneName": zone.name, "zoneState": {"available": False}})
         ]
 
@@ -714,14 +703,14 @@ class PullVolumeAvailabilityZonesTest(BaseBackendTest):
         self.tenant_backend.is_volume_availability_zone_supported = lambda: True
 
     def test_default_zone_is_not_pulled(self):
-        self.cinder_client_mock.availability_zones.list.return_value = [
+        self.mocked_cinder.availability_zones.list.return_value = [
             mock.Mock(**{"zoneName": "nova", "zoneState": {"available": True}})
         ]
         self.tenant_backend.pull_volume_availability_zones()
         self.assertEqual(models.VolumeAvailabilityZone.objects.count(), 0)
 
     def test_missing_zone_is_created(self):
-        self.cinder_client_mock.availability_zones.list.return_value = [
+        self.mocked_cinder.availability_zones.list.return_value = [
             mock.Mock(**{"zoneName": "AZ_T1", "zoneState": {"available": True}})
         ]
 
@@ -734,14 +723,14 @@ class PullVolumeAvailabilityZonesTest(BaseBackendTest):
 
     def test_stale_zone_is_removed(self):
         self.fixture.volume_availability_zone
-        self.cinder_client_mock.availability_zones.list.return_value = []
+        self.mocked_cinder.availability_zones.list.return_value = []
 
         self.tenant_backend.pull_volume_availability_zones()
         self.assertEqual(models.VolumeAvailabilityZone.objects.count(), 0)
 
     def test_existing_zone_is_updated(self):
         zone = self.fixture.volume_availability_zone
-        self.cinder_client_mock.availability_zones.list.return_value = [
+        self.mocked_cinder.availability_zones.list.return_value = [
             mock.Mock(**{"zoneName": zone.name, "zoneState": {"available": False}})
         ]
 
@@ -782,13 +771,9 @@ class PullInstanceTest(BaseBackendTest):
                     "OS-EXT-SRV-ATTR:hypervisor_hostname": "aio1.openstack.local",
                 }
 
-        self.nova_client_mock = mock.Mock()
-        self.tenant_backend.nova_client = self.nova_client_mock
-        self.tenant_backend.get_admin_tenant_client.return_value = self.nova_client_mock
-
-        self.nova_client_mock.servers.get.return_value = MockInstance
-        self.nova_client_mock.volumes.get_server_volumes.return_value = []
-        self.nova_client_mock.flavors.get.return_value = MockFlavor
+        self.mocked_nova.servers.get.return_value = MockInstance
+        self.mocked_nova.volumes.get_server_volumes.return_value = []
+        self.mocked_nova.flavors.get.return_value = MockFlavor
 
     def test_availability_zone_is_pulled(self):
         zone = self.fixture.instance_availability_zone
@@ -819,7 +804,7 @@ class PullInstanceTest(BaseBackendTest):
         self.assertEqual(instance.error_message, "OpenStack Nova error.")
 
     def test_existing_error_message_is_preserved_if_defined(self):
-        del self.nova_client_mock.servers.get.return_value.fault
+        del self.mocked_nova.servers.get.return_value.fault
         instance = self.fixture.instance
         instance.error_message = "Waldur error."
         instance.save()
@@ -840,7 +825,7 @@ class PullInstanceTest(BaseBackendTest):
 
 class PullInstanceInternalIpsTest(BaseBackendTest):
     def setup_neutron(self, port_id, device_id, subnet_id):
-        self.neutron_client_mock.list_ports.return_value = {
+        self.mocked_neutron.list_ports.return_value = {
             "ports": [
                 {
                     "id": port_id,
@@ -893,7 +878,7 @@ class PullInstanceInternalIpsTest(BaseBackendTest):
         # Arrange
         instance = self.fixture.instance
 
-        self.neutron_client_mock.list_ports.return_value = {"ports": []}
+        self.mocked_neutron.list_ports.return_value = {"ports": []}
 
         # Act
         self.tenant_backend.pull_instance_internal_ips(instance)
@@ -961,7 +946,7 @@ class PullInstanceInternalIpsTest(BaseBackendTest):
 @ddt
 class PullInternalIpsTest(BaseBackendTest):
     def setup_neutron(self, port_id, device_id, subnet_id):
-        self.neutron_client_mock.list_ports.return_value = {
+        self.mocked_neutron.list_ports.return_value = {
             "ports": [
                 {
                     "id": port_id,
@@ -1014,7 +999,7 @@ class PullInternalIpsTest(BaseBackendTest):
         # Arrange
         instance = self.fixture.instance
 
-        self.neutron_client_mock.list_ports.return_value = {"ports": []}
+        self.mocked_neutron.list_ports.return_value = {"ports": []}
 
         # Act
         self.tenant_backend.pull_internal_ips()
@@ -1067,7 +1052,7 @@ class PullInternalIpsTest(BaseBackendTest):
         device_id = instance.backend_id
         subnet_id = subnet.backend_id
 
-        self.neutron_client_mock.list_ports.return_value = {
+        self.mocked_neutron.list_ports.return_value = {
             "ports": [
                 {
                     "id": "port1",
@@ -1136,7 +1121,7 @@ class PullInternalIpsTest(BaseBackendTest):
         device_id = instance.backend_id
         subnet_id = subnet.backend_id
 
-        self.neutron_client_mock.list_ports.return_value = {
+        self.mocked_neutron.list_ports.return_value = {
             "ports": [
                 {
                     "id": internal_ip.backend_id,
@@ -1184,9 +1169,8 @@ class GetInstancesTest(BaseBackendTest):
         def get_volume(backend_id):
             return self._get_valid_flavor(backend_id=backend_id)
 
-        self.tenant_backend.get_admin_tenant_client.return_value = self.nova_client_mock
-        self.nova_client_mock.servers.list.return_value = instances
-        self.nova_client_mock.flavors.get.side_effect = get_volume
+        self.mocked_nova.servers.list.return_value = instances
+        self.mocked_nova.flavors.get.side_effect = get_volume
 
         result = self.tenant_backend.get_instances()
 
@@ -1200,15 +1184,14 @@ class ImportInstanceTest(BaseBackendTest):
         super().setUp()
         self.backend_id = "instance_id"
         self.backend_instance = self._get_valid_instance(self.backend_id)
-        self.nova_client_mock.servers.get.return_value = self.backend_instance
-        self.tenant_backend.get_admin_tenant_client.return_value = self.nova_client_mock
+        self.mocked_nova.servers.get.return_value = self.backend_instance
 
         backend_flavor = self._get_valid_flavor(self.backend_id)
         self.backend_instance.flavor = backend_flavor._info
-        self.nova_client_mock.flavors.get.return_value = backend_flavor
+        self.mocked_nova.flavors.get.return_value = backend_flavor
 
     def test_backend_instance_without_volumes_is_imported(self):
-        self.nova_client_mock.volumes.get_server_volumes.return_value = []
+        self.mocked_nova.volumes.get_server_volumes.return_value = []
 
         instance = self.tenant_backend.import_instance(
             self.backend_id,
@@ -1232,8 +1215,8 @@ class ImportInstanceTest(BaseBackendTest):
         )
         backend_volume = self._get_valid_volume(backend_id=expected_volume.backend_id)
         backend_volume.volumeId = backend_volume.id
-        self.nova_client_mock.volumes.get_server_volumes.return_value = [backend_volume]
-        self.cinder_client_mock.volumes.get.return_value = backend_volume
+        self.mocked_nova.volumes.get_server_volumes.return_value = [backend_volume]
+        self.mocked_cinder.volumes.get.return_value = backend_volume
 
         instance = self.tenant_backend.import_instance(
             self.backend_id,
@@ -1250,8 +1233,8 @@ class ImportInstanceTest(BaseBackendTest):
         volume_backend_id = "volume_id"
         backend_volume = self._get_valid_volume(backend_id=volume_backend_id)
         backend_volume.volumeId = backend_volume.id
-        self.nova_client_mock.volumes.get_server_volumes.return_value = [backend_volume]
-        self.cinder_client_mock.volumes.get.return_value = backend_volume
+        self.mocked_nova.volumes.get_server_volumes.return_value = [backend_volume]
+        self.mocked_cinder.volumes.get.return_value = backend_volume
 
         instance = self.tenant_backend.import_instance(
             self.backend_id,
@@ -1267,7 +1250,7 @@ class ImportInstanceTest(BaseBackendTest):
     def test_instance_error_message_is_filled_if_fault_is_provided_by_backend(self):
         expected_error_message = "An error occurred displaying an error"
         self.backend_instance.fault = dict(message=expected_error_message)
-        self.nova_client_mock.volumes.get_server_volumes.return_value = []
+        self.mocked_nova.volumes.get_server_volumes.return_value = []
 
         instance = self.tenant_backend.import_instance(
             self.backend_id,
@@ -1308,9 +1291,7 @@ class PullInstanceFloatingIpsTest(BaseBackendTest):
                 "port_id": ip2.backend_id,
             }
         ]
-        self.neutron_client_mock.list_floatingips.return_value = {
-            "floatingips": floatingips
-        }
+        self.mocked_neutron.list_floatingips.return_value = {"floatingips": floatingips}
 
         # Act
         self.tenant_backend.pull_instance_floating_ips(instance)
@@ -1327,8 +1308,8 @@ class CreateInstanceTest(VolumesBaseTest):
         super().setUp()
         self.flavor_id = "small_flavor"
         backend_flavor = self._get_valid_flavor(self.flavor_id)
-        self.nova_client_mock.flavors.get.return_value = backend_flavor
-        self.nova_client_mock.servers.create.return_value.id = uuid.uuid4()
+        self.mocked_nova.flavors.get.return_value = backend_flavor
+        self.mocked_nova.servers.create.return_value.id = uuid.uuid4()
 
     def test_zone_name_is_passed_to_nova_client(self):
         # Arrange
@@ -1341,7 +1322,7 @@ class CreateInstanceTest(VolumesBaseTest):
         self.tenant_backend.create_instance(vm, self.flavor_id)
 
         # Assert
-        kwargs = self.nova_client_mock.servers.create.mock_calls[0][2]
+        kwargs = self.mocked_nova.servers.create.mock_calls[0][2]
         self.assertEqual(kwargs["availability_zone"], zone.name)
 
     def test_default_zone_name_is_passed_to_nova_client(self):
@@ -1352,5 +1333,5 @@ class CreateInstanceTest(VolumesBaseTest):
         self.tenant_backend.create_instance(self.fixture.instance, self.flavor_id)
 
         # Assert
-        kwargs = self.nova_client_mock.servers.create.mock_calls[0][2]
+        kwargs = self.mocked_nova.servers.create.mock_calls[0][2]
         self.assertEqual(kwargs["availability_zone"], "default_availability_zone")

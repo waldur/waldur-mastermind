@@ -24,7 +24,13 @@ from waldur_core.structure.utils import (
 )
 from waldur_openstack.openstack_base.backend import (
     BaseOpenStackBackend,
-    OpenStackBackendError,
+)
+from waldur_openstack.openstack_base.exceptions import OpenStackBackendError
+from waldur_openstack.openstack_base.session import (
+    get_cinder_client,
+    get_keystone_client,
+    get_neutron_client,
+    get_nova_client,
 )
 
 from . import models
@@ -51,7 +57,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     def check_admin_tenant(self):
         try:
-            self.keystone_admin_client
+            get_keystone_client(self.session)
         except keystone_exceptions.AuthorizationFailure:
             return False
         except keystone_exceptions.ClientException as e:
@@ -78,7 +84,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         self.pull_ports()
 
     def pull_tenants(self):
-        keystone = self.keystone_admin_client
+        keystone = get_keystone_client(self.session)
 
         try:
             backend_tenants = keystone.projects.list(domain=self._get_domain())
@@ -110,11 +116,11 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     def _get_domain(self):
         """Get current domain"""
-        keystone = self.keystone_admin_client
+        keystone = get_keystone_client(self.session)
         return keystone.domains.find(name=self.settings.domain or "Default")
 
     def remove_ssh_key_from_tenant(self, tenant, key_name, fingerprint):
-        nova = self.nova_client
+        nova = get_nova_client(self.session)
 
         # There could be leftovers of key duplicates: remove them all
         keys = nova.keypairs.findall(fingerprint=fingerprint)
@@ -147,7 +153,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         return True
 
     def pull_flavors(self):
-        nova = self.nova_admin_client
+        nova = get_nova_client(self.session)
         try:
             flavors = nova.flavors.findall(is_public=True)
         except nova_exceptions.ClientException as e:
@@ -187,16 +193,15 @@ class OpenStackBackend(BaseOpenStackBackend):
             models.Flavor.objects.filter(backend_id__in=cur_flavors.keys()).delete()
 
     def pull_images(self):
-        self._pull_images(
-            models.Image, lambda image: image["visibility"] == "public", admin=True
-        )
+        self._pull_images(models.Image, lambda image: image["visibility"] == "public")
 
     def _get_current_volume_types(self):
         return self._get_current_properties(models.VolumeType)
 
     def pull_volume_types(self):
+        cinder = get_cinder_client(self.session)
         try:
-            volume_types = self.cinder_admin_client.volume_types.list(is_public=True)
+            volume_types = cinder.volume_types.list(is_public=True)
         except cinder_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
 
@@ -253,14 +258,16 @@ class OpenStackBackend(BaseOpenStackBackend):
         neutron_quotas = {k: v for k, v in neutron_quotas.items() if v is not None}
 
         try:
+            cinder = get_cinder_client(self.session)
+            nova = get_nova_client(self.session)
+            neutron = get_neutron_client(self.session)
+
             if cinder_quotas:
-                self.cinder_client.quotas.update(tenant.backend_id, **cinder_quotas)
+                cinder.quotas.update(tenant.backend_id, **cinder_quotas)
             if nova_quotas:
-                self.nova_client.quotas.update(tenant.backend_id, **nova_quotas)
+                nova.quotas.update(tenant.backend_id, **nova_quotas)
             if neutron_quotas:
-                self.neutron_client.update_quota(
-                    tenant.backend_id, {"quota": neutron_quotas}
-                )
+                neutron.update_quota(tenant.backend_id, {"quota": neutron_quotas})
         except Exception as e:
             raise OpenStackBackendError(e)
 
@@ -301,7 +308,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @method_decorator(create_batch_fetcher)
     def list_floatingips(self, tenants):
-        neutron = self.neutron_admin_client
+        neutron = get_neutron_client(self.session)
 
         try:
             return neutron.list_floatingips(tenant_id=tenants)["floatingips"]
@@ -310,7 +317,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action("pull floating IPs for tenant")
     def pull_tenant_floating_ips(self, tenant):
-        neutron = self.neutron_client
+        neutron = get_neutron_client(self.session)
 
         try:
             backend_floating_ips = neutron.list_floatingips(tenant_id=self.tenant_id)[
@@ -412,7 +419,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @method_decorator(create_batch_fetcher)
     def list_security_groups(self, tenants):
-        neutron = self.neutron_admin_client
+        neutron = get_neutron_client(self.session)
 
         try:
             return neutron.list_security_groups(tenant_id=tenants)["security_groups"]
@@ -420,7 +427,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             raise OpenStackBackendError(e)
 
     def pull_security_group(self, local_security_group: models.SecurityGroup):
-        neutron = self.neutron_client
+        neutron = get_neutron_client(self.session)
         try:
             remote_security_group = neutron.show_security_group(
                 local_security_group.backend_id
@@ -451,7 +458,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action("pull security groups for tenant")
     def pull_tenant_security_groups(self, tenant):
-        neutron = self.neutron_client
+        neutron = get_neutron_client(self.session)
         try:
             backend_security_groups = neutron.list_security_groups(
                 tenant_id=self.tenant_id
@@ -604,7 +611,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             self.pull_tenant_routers(tenant)
 
     def pull_tenant_routers(self, tenant):
-        neutron = self.neutron_admin_client
+        neutron = get_neutron_client(self.session)
 
         try:
             backend_routers = neutron.list_routers(tenant_id=tenant.backend_id)[
@@ -664,7 +671,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             self.pull_tenant_ports(tenant)
 
     def pull_tenant_ports(self, tenant):
-        neutron = self.neutron_admin_client
+        neutron = get_neutron_client(self.session)
 
         try:
             backend_ports = neutron.list_ports(tenant_id=tenant.backend_id)["ports"]
@@ -817,7 +824,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @method_decorator(create_batch_fetcher)
     def list_networks(self, tenants):
-        neutron = self.neutron_admin_client
+        neutron = get_neutron_client(self.session)
         try:
             return neutron.list_networks(tenant_id=tenants)["networks"]
         except neutron_exceptions.NeutronClientException as e:
@@ -844,7 +851,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         return network
 
     def pull_subnets(self, tenant=None, network=None):
-        neutron = self.neutron_admin_client
+        neutron = get_neutron_client(self.session)
 
         if tenant:
             networks = tenant.networks.all()
@@ -967,7 +974,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action()
     def create_tenant(self, tenant):
-        keystone = self.keystone_admin_client
+        keystone = get_keystone_client(self.session)
         try:
             backend_tenant = keystone.projects.create(
                 name=tenant.name,
@@ -995,7 +1002,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         """
         Returns a tenant name that's free on the target deployment.
         """
-        keystone = self.keystone_admin_client
+        keystone = get_keystone_client(self.session)
         try:
             tenants = keystone.projects.list(domain=self._get_domain())
         except keystone_exceptions.ClientException as e:
@@ -1017,7 +1024,7 @@ class OpenStackBackend(BaseOpenStackBackend):
     def _import_tenant(
         self, tenant_backend_id, service_settings=None, project=None, save=True
     ):
-        keystone = self.keystone_admin_client
+        keystone = get_keystone_client(self.session)
         try:
             backend_tenant = keystone.projects.get(tenant_backend_id)
         except keystone_exceptions.ClientException as e:
@@ -1043,7 +1050,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         return tenant
 
     def get_importable_tenants(self):
-        keystone = self.keystone_admin_client
+        keystone = get_keystone_client(self.session)
         try:
             tenants = [
                 {
@@ -1071,7 +1078,7 @@ class OpenStackBackend(BaseOpenStackBackend):
     @log_backend_action()
     def add_admin_user_to_tenant(self, tenant):
         """Add user from openstack settings to new tenant"""
-        keystone = self.keystone_admin_client
+        keystone = get_keystone_client(self.session)
 
         try:
             admin_user = keystone.users.find(name=self.settings.username)
@@ -1087,7 +1094,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action("add user to tenant")
     def create_tenant_user(self, tenant):
-        keystone = self.keystone_client
+        keystone = get_keystone_client(self.session)
 
         try:
             user = keystone.users.create(
@@ -1108,7 +1115,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             raise OpenStackBackendError(e)
 
     def create_or_update_tenant_user(self, tenant):
-        keystone = self.keystone_client
+        keystone = get_keystone_client(self.session)
 
         try:
             keystone_user = keystone.users.find(name=tenant.user_username)
@@ -1121,7 +1128,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action("change password for tenant user")
     def change_tenant_user_password(self, tenant, keystone_user=None):
-        keystone = self.keystone_client
+        keystone = get_keystone_client(self.session)
 
         try:
             if not keystone_user:
@@ -1138,7 +1145,7 @@ class OpenStackBackend(BaseOpenStackBackend):
                 "This method should not be called if tenant has no backend_id"
             )
 
-        neutron = self.neutron_admin_client
+        neutron = get_neutron_client(self.session)
 
         try:
             floatingips = neutron.list_floatingips(tenant_id=tenant.backend_id)
@@ -1156,7 +1163,7 @@ class OpenStackBackend(BaseOpenStackBackend):
                 "This method should not be called if tenant has no backend_id"
             )
 
-        neutron = self.neutron_admin_client
+        neutron = get_neutron_client(self.session)
 
         try:
             ports = neutron.list_ports(tenant_id=tenant.backend_id)
@@ -1208,7 +1215,7 @@ class OpenStackBackend(BaseOpenStackBackend):
                 "This method should not be called if tenant has no backend_id"
             )
 
-        neutron = self.neutron_admin_client
+        neutron = get_neutron_client(self.session)
 
         try:
             routers = neutron.list_routers(tenant_id=tenant.backend_id)
@@ -1236,7 +1243,7 @@ class OpenStackBackend(BaseOpenStackBackend):
                 "This method should not be called if tenant has no backend_id"
             )
 
-        neutron = self.neutron_admin_client
+        neutron = get_neutron_client(self.session)
 
         try:
             routers = neutron.list_routers(tenant_id=tenant.backend_id)
@@ -1266,7 +1273,7 @@ class OpenStackBackend(BaseOpenStackBackend):
                 "This method should not be called if tenant has no backend_id"
             )
 
-        neutron = self.neutron_admin_client
+        neutron = get_neutron_client(self.session)
 
         try:
             networks = neutron.list_networks(tenant_id=tenant.backend_id)
@@ -1310,7 +1317,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action()
     def delete_tenant_security_groups(self, tenant):
-        neutron = self.neutron_client
+        neutron = get_neutron_client(self.session)
 
         try:
             sgroups = neutron.list_security_groups(tenant_id=tenant.backend_id)[
@@ -1338,7 +1345,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action()
     def delete_tenant_instances(self, tenant):
-        nova = self.nova_client
+        nova = get_nova_client(self.session)
 
         try:
             servers = nova.servers.list()
@@ -1361,7 +1368,7 @@ class OpenStackBackend(BaseOpenStackBackend):
                 raise OpenStackBackendError(e)
 
     def are_all_tenant_instances_deleted(self, tenant):
-        nova = self.nova_client
+        nova = get_nova_client(self.session)
 
         try:
             servers = nova.servers.list()
@@ -1372,7 +1379,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action()
     def delete_tenant_snapshots(self, tenant):
-        cinder = self.cinder_client
+        cinder = get_cinder_client(self.session)
 
         try:
             snapshots = cinder.volume_snapshots.list()
@@ -1396,7 +1403,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action()
     def are_all_tenant_snapshots_deleted(self, tenant):
-        cinder = self.cinder_client
+        cinder = get_cinder_client(self.session)
 
         try:
             snapshots = cinder.volume_snapshots.list()
@@ -1407,7 +1414,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action()
     def delete_tenant_volumes(self, tenant):
-        cinder = self.cinder_client
+        cinder = get_cinder_client(self.session)
 
         try:
             volumes = cinder.volumes.list()
@@ -1431,7 +1438,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action()
     def are_all_tenant_volumes_deleted(self, tenant):
-        cinder = self.cinder_client
+        cinder = get_cinder_client(self.session)
 
         try:
             volumes = cinder.volumes.list()
@@ -1442,7 +1449,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action()
     def delete_tenant_user(self, tenant):
-        keystone = self.keystone_client
+        keystone = get_keystone_client(self.session)
         try:
             user = keystone.users.find(name=tenant.user_username)
             logger.info(
@@ -1472,7 +1479,7 @@ class OpenStackBackend(BaseOpenStackBackend):
                 "This method should not be called if tenant has no backend_id"
             )
 
-        keystone = self.keystone_admin_client
+        keystone = get_keystone_client(self.session)
 
         logger.info("Deleting tenant %s", tenant.backend_id)
         try:
@@ -1484,7 +1491,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action()
     def delete_tenant_server_groups(self, tenant):
-        nova = self.nova_client
+        nova = get_nova_client(self.session)
 
         try:
             server_groups = nova.server_groups.list()
@@ -1510,7 +1517,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action()
     def push_security_group_rules(self, security_group):
-        neutron = self.neutron_client
+        neutron = get_neutron_client(self.session)
 
         try:
             backend_security_group = neutron.show_security_group(
@@ -1657,7 +1664,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action()
     def create_security_group(self, security_group):
-        neutron = self.neutron_client
+        neutron = get_neutron_client(self.session)
         try:
             backend_security_group = neutron.create_security_group(
                 {
@@ -1685,7 +1692,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action()
     def delete_security_group(self, security_group):
-        neutron = self.neutron_client
+        neutron = get_neutron_client(self.session)
         try:
             neutron.delete_security_group(security_group.backend_id)
 
@@ -1712,7 +1719,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             )
 
     def get_instances_connected_to_security_groups(self, security_group):
-        nova = self.nova_client
+        nova = get_nova_client(self.session)
         try:
             instances = nova.servers.list()
         except nova_exceptions.ClientException as e:
@@ -1729,7 +1736,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         return connected_instances
 
     def detach_security_group_from_instance(self, group_id, server_id):
-        nova = self.nova_client
+        nova = get_nova_client(self.session)
         try:
             nova.servers.remove_security_group(server_id, group_id)
         except nova_exceptions.ClientException:
@@ -1744,7 +1751,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             )
 
     def detach_security_group_from_all_ports(self, security_group):
-        neutron = self.neutron_admin_client
+        neutron = get_neutron_client(self.session)
         try:
             remote_ports = neutron.list_ports(
                 tenant_id=security_group.tenant.backend_id
@@ -1768,7 +1775,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action()
     def update_security_group(self, security_group):
-        neutron = self.neutron_client
+        neutron = get_neutron_client(self.session)
         data = {"name": security_group.name, "description": security_group.description}
         try:
             neutron.update_security_group(
@@ -1788,7 +1795,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action()
     def create_server_group(self, server_group):
-        nova = self.nova_client
+        nova = get_nova_client(self.session)
         try:
             backend_server_group = nova.server_groups.create(
                 name=server_group.name, policies=server_group.policy
@@ -1808,7 +1815,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action()
     def delete_server_group(self, server_group):
-        nova = self.nova_client
+        nova = get_nova_client(self.session)
         try:
             nova.server_groups.delete(server_group.backend_id)
             event_logger.openstack_server_group.info(
@@ -1823,7 +1830,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action()
     def set_static_routes(self, router):
-        neutron = self.neutron_client
+        neutron = get_neutron_client(self.session)
         try:
             neutron.update_router(
                 router.backend_id, {"router": {"routes": router.routes}}
@@ -1833,7 +1840,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action()
     def detect_external_network(self, tenant):
-        neutron = self.neutron_client
+        neutron = get_neutron_client(self.session)
         try:
             routers = neutron.list_routers(tenant_id=tenant.backend_id)["routers"]
         except neutron_exceptions.NeutronClientException as e:
@@ -1859,7 +1866,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action()
     def create_network(self, network):
-        neutron = self.neutron_admin_client
+        neutron = get_neutron_client(self.session)
 
         data = {"name": network.name, "tenant_id": network.tenant.backend_id}
         try:
@@ -1889,7 +1896,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             )
 
     def _update_network(self, network_id, data):
-        neutron = self.neutron_admin_client
+        neutron = get_neutron_client(self.session)
 
         try:
             neutron.update_network(network_id, {"network": data})
@@ -1919,7 +1926,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         for subnet in network.subnets.all():
             self.delete_subnet(subnet)
 
-        neutron = self.neutron_admin_client
+        neutron = get_neutron_client(self.session)
         try:
             neutron.delete_network(network.backend_id)
         except neutron_exceptions.NeutronClientException as e:
@@ -1944,7 +1951,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             tenant.save()
 
     def import_network(self, network_backend_id):
-        neutron = self.neutron_admin_client
+        neutron = get_neutron_client(self.session)
         try:
             backend_network = neutron.show_network(network_backend_id)["network"]
         except neutron_exceptions.NeutronClientException as e:
@@ -1973,7 +1980,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action()
     def create_subnet(self, subnet):
-        neutron = self.neutron_admin_client
+        neutron = get_neutron_client(self.session)
 
         data = {
             "name": subnet.name,
@@ -2017,7 +2024,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action()
     def update_subnet(self, subnet):
-        neutron = self.neutron_admin_client
+        neutron = get_neutron_client(self.session)
 
         data = {
             "name": subnet.name,
@@ -2049,7 +2056,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             )
 
     def disconnect_subnet(self, subnet):
-        neutron = self.neutron_admin_client
+        neutron = get_neutron_client(self.session)
         try:
             ports = neutron.list_ports(network_id=subnet.network.backend_id)["ports"]
 
@@ -2099,7 +2106,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action()
     def delete_subnet(self, subnet):
-        neutron = self.neutron_admin_client
+        neutron = get_neutron_client(self.session)
         try:
             self.disconnect_subnet(subnet)
             neutron.delete_subnet(subnet.backend_id)
@@ -2116,7 +2123,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             )
 
     def import_subnet(self, subnet_backend_id):
-        neutron = self.neutron_admin_client
+        neutron = get_neutron_client(self.session)
         try:
             backend_subnet = neutron.show_subnet(subnet_backend_id)["subnet"]
         except neutron_exceptions.NeutronClientException as e:
@@ -2129,7 +2136,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         return self._backend_subnet_to_subnet(backend_subnet, is_connected=is_connected)
 
     def is_subnet_connected(self, subnet_backend_id, subnet_network_backend_id):
-        neutron = self.neutron_admin_client
+        neutron = get_neutron_client(self.session)
 
         try:
             ports = neutron.list_ports(network_id=subnet_network_backend_id)["ports"]
@@ -2165,7 +2172,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action("pull floating ip")
     def pull_floating_ip(self, floating_ip):
-        neutron = self.neutron_client
+        neutron = get_neutron_client(self.session)
         try:
             backend_floating_ip = neutron.show_floatingip(floating_ip.backend_id)[
                 "floatingip"
@@ -2190,7 +2197,7 @@ class OpenStackBackend(BaseOpenStackBackend):
     @log_backend_action("update floating ip description")
     def update_floating_ip_description(self, floating_ip, serialized_description):
         description = serialized_description
-        neutron = self.neutron_admin_client
+        neutron = get_neutron_client(self.session)
         payload = {
             "description": description,
         }
@@ -2215,7 +2222,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action("create floating ip")
     def create_floating_ip(self, floating_ip):
-        neutron = self.neutron_client
+        neutron = get_neutron_client(self.session)
         try:
             backend_floating_ip = neutron.create_floatingip(
                 {
@@ -2237,7 +2244,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action()
     def connect_tenant_to_external_network(self, tenant, external_network_id):
-        neutron = self.neutron_admin_client
+        neutron = get_neutron_client(self.session)
         logger.debug(
             'About to connect tenant to external network "%s" (PK: %s)',
             tenant.name,
@@ -2272,7 +2279,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         return external_network_id
 
     def _get_router(self, tenant_id):
-        neutron = self.neutron_client
+        neutron = get_neutron_client(self.session)
 
         try:
             routers = neutron.list_routers(tenant_id=tenant_id)["routers"]
@@ -2283,7 +2290,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         return routers[0] if routers else None
 
     def _create_router(self, router_name, tenant_id):
-        neutron = self.neutron_client
+        neutron = get_neutron_client(self.session)
         create_ha_routers = bool(self.settings.options.get("create_ha_routers"))
         options = {
             "router": {
@@ -2305,7 +2312,7 @@ class OpenStackBackend(BaseOpenStackBackend):
     def _connect_network_to_router(
         self, router, external, tenant_id, network_id=None, subnet_id=None
     ):
-        neutron = self.neutron_client
+        neutron = get_neutron_client(self.session)
         try:
             if external:
                 if (
@@ -2371,7 +2378,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action()
     def update_tenant(self, tenant):
-        keystone = self.keystone_admin_client
+        keystone = get_keystone_client(self.session)
         try:
             keystone.projects.update(
                 tenant.backend_id, name=tenant.name, description=tenant.description
@@ -2381,7 +2388,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             raise OpenStackBackendError(e)
 
     def pull_service_settings_quotas(self):
-        nova = self.nova_admin_client
+        nova = get_nova_client(self.session)
         try:
             stats = nova.hypervisor_stats.statistics()
         except nova_exceptions.ClientException as e:
@@ -2396,7 +2403,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         self.settings.set_quota_usage("openstack_storage", self.get_storage_usage())
 
     def get_storage_usage(self):
-        cinder = self.cinder_admin_client
+        cinder = get_cinder_client(self.session)
 
         try:
             volumes = cinder.volumes.list()
@@ -2409,7 +2416,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action()
     def create_port(self, port: models.Port, serialized_network: models.Network):
-        neutron = self.neutron_admin_client
+        neutron = get_neutron_client(self.session)
         network = core_utils.deserialize_instance(serialized_network)
 
         port_payload = {
@@ -2442,7 +2449,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action()
     def delete_port(self, port: models.Port):
-        neutron = self.neutron_admin_client
+        neutron = get_neutron_client(self.session)
 
         try:
             neutron.delete_port(port.backend_id)
@@ -2460,7 +2467,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         self, floating_ip: models.FloatingIP, serialized_port
     ):
         port: models.Port = core_utils.deserialize_instance(serialized_port)
-        neutron = self.neutron_admin_client
+        neutron = get_neutron_client(self.session)
         payload = {
             "port_id": port.backend_id,
         }
@@ -2487,7 +2494,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action()
     def detach_floating_ip_from_port(self, floating_ip: models.FloatingIP):
-        neutron = self.neutron_admin_client
+        neutron = get_neutron_client(self.session)
         payload = {
             "port_id": None,
         }
@@ -2604,7 +2611,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         stale_groups.delete()
 
     def list_server_groups(self, tenants):
-        nova = self.nova_admin_client
+        nova = get_nova_client(self.session)
         try:
             list_of_all_server_groups = nova.server_groups.list(all_projects=True)
             return [
@@ -2638,7 +2645,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             self._remove_stale_server_groups(tenants, backend_server_groups)
 
     def pull_server_group(self, local_server_group: models.ServerGroup):
-        nova = self.nova_client
+        nova = get_nova_client(self.session)
         try:
             remote_server_group = nova.server_groups.get(local_server_group.backend_id)
 
@@ -2663,7 +2670,7 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action("pull server groups for tenant")
     def pull_tenant_server_groups(self, tenant):
-        nova = self.nova_client
+        nova = get_nova_client(self.session)
         try:
             backend_server_groups = nova.server_groups.list()
         except nova_exceptions.ClientException as e:
@@ -2674,7 +2681,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             self._remove_stale_server_groups([tenant], backend_server_groups)
 
     def create_flavor(self, flavor):
-        nova = self.nova_admin_client
+        nova = get_nova_client(self.session)
         data = {
             "name": flavor.name,
             "vcpus": flavor.cores,
@@ -2700,7 +2707,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         if not flavor.backend_id:
             return
 
-        nova = self.nova_admin_client
+        nova = get_nova_client(self.session)
 
         try:
             nova.flavors.delete(flavor.backend_id)

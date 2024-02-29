@@ -13,7 +13,7 @@ from waldur_core.core.utils import serialize_instance
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common import utils as common_utils
 from waldur_openstack.openstack.tests.unittests import test_backend
-from waldur_openstack.openstack_base.backend import OpenStackBackendError
+from waldur_openstack.openstack_base.exceptions import OpenStackBackendError
 from waldur_openstack.openstack_tenant import executors, models, views
 from waldur_openstack.openstack_tenant.tasks import LimitedPerTypeThrottleMixin
 from waldur_openstack.openstack_tenant.tests import factories, fixtures, helpers
@@ -483,6 +483,7 @@ class InstanceUpdateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
+@override_settings(task_always_eager=True)
 class InstanceDeleteTest(test_backend.BaseBackendTestCase):
     def setUp(self):
         super().setUp()
@@ -492,7 +493,7 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
             backend_id="VALID_ID",
         )
         self.instance.increase_backend_quotas_usage()
-        self.mocked_nova().servers.get.side_effect = nova_exceptions.NotFound(code=404)
+        self.mocked_nova.servers.get.side_effect = nova_exceptions.NotFound(code=404)
         views.MarketplaceInstanceViewSet.async_executor = False
 
     def tearDown(self):
@@ -519,25 +520,22 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
                 return mocked_volume
             raise cinder_exceptions.NotFound(code=404)
 
-        self.mocked_cinder().volumes.get.side_effect = get_volume
+        self.mocked_cinder.volumes.get.side_effect = get_volume
 
     def delete_instance(self, query_params=None, check_status_code=True):
         user = structure_factories.UserFactory(is_staff=True)
         view = views.MarketplaceInstanceViewSet.as_view({"delete": "destroy"})
 
-        with override_settings(
-            CELERY_ALWAYS_EAGER=True, CELERY_EAGER_PROPAGATES_EXCEPTIONS=True
-        ):
-            response = common_utils.delete_request(
-                view, user, uuid=self.instance.uuid.hex, query_params=query_params
+        response = common_utils.delete_request(
+            view, user, uuid=self.instance.uuid.hex, query_params=query_params
+        )
+
+        if check_status_code:
+            self.assertEqual(
+                response.status_code, status.HTTP_202_ACCEPTED, response.data
             )
 
-            if check_status_code:
-                self.assertEqual(
-                    response.status_code, status.HTTP_202_ACCEPTED, response.data
-                )
-
-            return response
+        return response
 
     def assert_quota_usage(self, scope, name, value):
         self.assertEqual(scope.get_quota_usage(name), value)
@@ -546,9 +544,10 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
         self.mock_volumes(True)
         self.delete_instance()
 
-        nova = self.mocked_nova()
-        nova.servers.delete.assert_called_once_with(self.instance.backend_id)
-        nova.servers.get.assert_called_once_with(self.instance.backend_id)
+        self.mocked_nova.servers.delete.assert_called_once_with(
+            self.instance.backend_id
+        )
+        self.mocked_nova.servers.get.assert_called_once_with(self.instance.backend_id)
 
     def test_database_models_deleted(self):
         self.mock_volumes(True)
@@ -579,7 +578,7 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
         self.mock_volumes(False)
         self.delete_instance({"delete_volumes": False})
 
-        nova = self.mocked_nova()
+        nova = self.mocked_nova
         nova.volumes.delete_server_volume.assert_called_once_with(
             self.instance.backend_id, self.data_volume.backend_id
         )
@@ -637,7 +636,7 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
                 "delete_volumes": False,
             }
         )
-        self.mocked_neutron().delete_floatingip.assert_called_once_with(
+        self.mocked_neutron.delete_floatingip.assert_called_once_with(
             floating_ip.backend_id
         )
 
@@ -651,13 +650,13 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
                 "delete_volumes": False,
             }
         )
-        self.assertEqual(self.mocked_neutron().delete_floatingip.call_count, 0)
+        self.assertEqual(self.mocked_neutron.delete_floatingip.call_count, 0)
 
     def test_neutron_methods_are_not_called_if_user_did_not_ask_for_floating_ip_removal_explicitly(
         self,
     ):
         self.mock_volumes(False)
-        self.mocked_neutron().show_floatingip.return_value = {
+        self.mocked_neutron.show_floatingip.return_value = {
             "floatingip": {"status": "DOWN"}
         }
         fixture = fixtures.OpenStackTenantFixture()
@@ -667,7 +666,7 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
         settings = self.instance.service_settings
         factories.FloatingIPFactory.create(internal_ip=internal_ip, settings=settings)
         self.delete_instance({"release_floating_ips": False, "delete_volumes": False})
-        self.assertEqual(self.mocked_neutron().delete_floatingip.call_count, 0)
+        self.assertEqual(self.mocked_neutron.delete_floatingip.call_count, 0)
 
     def test_incomplete_instance_deletion_executor_produces_celery_signature(self):
         # Arrange

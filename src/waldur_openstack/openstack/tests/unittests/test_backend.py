@@ -1,52 +1,31 @@
 from unittest import mock
 
 from ddt import data, ddt
-from django.core.cache import cache
 from keystoneclient import exceptions as keystone_exceptions
 from rest_framework import test
 
+from waldur_mastermind.marketplace_openstack.tests.mocks import MockTenant
 from waldur_openstack.openstack import models
 from waldur_openstack.openstack.backend import OpenStackBackend
 from waldur_openstack.openstack.tests import factories, fixtures
-from waldur_openstack.openstack_base.backend import get_cached_session_key
-
-
-class MockedSession(mock.MagicMock):
-    auth_ref = "AUTH_REF"
+from waldur_openstack.openstack_base.tests.fixtures import mock_session
 
 
 class BaseBackendTestCase(test.APITransactionTestCase):
     def setUp(self):
-        self.session_patcher = mock.patch(
-            "keystoneauth1.session.Session", MockedSession
-        )
-        self.session_patcher.start()
-
-        self.session_recover_patcher = mock.patch(
-            "waldur_openstack.openstack_base.backend.OpenStackSession.recover"
-        )
-        self.session_recover_patcher.start()
-
-        self.keystone_patcher = mock.patch("keystoneclient.v3.client.Client")
-        self.mocked_keystone = self.keystone_patcher.start()
-
-        self.nova_patcher = mock.patch("novaclient.v2.client.Client")
-        self.mocked_nova = self.nova_patcher.start()
-
-        self.neutron_patcher = mock.patch("neutronclient.v2_0.client.Client")
-        self.mocked_neutron = self.neutron_patcher.start()
-
-        self.cinder_patcher = mock.patch("cinderclient.v3.client.Client")
-        self.mocked_cinder = self.cinder_patcher.start()
-
-        self.glance_patcher = mock.patch("glanceclient.v2.client.Client")
-        self.mocked_glance = self.glance_patcher.start()
+        self.mocked_keystone = mock.patch("keystoneclient.v3.client.Client").start()()
+        self.mocked_nova = mock.patch("novaclient.v2.client.Client").start()()
+        self.mocked_neutron = mock.patch("neutronclient.v2_0.client.Client").start()()
+        self.mocked_cinder = mock.patch("cinderclient.v3.client.Client").start()()
+        self.mocked_glance = mock.patch("glanceclient.v2.client.Client").start()()
 
         self.fixture = fixtures.OpenStackFixture()
         self.tenant = self.fixture.tenant
         self.backend = OpenStackBackend(
-            settings=self.fixture.openstack_service_settings, tenant_id=self.tenant.id
+            settings=self.fixture.openstack_service_settings,
+            tenant_id=self.tenant.backend_id,
         )
+        mock_session()
 
     def tearDown(self):
         super().tearDown()
@@ -70,8 +49,8 @@ class PullFloatingIPTest(BaseBackendTestCase):
             ]
         )
 
-    def setup_client(self, is_admin, value):
-        self.mocked_neutron().list_floatingips.return_value = value
+    def setup_client(self, value):
+        self.mocked_neutron.list_floatingips.return_value = value
 
     def call_backend(self, is_admin):
         if is_admin:
@@ -83,7 +62,7 @@ class PullFloatingIPTest(BaseBackendTestCase):
     def test_floating_ip_is_created_if_it_does_not_exist(self, is_admin):
         floating_ip = self.fixture.floating_ip
         floating_ip.backend_network_id = "new_backend_network_id"
-        self.setup_client(is_admin, self._get_valid_new_backend_ip(floating_ip))
+        self.setup_client(self._get_valid_new_backend_ip(floating_ip))
         floating_ip.delete()
 
         self.call_backend(is_admin)
@@ -100,7 +79,7 @@ class PullFloatingIPTest(BaseBackendTestCase):
     @data(True, False)
     def test_floating_ip_is_deleted_if_it_is_not_returned_by_neutron(self, is_admin):
         floating_ip = self.fixture.floating_ip
-        self.setup_client(is_admin, dict(floatingips=[]))
+        self.setup_client(dict(floatingips=[]))
 
         self.call_backend(is_admin)
 
@@ -112,7 +91,7 @@ class PullFloatingIPTest(BaseBackendTestCase):
         floating_ip.state = models.FloatingIP.States.CREATING
         floating_ip.backend_id = ""
         floating_ip.save()
-        self.setup_client(is_admin, dict(floatingips=[]))
+        self.setup_client(dict(floatingips=[]))
 
         self.call_backend(is_admin)
 
@@ -123,7 +102,7 @@ class PullFloatingIPTest(BaseBackendTestCase):
         floating_ip = self.fixture.floating_ip
         floating_ip.runtime_state = "ACTIVE"
 
-        self.setup_client(is_admin, self._get_valid_new_backend_ip(floating_ip))
+        self.setup_client(self._get_valid_new_backend_ip(floating_ip))
 
         floating_ip.runtime_state = "DOWN"
         floating_ip.save()
@@ -137,8 +116,8 @@ class PullFloatingIPTest(BaseBackendTestCase):
 
 @ddt
 class PullSecurityGroupsTest(BaseBackendTestCase):
-    def setup_client(self, is_admin, value):
-        self.mocked_neutron().list_security_groups.return_value = value
+    def setup_client(self, value):
+        self.mocked_neutron.list_security_groups.return_value = value
 
     def call_backend(self, is_admin):
         if is_admin:
@@ -152,7 +131,7 @@ class PullSecurityGroupsTest(BaseBackendTestCase):
         mocked_response = self._form_backend_security_groups([security_group])
         security_group.delete()
 
-        self.setup_client(is_admin, mocked_response)
+        self.setup_client(mocked_response)
         self.call_backend(is_admin)
 
         self.assertEqual(models.SecurityGroup.objects.count(), 1)
@@ -164,7 +143,7 @@ class PullSecurityGroupsTest(BaseBackendTestCase):
     @data(True, False)
     def test_stale_security_groups_are_deleted(self, is_admin):
         security_group = self.fixture.security_group
-        self.setup_client(is_admin, dict(security_groups=[]))
+        self.setup_client(dict(security_groups=[]))
 
         self.call_backend(is_admin)
 
@@ -178,9 +157,7 @@ class PullSecurityGroupsTest(BaseBackendTestCase):
         security_group.name = "New name"
         security_group.description = "New description"
         security_group.save()
-        self.setup_client(
-            is_admin, self._form_backend_security_groups([security_group])
-        )
+        self.setup_client(self._form_backend_security_groups([security_group]))
 
         security_group.name = "Old name"
         security_group.description = "Old description"
@@ -199,7 +176,7 @@ class PullSecurityGroupsTest(BaseBackendTestCase):
         )
         factories.SecurityGroupRuleFactory(security_group=security_group_in_progress)
         security_groups = [original_security_group, security_group_in_progress]
-        self.mocked_neutron().list_security_groups.return_value = (
+        self.mocked_neutron.list_security_groups.return_value = (
             self._form_backend_security_groups(security_groups)
         )
 
@@ -258,7 +235,7 @@ class PushSecurityGroupTest(BaseBackendTestCase):
         EGRESS_RULE_ID = "93aa42e5-80db-4581-9391-3a608bd0e448"
         INGRESS_RULE_ID = "c0b09f00-1d49-4e64-a0a7-8a186d928138"
 
-        self.mocked_neutron().show_security_group.return_value = {
+        self.mocked_neutron.show_security_group.return_value = {
             "security_group": {
                 "security_group_rules": [
                     {
@@ -311,19 +288,19 @@ class PushSecurityGroupTest(BaseBackendTestCase):
             "description": rule.description,
         }
 
-        self.mocked_neutron().create_security_group_rule.return_value = {
+        self.mocked_neutron.create_security_group_rule.return_value = {
             "security_group_rule": dict(id="valid_id", **mocked_security_group_rule)
         }
 
         self.backend.push_security_group_rules(security_group)
 
-        self.mocked_neutron().delete_security_group_rule.assert_has_calls(
+        self.mocked_neutron.delete_security_group_rule.assert_has_calls(
             [
                 mock.call(EGRESS_RULE_ID),
                 mock.call(INGRESS_RULE_ID),
             ]
         )
-        self.mocked_neutron().create_security_group_rule.assert_called_once_with(
+        self.mocked_neutron.create_security_group_rule.assert_called_once_with(
             {"security_group_rule": mocked_security_group_rule}
         )
 
@@ -343,7 +320,7 @@ class PullNetworksTest(BaseBackendTestCase):
                 }
             ]
         }
-        self.mocked_neutron().list_networks.return_value = self.backend_networks
+        self.mocked_neutron.list_networks.return_value = self.backend_networks
 
     def test_missing_networks_are_created(self):
         self.backend.pull_networks()
@@ -358,7 +335,7 @@ class PullNetworksTest(BaseBackendTestCase):
 
     def test_stale_networks_are_deleted(self):
         self.fixture.network
-        self.mocked_neutron().list_networks.return_value = dict(networks=[])
+        self.mocked_neutron.list_networks.return_value = dict(networks=[])
         self.backend.pull_networks()
         self.assertEqual(models.Network.objects.count(), 0)
 
@@ -403,12 +380,12 @@ class PullSubnetsTest(BaseBackendTestCase):
                 }
             ]
         }
-        self.mocked_neutron().list_subnets.return_value = self.backend_subnets
+        self.mocked_neutron.list_subnets.return_value = self.backend_subnets
 
     def test_missing_subnets_are_created(self):
         self.backend.pull_subnets()
 
-        self.mocked_neutron().list_subnets.assert_called_once()
+        self.mocked_neutron.list_subnets.assert_called_once()
         self.assertEqual(models.SubNet.objects.count(), 1)
         subnet = models.SubNet.objects.get(
             backend_id="backend_id",
@@ -434,7 +411,7 @@ class PullSubnetsTest(BaseBackendTestCase):
     def test_stale_subnets_are_deleted(self):
         self.fixture.subnet
         self.assertEqual(models.SubNet.objects.count(), 1)
-        self.mocked_neutron().list_subnets.return_value = dict(subnets=[])
+        self.mocked_neutron.list_subnets.return_value = dict(subnets=[])
         self.backend.pull_subnets()
         self.assertEqual(models.SubNet.objects.count(), 0)
 
@@ -453,18 +430,18 @@ class PullSubnetsTest(BaseBackendTestCase):
 
 class CreateOrUpdateTenantUserTest(BaseBackendTestCase):
     def test_change_tenant_user_password_is_called_if_user_exists(self):
-        self.mocked_keystone().users.find.return_value = self.fixture.owner
+        self.mocked_keystone.users.find.return_value = self.fixture.owner
 
         self.backend.create_or_update_tenant_user(self.tenant)
 
-        self.mocked_keystone().users.update.assert_called_once()
+        self.mocked_keystone.users.update.assert_called_once()
 
     def test_user_is_created_if_it_is_not_found(self):
-        self.mocked_keystone().users.find.side_effect = keystone_exceptions.NotFound
+        self.mocked_keystone.users.find.side_effect = keystone_exceptions.NotFound
 
         self.backend.create_or_update_tenant_user(self.tenant)
 
-        self.mocked_keystone().users.create.assert_called_once()
+        self.mocked_keystone.users.create.assert_called_once()
 
 
 class ImportTenantNetworksTest(BaseBackendTestCase):
@@ -487,9 +464,7 @@ class ImportTenantNetworksTest(BaseBackendTestCase):
 
     def test_import_tenant_networks_imports_network(self):
         backend_network = self._generate_backend_networks()[0]
-        self.mocked_neutron().list_networks.return_value = {
-            "networks": [backend_network]
-        }
+        self.mocked_neutron.list_networks.return_value = {"networks": [backend_network]}
         self.assertEqual(self.tenant.networks.count(), 0)
 
         self.backend.import_tenant_networks(self.tenant)
@@ -504,7 +479,7 @@ class ImportTenantNetworksTest(BaseBackendTestCase):
         self.assertEqual(self.tenant.internal_network_id, backend_network["id"])
 
     def test_internal_network_is_not_set_if_networks_are_missing(self):
-        self.mocked_neutron().list_networks.return_value = {"networks": []}
+        self.mocked_neutron.list_networks.return_value = {"networks": []}
 
         self.backend.import_tenant_networks(self.tenant)
 
@@ -513,9 +488,7 @@ class ImportTenantNetworksTest(BaseBackendTestCase):
 
     def test_networks_are_updated_if_they_exist(self):
         backend_network = self._generate_backend_networks()[0]
-        self.mocked_neutron().list_networks.return_value = {
-            "networks": [backend_network]
-        }
+        self.mocked_neutron.list_networks.return_value = {"networks": [backend_network]}
         network = factories.NetworkFactory(
             tenant=self.tenant,
             service_settings=self.tenant.service_settings,
@@ -565,7 +538,7 @@ class ImportTenantSubnets(BaseBackendTestCase):
 
     def test_tenant_subnet_is_imported(self):
         backend_subnet = self._generate_backend_subnet()[0]
-        self.mocked_neutron().list_subnets.return_value = {"subnets": [backend_subnet]}
+        self.mocked_neutron.list_subnets.return_value = {"subnets": [backend_subnet]}
         self.assertEqual(models.SubNet.objects.count(), 0)
 
         self.backend.import_tenant_subnets(self.tenant)
@@ -584,7 +557,7 @@ class ImportTenantSubnets(BaseBackendTestCase):
     def test_tenant_subnets_are_not_imported_if_network_is_missing(self):
         backend_subnet = self._generate_backend_subnet()[0]
         self.tenant.networks.all().delete()
-        self.mocked_neutron().list_subnets.return_value = {"subnets": [backend_subnet]}
+        self.mocked_neutron.list_subnets.return_value = {"subnets": [backend_subnet]}
         self.assertEqual(models.SubNet.objects.count(), 0)
 
         self.backend.import_tenant_subnets(self.tenant)
@@ -592,21 +565,15 @@ class ImportTenantSubnets(BaseBackendTestCase):
         self.assertEqual(models.SubNet.objects.count(), 0)
 
 
-class MockTenant:
-    def __init__(self, name, id=None):
-        self.name = name
-        self.id = id
-
-
 class CreateTenantTest(BaseBackendTestCase):
     def test_name_is_replaced_if_it_is_already_taken(self):
         self.tenant.name = "First Tenant"
         self.tenant.save()
-        self.mocked_keystone().projects.list.return_value = [
+        self.mocked_keystone.projects.list.return_value = [
             MockTenant("First Tenant"),
             MockTenant("Second Tenant"),
         ]
-        self.mocked_keystone().projects.create.return_value = MockTenant(
+        self.mocked_keystone.projects.create.return_value = MockTenant(
             "First Tenant", "VALID_ID"
         )
         self.backend.create_tenant_safe(self.tenant)
@@ -617,8 +584,8 @@ class CreateTenantTest(BaseBackendTestCase):
     def test_name_is_not_replaced_if_it_is_not_taken(self):
         self.tenant.name = "First Tenant"
         self.tenant.save()
-        self.mocked_keystone().projects.list.return_value = []
-        self.mocked_keystone().projects.create.return_value = MockTenant(
+        self.mocked_keystone.projects.list.return_value = []
+        self.mocked_keystone.projects.create.return_value = MockTenant(
             "First Tenant", "VALID_ID"
         )
         self.backend.create_tenant_safe(self.tenant)
@@ -629,7 +596,7 @@ class CreateTenantTest(BaseBackendTestCase):
 class PullImagesTest(BaseBackendTestCase):
     def setUp(self):
         super().setUp()
-        self.mocked_glance().images.list.return_value = [
+        self.mocked_glance.images.list.return_value = [
             {
                 "status": "active",
                 "id": "1",
@@ -677,12 +644,12 @@ class PullImagesTest(BaseBackendTestCase):
         self.assertEqual(models.Image.objects.get(backend_id="1").min_ram, 1024)
 
     def test_private_images_are_filtered_out(self):
-        self.mocked_glance().images.list.return_value[0]["visibility"] = "private"
+        self.mocked_glance.images.list.return_value[0]["visibility"] = "private"
         self.backend.pull_images()
         self.assertEqual(models.Image.objects.count(), 0)
 
     def test_deleted_images_are_filtered_out(self):
-        self.mocked_glance().images.list.return_value[0]["status"] = "deleted"
+        self.mocked_glance.images.list.return_value[0]["status"] = "deleted"
         self.backend.pull_images()
         self.assertEqual(models.Image.objects.count(), 0)
 
@@ -721,7 +688,7 @@ class PullPortsTest(BaseBackendTestCase):
         )
 
     def setup_client(self, value):
-        self.mocked_neutron().list_ports.return_value = value
+        self.mocked_neutron.list_ports.return_value = value
 
     def call_backend(self):
         return self.backend.pull_tenant_ports(self.tenant)
@@ -794,34 +761,6 @@ class PullPortsTest(BaseBackendTestCase):
         self.assertEqual(0, self.port.security_groups.count())
 
 
-class InvalidateSessionCacheTest(BaseBackendTestCase):
-    def test_when_settings_are_updated_admin_session_cache_is_deleted(self):
-        service_settings = factories.OpenStackServiceSettingsFactory(
-            backend_url="http://example1.com/"
-        )
-        service_settings.get_backend().nova_admin_client
-        self.assertTrue(get_cached_session_key(service_settings, admin=True) in cache)
-
-        service_settings.backend_url = "http://example2.com/"
-        service_settings.save()
-        self.assertFalse(get_cached_session_key(service_settings, admin=True) in cache)
-
-    def test_when_settings_are_updated_tenant_session_cache_is_deleted(self):
-        service_settings = factories.OpenStackServiceSettingsFactory(
-            backend_url="http://example1.com/",
-        )
-        service_settings.get_backend(tenant_id="tenant_id").nova_client
-        self.assertTrue(
-            get_cached_session_key(service_settings, tenant_id="tenant_id") in cache
-        )
-
-        service_settings.backend_url = "http://example2.com/"
-        service_settings.save()
-        self.assertFalse(
-            get_cached_session_key(service_settings, tenant_id="tenant_id") in cache
-        )
-
-
 @ddt
 class PullServerGroupsTest(BaseBackendTestCase):
     def call_backend(self, is_admin):
@@ -838,7 +777,7 @@ class PullServerGroupsTest(BaseBackendTestCase):
         mock_server_group.id = self.tenant.backend_id
         mock_server_group.project_id = self.tenant.backend_id
 
-        self.mocked_nova().server_groups.list.return_value = [mock_server_group]
+        self.mocked_nova.server_groups.list.return_value = [mock_server_group]
 
         self.assertFalse(
             models.ServerGroup.objects.filter(
@@ -861,7 +800,7 @@ class PullServerGroupsTest(BaseBackendTestCase):
     @data(True, False)
     def test_stale_server_groups_are_deleted(self, is_admin):
         server_group = self.fixture.server_group
-        self.mocked_nova().server_groups.list.return_value = []
+        self.mocked_nova.server_groups.list.return_value = []
 
         self.call_backend(is_admin)
 

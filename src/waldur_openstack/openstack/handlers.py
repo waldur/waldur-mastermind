@@ -1,7 +1,5 @@
 import logging
 
-from django.core.cache import cache
-
 from waldur_core.core import models as core_models
 from waldur_core.core import tasks as core_tasks
 from waldur_core.core import utils as core_utils
@@ -9,33 +7,11 @@ from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_openstack.openstack import apps
-from waldur_openstack.openstack_base.backend import get_cached_session_key
 
 from .log import event_logger
 from .models import Tenant
 
 logger = logging.getLogger(__name__)
-
-
-def get_affected_cache_keys(service_settings):
-    keys = []
-    keys.append(get_cached_session_key(service_settings, admin=True))
-    for tenant_id in (
-        Tenant.objects.filter(service_settings=service_settings)
-        .values_list("backend_id", flat=True)
-        .distinct()
-    ):
-        if tenant_id:
-            keys.append(get_cached_session_key(service_settings, tenant_id=tenant_id))
-    return keys
-
-
-def clear_cache_when_service_settings_are_updated(sender, instance, **kwargs):
-    if instance.type != apps.OpenStackConfig.service_name:
-        return
-    if set(instance.tracker.changed()) == {"is_active"}:
-        return
-    cache.delete_many(get_affected_cache_keys(instance))
 
 
 def remove_ssh_key_from_tenants(sender, instance, **kwargs):

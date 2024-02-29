@@ -2,28 +2,18 @@ import logging
 
 from django.contrib.contenttypes.models import ContentType
 from django.core import exceptions as django_exceptions
-from django.core.cache import cache
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 
 from waldur_core.core.models import StateMixin
 from waldur_core.quotas.models import QuotaLimit
 from waldur_core.structure import models as structure_models
-from waldur_openstack.openstack_base.backend import get_cached_session_key
 
 from ..openstack import apps as openstack_apps
 from ..openstack import models as openstack_models
 from . import apps, log, models
 
 logger = logging.getLogger(__name__)
-
-
-def clear_cache_when_service_settings_are_updated(sender, instance, **kwargs):
-    if instance.type != apps.OpenStackTenantConfig.service_name:
-        return
-    tenant_id = instance.options.get("tenant_id")
-    if tenant_id:
-        cache.delete(get_cached_session_key(instance, tenant_id=tenant_id))
 
 
 def _log_scheduled_action(resource, action, action_details):

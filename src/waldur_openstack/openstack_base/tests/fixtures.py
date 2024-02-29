@@ -1,3 +1,5 @@
+from unittest import mock
+
 from django.utils.functional import cached_property
 
 from waldur_core.structure import models as structure_models
@@ -26,3 +28,13 @@ class OpenStackFixture(ProjectFixture):
             project=self.project,
             state=openstack_models.Tenant.States.OK,
         )
+
+
+def mock_session():
+    session_mock = mock.patch("keystoneauth1.session.Session").start()()
+    session_mock.auth.auth_url = "auth_url"
+    session_mock.auth.project_id = "project_id"
+    session_mock.auth.project_domain_name = None
+    session_mock.auth.project_name = None
+    session_mock.auth.auth_ref.auth_token = "token"
+    session_mock.auth.get_auth_state.return_value = ""

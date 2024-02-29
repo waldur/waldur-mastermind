@@ -23,11 +23,11 @@ class MockFlavor:
     ram: int
 
 
-@dataclass
 class MockTenant:
-    id: str
-    name: str
-    description = ""
+    def __init__(self, name, id=None, description=""):
+        self.name = name
+        self.id = id
+        self.description = description
 
 
 @dataclass
@@ -60,4 +60,4 @@ MOCK_FLAVOR = MockFlavor(name="Standard", vcpus=4, disk=100, ram=4096)
 
 MOCK_VOLUME = MockVolume(name="ssd-volume", id="1", size=100)
 
-MOCK_TENANT = MockTenant(name="admin", id="1")
+MOCK_TENANT = MockTenant(name="admin", id="1", description="admin")

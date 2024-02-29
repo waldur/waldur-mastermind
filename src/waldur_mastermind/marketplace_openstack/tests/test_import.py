@@ -108,10 +108,10 @@ class BaseInstanceImportTest(BaseBackendTestCase, BaseOpenStackTest):
             shared=False,
             customer=self.fixture.customer,
         )
-        self.mocked_nova().servers.list.return_value = [MOCK_INSTANCE]
-        self.mocked_nova().servers.get.return_value = MOCK_INSTANCE
-        self.mocked_nova().flavors.get.return_value = MOCK_FLAVOR
-        self.mocked_nova().volumes.get_server_volumes.return_value = []
+        self.mocked_nova.servers.list.return_value = [MOCK_INSTANCE]
+        self.mocked_nova.servers.get.return_value = MOCK_INSTANCE
+        self.mocked_nova.flavors.get.return_value = MOCK_FLAVOR
+        self.mocked_nova.volumes.get_server_volumes.return_value = []
 
 
 class InstanceImportableResourcesTest(BaseInstanceImportTest):
@@ -141,8 +141,8 @@ class InstanceImportableResourcesTest(BaseInstanceImportTest):
                 }
             ],
         )
-        self.mocked_nova().servers.list.assert_called()
-        self.mocked_nova().flavors.get.assert_called()
+        self.mocked_nova.servers.list.assert_called()
+        self.mocked_nova.flavors.get.assert_called()
 
 
 class InstanceImportTest(BaseInstanceImportTest):
@@ -192,8 +192,8 @@ class BaseVolumeImportTest(BaseBackendTestCase, test.APITransactionTestCase):
             shared=False,
             customer=self.fixture.customer,
         )
-        self.mocked_cinder().volumes.list.return_value = [MOCK_VOLUME]
-        self.mocked_cinder().volumes.get.return_value = MOCK_VOLUME
+        self.mocked_cinder.volumes.list.return_value = [MOCK_VOLUME]
+        self.mocked_cinder.volumes.get.return_value = MOCK_VOLUME
 
 
 class VolumeImportableResourcesTest(BaseVolumeImportTest):
@@ -271,7 +271,7 @@ class TenantImportableResourcesTest(BaseBackendTestCase, BaseTenantActionsTest):
 
     def test_user_can_list_importable_resources(self):
         self.client.force_authenticate(self.fixture.staff)
-        self.mocked_keystone().projects.list.return_value = [
+        self.mocked_keystone.projects.list.return_value = [
             MockTenant(name="First Tenant", id="1"),
             MockTenant(name="Second Tenant", id="2"),
         ]
@@ -388,5 +388,5 @@ class TenantImportTest(BaseBackendTestCase):
             "project": self.fixture.project.uuid.hex,
         }
         url = OfferingFactory.get_url(self.offering, "import_resource")
-        self.mocked_keystone.return_value.projects.get.return_value = MOCK_TENANT
+        self.mocked_keystone.projects.get.return_value = MOCK_TENANT
         return self.client.post(url, payload)

@@ -1,31 +1,24 @@
-import datetime
-import hashlib
-import json
 import logging
-import os.path
 import re
-import tempfile
 
 from cinderclient import exceptions as cinder_exceptions
-from cinderclient.v3 import client as cinder_client
-from django.core.cache import cache
 from django.db import transaction
-from django.utils import timezone
 from glanceclient import exc as glance_exceptions
-from glanceclient.v2 import client as glance_client
-from keystoneauth1 import session as keystone_session
-from keystoneauth1.identity import v3
 from keystoneclient import exceptions as keystone_exceptions
-from keystoneclient.v3 import client as keystone_client
 from neutronclient.client import exceptions as neutron_exceptions
-from neutronclient.v2_0 import client as neutron_client
-from novaclient import client as nova_client
 from novaclient import exceptions as nova_exceptions
 from requests import ConnectionError
 
-from waldur_core.core.utils import QuietSession
 from waldur_core.structure.backend import ServiceBackend
-from waldur_core.structure.exceptions import SerializableBackendError
+from waldur_openstack.openstack_base.exceptions import OpenStackBackendError
+from waldur_openstack.openstack_base.session import (
+    get_cinder_client,
+    get_glance_client,
+    get_keystone_client,
+    get_keystone_session,
+    get_neutron_client,
+    get_nova_client,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -36,234 +29,18 @@ def is_valid_volume_type_name(name):
     return re.match(VALID_VOLUME_TYPE_NAME_PATTERN, name)
 
 
-class OpenStackBackendError(SerializableBackendError):
-    pass
-
-
-class OpenStackSessionExpired(OpenStackBackendError):
-    pass
-
-
-class OpenStackAuthorizationFailed(OpenStackBackendError):
-    pass
-
-
-class OpenStackSession(dict):
-    """Serializable session"""
-
-    def __init__(self, ks_session=None, verify_ssl=False, **credentials):
-        self.keystone_session = ks_session
-        if not self.keystone_session:
-            auth_plugin = v3.Password(**credentials)
-            session = None
-            if not verify_ssl:
-                session = QuietSession()
-                session.verify = False
-            self.keystone_session = keystone_session.Session(
-                auth=auth_plugin, verify=verify_ssl, session=session
-            )
-
-        try:
-            # This will eagerly sign in throwing AuthorizationFailure on bad credentials
-            self.keystone_session.get_auth_headers()
-        except keystone_exceptions.ClientException as e:
-            raise OpenStackAuthorizationFailed(e)
-
-        for opt in (
-            "auth_ref",
-            "auth_url",
-            "project_id",
-            "project_name",
-            "project_domain_name",
-        ):
-            self[opt] = getattr(self.auth, opt)
-
-    def __getattr__(self, name):
-        return getattr(self.keystone_session, name)
-
-    @classmethod
-    def recover(cls, session, verify_ssl=False):
-        if not isinstance(session, dict) or not session.get("auth_ref"):
-            raise OpenStackBackendError("Invalid OpenStack session")
-
-        args = {
-            "auth_url": session["auth_url"],
-            "token": session["auth_ref"].auth_token,
-        }
-        if session.get("project_id"):
-            args["project_id"] = session["project_id"]
-        elif session.get("project_name") and session.get("project_domain_name"):
-            args["project_name"] = session["project_name"]
-            args["project_domain_name"] = session["project_domain_name"]
-
-        auth_method = v3.Token(**args)
-        auth_data = {
-            "auth_token": session["auth_ref"].auth_token,
-            "body": session["auth_ref"]._data,
-        }
-        auth_state = json.dumps(auth_data)
-        auth_method.set_auth_state(auth_state)
-        ks_session = keystone_session.Session(auth=auth_method, verify=verify_ssl)
-        return cls(ks_session=ks_session)
-
-    def validate(self):
-        if self.auth.auth_ref.expires > timezone.now() + datetime.timedelta(minutes=10):
-            return True
-
-        raise OpenStackSessionExpired("OpenStack session is expired")
-
-    def __str__(self):
-        return str({k: v if k != "password" else "***" for k, v in self.items()})
-
-
-class OpenStackClient:
-    """Generic OpenStack client."""
-
-    def __init__(self, session=None, verify_ssl=False, **credentials):
-        self.verify_ssl = verify_ssl
-        if session:
-            if isinstance(session, dict):
-                logger.debug("Trying to recover OpenStack session.")
-                self.session = OpenStackSession.recover(session, verify_ssl=verify_ssl)
-                self.session.validate()
-            else:
-                self.session = session
-        else:
-            try:
-                self.session = OpenStackSession(verify_ssl=verify_ssl, **credentials)
-            except AttributeError as e:
-                logger.error("Failed to create OpenStack session.")
-                raise OpenStackBackendError(e)
-
-    @property
-    def keystone(self):
-        return keystone_client.Client(
-            session=self.session.keystone_session, interface="public"
-        )
-
-    @property
-    def nova(self):
-        try:
-            return nova_client.Client(
-                version="2.19",
-                session=self.session.keystone_session,
-                endpoint_type="publicURL",
-            )
-        except nova_exceptions.ClientException as e:
-            logger.exception("Failed to create nova client: %s", e)
-            raise OpenStackBackendError(e)
-
-    @property
-    def neutron(self):
-        try:
-            return neutron_client.Client(session=self.session.keystone_session)
-        except neutron_exceptions.NeutronClientException as e:
-            logger.exception("Failed to create neutron client: %s", e)
-            raise OpenStackBackendError(e)
-
-    @property
-    def cinder(self):
-        try:
-            return cinder_client.Client(session=self.session.keystone_session)
-        except cinder_exceptions.ClientException as e:
-            logger.exception("Failed to create cinder client: %s", e)
-            raise OpenStackBackendError(e)
-
-    @property
-    def glance(self):
-        try:
-            return glance_client.Client(session=self.session.keystone_session)
-        except glance_exceptions.ClientException as e:
-            logger.exception("Failed to create glance client: %s", e)
-            raise OpenStackBackendError(e)
-
-
-def get_cached_session_key(settings, admin=False, tenant_id=None):
-    if not admin and not tenant_id:
-        raise OpenStackBackendError("Either admin or tenant_id should be defined.")
-    key = "OPENSTACK_ADMIN_SESSION" if admin else "OPENSTACK_SESSION_%s" % tenant_id
-    settings_key = (
-        str(settings.backend_url) + str(settings.password) + str(settings.username)
-    )
-    hashed_settings_key = hashlib.sha256(settings_key.encode("utf-8")).hexdigest()
-    return f"{settings.uuid.hex}_{hashed_settings_key}_{key}"
-
-
-def get_certificate_filename(data):
-    if not isinstance(data, bytes):
-        data = data.encode("utf-8")
-    cert_hash = hashlib.sha256(data).hexdigest()
-    return os.path.join(tempfile.gettempdir(), f"waldur-certificate-{cert_hash}.pem")
-
-
 class BaseOpenStackBackend(ServiceBackend):
     def __init__(self, settings, tenant_id=None):
         self.settings = settings
         self.tenant_id = tenant_id
 
-    def get_client(self, name=None, admin=False):
-        domain_name = self.settings.domain or "Default"
-        verify_ssl = self.settings.get_option("verify_ssl")
-        client_cert = self.settings.get_option("certificate")
-        if client_cert:
-            file_path = get_certificate_filename(client_cert)
-            if not os.path.isfile(file_path):
-                with open(file_path, "w") as fh:
-                    fh.write(client_cert)
-            verify_ssl = file_path
-        credentials = {
-            "auth_url": self.settings.backend_url,
-            "username": self.settings.username,
-            "password": self.settings.password,
-            "user_domain_name": domain_name,
-            "verify_ssl": verify_ssl,
-        }
-        if self.tenant_id:
-            credentials["project_id"] = self.tenant_id
-        else:
-            credentials["project_domain_name"] = domain_name
-            credentials["project_name"] = self.settings.get_option("tenant_name")
-
-        # Skip cache if service settings do no exist
-        if not self.settings.uuid:
-            return OpenStackClient(**credentials)
-
-        client = None
-        key = get_cached_session_key(self.settings, admin, self.tenant_id)
-        if key in cache:  # try to get session from cache
-            session = cache.get(key)
-            # Cache miss is signified by a return value of None
-            if session is not None:
-                try:
-                    client = OpenStackClient(session=session, verify_ssl=verify_ssl)
-                except OpenStackBackendError:
-                    client = None
-
-        if client is None:  # create new token if session is not cached or expired
-            client = OpenStackClient(**credentials)
-            cache.set(key, dict(client.session), 10 * 60 * 60)  # Add session to cache
-
-        if name:
-            return getattr(client, name)
-        else:
-            return client
-
-    def __getattr__(self, name):
-        clients = "keystone", "nova", "neutron", "cinder", "glance"
-        for client in clients:
-            if name == f"{client}_client":
-                return self.get_client(client, admin=False)
-
-            if name == f"{client}_admin_client":
-                return self.get_client(client, admin=True)
-
-        raise AttributeError(
-            f"'{self.__class__.__name__}' object has no attribute '{name}'"
-        )
+    @property
+    def session(self):
+        return get_keystone_session(self.settings, self.tenant_id)
 
     def ping(self, raise_exception=False):
         try:
-            self.keystone_admin_client
+            get_keystone_client(self.session)
         except keystone_exceptions.ClientException as e:
             if raise_exception:
                 raise OpenStackBackendError(e)
@@ -272,8 +49,9 @@ class BaseOpenStackBackend(ServiceBackend):
             return True
 
     def ping_resource(self, instance):
+        nova = get_nova_client(self.session)
         try:
-            self.nova_client.servers.get(instance.backend_id)
+            nova.servers.get(instance.backend_id)
         except (ConnectionError, nova_exceptions.ClientException):
             return False
         else:
@@ -288,10 +66,10 @@ class BaseOpenStackBackend(ServiceBackend):
         for quota_name, usage in backend.get_tenant_quotas_usage(backend_id).items():
             scope.set_quota_usage(quota_name, usage)
 
-    def get_tenant_quotas_limits(self, tenant_backend_id, admin=False):
-        nova = self.get_client("nova", admin)
-        neutron = self.get_client("neutron", admin)
-        cinder = self.get_client("cinder", admin)
+    def get_tenant_quotas_limits(self, tenant_backend_id):
+        nova = get_nova_client(self.session)
+        neutron = get_neutron_client(self.session)
+        cinder = get_cinder_client(self.session)
 
         try:
             nova_quotas = nova.quotas.get(tenant_id=tenant_backend_id)
@@ -325,10 +103,10 @@ class BaseOpenStackBackend(ServiceBackend):
 
         return quotas
 
-    def get_tenant_quotas_usage(self, tenant_backend_id, admin=False):
-        nova = self.get_client("nova", admin)
-        neutron = self.get_client("neutron", admin)
-        cinder = self.get_client("cinder", admin)
+    def get_tenant_quotas_usage(self, tenant_backend_id):
+        nova = get_nova_client(self.session)
+        neutron = get_neutron_client(self.session)
+        cinder = get_cinder_client(self.session)
 
         try:
             nova_quotas = nova.quotas.get(
@@ -436,8 +214,8 @@ class BaseOpenStackBackend(ServiceBackend):
     def _get_current_properties(self, model):
         return {p.backend_id: p for p in model.objects.filter(settings=self.settings)}
 
-    def _pull_images(self, model_class, filter_function=None, admin=False):
-        glance = self.get_client("glance", admin)
+    def _pull_images(self, model_class, filter_function=None):
+        glance = get_glance_client(self.session)
         try:
             images = glance.images.list()
         except glance_exceptions.ClientException as e:
@@ -465,7 +243,7 @@ class BaseOpenStackBackend(ServiceBackend):
             ).delete()
 
     def _delete_backend_floating_ip(self, backend_id, tenant_backend_id):
-        neutron = self.neutron_client
+        neutron = get_neutron_client(self.session)
         try:
             logger.info(
                 "Deleting floating IP %s from tenant %s", backend_id, tenant_backend_id
