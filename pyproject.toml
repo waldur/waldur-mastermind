@@ -156,6 +156,7 @@ waldur_keycloak_rancher = "waldur_keycloak_rancher.extension:KeycloakRancherExte
 waldur_zammad = "waldur_zammad.extension:ZammadExtension"
 waldur_lexis = "waldur_lexis.extension:LexisExtension"
 waldur_smax = "waldur_smax.extension:SmaxExtension"
+waldur_marketplace_reppu = "waldur_mastermind.marketplace_reppu.extension:MarketplaceReppuExtension"
 
 
 [tool.poetry.group.docs.dependencies]
