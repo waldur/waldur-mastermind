@@ -99,6 +99,10 @@ class ProjectQuotasViewSet(viewsets.GenericViewSet):
             .annotate(usage=Sum("delta"))
             .values("usage")
         )
+        # Workaround for Django bug:
+        # https://code.djangoproject.com/ticket/28296
+        # It allows to remove extra GROUP BY clause from the subquery.
+        quotas.query.group_by = []
         subquery = Subquery(quotas)
         return Project.available_objects.annotate(value=subquery)
 
