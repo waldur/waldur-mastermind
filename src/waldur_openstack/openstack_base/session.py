@@ -15,9 +15,9 @@ from keystoneclient import exceptions as keystone_exceptions
 from keystoneclient.v3 import client as keystone_client
 from neutronclient.client import exceptions as neutron_exceptions
 from neutronclient.v2_0 import client as neutron_client
+from novaclient import client as nova_client
 from novaclient import exceptions as nova_exceptions
-from novaclient.api_versions import APIVersion
-from novaclient.v2 import client as nova_client
+from novaclient.v2 import client as nova2_client
 
 from waldur_core.core.utils import QuietSession
 from waldur_openstack.openstack_base.exceptions import (
@@ -154,10 +154,10 @@ def get_keystone_client(session):
     return keystone_client.Client(session=session, interface="public")
 
 
-def get_nova_client(session: keystone_session.Session) -> "nova_client.Client":
+def get_nova_client(session: keystone_session.Session) -> "nova2_client.Client":
     try:
         return nova_client.Client(
-            api_version=APIVersion("2.19"),
+            version="2.19",
             session=session,
             endpoint_type="publicURL",
         )
