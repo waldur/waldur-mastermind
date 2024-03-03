@@ -9,6 +9,7 @@ from cinderclient.v3 import client as cinder_client
 from django.core.cache import cache
 from glanceclient import exc as glance_exceptions
 from glanceclient.v2 import client as glance_client
+from keystoneauth1 import exceptions as keystoneauth_exceptions
 from keystoneauth1 import session as keystone_session
 from keystoneauth1.identity import v3
 from keystoneclient import exceptions as keystone_exceptions
@@ -137,7 +138,7 @@ def get_keystone_session(settings, tenant_id=None):
     try:
         logger.debug("Trying to recover OpenStack session.")
         return recover_cached_session(cached_session, verify_ssl)
-    except (AttributeError, IndexError):
+    except (AttributeError, IndexError, keystoneauth_exceptions.ClientException):
         logger.warning("Unable to recover OpenStack session, deleting cache.")
         cache.delete(session_key)
         pass
