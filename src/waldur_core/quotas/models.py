@@ -105,13 +105,16 @@ class QuotaModelMixin(models.Model):
         self.add_quota_usage(quota_name, usage - current)
 
     def add_quota_usage(self, quota_name, delta, validate=False):
+        if not delta:
+            return
         if validate:
             self.validate_quota_change({quota_name: delta})
         QuotaUsage.objects.create(scope=self, name=quota_name, delta=delta)
 
     def apply_quota_usage(self, quota_deltas):
         for name, delta in quota_deltas.items():
-            QuotaUsage.objects.create(scope=self, name=name, delta=delta)
+            if delta:
+                QuotaUsage.objects.create(scope=self, name=name, delta=delta)
 
     def validate_quota_change(self, quota_deltas):
         """
