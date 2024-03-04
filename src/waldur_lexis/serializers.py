@@ -26,6 +26,7 @@ class LexisLinkSerializer(serializers.HyperlinkedModelSerializer):
             "project_name",
             "customer_uuid",
             "customer_name",
+            "heappe_project_id",
         )
         read_only_fields = ["state", "robot_account"]
         protected_fields = ["robot_account"]
