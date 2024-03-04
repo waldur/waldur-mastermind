@@ -245,7 +245,8 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
         service_provider = self.get_object()
         user_ids = self.get_customer_user_ids()
         users = core_models.User.objects.filter(id__in=user_ids)
-        page = self.paginate_queryset(users)
+        filtered_users = structure_filters.UserFilter(request.GET, queryset=users)
+        page = self.paginate_queryset(filtered_users.qs)
         context = self.get_serializer_context()
         context["service_provider"] = service_provider
         serializer = serializers.DetailedProviderUserSerializer(
