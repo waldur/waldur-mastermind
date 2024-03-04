@@ -89,6 +89,13 @@ class HeappeBackend:
         lexis_link.save(update_fields=["heappe_project_id"])
 
     def delete_heappe_project(self, lexis_link):
+        if lexis_link.heappe_project_id is None:
+            logger.info(
+                "%s does not have any related project, skipping project deletion",
+                lexis_link,
+            )
+            return
+
         heappe_session_code = self.get_heappe_session_code()
         response = requests.delete(
             f"{self.heappe_config.heappe_url}/heappe/Management/Project",
@@ -133,6 +140,13 @@ class HeappeBackend:
             lexis_link.robot_account.save(update_fields=["keys"])
 
     def delete_ssh_key(self, lexis_link):
+        if len(lexis_link.robot_account.keys) == 0:
+            logger.info(
+                "Robot account %s does not have any ssh keys, skipping key deletion",
+                lexis_link.robot_account,
+            )
+            return
+
         heappe_session_code = self.get_heappe_session_code()
         key = lexis_link.robot_account.keys[0]
         response = requests.delete(
