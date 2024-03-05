@@ -26,3 +26,10 @@ class DailyHistoryQuotaSerializer(serializers.Serializer):
                 _("Invalid period specified. `start` should be lesser than `end`.")
             )
         return attrs
+
+
+class ProjectQuotasSerializer(serializers.Serializer):
+    project_name = serializers.ReadOnlyField(source="name")
+    customer_name = serializers.ReadOnlyField(source="customer.name")
+    customer_abbreviation = serializers.ReadOnlyField(source="customer.abbreviation")
+    value = serializers.ReadOnlyField()

@@ -3,11 +3,12 @@ from datetime import timedelta
 
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import OuterRef, Subquery, Sum
-from rest_framework import status, viewsets
+from rest_framework import permissions, status, viewsets
 from rest_framework.response import Response
 
 from waldur_core.quotas.models import QuotaUsage
 from waldur_core.structure.models import Project
+from waldur_core.structure.permissions import IsStaffOrSupportUser
 from waldur_mastermind.billing.models import PriceEstimate
 from waldur_mastermind.invoices.models import InvoiceItem
 from waldur_mastermind.invoices.utils import get_current_month, get_current_year
@@ -63,6 +64,10 @@ class DailyQuotaHistoryViewSet(viewsets.GenericViewSet):
 class ProjectQuotasViewSet(viewsets.GenericViewSet):
     # Fix for schema generation
     queryset = []
+    permission_classes = (
+        permissions.IsAuthenticated,
+        IsStaffOrSupportUser,
+    )
 
     def list(self, request):
         quota_name = request.query_params.get("quota_name")
@@ -71,23 +76,17 @@ class ProjectQuotasViewSet(viewsets.GenericViewSet):
 
         content_type = ContentType.objects.get_for_model(Project)
         if quota_name == "estimated_price":
-            projects = self.annotate_estimated_price(content_type)
+            queryset = self.annotate_estimated_price(content_type)
         elif quota_name == "current_price":
-            projects = self.annotate_current_price(content_type)
+            queryset = self.annotate_current_price(content_type)
         else:
-            projects = self.annotate_quotas(quota_name, content_type)
+            queryset = self.annotate_quotas(quota_name, content_type)
 
-        return Response(
-            [
-                {
-                    "project_name": project.name,
-                    "customer_name": project.customer.name,
-                    "customer_abbreviation": project.customer.abbreviation,
-                    "value": project.value,
-                }
-                for project in projects
-            ]
+        queryset = self.paginate_queryset(queryset)
+        serializer = serializers.ProjectQuotasSerializer(
+            queryset, many=True, context={"request": request}
         )
+        return self.get_paginated_response(serializer.data)
 
     def annotate_quotas(self, quota_name, content_type):
         quotas = (
