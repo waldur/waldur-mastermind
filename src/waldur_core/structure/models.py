@@ -47,6 +47,7 @@ from waldur_core.structure.managers import (
     SharedServiceSettingsManager,
     StructureManager,
     filter_queryset_for_user,
+    get_connected_customers,
     get_customer_users,
     get_nested_customer_users,
     get_project_users,
@@ -434,6 +435,13 @@ class Customer(
 
     def is_billable(self):
         return timezone.now() >= self.accounting_start_date
+
+    @classmethod
+    def get_permitted_objects(cls, user):
+        if user.is_staff or user.is_support:
+            return cls.objects.all()
+        else:
+            return get_connected_customers(user, RoleEnum.CUSTOMER_OWNER)
 
     def get_display_name(self):
         if self.abbreviation:
