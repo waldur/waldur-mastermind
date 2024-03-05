@@ -441,7 +441,9 @@ class Customer(
         if user.is_staff or user.is_support:
             return cls.objects.all()
         else:
-            return get_connected_customers(user, RoleEnum.CUSTOMER_OWNER)
+            return Customer.objects.filter(
+                id__in=get_connected_customers(user, RoleEnum.CUSTOMER_OWNER)
+            )
 
     def get_display_name(self):
         if self.abbreviation:
