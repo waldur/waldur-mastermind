@@ -290,6 +290,8 @@ class ProtectedRequestedOfferingSerializer(
 class ProviderRequestedOfferingSerializer(NestedRequestedOfferingSerializer):
     url = serializers.SerializerMethodField()
     call_name = serializers.ReadOnlyField(source="call.name")
+    created_by_name = serializers.ReadOnlyField(source="created_by.full_name")
+    created_by_email = serializers.ReadOnlyField(source="created_by.email")
 
     class Meta(NestedRequestedOfferingSerializer.Meta):
         fields = NestedRequestedOfferingSerializer.Meta.fields + [
@@ -297,8 +299,10 @@ class ProviderRequestedOfferingSerializer(NestedRequestedOfferingSerializer):
             "call_name",
             "call",
             "description",
+            "created_by_name",
+            "created_by_email",
         ]
-        read_only_fields = ("description",)
+        read_only_fields = ("description", "created_by")
         extra_kwargs = {
             "approved_by": {
                 "lookup_field": "uuid",
