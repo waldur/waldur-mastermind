@@ -72,7 +72,7 @@ def mark_terminating_tenant_as_erred_after_timeout():
     now = timezone.now()
     two_hours_ago = now - timedelta(hours=2)
     stale_orders = marketplace_models.Order.objects.filter(
-        offering__type=TENANT_TYPE,
+        offering__type__in=[TENANT_TYPE, VOLUME_TYPE, INSTANCE_TYPE],
         state=marketplace_models.Order.States.EXECUTING,
         modified__lt=two_hours_ago,
         type=marketplace_models.Order.Types.TERMINATE,
