@@ -472,6 +472,12 @@ class ReviewSerializer(
     serializers.HyperlinkedModelSerializer,
 ):
     state = serializers.ReadOnlyField(source="get_state_display")
+    round_name = serializers.ReadOnlyField(source="proposal.round.name")
+    round_uuid = serializers.UUIDField(source="proposal.round.uuid", read_only=True)
+    call_uuid = serializers.UUIDField(source="proposal.round.call.uuid", read_only=True)
+    call_name = serializers.ReadOnlyField(source="proposal.round.call.name")
+
+    proposal_name = serializers.ReadOnlyField(source="proposal.name")
 
     class Meta:
         model = models.Review
@@ -484,6 +490,11 @@ class ReviewSerializer(
             "summary_score",
             "summary_public_comment",
             "summary_private_comment",
+            "proposal_name",
+            "round_name",
+            "round_uuid",
+            "call_name",
+            "call_uuid",
         )
         read_only_fields = ("proposal",)
         extra_kwargs = {
