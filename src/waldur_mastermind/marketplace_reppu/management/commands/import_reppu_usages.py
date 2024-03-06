@@ -1,3 +1,4 @@
+import argparse
 import datetime
 
 import requests
@@ -219,6 +220,7 @@ class Command(BaseCommand):
             dest="dry_run",
             default=False,
             help="Dry run mode.",
+            action=argparse.BooleanOptionalAction,
         )
 
     def handle(self, *args, **options):
