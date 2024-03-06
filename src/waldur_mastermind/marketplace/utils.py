@@ -729,8 +729,8 @@ def move_resource(resource: models.Resource, project):
             update_fields=["project", "project_uuid", "project_name", "invoice"]
         )
 
-        start_invoice.update_total_cost()
-        target_invoice.update_total_cost()
+        start_invoice.update_cache()
+        target_invoice.update_cache()
 
 
 def get_invoice_item_for_component_usage(component_usage):

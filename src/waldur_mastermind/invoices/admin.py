@@ -91,7 +91,7 @@ class InvoiceAdmin(
     def get_extra_actions(self):
         return [
             self.send_invoice_report,
-            self.update_total_cost,
+            self.update_cache,
         ]
 
     def send_invoice_report(self, request):
@@ -102,7 +102,7 @@ class InvoiceAdmin(
 
     send_invoice_report.short_description = _("Send invoice report as CSV to email")
 
-    def update_total_cost(self, request):
+    def update_cache(self, request):
         tasks.update_invoices_total_cost.delay()
         message = _("Task has been scheduled.")
         self.message_user(request, message)

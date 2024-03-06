@@ -177,57 +177,56 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
         is_accounting_mode = request.query_params.get("accounting_mode") == "accounting"
 
         today = datetime.date.today()
-        current_month = today - relativedelta(months=12)
+        year_ago = today - relativedelta(months=12)
 
         majors = list(
-            models.Invoice.objects.filter(
-                customer__in=customers, created__gte=current_month
-            )
+            models.Invoice.objects.filter(customer__in=customers, created__gte=year_ago)
             .values("customer_id")
-            .annotate(total=Sum("total_cost"))
-            .order_by("-total")
+            .annotate(total_value=Sum("total_cost"))
+            .order_by("-total_value")
             .values_list("customer_id", flat=True)[:customers_count]
         )
 
         minors = customers.exclude(id__in=majors)
 
-        customer_periods = {}
-        total_periods = {}
-        other_periods = {}
-
+        periods = []
         for i in range(13):
-            invoices = models.Invoice.objects.filter(
-                year=current_month.year,
-                month=current_month.month,
+            month = year_ago + relativedelta(months=i)
+            periods.append(f"{month.year}-{month.month}")
+
+        field = is_accounting_mode and "total_price" or "total_cost"
+        total_values = {
+            f"{row['year']}-{row['month']}": row["total_value"]
+            for row in models.Invoice.objects.values("year", "month").annotate(
+                total_value=Sum(field)
             )
-            key = f"{current_month.year}-{current_month.month}"
-            row = customer_periods[key] = {}
-            subtotal = 0
-            for invoice in invoices.filter(customer_id__in=majors):
-                value = is_accounting_mode and invoice.price or invoice.total
-                subtotal += value
-                row[invoice.customer.uuid.hex] = value
-            other_periods[key] = sum(
-                is_accounting_mode and invoice.price or invoice.total
-                for invoice in invoices.filter(customer_id__in=minors)
-            )
-            total_periods[key] = subtotal + other_periods[key]
-            current_month += relativedelta(months=1)
+        }
+        other_values = {
+            f"{row['year']}-{row['month']}": row["total_value"]
+            for row in models.Invoice.objects.filter(customer__in=minors)
+            .values("year", "month")
+            .annotate(total_value=Sum(field))
+        }
+        customer_periods = {
+            f"{row.customer_id}-{row.year}-{row.month}": getattr(row, field)
+            for row in models.Invoice.objects.filter(customer__in=majors)
+        }
+        customer_periods = [
+            {
+                "name": customer.name,
+                "periods": [
+                    customer_periods.get(f"{customer.id}-{period}", 0)
+                    for period in periods
+                ],
+            }
+            for customer in structure_models.Customer.objects.filter(id__in=majors)
+        ]
 
         result = {
-            "periods": total_periods.keys(),
-            "total_periods": total_periods.values(),
-            "other_periods": other_periods.values(),
-            "customer_periods": [
-                {
-                    "name": customer.name,
-                    "periods": [
-                        customer_periods[period].get(customer.uuid.hex, 0)
-                        for period in total_periods.keys()
-                    ],
-                }
-                for customer in structure_models.Customer.objects.filter(id__in=majors)
-            ],
+            "periods": periods,
+            "total_periods": [total_values.get(period, 0) for period in periods],
+            "other_periods": [other_values.get(period, 0) for period in periods],
+            "customer_periods": customer_periods,
         }
 
         return Response(result, status=status.HTTP_200_OK)

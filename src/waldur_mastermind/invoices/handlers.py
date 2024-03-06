@@ -117,7 +117,7 @@ def prevent_deletion_of_customer_with_invoice(sender, instance, user, **kwargs):
             )
 
 
-def update_total_cost_when_invoice_item_is_updated(
+def update_cache_when_invoice_item_is_updated(
     sender, instance, created=False, **kwargs
 ):
     invoice_item = instance
@@ -127,13 +127,13 @@ def update_total_cost_when_invoice_item_is_updated(
         "quantity",
         "unit_price",
     }:
-        transaction.on_commit(lambda: invoice_item.invoice.update_total_cost())
+        transaction.on_commit(lambda: invoice_item.invoice.update_cache())
 
 
-def update_total_cost_when_invoice_item_is_deleted(sender, instance, **kwargs):
+def update_cache_when_invoice_item_is_deleted(sender, instance, **kwargs):
     def update_invoice():
         try:
-            instance.invoice.update_total_cost()
+            instance.invoice.update_cache()
         except ObjectDoesNotExist:
             # It is okay to skip cache invalidation if invoice has been already removed
             pass
