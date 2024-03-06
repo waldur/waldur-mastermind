@@ -201,7 +201,7 @@ def update_invoices_total_cost():
     month = utils.get_current_month()
 
     for invoice in models.Invoice.objects.filter(year=year, month=month):
-        invoice.update_total_cost()
+        invoice.update_cache()
 
 
 @shared_task

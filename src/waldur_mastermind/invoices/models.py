@@ -75,6 +75,13 @@ class Invoice(core_models.UuidMixin, core_models.BackendMixin, models.Model):
         help_text=_("Cached value for total cost."),
         editable=False,
     )
+    total_price = models.DecimalField(
+        default=0,
+        max_digits=common_mixins.PRICE_MAX_DIGITS,
+        decimal_places=2,
+        help_text=_("Cached value for total price."),
+        editable=False,
+    )
     tax_percent = models.DecimalField(
         default=0,
         max_digits=4,
@@ -98,12 +105,18 @@ class Invoice(core_models.UuidMixin, core_models.BackendMixin, models.Model):
 
     tracker = FieldTracker()
 
-    def update_total_cost(self):
+    def update_cache(self):
         current_total = self.total
 
         if self.total_cost != current_total:
             self.total_cost = current_total
             self.save(update_fields=["total_cost"])
+
+        current_price = self.price
+
+        if self.total_price != current_price:
+            self.total_price = current_price
+            self.save(update_fields=["total_price"])
 
     @property
     def tax(self):
