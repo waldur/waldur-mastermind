@@ -23,6 +23,11 @@ class Command(BaseCommand):
     dry_run = False
 
     def get_reppu_usages(self, reppu_api_url, reppu_api_token, start_time, end_time):
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Processing Reppu usages from {start_time} to {end_time}"
+            )
+        )
         headers = {
             "Authorization": f"Bearer {reppu_api_token}",
         }
@@ -240,8 +245,10 @@ class Command(BaseCommand):
         self.dry_run = options.get("dry_run", False)
 
         date = datetime.date(year=year, month=month, day=1)
-        start_date = core_utils.month_start(date)
-        end_date = core_utils.month_end(date)
+        start_date = core_utils.month_start(date).astimezone(datetime.UTC)
+        end_date = core_utils.month_end(date).astimezone(
+            datetime.UTC
+        ) + datetime.timedelta(seconds=1)
 
         reppu_usage_data = self.get_reppu_usages(
             reppu_api_url, reppu_api_token, start_date, end_date
