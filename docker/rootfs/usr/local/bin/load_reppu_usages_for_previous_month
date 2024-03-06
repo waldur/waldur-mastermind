@@ -1,0 +1,14 @@
+PREVIOUS_MONTH=$(date -d "$(date +%Y-%m-1) -1 month" +%-m)
+PREVIOUS_YEAR=$(date -d "$(date +%Y-%m-1) -1 month" +%-Y)
+DRY_RUN_MODE="${DRY_RUN:-yes}"
+DRY_RUN_ARG=""
+
+echo "Previous month: $PREVIOUS_MONTH-$PREVIOUS_YEAR"
+
+if [ $DRY_RUN_MODE == 'yes' ]; then
+    DRY_RUN_ARG="--dry-run"
+fi
+
+gosu waldur sh -c "waldur import_reppu_usages -y $PREVIOUS_YEAR -m $PREVIOUS_MONTH --reppu-api-url $REPPU_API_URL --reppu-api-token $REPPU_API_TOKEN $DRY_RUN_ARG"
+
+exit 0
