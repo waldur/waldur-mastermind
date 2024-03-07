@@ -453,8 +453,8 @@ class Offering(
     type = models.CharField(max_length=100)
     state = FSMIntegerField(default=States.DRAFT, choices=States.CHOICES)
     paused_reason = models.TextField(blank=True)
-    divisions = models.ManyToManyField(
-        structure_models.Division, related_name="offerings", blank=True
+    organization_groups = models.ManyToManyField(
+        structure_models.OrganizationGroup, related_name="offerings", blank=True
     )
 
     # If offering is not shared, it is available only to following user categories:
@@ -721,8 +721,8 @@ class Plan(
             "Plan is disabled when maximum amount is reached."
         ),
     )
-    divisions = models.ManyToManyField(
-        structure_models.Division, related_name="plans", blank=True
+    organization_groups = models.ManyToManyField(
+        structure_models.OrganizationGroup, related_name="plans", blank=True
     )
     objects = managers.PlanManager()
     tracker = FieldTracker()

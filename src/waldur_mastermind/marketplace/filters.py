@@ -79,7 +79,9 @@ class OfferingFilter(structure_filters.NameFilterSet, django_filters.FilterSet):
             for db_value, representation in models.Offering.States.CHOICES
         },
     )
-    division_uuid = LooseMultipleChoiceFilter(field_name="divisions__uuid")
+    organization_group_uuid = LooseMultipleChoiceFilter(
+        field_name="organization_groups__uuid"
+    )
     category_uuid = django_filters.UUIDFilter(field_name="category__uuid")
     billable = django_filters.BooleanFilter(widget=BooleanWidget)
     shared = django_filters.BooleanFilter(widget=BooleanWidget)
@@ -807,12 +809,17 @@ class PlanFilterBackend(BaseFilterBackend):
 
         customer_ids = get_connected_customers(user, RoleEnum.CUSTOMER_OWNER)
 
-        division_ids = structure_models.Customer.objects.filter(
+        organization_group_ids = structure_models.Customer.objects.filter(
             id__in=customer_ids
-        ).values_list("division_id", flat=True)
-        divisions = structure_models.Division.objects.filter(id__in=division_ids)
+        ).values_list("organization_group_id", flat=True)
+        organization_groups = structure_models.OrganizationGroup.objects.filter(
+            id__in=organization_group_ids
+        )
 
-        return queryset.filter(Q(divisions__isnull=True) | Q(divisions__in=divisions))
+        return queryset.filter(
+            Q(organization_groups__isnull=True)
+            | Q(organization_groups__in=organization_groups)
+        )
 
 
 def user_extra_query(user):

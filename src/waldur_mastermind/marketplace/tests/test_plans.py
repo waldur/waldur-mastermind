@@ -202,7 +202,7 @@ class PlanRenderTest(test.APITransactionTestCase):
 
 
 @ddt
-class PlanDivisionsTest(test.APITransactionTestCase):
+class PlanOrganizationGroupsTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
@@ -210,32 +210,42 @@ class PlanDivisionsTest(test.APITransactionTestCase):
         factories.ServiceProviderFactory(customer=self.customer)
         self.offering = factories.OfferingFactory(customer=self.customer)
         self.plan = factories.PlanFactory(offering=self.offering)
-        self.url = factories.PlanFactory.get_url(self.plan, action="update_divisions")
-        self.delete_url = factories.PlanFactory.get_url(
-            self.plan, action="delete_divisions"
+        self.url = factories.PlanFactory.get_url(
+            self.plan, action="update_organization_groups"
         )
-        self.division = structure_factories.DivisionFactory()
-        self.division_url = structure_factories.DivisionFactory.get_url(self.division)
+        self.delete_url = factories.PlanFactory.get_url(
+            self.plan, action="delete_organization_groups"
+        )
+        self.organization_group = structure_factories.OrganizationGroupFactory()
+        self.organization_group_url = (
+            structure_factories.OrganizationGroupFactory.get_url(
+                self.organization_group
+            )
+        )
 
     @data("staff", "owner")
-    def test_user_can_update_divisions(self, user):
+    def test_user_can_update_organization_groups(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
-        response = self.client.post(self.url, {"divisions": [self.division_url]})
+        response = self.client.post(
+            self.url, {"organization_groups": [self.organization_group_url]}
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
         self.offering.refresh_from_db()
-        self.assertEqual(self.plan.divisions.count(), 1)
+        self.assertEqual(self.plan.organization_groups.count(), 1)
 
     @data("user", "customer_support", "admin", "manager")
-    def test_user_cannot_update_divisions(self, user):
+    def test_user_cannot_update_organization_groups(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
-        response = self.client.post(self.url, {"divisions": [self.division_url]})
+        response = self.client.post(
+            self.url, {"organization_groups": [self.organization_group_url]}
+        )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     @data("staff", "owner")
-    def test_user_can_delete_divisions(self, user):
-        self.plan.divisions.add(self.division)
-        self.customer.division = self.division
+    def test_user_can_delete_organization_groups(self, user):
+        self.plan.organization_groups.add(self.organization_group)
+        self.customer.organization_group = self.organization_group
         self.customer.save()
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.post(self.delete_url)
@@ -244,10 +254,10 @@ class PlanDivisionsTest(test.APITransactionTestCase):
         )
 
         self.plan.refresh_from_db()
-        self.assertEqual(self.offering.divisions.count(), 0)
+        self.assertEqual(self.offering.organization_groups.count(), 0)
 
     @data("user", "customer_support", "admin", "manager")
-    def test_user_cannot_delete_divisions(self, user):
+    def test_user_cannot_delete_organization_groups(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.post(self.delete_url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -259,7 +269,7 @@ class PlanDivisionsTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(len(response.data), 1)
 
-        self.plan.divisions.add(self.division)
+        self.plan.organization_groups.add(self.organization_group)
         response = self.client.get(url)
         self.assertEqual(len(response.data), 1)
 
@@ -270,11 +280,11 @@ class PlanDivisionsTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(len(response.data), 1)
 
-        self.plan.divisions.add(self.division)
+        self.plan.organization_groups.add(self.organization_group)
         response = self.client.get(url)
         self.assertEqual(len(response.data), 0)
 
-        self.customer.division = self.division
+        self.customer.organization_group = self.organization_group
         self.customer.save()
         response = self.client.get(url)
         self.assertEqual(len(response.data), 1)
@@ -287,19 +297,19 @@ class PlanDivisionsTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(len(response.data), 1)
 
-        self.plan.divisions.add(self.division)
+        self.plan.organization_groups.add(self.organization_group)
         response = self.client.get(url)
         self.assertEqual(len(response.data), 0)
 
-        self.customer.division = self.division
+        self.customer.organization_group = self.organization_group
         self.customer.save()
         response = self.client.get(url)
         self.assertEqual(len(response.data), 0)
 
-    def test_filter_offerings_plans_by_divisions(self):
+    def test_filter_offerings_plans_by_organization_groups(self):
         new_customer = structure_factories.CustomerFactory()
         self.client.force_authenticate(self.fixture.owner)
-        self.offering.divisions.add(self.division)
+        self.offering.organization_groups.add(self.organization_group)
         url = factories.OfferingFactory.get_list_url()
 
         response = self.client.get(
@@ -308,7 +318,7 @@ class PlanDivisionsTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 0)
 
-        new_customer.division = self.division
+        new_customer.organization_group = self.organization_group
         new_customer.save()
         response = self.client.get(
             url, {"allowed_customer_uuid": new_customer.uuid.hex}
@@ -323,10 +333,10 @@ class PlanDivisionsTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["plans"]), 1)
 
-        other_division = structure_factories.DivisionFactory()
-        second_other_division = structure_factories.DivisionFactory()
-        self.plan.divisions.add(other_division)
-        self.plan.divisions.add(second_other_division)
+        other_organization_group = structure_factories.OrganizationGroupFactory()
+        second_other_organization_group = structure_factories.OrganizationGroupFactory()
+        self.plan.organization_groups.add(other_organization_group)
+        self.plan.organization_groups.add(second_other_organization_group)
         response = self.client.get(
             url, {"allowed_customer_uuid": new_customer.uuid.hex}
         )

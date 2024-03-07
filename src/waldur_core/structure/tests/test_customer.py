@@ -977,25 +977,27 @@ class CustomerBlockedTest(CustomerBaseTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
-class CustomerDivisionFilterTest(test.APITransactionTestCase):
+class CustomerOrganizationGroupFilterTest(test.APITransactionTestCase):
     def setUp(self):
-        self.division = factories.DivisionFactory()
+        self.organization_group = factories.OrganizationGroupFactory()
         self.customer1 = factories.CustomerFactory()
-        self.customer2 = factories.CustomerFactory(division=self.division)
+        self.customer2 = factories.CustomerFactory(
+            organization_group=self.organization_group
+        )
         self.user = fixtures.UserFixture().staff
         self.url = factories.CustomerFactory.get_list_url()
 
     def test_filters(self):
-        """Test of customers' list filter by division name and division UUID."""
+        """Test of customers' list filter by organization_group name and organization_group UUID."""
         rows = [
             {
-                "name": "division_name",
-                "valid": self.division.name[2:],
+                "name": "organization_group_name",
+                "valid": self.organization_group.name[2:],
                 "invalid": "invalid",
             },
             {
-                "name": "division_uuid",
-                "valid": self.division.uuid.hex,
+                "name": "organization_group_uuid",
+                "valid": self.organization_group.uuid.hex,
                 "invalid": "invalid",
             },
         ]
@@ -1008,7 +1010,7 @@ class CustomerDivisionFilterTest(test.APITransactionTestCase):
             self.assertEqual(len(response.data), 1)
 
             response = self.client.get(self.url, data={row["name"]: row["invalid"]})
-            if row["name"] == "division_uuid":
+            if row["name"] == "organization_group_uuid":
                 self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
             else:
                 self.assertEqual(status.HTTP_200_OK, response.status_code)

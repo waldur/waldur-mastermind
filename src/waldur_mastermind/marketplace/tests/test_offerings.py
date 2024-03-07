@@ -93,11 +93,11 @@ class OfferingGetTest(test.APITransactionTestCase):
         user = self.fixture.staff
         self.client.force_authenticate(user)
         url = factories.OfferingFactory.get_list_url()
-        response = self.client.get(url, {"field": ["divisions"]})
+        response = self.client.get(url, {"field": ["organization_groups"]})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 1)
         self.assertEqual(len(response.json()[0].keys()), 1)
-        self.assertEqual(list(response.json()[0].keys())[0], "divisions")
+        self.assertEqual(list(response.json()[0].keys())[0], "organization_groups")
 
 
 class OfferingExtraFieldsTest(test.APITransactionTestCase):
@@ -457,7 +457,7 @@ class OfferingFilterTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["uuid"], self.offering.uuid.hex)
 
-    def test_filter_limited_shared_offerings_for_customer_uuid_if_divisions_match(
+    def test_filter_limited_shared_offerings_for_customer_uuid_if_organization_groups_match(
         self,
     ):
         # Arrange
@@ -466,10 +466,10 @@ class OfferingFilterTest(test.APITransactionTestCase):
             shared=True, customer=self.fixture.customer
         )
         url = factories.OfferingFactory.get_list_url()
-        division = structure_factories.DivisionFactory()
-        offering.divisions.add(division)
+        organization_group = structure_factories.OrganizationGroupFactory()
+        offering.organization_groups.add(organization_group)
 
-        self.fixture.customer.division = division
+        self.fixture.customer.organization_group = organization_group
         self.fixture.customer.save()
 
         # Act
@@ -482,15 +482,15 @@ class OfferingFilterTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["uuid"], offering.uuid.hex)
 
-    def test_filter_limited_shared_offerings_for_customer_uuid_if_divisions_do_not_match(
+    def test_filter_limited_shared_offerings_for_customer_uuid_if_organization_groups_do_not_match(
         self,
     ):
         # Arrange
         self.offering.delete()
         offering = factories.OfferingFactory(shared=True)
         url = factories.OfferingFactory.get_list_url()
-        division = structure_factories.DivisionFactory()
-        offering.divisions.add(division)
+        organization_group = structure_factories.OrganizationGroupFactory()
+        offering.organization_groups.add(organization_group)
 
         # Act
         self.client.force_authenticate(self.fixture.owner)
@@ -525,14 +525,14 @@ class OfferingPlansFilterTest(test.APITransactionTestCase):
         self.plan = self.fixture.plan
         self.url = factories.OfferingFactory.get_public_url(self.offering)
 
-    def test_anonymous_user_cannot_get_plans_matched_with_divisions(self):
+    def test_anonymous_user_cannot_get_plans_matched_with_organization_groups(self):
         url = factories.OfferingFactory.get_public_url(self.offering)
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["plans"]), 1)
 
-        division = structure_factories.DivisionFactory()
-        self.plan.divisions.add(division)
+        organization_group = structure_factories.OrganizationGroupFactory()
+        self.plan.organization_groups.add(organization_group)
 
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -544,8 +544,8 @@ class OfferingPlansFilterTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["plans"]), 1)
 
-        division = structure_factories.DivisionFactory()
-        self.plan.divisions.add(division)
+        organization_group = structure_factories.OrganizationGroupFactory()
+        self.plan.organization_groups.add(organization_group)
 
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -554,23 +554,23 @@ class OfferingPlansFilterTest(test.APITransactionTestCase):
     def test_filtering_plans_by_owner(self):
         self.client.force_authenticate(self.fixture.owner)
 
-        # user can get plans if they are not connected with divisions
+        # user can get plans if they are not connected with organization_groups
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["plans"]), 1)
 
-        division = structure_factories.DivisionFactory()
-        self.plan.divisions.add(division)
+        organization_group = structure_factories.OrganizationGroupFactory()
+        self.plan.organization_groups.add(organization_group)
 
-        # user cannot get plans if they are connected with divisions
+        # user cannot get plans if they are connected with organization_groups
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["plans"]), 0)
 
-        self.fixture.customer.division = division
+        self.fixture.customer.organization_group = organization_group
         self.fixture.customer.save()
 
-        # user can get plans if they are connected with the same divisions
+        # user can get plans if they are connected with the same organization_groups
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["plans"]), 1)
@@ -578,23 +578,23 @@ class OfferingPlansFilterTest(test.APITransactionTestCase):
     def test_filtering_plans_by_admin(self):
         self.client.force_authenticate(self.fixture.admin)
 
-        # user can get plans if they are not connected with divisions
+        # user can get plans if they are not connected with organization_groups
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["plans"]), 1)
 
-        division = structure_factories.DivisionFactory()
-        self.plan.divisions.add(division)
+        organization_group = structure_factories.OrganizationGroupFactory()
+        self.plan.organization_groups.add(organization_group)
 
-        # user cannot get plans if they are connected with divisions
+        # user cannot get plans if they are connected with organization_groups
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["plans"]), 0)
 
-        self.fixture.project.customer.division = division
+        self.fixture.project.customer.organization_group = organization_group
         self.fixture.project.customer.save()
 
-        # user can get plans if they are connected with the same divisions
+        # user can get plans if they are connected with the same organization_groups
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["plans"]), 1)
@@ -1285,7 +1285,7 @@ class OfferingPartialUpdateTest(test.APITransactionTestCase):
 
 
 @ddt
-class OfferingDivisionsTest(test.APITransactionTestCase):
+class OfferingOrganizationGroupsTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
@@ -1295,32 +1295,40 @@ class OfferingDivisionsTest(test.APITransactionTestCase):
             project=self.fixture.project, customer=self.customer, shared=True
         )
         self.url = factories.OfferingFactory.get_url(
-            self.offering, action="update_divisions"
+            self.offering, action="update_organization_groups"
         )
         self.delete_url = factories.OfferingFactory.get_url(
-            self.offering, action="delete_divisions"
+            self.offering, action="delete_organization_groups"
         )
-        self.division = structure_factories.DivisionFactory()
-        self.division_url = structure_factories.DivisionFactory.get_url(self.division)
+        self.organization_group = structure_factories.OrganizationGroupFactory()
+        self.organization_group_url = (
+            structure_factories.OrganizationGroupFactory.get_url(
+                self.organization_group
+            )
+        )
 
     @data("staff", "owner")
-    def test_user_can_update_divisions(self, user):
+    def test_user_can_update_organization_groups(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
-        response = self.client.post(self.url, {"divisions": [self.division_url]})
+        response = self.client.post(
+            self.url, {"organization_groups": [self.organization_group_url]}
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
         self.offering.refresh_from_db()
-        self.assertEqual(self.offering.divisions.count(), 1)
+        self.assertEqual(self.offering.organization_groups.count(), 1)
 
     @data("customer_support", "admin", "manager")
-    def test_user_cannot_update_divisions(self, user):
+    def test_user_cannot_update_organization_groups(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
-        response = self.client.post(self.url, {"divisions": [self.division_url]})
+        response = self.client.post(
+            self.url, {"organization_groups": [self.organization_group_url]}
+        )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     @data("staff", "owner")
-    def test_user_can_delete_divisions(self, user):
-        self.offering.divisions.add(self.division)
+    def test_user_can_delete_organization_groups(self, user):
+        self.offering.organization_groups.add(self.organization_group)
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.post(self.delete_url)
         self.assertEqual(
@@ -1328,10 +1336,10 @@ class OfferingDivisionsTest(test.APITransactionTestCase):
         )
 
         self.offering.refresh_from_db()
-        self.assertEqual(self.offering.divisions.count(), 0)
+        self.assertEqual(self.offering.organization_groups.count(), 0)
 
     @data("customer_support", "admin", "manager")
-    def test_user_cannot_delete_divisions(self, user):
+    def test_user_cannot_delete_organization_groups(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.post(self.delete_url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

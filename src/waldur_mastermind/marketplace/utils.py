@@ -38,7 +38,7 @@ from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure.managers import (
     get_connected_projects,
     get_customer_users,
-    get_divisions,
+    get_organization_groups,
     get_project_users,
 )
 from waldur_freeipa import models as freeipa_models
@@ -1088,15 +1088,19 @@ def get_plans_available_for_user(
         qs = (offering.parent or offering).plans.all()
 
     if user.is_anonymous:
-        qs = qs.filter(divisions__isnull=True)
+        qs = qs.filter(organization_groups__isnull=True)
     elif user.is_staff or user.is_support:
         pass
     elif allowed_customer_uuid:
         qs = qs.filter(
-            Q(divisions__isnull=True) | Q(divisions__in=get_divisions(user))
+            Q(organization_groups__isnull=True)
+            | Q(organization_groups__in=get_organization_groups(user))
         ).filter_for_customer(allowed_customer_uuid)
     else:
-        qs = qs.filter(Q(divisions__isnull=True) | Q(divisions__in=get_divisions(user)))
+        qs = qs.filter(
+            Q(organization_groups__isnull=True)
+            | Q(organization_groups__in=get_organization_groups(user))
+        )
 
     return qs
 

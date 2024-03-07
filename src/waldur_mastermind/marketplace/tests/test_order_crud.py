@@ -290,21 +290,21 @@ class OrderCreateTest(test.APITransactionTestCase):
             response = self.create_order(user)
             self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_if_divisions_do_not_match_order_validation_fails(self):
+    def test_if_organization_groups_do_not_match_order_validation_fails(self):
         user = self.fixture.staff
         offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
-        division = structure_factories.DivisionFactory()
-        offering.divisions.add(division)
+        organization_group = structure_factories.OrganizationGroupFactory()
+        offering.organization_groups.add(organization_group)
 
         response = self.create_order(user, offering)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_if_divisions_match_order_validation_passes(self):
+    def test_if_organization_groups_match_order_validation_passes(self):
         user = self.fixture.staff
         offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
-        division = structure_factories.DivisionFactory()
-        offering.divisions.add(division)
-        self.fixture.customer.division = division
+        organization_group = structure_factories.OrganizationGroupFactory()
+        offering.organization_groups.add(organization_group)
+        self.fixture.customer.organization_group = organization_group
         self.fixture.customer.save()
 
         response = self.create_order(user, offering)

@@ -66,7 +66,7 @@ from waldur_core.structure.managers import (
     filter_queryset_for_user,
     get_connected_customers,
     get_connected_projects,
-    get_divisions,
+    get_organization_groups,
     get_project_users,
     get_visible_users,
 )
@@ -1090,26 +1090,26 @@ class ProviderOfferingViewSet(
     stats_permissions = [structure_permissions.is_owner]
 
     @action(detail=True, methods=["post"])
-    def update_divisions(self, request, uuid):
+    def update_organization_groups(self, request, uuid):
         offering = self.get_object()
-        serializer = serializers.DivisionsSerializer(
+        serializer = serializers.OrganizationGroupsSerializer(
             instance=offering, context={"request": request}, data=request.data
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(status=status.HTTP_200_OK)
 
-    update_divisions_permissions = [structure_permissions.is_owner]
-    update_divisions_validators = update_validators
+    update_organization_groups_permissions = [structure_permissions.is_owner]
+    update_organization_groups_validators = update_validators
 
     @action(detail=True, methods=["post"])
-    def delete_divisions(self, request, uuid=None):
+    def delete_organization_groups(self, request, uuid=None):
         offering = self.get_object()
-        offering.divisions.clear()
+        offering.organization_groups.clear()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    delete_divisions_permissions = update_divisions_permissions
-    delete_divisions_validators = update_validators
+    delete_organization_groups_permissions = update_organization_groups_permissions
+    delete_organization_groups_validators = update_validators
 
     @action(detail=True, methods=["post"])
     def add_endpoint(self, request, uuid=None):
@@ -1732,24 +1732,24 @@ class ProviderPlanViewSet(core_views.UpdateReversionMixin, core_views.ActionsVie
         return PlanUsageReporter(self, request).get_report()
 
     @action(detail=True, methods=["post"])
-    def update_divisions(self, request, uuid):
+    def update_organization_groups(self, request, uuid):
         plan = self.get_object()
-        serializer = serializers.DivisionsSerializer(
+        serializer = serializers.OrganizationGroupsSerializer(
             instance=plan, context={"request": request}, data=request.data
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(status=status.HTTP_200_OK)
 
-    update_divisions_permissions = [structure_permissions.is_owner]
+    update_organization_groups_permissions = [structure_permissions.is_owner]
 
     @action(detail=True, methods=["post"])
-    def delete_divisions(self, request, uuid=None):
+    def delete_organization_groups(self, request, uuid=None):
         plan = self.get_object()
-        plan.divisions.clear()
+        plan.organization_groups.clear()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    delete_divisions_permissions = update_divisions_permissions
+    delete_organization_groups_permissions = update_organization_groups_permissions
 
 
 class PlanComponentViewSet(PublicViewsetMixin, rf_viewsets.ReadOnlyModelViewSet):
@@ -1764,14 +1764,14 @@ class PlanComponentViewSet(PublicViewsetMixin, rf_viewsets.ReadOnlyModelViewSet)
 
         if user.is_anonymous:
             return queryset.filter(
-                plan__offering__shared=True, plan__divisions__isnull=True
+                plan__offering__shared=True, plan__organization_groups__isnull=True
             )
         elif user.is_staff or user.is_support:
             return queryset
         else:
             return queryset.filter(
-                Q(plan__divisions__isnull=True)
-                | Q(plan__divisions__in=get_divisions(user))
+                Q(plan__organization_groups__isnull=True)
+                | Q(plan__organization_groups__in=get_organization_groups(user))
             )
 
 
@@ -2734,9 +2734,9 @@ class OfferingUsersViewSet(
             id__in=managed_projects
         ).values_list("customer_id", flat=True)
         visible_customers = managed_customers.union(nested_customers)
-        visible_divisions = structure_models.Customer.objects.filter(
+        visible_organization_groups = structure_models.Customer.objects.filter(
             id__in=visible_customers
-        ).values_list("division_id", flat=True)
+        ).values_list("organization_group_id", flat=True)
 
         queryset = queryset.filter(
             # Exclude offerings with disabled OfferingUsers feature
@@ -2755,8 +2755,8 @@ class OfferingUsersViewSet(
                         # only offerings managed by customer where the current user has a role
                         Q(offering__customer__id__in=visible_customers)
                         |
-                        # only offerings from divisions including the current user's customers
-                        Q(offering__divisions__in=visible_divisions)
+                        # only offerings from organization_groups including the current user's customers
+                        Q(offering__organization_groups__in=visible_organization_groups)
                     )
                 )
             )
@@ -2894,7 +2894,7 @@ class StatsViewSet(rf_viewsets.ViewSet):
                         prev["value"] += value
 
         return Response(
-            self._expand_result_with_information_of_divisions(data),
+            self._expand_result_with_information_of_organization_groups(data),
             status=status.HTTP_200_OK,
         )
 
@@ -2910,7 +2910,9 @@ class StatsViewSet(rf_viewsets.ViewSet):
         )
         serializer = serializers.ComponentUsagesStatsSerializer(data, many=True)
         return Response(
-            self._expand_result_with_information_of_divisions(serializer.data),
+            self._expand_result_with_information_of_organization_groups(
+                serializer.data
+            ),
             status=status.HTTP_200_OK,
         )
 
@@ -2950,39 +2952,41 @@ class StatsViewSet(rf_viewsets.ViewSet):
         ).annotate(usage=Sum("usage"))
         serializer = serializers.ComponentUsagesPerMonthStatsSerializer(data, many=True)
         return Response(
-            self._expand_result_with_information_of_divisions(serializer.data),
+            self._expand_result_with_information_of_organization_groups(
+                serializer.data
+            ),
             status=status.HTTP_200_OK,
         )
 
     @staticmethod
-    def _expand_result_with_information_of_divisions(result):
-        data_with_divisions = []
+    def _expand_result_with_information_of_organization_groups(result):
+        data_with_organization_groups = []
 
         for record in result:
             offering = models.Offering.objects.get(uuid=record["offering_uuid"])
             record["offering_country"] = offering.country or offering.customer.country
-            divisions = offering.divisions.all()
+            organization_groups = offering.organization_groups.all()
 
-            if not divisions:
+            if not organization_groups:
                 new_data = copy.copy(record)
-                new_data["division_name"] = ""
-                new_data["division_uuid"] = ""
-                data_with_divisions.append(new_data)
+                new_data["organization_group_name"] = ""
+                new_data["organization_group_uuid"] = ""
+                data_with_organization_groups.append(new_data)
             else:
-                for division in divisions:
+                for organization_group in organization_groups:
                     new_data = copy.copy(record)
-                    new_data["division_name"] = division.name
-                    new_data["division_uuid"] = division.uuid.hex
-                    data_with_divisions.append(new_data)
+                    new_data["organization_group_name"] = organization_group.name
+                    new_data["organization_group_uuid"] = organization_group.uuid.hex
+                    data_with_organization_groups.append(new_data)
 
-        return data_with_divisions
+        return data_with_organization_groups
 
     @action(detail=False, methods=["get"])
     def count_users_of_service_providers(self, request, *args, **kwargs):
         result = []
 
         for sp in models.ServiceProvider.objects.all().select_related(
-            "customer", "customer__division"
+            "customer", "customer__organization_group"
         ):
             data = {
                 "count": utils.get_service_provider_user_ids(
@@ -3002,7 +3006,7 @@ class StatsViewSet(rf_viewsets.ViewSet):
         result = []
 
         for sp in models.ServiceProvider.objects.all().select_related(
-            "customer", "customer__division"
+            "customer", "customer__organization_group"
         ):
             data = {"count": utils.get_service_provider_project_ids(sp).count()}
             data.update(self._get_service_provider_info(sp))
@@ -3020,7 +3024,7 @@ class StatsViewSet(rf_viewsets.ViewSet):
         result = []
 
         for sp in models.ServiceProvider.objects.all().select_related(
-            "customer", "customer__division"
+            "customer", "customer__organization_group"
         ):
             project_ids = utils.get_service_provider_project_ids(sp)
             projects = (
@@ -3167,11 +3171,11 @@ class StatsViewSet(rf_viewsets.ViewSet):
             "service_provider_uuid": service_provider.uuid.hex,
             "customer_uuid": service_provider.customer.uuid.hex,
             "customer_name": service_provider.customer.name,
-            "customer_division_uuid": service_provider.customer.division.uuid.hex
-            if service_provider.customer.division
+            "customer_organization_group_uuid": service_provider.customer.organization_group.uuid.hex
+            if service_provider.customer.organization_group
             else "",
-            "customer_division_name": service_provider.customer.division.name
-            if service_provider.customer.division
+            "customer_organization_group_name": service_provider.customer.organization_group.name
+            if service_provider.customer.organization_group
             else "",
         }
 
@@ -3290,12 +3294,14 @@ class StatsViewSet(rf_viewsets.ViewSet):
         )
 
     @action(detail=False, methods=["get"])
-    def count_active_resources_grouped_by_division(self, request, *args, **kwargs):
+    def count_active_resources_grouped_by_organization_group(
+        self, request, *args, **kwargs
+    ):
         result = (
             self.get_active_resources()
             .values(
-                "offering__customer__division__name",
-                "offering__customer__division__uuid",
+                "offering__customer__organization_group__name",
+                "offering__customer__organization_group__uuid",
             )
             .annotate(count=Count("id"))
             .order_by()

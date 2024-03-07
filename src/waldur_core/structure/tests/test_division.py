@@ -5,15 +5,15 @@ from waldur_core.structure.tests import factories, fixtures
 
 
 @ddt
-class DivisionListTest(test.APITransactionTestCase):
+class OrganizationGroupListTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.UserFixture()
-        self.division_1 = factories.DivisionFactory()
-        self.division_2 = factories.DivisionFactory()
-        self.url = factories.DivisionFactory.get_list_url()
+        self.organization_group_1 = factories.OrganizationGroupFactory()
+        self.organization_group_2 = factories.OrganizationGroupFactory()
+        self.url = factories.OrganizationGroupFactory.get_list_url()
 
     @data("staff", "user", None)
-    def test_user_can_list_divisions(self, user):
+    def test_user_can_list_organization_groups(self, user):
         if user:
             self.client.force_authenticate(user=getattr(self.fixture, user))
 
@@ -22,26 +22,30 @@ class DivisionListTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 2)
 
     def test_list_filters(self):
-        """Test of divisions' list filter by name, type and parent UUID."""
-        division_parent = factories.DivisionFactory()
-        self.division_1.parent = division_parent
-        self.division_1.save()
+        """Test of organization_groups' list filter by name, type and parent UUID."""
+        organization_group_parent = factories.OrganizationGroupFactory()
+        self.organization_group_1.parent = organization_group_parent
+        self.organization_group_1.save()
         rows = [
-            {"name": "name", "valid": self.division_1.name[2:], "invalid": "AAA"},
+            {
+                "name": "name",
+                "valid": self.organization_group_1.name[2:],
+                "invalid": "AAA",
+            },
             {
                 "name": "name_exact",
-                "valid": self.division_1.name,
-                "invalid": self.division_1.name[2:],
+                "valid": self.organization_group_1.name,
+                "invalid": self.organization_group_1.name[2:],
             },
             {
                 "name": "type",
-                "valid": self.division_1.type.name,
-                "invalid": self.division_1.type.name[2:],
+                "valid": self.organization_group_1.type.name,
+                "invalid": self.organization_group_1.type.name[2:],
             },
             {
                 "name": "parent",
-                "valid": division_parent.uuid.hex,
-                "invalid": division_parent.uuid.hex[2:],
+                "valid": organization_group_parent.uuid.hex,
+                "invalid": organization_group_parent.uuid.hex[2:],
             },
         ]
         self.client.force_authenticate(user=self.fixture.staff)
@@ -60,46 +64,56 @@ class DivisionListTest(test.APITransactionTestCase):
 
 
 @ddt
-class DivisionChangeTest(test.APITransactionTestCase):
+class OrganizationGroupChangeTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.CustomerFixture()
-        self.division_1 = factories.DivisionFactory()
-        self.division_2 = factories.DivisionFactory()
-        self.fixture.customer.division = self.division_1
+        self.organization_group_1 = factories.OrganizationGroupFactory()
+        self.organization_group_2 = factories.OrganizationGroupFactory()
+        self.fixture.customer.organization_group = self.organization_group_1
         self.fixture.customer.save()
         self.url = factories.CustomerFactory.get_url(self.fixture.customer)
 
     @data(
         "staff",
     )
-    def test_staff_can_change_customer_division(self, user):
+    def test_staff_can_change_customer_organization_group(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
-        new_division_url = factories.DivisionFactory.get_url(self.division_2)
-        response = self.client.patch(self.url, {"division": new_division_url})
+        new_organization_group_url = factories.OrganizationGroupFactory.get_url(
+            self.organization_group_2
+        )
+        response = self.client.patch(
+            self.url, {"organization_group": new_organization_group_url}
+        )
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.fixture.customer.refresh_from_db()
-        self.assertEqual(self.fixture.customer.division, self.division_2)
+        self.assertEqual(
+            self.fixture.customer.organization_group, self.organization_group_2
+        )
 
     @data(
         "owner",
     )
-    def test_other_can_not_change_customer_division(self, user):
+    def test_other_can_not_change_customer_organization_group(self, user):
         self.client.force_authenticate(user=getattr(self.fixture, user))
-        new_division_url = factories.DivisionFactory.get_url(self.division_2)
-        response = self.client.patch(self.url, {"division": new_division_url})
+        new_organization_group_url = factories.OrganizationGroupFactory.get_url(
+            self.organization_group_2
+        )
+        response = self.client.patch(
+            self.url, {"organization_group": new_organization_group_url}
+        )
         self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
 
 
 @ddt
-class DivisionTypeListTest(test.APITransactionTestCase):
+class OrganizationGroupTypeListTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.UserFixture()
-        self.type_1 = factories.DivisionTypeFactory()
-        self.type_2 = factories.DivisionTypeFactory()
-        self.url = factories.DivisionTypeFactory.get_list_url()
+        self.type_1 = factories.OrganizationGroupTypeFactory()
+        self.type_2 = factories.OrganizationGroupTypeFactory()
+        self.url = factories.OrganizationGroupTypeFactory.get_list_url()
 
     @data("staff", "user", None)
-    def test_user_can_list_division_types(self, user):
+    def test_user_can_list_organization_group_types(self, user):
         if user:
             self.client.force_authenticate(user=getattr(self.fixture, user))
 

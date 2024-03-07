@@ -211,45 +211,46 @@ class TestSnapshotFactory(factory.django.DjangoModelFactory):
         model = test_models.TestSnapshot
 
 
-class DivisionTypeFactory(factory.django.DjangoModelFactory):
+class OrganizationGroupTypeFactory(factory.django.DjangoModelFactory):
     class Meta:
-        model = models.DivisionType
+        model = models.OrganizationGroupType
 
-    name = factory.Sequence(lambda n: "DivisionType_%s" % n)
+    name = factory.Sequence(lambda n: "OrganizationGroupType_%s" % n)
 
     @classmethod
-    def get_url(cls, division_type=None, action=None):
-        if division_type is None:
-            division_type = DivisionTypeFactory()
+    def get_url(cls, organization_group_type=None, action=None):
+        if organization_group_type is None:
+            organization_group_type = OrganizationGroupTypeFactory()
         url = "http://testserver" + reverse(
-            "division-type-detail", kwargs={"uuid": division_type.uuid.hex}
+            "organization-group-type-detail",
+            kwargs={"uuid": organization_group_type.uuid.hex},
         )
         return url if action is None else url + action + "/"
 
     @classmethod
     def get_list_url(cls):
-        return "http://testserver" + reverse("division-type-list")
+        return "http://testserver" + reverse("organization-group-type-list")
 
 
-class DivisionFactory(factory.django.DjangoModelFactory):
+class OrganizationGroupFactory(factory.django.DjangoModelFactory):
     class Meta:
-        model = models.Division
+        model = models.OrganizationGroup
 
-    name = factory.Sequence(lambda n: "Division_%s" % n)
-    type = factory.SubFactory(DivisionTypeFactory)
+    name = factory.Sequence(lambda n: "OrganizationGroup_%s" % n)
+    type = factory.SubFactory(OrganizationGroupTypeFactory)
 
     @classmethod
-    def get_url(cls, division=None, action=None):
-        if division is None:
-            division = DivisionFactory()
+    def get_url(cls, organization_group=None, action=None):
+        if organization_group is None:
+            organization_group = OrganizationGroupFactory()
         url = "http://testserver" + reverse(
-            "division-detail", kwargs={"uuid": division.uuid.hex}
+            "organization-group-detail", kwargs={"uuid": organization_group.uuid.hex}
         )
         return url if action is None else url + action + "/"
 
     @classmethod
     def get_list_url(cls):
-        return "http://testserver" + reverse("division-list")
+        return "http://testserver" + reverse("organization-group-list")
 
 
 class NotificationTemplateFactory(factory.django.DjangoModelFactory):

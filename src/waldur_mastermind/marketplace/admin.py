@@ -126,8 +126,8 @@ class ScreenshotsInline(admin.StackedInline):
     extra = 1
 
 
-class DivisionsInline(admin.StackedInline):
-    model = models.Offering.divisions.through
+class OrganizationGroupsInline(admin.StackedInline):
+    model = models.Offering.organization_groups.through
     classes = ["collapse"]
     extra = 1
 
@@ -147,13 +147,13 @@ class PlansInline(admin.StackedInline):
     extra = 1
 
 
-class OfferingEndpointsDivisionsInline(admin.StackedInline):
+class OfferingEndpointsOrganizationGroupsInline(admin.StackedInline):
     model = models.OfferingAccessEndpoint
     classes = ["collapse"]
     extra = 1
 
 
-class ResourceEndpointsDivisionsInline(admin.StackedInline):
+class ResourceEndpointsOrganizationGroupsInline(admin.StackedInline):
     model = models.ResourceAccessEndpoint
     classes = ["collapse"]
     extra = 1
@@ -217,10 +217,10 @@ class PlanComponentInline(
             return super().get_extra(request, obj, **kwargs)
 
 
-class PlanDivisionsInline(admin.StackedInline):
-    model = models.Plan.divisions.through
-    verbose_name = _("division")
-    verbose_name_plural = _("divisions")
+class PlanOrganizationGroupsInline(admin.StackedInline):
+    model = models.Plan.organization_groups.through
+    verbose_name = _("organization group")
+    verbose_name_plural = _("organization groups")
     classes = ["collapse"]
     extra = 1
 
@@ -229,7 +229,7 @@ class PlanAdmin(ConnectedResourceMixin, VersionAdmin, admin.ModelAdmin):
     list_display = ("name", "offering", "archived", "unit", "unit_price")
     list_filter = ("offering", "archived")
     search_fields = ("name", "offering__name")
-    inlines = [PlanComponentInline, PlanDivisionsInline]
+    inlines = [PlanComponentInline, PlanOrganizationGroupsInline]
     protected_fields = ("unit", "unit_price", "article_code")
     readonly_fields = ("scope_link", "backend_id", "offering_uuid")
     fields = (
@@ -314,11 +314,11 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
     inlines = [
         ScreenshotsInline,
         PlansInline,
-        OfferingEndpointsDivisionsInline,
+        OfferingEndpointsOrganizationGroupsInline,
         OfferingComponentInline,
         GoogleCalendarInline,
         OfferingUserInline,
-        DivisionsInline,
+        OrganizationGroupsInline,
         OfferingUserGroupInline,
     ]
     list_display = (
@@ -620,7 +620,7 @@ class ResourceAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
     )
     date_hierarchy = "created"
     search_fields = ("name", "uuid")
-    inlines = (RobotAccountInline, ResourceEndpointsDivisionsInline)
+    inlines = (RobotAccountInline, ResourceEndpointsOrganizationGroupsInline)
 
     def category(self, obj):
         return obj.offering.category

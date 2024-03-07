@@ -372,12 +372,24 @@ class CustomerSerializer(
 ):
     projects = serializers.SerializerMethodField()
     display_name = serializers.ReadOnlyField(source="get_display_name")
-    division_name = serializers.ReadOnlyField(source="division.name")
-    division_uuid = serializers.ReadOnlyField(source="division.uuid")
-    division_parent_name = serializers.ReadOnlyField(source="division.parent.name")
-    division_parent_uuid = serializers.ReadOnlyField(source="division.parent.uuid")
-    division_type_name = serializers.ReadOnlyField(source="division.type.name")
-    division_type_uuid = serializers.ReadOnlyField(source="division.type.uuid")
+    organization_group_name = serializers.ReadOnlyField(
+        source="organization_group.name"
+    )
+    organization_group_uuid = serializers.ReadOnlyField(
+        source="organization_group.uuid"
+    )
+    organization_group_parent_name = serializers.ReadOnlyField(
+        source="organization_group.parent.name"
+    )
+    organization_group_parent_uuid = serializers.ReadOnlyField(
+        source="organization_group.parent.uuid"
+    )
+    organization_group_type_name = serializers.ReadOnlyField(
+        source="organization_group.type.name"
+    )
+    organization_group_type_uuid = serializers.ReadOnlyField(
+        source="organization_group.type.uuid"
+    )
     role = serializers.SerializerMethodField()
     projects_count = serializers.SerializerMethodField()
     users_count = serializers.SerializerMethodField()
@@ -388,13 +400,13 @@ class CustomerSerializer(
             "url",
             "uuid",
             "created",
-            "division",
-            "division_name",
-            "division_uuid",
-            "division_parent_name",
-            "division_parent_uuid",
-            "division_type_name",
-            "division_type_uuid",
+            "organization_group",
+            "organization_group_name",
+            "organization_group_uuid",
+            "organization_group_parent_name",
+            "organization_group_parent_uuid",
+            "organization_group_type_name",
+            "organization_group_type_uuid",
             "display_name",
             "projects",
             "backend_id",
@@ -415,14 +427,17 @@ class CustomerSerializer(
             "default_tax_percent",
             "agreement_number",
             "domain",
-            "division",
+            "organization_group",
             "blocked",
             "archived",
             "sponsor_number",
         )
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},
-            "division": {"lookup_field": "uuid"},
+            "organization_group": {
+                "lookup_field": "uuid",
+                "view_name": "organization-group-detail",
+            },
         }
 
     def get_fields(self):
@@ -1376,30 +1391,36 @@ class BasePropertySerializer(
         model = NotImplemented
 
 
-class DivisionSerializer(serializers.HyperlinkedModelSerializer):
+class OrganizationGroupSerializer(serializers.HyperlinkedModelSerializer):
     type = serializers.ReadOnlyField(source="type.name")
     parent_uuid = serializers.ReadOnlyField(source="parent.uuid")
     parent_name = serializers.ReadOnlyField(source="parent.type.name")
 
     class Meta:
-        model = models.Division
+        model = models.OrganizationGroup
         fields = ("uuid", "url", "name", "type", "parent_uuid", "parent_name", "parent")
         extra_kwargs = {
-            "url": {"lookup_field": "uuid"},
-            "parent": {"lookup_field": "uuid"},
+            "url": {"view_name": "organization-group-detail", "lookup_field": "uuid"},
+            "parent": {
+                "lookup_field": "uuid",
+                "view_name": "organization-group-detail",
+            },
         }
 
 
-class DivisionTypesSerializer(serializers.HyperlinkedModelSerializer):
+class OrganizationGroupTypesSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
-        model = models.DivisionType
+        model = models.OrganizationGroupType
         fields = (
             "uuid",
             "url",
             "name",
         )
         extra_kwargs = {
-            "url": {"lookup_field": "uuid", "view_name": "division-type-detail"},
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "organization-group-type-detail",
+            },
         }
 
 
