@@ -70,6 +70,7 @@ class CallManagingOrganisationSerializer(
 class NestedRequestedOfferingSerializer(serializers.HyperlinkedModelSerializer):
     state = serializers.ReadOnlyField(source="get_state_display")
     offering_name = serializers.ReadOnlyField(source="offering.name")
+    offering_uuid = serializers.ReadOnlyField(source="offering.uuid")
     provider_name = serializers.ReadOnlyField(source="offering.customer.name")
 
     class Meta:
@@ -78,8 +79,9 @@ class NestedRequestedOfferingSerializer(serializers.HyperlinkedModelSerializer):
             "uuid",
             "state",
             "offering",
-            "provider_name",
             "offering_name",
+            "offering_uuid",
+            "provider_name",
             "attributes",
         ]
         extra_kwargs = {
@@ -99,6 +101,48 @@ class NestedRequestedOfferingSerializer(serializers.HyperlinkedModelSerializer):
                 },
             )
         )
+
+
+class NestedRequestedResourceSerializer(serializers.HyperlinkedModelSerializer):
+    resource_name = serializers.ReadOnlyField(source="resource.name")
+    requested_offering = NestedRequestedOfferingSerializer(read_only=True)
+    created_by_name = serializers.ReadOnlyField(source="created_by.full_name")
+    url = serializers.SerializerMethodField()
+
+    def get_url(self, requested_resource):
+        return self.context["request"].build_absolute_uri(
+            reverse(
+                "proposal-proposal-resource-detail",
+                kwargs={
+                    "uuid": requested_resource.proposal.uuid.hex,
+                    "obj_uuid": requested_resource.uuid.hex,
+                },
+            )
+        )
+
+    class Meta:
+        model = models.RequestedResource
+        fields = [
+            "uuid",
+            "url",
+            "requested_offering",
+            "resource",
+            "resource_name",
+            "attributes",
+            "description",
+            "created_by",
+            "created_by_name",
+        ]
+        extra_kwargs = {
+            "resource": {
+                "lookup_field": "uuid",
+                "view_name": "marketplace-resource-detail",
+            },
+            "created_by": {
+                "lookup_field": "uuid",
+                "view_name": "user-detail",
+            },
+        }
 
 
 class ProposalListSerializer(serializers.HyperlinkedModelSerializer):
@@ -216,7 +260,7 @@ class PublicCallSerializer(
         return serializer.data
 
 
-class ProtectedRequestedOfferingSerializer(
+class RequestedOfferingSerializer(
     core_serializers.AugmentedSerializerMixin, NestedRequestedOfferingSerializer
 ):
     url = serializers.SerializerMethodField()
@@ -285,6 +329,92 @@ class ProtectedRequestedOfferingSerializer(
     def create(self, validated_data):
         validated_data["created_by"] = self.context["request"].user
         return super().create(validated_data)
+
+
+class RequestedResourceSerializer(
+    core_serializers.AugmentedSerializerMixin, NestedRequestedResourceSerializer
+):
+    requested_offering_uuid = serializers.UUIDField(write_only=True, required=True)
+
+    class Meta(NestedRequestedResourceSerializer.Meta):
+        fields = NestedRequestedResourceSerializer.Meta.fields + [
+            "requested_offering_uuid"
+        ]
+
+        read_only_fields = (
+            "created_by",
+            "resource",
+        )
+
+    def validate(self, attrs):
+        if self.instance:
+            return attrs
+
+        requested_offering_uuid = attrs.pop("requested_offering_uuid")
+        proposal = attrs["proposal"]
+
+        try:
+            requested_offering = proposal.round.call.requestedoffering_set.get(
+                uuid=requested_offering_uuid
+            )
+        except models.RequestedOffering.DoesNotExist:
+            raise serializers.ValidationError(
+                {"requested_offering_uuid": _("Requested Offering not found.")}
+            )
+
+        if requested_offering.state != models.RequestedOffering.States.ACCEPTED:
+            raise serializers.ValidationError(_("Call is not accepted."))
+
+        attrs["requested_offering"] = requested_offering
+        return attrs
+
+    def validate_attributes(self, attributes):
+        if not attributes:
+            return {}
+
+        return attributes
+
+    def validate_proposal(self, proposal):
+        if proposal.state != models.Proposal.States.DRAFT:
+            raise serializers.ValidationError(
+                _("Only proposals with a draft status are available for editing.")
+            )
+
+        return proposal
+
+    def create(self, validated_data):
+        validated_data["created_by"] = self.context["request"].user
+        return super().create(validated_data)
+
+
+class ProviderRequestedResourceSerializer(NestedRequestedResourceSerializer):
+    proposal_name = serializers.ReadOnlyField(source="proposal.name")
+
+    class Meta(NestedRequestedResourceSerializer.Meta):
+        fields = NestedRequestedResourceSerializer.Meta.fields + [
+            "proposal_name",
+            "proposal",
+        ]
+
+        extra_kwargs = {
+            **NestedRequestedResourceSerializer.Meta.extra_kwargs,
+            **{
+                "proposal": {
+                    "lookup_field": "uuid",
+                    "view_name": "proposal-proposal-detail",
+                },
+            },
+        }
+
+    def get_url(self, requested_resource):
+        return self.context["request"].build_absolute_uri(
+            reverse(
+                "proposal-requested-resource-detail",
+                kwargs={
+                    "uuid": requested_resource.uuid.hex,
+                },
+            )
+        )
 
 
 class ProviderRequestedOfferingSerializer(NestedRequestedOfferingSerializer):
@@ -414,6 +544,7 @@ class ProposalSerializer(
     supporting_documentation = ProposalDocumentationSerializer(
         many=True, required=False
     )
+    resources = serializers.SerializerMethodField(method_name="get_resources")
 
     class Meta:
         model = models.Proposal
@@ -434,6 +565,7 @@ class ProposalSerializer(
             "round_uuid",
             "call_uuid",
             "call_name",
+            "resources",
         ]
         read_only_fields = ("created_by", "approved_by", "project")
         protected_fields = ("round_uuid",)
@@ -461,6 +593,16 @@ class ProposalSerializer(
 
         attrs["round"] = call_round
         return attrs
+
+    def get_resources(self, obj):
+        queryset = obj.requestedresource_set.filter()
+        serializer = NestedRequestedResourceSerializer(
+            queryset,
+            many=True,
+            read_only=True,
+            context={"request": self.context["request"]},
+        )
+        return serializer.data
 
     def create(self, validated_data):
         validated_data["created_by"] = self.context["request"].user

@@ -13,6 +13,11 @@ class RoundInline(admin.TabularInline):
     extra = 1
 
 
+class RequestedResourceInline(admin.TabularInline):
+    model = models.RequestedResource
+    extra = 1
+
+
 class CallAdmin(admin.ModelAdmin):
     inlines = [RequestedOfferingInline, RoundInline]
     list_display = ("name",)
@@ -23,6 +28,7 @@ class RoundAdmin(admin.ModelAdmin):
 
 
 class ProposalAdmin(admin.ModelAdmin):
+    inlines = [RequestedResourceInline]
     list_display = ("__str__", "get_state_display")
 
 

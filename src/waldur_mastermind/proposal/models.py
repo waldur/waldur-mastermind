@@ -274,6 +274,8 @@ class Proposal(
         ProposalDocumentation, related_name="supporting_documentation_set"
     )
 
+    resources = models.ManyToManyField(RequestedOffering, through="RequestedResource")
+
     tracker = FieldTracker()
 
     class Permissions:
@@ -285,6 +287,35 @@ class Proposal(
     @classmethod
     def get_url_name(cls):
         return "proposal-proposal"
+
+
+class RequestedResource(
+    core_models.UuidMixin,
+    TimeStampedModel,
+    core_models.DescribableMixin,
+):
+    class Permissions:
+        project_path = "proposal__project"
+
+    requested_offering = models.ForeignKey(
+        RequestedOffering,
+        related_name="+",
+        on_delete=models.PROTECT,
+    )
+    attributes = models.JSONField(blank=True, default=dict)
+    created_by = models.ForeignKey(
+        core_models.User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="+",
+    )
+    resource = models.ForeignKey(
+        marketplace_models.Resource,
+        related_name="+",
+        on_delete=models.SET_NULL,
+        null=True,
+    )
+    proposal = models.ForeignKey(Proposal, on_delete=models.CASCADE)
 
 
 class Review(

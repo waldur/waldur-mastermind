@@ -31,7 +31,7 @@ class RequestedOfferingGetTest(test.APITransactionTestCase):
         "owner",
         "customer_support",
     )
-    def test_round_should_not_be_visible(self, user):
+    def test_request_should_not_be_visible(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         response = self.client.get(self.url)
