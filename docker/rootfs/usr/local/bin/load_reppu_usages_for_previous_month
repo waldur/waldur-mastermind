@@ -1,3 +1,6 @@
+#!/bin/bash
+set -e
+
 PREVIOUS_MONTH=$(date -d "$(date +%Y-%m-1) -1 month" +%-m)
 PREVIOUS_YEAR=$(date -d "$(date +%Y-%m-1) -1 month" +%-Y)
 DRY_RUN_MODE="${DRY_RUN:-yes}"
