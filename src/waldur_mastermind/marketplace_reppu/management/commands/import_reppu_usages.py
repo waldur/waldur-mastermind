@@ -9,7 +9,7 @@ from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 
 # Waldur usage to LUMI usage
-usage_type_mapping = {
+component_type_mapping = {
     "cpu_hours": "cpu_k_hours",
     "gpu_hours": "gpu_hours",
     "terabyte_hours": "gb_k_hours",
@@ -86,7 +86,7 @@ class Command(BaseCommand):
     def set_resource_usage(
         self,
         resource: marketplace_models.Resource,
-        usage_type: str,
+        component_type: str,
         new_usage: float,
         month: int,
         year: int,
@@ -98,39 +98,47 @@ class Command(BaseCommand):
             )
         )
 
-        component_usage = resource.usages.objects.filter(
-            type=usage_type,
-            start_date__month=month,
-            start_date__year=year,
+        component_usage = resource.usages.filter(
+            component__type=component_type,
+            billing_period__month=month,
+            billing_period__year=year,
         ).first()
 
         if component_usage is None:
             self.stdout.write(
                 self.style.WARNING(
-                    f"The resource {resource} does not have any component usages with type {usage_type}, skipping processing"
+                    f"The resource {resource} does not have any component usages with type {component_type}, skipping processing"
                 )
             )
             return
 
         if one_of_many:
-            new_usage = min(new_usage, component_usage.component.limit_amount)
+            resource_limit = resource.limits.get(component_type)
+            if resource_limit is None:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"The resource does not have limits for {component_type}, skipping processing.",
+                    )
+                )
+                return
+            new_usage = min(new_usage, resource_limit)
 
         self.stdout.write(
             self.style.SUCCESS(
-                f"Setting {resource} {usage_type} component usage from {component_usage.usage} to {new_usage}"
+                f"Setting {resource} {component_type} component usage from {component_usage.usage} to {new_usage}"
             )
         )
 
         if self.dry_run:
             self.stdout.write(
                 self.style.SUCCESS(
-                    f"[Dry run] Setting {resource} {usage_type} component usage from {component_usage.usage} to {new_usage}"
+                    f"[Dry run] Setting {resource} {component_type} component usage from {component_usage.usage} to {new_usage}"
                 )
             )
         else:
             self.stdout.write(
                 self.style.SUCCESS(
-                    f"Setting {resource} {usage_type} component usage from {component_usage.usage} to {new_usage}"
+                    f"Setting {resource} {component_type} component usage from {component_usage.usage} to {new_usage}"
                 )
             )
             component_usage.usage = new_usage
@@ -140,34 +148,43 @@ class Command(BaseCommand):
 
     def import_usages(self, lumi_usage, resources, month, year):
         # The cycle iterates over component usages fetched from lumi
-        for lumi_usage_type, lumi_usage_amount in lumi_usage.items():
-            # Ignore unknown component types
-            if lumi_usage_type not in usage_type_mapping and lumi_usage_type not in [
+        for lumi_component_type, lumi_usage_amount in lumi_usage.items():
+            # Ignore metadata
+            if lumi_component_type in [
                 "puhuriuuid",
                 "cn",
             ]:
+                continue
+
+            # Ignore unknown component types
+            if lumi_component_type not in component_type_mapping:
                 self.stdout.write(
                     self.style.WARNING(
-                        f"Unknown component type {lumi_usage_type} for {resources.first().project}"
+                        f"Unknown component type {lumi_component_type} for {resources.first().project}"
                     )
                 )
                 continue
 
-            waldur_usage_type = usage_type_mapping[lumi_usage_type]
+            waldur_component_type = component_type_mapping[lumi_component_type]
             # Convert CPU hours to CPU Khours
-            if waldur_usage_type == "cpu_k_hours":
+            if waldur_component_type == "cpu_k_hours":
                 lumi_usage_amount /= 1000
 
             lumi_usage_amount_rounded = round(lumi_usage_amount, 2)
-            if resources.count() > 1:
+            if resources.count() == 1:
                 resource = resources.first()
                 self.set_resource_usage(
-                    resource, waldur_usage_type, lumi_usage_amount_rounded, month, year
+                    resource,
+                    waldur_component_type,
+                    lumi_usage_amount_rounded,
+                    month,
+                    year,
+                    one_of_many=False,
                 )
             else:
                 self.stdout.write(
                     self.style.SUCCESS(
-                        f"Processing {resources.count()} resources in {resource.project}",
+                        f"Processing {resources.count()} resources in {resources.first().project}",
                     )
                 )
                 resources = resources.order_by("created")
@@ -175,15 +192,31 @@ class Command(BaseCommand):
                 total_usage = lumi_usage_amount_rounded
                 self.stdout.write(
                     self.style.SUCCESS(
-                        f"Total {lumi_usage_type} usage: {lumi_usage_amount_rounded}",
+                        f"Total {lumi_component_type} usage: {lumi_usage_amount_rounded}",
                     )
                 )
-                for resource in resources:
-                    usage_set = self.set_resource_usage(
-                        resource, waldur_usage_type, total_usage, month, year, True
-                    )
-                    if usage_set:
-                        total_usage -= usage_set
+                for index, resource in enumerate(resources):
+                    # Last resource usage filled with total usage leftover
+                    if index == resources.count() - 1:
+                        self.set_resource_usage(
+                            resource,
+                            waldur_component_type,
+                            total_usage,
+                            month,
+                            year,
+                            one_of_many=False,
+                        )
+                    else:
+                        usage_set = self.set_resource_usage(
+                            resource,
+                            waldur_component_type,
+                            total_usage,
+                            month,
+                            year,
+                            one_of_many=True,
+                        )
+                        if usage_set:
+                            total_usage -= usage_set
 
     def add_arguments(self, parser):
         super().add_arguments(parser)
@@ -245,6 +278,9 @@ class Command(BaseCommand):
             return
 
         self.dry_run = options.get("dry_run", False)
+
+        if self.dry_run:
+            self.stdout.write(self.style.SUCCESS("Running in dry-run mode."))
 
         date = datetime.date(year=year, month=month, day=1)
         start_date = core_utils.month_start(date).astimezone(datetime.UTC)
