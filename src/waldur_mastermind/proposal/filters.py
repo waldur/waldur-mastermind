@@ -115,3 +115,36 @@ class RequestedOfferingFilter(django_filters.FilterSet):
     class Meta:
         model = models.RequestedOffering
         fields = ["state"]
+
+
+class RequestedResourceFilter(django_filters.FilterSet):
+    offering = core_filters.URLFilter(
+        view_name="marketplace-provider-offering-detail",
+        field_name="offering__uuid",
+        label="Offering",
+    )
+    offering_uuid = django_filters.UUIDFilter(field_name="offering__uuid")
+    resource = core_filters.URLFilter(
+        view_name="marketplace-resource-detail",
+        field_name="resource__uuid",
+        label="Resource",
+    )
+    resource_uuid = django_filters.UUIDFilter(field_name="resource__uuid")
+    proposal = core_filters.URLFilter(
+        view_name="proposal-proposal-detail",
+        field_name="proposal__uuid",
+        label="Proposal",
+    )
+    proposal_uuid = django_filters.UUIDFilter(field_name="proposal__uuid")
+    o = django_filters.OrderingFilter(
+        fields=(
+            "created",
+            "offering__name",
+            "resource__name",
+            "proposal__name",
+        )
+    )
+
+    class Meta:
+        model = models.RequestedResource
+        fields = ["created"]

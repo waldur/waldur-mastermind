@@ -8,13 +8,14 @@ from constance import config
 from django.conf import settings
 from django.contrib import auth
 from django.core.cache import cache
+from django.core.exceptions import ObjectDoesNotExist
 from django.core.files.storage import default_storage
-from django.db.models import ProtectedError
+from django.db.models import ForeignKey, ProtectedError
 from django.http import FileResponse, HttpResponse, HttpResponseRedirect, JsonResponse
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import TemplateView
-from rest_framework import exceptions, status, viewsets
+from rest_framework import exceptions, serializers, status, viewsets
 from rest_framework import mixins as rf_mixins
 from rest_framework import permissions as rf_permissions
 from rest_framework.authtoken.models import Token
@@ -660,3 +661,125 @@ def version_detail(request):
     """Retrieve version of the application"""
 
     return Response({"version": __version__})
+
+
+class ActionMethodMixin:
+    """Implements helper methods for viewset when use separate
+    nested endpoints for create/edit relations objects.
+    Example:
+
+    @decorators.action(detail=True, methods=["get", "post"])
+    def offerings(self, request, uuid=None):
+        return self.action_list_method("requestedoffering_set")(self, request, uuid)
+
+    offerings_serializer_class = serializers.RequestedOfferingSerializer
+
+    def offering_detail(self, request, uuid=None, obj_uuid=None):
+        return self.action_detail_method(
+            "requestedoffering_set",
+            delete_validators=[],
+            update_validators=[
+                core_validators.StateValidator(
+                    models.RequestedOffering.States.REQUESTED
+                )
+            ],
+        )(self, request, uuid, obj_uuid)
+
+    offering_detail_serializer_class = serializers.RequestedOfferingSerializer
+
+    """
+
+    @staticmethod
+    def action_list_method(set_name, additional_validators=None):
+        additional_validators = additional_validators or []
+
+        def func(self, request, uuid=None):
+            obj = self.get_object()
+            method = self.request.method
+            parent_obj_name = None
+
+            if method == "POST":
+                data = self.request.data.copy()
+                serializer_class = self.get_serializer_class()
+                model = self.get_serializer_class().Meta.model
+                parent_model = obj.__class__
+                fields = [
+                    f
+                    for f in model._meta.fields
+                    if f.__class__ == ForeignKey and f.related_model == parent_model
+                ]
+
+                if fields:
+                    parent_obj_name = fields[0].name
+                    data[parent_obj_name] = obj.pk
+
+                serializer = serializer_class(
+                    context=self.get_serializer_context(), data=data
+                )
+
+                if parent_obj_name:
+                    serializer.fields[
+                        parent_obj_name
+                    ] = serializers.PrimaryKeyRelatedField(
+                        write_only=True, queryset=parent_model.objects.all()
+                    )
+
+                serializer.is_valid(raise_exception=True)
+
+                for validator in additional_validators:
+                    getattr(serializer, validator)(obj)
+
+                serializer.save()
+
+                return Response(
+                    serializer.data,
+                    status=status.HTTP_201_CREATED,
+                )
+
+            return Response(
+                self.get_serializer(
+                    getattr(obj, set_name),
+                    context=self.get_serializer_context(),
+                    many=True,
+                ).data,
+                status=status.HTTP_200_OK,
+            )
+
+        return func
+
+    @staticmethod
+    def action_detail_method(set_name, delete_validators=None, update_validators=None):
+        delete_validators = delete_validators or []
+        update_validators = update_validators or []
+
+        def func(self, request, uuid=None, obj_uuid=None):
+            method = self.request.method
+
+            try:
+                obj = getattr(self.get_object(), set_name).get(uuid=obj_uuid)
+
+                if method == "DELETE":
+                    [validator(obj) for validator in delete_validators]
+                    obj.delete()
+                    return Response(status=status.HTTP_204_NO_CONTENT)
+
+                if method in ["PUT", "PATCH"]:
+                    [validator(obj) for validator in update_validators]
+
+                    serializer = self.get_serializer(
+                        obj,
+                        context=self.get_serializer_context(),
+                        data=self.request.data,
+                    )
+                    serializer.is_valid(raise_exception=True)
+                    serializer.save()
+                    return Response(serializer.data, status=status.HTTP_200_OK)
+
+                serializer = self.get_serializer(
+                    obj, context=self.get_serializer_context()
+                )
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            except ObjectDoesNotExist:
+                return Response(status=status.HTTP_404_NOT_FOUND)
+
+        return func

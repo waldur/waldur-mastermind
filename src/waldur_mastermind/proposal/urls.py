@@ -31,8 +31,13 @@ def register_in(router):
     )
     router.register(
         r"proposal-requested-offerings",
-        views.RequestedOfferingViewSet,
+        views.ProviderRequestedOfferingViewSet,
         basename="proposal-requested-offering",
+    )
+    router.register(
+        r"proposal-requested-resources",
+        views.ProviderRequestedResourceViewSet,
+        basename="proposal-requested-resource",
     )
 
 
@@ -51,4 +56,21 @@ urlpatterns = [
         name=f"proposal-call-{action}-detail",
     )
     for action in ["offering", "round"]
+]
+
+urlpatterns += [
+    re_path(
+        r"^api/proposal-proposals/(?P<uuid>[a-f0-9]+)/%ss/(?P<obj_uuid>[a-f0-9]+)/$"
+        % action,
+        views.ProposalViewSet.as_view(
+            {
+                "get": f"{action}_detail",
+                "delete": f"{action}_detail",
+                "patch": f"{action}_detail",
+                "put": f"{action}_detail",
+            }
+        ),
+        name=f"proposal-proposal-{action}-detail",
+    )
+    for action in ["resource"]
 ]

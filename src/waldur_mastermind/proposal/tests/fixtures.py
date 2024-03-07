@@ -12,7 +12,7 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
     def __init__(self):
         self.requested_offering
         self.new_call
-        self.proposal
+        self.requested_resource
 
     @cached_property
     def manager(self):
@@ -49,8 +49,21 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
         )
 
     @cached_property
+    def requested_offering_accepted(self):
+        return proposal_factories.RequestedOfferingFactory(
+            call=self.call,
+            state=proposal_models.RequestedOffering.States.ACCEPTED,
+            created_by=self.owner,
+            offering=self.offering,
+        )
+
+    @cached_property
     def offering(self):
         return self.offering_fixture.offering
+
+    @cached_property
+    def resource(self):
+        return self.offering_fixture.resource
 
     @cached_property
     def offering_owner(self):
@@ -79,3 +92,9 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
     @cached_property
     def proposal_creator(self):
         return self.proposal.created_by
+
+    @cached_property
+    def requested_resource(self):
+        return proposal_factories.RequestedResourceFactory(
+            requested_offering=self.requested_offering_accepted, proposal=self.proposal
+        )

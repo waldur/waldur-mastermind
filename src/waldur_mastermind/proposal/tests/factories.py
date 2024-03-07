@@ -152,3 +152,42 @@ class ProposalFactory(factory.django.DjangoModelFactory):
     def get_list_url(cls, action=None):
         url = "http://testserver" + reverse("proposal-proposal-list")
         return url if action is None else url + action + "/"
+
+
+class RequestedResourceFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = models.RequestedResource
+
+    proposal = factory.SubFactory(ProposalFactory)
+    created_by = factory.SubFactory(structure_factories.UserFactory)
+    resource = factory.SubFactory(marketplace_factories.ResourceFactory)
+    requested_offering = factory.SubFactory(RequestedOfferingFactory)
+
+    @classmethod
+    def get_url(cls, proposal, requested_resource=None):
+        if requested_resource is None:
+            requested_resource = RequestedResourceFactory()
+        return (
+            ProposalFactory.get_url(proposal, action="resources")
+            + requested_resource.uuid.hex
+            + "/"
+        )
+
+    @classmethod
+    def get_list_url(cls, proposal):
+        return ProposalFactory.get_url(proposal, action="resources")
+
+    @classmethod
+    def get_provider_list_url(cls):
+        url = "http://testserver" + reverse("proposal-requested-resource-list")
+        return url
+
+    @classmethod
+    def get_provider_url(cls, requested_resource=None, action=None):
+        if requested_resource is None:
+            requested_resource = RequestedResourceFactory()
+        url = "http://testserver" + reverse(
+            "proposal-requested-resource-detail",
+            kwargs={"uuid": requested_resource.uuid.hex},
+        )
+        return url if action is None else url + action + "/"
