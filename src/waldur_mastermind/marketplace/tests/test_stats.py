@@ -439,9 +439,11 @@ class LimitsStatsTest(test.APITransactionTestCase):
         )
         self.url = "/api/marketplace-stats/resources_limits/"
 
-        self.division_1 = structure_factories.DivisionFactory()
-        self.division_2 = structure_factories.DivisionFactory()
-        self.resource_1.offering.divisions.add(self.division_1, self.division_2)
+        self.organization_group_1 = structure_factories.OrganizationGroupFactory()
+        self.organization_group_2 = structure_factories.OrganizationGroupFactory()
+        self.resource_1.offering.organization_groups.add(
+            self.organization_group_1, self.organization_group_2
+        )
 
         self.resource_1.offering.country = "EE"
         self.resource_1.offering.save()
@@ -468,8 +470,8 @@ class LimitsStatsTest(test.APITransactionTestCase):
                 "name": "cpu",
                 "value": 7,
                 "offering_country": "EE",
-                "division_name": self.division_1.name,
-                "division_uuid": self.division_1.uuid.hex,
+                "organization_group_name": self.organization_group_1.name,
+                "organization_group_uuid": self.organization_group_1.uuid.hex,
             }
             in response.data,
         )
@@ -479,8 +481,8 @@ class LimitsStatsTest(test.APITransactionTestCase):
                 "name": "cpu",
                 "value": 7,
                 "offering_country": "EE",
-                "division_name": self.division_2.name,
-                "division_uuid": self.division_2.uuid.hex,
+                "organization_group_name": self.organization_group_2.name,
+                "organization_group_uuid": self.organization_group_2.uuid.hex,
             }
             in response.data,
         )
@@ -490,8 +492,8 @@ class LimitsStatsTest(test.APITransactionTestCase):
                 "name": "cpu",
                 "value": 10,
                 "offering_country": "FI",
-                "division_name": "",
-                "division_uuid": "",
+                "organization_group_name": "",
+                "organization_group_uuid": "",
             }
             in response.data,
         )
@@ -501,8 +503,8 @@ class LimitsStatsTest(test.APITransactionTestCase):
                 "name": "ram",
                 "value": 1,
                 "offering_country": "FI",
-                "division_name": "",
-                "division_uuid": "",
+                "organization_group_name": "",
+                "organization_group_uuid": "",
             }
             in response.data,
         )

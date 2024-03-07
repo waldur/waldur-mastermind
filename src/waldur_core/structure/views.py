@@ -892,22 +892,22 @@ class ResourceViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     unlink_permissions = [permissions.is_staff]
 
 
-class DivisionViewSet(core_views.ReadOnlyActionsViewSet):
+class OrganizationGroupViewSet(core_views.ReadOnlyActionsViewSet):
     permission_classes = ()
-    queryset = models.Division.objects.all().order_by("name")
-    serializer_class = serializers.DivisionSerializer
+    queryset = models.OrganizationGroup.objects.all().order_by("name")
+    serializer_class = serializers.OrganizationGroupSerializer
     lookup_field = "uuid"
     filter_backends = (DjangoFilterBackend,)
-    filterset_class = filters.DivisionFilter
+    filterset_class = filters.OrganizationGroupFilter
 
 
-class DivisionTypesViewSet(core_views.ReadOnlyActionsViewSet):
+class OrganizationGroupTypesViewSet(core_views.ReadOnlyActionsViewSet):
     permission_classes = ()
-    queryset = models.DivisionType.objects.all().order_by("name")
-    serializer_class = serializers.DivisionTypesSerializer
+    queryset = models.OrganizationGroupType.objects.all().order_by("name")
+    serializer_class = serializers.OrganizationGroupTypesSerializer
     lookup_field = "uuid"
     filter_backends = (DjangoFilterBackend,)
-    filterset_class = filters.DivisionTypesFilter
+    filterset_class = filters.OrganizationGroupTypesFilter
 
 
 class UserAgreementsViewSet(ActionsViewSet):

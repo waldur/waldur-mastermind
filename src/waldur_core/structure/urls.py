@@ -15,9 +15,15 @@ def register_in(router):
     router.register(r"service-settings", views.ServiceSettingsViewSet)
     router.register(r"users", views.UserViewSet)
     router.register(r"keys", views.SshKeyViewSet)
-    router.register(r"divisions", views.DivisionViewSet, basename="division")
     router.register(
-        r"division-types", views.DivisionTypesViewSet, basename="division-type"
+        r"organization-groups",
+        views.OrganizationGroupViewSet,
+        basename="organization-group",
+    )
+    router.register(
+        r"organization-group-types",
+        views.OrganizationGroupTypesViewSet,
+        basename="organization-group-type",
     )
     router.register(
         r"user-agreements",

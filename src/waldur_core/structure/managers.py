@@ -254,7 +254,7 @@ def get_visible_projects(user):
     return direct_projects.union(indirect_projects)
 
 
-def get_divisions(user):
+def get_organization_groups(user):
     return structure_models.Customer.objects.filter(
         id__in=get_visible_customers(user)
-    ).values("division")
+    ).values("organization_group")

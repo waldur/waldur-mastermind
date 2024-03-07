@@ -55,7 +55,7 @@ class CategoryOfferingCountTest(test.APITransactionTestCase):
             customer=self.fixture.customer,
             project=self.fixture.project,
         )
-        self.division = structure_factories.DivisionFactory()
+        self.organization_group = structure_factories.OrganizationGroupFactory()
 
     def check_counts(self, offering_count):
         response = self.client.get(self.category_url)
@@ -66,17 +66,17 @@ class CategoryOfferingCountTest(test.APITransactionTestCase):
         self.plan = factories.PlanFactory(offering=self.private_offering)
         self.check_counts(offering_count)
 
-    def _match_plan_with_division(self, offering_count):
-        self.plan.divisions.add(self.division)
+    def _match_plan_with_organization_group(self, offering_count):
+        self.plan.organization_groups.add(self.organization_group)
         self.check_counts(offering_count)
 
-    def _match_customer_with_division(self, offering_count):
-        self.fixture.customer.division = self.division
+    def _match_customer_with_organization_group(self, offering_count):
+        self.fixture.customer.organization_group = self.organization_group
         self.fixture.customer.save()
         self.check_counts(offering_count)
 
-    def _match_project_with_division(self, offering_count):
-        self.fixture.project.division = self.division
+    def _match_project_with_organization_group(self, offering_count):
+        self.fixture.project.organization_group = self.organization_group
         self.fixture.project.save()
         self.check_counts(offering_count)
 
@@ -97,9 +97,9 @@ class CategoryOfferingCountTest(test.APITransactionTestCase):
 
         self.check_counts(offering_count=1)
         self._create_plan(offering_count=2)
-        self._match_plan_with_division(offering_count=2)
-        self._match_customer_with_division(offering_count=2)
-        self._match_project_with_division(offering_count=2)
+        self._match_plan_with_organization_group(offering_count=2)
+        self._match_customer_with_organization_group(offering_count=2)
+        self._match_project_with_organization_group(offering_count=2)
         self._create_offering_for_owner(offering_count=2)
 
     @data("owner", "admin", "manager")
@@ -109,9 +109,9 @@ class CategoryOfferingCountTest(test.APITransactionTestCase):
 
         self.check_counts(offering_count=1)
         self._create_plan(offering_count=2)
-        self._match_plan_with_division(offering_count=1)
-        self._match_customer_with_division(offering_count=2)
-        self._match_project_with_division(offering_count=2)
+        self._match_plan_with_organization_group(offering_count=1)
+        self._match_customer_with_organization_group(offering_count=2)
+        self._match_project_with_organization_group(offering_count=2)
         self._create_offering_for_owner(offering_count=2)
 
     def test_counts_for_user(self):
@@ -120,18 +120,18 @@ class CategoryOfferingCountTest(test.APITransactionTestCase):
 
         self.check_counts(offering_count=1)
         self._create_plan(offering_count=1)
-        self._match_plan_with_division(offering_count=1)
-        self._match_customer_with_division(offering_count=1)
-        self._match_project_with_division(offering_count=1)
+        self._match_plan_with_organization_group(offering_count=1)
+        self._match_customer_with_organization_group(offering_count=1)
+        self._match_project_with_organization_group(offering_count=1)
         self._create_offering_for_owner(offering_count=1)
 
     @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
     def test_counts_for_anonymous(self):
         self.check_counts(offering_count=1)
         self._create_plan(offering_count=1)
-        self._match_plan_with_division(offering_count=1)
-        self._match_customer_with_division(offering_count=1)
-        self._match_project_with_division(offering_count=1)
+        self._match_plan_with_organization_group(offering_count=1)
+        self._match_customer_with_organization_group(offering_count=1)
+        self._match_project_with_organization_group(offering_count=1)
         self._create_offering_for_owner(offering_count=1)
 
     @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=False)

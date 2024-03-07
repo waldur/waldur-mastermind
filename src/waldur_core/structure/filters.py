@@ -66,24 +66,24 @@ class CustomerFilter(NameFilterSet):
     native_name = django_filters.CharFilter(lookup_expr="icontains")
     abbreviation = django_filters.CharFilter(lookup_expr="icontains")
     contact_details = django_filters.CharFilter(lookup_expr="icontains")
-    division_uuid = django_filters.ModelMultipleChoiceFilter(
-        field_name="division__uuid",
-        label="division_uuid",
+    organization_group_uuid = django_filters.ModelMultipleChoiceFilter(
+        field_name="organization_group__uuid",
+        label="organization_group_uuid",
         to_field_name="uuid",
-        queryset=models.Division.objects.all(),
+        queryset=models.OrganizationGroup.objects.all(),
     )
-    division_name = django_filters.CharFilter(
-        field_name="division__name", lookup_expr="icontains"
+    organization_group_name = django_filters.CharFilter(
+        field_name="organization_group__name", lookup_expr="icontains"
     )
-    division_type_uuid = django_filters.ModelMultipleChoiceFilter(
-        field_name="division__type__uuid",
-        label="division_type_uuid",
+    organization_group_type_uuid = django_filters.ModelMultipleChoiceFilter(
+        field_name="organization_group__type__uuid",
+        label="organization_group_type_uuid",
         to_field_name="uuid",
-        queryset=models.DivisionType.objects.all(),
+        queryset=models.OrganizationGroupType.objects.all(),
     )
 
-    division_type_name = django_filters.CharFilter(
-        field_name="division__type__name", lookup_expr="icontains"
+    organization_group_type_name = django_filters.CharFilter(
+        field_name="organization_group__type__name", lookup_expr="icontains"
     )
 
     class Meta:
@@ -623,25 +623,25 @@ class ServicePropertySettingsFilter(BaseServicePropertyFilter):
         fields = BaseServicePropertyFilter.Meta.fields + ("settings",)
 
 
-class DivisionFilter(NameFilterSet):
+class OrganizationGroupFilter(NameFilterSet):
     type = django_filters.CharFilter(field_name="type__name", lookup_expr="iexact")
     type_uuid = django_filters.UUIDFilter(field_name="type__uuid")
     type_url = core_filters.URLFilter(
-        view_name="division-type-detail",
+        view_name="organization-group-type-detail",
         field_name="type__uuid",
     )
     parent = django_filters.UUIDFilter(field_name="parent__uuid")
 
     class Meta:
-        model = models.Division
+        model = models.OrganizationGroup
         fields = [
             "name",
         ]
 
 
-class DivisionTypesFilter(NameFilterSet):
+class OrganizationGroupTypesFilter(NameFilterSet):
     class Meta:
-        model = models.DivisionType
+        model = models.OrganizationGroupType
         fields = [
             "name",
         ]

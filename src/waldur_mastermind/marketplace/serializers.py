@@ -95,7 +95,7 @@ class ServiceProviderSerializer(
             "customer_native_name",
             "customer_country",
             "image",
-            "division",
+            "organization_group",
             "description",
         )
         related_paths = {"customer": ("uuid", "name", "native_name", "abbreviation")}
@@ -110,7 +110,9 @@ class ServiceProviderSerializer(
 
     customer_image = ProtectedImageField(source="customer.image", read_only=True)
     customer_country = serializers.CharField(source="customer.country", read_only=True)
-    division = serializers.CharField(source="customer.division", read_only=True)
+    organization_group = serializers.CharField(
+        source="customer.organization_group", read_only=True
+    )
 
     def get_fields(self):
         fields = super().get_fields()
@@ -430,7 +432,9 @@ class QuotasUpdateSerializer(serializers.Serializer):
 class BasePlanSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
-    divisions = structure_serializers.DivisionSerializer(many=True, read_only=True)
+    organization_groups = structure_serializers.OrganizationGroupSerializer(
+        many=True, read_only=True
+    )
 
     class Meta:
         model = models.Plan
@@ -448,7 +452,7 @@ class BasePlanSerializer(
             "init_price",
             "switch_price",
             "backend_id",
-            "divisions",
+            "organization_groups",
         )
         read_ony_fields = ("unit_price", "archived")
         extra_kwargs = {
@@ -1061,7 +1065,9 @@ class ProviderOfferingDetailsSerializer(
     scope_state = serializers.ReadOnlyField(source="scope.get_state_display")
     files = NestedOfferingFileSerializer(many=True, read_only=True)
     quotas = serializers.ReadOnlyField(source="scope.quotas")
-    divisions = structure_serializers.DivisionSerializer(many=True, read_only=True)
+    organization_groups = structure_serializers.OrganizationGroupSerializer(
+        many=True, read_only=True
+    )
     total_customers = serializers.ReadOnlyField()
     total_cost = serializers.ReadOnlyField()
     total_cost_estimated = serializers.ReadOnlyField()
@@ -1121,7 +1127,7 @@ class ProviderOfferingDetailsSerializer(
             "longitude",
             "country",
             "backend_id",
-            "divisions",
+            "organization_groups",
             "image",
             "total_customers",
             "total_cost",
@@ -2103,15 +2109,15 @@ class CartSubmitSerializer(serializers.Serializer):
 
 
 def validate_public_offering(order: models.Order):
-    # Order is ok if divisions are not defined for offering
-    if not order.offering.divisions.count():
+    # Order is ok if organization groups are not defined for offering
+    if not order.offering.organization_groups.count():
         return
 
-    # Order is ok if consumer and provider divisions match
+    # Order is ok if consumer and provider organization groups match
     if (
-        order.project.customer.division_id
-        and order.offering.divisions.filter(
-            id=order.project.customer.division_id
+        order.project.customer.organization_group_id
+        and order.offering.organization_groups.filter(
+            id=order.project.customer.organization_group_id
         ).exists()
     ):
         return
@@ -3211,10 +3217,10 @@ class OfferingThumbnailSerializer(
         fields = ("thumbnail",)
 
 
-class DivisionsSerializer(serializers.Serializer):
-    divisions = serializers.HyperlinkedRelatedField(
-        queryset=structure_models.Division.objects.all(),
-        view_name="division-detail",
+class OrganizationGroupsSerializer(serializers.Serializer):
+    organization_groups = serializers.HyperlinkedRelatedField(
+        queryset=structure_models.OrganizationGroup.objects.all(),
+        view_name="organization-group-detail",
         lookup_field="uuid",
         required=False,
         many=True,
@@ -3223,18 +3229,18 @@ class DivisionsSerializer(serializers.Serializer):
     def save(self, **kwargs):
         if isinstance(self.instance, models.Offering):
             offering = self.instance
-            divisions = self.validated_data["divisions"]
-            offering.divisions.clear()
+            organization_groups = self.validated_data["organization_groups"]
+            offering.organization_groups.clear()
 
-            if divisions:
-                offering.divisions.add(*divisions)
+            if organization_groups:
+                offering.organization_groups.add(*organization_groups)
         elif isinstance(self.instance, models.Plan):
             plan = self.instance
-            divisions = self.validated_data["divisions"]
-            plan.divisions.clear()
+            organization_groups = self.validated_data["organization_groups"]
+            plan.organization_groups.clear()
 
-            if divisions:
-                plan.divisions.add(*divisions)
+            if organization_groups:
+                plan.organization_groups.add(*organization_groups)
 
 
 class CostsSerializer(serializers.Serializer):

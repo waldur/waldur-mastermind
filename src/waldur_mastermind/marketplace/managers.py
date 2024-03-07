@@ -13,7 +13,7 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure.managers import (
     get_connected_customers,
     get_connected_projects,
-    get_divisions,
+    get_organization_groups,
 )
 from waldur_core.structure.models import get_new_role_name
 
@@ -82,7 +82,8 @@ class OfferingQuerySet(django_models.QuerySet):
 
         # filtering by available plans
         plans = models.Plan.objects.filter(
-            Q(divisions__isnull=True) | Q(divisions__in=get_divisions(user))
+            Q(organization_groups__isnull=True)
+            | Q(organization_groups__in=get_organization_groups(user))
         ).filter(archived=False)
 
         # filtering by customers and projects
@@ -111,8 +112,12 @@ class OfferingQuerySet(django_models.QuerySet):
             return self.none()
 
         return self.filter(
-            Q(shared=True, divisions__isnull=True)
-            | Q(shared=True, divisions__isnull=False, divisions=customer.division)
+            Q(shared=True, organization_groups__isnull=True)
+            | Q(
+                shared=True,
+                organization_groups__isnull=False,
+                organization_groups=customer.organization_group,
+            )
             | Q(customer__uuid=value)
         )
 
@@ -176,8 +181,11 @@ class PlanQuerySet(django_models.QuerySet):
     def filter_for_customer(self, value):
         customer = structure_models.Customer.objects.get(uuid=value)
         return self.filter(
-            Q(divisions__isnull=True)
-            | Q(divisions__isnull=False, divisions=customer.division)
+            Q(organization_groups__isnull=True)
+            | Q(
+                organization_groups__isnull=False,
+                organization_groups=customer.organization_group,
+            )
         )
 
     # TODO: Remove after migration of clients to a new endpoint
@@ -200,7 +208,9 @@ class PlanQuerySet(django_models.QuerySet):
         connected_customers = get_connected_customers(user)
         connected_offerings = get_connected_offerings(user)
 
-        q1 = Q(divisions__isnull=True) | Q(divisions__in=get_divisions(user))
+        q1 = Q(organization_groups__isnull=True) | Q(
+            organization_groups__in=get_organization_groups(user)
+        )
         q2 = (
             Q(offering__customer__in=connected_customers)
             | Q(offering__project__in=connected_projects)

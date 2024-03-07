@@ -38,50 +38,52 @@ class PlanComponentsGetTest(test.APITransactionTestCase):
 
         self.url = factories.PlanComponentFactory.get_list_url()
 
-    def test_user_is_staff_and_plans_are_not_matched_with_divisions(self):
+    def test_user_is_staff_and_plans_are_not_matched_with_organization_groups(self):
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 2)
 
-    def test_user_is_not_staff_and_plans_are_not_matched_with_divisions(self):
+    def test_user_is_not_staff_and_plans_are_not_matched_with_organization_groups(self):
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 2)
 
-    def test_user_is_staff_and_plans_are_matched_with_divisions(self):
-        division = structure_factories.DivisionFactory()
-        self.shared_plan.divisions.add(division)
+    def test_user_is_staff_and_plans_are_matched_with_organization_groups(self):
+        organization_group = structure_factories.OrganizationGroupFactory()
+        self.shared_plan.organization_groups.add(organization_group)
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 2)
 
-    def test_user_is_not_staff_and_plans_are_matched_with_divisions(self):
-        division = structure_factories.DivisionFactory()
-        self.shared_plan.divisions.add(division)
+    def test_user_is_not_staff_and_plans_are_matched_with_organization_groups(self):
+        organization_group = structure_factories.OrganizationGroupFactory()
+        self.shared_plan.organization_groups.add(organization_group)
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 1)
 
-    def test_user_is_owner_and_plan_and_customer_are_connected_the_same_division(self):
-        division = structure_factories.DivisionFactory()
-        self.shared_plan.divisions.add(division)
-        self.customer.division = division
+    def test_user_is_owner_and_plan_and_customer_are_connected_the_same_organization_group(
+        self,
+    ):
+        organization_group = structure_factories.OrganizationGroupFactory()
+        self.shared_plan.organization_groups.add(organization_group)
+        self.customer.organization_group = organization_group
         self.customer.save()
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 2)
 
-    def test_user_is_admin_and_plan_and_project_customer_are_connected_the_same_division(
+    def test_user_is_admin_and_plan_and_project_customer_are_connected_the_same_organization_group(
         self,
     ):
-        division = structure_factories.DivisionFactory()
-        self.shared_plan.divisions.add(division)
-        self.customer.division = division
+        organization_group = structure_factories.OrganizationGroupFactory()
+        self.shared_plan.organization_groups.add(organization_group)
+        self.customer.organization_group = organization_group
         self.customer.save()
         self.client.force_authenticate(self.fixture.admin)
         response = self.client.get(self.url)
@@ -93,7 +95,9 @@ class PlanComponentsGetTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 1)
 
-        self.shared_plan.divisions.add(structure_factories.DivisionFactory())
+        self.shared_plan.organization_groups.add(
+            structure_factories.OrganizationGroupFactory()
+        )
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 0)

@@ -269,7 +269,7 @@ class CustomerAdmin(
         "image",
         "native_name",
         "abbreviation",
-        "division",
+        "organization_group",
         "contact_details",
         "registration_code",
         "backend_id",
@@ -304,7 +304,7 @@ class CustomerAdmin(
         "created",
         "accounting_start_date",
     )
-    list_filter = ("blocked", "archived", "division")
+    list_filter = ("blocked", "archived", "organization_group")
     search_fields = ("name", "uuid", "abbreviation")
     date_hierarchy = "created"
     readonly_fields = ("uuid",)
@@ -774,12 +774,12 @@ class VirtualMachineAdmin(ResourceAdmin):
     detect_coordinates.short_description = _("Detect coordinates of virtual machines")
 
 
-class DivisionTypeAdmin(admin.ModelAdmin):
+class OrganizationGroupTypeAdmin(admin.ModelAdmin):
     list_display = ("name", "uuid")
     search_fields = ["name"]
 
 
-class DivisionAdmin(admin.ModelAdmin):
+class OrganizationGroupAdmin(admin.ModelAdmin):
     list_display = ("name", "type", "parent", "uuid")
     search_fields = ["name"]
     list_filter = ("type",)
@@ -824,8 +824,8 @@ admin.site.register(models.CustomerPermissionReview, CustomerPermissionReviewAdm
 admin.site.register(models.Project, ProjectAdmin)
 admin.site.register(models.PrivateServiceSettings, PrivateServiceSettingsAdmin)
 admin.site.register(models.SharedServiceSettings, SharedServiceSettingsAdmin)
-admin.site.register(models.DivisionType, DivisionTypeAdmin)
-admin.site.register(models.Division, DivisionAdmin)
+admin.site.register(models.OrganizationGroupType, OrganizationGroupTypeAdmin)
+admin.site.register(models.OrganizationGroup, OrganizationGroupAdmin)
 admin.site.register(models.UserAgreement, UserAgreementAdmin)
 admin.site.register(NotificationTemplate, NotificationTemplateAdmin)
 admin.site.register(Notification, NotificationAdmin)

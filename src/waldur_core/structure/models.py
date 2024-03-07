@@ -258,32 +258,32 @@ class CustomerRole(models.CharField):
         super().__init__(*args, **kwargs)
 
 
-class DivisionType(core_models.UuidMixin, core_models.NameMixin, models.Model):
+class OrganizationGroupType(core_models.UuidMixin, core_models.NameMixin, models.Model):
     class Meta:
-        verbose_name = _("division type")
+        verbose_name = _("organization group type")
         ordering = ("name",)
 
     @classmethod
     def get_url_name(cls):
-        return "division-type"
+        return "organization-group-type"
 
     def __str__(self):
         return self.name
 
 
-class Division(core_models.UuidMixin, core_models.NameMixin, models.Model):
-    type = models.ForeignKey(on_delete=models.CASCADE, to="DivisionType")
+class OrganizationGroup(core_models.UuidMixin, core_models.NameMixin, models.Model):
+    type = models.ForeignKey(on_delete=models.CASCADE, to="OrganizationGroupType")
     parent = models.ForeignKey(
-        on_delete=models.CASCADE, to="Division", null=True, blank=True
+        on_delete=models.CASCADE, to="OrganizationGroup", null=True, blank=True
     )
 
     class Meta:
-        verbose_name = _("division")
+        verbose_name = _("organization group")
         ordering = ("name",)
 
     @classmethod
     def get_url_name(cls):
-        return "division"
+        return "organization-group"
 
     def __str__(self):
         full_path = [self.name]
@@ -386,8 +386,8 @@ class Customer(
     )
     blocked = models.BooleanField(default=False)
     archived = models.BooleanField(default=False)
-    division = models.ForeignKey(
-        "Division", null=True, blank=True, on_delete=models.SET_NULL
+    organization_group = models.ForeignKey(
+        "OrganizationGroup", null=True, blank=True, on_delete=models.SET_NULL
     )
     inet = CidrAddressField(null=True, blank=True)
     tracker = FieldTracker()
