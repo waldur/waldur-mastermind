@@ -13,7 +13,7 @@ class Migration(migrations.Migration):
     dependencies = [
         ("marketplace", "0128_alter_plan_unit_price"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ("proposal", "0016_requestedoffering_description"),
+        ("proposal", "0017_call_role"),
     ]
 
     operations = [
