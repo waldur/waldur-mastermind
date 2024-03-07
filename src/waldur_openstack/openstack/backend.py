@@ -29,6 +29,7 @@ from waldur_openstack.openstack_base.exceptions import OpenStackBackendError
 from waldur_openstack.openstack_base.session import (
     get_cinder_client,
     get_keystone_client,
+    get_keystone_session,
     get_neutron_client,
     get_nova_client,
 )
@@ -973,8 +974,9 @@ class OpenStackBackend(BaseOpenStackBackend):
         return subnet
 
     @log_backend_action()
-    def create_tenant(self, tenant):
-        keystone = get_keystone_client(self.session)
+    def create_tenant(self, tenant: models.Tenant):
+        session = get_keystone_session(tenant.service_settings)
+        keystone = get_keystone_client(session)
         try:
             backend_tenant = keystone.projects.create(
                 name=tenant.name,
@@ -1076,9 +1078,10 @@ class OpenStackBackend(BaseOpenStackBackend):
             update_pulled_fields(tenant, imported_tenant, ("name", "description"))
 
     @log_backend_action()
-    def add_admin_user_to_tenant(self, tenant):
+    def add_admin_user_to_tenant(self, tenant: models.Tenant):
         """Add user from openstack settings to new tenant"""
-        keystone = get_keystone_client(self.session)
+        session = get_keystone_session(tenant.service_settings)
+        keystone = get_keystone_client(session)
 
         try:
             admin_user = keystone.users.find(name=self.settings.username)
@@ -1473,13 +1476,14 @@ class OpenStackBackend(BaseOpenStackBackend):
             )
 
     @log_backend_action()
-    def delete_tenant(self, tenant):
+    def delete_tenant(self, tenant: models.Tenant):
         if not tenant.backend_id:
             raise OpenStackBackendError(
                 "This method should not be called if tenant has no backend_id"
             )
 
-        keystone = get_keystone_client(self.session)
+        session = get_keystone_session(tenant.service_settings)
+        keystone = get_keystone_client(session)
 
         logger.info("Deleting tenant %s", tenant.backend_id)
         try:
@@ -2378,7 +2382,8 @@ class OpenStackBackend(BaseOpenStackBackend):
 
     @log_backend_action()
     def update_tenant(self, tenant):
-        keystone = get_keystone_client(self.session)
+        session = get_keystone_session(tenant.service_settings)
+        keystone = get_keystone_client(session)
         try:
             keystone.projects.update(
                 tenant.backend_id, name=tenant.name, description=tenant.description
