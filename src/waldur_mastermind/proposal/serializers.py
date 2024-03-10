@@ -614,8 +614,9 @@ class ReviewSerializer(
     serializers.HyperlinkedModelSerializer,
 ):
     state = serializers.ReadOnlyField(source="get_state_display")
-    round_name = serializers.ReadOnlyField(source="proposal.round.name")
     round_uuid = serializers.UUIDField(source="proposal.round.uuid", read_only=True)
+    round_cutoff_time = serializers.ReadOnlyField(source="proposal.round.cutoff_time")
+    round_start_time = serializers.ReadOnlyField(source="proposal.round.start_time")
     call_uuid = serializers.UUIDField(source="proposal.round.call.uuid", read_only=True)
     call_name = serializers.ReadOnlyField(source="proposal.round.call.name")
 
@@ -633,8 +634,9 @@ class ReviewSerializer(
             "summary_public_comment",
             "summary_private_comment",
             "proposal_name",
-            "round_name",
             "round_uuid",
+            "round_cutoff_time",
+            "round_start_time",
             "call_name",
             "call_uuid",
         )
