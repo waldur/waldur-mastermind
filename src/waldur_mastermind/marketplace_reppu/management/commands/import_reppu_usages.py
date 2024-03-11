@@ -123,12 +123,6 @@ class Command(BaseCommand):
                 return
             new_usage = min(new_usage, resource_limit)
 
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"Setting {resource} {component_type} component usage from {component_usage.usage} to {new_usage}"
-            )
-        )
-
         if self.dry_run:
             self.stdout.write(
                 self.style.SUCCESS(
