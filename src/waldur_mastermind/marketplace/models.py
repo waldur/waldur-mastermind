@@ -1522,6 +1522,9 @@ class RobotAccount(
             "username",
         )
 
+    def __str__(self):
+        return f"Robot account {self.username} for {self.resource}"
+
 
 class OfferingAccessEndpoint(core_models.UuidMixin, core_models.NameMixin):
     url = core_fields.BackendURLField()
