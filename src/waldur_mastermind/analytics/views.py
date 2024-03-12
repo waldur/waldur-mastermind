@@ -2,16 +2,15 @@ import collections
 from datetime import timedelta
 
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import OuterRef, Subquery, Sum
+from django.db.models import F, OuterRef, Subquery, Sum
+from django.db.models.query import QuerySet
 from rest_framework import permissions, status, viewsets
 from rest_framework.response import Response
 
 from waldur_core.quotas.models import QuotaUsage
-from waldur_core.structure.models import Project
+from waldur_core.structure.models import Customer, Project
 from waldur_core.structure.permissions import IsStaffOrSupportUser
 from waldur_mastermind.billing.models import PriceEstimate
-from waldur_mastermind.invoices.models import InvoiceItem
-from waldur_mastermind.invoices.utils import get_current_month, get_current_year
 
 from . import models, serializers
 
@@ -61,7 +60,7 @@ class DailyQuotaHistoryViewSet(viewsets.GenericViewSet):
         return values
 
 
-class ProjectQuotasViewSet(viewsets.GenericViewSet):
+class BaseQuotasViewSet(viewsets.GenericViewSet):
     # Fix for schema generation
     queryset = []
     permission_classes = (
@@ -69,30 +68,43 @@ class ProjectQuotasViewSet(viewsets.GenericViewSet):
         IsStaffOrSupportUser,
     )
 
+    model = None
+
+    def get_queryset(self) -> QuerySet:
+        qs = self.model
+        if hasattr(qs, "available_objects"):
+            return getattr(qs, "available_objects")
+        else:
+            return qs.objects
+
+    def get_content_type(self):
+        return ContentType.objects.get_for_model(self.model)
+
     def list(self, request):
         quota_name = request.query_params.get("quota_name")
         if not quota_name:
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
-        content_type = ContentType.objects.get_for_model(Project)
         if quota_name == "estimated_price":
-            queryset = self.annotate_estimated_price(content_type)
-        elif quota_name == "current_price":
-            queryset = self.annotate_current_price(content_type)
+            queryset = self.annotate_estimated_price()
         else:
-            queryset = self.annotate_quotas(quota_name, content_type)
+            queryset = self.annotate_quotas(quota_name)
+
+        queryset = queryset.order_by(F("value").desc(nulls_last=True))
 
         queryset = self.paginate_queryset(queryset)
-        serializer = serializers.ProjectQuotasSerializer(
-            queryset, many=True, context={"request": request}
-        )
+        if self.model is Project:
+            serializer_class = serializers.ProjectQuotasSerializer
+        else:
+            serializer_class = serializers.CustomerQuotasSerializer
+        serializer = serializer_class(queryset, many=True, context={"request": request})
         return self.get_paginated_response(serializer.data)
 
-    def annotate_quotas(self, quota_name, content_type):
+    def annotate_quotas(self, quota_name):
         quotas = (
             QuotaUsage.objects.filter(
                 object_id=OuterRef("pk"),
-                content_type=content_type,
+                content_type=self.get_content_type(),
                 name=quota_name,
             )
             .annotate(usage=Sum("delta"))
@@ -103,22 +115,20 @@ class ProjectQuotasViewSet(viewsets.GenericViewSet):
         # It allows to remove extra GROUP BY clause from the subquery.
         quotas.query.group_by = []
         subquery = Subquery(quotas)
-        return Project.available_objects.annotate(value=subquery)
+        return self.get_queryset().annotate(value=subquery)
 
-    def annotate_estimated_price(self, content_type):
+    def annotate_estimated_price(self):
         estimates = PriceEstimate.objects.filter(
             object_id=OuterRef("pk"),
-            content_type=content_type,
+            content_type=self.get_content_type(),
         )
         subquery = Subquery(estimates.values("total")[:1])
-        return Project.available_objects.annotate(value=subquery)
+        return self.get_queryset().annotate(value=subquery)
 
-    def annotate_current_price(self, content_type):
-        projects = Project.available_objects.all()
-        year, month = get_current_year(), get_current_month()
-        for project in projects:
-            items = InvoiceItem.objects.filter(
-                invoice__year=year, invoice__month=month, project_id=project.id
-            )
-            project.value = sum(item.price_current for item in items)
-        return projects
+
+class ProjectQuotasViewSet(BaseQuotasViewSet):
+    model = Project
+
+
+class CustomerQuotasViewSet(BaseQuotasViewSet):
+    model = Customer
