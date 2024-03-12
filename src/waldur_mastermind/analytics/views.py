@@ -7,6 +7,7 @@ from django.db.models.query import QuerySet
 from rest_framework import permissions, status, viewsets
 from rest_framework.response import Response
 
+from waldur_core.core.utils import get_ordering
 from waldur_core.quotas.models import QuotaUsage
 from waldur_core.structure.models import Customer, Project
 from waldur_core.structure.permissions import IsStaffOrSupportUser
@@ -85,12 +86,16 @@ class BaseQuotasViewSet(viewsets.GenericViewSet):
         if not quota_name:
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
+        ordering_field = get_ordering(request) or "value"
+        if ordering_field not in ("value", "name"):
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
         if quota_name == "estimated_price":
             queryset = self.annotate_estimated_price()
         else:
             queryset = self.annotate_quotas(quota_name)
 
-        queryset = queryset.order_by(F("value").desc(nulls_last=True))
+        queryset = queryset.order_by(F(ordering_field).desc(nulls_last=True))
 
         queryset = self.paginate_queryset(queryset)
         if self.model is Project:
