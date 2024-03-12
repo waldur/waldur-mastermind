@@ -33,3 +33,9 @@ class ProjectQuotasSerializer(serializers.Serializer):
     customer_name = serializers.ReadOnlyField(source="customer.name")
     customer_abbreviation = serializers.ReadOnlyField(source="customer.abbreviation")
     value = serializers.ReadOnlyField()
+
+
+class CustomerQuotasSerializer(serializers.Serializer):
+    customer_name = serializers.ReadOnlyField(source="name")
+    customer_abbreviation = serializers.ReadOnlyField(source="abbreviation")
+    value = serializers.ReadOnlyField()
