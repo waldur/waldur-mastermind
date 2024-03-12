@@ -37,6 +37,7 @@ class HeappeBackend:
         payload = {
             "SessionCode": heappe_session_code,
             "Name": resource.name,
+            "PIEmail": "",  # an empty placeholder, we do not pass PI email to HEAppE
             "Description": resource.description,
             "AccountingString": resource.backend_id,
             "StartDate": resource.created.isoformat(),
