@@ -1392,13 +1392,23 @@ class BasePropertySerializer(
 
 
 class OrganizationGroupSerializer(serializers.HyperlinkedModelSerializer):
-    type = serializers.ReadOnlyField(source="type.name")
+    type = serializers.UUIDField(source="type.uuid")
+    type_name = serializers.CharField(source="type.name", read_only=True)
     parent_uuid = serializers.ReadOnlyField(source="parent.uuid")
     parent_name = serializers.ReadOnlyField(source="parent.type.name")
 
     class Meta:
         model = models.OrganizationGroup
-        fields = ("uuid", "url", "name", "type", "parent_uuid", "parent_name", "parent")
+        fields = (
+            "uuid",
+            "url",
+            "name",
+            "type",
+            "type_name",
+            "parent_uuid",
+            "parent_name",
+            "parent",
+        )
         extra_kwargs = {
             "url": {"view_name": "organization-group-detail", "lookup_field": "uuid"},
             "parent": {
@@ -1406,6 +1416,24 @@ class OrganizationGroupSerializer(serializers.HyperlinkedModelSerializer):
                 "view_name": "organization-group-detail",
             },
         }
+
+    def create(self, validated_data):
+        type_uuid = validated_data.pop("type", None)
+        if type_uuid:
+            validated_data["type"] = models.OrganizationGroupType.objects.get(
+                uuid=type_uuid["uuid"]
+            )
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        type_uuid = validated_data.pop("type", None)
+        if type_uuid:
+            instance.type = models.OrganizationGroupType.objects.get(
+                uuid=type_uuid["uuid"]
+            )
+        instance.name = validated_data.get("name", instance.name)
+        instance.save()
+        return instance
 
 
 class OrganizationGroupTypesSerializer(serializers.HyperlinkedModelSerializer):

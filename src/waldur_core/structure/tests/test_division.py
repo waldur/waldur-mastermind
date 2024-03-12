@@ -1,6 +1,7 @@
 from ddt import data, ddt
 from rest_framework import status, test
 
+from waldur_core.structure import models
 from waldur_core.structure.tests import factories, fixtures
 
 
@@ -140,3 +141,65 @@ class OrganizationGroupTypeListTest(test.APITransactionTestCase):
             response = self.client.get(self.url, data={row["name"]: row["invalid"]})
             self.assertEqual(status.HTTP_200_OK, response.status_code)
             self.assertEqual(len(response.data), 0)
+
+
+@ddt
+class OrganizationGroupCreateTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+
+    def create_organization_group(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        url = factories.OrganizationGroupFactory.get_list_url()
+        group_type = factories.OrganizationGroupTypeFactory()
+        payload = {
+            "name": "testcrud",
+            "type": group_type.uuid.hex,
+        }
+        response = self.client.post(url, payload)
+        return response
+
+    def update_organization_group(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        organization_group = factories.OrganizationGroupFactory(name="testcrud")
+        group_type = factories.OrganizationGroupTypeFactory()
+        payload = {
+            "name": "updated_testcrud",
+            "type": group_type.uuid.hex,
+        }
+        response = self.client.put(
+            factories.OrganizationGroupFactory.get_url(organization_group), payload
+        )
+        return response
+
+    @data(
+        "staff",
+    )
+    def test_staff_user_can_create_organization_group(self, user):
+        response = self.create_organization_group(user)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(
+            models.OrganizationGroup.objects.filter(name="testcrud").exists()
+        )
+
+    @data("owner", "user", "customer_support", "admin", "manager")
+    def test_non_staff_user_can_not_create_organization_group(self, user):
+        response = self.create_organization_group(user)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @data(
+        "staff",
+    )
+    def test_staff_user_can_update_organization_group(self, user):
+        response = self.update_organization_group(user)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(
+            models.OrganizationGroup.objects.filter(name="updated_testcrud").exists()
+        )
+
+    @data("owner", "user", "customer_support", "admin", "manager")
+    def test_non_staff_user_can_not_update_organization_group(self, user):
+        response = self.update_organization_group(user)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
