@@ -138,9 +138,10 @@ def get_keystone_session(settings, tenant_id=None):
     try:
         logger.debug("Trying to recover OpenStack session.")
         recovered_session = recover_cached_session(cached_session, verify_ssl)
-        # validate if cached session is valid
-        recovered_session.get_auth_headers()
-        return recovered_session
+        if recovered_session.auth.auth_ref.will_expire_soon(60 * 10):
+            cache.delete(session_key)
+        else:
+            return recovered_session
     except (AttributeError, IndexError, keystoneauth_exceptions.ClientException):
         logger.warning("Unable to recover OpenStack session, deleting cache.")
         cache.delete(session_key)
