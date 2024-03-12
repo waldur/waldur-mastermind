@@ -145,10 +145,86 @@ class NestedRequestedResourceSerializer(serializers.HyperlinkedModelSerializer):
         }
 
 
-class ProposalListSerializer(serializers.HyperlinkedModelSerializer):
+class ReviewSerializer(
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
+):
+    state = serializers.ReadOnlyField(source="get_state_display")
+    round_uuid = serializers.UUIDField(source="proposal.round.uuid", read_only=True)
+    round_cutoff_time = serializers.ReadOnlyField(source="proposal.round.cutoff_time")
+    round_start_time = serializers.ReadOnlyField(source="proposal.round.start_time")
+    call_uuid = serializers.UUIDField(source="proposal.round.call.uuid", read_only=True)
+    call_name = serializers.ReadOnlyField(source="proposal.round.call.name")
+
+    proposal_name = serializers.ReadOnlyField(source="proposal.name")
+
+    class Meta:
+        model = models.Review
+        fields = (
+            "url",
+            "uuid",
+            "proposal",
+            "reviewer",
+            "state",
+            "summary_score",
+            "summary_public_comment",
+            "summary_private_comment",
+            "proposal_name",
+            "round_uuid",
+            "round_cutoff_time",
+            "round_start_time",
+            "call_name",
+            "call_uuid",
+        )
+        read_only_fields = ("proposal",)
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+            },
+            "proposal": {
+                "lookup_field": "uuid",
+                "view_name": "proposal-proposal-detail",
+            },
+            "reviewer": {
+                "lookup_field": "uuid",
+                "view_name": "user-detail",
+            },
+        }
+
+    def get_fields(self):
+        fields = super().get_fields()
+
+        if not self.instance:
+            return fields
+        elif isinstance(self.instance, list):
+            review = self.instance[0]
+        else:
+            review: models.Review = self.instance
+
+        try:
+            request = self.context["view"].request
+            user = request.user
+        except (KeyError, AttributeError):
+            return fields
+
+        if (
+            user.is_staff
+            or review.reviewer == user
+            or review.proposal.round.call.manager.customer.has_user(user)
+        ):
+            return fields
+
+        del fields["summary_private_comment"]
+        del fields["reviewer"]
+
+        return fields
+
+
+class ProtectedProposalListSerializer(serializers.HyperlinkedModelSerializer):
     state = serializers.ReadOnlyField(source="get_state_display")
     created_by_name = serializers.ReadOnlyField(source="created_by.full_name")
     approved_by_name = serializers.ReadOnlyField(source="approved_by.full_name")
+    reviews = ReviewSerializer(many=True, read_only=True, source="review_set")
 
     class Meta:
         model = models.Proposal
@@ -156,6 +232,7 @@ class ProposalListSerializer(serializers.HyperlinkedModelSerializer):
             "uuid",
             "name",
             "state",
+            "reviews",
             "approved_by_name",
             "created_by_name",
             "created",
@@ -498,7 +575,9 @@ class ProtectedRoundSerializer(
     core_serializers.AugmentedSerializerMixin, NestedRoundSerializer
 ):
     url = serializers.SerializerMethodField()
-    proposals = ProposalListSerializer(many=True, read_only=True, source="proposal_set")
+    proposals = ProtectedProposalListSerializer(
+        many=True, read_only=True, source="proposal_set"
+    )
 
     class Meta(NestedRoundSerializer.Meta):
         fields = NestedRoundSerializer.Meta.fields + ["url", "proposals"]
@@ -607,78 +686,3 @@ class ProposalSerializer(
     def create(self, validated_data):
         validated_data["created_by"] = self.context["request"].user
         return super().create(validated_data)
-
-
-class ReviewSerializer(
-    core_serializers.AugmentedSerializerMixin,
-    serializers.HyperlinkedModelSerializer,
-):
-    state = serializers.ReadOnlyField(source="get_state_display")
-    round_uuid = serializers.UUIDField(source="proposal.round.uuid", read_only=True)
-    round_cutoff_time = serializers.ReadOnlyField(source="proposal.round.cutoff_time")
-    round_start_time = serializers.ReadOnlyField(source="proposal.round.start_time")
-    call_uuid = serializers.UUIDField(source="proposal.round.call.uuid", read_only=True)
-    call_name = serializers.ReadOnlyField(source="proposal.round.call.name")
-
-    proposal_name = serializers.ReadOnlyField(source="proposal.name")
-
-    class Meta:
-        model = models.Review
-        fields = (
-            "url",
-            "uuid",
-            "proposal",
-            "reviewer",
-            "state",
-            "summary_score",
-            "summary_public_comment",
-            "summary_private_comment",
-            "proposal_name",
-            "round_uuid",
-            "round_cutoff_time",
-            "round_start_time",
-            "call_name",
-            "call_uuid",
-        )
-        read_only_fields = ("proposal",)
-        extra_kwargs = {
-            "url": {
-                "lookup_field": "uuid",
-            },
-            "proposal": {
-                "lookup_field": "uuid",
-                "view_name": "proposal-proposal-detail",
-            },
-            "reviewer": {
-                "lookup_field": "uuid",
-                "view_name": "user-detail",
-            },
-        }
-
-    def get_fields(self):
-        fields = super().get_fields()
-
-        if not self.instance:
-            return fields
-        elif isinstance(self.instance, list):
-            review = self.instance[0]
-        else:
-            review: models.Review = self.instance
-
-        try:
-            request = self.context["view"].request
-            user = request.user
-        except (KeyError, AttributeError):
-            return fields
-
-        if (
-            user.is_staff
-            or review.reviewer == user
-            or review.proposal.round.call.manager.customer.has_user(user)
-        ):
-            return fields
-
-        del fields["summary_private_comment"]
-        del fields["reviewer"]
-
-        return fields
