@@ -163,10 +163,6 @@ class SupportSection(FeatureSection):
         "Render service usage as a sankey chart in support workspace."
     )
 
-    resources_treemap = Feature(
-        "Render resource usage as a treemap chart in support workspace."
-    )
-
     shared_providers = Feature(
         "Render overview of shared marketplace service providers in support workspace."
     )
