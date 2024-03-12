@@ -1,7 +1,8 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from django.db.models import Q
+from django.utils import timezone as timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import decorators, exceptions, response, status, viewsets
 from rest_framework import permissions as rf_permissions
@@ -252,6 +253,68 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
                 "Error removed documents",
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+    @decorators.action(detail=True)
+    def stats(self, request, uuid=None):
+        instance = self.get_object()
+        now = timezone.now()
+        one_week_from_now = now + timedelta(weeks=1)
+
+        open_calls = models.Call.objects.filter(
+            state=models.Call.States.ACTIVE, manager__id=instance.id
+        ).count()
+        active_rounds = models.Round.objects.filter(
+            cutoff_time__gte=now,
+            call__manager__id=instance.id,
+        ).count()
+        accepted_proposals = models.Proposal.objects.filter(
+            state=models.Proposal.States.ACCEPTED,
+            round__call__manager__id=instance.id,
+        ).count()
+        pending_proposals = models.Proposal.objects.filter(
+            state__in=[
+                models.Proposal.States.IN_REVISION,
+                models.Proposal.States.IN_REVIEW,
+                models.Proposal.States.SUBMITTED,
+            ],
+            round__call__manager__id=instance.id,
+        ).count()
+        pending_review = models.Review.objects.filter(
+            state=models.Review.States.SUBMITTED,
+            proposal__round__call__manager__id=instance.id,
+        ).count()
+
+        rounds_closing_in_one_week = models.Round.objects.filter(
+            cutoff_time__gte=now,
+            cutoff_time__lte=one_week_from_now,
+            call__manager__id=instance.id,
+        ).count()
+
+        calls_closing_in_one_week = models.Call.objects.filter(
+            state=models.Call.States.ACTIVE,
+            round__cutoff_time__gte=now,
+            round__cutoff_time__lte=one_week_from_now,
+            manager__id=instance.id,
+        ).count()
+
+        offering_requests_pending = models.RequestedOffering.objects.filter(
+            state=models.RequestedOffering.States.REQUESTED,
+            call__manager__id=instance.id,
+        ).count()
+
+        return response.Response(
+            {
+                "open_calls": open_calls,
+                "active_rounds": active_rounds,
+                "accepted_proposals": accepted_proposals,
+                "pending_proposals": pending_proposals,
+                "pending_review": pending_review,
+                "rounds_closing_in_one_week": rounds_closing_in_one_week,
+                "calls_closing_in_one_week": calls_closing_in_one_week,
+                "offering_requests_pending": offering_requests_pending,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class ProposalViewSet(ActionsViewSet, ActionMethodMixin):
