@@ -12,7 +12,7 @@ from django.template.defaultfilters import slugify
 from django.utils.translation import gettext_lazy as _
 from iptools.ipv4 import validate_cidr as is_valid_ipv4_cidr
 from iptools.ipv6 import validate_cidr as is_valid_ipv6_cidr
-from netaddr import IPNetwork, all_matching_cidrs
+from netaddr import AddrFormatError, IPNetwork, all_matching_cidrs
 from rest_framework import serializers
 
 from waldur_core.core import utils as core_utils
@@ -906,6 +906,12 @@ class _NestedSubNetSerializer(serializers.ModelSerializer):
 class StaticRouteSerializer(serializers.Serializer):
     destination = serializers.CharField()
     nexthop = serializers.IPAddressField()
+
+    def validate_destination(self, value):
+        try:
+            return str(IPNetwork(value))
+        except (AddrFormatError, TypeError):
+            raise serializers.ValidationError("Invalid CIDR format.")
 
 
 class RouterSetRoutesSerializer(serializers.Serializer):
