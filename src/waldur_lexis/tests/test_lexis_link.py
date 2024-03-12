@@ -82,7 +82,7 @@ class LexisLinkCreateTest(test.APITransactionTestCase):
         responses.add(
             responses.POST,
             "https://heappy.example.com/heappe/Management/SecureShellKey",
-            json={"PublicKeyOpenSSH": [self.ssh_key]},
+            json=[{"PublicKeyOpenSSH": self.ssh_key}],
         )
 
         responses.add(
