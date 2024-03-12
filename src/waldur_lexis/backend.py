@@ -133,7 +133,7 @@ class HeappeBackend:
             )
 
         ssh_key = response.json()
-        ssh_key_rsa = ssh_key["PublicKeyOpenSSH"]
+        ssh_key_rsa = ssh_key[0]["PublicKeyOpenSSH"]
 
         existing_keys = set(lexis_link.robot_account.keys)
         if ssh_key_rsa not in existing_keys:
