@@ -17,6 +17,7 @@ from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
 from reversion import revisions as reversion
 
+from waldur_core.core import managers as core_managers
 from waldur_core.core.fields import CronScheduleField, UUIDField
 from waldur_core.core.utils import normalize_unicode, send_mail
 from waldur_core.core.validators import (
@@ -302,7 +303,8 @@ class User(
         self.query_field = normalize_unicode(value)
 
     tracker = FieldTracker()
-    objects = UserManager()
+    objects = core_managers.UserActiveManager()
+    all_objects = UserManager()
 
     USERNAME_FIELD = "username"
     REQUIRED_FIELDS = ["email"]

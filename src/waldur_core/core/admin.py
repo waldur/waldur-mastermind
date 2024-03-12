@@ -356,6 +356,15 @@ class UserAdmin(NativeNameAdminMixin, auth_admin.UserAdmin, VersionAdmin):
 
     pull_remote_user.short_description = "Pull remote eduTEAMS users"
 
+    def get_queryset(self, request):
+        qs = self.model.all_objects.get_queryset()
+        ordering = self.get_ordering(request)
+
+        if ordering:
+            qs = qs.order_by(*ordering)
+
+        return qs
+
 
 class SshPublicKeyAdmin(VersionAdmin):
     list_display = ("user", "name", "fingerprint")

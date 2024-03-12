@@ -433,7 +433,7 @@ class ProjectViewSet(
 
 
 class UserViewSet(viewsets.ModelViewSet):
-    queryset = User.objects.all()
+    queryset = User.all_objects.all()
     serializer_class = serializers.UserSerializer
     lookup_field = "uuid"
     permission_classes = (
