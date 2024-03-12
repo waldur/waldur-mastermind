@@ -18,7 +18,7 @@ def preserve_fields_before_update(sender, instance, **kwargs):
         return
 
     meta = instance._meta
-    old_instance = meta.model._default_manager.get(pk=instance.pk)
+    old_instance = meta.model.all_objects.get(pk=instance.pk)
 
     excluded_fields = [field.name for field in meta.many_to_many]
     excluded_fields.append(meta.pk.name)

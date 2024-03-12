@@ -3,6 +3,7 @@ import functools
 import heapq
 import itertools
 
+from django.contrib.auth.models import UserManager
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
@@ -242,3 +243,8 @@ class SummaryQuerySet:
             else:
                 # subseq has been exhausted, therefore remove it from the queue
                 heapq.heappop(heap)
+
+
+class UserActiveManager(UserManager):
+    def get_queryset(self):
+        return super().get_queryset().filter(is_active=True)
