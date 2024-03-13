@@ -83,11 +83,16 @@ class NestedRequestedOfferingSerializer(serializers.HyperlinkedModelSerializer):
             "offering_uuid",
             "provider_name",
             "attributes",
+            "plan",
         ]
         extra_kwargs = {
             "offering": {
                 "lookup_field": "uuid",
                 "view_name": "marketplace-public-offering-detail",
+            },
+            "plan": {
+                "lookup_field": "uuid",
+                "view_name": "marketplace-plan-detail",
             },
         }
 
@@ -526,6 +531,11 @@ class ProviderRequestedOfferingSerializer(NestedRequestedOfferingSerializer):
             "call": {
                 "lookup_field": "uuid",
                 "view_name": "proposal-public-call-detail",
+            },
+            "plan": {
+                "lookup_field": "uuid",
+                "view_name": "marketplace-plan-detail",
+                "read_only": True,
             },
         }
 

@@ -140,6 +140,9 @@ class RequestedOffering(
     )
     state = FSMIntegerField(default=States.REQUESTED, choices=States.CHOICES)
     call = models.ForeignKey(Call, on_delete=models.CASCADE)
+    plan = models.ForeignKey(
+        on_delete=models.CASCADE, to=marketplace_models.Plan, null=True, blank=True
+    )
 
 
 class Round(
