@@ -875,7 +875,8 @@ def get_plan_period(resource, date):
         )
         .filter(Q(end__gt=date) | Q(end__isnull=True))
         .filter(resource=resource)
-        .first()
+        .order_by("start")
+        .last()
     )
 
 
