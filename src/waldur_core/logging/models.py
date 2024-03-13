@@ -260,6 +260,9 @@ class Event(UuidMixin):
     class Meta:
         ordering = ("-created",)
 
+    def __str__(self):
+        return f"{self.event_type}: {self.message}"
+
 
 class FeedManager(GenericKeyMixin, models.Manager):
     pass
@@ -273,3 +276,6 @@ class Feed(models.Model):
     object_id = models.PositiveIntegerField(db_index=True)
     scope = ct_fields.GenericForeignKey("content_type", "object_id")
     objects = FeedManager()
+
+    def __str__(self):
+        return f"{self.event} for {self.scope}"
