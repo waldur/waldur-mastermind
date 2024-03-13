@@ -69,16 +69,7 @@ class OfferingFilter(structure_filters.NameFilterSet, django_filters.FilterSet):
     project_uuid = django_filters.UUIDFilter(method="filter_project")
     parent_uuid = django_filters.UUIDFilter(field_name="parent__uuid")
     attributes = django_filters.CharFilter(method="filter_attributes")
-    state = core_filters.MappedMultipleChoiceFilter(
-        choices=[
-            (representation, representation)
-            for db_value, representation in models.Offering.States.CHOICES
-        ],
-        choice_mappings={
-            representation: db_value
-            for db_value, representation in models.Offering.States.CHOICES
-        },
-    )
+    state = core_filters.MappedMultipleChoiceFilter(models.Offering.States.CHOICES)
     organization_group_uuid = LooseMultipleChoiceFilter(
         field_name="organization_groups__uuid"
     )
@@ -287,26 +278,8 @@ class OrderFilter(OfferingFilterMixin, django_filters.FilterSet):
     provider_uuid = django_filters.UUIDFilter(field_name="offering__customer__uuid")
     customer_uuid = django_filters.UUIDFilter(field_name="project__customer__uuid")
     service_manager_uuid = django_filters.UUIDFilter(method="filter_service_manager")
-    state = core_filters.MappedMultipleChoiceFilter(
-        choices=[
-            (representation, representation)
-            for db_value, representation in models.Order.States.CHOICES
-        ],
-        choice_mappings={
-            representation: db_value
-            for db_value, representation in models.Order.States.CHOICES
-        },
-    )
-    type = core_filters.MappedMultipleChoiceFilter(
-        choices=[
-            (representation, representation)
-            for db_value, representation in models.Order.Types.CHOICES
-        ],
-        choice_mappings={
-            representation: db_value
-            for db_value, representation in models.Order.Types.CHOICES
-        },
-    )
+    state = core_filters.MappedMultipleChoiceFilter(models.Order.States.CHOICES)
+    type = core_filters.MappedMultipleChoiceFilter(models.Order.Types.CHOICES)
     resource = core_filters.URLFilter(
         view_name="marketplace-resource-detail", field_name="resource__uuid"
     )
@@ -389,16 +362,7 @@ class ResourceFilter(
     category_uuid = django_filters.UUIDFilter(field_name="offering__category__uuid")
     provider_uuid = django_filters.UUIDFilter(field_name="offering__customer__uuid")
     backend_id = django_filters.CharFilter()
-    state = core_filters.MappedMultipleChoiceFilter(
-        choices=[
-            (representation, representation)
-            for db_value, representation in models.Resource.States.CHOICES
-        ],
-        choice_mappings={
-            representation: db_value
-            for db_value, representation in models.Resource.States.CHOICES
-        },
-    )
+    state = core_filters.MappedMultipleChoiceFilter(models.Resource.States.CHOICES)
     runtime_state = django_filters.CharFilter(
         field_name="backend_metadata__runtime_state"
     )
