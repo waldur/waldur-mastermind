@@ -11,7 +11,6 @@ from rest_framework.filters import BaseFilterBackend
 
 from waldur_core.core import fields as core_fields
 from waldur_core.core import mixins as core_mixins
-from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import utils as core_utils
 
@@ -68,44 +67,27 @@ class GenericKeyFilterBackend(BaseFilterBackend):
         return queryset
 
 
-class MappedFilterMixin:
-    def __init__(self, choice_mappings, **kwargs):
-        super().__init__(**kwargs)
-
-        # TODO: enable this assert then filtering by numbers will be disabled
-        # assert set(k for k, _ in self.field.choices) == set(choice_mappings.keys()), 'Choices do not match mappings'
-        assert len(set(choice_mappings.values())) == len(
-            choice_mappings
-        ), "Mappings are not unique"
-
-        self.mapped_to_model = choice_mappings
-        self.model_to_mapped = {v: k for k, v in choice_mappings.items()}
-
-
-class MappedChoiceFilter(MappedFilterMixin, django_filters.ChoiceFilter):
-    """
-    A choice field that maps enum values from representation to model ones and back.
-
-    Filter analog for MappedChoiceField.
-    """
-
-    def filter(self, qs, value):
-        if value in self.mapped_to_model:
-            value = self.mapped_to_model[value]
-        return super().filter(qs, value)
-
-
-class MappedMultipleChoiceFilter(
-    MappedFilterMixin, django_filters.MultipleChoiceFilter
-):
+class MappedMultipleChoiceFilter(django_filters.MultipleChoiceFilter):
     """
     A multiple choice field that maps enum values from representation to model ones and back.
 
     Filter analog for MappedChoiceField that allow to filter by several choices.
     """
 
+    def __init__(self, choices, **kwargs):
+        super().__init__(
+            **kwargs,
+            choices=[
+                (representation, representation) for db_value, representation in choices
+            ],
+        )
+
+        self.choice_mappings = {
+            representation: db_value for db_value, representation in choices
+        }
+
     def filter(self, qs, value):
-        value = [self.mapped_to_model[v] for v in value if v in self.mapped_to_model]
+        value = [self.choice_mappings[v] for v in value if v in self.choice_mappings]
         return super().filter(qs, value)
 
 
@@ -121,36 +103,6 @@ class LooseMultipleChoiceFilter(MultipleChoiceFilter):
     """
 
     field_class = LooseMultipleChoiceField
-
-
-class StateFilter(MappedMultipleChoiceFilter):
-    DEFAULT_CHOICES = (
-        ("Creation Scheduled", "Creation Scheduled"),
-        ("Creating", "Creating"),
-        ("Update Scheduled", "Update Scheduled"),
-        ("Updating", "Updating"),
-        ("Deletion Scheduled", "Deletion Scheduled"),
-        ("Deleting", "Deleting"),
-        ("OK", "OK"),
-        ("Erred", "Erred"),
-    )
-
-    States = core_models.StateMixin.States
-    DEFAULT_CHOICE_MAPPING = {
-        "Creation Scheduled": States.CREATION_SCHEDULED,
-        "Creating": States.CREATING,
-        "Update Scheduled": States.UPDATE_SCHEDULED,
-        "Updating": States.UPDATING,
-        "Deletion Scheduled": States.DELETION_SCHEDULED,
-        "Deleting": States.DELETING,
-        "OK": States.OK,
-        "Erred": States.ERRED,
-    }
-
-    def __init__(self, choices=DEFAULT_CHOICES, choice_mappings=None, **kwargs):
-        if choice_mappings is None:
-            choice_mappings = self.DEFAULT_CHOICE_MAPPING
-        super().__init__(choices=choices, choice_mappings=choice_mappings, **kwargs)
 
 
 class URLFilter(django_filters.CharFilter):
@@ -372,20 +324,7 @@ def filter_by_full_name_and_email(queryset, value):
 
 class ReviewStateFilter(MappedMultipleChoiceFilter):
     def __init__(self, *args, **kwargs):
-        kwargs.setdefault(
-            "choices",
-            [
-                (representation, representation)
-                for db_value, representation in core_mixins.ReviewMixin.States.CHOICES
-            ],
-        )
-        kwargs.setdefault(
-            "choice_mappings",
-            {
-                representation: db_value
-                for db_value, representation in core_mixins.ReviewMixin.States.CHOICES
-            },
-        )
+        kwargs["choices"] = core_mixins.ReviewMixin.States.CHOICES
         super().__init__(*args, **kwargs)
 
 

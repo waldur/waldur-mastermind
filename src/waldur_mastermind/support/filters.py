@@ -261,14 +261,7 @@ class FeedbackFilter(django_filters.FilterSet):
     )
 
     evaluation = core_filters.MappedMultipleChoiceFilter(
-        choices=[
-            (representation, representation)
-            for db_value, representation in models.Feedback.Evaluation.CHOICES
-        ],
-        choice_mappings={
-            representation: db_value
-            for db_value, representation in models.Feedback.Evaluation.CHOICES
-        },
+        models.Feedback.Evaluation.CHOICES
     )
 
     issue_key = django_filters.CharFilter(field_name="issue__key")

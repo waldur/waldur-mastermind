@@ -484,7 +484,9 @@ class ServiceTypeFilter(django_filters.Filter):
 
 class ServiceSettingsFilter(NameFilterSet):
     type = ServiceTypeFilter()
-    state = core_filters.StateFilter()
+    state = core_filters.MappedMultipleChoiceFilter(
+        core_models.StateMixin.States.CHOICES
+    )
     customer = django_filters.UUIDFilter(field_name="customer__uuid")
     customer_uuid = django_filters.UUIDFilter(field_name="customer__uuid")
     scope_uuid = django_filters.UUIDFilter(
@@ -544,14 +546,7 @@ class BaseResourceFilter(NameFilterSet):
     # resource
     description = django_filters.CharFilter(lookup_expr="icontains")
     state = core_filters.MappedMultipleChoiceFilter(
-        choices=[
-            (representation, representation)
-            for db_value, representation in core_models.StateMixin.States.CHOICES
-        ],
-        choice_mappings={
-            representation: db_value
-            for db_value, representation in core_models.StateMixin.States.CHOICES
-        },
+        core_models.StateMixin.States.CHOICES
     )
     uuid = django_filters.UUIDFilter(lookup_expr="exact")
     backend_id = django_filters.CharFilter(field_name="backend_id", lookup_expr="exact")
