@@ -15,6 +15,7 @@ from waldur_core.core import serializers as core_serializers
 from waldur_core.core import validators as core_validators
 from waldur_core.core.views import ProtectedViewSet, ReadOnlyActionsViewSet
 from waldur_core.permissions.models import UserRole
+from waldur_core.permissions.utils import has_user
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.models import Customer
@@ -157,7 +158,7 @@ class InvitationViewSet(ProtectedViewSet):
         """
         invitation: models.Invitation = self.get_object()
 
-        if invitation.scope.has_user(request.user):
+        if has_user(invitation.scope, request.user):
             raise ValidationError(_("User already has role within this scope."))
 
         replace_email = False
