@@ -118,7 +118,7 @@
     - PROJECT.DELETE_PERMISSION
     - PROJECT.UPDATE
 
-- role: OFFERING.MANAGER
+- role: OFFERING.MANAGEpR
   description: Offering manager
   permissions:
     - OFFERING.UPDATE
@@ -142,3 +142,4 @@
 
 - role: CALL.REVIEWER
   description: Call reviewer
+  permissions: []

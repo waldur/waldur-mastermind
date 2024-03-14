@@ -71,6 +71,7 @@ class ReviewFilter(django_filters.FilterSet):
         view_name="proposal-proposal-detail", field_name="proposal__uuid"
     )
     o = django_filters.OrderingFilter(fields=("created", "state"))
+    reviewer_uuid = django_filters.UUIDFilter(field_name="reviewer__uuid")
     state = core_filters.MappedMultipleChoiceFilter(models.Review.States.CHOICES)
 
     class Meta:
