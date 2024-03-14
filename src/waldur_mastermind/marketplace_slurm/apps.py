@@ -1,4 +1,5 @@
 from django.apps import AppConfig
+from django.conf import settings as django_settings
 from django.db.models import signals
 
 
@@ -30,6 +31,8 @@ class MarketplaceSlurmConfig(AppConfig):
         marketplace_handlers.connect_resource_metadata_handlers(slurm_models.Allocation)
 
         USAGE = marketplace_models.OfferingComponent.BillingTypes.USAGE
+        TOTAL = marketplace_models.OfferingComponent.LimitPeriods.TOTAL
+        default_limits = django_settings.WALDUR_SLURM["DEFAULT_LIMITS"]
         manager.register(
             PLUGIN_NAME,
             create_resource_processor=processor.CreateAllocationProcessor,
@@ -40,18 +43,30 @@ class MarketplaceSlurmConfig(AppConfig):
                     name="CPU",
                     measured_unit="hours",
                     billing_type=USAGE,
+                    limit_period=TOTAL,
+                    limit_amount=slurm_registrators.SlurmRegistrator.convert_quantity(
+                        default_limits["CPU"], "cpu"
+                    ),
                 ),
                 Component(
                     type="gpu",
                     name="GPU",
                     measured_unit="hours",
                     billing_type=USAGE,
+                    limit_period=TOTAL,
+                    limit_amount=slurm_registrators.SlurmRegistrator.convert_quantity(
+                        default_limits["GPU"], "gpu"
+                    ),
                 ),
                 Component(
                     type="ram",
                     name="RAM",
                     measured_unit="GB-hours",
                     billing_type=USAGE,
+                    limit_period=TOTAL,
+                    limit_amount=slurm_registrators.SlurmRegistrator.convert_quantity(
+                        default_limits["RAM"], "ram"
+                    ),
                 ),
             ),
             service_type=SlurmConfig.service_name,

@@ -11,6 +11,7 @@ class Component:
         factor=1,
         description="",
         limit_period="",
+        limit_amount=None,
     ):
         self.type = type
         self.name = name
@@ -19,6 +20,7 @@ class Component:
         self.factor = factor
         self.description = description
         self.limit_period = limit_period
+        self.limit_amount = limit_amount
 
     def _asdict(self):
         # Note that factor is not serialized to dict because it is not stored in the database.
@@ -29,6 +31,7 @@ class Component:
             "measured_unit": self.measured_unit,
             "billing_type": self.billing_type,
             "limit_period": self.limit_period,
+            "limit_amount": self.limit_amount,
         }
 
 
