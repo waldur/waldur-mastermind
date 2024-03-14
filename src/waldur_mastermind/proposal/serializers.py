@@ -72,6 +72,11 @@ class NestedRequestedOfferingSerializer(serializers.HyperlinkedModelSerializer):
     offering_name = serializers.ReadOnlyField(source="offering.name")
     offering_uuid = serializers.ReadOnlyField(source="offering.uuid")
     provider_name = serializers.ReadOnlyField(source="offering.customer.name")
+    plan_name = serializers.ReadOnlyField(source="plan.name")
+    plan_unit = serializers.ReadOnlyField(source="plan.unit")
+    plan_unit_price = serializers.ReadOnlyField(source="plan.unit_price")
+    plan_article_code = serializers.ReadOnlyField(source="plan.article_code")
+    plan_description = serializers.ReadOnlyField(source="plan.description")
 
     class Meta:
         model = models.RequestedOffering
@@ -84,6 +89,11 @@ class NestedRequestedOfferingSerializer(serializers.HyperlinkedModelSerializer):
             "provider_name",
             "attributes",
             "plan",
+            "plan_name",
+            "plan_unit",
+            "plan_unit_price",
+            "plan_article_code",
+            "plan_description",
         ]
         extra_kwargs = {
             "offering": {
