@@ -2,7 +2,8 @@ import collections
 from datetime import timedelta
 
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import F, OuterRef, Subquery, Sum
+from django.db.models import F, OuterRef, Subquery, Sum, Value
+from django.db.models.functions import Coalesce
 from django.db.models.query import QuerySet
 from rest_framework import permissions, status, viewsets
 from rest_framework.response import Response
@@ -120,7 +121,7 @@ class BaseQuotasViewSet(viewsets.GenericViewSet):
         # It allows to remove extra GROUP BY clause from the subquery.
         quotas.query.group_by = []
         subquery = Subquery(quotas)
-        return self.get_queryset().annotate(value=subquery)
+        return self.get_queryset().annotate(value=Coalesce(subquery, Value(0)))
 
     def annotate_estimated_price(self):
         estimates = PriceEstimate.objects.filter(
