@@ -1,4 +1,5 @@
 import logging
+from datetime import timedelta
 
 from django.conf import settings
 from django.core.validators import MinValueValidator
@@ -352,6 +353,12 @@ class Review(
     @classmethod
     def get_url_name(cls):
         return "proposal-review"
+
+    @property
+    def review_end_date(self):
+        return self.created + timedelta(
+            days=self.proposal.round.review_duration_in_days
+        )
 
 
 class ReviewComment(

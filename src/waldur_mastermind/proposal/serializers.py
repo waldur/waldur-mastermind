@@ -183,6 +183,7 @@ class ReviewSerializer(
             "reviewer",
             "reviewer_full_name",
             "state",
+            "review_end_date",
             "summary_score",
             "summary_public_comment",
             "summary_private_comment",
