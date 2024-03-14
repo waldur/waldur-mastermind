@@ -2633,7 +2633,11 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
     def set_usage(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        resource = serializer.validated_data["plan_period"].resource
+        resource = (
+            "plan_period" in serializer.validated_data
+            and serializer.validated_data["plan_period"].resource
+            or serializer.validated_data["resource"]
+        )
         if not has_permission(
             request, PermissionEnum.SET_RESOURCE_USAGE, resource.offering.customer
         ) and not has_permission(
@@ -3171,12 +3175,16 @@ class StatsViewSet(rf_viewsets.ViewSet):
             "service_provider_uuid": service_provider.uuid.hex,
             "customer_uuid": service_provider.customer.uuid.hex,
             "customer_name": service_provider.customer.name,
-            "customer_organization_group_uuid": service_provider.customer.organization_group.uuid.hex
-            if service_provider.customer.organization_group
-            else "",
-            "customer_organization_group_name": service_provider.customer.organization_group.name
-            if service_provider.customer.organization_group
-            else "",
+            "customer_organization_group_uuid": (
+                service_provider.customer.organization_group.uuid.hex
+                if service_provider.customer.organization_group
+                else ""
+            ),
+            "customer_organization_group_name": (
+                service_provider.customer.organization_group.name
+                if service_provider.customer.organization_group
+                else ""
+            ),
         }
 
     @staticmethod
