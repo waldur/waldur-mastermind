@@ -8,6 +8,7 @@ from model_utils.models import TimeStampedModel
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models
 from waldur_core.permissions.models import Role
+from waldur_core.permissions.utils import add_user
 from waldur_core.structure.models import Customer
 from waldur_core.structure.signals import permissions_request_approved
 
@@ -108,7 +109,7 @@ class Invitation(
         return self.created + settings.WALDUR_CORE["INVITATION_LIFETIME"]
 
     def accept(self, user):
-        self.scope.add_user(user, self.role, self.created_by)
+        add_user(self.scope, user, self.role, self.created_by)
 
         self.state = self.State.ACCEPTED
         self.save(update_fields=["state"])
@@ -151,8 +152,11 @@ class PermissionRequest(core_mixins.ReviewMixin, core_models.UuidMixin):
     def approve(self, user, comment=None):
         super().approve(user, comment)
 
-        permission = self.invitation.scope.add_user(
-            self.created_by, self.invitation.role
+        permission = add_user(
+            self.invitation.scope,
+            self.created_by,
+            self.invitation.role,
+            created_by=user,
         )
 
         permissions_request_approved.send(
