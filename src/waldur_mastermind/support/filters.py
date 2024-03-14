@@ -38,6 +38,9 @@ class KeyOrderingFilter(django_filters.OrderingFilter):
 
 class IssueFilter(django_filters.FilterSet):
     summary = django_filters.CharFilter(lookup_expr="icontains")
+    query = django_filters.CharFilter(
+        method="filter_by_query", label="Summary or key contains"
+    )
 
     customer = core_filters.URLFilter(
         view_name="customer-detail", field_name="customer__uuid"
@@ -123,6 +126,11 @@ class IssueFilter(django_filters.FilterSet):
         return queryset.filter(
             resource_object_id__in=instance_ids, resource_content_type=content_type
         )
+
+    def filter_by_query(self, queryset, name, value):
+        return queryset.filter(
+            Q(summary__icontains=value) | Q(key__icontains=value)
+        ).distinct()
 
     o = KeyOrderingFilter(
         fields=(
