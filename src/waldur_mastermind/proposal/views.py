@@ -266,10 +266,12 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         active_rounds = models.Round.objects.filter(
             cutoff_time__gte=now,
             call__manager__id=instance.id,
+            call__state=models.Call.States.ACTIVE,
         ).count()
         accepted_proposals = models.Proposal.objects.filter(
             state=models.Proposal.States.ACCEPTED,
             round__call__manager__id=instance.id,
+            _call__state=models.Call.States.ACTIVE,
         ).count()
         pending_proposals = models.Proposal.objects.filter(
             state__in=[
@@ -278,16 +280,19 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
                 models.Proposal.States.SUBMITTED,
             ],
             round__call__manager__id=instance.id,
+            round__call__state=models.Call.States.ACTIVE,
         ).count()
         pending_review = models.Review.objects.filter(
             state=models.Review.States.SUBMITTED,
             proposal__round__call__manager__id=instance.id,
+            proposal__round__call__state=models.Call.States.ACTIVE,
         ).count()
 
         rounds_closing_in_one_week = models.Round.objects.filter(
             cutoff_time__gte=now,
             cutoff_time__lte=one_week_from_now,
             call__manager__id=instance.id,
+            call__state=models.Call.States.ACTIVE,
         ).count()
 
         calls_closing_in_one_week = models.Call.objects.filter(
@@ -300,6 +305,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         offering_requests_pending = models.RequestedOffering.objects.filter(
             state=models.RequestedOffering.States.REQUESTED,
             call__manager__id=instance.id,
+            call__state=models.Call.States.ACTIVE,
         ).count()
 
         return response.Response(
