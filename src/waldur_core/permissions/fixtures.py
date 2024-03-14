@@ -72,3 +72,13 @@ class OfferingRole:
                 "marketplace", "offering"
             ),
         )
+
+
+class CallRole:
+    @classmethod
+    @property
+    def REVIEWER(self):
+        return Role.objects.get_system_role(
+            RoleEnum.CALL_REVIEWER,
+            content_type=ContentType.objects.get_by_natural_key("proposal", "call"),
+        )
