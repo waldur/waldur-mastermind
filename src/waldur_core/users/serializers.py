@@ -144,6 +144,7 @@ class PermissionRequestSerializer(serializers.HyperlinkedModelSerializer):
     scope_name = serializers.ReadOnlyField(source="invitation.scope.name")
     customer_uuid = serializers.ReadOnlyField(source="invitation.customer.uuid")
     customer_name = serializers.ReadOnlyField(source="invitation.customer.name")
+    role_name = serializers.ReadOnlyField(source="invitation.role.name")
     role_description = serializers.ReadOnlyField(source="invitation.role.description")
 
     class Meta:
@@ -164,6 +165,7 @@ class PermissionRequestSerializer(serializers.HyperlinkedModelSerializer):
             "scope_name",
             "customer_uuid",
             "customer_name",
+            "role_name",
             "role_description",
         )
 
