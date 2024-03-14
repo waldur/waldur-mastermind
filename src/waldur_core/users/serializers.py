@@ -19,6 +19,7 @@ class BaseInvitationDetailsSerializer(serializers.HyperlinkedModelSerializer):
     scope_type = serializers.SerializerMethodField()
     customer_uuid = serializers.ReadOnlyField(source="customer.uuid")
     customer_name = serializers.ReadOnlyField(source="customer.name")
+    role_name = serializers.ReadOnlyField(source="role.name")
     role_description = serializers.ReadOnlyField(source="role.description")
 
     class Meta:
@@ -29,6 +30,7 @@ class BaseInvitationDetailsSerializer(serializers.HyperlinkedModelSerializer):
             "scope_type",
             "customer_uuid",
             "customer_name",
+            "role_name",
             "role_description",
             "created_by_full_name",
             "created_by_username",
