@@ -18,6 +18,7 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
         self.requested_resource
         self.reviewer_1
         self.reviewer_2
+        self.review
 
     @cached_property
     def manager(self):
@@ -96,8 +97,24 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
         return proposal_factories.ProposalFactory(round=self.round)
 
     @cached_property
+    def proposal_submitted(self):
+        return proposal_factories.ProposalFactory(
+            round=self.round, state=proposal_models.Proposal.States.SUBMITTED
+        )
+
+    @cached_property
+    def review(self):
+        return proposal_factories.ReviewFactory(
+            proposal=self.proposal_submitted, reviewer=self.reviewer_1
+        )
+
+    @cached_property
     def proposal_creator(self):
         return self.proposal.created_by
+
+    @cached_property
+    def proposal_submitted_creator(self):
+        return self.proposal_submitted.created_by
 
     @cached_property
     def requested_resource(self):

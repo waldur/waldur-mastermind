@@ -191,3 +191,26 @@ class RequestedResourceFactory(factory.django.DjangoModelFactory):
             kwargs={"uuid": requested_resource.uuid.hex},
         )
         return url if action is None else url + action + "/"
+
+
+class ReviewFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = models.Review
+
+    proposal = factory.SubFactory(ProposalFactory)
+    reviewer = factory.SubFactory(structure_factories.UserFactory)
+
+    @classmethod
+    def get_url(cls, review=None, action=None):
+        if review is None:
+            review = ReviewFactory()
+        url = "http://testserver" + reverse(
+            "proposal-review-detail",
+            kwargs={"uuid": review.uuid.hex},
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = "http://testserver" + reverse("proposal-review-list")
+        return url if action is None else url + action + "/"

@@ -357,6 +357,9 @@ class Review(
 
     @property
     def review_end_date(self):
+        if not self.proposal.round.review_duration_in_days:
+            return
+
         return self.created + timedelta(
             days=self.proposal.round.review_duration_in_days
         )

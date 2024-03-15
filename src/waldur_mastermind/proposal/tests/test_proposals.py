@@ -163,7 +163,7 @@ class ProposalDeleteTest(test.APITransactionTestCase):
         "staff",
         "proposal_creator",
     )
-    def test_user_can_delete_round(self, user):
+    def test_user_can_delete(self, user):
         response = self.delete_proposal(user)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
@@ -171,12 +171,12 @@ class ProposalDeleteTest(test.APITransactionTestCase):
         "owner",
         "customer_support",
     )
-    def test_customer_user_can_not_delete_round(self, user):
+    def test_customer_user_can_not_delete(self, user):
         response = self.delete_proposal(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     @data("user")
-    def test_user_can_not_delete_round(self, user):
+    def test_user_can_not_delete(self, user):
         response = self.delete_proposal(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
