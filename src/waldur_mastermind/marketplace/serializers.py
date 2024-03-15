@@ -3140,19 +3140,22 @@ def add_service_provider(sender, fields, **kwargs):
     setattr(sender, "get_is_service_provider", get_is_service_provider)
 
 
-def get_is_call_managing_organization(serializer, scope):
+def get_call_managing_organization_uuid(serializer, scope):
     customer = structure_permissions._get_customer(scope)
-    return proposal_models.CallManagingOrganisation.objects.filter(
-        customer=customer
-    ).exists()
+    call_managing_organisation = (
+        proposal_models.CallManagingOrganisation.objects.filter(customer=customer)
+    )
+    if call_managing_organisation.exists():
+        return call_managing_organisation.first().uuid
+    return None
 
 
-def add_is_call_managing_organization(sender, fields, **kwargs):
-    fields["is_call_managing_organization"] = serializers.SerializerMethodField()
+def add_call_managing_organization_uuid(sender, fields, **kwargs):
+    fields["call_managing_organization_uuid"] = serializers.SerializerMethodField()
     setattr(
         sender,
-        "get_is_call_managing_organization",
-        get_is_call_managing_organization,
+        "get_call_managing_organization_uuid",
+        get_call_managing_organization_uuid,
     )
 
 
@@ -3178,7 +3181,7 @@ core_signals.pre_serializer_fields.connect(
 
 core_signals.pre_serializer_fields.connect(
     sender=structure_serializers.CustomerSerializer,
-    receiver=add_is_call_managing_organization,
+    receiver=add_call_managing_organization_uuid,
 )
 
 
