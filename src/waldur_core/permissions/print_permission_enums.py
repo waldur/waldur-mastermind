@@ -7,6 +7,10 @@ def format_enum(enum):
     )
 
 
+def format_dict(enum):
+    return "\n".join(f"  {key}: '{value.value}'," for key, value in enum.items())
+
+
 print(
     f"""/* eslint-disable */
 // WARNING: This file is auto-generated from src/waldur_core/permissions/enums.py
@@ -14,6 +18,10 @@ print(
 
 export const RoleEnum = {{
 {format_enum(enums.RoleEnum)}
+}};
+
+export const PermissionMap = {{
+{format_dict(enums.PERMISSIONS_MAP)}
 }};
 
 export const PermissionEnum = {{
