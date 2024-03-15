@@ -56,7 +56,7 @@ class MarketplaceOpenStackExtension(WaldurExtension):
                 "schedule": timedelta(hours=24),
                 "args": (),
             },
-            "mark_terminating_resources_as_erred_after_timeout": {
+            "marketplace-openstack.mark_terminating_resources_as_erred_after_timeout": {
                 "task": "waldur_mastermind.marketplace_openstack.mark_terminating_resources_as_erred_after_timeout",
                 "schedule": timedelta(hours=2),
                 "args": (),
