@@ -66,9 +66,9 @@ def refresh_instance_backend_metadata():
 
 
 @shared_task(
-    name="waldur_mastermind.marketplace_openstack.mark_terminating_tenant_as_erred_after_timeout"
+    name="waldur_mastermind.marketplace_openstack.mark_terminating_resources_as_erred_after_timeout"
 )
-def mark_terminating_tenant_as_erred_after_timeout():
+def mark_terminating_resources_as_erred_after_timeout():
     now = timezone.now()
     two_hours_ago = now - timedelta(hours=2)
     stale_orders = marketplace_models.Order.objects.filter(

@@ -1,6 +1,7 @@
 import base64
 import json
 import logging
+from datetime import timedelta
 
 from celery import shared_task
 from django.conf import settings
@@ -123,3 +124,23 @@ def remove_old_dry_runs():
         state=marketplace_script_models.DryRun.States.DONE,
         created__lt=timezone.now() - timezone.timedelta(days=1),
     ).delete()
+
+
+@shared_task(
+    name="waldur_mastermind.marketplace_script.mark_terminating_resources_as_erred_after_timeout"
+)
+def mark_terminating_resources_as_erred_after_timeout():
+    now = timezone.now()
+    two_hours_ago = now - timedelta(hours=2)
+    stale_orders = models.Order.objects.filter(
+        offering__type=PLUGIN_NAME,
+        state=models.Order.States.EXECUTING,
+        modified__lt=two_hours_ago,
+    )
+
+    for order in stale_orders:
+        order.cancel()
+        order.save()
+        resource = order.resource
+        resource.set_state_erred()
+        resource.save(update_fields=["state"])
