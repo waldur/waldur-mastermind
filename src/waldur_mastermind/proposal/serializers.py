@@ -1,5 +1,6 @@
 import logging
 
+from constance import config
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
@@ -593,6 +594,9 @@ class ProtectedRoundSerializer(
     url = serializers.SerializerMethodField()
     proposals = ProtectedProposalListSerializer(
         many=True, read_only=True, source="proposal_set"
+    )
+    review_duration_in_days = serializers.IntegerField(
+        default=config.PROPOSAL_REVIEW_DURATION
     )
 
     class Meta(NestedRoundSerializer.Meta):

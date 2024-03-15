@@ -462,6 +462,8 @@ CONSTANCE_CONFIG = {
     "SMAX_SECONDS_TO_WAIT": (1, "Duration of delay between server pull attempts."),
     "SMAX_CREATION_SOURCE_NAME": ("", "Creation source name."),
     "SMAX_VERIFY_SSL": (True, "Toggler for SSL verification"),
+    # Proposal settings
+    "PROPOSAL_REVIEW_DURATION": (7, "Review duration in days."),
 }
 
 CONSTANCE_CONFIG_FIELDSETS = {
@@ -551,6 +553,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "SMAX_CREATION_SOURCE_NAME",
         "SMAX_VERIFY_SSL",
     ),
+    "PROPOSAL settings": ("PROPOSAL_REVIEW_DURATION",),
 }
 
 PUBLIC_CONSTANCE_SETTINGS = (
@@ -582,6 +585,8 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "WALDUR_SUPPORT_ENABLED",
     "WALDUR_SUPPORT_DISPLAY_REQUEST_TYPE",
     "WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE",
+    # Proposal
+    "PROPOSAL_REVIEW_DURATION",
 )
 
 for ext in WaldurExtension.get_extensions():
