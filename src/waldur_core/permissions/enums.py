@@ -38,6 +38,7 @@ TYPE_MAP = {
     "project": ("structure", "project"),
     "offering": ("marketplace", "offering"),
     "call": ("proposal", "call"),
+    "proposal": ("proposal", "proposal"),
 }
 
 
@@ -99,6 +100,7 @@ class PermissionEnum(str, Enum):
     CREATE_CUSTOMER_PERMISSION = "CUSTOMER.CREATE_PERMISSION"
     CREATE_OFFERING_PERMISSION = "OFFERING.CREATE_PERMISSION"
     CREATE_CALL_PERMISSION = "CALL.CREATE_PERMISSION"
+    CREATE_PROPOSAL_PERMISSION = "PROPOSAL.CREATE_PERMISSION"
 
     UPDATE_PROJECT_PERMISSION = "PROJECT.UPDATE_PERMISSION"
     UPDATE_CUSTOMER_PERMISSION = "CUSTOMER.UPDATE_PERMISSION"
@@ -123,4 +125,5 @@ PERMISSIONS_MAP = {
     "project": PermissionEnum.CREATE_PROJECT_PERMISSION,
     "offering": PermissionEnum.CREATE_OFFERING_PERMISSION,
     "call": PermissionEnum.CREATE_CALL_PERMISSION,
+    "proposal": PermissionEnum.CREATE_PROPOSAL_PERMISSION,
 }

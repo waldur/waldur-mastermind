@@ -14,11 +14,10 @@ from waldur_core.core.views import (
     ActionsViewSet,
     ReadOnlyActionsViewSet,
 )
-from waldur_core.permissions import models as permissions_models
-from waldur_core.permissions.enums import SYSTEM_CUSTOMER_ROLES
 from waldur_core.permissions.views import UserRoleMixin
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import permissions
+from waldur_core.structure.managers import get_connected_customers
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.views import BaseMarketplaceView, PublicViewsetMixin
 from waldur_mastermind.proposal import (
@@ -324,7 +323,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             )
 
 
-class ProposalViewSet(ActionsViewSet, ActionMethodMixin):
+class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     lookup_field = "uuid"
     serializer_class = serializers.ProposalSerializer
     filterset_class = filters.ProposalFilter
@@ -335,11 +334,9 @@ class ProposalViewSet(ActionsViewSet, ActionMethodMixin):
         if user.is_staff:
             return models.Proposal.objects.all().order_by("round__start_time")
 
-        customer_ids = permissions_models.UserRole.objects.filter(
-            user=user, is_active=True, role__name__in=SYSTEM_CUSTOMER_ROLES
-        ).values_list("object_id", flat=True)
         return models.Proposal.objects.filter(
-            Q(round__call__manager__customer__in=customer_ids) | Q(created_by=user)
+            Q(round__call__manager__customer__in=get_connected_customers(user))
+            | Q(created_by=user)
         )
 
     def is_creator(request, view, obj=None):
@@ -442,11 +439,12 @@ class ReviewViewSet(ActionsViewSet):
         if user.is_staff:
             return models.Review.objects.all().order_by("created")
 
-        customer_ids = permissions_models.UserRole.objects.filter(
-            user=user, is_active=True, role__name__in=SYSTEM_CUSTOMER_ROLES
-        ).values_list("object_id", flat=True)
         return models.Review.objects.filter(
-            Q(proposal__round__call__manager__customer__in=customer_ids)
+            Q(
+                proposal__round__call__manager__customer__in=get_connected_customers(
+                    user
+                )
+            )
             | Q(reviewer=user)
             | Q(state=models.Review.States.SUBMITTED, proposal__created_by=user)
         )
