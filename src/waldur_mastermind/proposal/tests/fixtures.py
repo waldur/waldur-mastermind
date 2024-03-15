@@ -2,6 +2,9 @@ import datetime
 
 from django.utils.functional import cached_property
 
+from waldur_core.permissions import utils as permissions_utils
+from waldur_core.permissions.fixtures import CallRole
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 from waldur_mastermind.proposal import models as proposal_models
@@ -13,6 +16,8 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
         self.requested_offering
         self.new_call
         self.requested_resource
+        self.reviewer_1
+        self.reviewer_2
 
     @cached_property
     def manager(self):
@@ -75,6 +80,7 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
             call=self.call,
             start_time=datetime.date.today(),
             cutoff_time=datetime.date.today() + datetime.timedelta(days=10),
+            minimum_number_of_reviewers=1,
         )
 
     @cached_property
@@ -98,3 +104,17 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
         return proposal_factories.RequestedResourceFactory(
             requested_offering=self.requested_offering_accepted, proposal=self.proposal
         )
+
+    @cached_property
+    def reviewer_1(self):
+        user = structure_factories.UserFactory()
+        role = CallRole.REVIEWER
+        permissions_utils.add_user(self.call, user, role)
+        return user
+
+    @cached_property
+    def reviewer_2(self):
+        user = structure_factories.UserFactory()
+        role = CallRole.REVIEWER
+        permissions_utils.add_user(self.call, user, role)
+        return user

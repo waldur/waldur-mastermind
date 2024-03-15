@@ -11,6 +11,7 @@ from model_utils.models import TimeStampedModel
 
 from waldur_core.core import models as core_models
 from waldur_core.logging.loggers import LoggableMixin
+from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.utils import get_users
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -99,7 +100,7 @@ class Call(
 
     @property
     def reviewers(self):
-        return get_users(self)
+        return get_users(self, RoleEnum.CALL_REVIEWER)
 
     @classmethod
     def get_permitted_objects(cls, user):
