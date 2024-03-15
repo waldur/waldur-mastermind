@@ -18,6 +18,7 @@ from waldur_core.permissions import models as permissions_models
 from waldur_core.permissions.enums import SYSTEM_CUSTOMER_ROLES
 from waldur_core.permissions.views import UserRoleMixin
 from waldur_core.structure import filters as structure_filters
+from waldur_core.structure import permissions
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.views import BaseMarketplaceView, PublicViewsetMixin
 from waldur_mastermind.proposal import (
@@ -433,10 +434,7 @@ class ReviewViewSet(ActionsViewSet):
     lookup_field = "uuid"
     serializer_class = serializers.ReviewSerializer
     filterset_class = filters.ReviewFilter
-    disabled_actions = [
-        "create",
-        "destroy",
-    ]
+    create_permissions = destroy_permissions = [permissions.is_staff]
 
     def get_queryset(self):
         user = self.request.user
@@ -497,6 +495,7 @@ class ReviewViewSet(ActionsViewSet):
         core_validators.StateValidator(
             models.Review.States.CREATED, models.Review.States.IN_REVIEW
         ),
+        is_proposal_submitted,
     ]
 
     @decorators.action(detail=True, methods=["post"])
@@ -511,6 +510,7 @@ class ReviewViewSet(ActionsViewSet):
 
     submit_validators = [
         core_validators.StateValidator(models.Review.States.IN_REVIEW),
+        is_proposal_submitted,
     ]
     accept_permissions = (
         reject_permissions

@@ -187,7 +187,7 @@ class ReviewSerializer(
             "call_name",
             "call_uuid",
         )
-        read_only_fields = ("proposal",)
+        protected_fields = ("proposal", "reviewer")
         extra_kwargs = {
             "url": {
                 "lookup_field": "uuid",
@@ -201,6 +201,28 @@ class ReviewSerializer(
                 "view_name": "user-detail",
             },
         }
+
+    def validate_proposal(self, proposal):
+        if proposal.state not in (
+            models.Proposal.States.IN_REVIEW,
+            models.Proposal.States.SUBMITTED,
+        ):
+            raise serializers.ValidationError(
+                {"proposal": _("Proposal state is not correct.")}
+            )
+        return proposal
+
+    def validate(self, attrs):
+        if not self.instance:
+            reviewer = attrs["reviewer"]
+            proposal = attrs["proposal"]
+
+            if reviewer not in proposal.round.call.reviewers:
+                raise serializers.ValidationError(
+                    {"reviewer": _("User is not reviewer.")}
+                )
+
+        return attrs
 
     def get_fields(self):
         fields = super().get_fields()
