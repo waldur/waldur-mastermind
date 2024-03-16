@@ -6,7 +6,6 @@
   "support.users": true,
   "support.resources_treemap": false,
   "support.pricelist": true,
-  "support.customers_list": true,
   "support.shared_providers": true,
   "customer.team": true,
   "project.team": true,

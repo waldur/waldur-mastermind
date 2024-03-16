@@ -7,7 +7,7 @@ from django.conf import settings as django_settings
 from django.contrib import auth
 from django.core import exceptions as django_exceptions
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.db.utils import DataError
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -893,12 +893,17 @@ class ResourceViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
 
 
 class OrganizationGroupViewSet(core_views.ActionsViewSet):
-    queryset = models.OrganizationGroup.objects.all().order_by("name")
+    queryset = (
+        models.OrganizationGroup.objects.all()
+        .order_by("name")
+        .annotate(customers_count=Count("customer"))
+    )
     serializer_class = serializers.OrganizationGroupSerializer
     lookup_field = "uuid"
-    filter_backends = (DjangoFilterBackend,)
+    filter_backends = (DjangoFilterBackend, rf_filters.OrderingFilter)
     filterset_class = filters.OrganizationGroupFilter
     permission_classes = (core_permissions.IsAdminOrReadOnly,)
+    ordering_fields = ("name", "customers_count")
 
 
 class OrganizationGroupTypesViewSet(core_views.ActionsViewSet):
