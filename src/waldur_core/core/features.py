@@ -143,8 +143,6 @@ class SupportSection(FeatureSection):
 
     activity_stream = Feature("Render list of recent comments in support dashboard.")
 
-    customers_list = Feature("Render list of organizations in support workspace.")
-
     pricelist = Feature(
         "Render marketplace plan components pricelist in support workspace."
     )

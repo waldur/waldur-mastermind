@@ -1396,6 +1396,7 @@ class OrganizationGroupSerializer(serializers.HyperlinkedModelSerializer):
     type_name = serializers.CharField(source="type.name", read_only=True)
     parent_uuid = serializers.ReadOnlyField(source="parent.uuid")
     parent_name = serializers.ReadOnlyField(source="parent.type.name")
+    customers_count = serializers.ReadOnlyField()
 
     class Meta:
         model = models.OrganizationGroup
@@ -1408,6 +1409,7 @@ class OrganizationGroupSerializer(serializers.HyperlinkedModelSerializer):
             "parent_uuid",
             "parent_name",
             "parent",
+            "customers_count",
         )
         extra_kwargs = {
             "url": {"view_name": "organization-group-detail", "lookup_field": "uuid"},
