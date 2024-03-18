@@ -471,11 +471,13 @@ class RequestedResourceSerializer(
             )
         except models.RequestedOffering.DoesNotExist:
             raise serializers.ValidationError(
-                {"requested_offering_uuid": _("Requested Offering not found.")}
+                {"requested_offering_uuid": _("Requested offering has not been found.")}
             )
 
         if requested_offering.state != models.RequestedOffering.States.ACCEPTED:
-            raise serializers.ValidationError(_("Call is not accepted."))
+            raise serializers.ValidationError(
+                _("Offering has not been confirmed by service provider.")
+            )
 
         attrs["requested_offering"] = requested_offering
         return attrs
