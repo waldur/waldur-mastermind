@@ -700,7 +700,7 @@ class WaldurOpenstack(BaseModel):
             },
             {
                 "name": "rdp",
-                "description": "Security group for remove desktop access",
+                "description": "Security group for remote desktop access",
                 "rules": (
                     {
                         "protocol": "tcp",
