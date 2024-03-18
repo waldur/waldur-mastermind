@@ -156,7 +156,11 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             status=status.HTTP_200_OK,
         )
 
-    activate_validators = [core_validators.StateValidator(models.Call.States.DRAFT)]
+    activate_validators = [
+        core_validators.StateValidator(
+            models.Call.States.DRAFT, models.Call.States.ARCHIVED
+        )
+    ]
 
     @decorators.action(detail=True, methods=["post"])
     def archive(self, request, uuid=None):
