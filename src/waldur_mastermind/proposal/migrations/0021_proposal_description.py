@@ -5,7 +5,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("proposal", "0019_requestedoffering_plan"),
+        ("proposal", "0020_drop_fsm"),
     ]
 
     operations = [
