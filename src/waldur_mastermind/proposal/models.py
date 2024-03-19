@@ -5,7 +5,6 @@ from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils.translation import gettext_lazy as _
-from django_fsm import FSMIntegerField
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
 
@@ -67,9 +66,9 @@ class Call(
     core_models.BackendMixin,
 ):
     class States:
-        DRAFT = 1
-        ACTIVE = 2
-        ARCHIVED = 3
+        DRAFT = "draft"
+        ACTIVE = "active"
+        ARCHIVED = "archived"
 
         CHOICES = (
             (DRAFT, "Draft"),
@@ -84,7 +83,9 @@ class Call(
         null=True,
         related_name="+",
     )
-    state = FSMIntegerField(default=States.DRAFT, choices=States.CHOICES)
+    state = models.CharField(
+        default=States.DRAFT, choices=States.CHOICES, db_index=True
+    )
     offerings = models.ManyToManyField(
         marketplace_models.Offering, through="RequestedOffering"
     )
@@ -109,9 +110,9 @@ class RequestedOffering(
     core_models.DescribableMixin,
 ):
     class States:
-        REQUESTED = 1
-        ACCEPTED = 2
-        CANCELED = 3
+        REQUESTED = "requested"
+        ACCEPTED = "accepted"
+        CANCELED = "canceled"
 
         CHOICES = (
             (REQUESTED, "Requested"),
@@ -135,7 +136,9 @@ class RequestedOffering(
         null=True,
         related_name="+",
     )
-    state = FSMIntegerField(default=States.REQUESTED, choices=States.CHOICES)
+    state = models.CharField(
+        default=States.REQUESTED, choices=States.CHOICES, db_index=True
+    )
     call = models.ForeignKey(Call, on_delete=models.CASCADE)
     plan = models.ForeignKey(
         on_delete=models.CASCADE, to=marketplace_models.Plan, null=True, blank=True
@@ -147,8 +150,8 @@ class Round(
     core_models.UuidMixin,
 ):
     class ReviewStrategies:
-        AFTER_ROUND = 1
-        AFTER_PROPOSAL = 2
+        AFTER_ROUND = "after_round"
+        AFTER_PROPOSAL = "after_proposal"
 
         CHOICES = (
             (AFTER_ROUND, "After round is closed"),
@@ -156,8 +159,8 @@ class Round(
         )
 
     class AllocationStrategies:
-        BY_CALL_MANAGER = 1
-        AUTOMATIC = 2
+        BY_CALL_MANAGER = "by_call_manager"
+        AUTOMATIC = "automatic"
 
         CHOICES = (
             (BY_CALL_MANAGER, "By call manager"),
@@ -165,22 +168,28 @@ class Round(
         )
 
     class AllocationTimes:
-        ON_DECISION = 1
-        FIXED_DATE = 2
+        ON_DECISION = "on_decision"
+        FIXED_DATE = "fixed_date"
 
         CHOICES = (
             (ON_DECISION, "On decision"),
             (FIXED_DATE, "Fixed date"),
         )
 
-    review_strategy = FSMIntegerField(
-        default=ReviewStrategies.AFTER_ROUND, choices=ReviewStrategies.CHOICES
+    review_strategy = models.CharField(
+        default=ReviewStrategies.AFTER_ROUND,
+        choices=ReviewStrategies.CHOICES,
+        db_index=True,
     )
-    deciding_entity = FSMIntegerField(
-        default=AllocationStrategies.AUTOMATIC, choices=AllocationStrategies.CHOICES
+    deciding_entity = models.CharField(
+        default=AllocationStrategies.AUTOMATIC,
+        choices=AllocationStrategies.CHOICES,
+        db_index=True,
     )
-    allocation_time = FSMIntegerField(
-        default=AllocationTimes.ON_DECISION, choices=AllocationTimes.CHOICES
+    allocation_time = models.CharField(
+        default=AllocationTimes.ON_DECISION,
+        choices=AllocationTimes.CHOICES,
+        db_index=True,
     )
     review_duration_in_days = models.PositiveIntegerField(null=True, blank=True)
     minimum_number_of_reviewers = models.PositiveIntegerField(null=True, blank=True)
@@ -225,13 +234,13 @@ class Proposal(
     structure_models.ProjectOECDFOS2007CodeMixin,
 ):
     class States:
-        DRAFT = 1
-        SUBMITTED = 2
-        IN_REVIEW = 3
-        IN_REVISION = 4
-        ACCEPTED = 5
-        REJECTED = 6
-        CANCELED = 7
+        DRAFT = "draft"
+        SUBMITTED = "submitted"
+        IN_REVIEW = "in_review"
+        IN_REVISION = "in_revision"
+        ACCEPTED = "accepted"
+        REJECTED = "rejected"
+        CANCELED = "canceled"
 
         CHOICES = (
             (DRAFT, "Draft"),
@@ -244,7 +253,9 @@ class Proposal(
         )
 
     round = models.ForeignKey(Round, on_delete=models.CASCADE)
-    state = FSMIntegerField(default=States.DRAFT, choices=States.CHOICES)
+    state = models.CharField(
+        default=States.DRAFT, choices=States.CHOICES, db_index=True
+    )
     project = models.ForeignKey(
         structure_models.Project, on_delete=models.PROTECT, null=True, editable=False
     )
@@ -324,10 +335,10 @@ class Review(
     core_models.UuidMixin,
 ):
     class States:
-        CREATED = 1
-        IN_REVIEW = 2
-        SUBMITTED = 3
-        REJECTED = 4
+        CREATED = "created"
+        IN_REVIEW = "in_review"
+        SUBMITTED = "submitted"
+        REJECTED = "rejected"
 
         CHOICES = (
             (CREATED, "Created"),
@@ -337,7 +348,9 @@ class Review(
         )
 
     proposal = models.ForeignKey(Proposal, on_delete=models.PROTECT)
-    state = FSMIntegerField(default=States.CREATED, choices=States.CHOICES)
+    state = models.CharField(
+        default=States.CREATED, choices=States.CHOICES, db_index=True
+    )
     summary_score = models.PositiveSmallIntegerField(blank=True, default=0)
     summary_public_comment = models.TextField(blank=True)
     summary_private_comment = models.TextField(blank=True)
