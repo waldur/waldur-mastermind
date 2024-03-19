@@ -35,7 +35,7 @@ class CallFilter(django_filters.FilterSet):
     )
     customer_uuid = django_filters.UUIDFilter(field_name="manager__customer__uuid")
     customer_keyword = django_filters.CharFilter(method="filter_customer_keyword")
-    state = core_filters.MappedMultipleChoiceFilter(models.Call.States.CHOICES)
+    state = django_filters.MultipleChoiceFilter(choices=models.Call.States.CHOICES)
     o = django_filters.OrderingFilter(
         fields=("manager__customer__name", "created", "name")
     )
@@ -54,7 +54,7 @@ class CallFilter(django_filters.FilterSet):
 
 class ProposalFilter(django_filters.FilterSet):
     round = django_filters.UUIDFilter(field_name="round__uuid")
-    state = core_filters.MappedMultipleChoiceFilter(models.Proposal.States.CHOICES)
+    state = django_filters.MultipleChoiceFilter(choices=models.Proposal.States.CHOICES)
     name = django_filters.CharFilter(lookup_expr="icontains")
     call = django_filters.UUIDFilter(field_name="round__call__uuid")
     o = django_filters.OrderingFilter(
@@ -72,7 +72,7 @@ class ReviewFilter(django_filters.FilterSet):
     )
     o = django_filters.OrderingFilter(fields=("created", "state"))
     reviewer_uuid = django_filters.UUIDFilter(field_name="reviewer__uuid")
-    state = core_filters.MappedMultipleChoiceFilter(models.Review.States.CHOICES)
+    state = django_filters.MultipleChoiceFilter(choices=models.Review.States.CHOICES)
 
     class Meta:
         model = models.Review
@@ -95,8 +95,8 @@ class RequestedOfferingFilter(django_filters.FilterSet):
     o = django_filters.OrderingFilter(
         fields=("created", "state", "offering__name", "call__name")
     )
-    state = core_filters.MappedMultipleChoiceFilter(
-        models.RequestedOffering.States.CHOICES
+    state = django_filters.MultipleChoiceFilter(
+        choices=models.RequestedOffering.States.CHOICES
     )
 
     class Meta:

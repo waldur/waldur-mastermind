@@ -69,7 +69,7 @@ class CallManagingOrganisationSerializer(
 
 
 class NestedRequestedOfferingSerializer(serializers.HyperlinkedModelSerializer):
-    state = serializers.ReadOnlyField(source="get_state_display")
+    state = serializers.ReadOnlyField()
     offering_name = serializers.ReadOnlyField(source="offering.name")
     offering_uuid = serializers.ReadOnlyField(source="offering.uuid")
     provider_name = serializers.ReadOnlyField(source="offering.customer.name")
@@ -157,7 +157,7 @@ class ReviewSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
-    state = serializers.ReadOnlyField(source="get_state_display")
+    state = serializers.ReadOnlyField()
     round_uuid = serializers.UUIDField(source="proposal.round.uuid", read_only=True)
     round_cutoff_time = serializers.ReadOnlyField(source="proposal.round.cutoff_time")
     round_start_time = serializers.ReadOnlyField(source="proposal.round.start_time")
@@ -255,7 +255,7 @@ class ReviewSerializer(
 
 
 class ProtectedProposalListSerializer(serializers.HyperlinkedModelSerializer):
-    state = serializers.ReadOnlyField(source="get_state_display")
+    state = serializers.ReadOnlyField()
     created_by_name = serializers.ReadOnlyField(source="created_by.full_name")
     approved_by_name = serializers.ReadOnlyField(source="approved_by.full_name")
     reviews = ReviewSerializer(many=True, read_only=True, source="review_set")
@@ -278,10 +278,6 @@ class ProtectedProposalListSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class NestedRoundSerializer(serializers.HyperlinkedModelSerializer):
-    review_strategy = serializers.ReadOnlyField(source="get_review_strategy_display")
-    deciding_entity = serializers.ReadOnlyField(source="get_deciding_entity_display")
-    allocation_time = serializers.ReadOnlyField(source="get_allocation_time_display")
-
     class Meta:
         model = models.Round
         fields = [
@@ -309,7 +305,7 @@ class PublicCallSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
-    state = serializers.ReadOnlyField(source="get_state_display")
+    state = serializers.ReadOnlyField()
     customer_name = serializers.ReadOnlyField(source="manager.customer.name")
     offerings = serializers.SerializerMethodField(method_name="get_offerings")
     rounds = NestedRoundSerializer(many=True, read_only=True, source="round_set")
@@ -657,7 +653,7 @@ class ProposalSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
-    state = serializers.ReadOnlyField(source="get_state_display")
+    state = serializers.ReadOnlyField()
     round = NestedRoundSerializer(read_only=True)
     round_uuid = serializers.UUIDField(write_only=True, required=True)
     call_uuid = serializers.UUIDField(source="round.call.uuid", read_only=True)
