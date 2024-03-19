@@ -1,5 +1,6 @@
 import django_filters
 from django.contrib.contenttypes.models import ContentType
+from django.db.models import Q
 from django_filters.widgets import BooleanWidget
 from rest_framework import filters
 
@@ -14,6 +15,7 @@ class BaseHookFilter(django_filters.FilterSet):
     author_fullname = django_filters.CharFilter(
         method="filter_by_full_name", label="User full name contains"
     )
+    query = django_filters.CharFilter(method="filter_by_author_query")
     author_username = django_filters.CharFilter(field_name="user__username")
     author_email = django_filters.CharFilter(field_name="user__email")
     is_active = django_filters.BooleanFilter(widget=BooleanWidget)
@@ -21,6 +23,14 @@ class BaseHookFilter(django_filters.FilterSet):
 
     def filter_by_full_name(self, queryset, name, value):
         return core_filters.filter_by_full_name(queryset, value, "user")
+
+    def filter_by_author_query(self, queryset, name, value):
+        return queryset.filter(
+            Q(user__first_name__icontains=value)
+            | Q(user__last_name__icontains=value)
+            | Q(user__username__icontains=value)
+            | Q(user__email__icontains=value)
+        ).distinct()
 
 
 class WebHookFilter(BaseHookFilter):
