@@ -7,6 +7,7 @@ from rest_framework import serializers
 from rest_framework.reverse import reverse
 
 from waldur_core.core import serializers as core_serializers
+from waldur_core.core.clean_html import clean_html
 from waldur_core.media.serializers import ProtectedImageField
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import permissions as marketplace_permissions
@@ -665,6 +666,9 @@ class ProposalSerializer(
         many=True, required=False
     )
     resources = serializers.SerializerMethodField(method_name="get_resources")
+    oecd_fos_2007_label = serializers.ReadOnlyField(
+        source="get_oecd_fos_2007_code_display"
+    )
 
     class Meta:
         model = models.Proposal
@@ -672,6 +676,7 @@ class ProposalSerializer(
             "uuid",
             "url",
             "name",
+            "description",
             "project_summary",
             "project_is_confidential",
             "project_has_civilian_purpose",
@@ -686,6 +691,8 @@ class ProposalSerializer(
             "call_uuid",
             "call_name",
             "resources",
+            "oecd_fos_2007_code",
+            "oecd_fos_2007_label",
         ]
         read_only_fields = ("created_by", "approved_by", "project")
         protected_fields = ("round_uuid",)
@@ -696,6 +703,9 @@ class ProposalSerializer(
             "project": {"lookup_field": "uuid", "view_name": "project-detail"},
             "supporting_documentation": {"required": False},
         }
+
+    def validate_description(self, value):
+        return clean_html(value.strip())
 
     def validate(self, attrs):
         if self.instance:

@@ -230,6 +230,7 @@ class Proposal(
     TimeStampedModel,
     core_models.UuidMixin,
     core_models.NameMixin,
+    core_models.DescribableMixin,
     structure_models.StructureLoggableMixin,
     structure_models.ProjectOECDFOS2007CodeMixin,
 ):
