@@ -70,6 +70,7 @@ class ReviewFilter(django_filters.FilterSet):
     proposal = core_filters.URLFilter(
         view_name="proposal-proposal-detail", field_name="proposal__uuid"
     )
+    proposal_uuid = django_filters.UUIDFilter(field_name="proposal__uuid")
     o = django_filters.OrderingFilter(fields=("created", "state"))
     reviewer_uuid = django_filters.UUIDFilter(field_name="reviewer__uuid")
     state = django_filters.MultipleChoiceFilter(choices=models.Review.States.CHOICES)
