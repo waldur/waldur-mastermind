@@ -203,16 +203,6 @@ class ReviewSerializer(
             },
         }
 
-    def validate_proposal(self, proposal):
-        if proposal.state not in (
-            models.Proposal.States.IN_REVIEW,
-            models.Proposal.States.SUBMITTED,
-        ):
-            raise serializers.ValidationError(
-                {"proposal": _("Proposal state is not correct.")}
-            )
-        return proposal
-
     def validate(self, attrs):
         if not self.instance:
             reviewer = attrs["reviewer"]
