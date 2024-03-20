@@ -90,6 +90,8 @@ class NestedRequestedOfferingSerializer(serializers.HyperlinkedModelSerializer):
             "offering_name",
             "offering_uuid",
             "provider_name",
+            "category_uuid",
+            "category_name",
             "call_managing_organisation",
             "attributes",
             "plan",
