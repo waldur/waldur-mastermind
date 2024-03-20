@@ -1,7 +1,6 @@
 from ddt import data, ddt
 from rest_framework import status, test
 
-from waldur_core.media.utils import dummy_image
 from waldur_mastermind.proposal import models
 from waldur_mastermind.proposal.tests import fixtures
 
@@ -70,11 +69,13 @@ class ProposalCreateTest(test.APITransactionTestCase):
 
 
 @ddt
-class ProposalUpdateTest(test.APITransactionTestCase):
+class UpdateProposalProjectDetailsTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.proposal = self.fixture.proposal
-        self.url = factories.ProposalFactory.get_url(self.proposal)
+        self.url = factories.ProposalFactory.get_url(
+            self.proposal, "update_project_details"
+        )
 
     @data(
         "staff",
@@ -99,35 +100,6 @@ class ProposalUpdateTest(test.APITransactionTestCase):
         response = self.update_proposal(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @data("staff", "proposal_creator")
-    def test_upload_supporting_documentation(self, user):
-        user = getattr(self.fixture, user)
-        self.client.force_authenticate(user)
-
-        payload = {
-            "project_summary": "new summary",
-            "project_duration": 10,
-            "project_is_confidential": True,
-            "project_has_civilian_purpose": True,
-            "supporting_documentation": [
-                {"file": dummy_image()},
-                {"file": dummy_image()},
-            ],
-        }
-
-        response = self.client.patch(self.url, payload, format="multipart")
-        proposal = models.Proposal.objects.get(uuid=self.proposal.uuid)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(proposal.proposaldocumentation_set.all()), 2)
-
-        payload = {
-            "supporting_documentation": [],
-        }
-        response = self.client.patch(self.url, payload, format="multipart")
-        proposal = models.Proposal.objects.get(uuid=self.proposal.uuid)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(proposal.proposaldocumentation_set.all()), 0)
-
     @data(
         "staff",
         "proposal_creator",
@@ -144,10 +116,9 @@ class ProposalUpdateTest(test.APITransactionTestCase):
 
         payload = {
             "name": "new",
-            "round_uuid": self.fixture.round.uuid.hex,
             "duration_in_days": 10,
         }
-        response = self.client.patch(self.url, payload)
+        response = self.client.post(self.url, payload)
         self.proposal.refresh_from_db()
         return response
 
