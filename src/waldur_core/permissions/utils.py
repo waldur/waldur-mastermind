@@ -130,7 +130,9 @@ def has_user(scope, user, role=None, expiration_time=None):
 
 
 def get_permissions(scope, user=None):
-    qs = models.UserRole.objects.filter(scope=scope, is_active=True)
+    qs = models.UserRole.objects.filter(
+        scope=scope, is_active=True, user__is_active=True
+    )
     if user:
         qs = qs.filter(user=user)
     return qs
