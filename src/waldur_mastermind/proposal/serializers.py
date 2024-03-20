@@ -660,6 +660,20 @@ class ProposalDocumentationSerializer(serializers.ModelSerializer):
         fields = ["file"]
 
 
+class ProposalUpdateProjectDetailsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Proposal
+        fields = [
+            "name",
+            "description",
+            "project_summary",
+            "project_is_confidential",
+            "project_has_civilian_purpose",
+            "duration_in_days",
+            "oecd_fos_2007_code",
+        ]
+
+
 class ProposalSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,

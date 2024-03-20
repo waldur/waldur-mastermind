@@ -331,6 +331,7 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     lookup_field = "uuid"
     serializer_class = serializers.ProposalSerializer
     filterset_class = filters.ProposalFilter
+    disabled_actions = ["update", "partial_update"]
 
     def get_queryset(self):
         user = self.request.user
@@ -351,10 +352,25 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             return
         raise exceptions.PermissionDenied()
 
-    update_permissions = partial_update_permissions = destroy_permissions = [is_creator]
-    destroy_validators = update_validators = partial_update_validators = [
+    destroy_permissions = [is_creator]
+    destroy_validators = [core_validators.StateValidator(models.Proposal.States.DRAFT)]
+
+    update_project_details_serializer_class = (
+        serializers.ProposalUpdateProjectDetailsSerializer
+    )
+    update_project_details_permissions = [is_creator]
+    update_project_details_validators = partial_update_validators = [
         core_validators.StateValidator(models.Proposal.States.DRAFT)
     ]
+
+    @decorators.action(detail=True, methods=["post"])
+    def update_project_details(self, request, uuid=None):
+        proposal = self.get_object()
+        serializer = self.get_serializer(data=request.data, instance=proposal)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return response.Response(status=status.HTTP_200_OK)
 
     @decorators.action(detail=True, methods=["post"])
     def submit(self, request, uuid=None):
@@ -369,45 +385,6 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     submit_validators = [core_validators.StateValidator(models.Proposal.States.DRAFT)]
 
     submit_permissions = [is_creator]
-
-    def perform_update(self, serializer):
-        try:
-            supporting_documentation_data = self.request.data.getlist(
-                "supporting_documentation", []
-            )
-            instance = serializer.save()
-
-            existing_files = set(
-                instance.proposaldocumentation_set.values_list("uuid", flat=True)
-            )
-
-            for file_data in supporting_documentation_data:
-                obj, created = models.ProposalDocumentation.objects.get_or_create(
-                    proposal=instance, file=file_data
-                )
-                existing_files.discard(obj.uuid)
-
-            models.ProposalDocumentation.objects.filter(
-                uuid__in=existing_files
-            ).delete()
-
-        except AttributeError:
-            return super().perform_update(serializer)
-
-    def perform_create(self, serializer):
-        try:
-            supporting_documentation_data = self.request.data.getlist(
-                "supporting_documentation", []
-            )
-            instance = serializer.save()
-
-            for file_data in supporting_documentation_data:
-                models.ProposalDocumentation.objects.create(
-                    proposal=instance, file=file_data
-                )
-
-        except AttributeError:
-            return super().perform_create(serializer)
 
     @decorators.action(detail=True, methods=["get", "post"])
     def resources(self, request, uuid=None):
