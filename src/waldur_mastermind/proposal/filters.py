@@ -87,6 +87,9 @@ class RequestedOfferingFilter(django_filters.FilterSet):
         label="Offering",
     )
     offering_uuid = django_filters.UUIDFilter(field_name="offering__uuid")
+    organization_uuid = django_filters.UUIDFilter(
+        field_name="call__manager__customer__uuid"
+    )
     call = core_filters.URLFilter(
         view_name="proposal-public-call-detail",
         field_name="call__uuid",
