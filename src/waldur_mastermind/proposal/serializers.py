@@ -684,7 +684,7 @@ class ProposalSerializer(
     call_uuid = serializers.UUIDField(source="round.call.uuid", read_only=True)
     call_name = serializers.ReadOnlyField(source="round.call.name", read_only=True)
     supporting_documentation = ProposalDocumentationSerializer(
-        many=True, required=False
+        many=True, required=False, read_only=True
     )
     resources = serializers.SerializerMethodField(method_name="get_resources")
     oecd_fos_2007_label = serializers.ReadOnlyField(
@@ -722,7 +722,6 @@ class ProposalSerializer(
             "created_by": {"lookup_field": "uuid", "view_name": "user-detail"},
             "approved_by": {"lookup_field": "uuid", "view_name": "user-detail"},
             "project": {"lookup_field": "uuid", "view_name": "project-detail"},
-            "supporting_documentation": {"required": False},
         }
 
     def validate_description(self, value):
