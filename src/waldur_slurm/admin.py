@@ -39,7 +39,7 @@ class AllocationAdmin(structure_admin.ResourceAdmin):
         valid_allocations = queryset.filter(state=valid_state)
         for allocation in valid_allocations:
             serialized_allocation = core_utils.serialize_instance(allocation)
-            tasks.add_allocation_users.delay(serialized_allocation)
+            tasks.sync_allocation_users.delay(serialized_allocation)
 
         count = valid_allocations.count()
         message = ngettext(

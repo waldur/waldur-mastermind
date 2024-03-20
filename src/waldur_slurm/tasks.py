@@ -3,7 +3,7 @@ from celery import shared_task
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
 
-from . import models, utils
+from . import backend, models, utils
 
 
 def get_structure_allocations(structure):
@@ -55,8 +55,8 @@ def process_role_revoked(serialized_profile, serialized_structure):
         allocation.get_backend().delete_user(allocation, profile.user, profile.username)
 
 
-@shared_task(name="waldur_slurm.add_allocation_users")
-def add_allocation_users(serialized_allocation):
+@shared_task(name="waldur_slurm.sync_allocation_users")
+def sync_allocation_users(serialized_allocation):
     allocation = core_utils.deserialize_instance(serialized_allocation)
-    backend = allocation.get_backend()
-    backend.add_new_users(allocation)
+    slurm_backend: backend.SlurmBackend = allocation.get_backend()
+    slurm_backend.sync_users(allocation)
