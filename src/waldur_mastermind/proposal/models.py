@@ -355,6 +355,24 @@ class Review(
     summary_score = models.PositiveSmallIntegerField(blank=True, default=0)
     summary_public_comment = models.TextField(blank=True)
     summary_private_comment = models.TextField(blank=True)
+    comment_project_title = models.CharField(max_length=255, null=True, blank=True)
+    comment_project_summary = models.CharField(max_length=255, null=True, blank=True)
+    comment_project_description = models.CharField(
+        max_length=255, null=True, blank=True
+    )
+    comment_project_duration = models.CharField(max_length=255, null=True, blank=True)
+    comment_project_is_confidential = models.CharField(
+        max_length=255, null=True, blank=True
+    )
+    comment_project_has_civilian_purpose = models.CharField(
+        max_length=255, null=True, blank=True
+    )
+    comment_project_supporting_documentation = models.CharField(
+        max_length=255, null=True, blank=True
+    )
+    comment_resource_requests = models.CharField(max_length=255, null=True, blank=True)
+    comment_team = models.CharField(max_length=255, null=True, blank=True)
+
     reviewer = models.ForeignKey(
         to=settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="+"
     )
