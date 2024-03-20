@@ -407,6 +407,39 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
 
     resource_detail_serializer_class = serializers.RequestedResourceSerializer
 
+    @decorators.action(detail=True, methods=["post"])
+    def attach_documents(self, request, uuid=None):
+        try:
+            instance = self.get_object()
+
+            documents = request.data.getlist("supporting_documentation", [])
+
+            for file_data in documents:
+                obj, created = models.ProposalDocumentation.objects.get_or_create(
+                    proposal=instance,
+                    file=file_data,
+                )
+                if created:
+                    instance.supporting_documentation.add(obj)
+                    log.event_logger.proposal.info(
+                        f"Attachment for {instance.name} has been added.",
+                        event_type="proposal_document_removed",
+                    )
+                    logger.info(f"Attachment for {instance.name} has been added.")
+
+            return response.Response(
+                "Documents attached successfully",
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception:
+            return response.Response(
+                "Error attaching documents",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    attach_documents_serializer_class = serializers.ProposalDocumentationSerializer
+
 
 class ReviewViewSet(ActionsViewSet):
     lookup_field = "uuid"

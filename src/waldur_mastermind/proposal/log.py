@@ -6,6 +6,8 @@ class CallProposalLogger(EventLogger):
         event_types = (
             "call_proposal_document_added",
             "call_proposal_document_removed",
+            "proposal_document_added",
+            "proposal_document_removed",
         )
         event_groups = {
             "proposal": event_types,

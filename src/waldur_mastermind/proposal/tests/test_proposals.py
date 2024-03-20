@@ -1,6 +1,7 @@
 from ddt import data, ddt
 from rest_framework import status, test
 
+from waldur_core.media.utils import dummy_image
 from waldur_mastermind.proposal import models
 from waldur_mastermind.proposal.tests import fixtures
 
@@ -99,6 +100,27 @@ class UpdateProposalProjectDetailsTest(test.APITransactionTestCase):
     def test_customer_user_can_not_update_proposal(self, user):
         response = self.update_proposal(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def _upload_proposal_document(self):
+        url = factories.ProposalFactory.get_url(
+            self.proposal, action="attach_documents"
+        )
+        payload = {
+            "supporting_documentation": [
+                {"file": dummy_image()},
+                {"file": dummy_image()},
+            ],
+        }
+        return self.client.post(url, payload, format="multipart")
+
+    @data("staff", "owner", "customer_support")
+    def test_upload_documents(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self._upload_proposal_document()
+        proposal = models.Proposal.objects.get(uuid=self.proposal.uuid)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(proposal.proposaldocumentation_set.all()), 2)
 
     @data(
         "staff",
