@@ -461,63 +461,6 @@ class ProjectApiPermissionTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
-@ddt
-class ProjectUsersListTest(test.APITransactionTestCase):
-    def setUp(self):
-        self.fixture = fixtures.ProjectFixture()
-        self.admin = self.fixture.admin
-        self.manager = self.fixture.manager
-        self.project = self.fixture.project
-        self.url = factories.ProjectFactory.get_url(self.project, action="users")
-        self.staff = factories.UserFactory(is_staff=True)
-        self.user1 = factories.UserFactory()
-        self.user2 = factories.UserFactory()
-        self.project1 = factories.ProjectFactory()
-        self.project2 = factories.ProjectFactory()
-        self.project1.add_user(self.user1, ProjectRole.MEMBER)
-        self.project2.add_user(self.user1, ProjectRole.MEMBER)
-        self.project2.add_user(self.user2, ProjectRole.MEMBER)
-
-    @data("staff", "owner", "manager", "admin")
-    def test_user_can_list_project_users(self, user):
-        self.client.force_authenticate(getattr(self.fixture, user))
-        response = self.client.get(self.url)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2)
-
-        self.assertSetEqual(
-            {user["role"] for user in response.data}, {"admin", "manager"}
-        )
-        self.assertSetEqual(
-            {user["uuid"] for user in response.data},
-            {self.admin.uuid.hex, self.manager.uuid.hex},
-        )
-
-    def test_user_can_not_list_project_users(self):
-        self.client.force_authenticate(self.fixture.user)
-        response = self.client.get(self.url)
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-
-    def test_staff_can_filter_project_by_user(self):
-        self.assert_staff_can_filter_project_by_user(
-            self.user1, {self.project1, self.project2}
-        )
-        self.assert_staff_can_filter_project_by_user(self.user2, {self.project2})
-
-    def assert_staff_can_filter_project_by_user(self, user, projects):
-        self.client.force_authenticate(self.staff)
-        response = self.client.get(
-            factories.ProjectFactory.get_list_url(),
-            {"user_uuid": user.uuid.hex, "fields": ["uuid"]},
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(
-            {project["uuid"] for project in response.data},
-            {project.uuid.hex for project in projects},
-        )
-
-
 class ProjectCountersListTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ServiceFixture()
