@@ -187,6 +187,15 @@ class ReviewSerializer(
             "round_start_time",
             "call_name",
             "call_uuid",
+            "comment_project_title",
+            "comment_project_summary",
+            "comment_project_is_confidential",
+            "comment_project_has_civilian_purpose",
+            "comment_project_description",
+            "comment_project_duration",
+            "comment_project_supporting_documentation",
+            "comment_resource_requests",
+            "comment_team",
         )
         protected_fields = ("proposal", "reviewer")
         extra_kwargs = {
