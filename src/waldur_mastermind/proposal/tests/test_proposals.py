@@ -102,15 +102,8 @@ class UpdateProposalProjectDetailsTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def _upload_proposal_document(self):
-        url = factories.ProposalFactory.get_url(
-            self.proposal, action="attach_documents"
-        )
-        payload = {
-            "supporting_documentation": [
-                {"file": dummy_image()},
-                {"file": dummy_image()},
-            ],
-        }
+        url = factories.ProposalFactory.get_url(self.proposal, action="attach_document")
+        payload = {"file": dummy_image()}
         return self.client.post(url, payload, format="multipart")
 
     @data("staff", "owner", "customer_support")
@@ -120,7 +113,7 @@ class UpdateProposalProjectDetailsTest(test.APITransactionTestCase):
         response = self._upload_proposal_document()
         proposal = models.Proposal.objects.get(uuid=self.proposal.uuid)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(proposal.proposaldocumentation_set.all()), 2)
+        self.assertEqual(proposal.proposaldocumentation_set.count(), 1)
 
     @data(
         "staff",

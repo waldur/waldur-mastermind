@@ -1,11 +1,13 @@
 from waldur_core.logging.loggers import EventLogger, event_logger
+from waldur_core.structure.permissions import _get_customer
+from waldur_mastermind.proposal.models import Call, Proposal
 
 
-class CallProposalLogger(EventLogger):
+class ProposalLogger(EventLogger):
+    proposal = Proposal
+
     class Meta:
         event_types = (
-            "call_proposal_document_added",
-            "call_proposal_document_removed",
             "proposal_document_added",
             "proposal_document_removed",
         )
@@ -15,7 +17,25 @@ class CallProposalLogger(EventLogger):
 
     @staticmethod
     def get_scopes(event_context):
-        return {event_context["customer"]}
+        return {_get_customer(event_context["proposal"])}
 
 
-event_logger.register("proposal", CallProposalLogger)
+class CallLogger(EventLogger):
+    call = Call
+
+    class Meta:
+        event_types = (
+            "call_document_added",
+            "call_document_removed",
+        )
+        event_groups = {
+            "call": event_types,
+        }
+
+    @staticmethod
+    def get_scopes(event_context):
+        return {_get_customer(event_context["call"])}
+
+
+event_logger.register("proposal", ProposalLogger)
+event_logger.register("call", CallLogger)
