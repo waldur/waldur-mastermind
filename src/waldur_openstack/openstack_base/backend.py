@@ -1,5 +1,4 @@
 import logging
-import re
 
 from cinderclient import exceptions as cinder_exceptions
 from django.db import transaction
@@ -9,6 +8,7 @@ from neutronclient.client import exceptions as neutron_exceptions
 from novaclient import exceptions as nova_exceptions
 from requests import ConnectionError
 
+from waldur_core.quotas.models import QuotaModelMixin
 from waldur_core.structure.backend import ServiceBackend
 from waldur_openstack.openstack_base.exceptions import OpenStackBackendError
 from waldur_openstack.openstack_base.session import (
@@ -19,14 +19,9 @@ from waldur_openstack.openstack_base.session import (
     get_neutron_client,
     get_nova_client,
 )
+from waldur_openstack.openstack_base.utils import is_valid_volume_type_name
 
 logger = logging.getLogger(__name__)
-
-VALID_VOLUME_TYPE_NAME_PATTERN = re.compile(r"^gigabytes_[a-z]+[-_a-z]+$")
-
-
-def is_valid_volume_type_name(name):
-    return re.match(VALID_VOLUME_TYPE_NAME_PATTERN, name)
 
 
 class BaseOpenStackBackend(ServiceBackend):
@@ -57,7 +52,7 @@ class BaseOpenStackBackend(ServiceBackend):
         else:
             return True
 
-    def _pull_tenant_quotas(self, backend_id, scope):
+    def _pull_tenant_quotas(self, backend_id, scope: QuotaModelMixin):
         # Cinder volumes and snapshots manager does not implement filtering by tenant_id.
         # Therefore we need to assume that tenant_id field is set up in backend settings.
         backend = BaseOpenStackBackend(self.settings, backend_id)

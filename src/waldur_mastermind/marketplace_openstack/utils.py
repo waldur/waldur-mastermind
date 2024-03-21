@@ -25,6 +25,10 @@ from waldur_mastermind.marketplace_openstack import (
     VOLUME_TYPE,
 )
 from waldur_openstack.openstack import models as openstack_models
+from waldur_openstack.openstack_base.utils import (
+    is_valid_volume_type_name,
+    volume_type_name_to_quota_name,
+)
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
 from waldur_openstack.openstack_tenant import backend as openstack_tenant_backend
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
@@ -135,7 +139,7 @@ def import_quotas(offering, source_values):
         result_values[STORAGE_TYPE] = source_values.get(TenantQuotas.storage.name, 0)
     elif storage_mode == STORAGE_MODE_DYNAMIC:
         volume_type_values = {
-            k: v for (k, v) in source_values.items() if k.startswith("gigabytes_")
+            k: v for (k, v) in source_values.items() if is_valid_volume_type_name(k)
         }
         result_values.update(volume_type_values)
 
@@ -184,7 +188,7 @@ def tenant_limits_validator(limits):
     storage = sum(
         value
         for key, value in limits.items()
-        if key.startswith("gigabytes_") or key == STORAGE_TYPE
+        if is_valid_volume_type_name(key) or key == STORAGE_TYPE
     )
     if not storage:
         raise exceptions.ValidationError("Storage limit is mandatory.")
@@ -203,7 +207,7 @@ def map_limits_to_quotas(limits, offering):
     volume_type_quotas = dict(
         (key, value)
         for (key, value) in limits.items()
-        if key.startswith("gigabytes_") and value is not None
+        if is_valid_volume_type_name(key) and value is not None
     )
 
     # Common storage quota should be equal to sum of all volume-type quotas.
@@ -218,7 +222,9 @@ def map_limits_to_quotas(limits, offering):
         for volume_type in openstack_models.VolumeType.objects.filter(
             settings=offering.scope
         ):
-            volume_type_quotas.setdefault("gigabytes_" + volume_type.name, 0)
+            volume_type_quotas.setdefault(
+                volume_type_name_to_quota_name(volume_type.name), 0
+            )
 
         quotas["storage"] = ServiceBackend.gb2mb(sum(list(volume_type_quotas.values())))
         quotas.update(volume_type_quotas)
@@ -262,7 +268,7 @@ def import_limits_when_storage_mode_is_switched(resource):
         limits[STORAGE_TYPE] = raw_usages.get(TenantQuotas.storage.name, 0)
     elif storage_mode == STORAGE_MODE_DYNAMIC:
         volume_type_limits = {
-            k: v for (k, v) in raw_usages.items() if k.startswith("gigabytes_")
+            k: v for (k, v) in raw_usages.items() if is_valid_volume_type_name(k)
         }
         limits.update(volume_type_limits)
 

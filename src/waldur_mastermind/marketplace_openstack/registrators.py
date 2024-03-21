@@ -6,6 +6,7 @@ from waldur_mastermind.marketplace_openstack import (
     STORAGE_TYPE,
     TENANT_TYPE,
 )
+from waldur_openstack.openstack_base.utils import is_valid_volume_type_name
 
 
 class OpenStackBaseRegistrator(MarketplaceRegistrator):
@@ -24,7 +25,7 @@ class OpenStackBaseRegistrator(MarketplaceRegistrator):
             return "RAM"
         elif component_type == STORAGE_TYPE:
             return "storage"
-        elif component_type.startswith("gigabytes_"):
+        elif is_valid_volume_type_name(component_type):
             return f'{component_type.replace("gigabytes_", "")} storage'
         else:
             return plan_component.component.name

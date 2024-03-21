@@ -26,6 +26,7 @@ from waldur_openstack.openstack.tests import fixtures as openstack_fixtures
 from waldur_openstack.openstack.tests.factories import VolumeTypeFactory
 from waldur_openstack.openstack.tests.unittests.test_backend import BaseBackendTestCase
 from waldur_openstack.openstack_base.tests.fixtures import OpenStackFixture
+from waldur_openstack.openstack_base.utils import volume_type_name_to_quota_name
 
 from .. import INSTANCE_TYPE, TENANT_TYPE, VOLUME_TYPE
 from . import fixtures
@@ -207,7 +208,9 @@ class OfferingComponentForVolumeTypeTest(test.APITransactionTestCase):
             marketplace_models.OfferingComponent.BillingTypes.LIMIT,
         )
         self.assertEqual(component.name, "Storage (%s)" % self.volume_type.name)
-        self.assertEqual(component.type, "gigabytes_" + self.volume_type.name)
+        self.assertEqual(
+            component.type, volume_type_name_to_quota_name(self.volume_type.name)
+        )
 
     def test_offering_component_for_volume_type_is_not_created_if_storage_mode_is_fixed(
         self,

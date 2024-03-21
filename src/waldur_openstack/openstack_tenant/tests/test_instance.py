@@ -14,6 +14,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common import utils as common_utils
 from waldur_openstack.openstack.tests.unittests import test_backend
 from waldur_openstack.openstack_base.exceptions import OpenStackBackendError
+from waldur_openstack.openstack_base.utils import volume_type_name_to_quota_name
 from waldur_openstack.openstack_tenant import executors, models, views
 from waldur_openstack.openstack_tenant.tasks import LimitedPerTypeThrottleMixin
 from waldur_openstack.openstack_tenant.tests import factories, fixtures, helpers
@@ -79,6 +80,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
         )
         self.flavor = factories.FlavorFactory(settings=self.openstack_settings)
         self.subnet = self.openstack_tenant_fixture.subnet
+        self.volume_type = factories.VolumeTypeFactory(settings=self.openstack_settings)
 
     def create_instance(self, post_data=None):
         user = self.openstack_tenant_fixture.owner
@@ -101,6 +103,20 @@ class InstanceCreateTest(test.APITransactionTestCase):
         }
         default.update(extra)
         return default
+
+    def test_instance_cannot_be_created_if_volume_exceeds_volume_type_quota(self):
+        quota_name = volume_type_name_to_quota_name(self.volume_type.name)
+        self.openstack_settings.set_quota_limit(quota_name, 100)
+        self.openstack_settings.set_quota_usage(quota_name, 100)
+        response = self.create_instance(
+            self.get_valid_data(
+                system_volume_type=factories.VolumeTypeFactory.get_url(
+                    self.volume_type
+                ),
+                data_volume_type=factories.VolumeTypeFactory.get_url(self.volume_type),
+            )
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_quotas_update(self):
         response = self.create_instance(self.get_valid_data())
