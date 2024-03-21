@@ -158,10 +158,6 @@ class QuotaModelMixin(models.Model):
             return [v for v in cls._quota_fields if isinstance(v, field_class)]
         return cls._quota_fields
 
-    @classmethod
-    def get_quotas_names(cls):
-        return [f.name for f in cls.get_quotas_fields()]
-
     @property
     def quota_usages(self):
         return {
@@ -182,13 +178,14 @@ class QuotaModelMixin(models.Model):
     def quotas(self):
         usages = self.quota_usages
         limits = self.quota_limits
+        names = set(usages.keys()) | set(limits.keys())
         return [
             {
                 "name": name,
                 "usage": usages.get(name) or 0,
                 "limit": limits.get(name) or -1,
             }
-            for name in self.get_quotas_names()
+            for name in names
         ]
 
 
