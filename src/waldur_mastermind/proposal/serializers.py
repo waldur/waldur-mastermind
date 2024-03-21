@@ -8,7 +8,10 @@ from rest_framework.reverse import reverse
 
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core.clean_html import clean_html
-from waldur_core.media.serializers import ProtectedImageField
+from waldur_core.media.serializers import (
+    ProtectedImageField,
+    ProtectedMediaSerializerMixin,
+)
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import permissions as marketplace_permissions
 from waldur_mastermind.marketplace.serializers import (
@@ -654,7 +657,7 @@ class ProtectedRoundSerializer(
         return attrs
 
 
-class ProposalDocumentationSerializer(serializers.ModelSerializer):
+class ProposalDocumentationSerializer(ProtectedMediaSerializerMixin):
     class Meta:
         model = models.ProposalDocumentation
         fields = ["file"]
