@@ -1,6 +1,7 @@
 from ddt import data, ddt
 from rest_framework import status, test
 
+from waldur_openstack.openstack_base.utils import volume_type_name_to_quota_name
 from waldur_openstack.openstack_tenant import models
 
 from . import factories, fixtures
@@ -134,7 +135,7 @@ class SnapshotRestoreTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.owner)
         snapshot = self.fixture.snapshot
         snapshot.service_settings.set_quota_limit(
-            f"gigabytes_{snapshot.source_volume.type.name}", 0
+            volume_type_name_to_quota_name(snapshot.source_volume.type.name), 0
         )
         expected_volumes_amount = models.Volume.objects.count()
 

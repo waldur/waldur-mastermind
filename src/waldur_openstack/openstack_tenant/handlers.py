@@ -8,6 +8,7 @@ from django.db.models import Q
 from waldur_core.core.models import StateMixin
 from waldur_core.quotas.models import QuotaLimit
 from waldur_core.structure import models as structure_models
+from waldur_openstack.openstack_base.utils import is_valid_volume_type_name
 
 from ..openstack import apps as openstack_apps
 from ..openstack import models as openstack_models
@@ -584,7 +585,7 @@ def sync_private_settings_quota_usage_with_tenant_quotas(
 def delete_volume_type_quotas_from_private_service_settings(sender, instance, **kwargs):
     quota = instance
 
-    if not quota.name.startswith("gigabytes_"):
+    if not is_valid_volume_type_name(quota.name):
         return
 
     if not isinstance(quota.scope, openstack_models.Tenant):

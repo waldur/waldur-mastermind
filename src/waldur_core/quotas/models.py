@@ -239,7 +239,7 @@ class SharedQuotaMixin:
         """
         raise NotImplementedError()
 
-    def get_quota_scopes(self):
+    def get_quota_scopes(self) -> list[QuotaModelMixin]:
         """
         This method should return list of quota model mixins.
         """

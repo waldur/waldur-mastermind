@@ -31,6 +31,7 @@ from waldur_openstack.openstack_base.serializers import (
 from waldur_openstack.openstack_base.serializers import (
     FlavorSerializer as BaseFlavorSerializer,
 )
+from waldur_openstack.openstack_base.utils import volume_type_name_to_quota_name
 from waldur_openstack.openstack_tenant.utils import get_valid_availability_zones
 
 from . import models
@@ -396,7 +397,7 @@ class VolumeExtendSerializer(serializers.Serializer):
                 "storage", new_size - instance.size, validate=True
             )
             if instance.type:
-                key = "gigabytes_" + instance.type.name
+                key = volume_type_name_to_quota_name(instance.type.name)
                 delta = (new_size - instance.size) / 1024
                 quota_holder.add_quota_usage(key, delta, validate=True)
 
@@ -490,10 +491,14 @@ class VolumeRetypeSerializer(serializers.HyperlinkedModelSerializer):
             if not quota_holder:
                 continue
             quota_holder.add_quota_usage(
-                "gigabytes_" + old_type.name, -1 * instance.size / 1024, validate=True
+                volume_type_name_to_quota_name(old_type.name),
+                -1 * instance.size / 1024,
+                validate=True,
             )
             quota_holder.add_quota_usage(
-                "gigabytes_" + new_type.name, instance.size / 1024, validate=True
+                volume_type_name_to_quota_name(new_type.name),
+                instance.size / 1024,
+                validate=True,
             )
 
         return super().update(instance, validated_data)
@@ -1326,7 +1331,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
         volume_availability_zone = self._find_volume_availability_zone(instance)
 
         # volumes
-        volumes = []
+        volumes: list[models.Volume] = []
         system_volume = models.Volume.objects.create(
             name=f"{instance.name[:143]}-system",  # volume name cannot be longer than 150 symbols
             service_settings=service_settings,

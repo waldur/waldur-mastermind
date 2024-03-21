@@ -15,6 +15,7 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure import utils as structure_utils
 from waldur_geo_ip.utils import get_coordinates_by_ip
 from waldur_openstack.openstack_base import models as openstack_base_models
+from waldur_openstack.openstack_base.utils import volume_type_name_to_quota_name
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +94,7 @@ class TenantQuotaMixin(quotas_models.SharedQuotaMixin):
     It allows to update both service settings and shared tenant quotas.
     """
 
-    def get_quota_scopes(self):
+    def get_quota_scopes(self) -> list[quotas_models.QuotaModelMixin]:
         service_settings = self.service_settings
         return service_settings, service_settings.scope
 
@@ -201,7 +202,7 @@ class Volume(TenantQuotaMixin, structure_models.Volume):
             "storage": self.size,
         }
         if self.type:
-            deltas["gigabytes_" + self.type.name] = self.size / 1024
+            deltas[volume_type_name_to_quota_name(self.type.name)] = self.size / 1024
         return deltas
 
     @classmethod

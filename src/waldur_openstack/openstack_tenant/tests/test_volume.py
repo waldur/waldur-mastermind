@@ -6,6 +6,7 @@ from rest_framework import status, test
 
 from waldur_core.structure.tests.factories import ProjectFactory, ServiceSettingsFactory
 from waldur_mastermind.common import utils as common_utils
+from waldur_openstack.openstack_base.utils import volume_type_name_to_quota_name
 from waldur_openstack.openstack_tenant import models, views
 from waldur_openstack.openstack_tenant.tests.helpers import (
     override_openstack_tenant_settings,
@@ -110,7 +111,7 @@ class VolumeExtendTestCase(test.APITransactionTestCase):
         # Arrange
         private_settings = self.volume.service_settings
         shared_tenant = private_settings.scope
-        key = "gigabytes_" + self.volume.type.name
+        key = volume_type_name_to_quota_name(self.volume.type.name)
 
         private_settings.set_quota_usage(key, self.volume.size / 1024)
         shared_tenant.set_quota_usage(key, self.volume.size / 1024)
@@ -270,7 +271,7 @@ class VolumeSnapshotTestCase(test.APITransactionTestCase):
 
     def test_user_can_create_volume_snapshot_if_storage_quotas_are_full(self):
         self.volume.service_settings.set_quota_limit(
-            f"gigabytes_{self.volume.type.name}", 0
+            volume_type_name_to_quota_name(self.volume.type.name), 0
         )
         self.volume.service_settings.set_quota_limit("storage", 0)
         response = self.create_snapshot()
@@ -493,7 +494,7 @@ class VolumeTypeCreateTest(BaseVolumeCreateTest):
     def test_when_volume_is_created_volume_type_quota_is_updated(self):
         self.create_volume(type=self.type_url, size=1024 * 10)
 
-        key = "gigabytes_" + self.type.name
+        key = volume_type_name_to_quota_name(self.type.name)
         usage = self.settings.get_quota_usage(key)
         self.assertEqual(usage, 10)
 
@@ -594,8 +595,8 @@ class VolumeRetypeTestCase(test.APITransactionTestCase):
     def test_when_volume_is_retyped_volume_type_quota_is_updated(self):
         # Arrange
         scope = self.volume.service_settings
-        old_type_key = "gigabytes_" + self.volume.type.name
-        new_type_key = "gigabytes_" + self.new_type.name
+        old_type_key = volume_type_name_to_quota_name(self.volume.type.name)
+        new_type_key = volume_type_name_to_quota_name(self.new_type.name)
         scope.add_quota_usage(old_type_key, self.volume.size / 1024)
 
         # Act
@@ -611,8 +612,8 @@ class VolumeRetypeTestCase(test.APITransactionTestCase):
     ):
         # Arrange
         scope = self.volume.service_settings.scope
-        old_type_key = "gigabytes_" + self.volume.type.name
-        new_type_key = "gigabytes_" + self.new_type.name
+        old_type_key = volume_type_name_to_quota_name(self.volume.type.name)
+        new_type_key = volume_type_name_to_quota_name(self.new_type.name)
         scope.add_quota_usage(old_type_key, self.volume.size / 1024)
 
         # Act

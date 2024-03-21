@@ -9,6 +9,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_openstack.openstack import models as openstack_models
+from waldur_openstack.openstack_base.utils import volume_type_name_to_quota_name
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 
@@ -389,7 +390,7 @@ def create_offering_component_for_volume_type(
             name="Storage (%s)" % instance.name,
             # It is expected that internal name of offering component related to volume type
             # matches storage quota name generated in OpenStack
-            type="gigabytes_" + instance.name,
+            type=volume_type_name_to_quota_name(instance.name),
             measured_unit="GB",
             description=instance.description,
             billing_type=marketplace_models.OfferingComponent.BillingTypes.LIMIT,

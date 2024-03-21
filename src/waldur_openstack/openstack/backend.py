@@ -33,6 +33,7 @@ from waldur_openstack.openstack_base.session import (
     get_neutron_client,
     get_nova_client,
 )
+from waldur_openstack.openstack_base.utils import is_valid_volume_type_name
 
 from . import models
 from .log import event_logger
@@ -239,7 +240,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         volume_type_quotas = dict(
             (key, value)
             for (key, value) in quotas.items()
-            if key.startswith("gigabytes_") and value is not None
+            if is_valid_volume_type_name(key) and value is not None
         )
 
         if volume_type_quotas:

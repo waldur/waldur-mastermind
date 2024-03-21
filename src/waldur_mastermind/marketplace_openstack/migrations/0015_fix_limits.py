@@ -2,6 +2,8 @@ import copy
 
 from django.db import migrations
 
+from waldur_openstack.openstack_base.utils import is_valid_volume_type_name
+
 
 def fix_limits(apps, schema_editor):
     Resource = apps.get_model("marketplace", "Resource")
@@ -19,7 +21,7 @@ def fix_limits(apps, schema_editor):
                 updated = True
         else:
             for k, v in resource.current_usages.items():
-                if k.startswith("gigabytes_"):
+                if is_valid_volume_type_name(k):
                     if resource.limits.get(k, 0) < v:
                         resource.limits[k] = v
                         updated = True
