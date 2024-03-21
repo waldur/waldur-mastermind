@@ -283,10 +283,6 @@ class Proposal(
     project_is_confidential = models.BooleanField(default=False)
     project_has_civilian_purpose = models.BooleanField(default=False)
 
-    supporting_documentation = models.ManyToManyField(
-        ProposalDocumentation, related_name="supporting_documentation_set"
-    )
-
     resources = models.ManyToManyField(RequestedOffering, through="RequestedResource")
 
     tracker = FieldTracker()

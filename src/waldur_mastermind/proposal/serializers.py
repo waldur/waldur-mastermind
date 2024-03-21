@@ -687,9 +687,8 @@ class ProposalSerializer(
     call_uuid = serializers.UUIDField(source="round.call.uuid", read_only=True)
     call_name = serializers.ReadOnlyField(source="round.call.name", read_only=True)
     supporting_documentation = ProposalDocumentationSerializer(
-        many=True, required=False, read_only=True
+        many=True, read_only=True, source="proposaldocumentation_set"
     )
-    resources = serializers.SerializerMethodField(method_name="get_resources")
     oecd_fos_2007_label = serializers.ReadOnlyField(
         source="get_oecd_fos_2007_code_display"
     )
@@ -714,7 +713,6 @@ class ProposalSerializer(
             "round_uuid",
             "call_uuid",
             "call_name",
-            "resources",
             "oecd_fos_2007_code",
             "oecd_fos_2007_label",
         ]
@@ -746,16 +744,6 @@ class ProposalSerializer(
 
         attrs["round"] = call_round
         return attrs
-
-    def get_resources(self, obj):
-        queryset = obj.requestedresource_set.filter()
-        serializer = NestedRequestedResourceSerializer(
-            queryset,
-            many=True,
-            read_only=True,
-            context={"request": self.context["request"]},
-        )
-        return serializer.data
 
     def create(self, validated_data):
         validated_data["created_by"] = self.context["request"].user

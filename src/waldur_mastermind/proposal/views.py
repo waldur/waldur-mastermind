@@ -269,62 +269,51 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
 
     @decorators.action(detail=True, methods=["post"])
     def attach_documents(self, request, uuid=None):
-        try:
-            instance = self.get_object()
+        instance = self.get_object()
 
-            documents = request.data.getlist("documents", [])
+        documents = request.data.getlist("documents", [])
 
-            for file_data in documents:
-                obj, created = models.CallDocument.objects.get_or_create(
-                    call=instance,
-                    file=file_data,
+        for file_data in documents:
+            obj, created = models.CallDocument.objects.get_or_create(
+                call=instance,
+                file=file_data,
+            )
+            if created:
+                instance.documents.add(obj)
+                log.event_logger.call.info(
+                    f"Attachment for call {instance.name} has been added.",
+                    event_type="call_document_added",
+                    event_context={"call": instance},
                 )
-                if created:
-                    instance.documents.add(obj)
-                    log.event_logger.proposal.info(
-                        f"Attachment for {instance.name} has been added.",
-                        event_type="call_proposal_document_added",
-                    )
-                    logger.info(f"Attachment for {instance.name} has been added.")
+                logger.info(f"Attachment for {instance.name} has been added.")
 
-            return response.Response(
-                "Documents attached successfully",
-                status=status.HTTP_200_OK,
-            )
-
-        except Exception:
-            return response.Response(
-                "Error attaching documents",
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        return response.Response(
+            "Documents attached successfully",
+            status=status.HTTP_200_OK,
+        )
 
     attach_documents_serializer_class = serializers.CallDocumentSerializer
 
     @decorators.action(detail=True, methods=["post"])
     def detach_documents(self, request, uuid=None):
-        try:
-            instance = self.get_object()
-            documents = request.data.getlist("documents", [])
-            for file_data in documents:
-                models.CallDocument.objects.get(
-                    call=instance,
-                    uuid=file_data,
-                ).delete()
-                log.event_logger.proposal.info(
-                    f"Attachment for {instance.name} has been removed.",
-                    event_type="call_proposal_document_removed",
-                )
-                logger.info(f"Attachment for {instance.name} has been removed.")
+        instance = self.get_object()
+        documents = request.data.getlist("documents", [])
+        for file_data in documents:
+            models.CallDocument.objects.get(
+                call=instance,
+                uuid=file_data,
+            ).delete()
+            log.event_logger.call.info(
+                f"Attachment for call {instance.name} has been removed.",
+                event_type="call_document_removed",
+                event_context={"call": instance},
+            )
+            logger.info(f"Attachment for {instance.name} has been removed.")
 
-            return response.Response(
-                "Documents removed successfully",
-                status=status.HTTP_200_OK,
-            )
-        except Exception:
-            return response.Response(
-                "Error removed documents",
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        return response.Response(
+            "Documents removed successfully",
+            status=status.HTTP_200_OK,
+        )
 
 
 class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
@@ -408,37 +397,23 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     resource_detail_serializer_class = serializers.RequestedResourceSerializer
 
     @decorators.action(detail=True, methods=["post"])
-    def attach_documents(self, request, uuid=None):
-        try:
-            instance = self.get_object()
+    def attach_document(self, request, uuid=None):
+        proposal = self.get_object()
+        serializer = self.get_serializer(
+            context=self.get_serializer_context(),
+            data=request.data,
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save(proposal=proposal)
 
-            documents = request.data.getlist("supporting_documentation", [])
+        log.event_logger.proposal.info(
+            f"Attachment for proposal {proposal.name} has been added.",
+            event_type="proposal_document_added",
+            event_context={"proposal": proposal},
+        )
+        return response.Response(status=status.HTTP_200_OK)
 
-            for file_data in documents:
-                obj, created = models.ProposalDocumentation.objects.get_or_create(
-                    proposal=instance,
-                    file=file_data,
-                )
-                if created:
-                    instance.supporting_documentation.add(obj)
-                    log.event_logger.proposal.info(
-                        f"Attachment for {instance.name} has been added.",
-                        event_type="proposal_document_removed",
-                    )
-                    logger.info(f"Attachment for {instance.name} has been added.")
-
-            return response.Response(
-                "Documents attached successfully",
-                status=status.HTTP_200_OK,
-            )
-
-        except Exception:
-            return response.Response(
-                "Error attaching documents",
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-    attach_documents_serializer_class = serializers.ProposalDocumentationSerializer
+    attach_document_serializer_class = serializers.ProposalDocumentationSerializer
 
 
 class ReviewViewSet(ActionsViewSet):
