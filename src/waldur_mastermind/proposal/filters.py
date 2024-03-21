@@ -57,6 +57,9 @@ class ProposalFilter(django_filters.FilterSet):
     state = django_filters.MultipleChoiceFilter(choices=models.Proposal.States.CHOICES)
     name = django_filters.CharFilter(lookup_expr="icontains")
     call = django_filters.UUIDFilter(field_name="round__call__uuid")
+    organization_uuid = django_filters.UUIDFilter(
+        field_name="round__call__manager__customer__uuid"
+    )
     o = django_filters.OrderingFilter(
         fields=("round__call__name", "round__start_time", "round__cutoff_time", "state")
     )
