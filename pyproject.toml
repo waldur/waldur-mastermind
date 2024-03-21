@@ -164,6 +164,10 @@ pyparsing = "^3.1.1"
 pydot = "^1.4.2"
 django-extensions = "^3.2.3"
 
+
+[tool.poetry.group.dev.dependencies]
+djangorestframework-stubs = {extras = ["compatible-mypy"], version = "^3.14.5"}
+
 [build-system]
 requires = ["poetry=1.7.1"]
 build-backend = "poetry.masonry.api"
@@ -263,4 +267,9 @@ section-order = [
   "first-party",
   "third-party",
   "local-folder",
+]
+
+[tool.mypy]
+plugins = [
+  "mypy_drf_plugin.main",
 ]
