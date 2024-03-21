@@ -5,6 +5,7 @@ import factory
 from django.urls import reverse
 
 from waldur_core.core import utils as core_utils
+from waldur_core.core.types import BaseMetaFactory
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests.factories import ProjectFactory
 from waldur_openstack.openstack import models
@@ -14,7 +15,9 @@ class OpenStackServiceSettingsFactory(structure_factories.ServiceSettingsFactory
     type = "OpenStack"
 
 
-class FlavorFactory(factory.django.DjangoModelFactory):
+class FlavorFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Flavor]
+):
     class Meta:
         model = models.Flavor
 
@@ -40,7 +43,9 @@ class FlavorFactory(factory.django.DjangoModelFactory):
         return "http://testserver" + reverse("openstack-flavor-list")
 
 
-class ImageFactory(factory.django.DjangoModelFactory):
+class ImageFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Image]
+):
     class Meta:
         model = models.Image
 
@@ -82,7 +87,11 @@ class TenantMixin:
         return manager.create(*args, **kwargs)
 
 
-class SecurityGroupFactory(TenantMixin, factory.django.DjangoModelFactory):
+class SecurityGroupFactory(
+    TenantMixin,
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.SecurityGroup],
+):
     class Meta:
         model = models.SecurityGroup
 
@@ -106,7 +115,10 @@ class SecurityGroupFactory(TenantMixin, factory.django.DjangoModelFactory):
         return "http://testserver" + reverse("openstack-sgp-list")
 
 
-class SecurityGroupRuleFactory(factory.django.DjangoModelFactory):
+class SecurityGroupRuleFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.SecurityGroupRule],
+):
     class Meta:
         model = models.SecurityGroupRule
 
@@ -121,7 +133,11 @@ class SecurityGroupRuleFactory(factory.django.DjangoModelFactory):
     )
 
 
-class FloatingIPFactory(TenantMixin, factory.django.DjangoModelFactory):
+class FloatingIPFactory(
+    TenantMixin,
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.FloatingIP],
+):
     class Meta:
         model = models.FloatingIP
 
@@ -147,7 +163,9 @@ class FloatingIPFactory(TenantMixin, factory.django.DjangoModelFactory):
         return "http://testserver" + reverse("openstack-fip-list")
 
 
-class TenantFactory(factory.django.DjangoModelFactory):
+class TenantFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Tenant]
+):
     class Meta:
         model = models.Tenant
 
@@ -176,7 +194,9 @@ class TenantFactory(factory.django.DjangoModelFactory):
         return url if action is None else url + action + "/"
 
 
-class NetworkFactory(factory.django.DjangoModelFactory):
+class NetworkFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Network]
+):
     class Meta:
         model = models.Network
 
@@ -202,7 +222,9 @@ class NetworkFactory(factory.django.DjangoModelFactory):
         return "http://testserver" + reverse("openstack-network-list")
 
 
-class SubNetFactory(factory.django.DjangoModelFactory):
+class SubNetFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.SubNet]
+):
     class Meta:
         model = models.SubNet
 
@@ -230,7 +252,10 @@ class SharedOpenStackServiceSettingsFactory(OpenStackServiceSettingsFactory):
     shared = True
 
 
-class CustomerOpenStackFactory(factory.django.DjangoModelFactory):
+class CustomerOpenStackFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.CustomerOpenStack],
+):
     class Meta:
         model = models.CustomerOpenStack
 
@@ -239,7 +264,9 @@ class CustomerOpenStackFactory(factory.django.DjangoModelFactory):
     external_network_id = factory.LazyAttribute(lambda _: uuid.uuid4())
 
 
-class VolumeTypeFactory(factory.django.DjangoModelFactory):
+class VolumeTypeFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.VolumeType]
+):
     class Meta:
         model = models.VolumeType
 
@@ -260,7 +287,9 @@ class VolumeTypeFactory(factory.django.DjangoModelFactory):
         return "http://testserver" + reverse("openstack-volume-type-list")
 
 
-class PortFactory(factory.django.DjangoModelFactory):
+class PortFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Port]
+):
     class Meta:
         model = models.Port
 
@@ -282,7 +311,11 @@ class PortFactory(factory.django.DjangoModelFactory):
         return "http://testserver" + reverse("openstack-port-list")
 
 
-class ServerGroupFactory(TenantMixin, factory.django.DjangoModelFactory):
+class ServerGroupFactory(
+    TenantMixin,
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.ServerGroup],
+):
     class Meta:
         model = models.ServerGroup
 
@@ -308,7 +341,9 @@ class ServerGroupFactory(TenantMixin, factory.django.DjangoModelFactory):
         return "http://testserver" + reverse("openstack-server-group-list")
 
 
-class RouterFactory(factory.django.DjangoModelFactory):
+class RouterFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Router]
+):
     class Meta:
         model = models.Router
 
