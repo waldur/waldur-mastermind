@@ -554,7 +554,7 @@ class ProviderRequestedResourceViewSet(ReadOnlyActionsViewSet):
     lookup_field = "uuid"
     serializer_class = serializers.ProviderRequestedResourceSerializer
     filterset_class = filters.RequestedResourceFilter
-    filter_backends = []
+    filter_backends = (DjangoFilterBackend,)
 
     def get_queryset(self):
         user = self.request.user
