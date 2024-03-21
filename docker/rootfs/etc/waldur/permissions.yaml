@@ -61,6 +61,7 @@
     - OFFERING.ACCEPT_CALL_REQUEST
 
 - role: CUSTOMER.MANAGER
+  is_active: false
   description: Organization manager
   permissions:
     - RESOURCE.SET_END_DATE
@@ -142,3 +143,7 @@
 
 - role: CALL.REVIEWER
   description: Call reviewer
+
+- role: CUSTOMER.SUPPORT
+  is_active: false
+  description: Organization support
