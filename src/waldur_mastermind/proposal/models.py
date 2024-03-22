@@ -245,7 +245,7 @@ class Proposal(
 
         CHOICES = (
             (DRAFT, "Draft"),
-            (TEAM_VERIFICATION, "Team verification")
+            (TEAM_VERIFICATION, "Team verification"),
             (SUBMITTED, "Submitted"),
             (IN_REVIEW, "In review"),
             (IN_REVISION, "In revision"),
