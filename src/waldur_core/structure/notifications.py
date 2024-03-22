@@ -210,21 +210,6 @@ class MarketplaceSection(NotificationSection):
     )
 
 
-class MarketplaceFlowsSection(NotificationSection):
-    class Meta:
-        key = "marketplace_flows"
-
-    flow_submitted = Notification(
-        "flow_submitted",
-        "A notification for a submitted marketplace flow. The recipients are customer owners.",
-    )
-
-    flow_rejected = Notification(
-        "flow_rejected",
-        "A notification for a rejected marketplace flow. The recipient is the user who requested the flow.",
-    )
-
-
 class RancherSection(NotificationSection):
     class Meta:
         key = "rancher"
