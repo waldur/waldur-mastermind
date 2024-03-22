@@ -298,7 +298,6 @@ class NestedRoundSerializer(serializers.HyperlinkedModelSerializer):
             "review_strategy",
             "deciding_entity",
             "allocation_time",
-            "max_allocations",
             "allocation_date",
             "minimal_average_scoring",
             "review_duration_in_days",
