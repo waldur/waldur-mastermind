@@ -149,6 +149,7 @@ class NestedRequestedResourceSerializer(serializers.HyperlinkedModelSerializer):
             "resource",
             "resource_name",
             "attributes",
+            "limits",
             "description",
             "created_by",
             "created_by_name",
@@ -714,8 +715,14 @@ class ProposalSerializer(
             "call_name",
             "oecd_fos_2007_code",
             "oecd_fos_2007_label",
+            "allocation_comment",
         ]
-        read_only_fields = ("created_by", "approved_by", "project")
+        read_only_fields = (
+            "created_by",
+            "approved_by",
+            "project",
+            "allocation_comment",
+        )
         protected_fields = ("round_uuid",)
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},
@@ -747,3 +754,7 @@ class ProposalSerializer(
     def create(self, validated_data):
         validated_data["created_by"] = self.context["request"].user
         return super().create(validated_data)
+
+
+class ProposalAllocateSerializer(serializers.Serializer):
+    allocation_comment = serializers.CharField(required=False)

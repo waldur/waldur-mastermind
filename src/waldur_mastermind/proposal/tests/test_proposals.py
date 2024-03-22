@@ -55,6 +55,15 @@ class ProposalCreateTest(test.APITransactionTestCase):
             models.Proposal.objects.filter(uuid=response.data["uuid"]).exists()
         )
 
+    def test_create_project_if_proposal_has_been_created(self):
+        response = self.create_proposal("staff")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(
+            models.Proposal.objects.filter(uuid=response.data["uuid"]).exists()
+        )
+        proposal = models.Proposal.objects.get(uuid=response.data["uuid"])
+        self.assertTrue(proposal.project)
+
     def create_proposal(self, user, **kwargs):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)

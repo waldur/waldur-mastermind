@@ -259,7 +259,7 @@ class Proposal(
         default=States.DRAFT, choices=States.CHOICES, db_index=True
     )
     project = models.ForeignKey(
-        structure_models.Project, on_delete=models.PROTECT, null=True, editable=False
+        structure_models.Project, on_delete=models.PROTECT, editable=False
     )
     duration_in_days = models.PositiveIntegerField(
         null=True,
@@ -285,6 +285,7 @@ class Proposal(
     project_has_civilian_purpose = models.BooleanField(default=False)
 
     resources = models.ManyToManyField(RequestedOffering, through="RequestedResource")
+    allocation_comment = models.CharField(blank=True, max_length=150, null=True)
 
     tracker = FieldTracker()
 
@@ -297,6 +298,9 @@ class Proposal(
     @classmethod
     def get_url_name(cls):
         return "proposal-proposal"
+
+    class Meta:
+        ordering = ["round__start_time"]
 
 
 class RequestedResource(
@@ -313,6 +317,7 @@ class RequestedResource(
         on_delete=models.PROTECT,
     )
     attributes = models.JSONField(blank=True, default=dict)
+    limits = models.JSONField(blank=True, default=dict)
     created_by = models.ForeignKey(
         core_models.User,
         on_delete=models.SET_NULL,

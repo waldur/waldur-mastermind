@@ -137,6 +137,7 @@ class ProposalFactory(factory.django.DjangoModelFactory):
     round = factory.SubFactory(RoundFactory)
     duration_in_days = 10
     created_by = factory.SubFactory(structure_factories.UserFactory)
+    project = factory.SubFactory(structure_factories.ProjectFactory)
 
     @classmethod
     def get_url(cls, proposal=None, action=None):

@@ -2,6 +2,8 @@ import datetime
 
 from django.utils.functional import cached_property
 
+from waldur_core.permissions import enums
+from waldur_core.permissions import models as permissions_models
 from waldur_core.permissions import utils as permissions_utils
 from waldur_core.permissions.fixtures import CallRole
 from waldur_core.structure.tests import factories as structure_factories
@@ -19,6 +21,11 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
         self.reviewer_1
         self.reviewer_2
         self.review
+
+        permissions_models.RolePermission.objects.get_or_create(
+            role=CallRole.MANAGER,
+            permission=enums.PermissionEnum.APPROVE_AND_REJECT_PROPOSALS,
+        )
 
     @cached_property
     def manager(self):
@@ -94,13 +101,26 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
 
     @cached_property
     def proposal(self):
-        return proposal_factories.ProposalFactory(round=self.round)
+        return proposal_factories.ProposalFactory(
+            round=self.round,
+            project=self.proposal_project,
+        )
+
+    @cached_property
+    def proposal_project(self):
+        return structure_factories.ProjectFactory(customer=self.customer)
 
     @cached_property
     def proposal_submitted(self):
         return proposal_factories.ProposalFactory(
-            round=self.round, state=proposal_models.Proposal.States.SUBMITTED
+            round=self.round,
+            state=proposal_models.Proposal.States.SUBMITTED,
+            project=self.proposal_project,
         )
+
+    @cached_property
+    def proposal_submitted_project(self):
+        return structure_factories.ProjectFactory(customer=self.customer)
 
     @cached_property
     def review(self):
@@ -133,5 +153,12 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
     def reviewer_2(self):
         user = structure_factories.UserFactory()
         role = CallRole.REVIEWER
+        permissions_utils.add_user(self.call, user, role)
+        return user
+
+    @cached_property
+    def call_manager(self):
+        user = structure_factories.UserFactory()
+        role = CallRole.MANAGER
         permissions_utils.add_user(self.call, user, role)
         return user

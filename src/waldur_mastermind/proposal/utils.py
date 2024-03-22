@@ -1,5 +1,8 @@
+from django.db import transaction
 from django.db.models import Count, OuterRef, Subquery
 
+from waldur_core.core.utils import get_system_robot
+from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.proposal import models as proposal_models
 
 
@@ -35,3 +38,37 @@ def process_proposals_pending_reviewers(proposal):
 
     proposal.state = proposal_models.Proposal.States.IN_REVIEW
     return proposal.save()
+
+
+def allocate_proposal(proposal):
+    requested_resources = proposal.requestedresource_set.filter(
+        requested_offering__state=proposal_models.RequestedOffering.States.ACCEPTED
+    )
+
+    for requested_resource in requested_resources:
+        with transaction.atomic():
+            resource = marketplace_models.Resource(
+                project=proposal.project,
+                offering=requested_resource.requested_offering.offering,
+                plan=requested_resource.requested_offering.plan,
+                attributes=requested_resource.attributes,
+                limits=requested_resource.limits,
+                name=proposal.project.name,
+            )
+            resource.init_cost()
+            resource.save()
+
+            order = marketplace_models.Order(
+                resource=resource,
+                project=proposal.project,
+                created_by=get_system_robot(),
+                offering=requested_resource.requested_offering.offering,
+                plan=requested_resource.requested_offering.plan,
+                attributes=requested_resource.attributes,
+                limits=requested_resource.limits,
+            )
+            order.init_cost()
+            order.save()
+
+            requested_resource.resource = resource
+            requested_resource.save()

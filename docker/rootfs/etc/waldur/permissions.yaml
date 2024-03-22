@@ -59,6 +59,7 @@
     - PROJECT.UPDATE
     - PROJECT.DELETE
     - OFFERING.ACCEPT_CALL_REQUEST
+    - CALL.APPROVE_AND_REJECT_PROPOSALS
 
 - role: CUSTOMER.MANAGER
   is_active: false
@@ -147,3 +148,8 @@
 - role: CUSTOMER.SUPPORT
   is_active: false
   description: Organization support
+
+- role: CALL.MANAGER
+  description: Call manager
+  permissions:
+    - CALL.APPROVE_AND_REJECT_PROPOSALS
