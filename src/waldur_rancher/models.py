@@ -7,6 +7,7 @@ from django.contrib.postgres.fields import ArrayField
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from model_utils import FieldTracker
+from model_utils.models import TimeStampedModel
 
 from waldur_core.core import models as core_models
 from waldur_core.core.models import BackendMixin
@@ -88,12 +89,11 @@ class RoleMixin(models.Model):
 class Node(
     core_models.UuidMixin,
     core_models.NameMixin,
-    structure_models.StructureModel,
     core_models.StateMixin,
     BackendMixin,
     RoleMixin,
     structure_models.StructureLoggableMixin,
-    structure_models.TimeStampedModel,
+    TimeStampedModel,
 ):
     class RuntimeStates:
         ACTIVE = "active"
@@ -163,7 +163,6 @@ class RancherUser(
     core_models.UuidMixin,
     BackendMixin,
     structure_models.StructureLoggableMixin,
-    structure_models.StructureModel,
 ):
     user = models.ForeignKey(core_models.User, on_delete=models.PROTECT)
     clusters = models.ManyToManyField(Cluster, through="RancherUserClusterLink")
@@ -226,7 +225,7 @@ class Catalog(
     core_models.UuidMixin,
     core_models.NameMixin,
     core_models.DescribableMixin,
-    structure_models.TimeStampedModel,
+    TimeStampedModel,
     BackendMixin,
     SettingsMixin,
     core_models.RuntimeStateMixin,
@@ -263,10 +262,9 @@ class Project(
     core_models.UuidMixin,
     core_models.NameMixin,
     core_models.DescribableMixin,
-    structure_models.TimeStampedModel,
+    TimeStampedModel,
     BackendMixin,
     SettingsMixin,
-    structure_models.StructureModel,
     core_models.RuntimeStateMixin,
 ):
     cluster = models.ForeignKey(
@@ -288,7 +286,7 @@ class Project(
 class Namespace(
     core_models.UuidMixin,
     core_models.NameMixin,
-    structure_models.TimeStampedModel,
+    TimeStampedModel,
     BackendMixin,
     SettingsMixin,
     core_models.RuntimeStateMixin,
@@ -310,7 +308,7 @@ class Template(
     core_models.UuidMixin,
     core_models.NameMixin,
     core_models.UiDescribableMixin,
-    structure_models.TimeStampedModel,
+    TimeStampedModel,
     BackendMixin,
     SettingsMixin,
     core_models.RuntimeStateMixin,
@@ -344,7 +342,7 @@ class Workload(
     core_models.UuidMixin,
     core_models.NameMixin,
     core_models.RuntimeStateMixin,
-    structure_models.TimeStampedModel,
+    TimeStampedModel,
     BackendMixin,
     SettingsMixin,
 ):
@@ -380,7 +378,7 @@ class HPA(
     core_models.DescribableMixin,
     core_models.StateMixin,
     core_models.RuntimeStateMixin,
-    structure_models.TimeStampedModel,
+    TimeStampedModel,
     BackendMixin,
     SettingsMixin,
 ):
@@ -426,7 +424,7 @@ class ClusterTemplate(
     core_models.UuidMixin,
     core_models.NameMixin,
     core_models.DescribableMixin,
-    structure_models.TimeStampedModel,
+    TimeStampedModel,
 ):
     class Meta:
         ordering = ("name",)
