@@ -375,6 +375,19 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         return response.Response(status=status.HTTP_200_OK)
 
     @decorators.action(detail=True, methods=["post"])
+    def switch_to_team_verification(self, request, uuid=None):
+        proposal = self.get_object()
+        proposal.state = models.Proposal.States.TEAM_VERIFICATION
+        proposal.save()
+        return response.Response(status=status.HTTP_200_OK)
+
+    switch_to_team_verification_validators = [
+        core_validators.StateValidator(models.Proposal.States.DRAFT)
+    ]
+
+    switch_to_team_verification_permissions = [is_creator]
+
+    @decorators.action(detail=True, methods=["post"])
     def submit(self, request, uuid=None):
         proposal = self.get_object()
         proposal.state = models.Proposal.States.SUBMITTED
@@ -384,7 +397,9 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             status=status.HTTP_200_OK,
         )
 
-    submit_validators = [core_validators.StateValidator(models.Proposal.States.DRAFT)]
+    submit_validators = [
+        core_validators.StateValidator(models.Proposal.States.TEAM_VERIFICATION)
+    ]
 
     submit_permissions = [is_creator]
 
