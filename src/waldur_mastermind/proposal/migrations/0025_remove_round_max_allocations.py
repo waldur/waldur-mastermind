@@ -5,7 +5,7 @@ from django.db import migrations
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("proposal", "0023_remove_proposal_supporting_documentation"),
+        ("proposal", "0024_proposal_allocation_comment"),
     ]
 
     operations = [

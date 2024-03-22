@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
     dependencies = [
         ("structure", "0043_rename_divisions_to_organization_groups"),
-        ("proposal", "0024_proposal_allocation_comment"),
+        ("proposal", "0025_remove_round_max_allocations"),
     ]
 
     operations = [

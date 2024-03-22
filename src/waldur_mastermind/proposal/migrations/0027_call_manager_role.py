@@ -16,7 +16,7 @@ def create_role(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("proposal", "0025_alter_proposal_project"),
+        ("proposal", "0026_alter_proposal_project"),
     ]
 
     operations = [
