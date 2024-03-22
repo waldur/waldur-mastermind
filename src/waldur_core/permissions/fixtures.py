@@ -82,3 +82,11 @@ class CallRole:
             RoleEnum.CALL_REVIEWER,
             content_type=ContentType.objects.get_by_natural_key("proposal", "call"),
         )
+
+    @classmethod
+    @property
+    def MANAGER(self):
+        return Role.objects.get_system_role(
+            RoleEnum.CALL_MANAGER,
+            content_type=ContentType.objects.get_by_natural_key("proposal", "call"),
+        )

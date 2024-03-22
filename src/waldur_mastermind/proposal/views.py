@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime, timedelta
 
+from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.utils import timezone as timezone
 from django_filters.rest_framework import DjangoFilterBackend
@@ -14,16 +15,22 @@ from waldur_core.core.views import (
     ActionsViewSet,
     ReadOnlyActionsViewSet,
 )
+from waldur_core.permissions import utils as permissions_utils
+from waldur_core.permissions.enums import PermissionEnum, RoleEnum
+from waldur_core.permissions.utils import permission_factory
 from waldur_core.permissions.views import UserRoleMixin
 from waldur_core.structure import filters as structure_filters
+from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions
 from waldur_core.structure.managers import get_connected_customers
+from waldur_core.structure.models import PROJECT_NAME_LENGTH
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.views import BaseMarketplaceView, PublicViewsetMixin
 from waldur_mastermind.proposal import (
     filters,
     models,
     serializers,
+    utils,
 )
 from waldur_mastermind.proposal import (
     permissions as proposal_permissions,
@@ -326,12 +333,19 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         user = self.request.user
 
         if user.is_staff:
-            return models.Proposal.objects.all().order_by("round__start_time")
+            return models.Proposal.objects.all()
+
+        call_ids = permissions_utils.get_scope_ids(
+            user,
+            content_type=ContentType.objects.get_for_model(models.Call),
+            role=RoleEnum.CALL_MANAGER,
+        )
 
         return models.Proposal.objects.filter(
             Q(round__call__manager__customer__in=get_connected_customers(user))
             | Q(created_by=user)
-        )
+            | Q(round__call__in=call_ids)
+        ).distinct()
 
     def is_creator(request, view, obj=None):
         if not obj:
@@ -341,16 +355,15 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             return
         raise exceptions.PermissionDenied()
 
-    destroy_permissions = [is_creator]
-    destroy_validators = [core_validators.StateValidator(models.Proposal.States.DRAFT)]
+    destroy_permissions = update_project_details_permissions = [is_creator]
+
+    destroy_validators = update_project_details_validators = [
+        core_validators.StateValidator(models.Proposal.States.DRAFT)
+    ]
 
     update_project_details_serializer_class = (
         serializers.ProposalUpdateProjectDetailsSerializer
     )
-    update_project_details_permissions = [is_creator]
-    update_project_details_validators = partial_update_validators = [
-        core_validators.StateValidator(models.Proposal.States.DRAFT)
-    ]
 
     @decorators.action(detail=True, methods=["post"])
     def update_project_details(self, request, uuid=None):
@@ -374,6 +387,23 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     submit_validators = [core_validators.StateValidator(models.Proposal.States.DRAFT)]
 
     submit_permissions = [is_creator]
+
+    def perform_create(self, serializer):
+        proposal_round = serializer.validated_data.get("round")
+        name = serializer.validated_data.get("name")
+        call_prefix = (
+            proposal_round.call.backend_id
+            if proposal_round.call.backend_id
+            else proposal_round.call.name
+        )
+        project_name = " - ".join(
+            [call_prefix, proposal_round.start_time.strftime("%Y-%m-%d"), name]
+        )[:PROJECT_NAME_LENGTH]
+        project = structure_models.Project.objects.create(
+            customer=proposal_round.call.manager.customer,
+            name=project_name,
+        )
+        serializer.save(project=project)
 
     @decorators.action(detail=True, methods=["get", "post"])
     def resources(self, request, uuid=None):
@@ -414,6 +444,51 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         return response.Response(status=status.HTTP_200_OK)
 
     attach_document_serializer_class = serializers.ProposalDocumentationSerializer
+
+    @decorators.action(detail=True, methods=["post"])
+    def allocate(self, request, uuid=None):
+        proposal = self.get_object()
+        utils.allocate_proposal(proposal)
+        proposal.state = models.Proposal.States.ACCEPTED
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        proposal.allocation_comment = serializer.validated_data.get(
+            "allocation_comment", ""
+        )
+        proposal.save()
+        return response.Response(
+            "Proposal has been allocated.",
+            status=status.HTTP_200_OK,
+        )
+
+    @decorators.action(detail=True, methods=["post"])
+    def reject(self, request, uuid=None):
+        proposal = self.get_object()
+        proposal.state = models.Proposal.States.REJECTED
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        proposal.allocation_comment = serializer.validated_data.get(
+            "allocation_comment", ""
+        )
+        proposal.save()
+        return response.Response(
+            "Proposal has been rejected.",
+            status=status.HTTP_200_OK,
+        )
+
+    reject_validators = allocate_validators = [
+        core_validators.StateValidator(
+            models.Proposal.States.IN_REVISION,
+            models.Proposal.States.IN_REVIEW,
+            models.Proposal.States.SUBMITTED,
+        )
+    ]
+    reject_permissions = allocate_permissions = [
+        permission_factory(PermissionEnum.APPROVE_AND_REJECT_PROPOSALS, ["round.call"])
+    ]
+    reject_serializer_class = (
+        allocate_serializer_class
+    ) = serializers.ProposalAllocateSerializer
 
 
 class ReviewViewSet(ActionsViewSet):
