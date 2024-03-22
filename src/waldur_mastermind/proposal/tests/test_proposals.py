@@ -186,6 +186,8 @@ class ActionTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.proposal = self.fixture.proposal
+        self.proposal.state = models.Proposal.States.TEAM_VERIFICATION
+        self.proposal.save()
         self.url = factories.ProposalFactory.get_url(self.proposal, "submit")
 
     @data(
