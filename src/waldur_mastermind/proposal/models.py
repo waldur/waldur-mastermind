@@ -37,7 +37,6 @@ class CallManagingOrganisation(
     core_models.UuidMixin,
     core_models.DescribableMixin,
     structure_models.ImageModelMixin,
-    structure_models.StructureModel,
     TimeStampedModel,
 ):
     customer = models.OneToOneField(structure_models.Customer, on_delete=models.CASCADE)
@@ -61,7 +60,6 @@ class Call(
     core_models.UuidMixin,
     core_models.NameMixin,
     core_models.DescribableMixin,
-    structure_models.StructureModel,
     structure_models.StructureLoggableMixin,
     core_models.BackendMixin,
 ):

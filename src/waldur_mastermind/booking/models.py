@@ -1,12 +1,12 @@
 import uuid
 
 from django.db import models
+from model_utils.models import TimeStampedModel
 
-from waldur_core.core import models as core_models
 from waldur_mastermind.marketplace import models as marketplace_models
 
 
-class BusySlot(core_models.TimeStampedModel):
+class BusySlot(TimeStampedModel):
     offering = models.ForeignKey(marketplace_models.Offering, on_delete=models.CASCADE)
     start = models.DateTimeField()
     end = models.DateTimeField()
@@ -16,7 +16,7 @@ class BusySlot(core_models.TimeStampedModel):
         customer_path = "offering__customer"
 
 
-class BookingSlot(core_models.TimeStampedModel):
+class BookingSlot(TimeStampedModel):
     resource = models.ForeignKey(marketplace_models.Resource, on_delete=models.CASCADE)
     start = models.DateTimeField()
     end = models.DateTimeField()

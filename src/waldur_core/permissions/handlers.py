@@ -1,10 +1,11 @@
 from waldur_core.permissions.log import event_logger
+from waldur_core.structure.permissions import _get_customer
 
 
 def log(instance, current_user, message, event_type):
     model_name = instance.scope._meta.model_name
     role_name = instance.role.name
-    customer = getattr(instance.scope, "customer", instance.scope)
+    customer = _get_customer(instance.scope)
     event_context = {
         "scope": instance.scope,
         "scope_type": model_name,

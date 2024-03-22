@@ -1,5 +1,5 @@
 import datetime
-from functools import lru_cache, reduce
+from functools import lru_cache
 
 import pyvat
 from django.apps import apps
@@ -63,33 +63,6 @@ def validate_service_type(service_type):
 
     if not SupportedServices.has_service_type(service_type):
         raise ValidationError(_("Invalid service type."))
-
-
-class StructureModel(models.Model):
-    """Generic structure model.
-    Provides transparent interaction with base entities and relations like customer.
-    """
-
-    objects = StructureManager()
-
-    class Meta:
-        abstract = True
-
-    def __getattr__(self, name):
-        # add additional properties to the object according to defined Permissions class
-        fields = ("customer", "project")
-        if name in fields:
-            try:
-                path = getattr(self.Permissions, name + "_path")
-            except AttributeError:
-                pass
-            else:
-                if not path == "self" and "__" in path:
-                    return reduce(getattr, path.split("__"), self)
-
-        raise AttributeError(
-            f"'{self._meta.object_name}' object has no attribute '{name}'"
-        )
 
 
 class StructureLoggableMixin(LoggableMixin):
@@ -369,7 +342,6 @@ class Customer(
     StructureLoggableMixin,
     ImageModelMixin,
     TimeStampedModel,
-    StructureModel,
 ):
     class Permissions:
         customer_path = "self"
@@ -619,7 +591,6 @@ class Project(
     StructureLoggableMixin,
     ImageModelMixin,
     TimeStampedModel,
-    StructureModel,
     SoftDeletableModel,
 ):
     class Permissions:
@@ -892,7 +863,6 @@ class BaseResource(
     core_models.StateMixin,
     StructureLoggableMixin,
     TimeStampedModel,
-    StructureModel,
 ):
 
     """Base resource class. Resource is a provisioned entity of a service,
@@ -969,6 +939,10 @@ class BaseResource(
     @classmethod
     def get_scope_type(cls):
         return get_resource_type(cls)
+
+    @property
+    def customer(self):
+        return self.project.customer
 
 
 class VirtualMachine(IPCoordinatesMixin, core_models.RuntimeStateMixin, BaseResource):

@@ -42,7 +42,6 @@ class ServiceProvider(
     core_models.UuidMixin,
     core_models.DescribableMixin,
     structure_models.ImageModelMixin,
-    structure_models.StructureModel,
     TimeStampedModel,
 ):
     customer = models.OneToOneField(structure_models.Customer, on_delete=models.CASCADE)
@@ -354,7 +353,6 @@ class Offering(
     core_models.DescribableMixin,
     quotas_models.QuotaModelMixin,
     structure_models.PermissionMixin,
-    structure_models.StructureModel,
     TimeStampedModel,
     core_mixins.ScopeMixin,
     LoggableMixin,
@@ -851,7 +849,6 @@ class PlanComponent(LoggableMixin, models.Model):
 
 class Screenshot(
     core_models.UuidMixin,
-    structure_models.StructureModel,
     core_models.DescribableMixin,
     TimeStampedModel,
     core_models.NameMixin,
@@ -1429,7 +1426,6 @@ class AggregateResourceCount(core_mixins.ScopeMixin):
 class OfferingFile(
     core_models.UuidMixin,
     core_models.NameMixin,
-    structure_models.StructureModel,
     TimeStampedModel,
 ):
     offering = models.ForeignKey(
