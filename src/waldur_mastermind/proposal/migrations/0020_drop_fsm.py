@@ -74,6 +74,7 @@ class Migration(migrations.Migration):
             field=models.CharField(
                 choices=[
                     ("draft", "Draft"),
+                    ("team_verification", "Team verification"),
                     ("submitted", "Submitted"),
                     ("in_review", "In review"),
                     ("in_revision", "In revision"),
