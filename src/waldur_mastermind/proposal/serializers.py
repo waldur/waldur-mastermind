@@ -757,5 +757,44 @@ class ProposalSerializer(
         return super().create(validated_data)
 
 
+class ReviewerSerializer(serializers.Serializer):
+    full_name = serializers.SerializerMethodField()
+    email = serializers.EmailField(source="reviewer.email")
+
+    def get_full_name(self, obj):
+        return f"{obj.reviewer.first_name} {obj.reviewer.last_name}"
+
+
 class ProposalAllocateSerializer(serializers.Serializer):
     allocation_comment = serializers.CharField(required=False)
+
+
+class RoundSerializer(serializers.ModelSerializer):
+    url = serializers.SerializerMethodField()
+    call_uuid = serializers.UUIDField(source="call.uuid", read_only=True)
+    call_name = serializers.ReadOnlyField(source="call.name")
+
+    class Meta:
+        model = models.Round
+        fields = ["url", "uuid", "start_time", "cutoff_time", "call_uuid", "call_name"]
+
+    extra_kwargs = {
+        "url": {
+            "lookup_field": "uuid",
+            "view_name": "call-round-detail",
+        },
+        "call": {
+            "lookup_field": "uuid",
+            "view_name": "proposal-public-call-detail",
+        },
+    }
+
+    def get_url(self, obj):
+        return self.context["request"].build_absolute_uri(
+            reverse(
+                "call-round-detail",
+                kwargs={
+                    "uuid": obj.uuid.hex,
+                },
+            )
+        )
