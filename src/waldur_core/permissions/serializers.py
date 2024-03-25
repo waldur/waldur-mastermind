@@ -8,7 +8,8 @@ from waldur_core.core.serializers import TranslatedModelSerializerMixin
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.media.serializers import ProtectedImageField
 from waldur_core.permissions.enums import TYPE_MAP, PermissionEnum
-from waldur_core.permissions.utils import get_customer, has_permission, has_user
+from waldur_core.permissions.utils import has_permission, has_user
+from waldur_core.structure.permissions import _get_customer
 
 from . import models
 
@@ -181,7 +182,7 @@ class UserRoleMutateSerializer(serializers.Serializer):
         request = self.context["request"]
         target_user = data["user"]
 
-        customer = get_customer(scope)
+        customer = _get_customer(scope)
         permission = self.get_permission(scope)
 
         if getattr(scope, "shared", None) is False:
