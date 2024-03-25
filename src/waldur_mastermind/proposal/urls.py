@@ -39,6 +39,11 @@ def register_in(router):
         views.ProviderRequestedResourceViewSet,
         basename="proposal-requested-resource",
     )
+    router.register(
+        r"call-rounds",
+        views.RoundViewSet,
+        basename="call-round",
+    )
 
 
 urlpatterns = [

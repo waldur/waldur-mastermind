@@ -663,3 +663,38 @@ class ProviderRequestedResourceViewSet(ReadOnlyActionsViewSet):
         return models.RequestedResource.objects.filter(
             requested_offering__offering_id__in=offerings_ids
         ).order_by("resource", "proposal", "created")
+
+
+class RoundViewSet(ReadOnlyActionsViewSet):
+    lookup_field = "uuid"
+    serializer_class = serializers.RoundSerializer
+    filterset_class = []
+    filter_backends = (DjangoFilterBackend,)
+
+    def get_queryset(self):
+        user = self.request.user
+
+        if user.is_staff:
+            return models.Round.objects.all()
+
+        call_ids = permissions_utils.get_scope_ids(
+            user,
+            content_type=ContentType.objects.get_for_model(models.Call),
+            role=RoleEnum.CALL_MANAGER,
+        )
+
+        return models.Round.objects.filter(
+            Q(call__manager__customer__in=get_connected_customers(user))
+            | Q(call__in=call_ids)
+        ).distinct()
+
+    @decorators.action(detail=True)
+    def reviewers(self, request, uuid=None):
+        round_obj = self.get_object()
+
+        all_reviewers = models.Review.objects.filter(
+            proposal__round=round_obj
+        ).distinct()
+        page = self.paginate_queryset(all_reviewers)
+        serializer = serializers.ReviewerSerializer(page, many=True)
+        return self.get_paginated_response(serializer.data)
