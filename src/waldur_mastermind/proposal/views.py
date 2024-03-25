@@ -328,6 +328,7 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     serializer_class = serializers.ProposalSerializer
     filterset_class = filters.ProposalFilter
     disabled_actions = ["update", "partial_update"]
+    model = models.Proposal
 
     def get_queryset(self):
         user = self.request.user
