@@ -10,7 +10,6 @@ import unicodedata
 import uuid
 import warnings
 from collections import OrderedDict
-from functools import lru_cache
 from itertools import chain
 from operator import itemgetter
 
@@ -21,7 +20,6 @@ from constance import config
 from django.apps import apps
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ObjectDoesNotExist
 from django.core.mail import EmailMultiAlternatives
 from django.core.management.base import BaseCommand
 from django.core.serializers.json import DjangoJSONEncoder
@@ -491,25 +489,21 @@ def format_homeport_link(format_str="", **kwargs):
     return link.format(**kwargs)
 
 
-@lru_cache(maxsize=1)
 def get_system_robot():
     from waldur_core.core import models
 
-    try:
-        robot_user, created = models.User.objects.get_or_create(
-            username="system_robot", is_staff=True, is_active=True
+    robot_user, created = models.User.objects.get_or_create(
+        username="system_robot", is_staff=True, is_active=True
+    )
+    if created:
+        robot_user.set_unusable_password()
+        robot_user.description = (
+            "Special user used for performing actions on behalf of a system."
         )
-        if created:
-            robot_user.set_unusable_password()
-            robot_user.description = (
-                "Special user used for performing actions on behalf of a system."
-            )
-            robot_user.first_name = "System"
-            robot_user.last_name = "Robot"
-            robot_user.save()
-        return robot_user
-    except ObjectDoesNotExist:
-        return
+        robot_user.first_name = "System"
+        robot_user.last_name = "Robot"
+        robot_user.save()
+    return robot_user
 
 
 def get_ip_address(request):
