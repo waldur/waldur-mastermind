@@ -209,6 +209,10 @@ class Round(
     def __str__(self):
         return f"{self.call.name} | {self.start_time} - {self.cutoff_time}"
 
+    @property
+    def name(self):
+        return f"Round {self.start_time.strftime('%d.%m.%Y')}-{self.cutoff_time.strftime('%d.%m.%Y')}"
+
 
 class ProposalDocumentation(
     TimeStampedModel,

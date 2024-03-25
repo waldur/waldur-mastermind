@@ -294,6 +294,7 @@ class NestedRoundSerializer(serializers.HyperlinkedModelSerializer):
         model = models.Round
         fields = [
             "uuid",
+            "name",
             "start_time",
             "cutoff_time",
             "review_strategy",
