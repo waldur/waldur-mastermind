@@ -19,7 +19,6 @@ from waldur_core.structure.tests.factories import (
 from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.tests import factories, fixtures
-from waldur_mastermind.marketplace.tests.utils import create_system_robot
 from waldur_mastermind.marketplace_remote import PLUGIN_NAME, tasks, utils
 from waldur_mastermind.marketplace_remote.models import ProjectUpdateRequest
 
@@ -391,7 +390,6 @@ class ResourceOrderImportTest(test.APITransactionTestCase):
             "token": uuid.uuid4().hex,
         }
         self.resource.offering.save()
-        create_system_robot()
 
     def tearDown(self):
         super().tearDown()

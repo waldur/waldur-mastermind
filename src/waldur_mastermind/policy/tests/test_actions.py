@@ -9,7 +9,6 @@ from waldur_mastermind.billing import models as billing_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
-from waldur_mastermind.marketplace.tests import utils as tests_utils
 from waldur_mastermind.marketplace_openstack import INSTANCE_TYPE
 from waldur_mastermind.policy import tasks
 from waldur_mastermind.policy.tests import factories
@@ -29,7 +28,6 @@ class ActionsTest(test.APITransactionTestCase):
         structure_factories.NotificationFactory(
             key="marketplace_policy.notification_about_project_cost_exceeded_limit"
         )
-        tests_utils.create_system_robot()
 
     @mock.patch("waldur_core.core.utils.send_mail")
     def test_notify_project_team(self, mock_send_mail):

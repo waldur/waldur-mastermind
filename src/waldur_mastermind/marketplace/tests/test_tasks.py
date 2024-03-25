@@ -14,7 +14,6 @@ from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import models, tasks
 from waldur_mastermind.marketplace.tests.helpers import override_marketplace_settings
-from waldur_mastermind.marketplace.tests.utils import create_system_robot
 
 from . import factories, fixtures
 
@@ -156,7 +155,6 @@ class TerminateResource(test.APITransactionTestCase):
 
 class ProjectEndDate(test.APITransactionTestCase):
     def setUp(self):
-        create_system_robot()
         self.fixture = fixtures.MarketplaceFixture()
         self.fixture.project.end_date = datetime.datetime(
             day=1, month=1, year=2020
@@ -309,7 +307,6 @@ class ResourceEndDate(test.APITransactionTestCase):
             is_staff=True,
             is_active=True,
         )
-        core_utils.get_system_robot.cache_clear()
         self.fixtures = fixtures.MarketplaceFixture()
         self.resource = self.fixtures.resource
         self.resource.end_date = datetime.datetime(day=1, month=1, year=2020).date()
