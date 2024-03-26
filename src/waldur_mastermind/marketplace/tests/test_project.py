@@ -7,7 +7,7 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.utils import move_project
 from waldur_mastermind.marketplace import models
-from waldur_mastermind.marketplace.tests import fixtures
+from waldur_mastermind.marketplace.tests import factories, fixtures
 
 
 class RemovalOfExpiredProjectWithoutActiveResourcesTest(test.APITransactionTestCase):
@@ -83,3 +83,27 @@ class ProjectMoveTest(test.APITransactionTestCase):
         self.assertEqual(self.new_customer, self.project.customer)
         self.offering.refresh_from_db()
         self.assertEqual(self.offering.customer, self.new_customer)
+
+    def test_change_customer_if_offering_scope_is_resource(self):
+        resource = factories.ResourceFactory(project=self.project)
+        self.offering.scope = resource
+        self.offering.save()
+
+        self.change_customer()
+        self.assertEqual(self.new_customer, self.project.customer)
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.customer, self.new_customer)
+
+        resource.refresh_from_db()
+        self.assertEqual(resource.customer, self.new_customer)
+
+    def test_change_customer_for_private_offering(self):
+        private_offering = factories.OfferingFactory(
+            project=self.project,
+            customer=self.old_customer,
+            shared=False,
+        )
+        self.change_customer()
+        self.assertEqual(self.new_customer, self.project.customer)
+        private_offering.refresh_from_db()
+        self.assertEqual(private_offering.customer, self.new_customer)
