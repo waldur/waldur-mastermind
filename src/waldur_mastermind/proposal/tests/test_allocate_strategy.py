@@ -1,6 +1,9 @@
 from ddt import data, ddt
 from rest_framework import status, test
 
+from waldur_core.permissions.fixtures import ProjectRole, ProposalRole
+from waldur_core.permissions.utils import add_user, has_user
+from waldur_core.structure.tests.factories import UserFactory
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.proposal import models
 from waldur_mastermind.proposal.tests import fixtures
@@ -35,6 +38,18 @@ class ManualAllocateTest(test.APITransactionTestCase):
         self.assertTrue(
             marketplace_models.Order.objects.filter(resource=resource).exists()
         )
+
+    def test_when_proposal_allocated_users_are_added(self):
+        user = UserFactory()
+        self.fixture.call.default_project_role = ProjectRole.MEMBER
+        self.fixture.call.save()
+        add_user(self.proposal, user, ProposalRole.MEMBER)
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.allocate_url, {"allocation_comment": "done"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(has_user(self.proposal.project, user, ProjectRole.MEMBER))
 
     @data(
         "proposal_creator",

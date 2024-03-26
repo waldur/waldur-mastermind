@@ -10,6 +10,7 @@ from model_utils.models import TimeStampedModel
 
 from waldur_core.core import models as core_models
 from waldur_core.permissions.enums import RoleEnum
+from waldur_core.permissions.models import Role
 from waldur_core.permissions.utils import get_users
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -88,6 +89,8 @@ class Call(
         marketplace_models.Offering, through="RequestedOffering"
     )
     documents = models.ManyToManyField(CallDocument, related_name="call_documents")
+    # It is used for mapping PROPOSAL.MEMBER role to one of project roles
+    default_project_role = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True)
     objects = managers.CallManager()
 
     class Permissions:

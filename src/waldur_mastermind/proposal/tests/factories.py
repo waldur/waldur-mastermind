@@ -3,12 +3,16 @@ import datetime
 import factory
 from rest_framework.reverse import reverse
 
+from waldur_core.core.types import BaseMetaFactory
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.proposal import models
 
 
-class CallManagingOrganisationFactory(factory.django.DjangoModelFactory):
+class CallManagingOrganisationFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.CallManagingOrganisation],
+):
     class Meta:
         model = models.CallManagingOrganisation
 
@@ -30,7 +34,9 @@ class CallManagingOrganisationFactory(factory.django.DjangoModelFactory):
         return url if action is None else url + action + "/"
 
 
-class CallFactory(factory.django.DjangoModelFactory):
+class CallFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Call]
+):
     class Meta:
         model = models.Call
 
@@ -69,7 +75,10 @@ class CallFactory(factory.django.DjangoModelFactory):
         return url if action is None else url + action + "/"
 
 
-class RequestedOfferingFactory(factory.django.DjangoModelFactory):
+class RequestedOfferingFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.RequestedOffering],
+):
     class Meta:
         model = models.RequestedOffering
 
@@ -107,7 +116,9 @@ class RequestedOfferingFactory(factory.django.DjangoModelFactory):
         return url if action is None else url + action + "/"
 
 
-class RoundFactory(factory.django.DjangoModelFactory):
+class RoundFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Round]
+):
     class Meta:
         model = models.Round
 
@@ -130,7 +141,9 @@ class RoundFactory(factory.django.DjangoModelFactory):
         return CallFactory.get_protected_url(call, action="rounds")
 
 
-class ProposalFactory(factory.django.DjangoModelFactory):
+class ProposalFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Proposal]
+):
     class Meta:
         model = models.Proposal
 
@@ -155,7 +168,10 @@ class ProposalFactory(factory.django.DjangoModelFactory):
         return url if action is None else url + action + "/"
 
 
-class RequestedResourceFactory(factory.django.DjangoModelFactory):
+class RequestedResourceFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.RequestedResource],
+):
     class Meta:
         model = models.RequestedResource
 
@@ -194,7 +210,9 @@ class RequestedResourceFactory(factory.django.DjangoModelFactory):
         return url if action is None else url + action + "/"
 
 
-class ReviewFactory(factory.django.DjangoModelFactory):
+class ReviewFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Review]
+):
     class Meta:
         model = models.Review
 
