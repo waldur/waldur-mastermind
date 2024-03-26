@@ -461,6 +461,7 @@ CONSTANCE_CONFIG = {
     "SMAX_TIMES_TO_PULL": (10, "Times to pulling from backend."),
     "SMAX_SECONDS_TO_WAIT": (1, "Duration of delay between server pull attempts."),
     "SMAX_CREATION_SOURCE_NAME": ("", "Creation source name."),
+    "SMAX_REQUESTS_OFFERING": ("", "Requests offering code for all issues."),
     "SMAX_VERIFY_SSL": (True, "Toggler for SSL verification"),
     # Proposal settings
     "PROPOSAL_REVIEW_DURATION": (7, "Review duration in days."),
@@ -548,6 +549,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "SMAX_ORGANISATION_FIELD",
         "SMAX_PROJECT_FIELD",
         "SMAX_AFFECTED_RESOURCE_FIELD",
+        "SMAX_REQUESTS_OFFERING",
         "SMAX_SECONDS_TO_WAIT",
         "SMAX_TIMES_TO_PULL",
         "SMAX_CREATION_SOURCE_NAME",
