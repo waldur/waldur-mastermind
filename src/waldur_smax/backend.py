@@ -362,18 +362,17 @@ class SmaxBackend:
             )
 
         response = self.post(
-            "ums/managePersons",
+            "ems/bulk",
             json={
-                "operation": "CREATE_OR_UPDATE",
-                "users": [
+                "operation": "CREATE",
+                "entities": [
                     {
+                        "entity_type": "Person",
                         "properties": {
-                            "Upn": user.email,
                             "FirstName": first_name,
                             "LastName": last_name,
                             "Email": user.email,
-                            "IsMaasUser": False,
-                        }
+                        },
                     }
                 ],
             },
@@ -413,6 +412,9 @@ class SmaxBackend:
 
         if config.SMAX_CREATION_SOURCE_NAME:
             properties["CreationSourceName_c"] = config.SMAX_CREATION_SOURCE_NAME
+
+        if config.SMAX_REQUESTS_OFFERING:
+            properties["RequestsOffering"] = config.SMAX_REQUESTS_OFFERING
 
         if issue.category_id:
             properties["Category"] = issue.category_id
