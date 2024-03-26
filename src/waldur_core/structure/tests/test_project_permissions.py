@@ -112,7 +112,7 @@ class ProjectPermissionGrantTest(ProjectPermissionBaseTest):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_customer_owner_cannot_grant_role_within_his_project_if_user_already_has_role(
+    def test_customer_owner_can_grant_role_within_his_project_even_if_user_already_has_role(
         self,
     ):
         admin = factories.UserFactory()
@@ -120,7 +120,7 @@ class ProjectPermissionGrantTest(ProjectPermissionBaseTest):
         response = client_add_user(
             self.client, self.owner, admin, self.project, ProjectRole.MANAGER
         )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_customer_owner_cannot_grant_role_within_another_customers_project(self):
         customer = factories.CustomerFactory()

@@ -8,7 +8,13 @@ from waldur_core.core.serializers import TranslatedModelSerializerMixin
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.media.serializers import ProtectedImageField
 from waldur_core.permissions.enums import TYPE_MAP, PermissionEnum
-from waldur_core.permissions.utils import has_permission, has_user
+from waldur_core.permissions.utils import (
+    get_create_permission,
+    get_delete_permission,
+    get_update_permission,
+    has_permission,
+    has_user,
+)
 from waldur_core.structure.permissions import _get_customer
 
 from . import models
@@ -212,13 +218,7 @@ class UserRoleMutateSerializer(serializers.Serializer):
 
 class UserRoleCreateSerializer(UserRoleMutateSerializer):
     def get_permission(self, scope):
-        model_name = scope._meta.model_name
-        if model_name == "customer":
-            return PermissionEnum.CREATE_CUSTOMER_PERMISSION
-        elif model_name == "project":
-            return PermissionEnum.CREATE_PROJECT_PERMISSION
-        elif model_name == "offering":
-            return PermissionEnum.CREATE_OFFERING_PERMISSION
+        return get_create_permission(scope)
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
@@ -227,8 +227,8 @@ class UserRoleCreateSerializer(UserRoleMutateSerializer):
         role: models.Role = attrs["role"]
         expiration_time = attrs.get("expiration_time")
 
-        if has_user(scope, target_user, expiration_time=expiration_time):
-            raise ValidationError("User already has permission in this scope.")
+        if has_user(scope, target_user, role, expiration_time=expiration_time):
+            raise ValidationError("User has already the same role in this scope.")
 
         if not isinstance(scope, role.content_type.model_class()):
             raise ValidationError("Role is not valid for this scope.")
@@ -240,21 +240,9 @@ class UserRoleCreateSerializer(UserRoleMutateSerializer):
 
 class UserRoleUpdateSerializer(UserRoleMutateSerializer):
     def get_permission(self, scope):
-        model_name = scope._meta.model_name
-        if model_name == "customer":
-            return PermissionEnum.UPDATE_CUSTOMER_PERMISSION
-        elif model_name == "project":
-            return PermissionEnum.UPDATE_PROJECT_PERMISSION
-        elif model_name == "offering":
-            return PermissionEnum.UPDATE_OFFERING_PERMISSION
+        return get_update_permission(scope)
 
 
 class UserRoleDeleteSerializer(UserRoleMutateSerializer):
     def get_permission(self, scope):
-        model_name = scope._meta.model_name
-        if model_name == "customer":
-            return PermissionEnum.DELETE_CUSTOMER_PERMISSION
-        elif model_name == "project":
-            return PermissionEnum.DELETE_PROJECT_PERMISSION
-        elif model_name == "offering":
-            return PermissionEnum.DELETE_OFFERING_PERMISSION
+        return get_delete_permission(scope)

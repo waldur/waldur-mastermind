@@ -8,7 +8,7 @@ from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.utils import pwgen
 from waldur_core.permissions.utils import (
-    get_creation_permission,
+    get_create_permission,
     get_customer,
     get_users_with_permission,
     has_permission,
@@ -159,7 +159,7 @@ def can_manage_invitation_with(request, scope):
     if request.user.is_staff:
         return True
 
-    permission = get_creation_permission(scope)
+    permission = get_create_permission(scope)
     if not permission:
         return False
 
@@ -184,7 +184,7 @@ def get_users_for_notification_about_request_has_been_submitted(
 
     scope = permission_request.invitation.scope
 
-    permission = get_creation_permission(scope)
+    permission = get_create_permission(scope)
     if not permission:
         return staff_users
 

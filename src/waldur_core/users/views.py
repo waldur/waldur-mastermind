@@ -158,8 +158,8 @@ class InvitationViewSet(ProtectedViewSet):
         """
         invitation: models.Invitation = self.get_object()
 
-        if has_user(invitation.scope, request.user):
-            raise ValidationError(_("User already has role within this scope."))
+        if has_user(invitation.scope, request.user, invitation.role):
+            raise ValidationError(_("User has already the same role in this scope."))
 
         replace_email = False
         if invitation.email != request.user.email:
