@@ -93,6 +93,9 @@ class RequestedOfferingFilter(django_filters.FilterSet):
         label="Offering",
     )
     offering_uuid = django_filters.UUIDFilter(field_name="offering__uuid")
+    provider_uuid = django_filters.UUIDFilter(
+        field_name="offering__customer__uuid", label="Provider"
+    )
     organization_uuid = django_filters.UUIDFilter(
         field_name="call__manager__customer__uuid"
     )
