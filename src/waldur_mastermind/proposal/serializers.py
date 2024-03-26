@@ -77,7 +77,7 @@ class NestedRequestedOfferingSerializer(serializers.HyperlinkedModelSerializer):
     offering_name = serializers.ReadOnlyField(source="offering.name")
     offering_uuid = serializers.ReadOnlyField(source="offering.uuid")
     category_uuid = serializers.ReadOnlyField(source="offering.category.uuid")
-    category_name = serializers.ReadOnlyField(source="offering.category.name")
+    category_name = serializers.ReadOnlyField(source="offering.category.title")
     provider_name = serializers.ReadOnlyField(source="offering.customer.name")
     plan_name = serializers.ReadOnlyField(source="plan.name")
     call_managing_organisation = serializers.ReadOnlyField(
