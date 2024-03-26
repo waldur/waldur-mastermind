@@ -8,7 +8,7 @@ from waldur_core.core import filters as core_filters
 from waldur_core.core.models import User
 from waldur_core.permissions.enums import TYPE_MAP
 from waldur_core.permissions.utils import (
-    get_creation_permission,
+    get_create_permission,
     get_scope_ids,
     get_valid_content_types,
     get_valid_models,
@@ -35,7 +35,7 @@ class InvitationFilterBackend(BaseFilterBackend):
 
         subquery = Q(customer__in=get_connected_customers(user))
         for content_type in get_valid_content_types():
-            permission = get_creation_permission(content_type.model_class())
+            permission = get_create_permission(content_type.model_class())
             if not permission:
                 continue
             scopes = get_scope_ids(user, content_type, permission=permission)

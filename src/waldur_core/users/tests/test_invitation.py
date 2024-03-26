@@ -712,7 +712,9 @@ class InvitationAcceptTest(BaseInvitationTest):
         )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data, ["User already has role within this scope."])
+        self.assertEqual(
+            response.data, ["User has already the same role in this scope."]
+        )
 
     def test_user_which_already_has_role_within_project_cannot_accept_invitation(self):
         project_invitation = factories.ProjectInvitationFactory(
@@ -728,7 +730,9 @@ class InvitationAcceptTest(BaseInvitationTest):
         )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data, ["User already has role within this scope."])
+        self.assertEqual(
+            response.data, ["User has already the same role in this scope."]
+        )
 
     @override_waldur_core_settings(INVITATION_DISABLE_MULTIPLE_ROLES=True)
     def test_user_can_have_only_single_role_in_any_project_or_customer(self):

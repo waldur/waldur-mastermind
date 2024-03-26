@@ -203,5 +203,13 @@ def get_valid_models():
     return [ct.model_class() for ct in get_valid_content_types()]
 
 
-def get_creation_permission(model_class):
-    return enums.PERMISSIONS_MAP.get(model_class._meta.model_name)
+def get_create_permission(model_class):
+    return enums.CREATE_PERMISSIONS.get(model_class._meta.model_name)
+
+
+def get_delete_permission(model_class):
+    return enums.DELETE_PERMISSIONS.get(model_class._meta.model_name)
+
+
+def get_update_permission(model_class):
+    return enums.UPDATE_PERMISSIONS.get(model_class._meta.model_name)
