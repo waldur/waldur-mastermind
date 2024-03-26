@@ -524,9 +524,20 @@ def drop_service_manager_role_from_customer(
 def update_customer_of_offering_if_project_has_been_moved(
     sender, project, old_customer, new_customer, **kwargs
 ):
-    models.Offering.objects.filter(project=project, customer=old_customer).update(
-        customer=new_customer
-    )
+    for offering in models.Offering.objects.filter(
+        project=project, customer=old_customer
+    ):
+        offering.customer = new_customer
+        offering.save()
+
+        #  Make sure that scope has an actual field customer, not property
+        if (
+            offering.scope
+            and hasattr(offering.scope.__class__, "customer")
+            and hasattr(offering.scope.__class__.customer, "field")
+        ):
+            offering.scope.customer = new_customer
+            offering.scope.save()
 
 
 def disable_empty_service_settings(offering):
