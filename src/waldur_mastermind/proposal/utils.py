@@ -1,12 +1,14 @@
 from django.db import transaction
-from django.db.models import Count, OuterRef, Subquery
+from django.db.models import Count, OuterRef, QuerySet, Subquery
 
 from waldur_core.core.utils import get_system_robot
+from waldur_core.permissions.enums import RoleEnum
+from waldur_core.permissions.utils import get_users
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.proposal import models as proposal_models
 
 
-def get_available_reviewer(proposal):
+def get_available_reviewer(proposal: proposal_models.Proposal):
     reviewer_ids = proposal.review_set.values_list("reviewer_id", flat=True)
     review_count = (
         proposal_models.Review.objects.filter(
@@ -32,7 +34,7 @@ def get_available_reviewer(proposal):
     return available_reviewer[:number_of_needed_reviewers]
 
 
-def process_proposals_pending_reviewers(proposal):
+def process_proposals_pending_reviewers(proposal: proposal_models.Proposal):
     for reviewer in get_available_reviewer(proposal):
         proposal_models.Review.objects.create(reviewer=reviewer, proposal=proposal)
 
@@ -40,32 +42,37 @@ def process_proposals_pending_reviewers(proposal):
     return proposal.save()
 
 
-def allocate_proposal(proposal):
-    requested_resources = proposal.requestedresource_set.filter(
+def allocate_proposal(proposal: proposal_models.Proposal):
+    requested_resources: QuerySet[
+        proposal_models.RequestedResource
+    ] = proposal.requestedresource_set.filter(
         requested_offering__state=proposal_models.RequestedOffering.States.ACCEPTED
     )
 
+    project_role = proposal.round.call.default_project_role or RoleEnum.PROJECT_ADMIN
+    for user in get_users(proposal):
+        proposal.project.add_user(user, project_role)
+
     for requested_resource in requested_resources:
         with transaction.atomic():
-            resource = marketplace_models.Resource(
+            attrs = dict(
                 project=proposal.project,
                 offering=requested_resource.requested_offering.offering,
                 plan=requested_resource.requested_offering.plan,
                 attributes=requested_resource.attributes,
                 limits=requested_resource.limits,
+            )
+            resource = marketplace_models.Resource(
+                **attrs,
                 name=proposal.project.name,
             )
             resource.init_cost()
             resource.save()
 
             order = marketplace_models.Order(
+                **attrs,
                 resource=resource,
-                project=proposal.project,
                 created_by=get_system_robot(),
-                offering=requested_resource.requested_offering.offering,
-                plan=requested_resource.requested_offering.plan,
-                attributes=requested_resource.attributes,
-                limits=requested_resource.limits,
             )
             order.init_cost()
             order.save()

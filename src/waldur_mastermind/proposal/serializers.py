@@ -12,6 +12,8 @@ from waldur_core.media.serializers import (
     ProtectedImageField,
     ProtectedMediaSerializerMixin,
 )
+from waldur_core.permissions.models import Role
+from waldur_core.structure.models import Project
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import permissions as marketplace_permissions
 from waldur_mastermind.marketplace.serializers import (
@@ -592,29 +594,41 @@ class ProviderRequestedOfferingSerializer(NestedRequestedOfferingSerializer):
 
 class ProtectedCallSerializer(PublicCallSerializer):
     reference_code = serializers.CharField(source="backend_id", required=False)
+    default_project_role = serializers.SlugRelatedField(
+        queryset=Role.objects.filter(is_active=True), slug_field="uuid", required=False
+    )
+    default_project_role_name = serializers.ReadOnlyField(
+        source="default_project_role.name"
+    )
+    default_project_role_description = serializers.ReadOnlyField(
+        source="default_project_role.description"
+    )
 
     class Meta(PublicCallSerializer.Meta):
         fields = PublicCallSerializer.Meta.fields + (
             "created_by",
             "reference_code",
+            "default_project_role",
+            "default_project_role_name",
+            "default_project_role_description",
         )
         view_name = "proposal-protected-call-detail"
         protected_fields = ("manager",)
 
-    def validate(self, attrs):
-        manager: models.CallManagingOrganisation = attrs.get("manager")
+    def validate_manager(self, manager: models.CallManagingOrganisation):
         user = self.context["request"].user
 
-        if manager and not user.is_staff and user not in manager.customer.get_users():
+        if manager and not user.is_staff and not manager.customer.has_user(user):
             raise serializers.ValidationError(
-                {
-                    "manager": _(
-                        "Current user has not permissions for selected organisation."
-                    )
-                }
+                "Current user does not belong to the selected organisation."
             )
 
-        return attrs
+        return manager
+
+    def validate_default_project_role(self, default_project_role: Role):
+        if default_project_role.content_type.model_class() != Project:
+            raise serializers.ValidationError("Role should belong to the project type.")
+        return default_project_role
 
     def create(self, validated_data):
         validated_data["created_by"] = self.context["request"].user

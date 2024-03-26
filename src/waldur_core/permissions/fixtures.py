@@ -90,3 +90,13 @@ class CallRole:
             RoleEnum.CALL_MANAGER,
             content_type=ContentType.objects.get_by_natural_key("proposal", "call"),
         )
+
+
+class ProposalRole:
+    @classmethod
+    @property
+    def MEMBER(self):
+        return Role.objects.get_system_role(
+            RoleEnum.PROPOSAL_MEMBER,
+            content_type=ContentType.objects.get_by_natural_key("proposal", "proposal"),
+        )
