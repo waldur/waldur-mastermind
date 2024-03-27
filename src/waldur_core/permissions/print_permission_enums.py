@@ -21,7 +21,7 @@ export const RoleEnum = {{
 }};
 
 export const PermissionMap = {{
-{format_dict(enums.PERMISSIONS_MAP)}
+{format_dict(enums.CREATE_PERMISSIONS)}
 }};
 
 export const PermissionEnum = {{
