@@ -10,7 +10,7 @@ from rest_framework import status, test
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
-from waldur_core.structure.models import Customer, Project, get_old_role_name
+from waldur_core.structure.models import Customer, Project
 from waldur_core.structure.tests import factories, fixtures
 from waldur_core.structure.tests.utils import (
     client_add_user,
@@ -660,8 +660,8 @@ class CustomerUsersListTest(test.APITransactionTestCase):
             self.url,
             {
                 "project_role": [
-                    get_old_role_name(ProjectRole.ADMIN.name),
-                    get_old_role_name(ProjectRole.MANAGER.name),
+                    ProjectRole.ADMIN.name,
+                    ProjectRole.MANAGER.name,
                 ]
             },
         )
@@ -672,7 +672,7 @@ class CustomerUsersListTest(test.APITransactionTestCase):
 
         response = self.client.get(
             self.url,
-            {"organization_role": [get_old_role_name(CustomerRole.SUPPORT.name)]},
+            {"organization_role": [CustomerRole.SUPPORT.name]},
         )
         usernames = [item["username"] for item in response.data]
         self.assertEqual(len(usernames), 2)
@@ -681,7 +681,7 @@ class CustomerUsersListTest(test.APITransactionTestCase):
 
         response = self.client.get(
             self.url,
-            {"organization_role": [get_old_role_name(CustomerRole.OWNER.name)]},
+            {"organization_role": [CustomerRole.OWNER.name]},
         )
         usernames = [item["username"] for item in response.data]
         self.assertEqual(len(usernames), 1)
@@ -690,8 +690,8 @@ class CustomerUsersListTest(test.APITransactionTestCase):
         response = self.client.get(
             self.url,
             {
-                "organization_role": [get_old_role_name(CustomerRole.OWNER.name)],
-                "project_role": [get_old_role_name(ProjectRole.MEMBER.name)],
+                "organization_role": [CustomerRole.OWNER.name],
+                "project_role": [ProjectRole.MEMBER.name],
             },
         )
         usernames = [item["username"] for item in response.data]
@@ -721,7 +721,7 @@ class CustomerUsersListTest(test.APITransactionTestCase):
         new_project.add_user(user, role=ProjectRole.MANAGER)
 
         self.client.force_authenticate(self.fixture.staff)
-        response = self.client.get(self.url, {"project_role": "manager"})
+        response = self.client.get(self.url, {"project_role": ProjectRole.MANAGER.name})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 0)
 
@@ -729,19 +729,25 @@ class CustomerUsersListTest(test.APITransactionTestCase):
         user = factories.UserFactory()
         self.client.force_authenticate(self.fixture.staff)
 
-        response = self.client.get(self.url, {"organization_role": "service_manager"})
+        response = self.client.get(
+            self.url, {"organization_role": CustomerRole.MANAGER.name}
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 0)
 
         self.fixture.customer.add_user(user, CustomerRole.MANAGER)
-        response = self.client.get(self.url, {"organization_role": "service_manager"})
+        response = self.client.get(
+            self.url, {"organization_role": CustomerRole.MANAGER.name}
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
 
         # Even if user has project role, he is skipped when organization filter is applied
         self.fixture.project.add_user(user, ProjectRole.MEMBER)
         self.fixture.customer.remove_user(user)
-        response = self.client.get(self.url, {"organization_role": "service_manager"})
+        response = self.client.get(
+            self.url, {"organization_role": CustomerRole.MANAGER.name}
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 0)
 

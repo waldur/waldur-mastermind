@@ -26,7 +26,6 @@ from waldur_core.structure.managers import (
     get_project_users,
     get_visible_users,
 )
-from waldur_core.structure.models import get_new_role_name
 from waldur_core.structure.registry import SupportedServices
 from waldur_mastermind.billing import models as billing_models
 
@@ -653,17 +652,11 @@ class UserRolesFilter(BaseFilterBackend):
         if project_roles:
             # Filter project permissions by current customer
             projects = customer.projects.values_list("id", flat=True)
-            project_roles = [
-                get_new_role_name(models.Project, role) for role in project_roles
-            ]
             project_users = get_project_users(projects, project_roles)
             query = query | Q(id__in=project_users)
 
         if organization_roles:
             # Filter customer permissions by current customer
-            organization_roles = [
-                get_new_role_name(models.Customer, role) for role in organization_roles
-            ]
             customer_users = get_customer_users(customer.id, organization_roles)
             query = query | Q(id__in=customer_users)
 

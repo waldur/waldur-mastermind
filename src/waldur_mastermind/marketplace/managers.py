@@ -15,7 +15,6 @@ from waldur_core.structure.managers import (
     get_connected_projects,
     get_organization_groups,
 )
-from waldur_core.structure.models import get_new_role_name
 
 from . import models
 
@@ -27,7 +26,7 @@ class MixinManager(core_managers.GenericKeyMixin, django_models.Manager):
 
 
 class OfferingQuerySet(django_models.QuerySet):
-    def filter_for_user(self, user, customer_roles=None, project_roles=None):
+    def filter_for_user(self, user):
         """Returns offerings related to user."""
 
         if user.is_anonymous:
@@ -36,20 +35,8 @@ class OfferingQuerySet(django_models.QuerySet):
         if user.is_staff or user.is_support:
             return self
 
-        if project_roles:
-            project_roles = [
-                get_new_role_name(structure_models.Project, role)
-                for role in project_roles
-            ]
-
-        if customer_roles:
-            customer_roles = [
-                get_new_role_name(structure_models.Customer, role)
-                for role in customer_roles
-            ]
-
-        connected_customers = get_connected_customers(user, customer_roles)
-        connected_projects = get_connected_projects(user, project_roles)
+        connected_customers = get_connected_customers(user)
+        connected_projects = get_connected_projects(user)
         connected_offerings = get_connected_offerings(user)
 
         return self.filter(
