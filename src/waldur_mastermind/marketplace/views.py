@@ -17,7 +17,6 @@ from django.db.models import (
     OuterRef,
     PositiveSmallIntegerField,
     Q,
-    Subquery,
 )
 from django.db.models.aggregates import Sum
 from django.db.models.fields import FloatField, IntegerField
@@ -48,7 +47,12 @@ from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.mixins import EagerLoadMixin
 from waldur_core.core.renderers import PlainTextRenderer
-from waldur_core.core.utils import is_uuid_like, month_start, order_with_nulls
+from waldur_core.core.utils import (
+    SubqueryCount,
+    is_uuid_like,
+    month_start,
+    order_with_nulls,
+)
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import has_permission, permission_factory
@@ -1584,12 +1588,14 @@ class PlanUsageReporter:
         if query:
             plans = self.apply_filters(query, plans)
 
-        resources = self.get_subquery()
+        resources = models.Resource.objects.filter(plan_id=OuterRef("pk")).exclude(
+            state=models.Resource.States.TERMINATED
+        )
         remaining = ExpressionWrapper(
             F("limit") - F("usage"), output_field=PositiveSmallIntegerField()
         )
         plans = plans.annotate(
-            usage=Subquery(resources[:1]), limit=F("max_amount")
+            usage=SubqueryCount(resources), limit=F("max_amount")
         ).annotate(remaining=remaining)
         plans = self.apply_ordering(plans)
 
@@ -1603,23 +1609,6 @@ class PlanUsageReporter:
             serializer.is_valid(raise_exception=True)
             return serializer.validated_data
         return None
-
-    def get_subquery(self):
-        # Aggregate
-        resources = (
-            models.Resource.objects.filter(plan_id=OuterRef("pk"))
-            .exclude(state=models.Resource.States.TERMINATED)
-            .annotate(count=Count("*"))
-            .order_by()
-            .values_list("count", flat=True)
-        )
-
-        # Workaround for Django bug:
-        # https://code.djangoproject.com/ticket/28296
-        # It allows to remove extra GROUP BY clause from the subquery.
-        resources.query.group_by = []
-
-        return resources
 
     def apply_filters(self, query, plans):
         if query.get("offering_uuid"):
