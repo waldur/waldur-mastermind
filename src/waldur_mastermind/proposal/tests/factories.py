@@ -140,6 +140,18 @@ class RoundFactory(
     def get_list_url(cls, call):
         return CallFactory.get_protected_url(call, action="rounds")
 
+    @classmethod
+    def get_own_url(cls, round_obj=None, action=None):
+        # Default get_url() returns round url through Call
+        # Use this method to get round url directly
+        if round_obj is None:
+            round_obj = RoundFactory()
+        url = "http://testserver" + reverse(
+            "call-round-detail",
+            kwargs={"uuid": round_obj.uuid.hex},
+        )
+        return url if action is None else url + action + "/"
+
 
 class ProposalFactory(
     factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Proposal]

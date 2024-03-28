@@ -171,3 +171,57 @@ class ActionTest(test.APITransactionTestCase):
         self.client.force_authenticate(user)
         response = self.client.post(self.url_accept)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+@ddt
+class ReviewerGetTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.round_2 = fixtures.ProposalFixture().round
+        self.url = factories.RoundFactory.get_own_url(
+            self.fixture.round, action="reviewers"
+        )
+        self.url_2 = factories.RoundFactory.get_own_url(
+            self.round_2, action="reviewers"
+        )
+
+    @data(
+        "staff",
+    )
+    def test_reviewers_counters_are_zero_for_unrelated_proposals(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(len(response.json()))
+        self.assertEqual(response.data[0]["in_review_proposals"], 0)
+        self.assertEqual(response.data[0]["rejected_proposals"], 0)
+        self.assertEqual(response.data[0]["accepted_proposals"], 0)
+
+    @data(
+        "staff",
+    )
+    def test_reviewers_counters_are_zero_for_unrelated_rounds(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url_2)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(len(response.json()))
+        self.assertEqual(response.data[0]["in_review_proposals"], 0)
+        self.assertEqual(response.data[0]["rejected_proposals"], 0)
+        self.assertEqual(response.data[0]["accepted_proposals"], 0)
+
+    @data(
+        "staff",
+    )
+    def test_reviewers_counter_should_be_visible(self, user):
+        self.fixture.proposal.state = models.Proposal.States.IN_REVIEW
+        self.fixture.review.proposal = self.fixture.proposal
+        self.fixture.review.save()
+        self.fixture.proposal.save()
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(len(response.json()))
+        self.assertEqual(response.data[0]["in_review_proposals"], 1)

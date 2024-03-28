@@ -773,10 +773,13 @@ class ProposalSerializer(
 
 class ReviewerSerializer(serializers.Serializer):
     full_name = serializers.SerializerMethodField()
-    email = serializers.EmailField(source="reviewer.email")
+    email = serializers.EmailField()
+    accepted_proposals = serializers.IntegerField()
+    rejected_proposals = serializers.IntegerField()
+    in_review_proposals = serializers.IntegerField()
 
     def get_full_name(self, obj):
-        return f"{obj.reviewer.first_name} {obj.reviewer.last_name}"
+        return f"{obj.first_name} {obj.last_name}"
 
 
 class ProposalAllocateSerializer(serializers.Serializer):

@@ -1,8 +1,10 @@
 import logging
 from datetime import datetime, timedelta
 
+from django.contrib import auth
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Q
+from django.db.models import OuterRef, Q
+from django.db.models.functions import Coalesce
 from django.utils import timezone as timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import decorators, exceptions, response, status, viewsets
@@ -10,6 +12,7 @@ from rest_framework import permissions as rf_permissions
 
 from waldur_core.core import validators as core_validators
 from waldur_core.core.exceptions import IncorrectStateException
+from waldur_core.core.utils import SubqueryCount
 from waldur_core.core.views import (
     ActionMethodMixin,
     ActionsViewSet,
@@ -38,6 +41,7 @@ from waldur_mastermind.proposal import (
 
 from . import log
 
+User = auth.get_user_model()
 logger = logging.getLogger(__name__)
 
 
@@ -692,9 +696,39 @@ class RoundViewSet(ReadOnlyActionsViewSet):
     def reviewers(self, request, uuid=None):
         round_obj = self.get_object()
 
-        all_reviewers = models.Review.objects.filter(
-            proposal__round=round_obj
-        ).distinct()
-        page = self.paginate_queryset(all_reviewers)
-        serializer = serializers.ReviewerSerializer(page, many=True)
+        unique_reviewer_ids = (
+            models.Review.objects.filter(proposal__round=round_obj)
+            .values_list("reviewer", flat=True)
+            .distinct()
+        )
+        users = User.objects.filter(id__in=unique_reviewer_ids)
+
+        proposals = models.Proposal.objects.filter(
+            review__reviewer=OuterRef("pk"), round=round_obj
+        )
+
+        accepted_proposals_subquery = proposals.filter(
+            state=models.Proposal.States.ACCEPTED
+        ).values("pk")
+
+        rejected_proposals_subquery = proposals.filter(
+            state=models.Proposal.States.REJECTED
+        ).values("pk")
+
+        in_review_proposals_subquery = proposals.filter(
+            state=models.Proposal.States.IN_REVIEW
+        ).values("pk")
+
+        users = users.annotate(
+            accepted_proposals=Coalesce(SubqueryCount(accepted_proposals_subquery), 0),
+            rejected_proposals=Coalesce(SubqueryCount(rejected_proposals_subquery), 0),
+            in_review_proposals=Coalesce(
+                SubqueryCount(in_review_proposals_subquery), 0
+            ),
+        )
+
+        page = self.paginate_queryset(users)
+        serializer = serializers.ReviewerSerializer(
+            page, many=True, context={"round_obj": round_obj}
+        )
         return self.get_paginated_response(serializer.data)
