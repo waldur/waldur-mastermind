@@ -217,6 +217,9 @@ class CustomerDeleteTest(CustomerBaseTest):
 class BaseCustomerMutationTest(CustomerBaseTest):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER)
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_CUSTOMER)
+        CustomerRole.OWNER.add_permission(PermissionEnum.DELETE_CUSTOMER)
 
     # Helper methods
     def _get_valid_payload(self, resource=None):
@@ -242,6 +245,7 @@ class BaseCustomerMutationTest(CustomerBaseTest):
 class CustomerCreateTest(BaseCustomerMutationTest):
     @data("user", "global_support")
     def test_user_can_not_create_customer_if_he_is_not_staff(self, user):
+        CustomerRole.OWNER.delete_permission(PermissionEnum.CREATE_CUSTOMER)
         self.client.force_authenticate(user=getattr(self.fixture, user))
 
         response = self.client.post(
@@ -280,7 +284,6 @@ class CustomerCreateTest(BaseCustomerMutationTest):
         customer = Customer.objects.get(uuid=response.data["uuid"])
         self.assertEqual(customer.projects.count(), 0)
 
-    @override_waldur_core_settings(OWNER_CAN_MANAGE_CUSTOMER=True)
     def test_user_can_create_customer_if_he_is_not_staff(self):
         self.client.force_authenticate(user=self.fixture.user)
         response = self.client.post(
@@ -302,7 +305,6 @@ class CustomerCreateTest(BaseCustomerMutationTest):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    @override_waldur_core_settings(OWNER_CAN_MANAGE_CUSTOMER=True)
     def test_domain_name_is_filled_from_user_organization(self):
         self.fixture.user.organization = "ut.ee"
         self.fixture.user.save()
@@ -323,7 +325,6 @@ class CustomerCreateTest(BaseCustomerMutationTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["domain"], "ut.ee")
 
-    @override_waldur_core_settings(OWNER_CAN_MANAGE_CUSTOMER=True)
     def test_domain_name_is_not_filled_from_input_for_owner(self):
         self.fixture.user.organization = ""
         self.fixture.user.save()
@@ -349,6 +350,7 @@ class CustomerUpdateTest(BaseCustomerMutationTest):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_user_cannot_change_customer_he_is_owner_of(self):
+        CustomerRole.OWNER.delete_permission(PermissionEnum.UPDATE_CUSTOMER)
         self.client.force_authenticate(user=self.fixture.owner)
 
         response = self.client.put(
@@ -377,6 +379,7 @@ class CustomerUpdateTest(BaseCustomerMutationTest):
         )
 
     def test_user_cannot_change_customer_field_he_is_owner_of(self):
+        CustomerRole.OWNER.delete_permission(PermissionEnum.UPDATE_CUSTOMER)
         self.client.force_authenticate(user=self.fixture.owner)
 
         self._check_single_customer_field_change_permission(
@@ -399,7 +402,6 @@ class CustomerUpdateTest(BaseCustomerMutationTest):
         self.fixture.customer.refresh_from_db()
         self.assertEqual(self.fixture.customer.domain, "ut.ee")
 
-    @override_waldur_core_settings(OWNER_CAN_MANAGE_CUSTOMER=True)
     def test_owner_can_not_change_organization_domain(self):
         self.client.force_authenticate(user=self.fixture.owner)
 
@@ -862,13 +864,14 @@ class AccountingIsRunningFilterTest(test.APITransactionTestCase):
         self.assertEqual(expected, actual)
 
 
-@override_waldur_core_settings(OWNER_CAN_MANAGE_CUSTOMER=True)
 class CustomerBlockedTest(CustomerBaseTest):
     def setUp(self):
         self.user = factories.UserFactory()
         self.customer = factories.CustomerFactory(blocked=True)
         self.customer.add_user(self.user, CustomerRole.OWNER)
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
+        CustomerRole.OWNER.add_permission(PermissionEnum.DELETE_CUSTOMER)
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_CUSTOMER)
 
     def test_blocked_organization_is_not_available_for_updating(self):
         self.client.force_authenticate(user=self.user)

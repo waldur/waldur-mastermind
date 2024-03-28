@@ -33,11 +33,13 @@ from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.core.views import ActionsViewSet
+from waldur_core.permissions import fixtures as permission_fixtures
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.utils import (
     count_users,
     has_permission,
     permission_factory,
+    role_has_permission,
 )
 from waldur_core.permissions.views import UserRoleMixin
 from waldur_core.structure import filters, models, permissions, serializers, utils
@@ -121,7 +123,7 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
         A new customer can only be created:
 
          - by users with staff privilege (is_staff=True);
-         - by any user if OWNER_CAN_MANAGE_CUSTOMER is set to True;
+         - by any user if CUSTOMER.OWNER role has CUSTOMER.CREATE permission;
 
         If user who has created new organization is not staff, he is granted owner permission.
 
@@ -170,21 +172,13 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
             context["customer"] = self.get_object()
         return context
 
-    def check_customer_permissions(self, customer=None):
-        if self.request.user.is_staff:
-            return
-
-        if not django_settings.WALDUR_CORE.get("OWNER_CAN_MANAGE_CUSTOMER"):
-            raise PermissionDenied()
-
-        if not customer:
-            return
-
-        if not customer.has_user(self.request.user, models.CustomerRole.OWNER):
-            raise PermissionDenied()
-
     def perform_create(self, serializer):
-        self.check_customer_permissions()
+        customer_owner_role = permission_fixtures.CustomerRole.OWNER
+        if not self.request.user.is_staff and not role_has_permission(
+            customer_owner_role, PermissionEnum.CREATE_CUSTOMER
+        ):
+            raise PermissionDenied()
+
         customer = serializer.save()
         if not self.request.user.is_staff:
             customer.add_user(
@@ -202,12 +196,18 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
             project.save()
 
     def perform_update(self, serializer):
-        self.check_customer_permissions(serializer.instance)
+        if not has_permission(
+            self.request, PermissionEnum.UPDATE_CUSTOMER, serializer.instance
+        ):
+            raise PermissionDenied()
+
         utils.check_customer_blocked_or_archived(serializer.instance)
         return super().perform_update(serializer)
 
     def perform_destroy(self, instance):
-        self.check_customer_permissions(instance)
+        if not has_permission(self.request, PermissionEnum.DELETE_CUSTOMER, instance):
+            raise PermissionDenied()
+
         utils.check_customer_blocked_or_archived(instance)
 
         core_signals.pre_delete_validate.send(
