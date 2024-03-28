@@ -222,7 +222,10 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
         project_ids = self.get_customer_project_ids()
         content_type = ContentType.objects.get_for_model(structure_models.Project)
         permissions = UserRole.objects.filter(
-            content_type=content_type, object_id__in=project_ids, is_active=True
+            content_type=content_type,
+            object_id__in=project_ids,
+            is_active=True,
+            user__is_active=True,
         )
         page = self.paginate_queryset(permissions)
         serializer = structure_serializers.ProjectPermissionLogSerializer(
