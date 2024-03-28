@@ -21,6 +21,7 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
         self.reviewer_1
         self.reviewer_2
         self.review
+        self.round
 
         permissions_models.RolePermission.objects.get_or_create(
             role=CallRole.MANAGER,
