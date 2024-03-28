@@ -8,8 +8,9 @@ from django.utils.translation import gettext_lazy as _
 from freezegun import freeze_time
 from rest_framework import status, test
 
-from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.media.utils import dummy_image
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
@@ -356,14 +357,13 @@ class DeleteCustomerWithInvoiceTest(test.APITransactionTestCase):
         self.fixture = structure_fixtures.ProjectFixture()
         self.invoice = factories.InvoiceFactory(customer=self.fixture.customer)
         self.url = structure_factories.CustomerFactory.get_url(self.fixture.customer)
+        CustomerRole.OWNER.add_permission(PermissionEnum.DELETE_CUSTOMER)
 
-    @override_waldur_core_settings(OWNER_CAN_MANAGE_CUSTOMER=True)
     def test_owner_can_delete_customer_with_pending_invoice(self):
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.delete(self.url)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
-    @override_waldur_core_settings(OWNER_CAN_MANAGE_CUSTOMER=True)
     def test_owner_can_not_delete_customer_with_non_empty_invoice(self):
         factories.InvoiceItemFactory(invoice=self.invoice, unit_price=100, quantity=10)
 
@@ -372,7 +372,6 @@ class DeleteCustomerWithInvoiceTest(test.APITransactionTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @override_waldur_core_settings(OWNER_CAN_MANAGE_CUSTOMER=True)
     def test_owner_can_not_delete_customer_with_active_invoice_even_if_its_empty(self):
         self.invoice.state = models.Invoice.States.CREATED
         self.invoice.save()

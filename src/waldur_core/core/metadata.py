@@ -37,9 +37,6 @@ class WaldurCore(BaseModel):
         timedelta(weeks=1),
         description="Defines for how long group invitation remains valid.",
     )
-    OWNER_CAN_MANAGE_CUSTOMER = Field(
-        False, description="Enables organization owners to create an organization."
-    )
     BACKEND_FIELDS_EDITABLE = Field(
         True,
         description="Allows to control /admin writable fields. "
@@ -258,7 +255,6 @@ class WaldurCore(BaseModel):
             "AUTHENTICATION_METHODS",
             "INVITATIONS_ENABLED",
             "VALIDATE_INVITATION_EMAIL",
-            "OWNER_CAN_MANAGE_CUSTOMER",
             "NATIVE_NAME_ENABLED",
             "ONLY_STAFF_MANAGES_SERVICES",
             "PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS",
