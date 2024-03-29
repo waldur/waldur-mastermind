@@ -1,8 +1,9 @@
 {% load waldur_marketplace %}[Order|{{order_url}}].
 Provider: {{order.offering.customer.name}}
 Resource UUID: {{resource.uuid}}
+Resource name: {{resource.name}}
 Plan details:
     {% plan_details order.plan %}
 Full name: {{order.created_by.full_name|default:"none"}}
-Civil code:{{order.created_by.civil_number|default:"none"}}
+Civil code: {{order.created_by.civil_number|default:"none"}}
 Email: {{order.created_by.email}}
