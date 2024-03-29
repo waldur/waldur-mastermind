@@ -56,7 +56,7 @@ class ProposalFilter(django_filters.FilterSet):
     round = django_filters.UUIDFilter(field_name="round__uuid")
     state = django_filters.MultipleChoiceFilter(choices=models.Proposal.States.CHOICES)
     name = django_filters.CharFilter(lookup_expr="icontains")
-    call = django_filters.UUIDFilter(field_name="round__call__uuid")
+    call_uuid = django_filters.UUIDFilter(field_name="round__call__uuid")
     organization_uuid = django_filters.UUIDFilter(
         field_name="round__call__manager__customer__uuid"
     )
@@ -66,7 +66,7 @@ class ProposalFilter(django_filters.FilterSet):
 
     class Meta:
         model = models.Proposal
-        fields = ["state", "name", "round", "call"]
+        fields = ["state", "name", "round", "call_uuid"]
 
 
 class ReviewFilter(django_filters.FilterSet):
