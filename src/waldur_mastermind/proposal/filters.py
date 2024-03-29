@@ -78,6 +78,7 @@ class ReviewFilter(django_filters.FilterSet):
         field_name="proposal__round__call__manager__customer__uuid"
     )
     o = django_filters.OrderingFilter(fields=("created", "state"))
+    call_uuid = django_filters.UUIDFilter(field_name="proposal__round__call__uuid")
     reviewer_uuid = django_filters.UUIDFilter(field_name="reviewer__uuid")
     state = django_filters.MultipleChoiceFilter(choices=models.Review.States.CHOICES)
 
