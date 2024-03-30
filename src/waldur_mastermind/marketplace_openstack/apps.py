@@ -327,3 +327,10 @@ class MarketplaceOpenStackConfig(AppConfig):
             dispatch_uid="waldur_mastermind.marketplace_openstack."
             "synchronize_router_backend_metadata",
         )
+
+        openstack_signals.tenant_does_not_exist_in_backend.connect(
+            handlers.tenant_does_not_exist_in_backend,
+            sender=openstack_models.Tenant,
+            dispatch_uid="waldur_mastermind.tenant_does_not_exist_in_backend."
+            "tenant_does_not_exist_in_backend",
+        )

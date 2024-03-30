@@ -8,6 +8,7 @@ from django.utils import timezone
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack_base.utils import volume_type_name_to_quota_name
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
@@ -613,3 +614,12 @@ def synchronize_router_backend_metadata(sender, instance, created=False, **kwarg
         resource.backend_metadata["routers"][router.uuid.hex] = router.fixed_ips
 
     resource.save()
+
+
+def tenant_does_not_exist_in_backend(sender, instance, created=False, **kwargs):
+    tenant = instance
+
+    for resource in marketplace_models.Resource.objects.filter(scope=tenant):
+        marketplace_utils.terminate_resource(
+            resource, core_utils.get_system_robot(), "Does not exist in backend."
+        )
