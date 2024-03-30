@@ -2,6 +2,7 @@ from celery import shared_task
 from django.utils import timezone
 
 from waldur_core.core import tasks as core_tasks
+from waldur_core.core import utils as core_utils
 
 from . import models, signals
 
@@ -68,3 +69,21 @@ def mark_as_erred_old_tenants_in_deleting_state():
         state=models.Tenant.States.ERRED,
         error_message="Deletion error. Deleting took more than a day.",
     )
+
+
+@shared_task
+def check_existence_of_tenant(serialized_tenant):
+    tenant = core_utils.deserialize_instance(serialized_tenant)
+    backend = tenant.get_backend()
+
+    if backend.does_tenant_exist_in_backend(tenant) is False:
+        raise Exception(f"Tenant {tenant} does not exist in backend.")
+
+
+@shared_task
+def mark_tenant_as_deleted(serialized_tenant):
+    tenant = core_utils.deserialize_instance(serialized_tenant)
+    tenant.set_erred()
+    tenant.save()
+
+    signals.tenant_does_not_exist_in_backend.send(models.Tenant, instance=tenant)

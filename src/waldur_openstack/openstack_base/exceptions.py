@@ -11,3 +11,7 @@ class OpenStackSessionExpired(OpenStackBackendError):
 
 class OpenStackAuthorizationFailed(OpenStackBackendError):
     pass
+
+
+class OpenStackTenantNotFound(OpenStackBackendError):
+    pass

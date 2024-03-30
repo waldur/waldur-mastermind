@@ -487,7 +487,7 @@ class TenantPullQuotasExecutor(core_executors.ActionExecutor):
         )
 
 
-class TenantPullExecutor(core_executors.ActionExecutor):
+class ExistingTenantPullExecutor(core_executors.ActionExecutor):
     @classmethod
     def get_task_signature(cls, tenant, serialized_tenant, **kwargs):
         service_settings = structure_models.ServiceSettings.objects.get(scope=tenant)
@@ -540,6 +540,20 @@ class TenantPullExecutor(core_executors.ActionExecutor):
             ),
             tasks.SendSignalTenantPullSucceeded().si(serialized_instance),
         )
+
+
+class TenantPullExecutor(core_executors.ActionExecutor):
+    @classmethod
+    def get_task_signature(cls, tenant, serialized_tenant, **kwargs):
+        return tasks.check_existence_of_tenant.si(serialized_tenant)
+
+    @classmethod
+    def get_success_signature(cls, instance, serialized_instance, **kwargs):
+        return ExistingTenantPullExecutor.as_signature(instance)
+
+    @classmethod
+    def get_failure_signature(cls, instance, serialized_instance, **kwargs):
+        return tasks.mark_tenant_as_deleted.si(serialized_instance)
 
 
 class TenantPullSecurityGroupsExecutor(core_executors.ActionExecutor):

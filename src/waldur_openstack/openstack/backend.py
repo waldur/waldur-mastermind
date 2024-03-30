@@ -9,6 +9,7 @@ from django.utils import timezone
 from django.utils.crypto import get_random_string
 from django.utils.decorators import method_decorator
 from django.utils.translation import gettext_lazy as _
+from keystoneauth1.exceptions.http import NotFound
 from keystoneclient import exceptions as keystone_exceptions
 from neutronclient.client import exceptions as neutron_exceptions
 from novaclient import exceptions as nova_exceptions
@@ -25,7 +26,10 @@ from waldur_core.structure.utils import (
 from waldur_openstack.openstack_base.backend import (
     BaseOpenStackBackend,
 )
-from waldur_openstack.openstack_base.exceptions import OpenStackBackendError
+from waldur_openstack.openstack_base.exceptions import (
+    OpenStackBackendError,
+    OpenStackTenantNotFound,
+)
 from waldur_openstack.openstack_base.session import (
     get_cinder_client,
     get_keystone_client,
@@ -35,7 +39,7 @@ from waldur_openstack.openstack_base.session import (
 )
 from waldur_openstack.openstack_base.utils import is_valid_volume_type_name
 
-from . import models
+from . import models, signals
 from .log import event_logger
 
 logger = logging.getLogger(__name__)
@@ -103,6 +107,9 @@ class OpenStackBackend(BaseOpenStackBackend):
             backend_tenant = backend_tenants_mapping.get(tenant.backend_id)
             if backend_tenant is None:
                 handle_resource_not_found(tenant)
+                signals.tenant_does_not_exist_in_backend.send(
+                    models.Tenant, instance=tenant
+                )
                 continue
 
             imported_backend_tenant = models.Tenant(
@@ -1030,6 +1037,8 @@ class OpenStackBackend(BaseOpenStackBackend):
         keystone = get_keystone_client(self.session)
         try:
             backend_tenant = keystone.projects.get(tenant_backend_id)
+        except NotFound as e:
+            raise OpenStackTenantNotFound(e)
         except keystone_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
 
@@ -1077,6 +1086,21 @@ class OpenStackBackend(BaseOpenStackBackend):
         # if tenant was not modified in Waldur database after import.
         if tenant.modified < import_time:
             update_pulled_fields(tenant, imported_tenant, ("name", "description"))
+
+    @log_backend_action()
+    def does_tenant_exist_in_backend(self, tenant):
+        try:
+            self._import_tenant(tenant.backend_id, save=False)
+        except OpenStackTenantNotFound:
+            return False
+        except Exception as e:
+            logger.error(
+                "Checking for tenant %s availability caused an error %s.",
+                tenant,
+                e,
+            )
+            return None
+        return True
 
     @log_backend_action()
     def add_admin_user_to_tenant(self, tenant: models.Tenant):
