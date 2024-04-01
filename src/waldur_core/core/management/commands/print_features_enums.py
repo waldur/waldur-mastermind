@@ -11,8 +11,8 @@ class Command(BaseCommand):
         print("// Do not edit it manually. All manual changes would be overridden.")
         for section in sorted(FEATURES, key=lambda section: section["key"]):
             section_key = section["key"]
-            print(f"\nexport const {section_key.capitalize()}Features = {{")
+            print(f"\nexport enum {section_key.capitalize()}Features {{")
 
             for feature in sorted(section["items"], key=lambda section: section["key"]):
-                print(f'  {feature["key"]}: \'{section_key}.{feature["key"]}\',')
-            print("};")
+                print(f'  {feature["key"]} = \'{section_key}.{feature["key"]}\',')
+            print("}")

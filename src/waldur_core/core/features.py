@@ -39,24 +39,7 @@ class CustomerSection(FeatureSection):
         "Render component usage charts in organization dashboard."
     )
 
-    project_requests = Feature(
-        "Render list of project creation requests in organization dashboard."
-    )
-
-    resource_requests = Feature(
-        "Render list of resource creation requests in organization dashboard."
-    )
-
-    show_subnets = Feature(
-        "Render list of subnets from where connection to "
-        "self-service is allowed in organization details dialog."
-    )
-
     show_domain = Feature("Allows to hide domain field in organization detail.")
-
-    team = Feature("Enable team management in organization workspace.")
-
-    events = Feature("Enable audit log in organization workspace.")
 
     hide_organization_billing_step = Feature(
         "Hide billing step in organization creation wizard."
@@ -72,11 +55,7 @@ class ProjectSection(FeatureSection):
         key = "project"
         description = "Project workspace"
 
-    team = Feature("Enable team management in project workspace.")
-
     estimated_cost = Feature("Render estimated cost column in projects list.")
-
-    events = Feature("Enable audit log in project workspace.")
 
     oecd_fos_2007_code = Feature("Enable OECD code.")
 
@@ -104,21 +83,11 @@ class MarketplaceSection(FeatureSection):
         key = "marketplace"
         description = "Marketplace offerings and resources"
 
-    offering_document = Feature("Allow to attach document to marketplace offering.")
-
-    private_offerings = Feature(
-        "Render list of private marketplace service providers in organization workspace."
-    )
-
     import_resources = Feature(
         "Allow to import resources from service provider to project."
     )
 
     conceal_prices = Feature("Do not render prices in shopping cart and order details.")
-
-    terms_of_service = Feature("Render terms of service when offering is ordered.")
-
-    review = Feature("Allow to write a review for marketplace offering.")
 
     show_experimental_ui_components = Feature(
         "Enabled display of experimental or mocked components in marketplace."
@@ -161,16 +130,6 @@ class InvitationsSection(FeatureSection):
         "Conceal civil number in invitation creation dialog."
     )
 
-    create_missing_user = Feature(
-        "Allow to create FreeIPA user using details "
-        "specified in invitation if user does not exist yet."
-    )
-
-    disable_multiple_roles = Feature(
-        "Do not allow user to grant multiple roles in the "
-        "same project or organization using invitation."
-    )
-
     show_tax_number = Feature("Show tax number field in invitation creation form.")
 
     tax_number_required = Feature(
@@ -184,14 +143,6 @@ class InvitationsSection(FeatureSection):
     require_user_details = Feature(
         'Render "Show user details" button in invitation creation form.'
     )
-
-
-class InvoiceSection(FeatureSection):
-    class Meta:
-        key = "invoice"
-        description = "Invoice management"
-
-    events = Feature("Render list of events related to invoice item in modal dialog.")
 
 
 class RancherSection(FeatureSection):
