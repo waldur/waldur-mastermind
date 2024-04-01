@@ -11,12 +11,10 @@ class Command(BaseCommand):
 // Do not edit it manually. All manual changes would be overridden.""",
             end="\n",
         )
-        print()
         for section in sorted(FEATURES, key=lambda section: section["key"]):
             section_key = section["key"]
-            print(f"export const {section_key.capitalize()}Features = {{")
+            print(f"\nexport const {section_key.capitalize()}Features = {{")
 
             for feature in sorted(section["items"], key=lambda section: section["key"]):
                 print(f'  {feature["key"]}: \'{section_key}.{feature["key"]}\',')
             print("};")
-            print()
