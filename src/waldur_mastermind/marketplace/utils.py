@@ -93,6 +93,7 @@ def process_order(order: models.Order, user):
         )
         order.set_state_erred()
         order.resource.set_state_erred()
+        order.resource.save(update_fields=["state"])
         order.save(update_fields=["state", "error_message"])
         return
 
@@ -111,6 +112,7 @@ def process_order(order: models.Order, user):
             f"Order ID: {order.id}. "
             f"Exception: {order.error_message}."
         )
+        order.resource.save(update_fields=["state"])
 
         order.save(
             update_fields=[

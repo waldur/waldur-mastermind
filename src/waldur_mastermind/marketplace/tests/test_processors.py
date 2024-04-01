@@ -1,7 +1,9 @@
+from unittest import mock
+
 from rest_framework import test
 
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.marketplace import models, utils
+from waldur_mastermind.marketplace import PLUGIN_NAME, models, utils
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.tests import factories
 
@@ -26,3 +28,42 @@ class ProcessorsTest(test.APITransactionTestCase):
                 success.append(offering_type)
 
         self.assertFalse(failed, f"failed: {failed}, success {success}")
+
+    def test_resource_marked_as_erred_when_order_processor_is_not_found(self):
+        user = structure_factories.UserFactory(is_staff=True)
+        offering = factories.OfferingFactory(type="ABC")
+
+        order = factories.OrderFactory(
+            offering=offering, state=models.Order.States.EXECUTING
+        )
+        resource = order.resource
+
+        utils.process_order(order, user)
+
+        order.refresh_from_db()
+        resource.refresh_from_db()
+
+        self.assertEqual(models.Order.States.ERRED, order.state)
+        self.assertEqual(models.Resource.States.ERRED, resource.state)
+
+    @mock.patch(
+        "waldur_mastermind.marketplace.processors.BasicCreateResourceProcessor.process_order"
+    )
+    def test_resource_marked_as_erred_when_order_failed(self, process_order_mock):
+        process_order_mock.side_effect = Exception("Error!")
+
+        user = structure_factories.UserFactory(is_staff=True)
+        offering = factories.OfferingFactory(type=PLUGIN_NAME)
+
+        order = factories.OrderFactory(
+            offering=offering, state=models.Order.States.EXECUTING
+        )
+        resource = order.resource
+
+        utils.process_order(order, user)
+
+        order.refresh_from_db()
+        resource.refresh_from_db()
+
+        self.assertEqual(models.Order.States.ERRED, order.state)
+        self.assertEqual(models.Resource.States.ERRED, resource.state)
