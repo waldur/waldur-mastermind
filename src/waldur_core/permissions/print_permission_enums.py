@@ -12,11 +12,12 @@ def format_dict(enum):
 
 
 print(
-    f"""/* eslint-disable */
-// WARNING: This file is auto-generated from src/waldur_core/permissions/enums.py
-// Do not edit it manually. All manual changes would be overridden.
+    "// WARNING: This file is auto-generated from src/waldur_core/permissions/print_permission_enums.py"
+)
+print("// Do not edit it manually. All manual changes would be overridden.")
 
-export const RoleEnum = {{
+print(
+    f"""export const RoleEnum = {{
 {format_enum(enums.RoleEnum)}
 }};
 
