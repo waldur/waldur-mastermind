@@ -54,8 +54,6 @@ class CustomerSection(FeatureSection):
 
     show_domain = Feature("Allows to hide domain field in organization detail.")
 
-    billing = Feature("Render billing menu in organization sidebar.")
-
     team = Feature("Enable team management in organization workspace.")
 
     events = Feature("Enable audit log in organization workspace.")

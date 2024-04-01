@@ -182,7 +182,7 @@ Upload configuration guide:
     - git config --global user.email "$GITLAB_USER_EMAIL"
     - cd waldur-docs
     - waldur print_settings > $CONF_GUIDE_PATH
-    - waldur print_features > $FEATURES_GUIDE_PATH
+    - waldur print_features_docs > $FEATURES_GUIDE_PATH
     - waldur print_notifications > $NOTIFICATIONS_GUIDE_PATH
     - waldur print_commands > $CLI_GUIDE_PATH
     - waldur print_events > $CI_PROJECT_DIR/docs/events.md
@@ -206,12 +206,14 @@ Upload HomePort enums:
   variables:
     PERMISSIONS_ENUM_PATH: src/permissions/enums.ts
     EVENTS_ENUM_PATH: src/EventsEnums.ts
+    FEATURES_ENUM_PATH: src/FeaturesEnums.ts
     DJANGO_SETTINGS_MODULE: waldur_core.server.doc_settings
   script:
     - poetry install
     - cd src/waldur_core/permissions
     - python print_permission_enums.py > /tmp/permission_enums.ts
     - waldur print_events_enums > /tmp/events_enums.ts
+    - waldur print_features_enums > /tmp/features_enums.ts
     - cd /tmp/
     - git clone "https://UpdateEnums:$HOMEPORT_ACCESS_TOKEN@$CI_SERVER_HOST/waldur/waldur-homeport.git"
     - git config --global user.name "$GITLAB_USER_NAME"
@@ -220,8 +222,9 @@ Upload HomePort enums:
     - git checkout develop
     - mv /tmp/permission_enums.ts $PERMISSIONS_ENUM_PATH
     - mv /tmp/events_enums.ts $EVENTS_ENUM_PATH
-    - git add $PERMISSIONS_ENUM_PATH $EVENTS_ENUM_PATH
-    - git commit -m "Update permissions and events enums" || exit 0
+    - mv /tmp/features_enums.ts $FEATURES_ENUM_PATH
+    - git add $PERMISSIONS_ENUM_PATH $EVENTS_ENUM_PATH $FEATURES_ENUM_PATH
+    - git commit -m "Update enums" || exit 0
     - git branch new-enums
     - git push --set-upstream origin new-enums:develop
   before_script: []
