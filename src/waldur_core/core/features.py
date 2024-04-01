@@ -106,10 +106,6 @@ class MarketplaceSection(FeatureSection):
 
     offering_document = Feature("Allow to attach document to marketplace offering.")
 
-    flows = Feature(
-        "Allow to submit organization, project and resource creation requests simultaneously."
-    )
-
     private_offerings = Feature(
         "Render list of private marketplace service providers in organization workspace."
     )
@@ -139,39 +135,17 @@ class SupportSection(FeatureSection):
         key = "support"
         description = "Support workspace"
 
-    activity_stream = Feature("Render list of recent comments in support dashboard.")
-
     pricelist = Feature(
         "Render marketplace plan components pricelist in support workspace."
     )
 
-    customers_requests = Feature(
-        "Render list of organization creation requests in support workspace."
-    )
-
     users = Feature("Render list of users in support workspace.")
-
-    flowmap = Feature("Render service usage as a flowmap chart in support workspace.")
-
-    heatmap = Feature("Render service usage as a heatmap chart in support workspace.")
-
-    sankey_diagram = Feature(
-        "Render service usage as a sankey chart in support workspace."
-    )
 
     shared_providers = Feature(
         "Render overview of shared marketplace service providers in support workspace."
     )
 
-    resource_usage = Feature(
-        "Enable resource usage overview charts in support workspace."
-    )
-
     vm_type_overview = Feature("Enable VM type overview in support workspace.")
-
-    offering_comments = Feature(
-        "Render comments tab in request-based item details page."
-    )
 
     conceal_change_request = Feature(
         'Conceal "Change request" from a selection of issue types for non-staff/non-support users.'
