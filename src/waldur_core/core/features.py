@@ -240,3 +240,13 @@ class SlurmSection(FeatureSection):
     jobs = Feature(
         "Render list of SLURM jobs as a separate tab in allocation details page."
     )
+
+
+class OpenstackSection(FeatureSection):
+    class Meta:
+        key = "openstack"
+        description = "OpenStack resources provisioning"
+
+    hide_volume_type_selector = Feature(
+        "Allow to hide OpenStack volume type selector when instance or volume is provisioned."
+    )
