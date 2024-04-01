@@ -10,15 +10,15 @@ class FeaturesTest(test.APITransactionTestCase):
         self.client.force_login(user)
 
         response = self.client.get("/api/configuration/")
-        self.assertFalse(response.data["FEATURES"]["marketplace"]["flows"])
+        self.assertFalse(response.data["FEATURES"]["user"]["ssh_keys"])
 
         response = self.client.post(
-            "/api/feature-values/", {"marketplace": {"flows": True}}
+            "/api/feature-values/", {"user": {"ssh_keys": True}}
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         response = self.client.get("/api/configuration/")
-        self.assertTrue(models.Feature.objects.get(key="marketplace.flows").value)
+        self.assertTrue(models.Feature.objects.get(key="user.ssh_keys").value)
 
     def test_non_staff_can_not_update_features(self):
         user = UserFactory()
