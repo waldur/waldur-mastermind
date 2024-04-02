@@ -39,6 +39,7 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
         )
         self.client_mock = self.patcher.start()
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_PROJECT)
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING)
 
     def tearDown(self):
         super().tearDown()

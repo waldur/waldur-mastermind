@@ -11,8 +11,6 @@ from waldur_core.core.utils import is_uuid_like, serialize_instance
 from waldur_core.core.views import ReviewViewSet
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import has_permission
-from waldur_core.structure import models as structure_models
-from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure.filters import GenericRoleFilter
 from waldur_core.structure.models import Customer
 from waldur_mastermind.marketplace import callbacks, models, permissions, plugins
@@ -202,10 +200,10 @@ class OfferingActionView(APIView):
     def post(self, request, uuid):
         qs = models.Offering.objects.filter(type=PLUGIN_NAME)
         offering = get_object_or_404(qs, uuid=uuid)
-        if not structure_permissions._has_owner_access(
-            request.user, offering.customer
-        ) and not offering.customer.has_user(
-            request.user, role=structure_models.CustomerRole.SERVICE_MANAGER
+        if not has_permission(
+            request, PermissionEnum.UPDATE_OFFERING, offering
+        ) and not has_permission(
+            request, PermissionEnum.UPDATE_OFFERING, offering.customer
         ):
             raise PermissionDenied()
         self.task.delay(serialize_instance(offering))
