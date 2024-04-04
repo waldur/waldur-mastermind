@@ -41,10 +41,6 @@ class CustomerSection(FeatureSection):
 
     show_domain = Feature("Allows to hide domain field in organization detail.")
 
-    hide_organization_billing_step = Feature(
-        "Hide billing step in organization creation wizard."
-    )
-
     payments_for_staff_only = Feature(
         "Make payments menu visible for staff users only."
     )
