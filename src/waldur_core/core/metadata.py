@@ -175,10 +175,11 @@ class WaldurCore(BaseModel):
         "",
         description="Identifier of translation domain applied to current deployment.",
     )
-    GOOGLE_ANALYTICS_ID = Field(
-        "",
-        description="Identifier associated with your account and "
-        "used by Google Analytics to collect the data.",
+    MATOMO_URL_BASE: str | None = Field(
+        description="URL base is used by Matomo analytics application.",
+    )
+    MATOMO_SITE_ID: int | None = Field(
+        description="Site ID is used by Matomo analytics application.",
     )
     SUPPORT_PORTAL_URL = Field(
         "", description="Support portal URL is rendered as a shortcut on dashboard"
@@ -259,7 +260,8 @@ class WaldurCore(BaseModel):
             "ONLY_STAFF_MANAGES_SERVICES",
             "PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS",
             "TRANSLATION_DOMAIN",
-            "GOOGLE_ANALYTICS_ID",
+            "MATOMO_URL_BASE",
+            "MATOMO_SITE_ID",
             "SUPPORT_PORTAL_URL",
             "EXTERNAL_LINKS",
             "USER_MANDATORY_FIELDS",
