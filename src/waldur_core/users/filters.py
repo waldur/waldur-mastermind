@@ -46,6 +46,7 @@ class InvitationFilterBackend(BaseFilterBackend):
 
 class BaseInvitationFilter(django_filters.FilterSet):
     role_uuid = django_filters.UUIDFilter(field_name="role__uuid")
+    role_name = django_filters.CharFilter(field_name="role__name")
     customer_uuid = django_filters.UUIDFilter(field_name="customer__uuid")
     scope_type = django_filters.CharFilter(method="filter_by_scope_type")
 
@@ -54,6 +55,7 @@ class BaseInvitationFilter(django_filters.FilterSet):
         fields = [
             "customer_uuid",
             "role_uuid",
+            "role_name",
         ]
 
     def filter_by_scope_type(self, queryset, name, value):
