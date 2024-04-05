@@ -100,6 +100,9 @@ class OfferingCreateView(RemoteView):
         local_customer = Customer.objects.get(uuid=local_customer_uuid)
         local_category = models.Category.objects.get(uuid=local_category_uuid)
 
+        if not has_permission(request, PermissionEnum.CREATE_OFFERING, local_customer):
+            raise PermissionDenied()
+
         try:
             remote_offering = client.get_marketplace_public_offering(
                 remote_offering_uuid
