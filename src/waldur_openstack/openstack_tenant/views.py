@@ -1,5 +1,5 @@
 from django.conf import settings
-from django.db.models import Count, IntegerField, OuterRef, Subquery, Value
+from django.db.models import Count, OuterRef, Value
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext_lazy as _
@@ -1044,26 +1044,14 @@ class SharedSettingsCustomers(SharedSettingsBaseView):
 
     def get_queryset(self):
         private_settings = self.get_private_settings()
-        vms = (
-            models.Instance.objects.filter(
-                service_settings__in=private_settings,
-                project__customer=OuterRef("pk"),
-            )
-            .annotate(count=Count("*"))
-            .values("count")
+        vms = models.Instance.objects.filter(
+            service_settings__in=private_settings,
+            project__customer=OuterRef("pk"),
         )
-
-        # Workaround for Django bug:
-        # https://code.djangoproject.com/ticket/28296
-        # It allows to remove extra GROUP BY clause from the subquery.
-        vms.query.group_by = []
-
-        # Workaround for Django bug:
-        # https://code.djangoproject.com/ticket/10929
-        vm_count = Subquery(vms[:1], output_field=IntegerField())
+        vm_count = Coalesce(core_utils.SubqueryCount(vms), Value(0))
         return structure_models.Customer.objects.filter(
             pk__in=private_settings.values("customer")
-        ).annotate(vm_count=Coalesce(vm_count, Value(0)))
+        ).annotate(vm_count=vm_count)
 
 
 class VolumeTypeViewSet(structure_views.BaseServicePropertyViewSet):

@@ -2,13 +2,13 @@ import collections
 from datetime import timedelta
 
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import F, OuterRef, Subquery, Sum, Value
+from django.db.models import F, OuterRef, Subquery, Value
 from django.db.models.functions import Coalesce
 from django.db.models.query import QuerySet
 from rest_framework import permissions, status, viewsets
 from rest_framework.response import Response
 
-from waldur_core.core.utils import get_ordering
+from waldur_core.core.utils import SubquerySum, get_ordering
 from waldur_core.quotas.models import QuotaUsage
 from waldur_core.structure.models import Customer, Project
 from waldur_core.structure.permissions import IsStaffOrSupportUser
@@ -107,21 +107,13 @@ class BaseQuotasViewSet(viewsets.GenericViewSet):
         return self.get_paginated_response(serializer.data)
 
     def annotate_quotas(self, quota_name):
-        quotas = (
-            QuotaUsage.objects.filter(
-                object_id=OuterRef("pk"),
-                content_type=self.get_content_type(),
-                name=quota_name,
-            )
-            .annotate(usage=Sum("delta"))
-            .values("usage")
+        quotas = QuotaUsage.objects.filter(
+            object_id=OuterRef("pk"),
+            content_type=self.get_content_type(),
+            name=quota_name,
         )
-        # Workaround for Django bug:
-        # https://code.djangoproject.com/ticket/28296
-        # It allows to remove extra GROUP BY clause from the subquery.
-        quotas.query.group_by = []
-        subquery = Subquery(quotas)
-        return self.get_queryset().annotate(value=Coalesce(subquery, Value(0)))
+        value = Coalesce(SubquerySum(quotas, "delta"), Value(0))
+        return self.get_queryset().annotate(value=value)
 
     def annotate_estimated_price(self):
         estimates = PriceEstimate.objects.filter(
