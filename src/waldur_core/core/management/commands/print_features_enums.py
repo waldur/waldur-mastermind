@@ -20,7 +20,7 @@ class Command(BaseCommand):
                 print(f'  {feature["key"]} = \'{section_key}.{feature["key"]}\',')
             print("}")
         print()
-        print("export type FeatureEnum =")
+        print("export type FeaturesEnum =")
         for section in sections:
             print(f"  | {section}")
         print(";")
