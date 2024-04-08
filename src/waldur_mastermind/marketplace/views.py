@@ -8,7 +8,7 @@ from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
-from django.db import transaction
+from django.db import connection, transaction
 from django.db.models import (
     Count,
     Exists,
@@ -3224,33 +3224,55 @@ class StatsViewSet(rf_viewsets.ViewSet):
     def count_unique_users_connected_with_active_resources_of_service_provider(
         self, request, *args, **kwargs
     ):
-        resources = self.get_active_resources()
+        raw_query = """
+            SELECT "structure_customer"."uuid", "structure_customer"."name", U2."count_users" FROM
+                (SELECT
+                    U1."customer_id", SUM(U1."count_users") AS count_users
+                FROM (
+                    SELECT
+                        "marketplace_offering"."customer_id" AS "customer_id",
+                        (
+                            SELECT COUNT(U0."user_id")
+                            FROM "permissions_userrole" U0
+                            WHERE (
+                                    U0."content_type_id" = %s AND
+                                    U0."is_active" AND
+                                    U0."object_id" IN ("marketplace_resource"."project_id")
+                                )
+                            ) AS "count_users"
+                    FROM "marketplace_resource" INNER JOIN "marketplace_offering"
+                        ON ("marketplace_resource"."offering_id" = "marketplace_offering"."id")
+                    WHERE (
+                            "marketplace_resource"."state" IN (%s, %s, %s) AND NOT
+                            "marketplace_offering"."customer_id" IS NULL
+                        )
+                    ) U1
+                GROUP BY U1."customer_id") AS U2
+                INNER JOIN "structure_customer" ON (U2."customer_id" = "structure_customer"."id")
+        """
+        ctype = ContentType.objects.get_for_model(structure_models.Project)
 
-        result = {}
-
-        for resource in resources:
-            if not resource.offering.customer:
-                continue
-
-            key = resource.offering.customer.uuid.hex
-            user_ids = set(get_project_users(resource.project_id))
-
-            if key in result:
-                user_ids |= result[key]["user_ids"]
-
-            result[key] = {
-                "user_ids": user_ids,
-                "customer_uuid": resource.offering.customer.uuid.hex,
-                "customer_name": resource.offering.customer.name,
-                "count_users": len(user_ids),
-            }
-
-        result = list(result.values())
-
-        [r.pop("user_ids") for r in result]
+        with connection.cursor() as cursor:
+            cursor.execute(
+                raw_query,
+                [
+                    ctype.id,
+                    models.Resource.States.OK,
+                    models.Resource.States.UPDATING,
+                    models.Resource.States.TERMINATING,
+                ],
+            )
+            result = cursor.fetchall()
 
         return Response(
-            result,
+            list(
+                map(
+                    lambda x: dict(
+                        customer_uuid=x[0].hex, customer_name=x[1], count_users=x[2]
+                    ),
+                    result,
+                )
+            ),
             status=status.HTTP_200_OK,
         )
 
