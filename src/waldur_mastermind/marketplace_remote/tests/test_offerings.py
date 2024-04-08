@@ -7,6 +7,9 @@ from django.test import override_settings
 from rest_framework import status, test
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests.factories import UserFactory
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -350,3 +353,58 @@ class OfferingRemoteVersionTest(test.APITransactionTestCase):
 
         order.refresh_from_db()
         self.assertTrue(order.backend_id)
+
+
+class OfferingCreateTest(test.APITransactionTestCase):
+    def setUp(self) -> None:
+        self.patcher = mock.patch(
+            "waldur_mastermind.marketplace_remote.views.WaldurClient"
+        )
+        client_mock = self.patcher.start()
+        self.patcher_utils = mock.patch(
+            "waldur_mastermind.marketplace_remote.views.utils"
+        )
+        self.patcher_utils.start()
+        client_mock().get_marketplace_public_offering.return_value = {
+            "uuid": "456",
+            "name": "Offering",
+            "description": "Description",
+            "full_description": "",
+            "terms_of_service": "",
+            "terms_of_service_link": "",
+            "privacy_policy_link": "",
+            "getting_started": "",
+            "integration_guide": "",
+            "country": "",
+            "options": "",
+            "resource_options": "",
+        }
+        self.client_mock = client_mock
+
+        self.user = UserFactory()
+        self.customer = structure_factories.CustomerFactory()
+        self.customer.add_user(self.user, CustomerRole.OWNER)
+        self.payload = {
+            "api_url": "https://remote-waldur.com/",
+            "token": "123",
+            "remote_offering_uuid": "456",
+            "remote_customer_uuid": self.customer.uuid.hex,
+            "local_customer_uuid": self.customer.uuid.hex,
+            "local_category_uuid": factories.CategoryFactory().uuid.hex,
+        }
+        self.url = "/api/remote-waldur-api/import_offering/"
+
+    def test_offering_with_incorrect_permissions(self) -> None:
+        self.client.force_authenticate(self.user)
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_PERMISSION)
+
+        response = self.client.post(self.url, self.payload)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_offering_with_correct_permissions(self) -> None:
+        self.client.force_authenticate(self.user)
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_OFFERING)
+
+        response = self.client.post(self.url, self.payload)
+        self.client_mock().get_marketplace_public_offering.assert_called_once()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
