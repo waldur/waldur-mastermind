@@ -281,6 +281,23 @@ CELERY_BEAT_SCHEDULE = {
 
 globals().update(WaldurConfiguration().dict())
 
+LANGUAGE_CHOICES = [
+    "en",
+    "et",
+    "lt",
+    "lv",
+    "ru",
+    "it",
+    "de",
+    "da",
+    "sv",
+    "es",
+    "fr",
+    "nb",
+    "ar",
+    "cs",
+]
+
 CONSTANCE_BACKEND = "constance.backends.database.DatabaseBackend"
 CONSTANCE_DBS = "default"
 CONSTANCE_SUPERUSER_ONLY = False
@@ -327,6 +344,10 @@ CONSTANCE_CONFIG = {
     ),
     "COMMON_FOOTER_TEXT": ("", "Common footer in txt format for all emails."),
     "COMMON_FOOTER_HTML": ("", "Common footer in html format for all emails."),
+    "LANGUAGE_CHOICES": (
+        ",".join(LANGUAGE_CHOICES),
+        "List of enabled languages",
+    ),
     # images, logos, favicons
     "POWERED_BY_LOGO": (
         "",
@@ -485,6 +506,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "SUPPORT_PORTAL_URL",
         "COMMON_FOOTER_TEXT",
         "COMMON_FOOTER_HTML",
+        "LANGUAGE_CHOICES",
     ),
     "Whitelabeling settings (Logos, images, favicons)": (
         "SITE_LOGO",
@@ -583,6 +605,7 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "FAVICON",
     "COMMON_FOOTER_TEXT",
     "COMMON_FOOTER_HTML",
+    "LANGUAGE_CHOICES",
     # Support plugin
     "WALDUR_SUPPORT_ENABLED",
     "WALDUR_SUPPORT_DISPLAY_REQUEST_TYPE",
@@ -659,20 +682,3 @@ LANGUAGES = (
     ("ar", "العربية"),
     ("cs", "Čeština"),
 )
-
-LANGUAGE_CHOICES = [
-    "en",
-    "et",
-    "lt",
-    "lv",
-    "ru",
-    "it",
-    "de",
-    "da",
-    "sv",
-    "es",
-    "fr",
-    "nb",
-    "ar",
-    "cs",
-]
