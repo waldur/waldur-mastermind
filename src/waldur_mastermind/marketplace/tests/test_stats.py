@@ -5,6 +5,7 @@ from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
+from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.quotas.tests import factories as quotas_factories
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
@@ -607,6 +608,27 @@ class CountUniqueUsersConnectedWithActiveResourcesOfServiceProviderTest(
         response = self.client.get(self.url)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["count_users"], 3)
+
+    def test_do_not_count_users_twice(self):
+        user = self.fixture.staff
+        self.client.force_authenticate(user)
+        self.fixture.resource.state = models.Resource.States.OK
+        self.fixture.resource.save()
+
+        # Have one user
+        self.fixture.manager
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["count_users"], 1)
+
+        # the number of users has not increased
+        new_resource = factories.ResourceFactory(
+            offering=self.fixture.offering, state=models.Resource.States.OK
+        )
+        new_resource.project.add_user(self.fixture.manager, ProjectRole.MANAGER)
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["count_users"], 1)
 
     @data("owner", "user", "customer_support", "admin", "manager")
     def test_user_cannot_get_marketplace_stats(self, user):

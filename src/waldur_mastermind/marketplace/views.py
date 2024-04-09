@@ -3225,30 +3225,31 @@ class StatsViewSet(rf_viewsets.ViewSet):
         self, request, *args, **kwargs
     ):
         raw_query = """
-            SELECT "structure_customer"."uuid", "structure_customer"."name", U2."count_users" FROM
-                (SELECT
-                    U1."customer_id", SUM(U1."count_users") AS count_users
+            SELECT "customer_uuid", "customer_name", COUNT("user_id") AS "count_users"
+            FROM
+                (SELECT DISTINCT
+                    CUSTOMERS."uuid" AS "customer_uuid",
+                    CUSTOMERS."name" AS "customer_name",
+                    ROLES."user_id" AS "user_id"
                 FROM (
-                    SELECT
-                        "marketplace_offering"."customer_id" AS "customer_id",
-                        (
-                            SELECT COUNT(U0."user_id")
-                            FROM "permissions_userrole" U0
-                            WHERE (
-                                    U0."content_type_id" = %s AND
-                                    U0."is_active" AND
-                                    U0."object_id" IN ("marketplace_resource"."project_id")
-                                )
-                            ) AS "count_users"
-                    FROM "marketplace_resource" INNER JOIN "marketplace_offering"
-                        ON ("marketplace_resource"."offering_id" = "marketplace_offering"."id")
-                    WHERE (
-                            "marketplace_resource"."state" IN (%s, %s, %s) AND NOT
-                            "marketplace_offering"."customer_id" IS NULL
-                        )
-                    ) U1
-                GROUP BY U1."customer_id") AS U2
-                INNER JOIN "structure_customer" ON (U2."customer_id" = "structure_customer"."id")
+                        SELECT *
+                        FROM "marketplace_resource"
+                        WHERE "marketplace_resource"."state" IN (%s, %s, %s)
+                     ) RESOURCES
+                    INNER JOIN "marketplace_offering" OFFERINGS
+                        ON (RESOURCES."offering_id" = OFFERINGS."id")
+                    INNER JOIN "structure_customer" CUSTOMERS
+                        ON (OFFERINGS."customer_id" = CUSTOMERS."id")
+                    LEFT JOIN (
+                            SELECT *
+                            FROM "permissions_userrole"
+                            WHERE
+                                "permissions_userrole"."content_type_id" = %s
+                                AND "permissions_userrole"."is_active"
+                            ) ROLES
+                        ON (ROLES."object_id" = RESOURCES."project_id")
+                ) U0
+            GROUP BY "customer_uuid", "customer_name"
         """
         ctype = ContentType.objects.get_for_model(structure_models.Project)
 
@@ -3256,10 +3257,10 @@ class StatsViewSet(rf_viewsets.ViewSet):
             cursor.execute(
                 raw_query,
                 [
-                    ctype.id,
                     models.Resource.States.OK,
                     models.Resource.States.UPDATING,
                     models.Resource.States.TERMINATING,
+                    ctype.id,
                 ],
             )
             result = cursor.fetchall()
