@@ -49,6 +49,11 @@ class RequestCreateTest(BaseTest):
         self.assertTrue(
             support_models.Issue.objects.filter(resource_object_id=order.id).exists()
         )
+        issue = support_models.Issue.objects.get(resource_object_id=order.id)
+        self.assertTrue(isinstance(issue.resource, marketplace_models.Order))
+        self.assertTrue(
+            isinstance(issue.resource.resource, marketplace_models.Resource)
+        )
 
     def test_request_payload_is_validated(self):
         self.fixture = fixtures.ProjectFixture()
