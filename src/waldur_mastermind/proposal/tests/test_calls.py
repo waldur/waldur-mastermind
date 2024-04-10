@@ -426,6 +426,15 @@ class RequestedOfferingsDeleteTest(test.APITransactionTestCase):
         response = self.delete_requested_offering(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
+    def test_delete_requested_offering_with_connected_proposals(self):
+        user = self.fixture.staff
+        self.client.force_authenticate(user)
+        url = factories.RequestedOfferingFactory.get_url(
+            self.fixture.call, self.fixture.requested_offering_accepted
+        )
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
     def delete_requested_offering(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
