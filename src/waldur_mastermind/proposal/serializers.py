@@ -87,7 +87,10 @@ class NestedRequestedOfferingSerializer(serializers.HyperlinkedModelSerializer):
         source="call.manager.customer.name"
     )
     options = serializers.JSONField(
-        required=False, default={"options": {}, "order": []}, read_only=True
+        required=False,
+        default={"options": {}, "order": []},
+        read_only=True,
+        source="offering.options",
     )
     plan = BasePublicPlanSerializer(read_only=True)
     components = OfferingComponentSerializer(
