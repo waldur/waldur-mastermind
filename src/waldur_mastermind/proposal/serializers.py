@@ -17,7 +17,9 @@ from waldur_core.structure.models import Project
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import permissions as marketplace_permissions
 from waldur_mastermind.marketplace.serializers import (
+    BasePublicPlanSerializer,
     MarketplaceProtectedMediaSerializerMixin,
+    OfferingComponentSerializer,
 )
 
 from . import models
@@ -81,9 +83,15 @@ class NestedRequestedOfferingSerializer(serializers.HyperlinkedModelSerializer):
     category_uuid = serializers.ReadOnlyField(source="offering.category.uuid")
     category_name = serializers.ReadOnlyField(source="offering.category.title")
     provider_name = serializers.ReadOnlyField(source="offering.customer.name")
-    plan_name = serializers.ReadOnlyField(source="plan.name")
     call_managing_organisation = serializers.ReadOnlyField(
         source="call.manager.customer.name"
+    )
+    options = serializers.JSONField(
+        required=False, default={"options": {}, "order": []}, read_only=True
+    )
+    plan = BasePublicPlanSerializer(read_only=True)
+    components = OfferingComponentSerializer(
+        source="offering.components", many=True, read_only=True
     )
 
     class Meta:
@@ -100,7 +108,8 @@ class NestedRequestedOfferingSerializer(serializers.HyperlinkedModelSerializer):
             "call_managing_organisation",
             "attributes",
             "plan",
-            "plan_name",
+            "options",
+            "components",
         ]
         extra_kwargs = {
             "offering": {
@@ -377,7 +386,7 @@ class PublicCallSerializer(
             queryset,
             many=True,
             read_only=True,
-            context={"request": self.context["request"]},
+            context=self.context,
         )
         return serializer.data
 
