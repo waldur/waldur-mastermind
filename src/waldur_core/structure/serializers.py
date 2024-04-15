@@ -420,6 +420,7 @@ class CustomerSerializer(
             "projects_count",
             "users_count",
             "sponsor_number",
+            "country_name",
         ) + CUSTOMER_DETAILS_FIELDS
         staff_only_fields = (
             "access_subnets",
