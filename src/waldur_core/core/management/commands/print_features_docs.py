@@ -4,6 +4,8 @@ from waldur_core.core.features import FEATURES
 
 
 class Command(BaseCommand):
+    help = """Prints all Waldur feature toggles in markdown format."""
+
     def handle(self, *args, **options):
         print("# Features", end="\n\n")
         for section in sorted(FEATURES, key=lambda section: section["key"]):

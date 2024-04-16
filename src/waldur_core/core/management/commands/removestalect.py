@@ -3,7 +3,7 @@ from django.core.management.base import BaseCommand
 
 
 class Command(BaseCommand):
-    help = "Remove instances that have FK to stale content types."
+    help = "Remove Django event log records with stale content types."
 
     def handle(self, *args, **options):
         for entry in LogEntry.objects.all():

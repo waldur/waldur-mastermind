@@ -4,6 +4,8 @@ from waldur_core.core.features import FEATURES
 
 
 class Command(BaseCommand):
+    help = """Prints all Waldur feature toggles as typescript enums."""
+
     def handle(self, *args, **options):
         print(
             "// WARNING: This file is auto-generated from src/waldur_core/core/management/commands/print_features_enums.py"

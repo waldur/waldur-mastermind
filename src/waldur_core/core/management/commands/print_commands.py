@@ -20,6 +20,8 @@ WHITE_LIST = [
 
 
 class Command(BaseCommand):
+    help = """Prints description all Waldur management commands in markdown format."""
+
     def handle(self, *args, **options):
         commands = []
         for name, path in get_commands().items():

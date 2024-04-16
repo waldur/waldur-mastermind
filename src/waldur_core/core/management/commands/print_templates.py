@@ -7,6 +7,8 @@ from .print_events import BLANK_LINE
 
 
 class Command(BaseCommand):
+    help = """Prints all Waldur templates in markdown format."""
+
     def handle(self, *args, **options):
         print("# Message templates", end=BLANK_LINE)
         possible_dirs = [

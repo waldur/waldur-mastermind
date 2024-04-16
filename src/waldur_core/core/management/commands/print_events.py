@@ -6,6 +6,8 @@ BLANK_LINE = "\n\n"
 
 
 class Command(BaseCommand):
+    help = """Prints all Waldur events in markdown format."""
+
     def handle(self, *args, **options):
         print("# Events", end=BLANK_LINE)
         groups = sorted([(k, v) for k, v in event_logger.get_all_groups().items()])

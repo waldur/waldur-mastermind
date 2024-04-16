@@ -23,6 +23,8 @@ def print_section(section, section_name, print_default=False):
 
 
 class Command(BaseCommand):
+    help = """Prints Waldur configuration options in markdown format."""
+
     def handle(self, *args, **options):
         sorted_items = sorted(WaldurConfiguration().__fields__.items())
         nested = [
