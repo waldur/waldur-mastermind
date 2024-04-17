@@ -569,7 +569,11 @@ class RouterViewSet(core_views.ReadOnlyActionsViewSet):
         )
 
     set_routes_serializer_class = serializers.RouterSetRoutesSerializer
-    set_routes_validators = [core_validators.StateValidator(models.Router.States.OK)]
+    set_routes_validators = [
+        core_validators.StateValidator(
+            models.Router.States.OK, models.Router.States.ERRED
+        )
+    ]
 
 
 class PortViewSet(structure_views.ResourceViewSet):
