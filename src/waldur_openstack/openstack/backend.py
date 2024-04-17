@@ -1865,7 +1865,7 @@ class OpenStackBackend(BaseOpenStackBackend):
                 router.backend_id, {"router": {"routes": router.routes}}
             )
         except neutron_exceptions.NeutronClientException as e:
-            raise OpenStackBackendError(e)
+            raise OpenStackBackendError(e.message)
 
     @log_backend_action()
     def detect_external_network(self, tenant):
