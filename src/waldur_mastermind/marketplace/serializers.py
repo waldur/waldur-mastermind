@@ -2464,8 +2464,11 @@ class ResourceSerializer(BaseItemSerializer):
             if keys:
                 if "order_in_progress" in keys:
                     fields["order_in_progress"] = OrderDetailsSerializer(read_only=True)
+                if "creation_order" in keys:
+                    fields["creation_order"] = OrderDetailsSerializer(read_only=True)
             else:
                 fields["order_in_progress"] = OrderDetailsSerializer(read_only=True)
+                fields["creation_order"] = OrderDetailsSerializer(read_only=True)
 
         return fields
 

@@ -133,6 +133,25 @@ class ResourceGetTest(test.APITransactionTestCase):
         self.assertIn("order_in_progress", response.data)
         self.assertIsNotNone(response.data["order_in_progress"])
 
+    def test_resource_erred_creation_order_is_exposed(self):
+        models.Order.objects.create(
+            project=self.project,
+            resource=self.resource,
+            state=models.Order.States.ERRED,
+            created_by=self.fixture.owner,
+            offering=self.offering,
+        )
+
+        self.resource.set_state_erred()
+        self.resource.save()
+
+        response = self.get_resource(self.fixture.owner)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertIn("creation_order", response.data)
+        self.assertIsNotNone(response.data["creation_order"])
+
 
 class ResourceSwitchPlanTest(test.APITransactionTestCase):
     def setUp(self):
