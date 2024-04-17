@@ -6,6 +6,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models import OuterRef, Q
 from django.db.models.functions import Coalesce
 from django.utils import timezone as timezone
+from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import decorators, exceptions, response, status, viewsets
 from rest_framework import permissions as rf_permissions
@@ -160,6 +161,10 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     @decorators.action(detail=True, methods=["post"])
     def activate(self, request, uuid=None):
         call = self.get_object()
+        if call.round_set.count() == 0:
+            raise exceptions.ValidationError(
+                _("Call must have a round to be activated.")
+            )
         call.state = models.Call.States.ACTIVE
         call.save()
         return response.Response(

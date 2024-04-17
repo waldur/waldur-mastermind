@@ -216,10 +216,21 @@ class CallActivateTest(test.APITransactionTestCase):
         self.active_call = self.fixture.call
 
     @data("staff", "owner", "customer_support")
-    def test_user_can_activate_call(self, user):
+    def test_user_can_activate_call_with_round(self, user):
+        factories.RoundFactory(
+            call=self.draft_call,
+        )
         response = self.activate_call(user, self.draft_call)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(self.draft_call.state, models.Call.States.ACTIVE)
+
+    @data("staff")
+    def test_user_can_not_activate_call_without_round(self, user):
+        response = self.activate_call(user, self.draft_call)
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+        self.assertEqual(self.draft_call.state, models.Call.States.DRAFT)
 
     @data("staff", "owner", "customer_support")
     def test_user_can_not_activate_active_call(self, user):
@@ -249,13 +260,13 @@ class CallArchiveTest(test.APITransactionTestCase):
         self.draft_call = self.fixture.new_call
 
     @data("staff", "owner", "customer_support")
-    def test_user_can_activate_call(self, user):
+    def test_user_can_archive_call(self, user):
         response = self.archive_call(user, self.draft_call)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(self.draft_call.state, models.Call.States.ARCHIVED)
 
     @data("user")
-    def test_user_can_not_activate_call(self, user):
+    def test_user_can_not_archive_call(self, user):
         response = self.archive_call(user, self.draft_call)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND, response.data)
         self.assertEqual(self.draft_call.state, models.Call.States.DRAFT)
