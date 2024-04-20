@@ -681,6 +681,19 @@ class ProtectedRoundSerializer(
                 {"start_time": _("Cutoff time must be later than start time.")}
             )
 
+        call = self.context["view"].get_object()
+
+        if (
+            models.Round.objects.filter(
+                call=call, start_time__lt=cutoff_time, cutoff_time__gt=start_time
+            )
+            .exclude(uuid=getattr(self.instance, "uuid", None))
+            .exists()
+        ):
+            raise serializers.ValidationError(
+                "Round is overlapping with another round."
+            )
+
         return attrs
 
 
