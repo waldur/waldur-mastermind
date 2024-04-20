@@ -67,6 +67,10 @@ class RoundGetTest(test.APITransactionTestCase):
 class RoundCreateTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
+        self.round = self.fixture.round
+        self.round.start_time = datetime.date.today() - datetime.timedelta(days=10)
+        self.round.cutoff_time = datetime.date.today() - datetime.timedelta(days=5)
+        self.round.save()
         self.url = factories.RoundFactory.get_list_url(self.fixture.call)
 
     @data(
@@ -85,6 +89,53 @@ class RoundCreateTest(test.APITransactionTestCase):
     def test_user_can_not_add_offering_to_call(self, user):
         response = self.create_round(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_overlapping_of_rounds(self):
+        # old: ---[-]-------
+        # new: --------[-]--
+        response = self.create_round("staff")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        models.Round.objects.filter(uuid=response.data["uuid"]).delete()
+
+        # old: ---------[-]-
+        # new: --------[-]--
+        self.round.start_time = datetime.date.today() + datetime.timedelta(days=1)
+        self.round.cutoff_time = datetime.date.today() + datetime.timedelta(days=2)
+        self.round.save()
+        response = self.create_round("staff")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # old: -------[-]---
+        # new: --------[-]--
+        self.round.start_time = datetime.date.today() - datetime.timedelta(days=1)
+        self.round.cutoff_time = datetime.date.today() + datetime.timedelta(days=1)
+        self.round.save()
+        response = self.create_round("staff")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # old: -------[---]-
+        # new: --------[-]--
+        self.round.start_time = datetime.date.today() - datetime.timedelta(days=1)
+        self.round.cutoff_time = datetime.date.today() + datetime.timedelta(days=3)
+        self.round.save()
+        response = self.create_round("staff")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # old: ---------[]---
+        # new: --------[--]--
+        self.round.start_time = datetime.date.today() + datetime.timedelta(days=1)
+        self.round.cutoff_time = datetime.date.today() + datetime.timedelta(days=1)
+        self.round.save()
+        response = self.create_round("staff")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # old: ------------[-]
+        # new: --------[-]----
+        self.round.start_time = datetime.date.today() + datetime.timedelta(days=3)
+        self.round.cutoff_time = datetime.date.today() + datetime.timedelta(days=4)
+        self.round.save()
+        response = self.create_round("staff")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def create_round(self, user):
         user = getattr(self.fixture, user)
