@@ -486,6 +486,8 @@ CONSTANCE_CONFIG = {
     "SMAX_VERIFY_SSL": (True, "Toggler for SSL verification"),
     # Proposal settings
     "PROPOSAL_REVIEW_DURATION": (7, "Review duration in days."),
+    # Telemetry settings
+    "TELEMETRY_ENABLED": (True, "Toggler for telemetry."),
 }
 
 CONSTANCE_CONFIG_FIELDSETS = {
@@ -578,6 +580,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "SMAX_VERIFY_SSL",
     ),
     "PROPOSAL settings": ("PROPOSAL_REVIEW_DURATION",),
+    "Telemetry settings": ("TELEMETRY_ENABLED",),
 }
 
 PUBLIC_CONSTANCE_SETTINGS = (
@@ -612,6 +615,8 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE",
     # Proposal
     "PROPOSAL_REVIEW_DURATION",
+    # Telemetry
+    "TELEMETRY_ENABLED",
 )
 
 for ext in WaldurExtension.get_extensions():
