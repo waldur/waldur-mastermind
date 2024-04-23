@@ -423,7 +423,7 @@ def notification_about_project_ending():
 
 @shared_task(name="waldur_mastermind.marketplace.send_metrics")
 def send_metrics():
-    if not config.TELEMETRY_ENABLED:
+    if not core_models.Feature.objects.filter(key="telemetry.send_metrics").exists():
         return
 
     site_name = settings.WALDUR_CORE["HOMEPORT_URL"]

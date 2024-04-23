@@ -16,5 +16,6 @@
   "marketplace.lexis_links": false,
   "user.ssh_keys": true,
   "customer.events": true,
-  "project.events": true
+  "project.events": true,
+  "telemetry.send_metrics": true
 }
