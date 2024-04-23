@@ -169,3 +169,11 @@ class OpenstackSection(FeatureSection):
     hide_volume_type_selector = Feature(
         "Allow to hide OpenStack volume type selector when instance or volume is provisioned."
     )
+
+
+class TelemetrySection(FeatureSection):
+    class Meta:
+        key = "telemetry"
+        description = "Telemetry settings"
+
+    send_metrics = Feature("Send telemetry metrics.")
