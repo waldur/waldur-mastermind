@@ -85,6 +85,5 @@ def terminate_allocation_when_resource_is_terminated(sender, instance, **kwargs)
         return
 
     allocation: slurm_models.Allocation = resource.scope
-    allocation.schedule_deleting()
     allocation.begin_deleting()
     allocation.save(update_fields=["state"])
