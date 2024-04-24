@@ -3,8 +3,8 @@ set -e
 # Installing Python package manager
 python3 -m pip install --upgrade pip
 # Upgrade setuptools to the latest
-python3 -m pip install --upgrade setuptools==65.4.0
-python3 -m pip install poetry==1.7.1 gunicorn==21.2.0
+python3 -m pip install --upgrade setuptools==69.5.1
+python3 -m pip install poetry==1.8.2 gunicorn==22.0.0
 poetry config virtualenvs.create false
 
 # Install Python dependencies for Waldur MasterMind from PyPI
