@@ -2156,7 +2156,10 @@ def validate_order(order: models.Order, request):
     if order.type != models.Order.Types.TERMINATE:
         structure_utils.check_project_end_date(order.project)
 
-    if not order.offering.state == models.Offering.States.ACTIVE:
+    if (
+        order.type != models.Order.Types.TERMINATE
+        and not order.offering.state == models.Offering.States.ACTIVE
+    ):
         raise serializers.ValidationError(_("Offering is not available."))
 
     if order.offering.shared:
