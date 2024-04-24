@@ -1898,6 +1898,10 @@ class OpenStackBackend(BaseOpenStackBackend):
         neutron = get_neutron_client(self.session)
 
         data = {"name": network.name, "tenant_id": network.tenant.backend_id}
+
+        if network.mtu:
+            data["mtu"] = network.mtu
+
         try:
             response = neutron.create_network({"networks": [data]})
         except neutron_exceptions.NeutronException as e:

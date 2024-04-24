@@ -623,3 +623,20 @@ def tenant_does_not_exist_in_backend(sender, instance, created=False, **kwargs):
         marketplace_utils.terminate_resource(
             resource, core_utils.get_system_robot(), "Does not exist in backend."
         )
+
+
+def set_mtu_when_network_has_been_created(sender, instance, created=False, **kwargs):
+    if not created:
+        return
+
+    network = instance
+    resource = marketplace_models.Resource.objects.filter(scope=network.tenant).first()
+
+    if not resource:
+        return
+
+    mtu = resource.offering.attributes.get("default_internal_network_mtu")
+
+    if mtu:
+        network.mtu = mtu
+        network.save()

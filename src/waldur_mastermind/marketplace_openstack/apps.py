@@ -334,3 +334,10 @@ class MarketplaceOpenStackConfig(AppConfig):
             dispatch_uid="waldur_mastermind.tenant_does_not_exist_in_backend."
             "tenant_does_not_exist_in_backend",
         )
+
+        signals.post_save.connect(
+            handlers.set_mtu_when_network_has_been_created,
+            sender=openstack_models.Network,
+            dispatch_uid="waldur_mastermind.marketplace_openstack."
+            "set_mtu_when_network_has_been_created",
+        )
