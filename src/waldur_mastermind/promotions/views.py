@@ -20,9 +20,9 @@ class CampaignViewSet(core_views.ActionsViewSet):
     filterset_class = filters.CampaignFilter
     serializer_class = serializers.CampaignSerializer
 
-    destroy_permissions = (
-        update_permissions
-    ) = activate_permissions = terminate_permissions = [
+    destroy_permissions = update_permissions = activate_permissions = (
+        terminate_permissions
+    ) = [
         permission_factory(
             PermissionEnum.MANAGE_CAMPAIGN, ["service_provider.customer"]
         )

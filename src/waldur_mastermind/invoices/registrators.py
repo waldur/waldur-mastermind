@@ -12,6 +12,7 @@ RegistrationManager represents the highest level of business logic and should be
 used for invoice items registration and termination.
 Registrators defines items creation and termination logic for each invoice item.
 """
+
 from django.db import transaction
 from django.utils import timezone
 

@@ -73,10 +73,8 @@ class SafReportFormatterTest(BaseReportFormatterTest):
         self.assertEqual(lines[0], expected_header)
 
         expected_data = (
-            "{};30.09.2017;26.09.2017;26.10.2017;100;100;;30;300.00;0.00;20%;"
-            "PROJEKT;OFFERING-001;Record no {}. Contact details;;{};01.09.2017-30.09.2017"
-        ).format(
-            self.invoice.number, self.invoice.number, self.invoice_item.project_name
+            f"{self.invoice.number};30.09.2017;26.09.2017;26.10.2017;100;100;;30;300.00;0.00;20%;"
+            f"PROJEKT;OFFERING-001;Record no {self.invoice.number}. Contact details;;{self.invoice_item.project_name};01.09.2017-30.09.2017"
         )
         self.assertEqual(lines[1], expected_data)
 

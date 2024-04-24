@@ -36,10 +36,10 @@ def process_proposals_pending_reviewers(proposal: proposal_models.Proposal):
 
 
 def allocate_proposal(proposal: proposal_models.Proposal):
-    requested_resources: QuerySet[
-        proposal_models.RequestedResource
-    ] = proposal.requestedresource_set.filter(
-        requested_offering__state=proposal_models.RequestedOffering.States.ACCEPTED
+    requested_resources: QuerySet[proposal_models.RequestedResource] = (
+        proposal.requestedresource_set.filter(
+            requested_offering__state=proposal_models.RequestedOffering.States.ACCEPTED
+        )
     )
 
     project_role = proposal.round.call.default_project_role or RoleEnum.PROJECT_ADMIN

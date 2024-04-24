@@ -134,14 +134,12 @@ class FlavorSerializer(BaseFlavorSerializer):
         model = models.Flavor
         fields = BaseFlavorSerializer.Meta.fields + ("display_name",)
         extra_kwargs = copy.deepcopy(BaseFlavorSerializer.Meta.extra_kwargs)
-        extra_kwargs["settings"][
-            "queryset"
-        ] = structure_models.ServiceSettings.objects.filter(type="OpenStack")
+        extra_kwargs["settings"]["queryset"] = (
+            structure_models.ServiceSettings.objects.filter(type="OpenStack")
+        )
 
     def get_display_name(self, flavor):
-        return "{} ({} CPU, {} MB RAM, {} MB HDD)".format(
-            flavor.name, flavor.cores, flavor.ram, flavor.disk
-        )
+        return f"{flavor.name} ({flavor.cores} CPU, {flavor.ram} MB RAM, {flavor.disk} MB HDD)"
 
 
 class ImageSerializer(structure_serializers.BasePropertySerializer):

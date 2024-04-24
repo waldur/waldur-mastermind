@@ -422,11 +422,9 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
 
     migrate_to_serializer_class = serializers.InvoiceItemMigrateToSerializer
 
-    create_compensation_permissions = (
-        update_permissions
-    ) = partial_update_permissions = destroy_permissions = migrate_to_permissions = [
-        structure_permissions.is_staff
-    ]
+    create_compensation_permissions = update_permissions = (
+        partial_update_permissions
+    ) = destroy_permissions = migrate_to_permissions = [structure_permissions.is_staff]
 
 
 class PaymentProfileViewSet(core_views.ActionsViewSet):
@@ -437,11 +435,9 @@ class PaymentProfileViewSet(core_views.ActionsViewSet):
         filters.PaymentProfileFilterBackend,
     )
     filterset_class = filters.PaymentProfileFilter
-    create_permissions = (
-        update_permissions
-    ) = partial_update_permissions = destroy_permissions = enable_permissions = [
-        structure_permissions.is_staff
-    ]
+    create_permissions = update_permissions = partial_update_permissions = (
+        destroy_permissions
+    ) = enable_permissions = [structure_permissions.is_staff]
     queryset = models.PaymentProfile.objects.all().order_by("name")
     serializer_class = serializers.PaymentProfileSerializer
 
@@ -464,11 +460,7 @@ class PaymentViewSet(core_views.ActionsViewSet):
         DjangoFilterBackend,
     )
     filterset_class = filters.PaymentFilter
-    create_permissions = (
-        update_permissions
-    ) = (
-        partial_update_permissions
-    ) = (
+    create_permissions = update_permissions = partial_update_permissions = (
         destroy_permissions
     ) = link_to_invoice_permissions = unlink_from_invoice_permissions = [
         structure_permissions.is_staff

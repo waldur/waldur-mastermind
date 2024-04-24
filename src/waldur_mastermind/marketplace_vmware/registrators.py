@@ -83,12 +83,7 @@ class VirtualMachineRegistrator(MarketplaceRegistrator):
         )
 
     def get_name(self, source):
-        return "{name} ({cores} CPU, {ram} GB RAM, {disk} GB disk)".format(
-            name=source.name,
-            cores=source.cores,
-            ram=mb_to_gb(source.ram),
-            disk=mb_to_gb(source.total_disk),
-        )
+        return f"{source.name} ({source.cores} CPU, {mb_to_gb(source.ram)} GB RAM, {mb_to_gb(source.total_disk)} GB disk)"
 
     def get_details(self, source):
         details = {

@@ -864,7 +864,6 @@ class BaseResource(
     StructureLoggableMixin,
     TimeStampedModel,
 ):
-
     """Base resource class. Resource is a provisioned entity of a service,
     for example: a VM in OpenStack or AWS, or a repository in Github.
     """

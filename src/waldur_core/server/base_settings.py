@@ -1,6 +1,7 @@
 """
 Django base settings for Waldur Core.
 """
+
 from datetime import timedelta
 import locale
 

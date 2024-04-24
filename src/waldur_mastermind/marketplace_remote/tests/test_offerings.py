@@ -183,17 +183,17 @@ class OfferingDetailsPullTest(test.APITransactionTestCase):
         new_component_data["type"] = new_component_type
 
         self.remote_offering["plans"][0]["name"] = new_plan_name
-        self.remote_offering["plans"][0]["prices"][
-            self.component.type
-        ] = plan_component_new_price
+        self.remote_offering["plans"][0]["prices"][self.component.type] = (
+            plan_component_new_price
+        )
 
         self.remote_offering["components"].append(new_component_data)
-        self.remote_offering["plans"][0]["prices"][
-            new_component_type
-        ] = new_plan_component_price
-        self.remote_offering["plans"][0]["quotas"][
-            new_component_type
-        ] = new_plan_component_amount
+        self.remote_offering["plans"][0]["prices"][new_component_type] = (
+            new_plan_component_price
+        )
+        self.remote_offering["plans"][0]["quotas"][new_component_type] = (
+            new_plan_component_amount
+        )
 
         responses.add(
             responses.GET,

@@ -71,12 +71,7 @@ def format_create_description(order):
             component = components_map.get(key)
             if component:
                 result.append(
-                    "\n{} ({}): {} {}".format(
-                        component.name,
-                        component.type,
-                        value,
-                        component.measured_unit,
-                    )
+                    f"\n{component.name} ({component.type}): {value} {component.measured_unit}"
                 )
 
     description = "\n".join(result)

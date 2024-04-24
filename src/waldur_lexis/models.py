@@ -108,8 +108,4 @@ class LexisLink(core_models.UuidMixin, core_models.ErrorMessageMixin, TimeStampe
             self.save(update_fields=["error_message", "state"])
 
     def __str__(self) -> str:
-        return "Lexis link {} <-> {} ({})".format(
-            self.robot_account.username,
-            self.robot_account.resource.name,
-            self.get_state_display(),
-        )
+        return f"Lexis link {self.robot_account.username} <-> {self.robot_account.resource.name} ({self.get_state_display()})"

@@ -37,13 +37,11 @@ class SlurmViewSet(core_views.ActionsViewSet):
         "destroy",
     ]
 
-    create_association_serializer_class = (
-        delete_association_serializer_class
-    ) = serializers.UsernameSerializer
+    create_association_serializer_class = delete_association_serializer_class = (
+        serializers.UsernameSerializer
+    )
 
-    create_association_permissions = (
-        delete_association_permissions
-    ) = (
+    create_association_permissions = delete_association_permissions = (
         set_limits_permissions
     ) = set_usage_permissions = set_state_permissions = set_backend_id_permissions = [
         permissions.user_is_service_provider_owner_or_service_provider_manager

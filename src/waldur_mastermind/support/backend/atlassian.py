@@ -199,13 +199,13 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         args = {}
 
         if issue.reporter:
-            args[
-                self.get_field_id_by_name(config.ATLASSIAN_REPORTER_FIELD)
-            ] = issue.reporter.name
+            args[self.get_field_id_by_name(config.ATLASSIAN_REPORTER_FIELD)] = (
+                issue.reporter.name
+            )
         if issue.impact:
-            args[
-                self.get_field_id_by_name(config.ATLASSIAN_IMPACT_FIELD)
-            ] = issue.impact
+            args[self.get_field_id_by_name(config.ATLASSIAN_IMPACT_FIELD)] = (
+                issue.impact
+            )
         if issue.priority:
             args["priority"] = {"name": issue.priority}
 

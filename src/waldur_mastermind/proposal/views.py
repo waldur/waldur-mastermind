@@ -511,9 +511,9 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     reject_permissions = allocate_permissions = [
         permission_factory(PermissionEnum.APPROVE_AND_REJECT_PROPOSALS, ["round.call"])
     ]
-    reject_serializer_class = (
-        allocate_serializer_class
-    ) = serializers.ProposalAllocateSerializer
+    reject_serializer_class = allocate_serializer_class = (
+        serializers.ProposalAllocateSerializer
+    )
 
 
 class ReviewViewSet(ActionsViewSet):
@@ -599,11 +599,9 @@ class ReviewViewSet(ActionsViewSet):
         core_validators.StateValidator(models.Review.States.IN_REVIEW),
         is_proposal_submitted,
     ]
-    accept_permissions = (
-        reject_permissions
-    ) = submit_permissions = update_permissions = partial_update_permissions = [
-        action_permission_check
-    ]
+    accept_permissions = reject_permissions = submit_permissions = (
+        update_permissions
+    ) = partial_update_permissions = [action_permission_check]
 
 
 class ProviderRequestedOfferingViewSet(ReadOnlyActionsViewSet):

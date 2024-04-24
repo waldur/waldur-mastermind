@@ -30,15 +30,15 @@ class BaseTest(test.APITransactionTestCase):
         )
         self.request_data = json.loads(jira_request)
         self.request_data["issue"]["key"] = self.issue.backend_id
-        self.request_data["issue"]["fields"]["project"][
-            "key"
-        ] = self.issue.project.backend_id
-        self.request_data["issue"]["fields"]["priority"][
-            "id"
-        ] = self.fixture.priority.backend_id
-        self.request_data["issue"]["fields"]["issuetype"][
-            "id"
-        ] = self.fixture.issue_type.backend_id
+        self.request_data["issue"]["fields"]["project"]["key"] = (
+            self.issue.project.backend_id
+        )
+        self.request_data["issue"]["fields"]["priority"]["id"] = (
+            self.fixture.priority.backend_id
+        )
+        self.request_data["issue"]["fields"]["issuetype"]["id"] = (
+            self.fixture.issue_type.backend_id
+        )
 
 
 class CommentCreateTest(BaseTest):

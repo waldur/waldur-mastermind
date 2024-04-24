@@ -118,12 +118,9 @@ def request_types(manager, service_desk, project_key=None, strange_setting=None)
         if hasattr(service_desk, "id"):
             service_desk = service_desk.id
 
-        url = manager._options[
-            "server"
-        ] + "/rest/servicedesk/{}/servicedesk/{}/groups/{}/request-types".format(
-            strange_setting,
-            project_key.lower(),
-            service_desk,
+        url = (
+            manager._options["server"]
+            + f"/rest/servicedesk/{strange_setting}/servicedesk/{project_key.lower()}/groups/{service_desk}/request-types"
         )
         headers = {"X-ExperimentalApi": "opt-in"}
         r_json = json_loads(manager._session.get(url, headers=headers))
@@ -137,11 +134,9 @@ def request_types(manager, service_desk, project_key=None, strange_setting=None)
 
 
 def request_type_fields(manager, service_desk, request_type_id):
-    url = manager._options[
-        "server"
-    ] + "/rest/servicedeskapi/servicedesk/{}/requesttype/{}/field".format(
-        service_desk.id,
-        request_type_id,
+    url = (
+        manager._options["server"]
+        + f"/rest/servicedeskapi/servicedesk/{service_desk.id}/requesttype/{request_type_id}/field"
     )
     headers = {"X-ExperimentalApi": "opt-in"}
     r_json = json_loads(manager._session.get(url, headers=headers))

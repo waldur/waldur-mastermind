@@ -2422,10 +2422,10 @@ class ResourceSerializer(BaseItemSerializer):
 
         limit_usage = {}
 
-        limit_components: list[
-            models.OfferingComponent
-        ] = resource.offering.components.filter(
-            billing_type=models.OfferingComponent.BillingTypes.LIMIT
+        limit_components: list[models.OfferingComponent] = (
+            resource.offering.components.filter(
+                billing_type=models.OfferingComponent.BillingTypes.LIMIT
+            )
         )
 
         for component in limit_components:
@@ -2890,19 +2890,11 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
             )
             if created:
                 logger.info(
-                    "Usage has been created for {}, component: {}, value: {}".format(
-                        resource,
-                        component.type,
-                        amount,
-                    )
+                    f"Usage has been created for {resource}, component: {component.type}, value: {amount}"
                 )
             else:
                 logger.info(
-                    "Usage has been updated for {}, component: {}, value: {}".format(
-                        resource,
-                        component.type,
-                        amount,
-                    )
+                    f"Usage has been updated for {resource}, component: {component.type}, value: {amount}"
                 )
         resource.current_usages = {
             usage["type"]: str(usage["amount"])

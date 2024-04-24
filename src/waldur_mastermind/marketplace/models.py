@@ -1328,11 +1328,7 @@ class Order(
         )
 
     def __str__(self):
-        return "type: {}, offering: {}, created_by: {}".format(
-            self.get_type_display(),
-            self.offering,
-            self.created_by,
-        )
+        return f"type: {self.get_type_display()}, offering: {self.offering}, created_by: {self.created_by}"
 
 
 class ComponentQuota(TimeStampedModel):

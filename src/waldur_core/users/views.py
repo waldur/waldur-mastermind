@@ -317,9 +317,9 @@ class PermissionRequestViewSet(ReadOnlyActionsViewSet):
     def reject(self, request, uuid=None):
         return self.perform_action(request, uuid, "reject")
 
-    approve_serializer_class = (
-        reject_serializer_class
-    ) = core_serializers.ReviewCommentSerializer
+    approve_serializer_class = reject_serializer_class = (
+        core_serializers.ReviewCommentSerializer
+    )
     approve_validators = reject_validators = [
         core_validators.StateValidator(models.PermissionRequest.States.PENDING)
     ]

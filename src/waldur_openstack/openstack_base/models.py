@@ -48,13 +48,7 @@ class BaseSecurityGroupRule(core_models.DescribableMixin, models.Model):
         abstract = True
 
     def __str__(self):
-        return "{} ({}): {} ({} -> {})".format(
-            self.security_group,
-            self.protocol,
-            self.cidr,
-            self.from_port,
-            self.to_port,
-        )
+        return f"{self.security_group} ({self.protocol}): {self.cidr} ({self.from_port} -> {self.to_port})"
 
 
 class Port(core_models.BackendModelMixin, models.Model):
