@@ -14,8 +14,8 @@ RUN apt-get update    &&\
     python3-dev
 
 RUN python3 -m pip install --upgrade pip
-RUN python3 -m pip install --upgrade setuptools==65.4.0
-RUN pip3 install poetry==1.7.1
+RUN python3 -m pip install --upgrade setuptools==69.5.1
+RUN pip3 install poetry==1.8.2
 RUN poetry config virtualenvs.create false
 
 # Copy poetry files
