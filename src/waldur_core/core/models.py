@@ -442,12 +442,7 @@ class SshPublicKey(LoggableMixin, UuidMixin, models.Model):
         super().save(force_insert, force_update, using, update_fields)
 
     def __str__(self):
-        return "{} - {}, user: {}, {}".format(
-            self.name,
-            self.fingerprint,
-            self.user.username,
-            self.user.full_name,
-        )
+        return f"{self.name} - {self.fingerprint}, user: {self.user.username}, {self.user.full_name}"
 
 
 class RuntimeStateMixin(models.Model):

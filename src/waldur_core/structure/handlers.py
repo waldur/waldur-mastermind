@@ -90,12 +90,7 @@ def log_project_save(sender, instance, created=False, **kwargs):
         for name in sorted(changed_fields.keys()):
             previous_value = changed_fields[name]
             current_value = getattr(instance, name)
-            message = "{} {} has been changed from '{}' to '{}'.".format(
-                message,
-                name.capitalize(),
-                previous_value,
-                current_value,
-            )
+            message = f"{message} {name.capitalize()} has been changed from '{previous_value}' to '{current_value}'."
 
         event_logger.project.info(
             message,

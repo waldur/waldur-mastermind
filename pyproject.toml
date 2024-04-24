@@ -173,9 +173,9 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.ruff]
 # Never enforce `E501` (line length violations).
-ignore = ["E501"]
+lint.ignore = ["E501"]
 
-select = [
+lint.select = [
   "E",   # pycodestyle
   "F",   # pyflakes
   "UP",  # pyupgrade

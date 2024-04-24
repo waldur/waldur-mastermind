@@ -58,9 +58,9 @@ class VirtualMachineClusterValidationTest(VirtualMachineCreateBaseTest):
 
     def test_default_cluster_label_is_defined(self):
         self.client.force_authenticate(self.fixture.owner)
-        self.fixture.settings.options[
-            "default_cluster_label"
-        ] = self.fixture.cluster.name
+        self.fixture.settings.options["default_cluster_label"] = (
+            self.fixture.cluster.name
+        )
         self.fixture.settings.save(update_fields=["options"])
         payload = self.get_valid_payload()
         del payload["cluster"]

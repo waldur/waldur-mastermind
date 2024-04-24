@@ -62,9 +62,9 @@ class SecurityGroupViewSet(structure_views.ResourceViewSet):
         + [default_security_group_validator]
     )
     update_executor = executors.SecurityGroupUpdateExecutor
-    partial_update_serializer_class = (
-        update_serializer_class
-    ) = serializers.SecurityGroupUpdateSerializer
+    partial_update_serializer_class = update_serializer_class = (
+        serializers.SecurityGroupUpdateSerializer
+    )
 
     destroy_validators = structure_views.ResourceViewSet.destroy_validators + [
         default_security_group_validator

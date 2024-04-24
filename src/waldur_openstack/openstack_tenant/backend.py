@@ -552,8 +552,8 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                 )
             except models.ServerGroup.DoesNotExist:
                 logger.exception(
-                    "Server group with id {} does not exist in database. "
-                    "Settings ID: {}".format(server_group_backend_id, self.settings.id)
+                    f"Server group with id {server_group_backend_id} does not exist in database. "
+                    f"Settings ID: {self.settings.id}"
                 )
             else:
                 instance.server_group = server_group
@@ -675,18 +675,12 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                         kwargs["volume_type"] = volume_type.backend_id
                     except models.VolumeType.DoesNotExist:
                         logger.error(
-                            "Volume type is not set as volume type with name {} is not found. Settings UUID: {}".format(
-                                volume_type_name,
-                                volume.service_settings.uuid.hex,
-                            )
+                            f"Volume type is not set as volume type with name {volume_type_name} is not found. Settings UUID: {volume.service_settings.uuid.hex}"
                         )
                     except models.VolumeType.MultipleObjectsReturned:
                         logger.error(
-                            "Volume type is not set as multiple volume types with name {} are found."
-                            "Service settings UUID: {}".format(
-                                volume_type_name,
-                                volume.service_settings.uuid.hex,
-                            )
+                            f"Volume type is not set as multiple volume types with name {volume_type_name} are found."
+                            f"Service settings UUID: {volume.service_settings.uuid.hex}"
                         )
 
         if volume.availability_zone:
@@ -709,10 +703,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                     kwargs["availability_zone"] = volume_availability_zone.name
                 except models.VolumeAvailabilityZone.DoesNotExist:
                     logger.error(
-                        "Volume availability zone with name {} is not found. Settings UUID: {}".format(
-                            volume_availability_zone_name,
-                            volume.service_settings.uuid.hex,
-                        )
+                        f"Volume availability zone with name {volume_availability_zone_name} is not found. Settings UUID: {volume.service_settings.uuid.hex}"
                     )
 
         if volume.image:
@@ -1187,9 +1178,9 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                 else None,
             )
             if instance.availability_zone:
-                server_create_parameters[
-                    "availability_zone"
-                ] = instance.availability_zone.name
+                server_create_parameters["availability_zone"] = (
+                    instance.availability_zone.name
+                )
             else:
                 availability_zone = self.settings.options.get("availability_zone")
                 if availability_zone:

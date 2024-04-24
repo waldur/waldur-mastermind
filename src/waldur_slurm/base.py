@@ -189,13 +189,4 @@ class BaseReportLine(metaclass=abc.ABCMeta):
         )
 
     def __str__(self):
-        return "ReportLine: User={}, Account={}, CPU={}, GPU={}, RAM={}, Duration={}, Charge={}, Node={}".format(
-            self.user,
-            self.account,
-            self.cpu,
-            self.gpu,
-            self.ram,
-            self.duration,
-            self.charge,
-            self.node,
-        )
+        return f"ReportLine: User={self.user}, Account={self.account}, CPU={self.cpu}, GPU={self.gpu}, RAM={self.ram}, Duration={self.duration}, Charge={self.charge}, Node={self.node}"

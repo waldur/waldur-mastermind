@@ -75,50 +75,38 @@ class StructureConfig(AppConfig):
             signals.pre_delete.connect(
                 handlers.log_resource_deleted,
                 sender=model,
-                dispatch_uid="waldur_core.structure.handlers.log_resource_deleted_{}_{}".format(
-                    model.__name__, index
-                ),
+                dispatch_uid=f"waldur_core.structure.handlers.log_resource_deleted_{model.__name__}_{index}",
             )
 
             structure_signals.resource_imported.connect(
                 handlers.log_resource_imported,
                 sender=model,
-                dispatch_uid="waldur_core.structure.handlers.log_resource_imported_{}_{}".format(
-                    model.__name__, index
-                ),
+                dispatch_uid=f"waldur_core.structure.handlers.log_resource_imported_{model.__name__}_{index}",
             )
 
             fsm_signals.post_transition.connect(
                 handlers.log_resource_action,
                 sender=model,
-                dispatch_uid="waldur_core.structure.handlers.log_resource_action_{}_{}".format(
-                    model.__name__, index
-                ),
+                dispatch_uid=f"waldur_core.structure.handlers.log_resource_action_{model.__name__}_{index}",
             )
 
             signals.post_save.connect(
                 handlers.log_resource_creation_scheduled,
                 sender=model,
-                dispatch_uid="waldur_core.structure.handlers.log_resource_creation_scheduled_{}_{}".format(
-                    model.__name__, index
-                ),
+                dispatch_uid=f"waldur_core.structure.handlers.log_resource_creation_scheduled_{model.__name__}_{index}",
             )
 
             signals.pre_delete.connect(
                 handlers.delete_service_settings_on_scope_delete,
                 sender=model,
-                dispatch_uid="waldur_core.structure.handlers.delete_service_settings_on_scope_delete_{}_{}".format(
-                    model.__name__, index
-                ),
+                dispatch_uid=f"waldur_core.structure.handlers.delete_service_settings_on_scope_delete_{model.__name__}_{index}",
             )
 
         for index, model in enumerate(VirtualMachine.get_all_models()):
             signals.post_save.connect(
                 handlers.update_resource_start_time,
                 sender=model,
-                dispatch_uid="waldur_core.structure.handlers.update_resource_start_time_{}_{}".format(
-                    model.__name__, index
-                ),
+                dispatch_uid=f"waldur_core.structure.handlers.update_resource_start_time_{model.__name__}_{index}",
             )
 
         signals.post_save.connect(

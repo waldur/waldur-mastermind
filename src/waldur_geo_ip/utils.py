@@ -16,9 +16,7 @@ def get_response(ip_address):
     if not settings.IPSTACK_ACCESS_KEY:
         raise exceptions.GeoIpException("IPSTACK_ACCESS_KEY is empty.")
 
-    url = "http://api.ipstack.com/{}?access_key={}&output=json&legacy=1".format(
-        ip_address, settings.IPSTACK_ACCESS_KEY
-    )  # We don't use https, because current plan does not support HTTPS Encryption
+    url = f"http://api.ipstack.com/{ip_address}?access_key={settings.IPSTACK_ACCESS_KEY}&output=json&legacy=1"  # We don't use https, because current plan does not support HTTPS Encryption
 
     try:
         response = requests.get(url)

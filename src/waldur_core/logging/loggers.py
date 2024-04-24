@@ -1,4 +1,4 @@
-""" Custom loggers that allows to store logs in DB """
+"""Custom loggers that allows to store logs in DB"""
 
 import datetime
 import decimal
@@ -118,11 +118,7 @@ class BaseLogger:
                     continue
                 if not isinstance(entity, entity_class):
                     raise LoggerError(
-                        "Field '{}' must be an instance of {} but {} received".format(
-                            entity_name,
-                            entity_class.__name__,
-                            entity.__class__.__name__,
-                        )
+                        f"Field '{entity_name}' must be an instance of {entity_class.__name__} but {entity.__class__.__name__} received"
                     )
             else:
                 logger.error(

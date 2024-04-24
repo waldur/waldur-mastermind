@@ -136,9 +136,8 @@ class CustomIndexDashboard(FluentIndexDashboard):
                     children.append(link)
 
         if resources_in_erred_state_overall:
-            result_module.title = "{} ({})".format(
-                result_module.title,
-                resources_in_erred_state_overall,
+            result_module.title = (
+                f"{result_module.title} ({resources_in_erred_state_overall})"
             )
             result_module.children = children
         else:

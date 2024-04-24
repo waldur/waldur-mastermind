@@ -137,9 +137,7 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
     queryset = models.ServiceProvider.objects.all().order_by("customer__name")
     serializer_class = serializers.ServiceProviderSerializer
     filterset_class = filters.ServiceProviderFilter
-    api_secret_code_permissions = (
-        projects_permissions
-    ) = (
+    api_secret_code_permissions = projects_permissions = (
         project_permissions_permissions
     ) = keys_permissions = users_permissions = set_offerings_username_permissions = [
         structure_permissions.is_owner
@@ -502,11 +500,9 @@ class CategoryViewSet(PublicViewsetMixin, EagerLoadMixin, core_views.ActionsView
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.CategoryFilter
 
-    create_permissions = (
-        update_permissions
-    ) = partial_update_permissions = destroy_permissions = [
-        structure_permissions.is_staff
-    ]
+    create_permissions = update_permissions = partial_update_permissions = (
+        destroy_permissions
+    ) = [structure_permissions.is_staff]
 
 
 class CategoryGroupViewSet(PublicViewsetMixin, core_views.ActionsViewSet):
@@ -516,11 +512,9 @@ class CategoryGroupViewSet(PublicViewsetMixin, core_views.ActionsViewSet):
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.CategoryGroupFilter
 
-    create_permissions = (
-        update_permissions
-    ) = partial_update_permissions = destroy_permissions = [
-        structure_permissions.is_staff
-    ]
+    create_permissions = update_permissions = partial_update_permissions = (
+        destroy_permissions
+    ) = [structure_permissions.is_staff]
 
 
 def can_update_offering(request, view, obj=None):
@@ -2105,9 +2099,9 @@ class ResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
     lookup_field = "uuid"
     serializer_class = serializers.ResourceSerializer
     disabled_actions = ["create", "destroy"]
-    update_serializer_class = (
-        partial_update_serializer_class
-    ) = serializers.ResourceUpdateSerializer
+    update_serializer_class = partial_update_serializer_class = (
+        serializers.ResourceUpdateSerializer
+    )
 
     def get_queryset(self):
         return self.queryset.filter_for_user(self.request.user)
@@ -2766,9 +2760,9 @@ class OfferingUserGroupViewSet(core_views.ActionsViewSet):
     lookup_field = "uuid"
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.OfferingUserGroupFilter
-    create_serializer_class = (
-        update_serializer_class
-    ) = partial_update_serializer_class = serializers.OfferingUserGroupSerializer
+    create_serializer_class = update_serializer_class = (
+        partial_update_serializer_class
+    ) = serializers.OfferingUserGroupSerializer
 
     unsafe_methods_permissions = [permissions.user_can_manage_offering_user_group]
 
@@ -3414,9 +3408,9 @@ class RobotAccountViewSet(core_views.ActionsViewSet):
     queryset = models.RobotAccount.objects.all()
     lookup_field = "uuid"
     create_serializer_class = serializers.RobotAccountSerializer
-    update_serializer_class = (
-        partial_update_serializer_class
-    ) = serializers.RobotAccountSerializer
+    update_serializer_class = partial_update_serializer_class = (
+        serializers.RobotAccountSerializer
+    )
     serializer_class = serializers.RobotAccountDetailsSerializer
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.RobotAccountFilter

@@ -21,9 +21,7 @@ class GeoIPConfig(AppConfig):
             fsm_signals.post_transition.connect(
                 handlers.detect_vm_coordinates,
                 sender=model,
-                dispatch_uid="waldur_geo_ip.handlers.detect_vm_coordinates_{}_{}".format(
-                    model.__name__, index
-                ),
+                dispatch_uid=f"waldur_geo_ip.handlers.detect_vm_coordinates_{model.__name__}_{index}",
             )
 
         signals.post_save.connect(

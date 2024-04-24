@@ -65,24 +65,12 @@ class QuotasConfig(AppConfig):
                 handlers.count_quota_handler_factory(counter_field),
                 sender=target_model,
                 weak=False,  # saves handler from garbage collector
-                dispatch_uid="waldur_core.quotas.increase_counter_quota_{}_{}_{}_{}_{}".format(
-                    model.__name__,
-                    model._meta.app_label,
-                    counter_field.name,
-                    target_model.__name__,
-                    target_model_index,
-                ),
+                dispatch_uid=f"waldur_core.quotas.increase_counter_quota_{model.__name__}_{model._meta.app_label}_{counter_field.name}_{target_model.__name__}_{target_model_index}",
             )
 
             signals.post_delete.connect(
                 handlers.count_quota_handler_factory(counter_field),
                 sender=target_model,
                 weak=False,  # saves handler from garbage collector
-                dispatch_uid="waldur_core.quotas.decrease_counter_quota_{}_{}_{}_{}_{}".format(
-                    model.__name__,
-                    model._meta.app_label,
-                    counter_field.name,
-                    target_model.__name__,
-                    target_model_index,
-                ),
+                dispatch_uid=f"waldur_core.quotas.decrease_counter_quota_{model.__name__}_{model._meta.app_label}_{counter_field.name}_{target_model.__name__}_{target_model_index}",
             )

@@ -5,6 +5,7 @@ In order to avoid shared write deadlock we use INSERT instead of UPDATE statemen
 That's why for usage we store delta instead of aggregated SUM value.
 And we use SUM function when we read quota usage.
 """
+
 import inspect
 import logging
 

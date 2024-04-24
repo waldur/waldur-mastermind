@@ -140,18 +140,15 @@ class StateTransitionTask(Task):
     @classmethod
     def get_description(cls, instance, *args, **kwargs):
         transition_method = kwargs.get("state_transition")
-        return 'Change state of object "{}" using method "{}".'.format(
-            instance,
-            transition_method,
+        return (
+            f'Change state of object "{instance}" using method "{transition_method}".'
         )
 
     def state_transition(
         self, instance, transition_method, action=None, action_details=None
     ):
-        instance_description = "{} instance `{}` (PK: {})".format(
-            instance.__class__.__name__,
-            instance,
-            instance.pk,
+        instance_description = (
+            f"{instance.__class__.__name__} instance `{instance}` (PK: {instance.pk})"
         )
         old_state = instance.get_state_display()
         try:
@@ -165,11 +162,7 @@ class StateTransitionTask(Task):
             message = f"Could not change state of {instance_description}, using method `{transition_method}` due to concurrent update"
             raise StateChangeError(message)
         except TransitionNotAllowed:
-            message = "Could not change state of {}, using method `{}`. Current instance state: {}.".format(
-                instance_description,
-                transition_method,
-                instance.get_state_display(),
-            )
+            message = f"Could not change state of {instance_description}, using method `{transition_method}`. Current instance state: {instance.get_state_display()}."
             raise StateChangeError(message)
         else:
             logger.info(
@@ -273,10 +266,8 @@ class DeletionTask(Task):
         return 'Delete instance "%s".' % instance
 
     def execute(self, instance):
-        instance_description = "{} instance `{}` (PK: {})".format(
-            instance.__class__.__name__,
-            instance,
-            instance.pk,
+        instance_description = (
+            f"{instance.__class__.__name__} instance `{instance}` (PK: {instance.pk})"
         )
         instance.delete()
         logger.info("%s was successfully deleted", instance_description)

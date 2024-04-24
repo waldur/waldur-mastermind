@@ -78,12 +78,7 @@ class BackgroundPullTask(core_tasks.BackgroundTask):
             instance.save(update_fields=["state", "error_message"])
 
     def log_error_message(self, instance, error_message):
-        logger_message = "Failed to pull {} {} (PK: {}). Error: {}".format(
-            instance.__class__.__name__,
-            instance.name,
-            instance.pk,
-            error_message,
-        )
+        logger_message = f"Failed to pull {instance.__class__.__name__} {instance.name} (PK: {instance.pk}). Error: {error_message}"
         if (
             instance.state == instance.States.ERRED
         ):  # report error on debug level if instance already was erred.

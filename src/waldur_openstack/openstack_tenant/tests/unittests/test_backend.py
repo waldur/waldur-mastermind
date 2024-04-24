@@ -524,9 +524,9 @@ class CreateVolumesTest(VolumesBaseTest):
         volume_availability_zone = factories.VolumeAvailabilityZoneFactory(
             settings=self.settings
         )
-        self.tenant.service_settings.options[
-            "volume_availability_zone_name"
-        ] = volume_availability_zone.name
+        self.tenant.service_settings.options["volume_availability_zone_name"] = (
+            volume_availability_zone.name
+        )
         self.tenant.service_settings.save()
         volume = self._get_volume()
         self.assertEqual(volume.availability_zone.name, volume_availability_zone.name)
@@ -541,9 +541,9 @@ class CreateVolumesTest(VolumesBaseTest):
     def test_not_use_default_volume_availability_zone_if_it_not_exists(
         self, mock_logger
     ):
-        self.tenant.service_settings.options[
-            "volume_availability_zone_name"
-        ] = "not_exists_volume_availability_zone"
+        self.tenant.service_settings.options["volume_availability_zone_name"] = (
+            "not_exists_volume_availability_zone"
+        )
         self.tenant.service_settings.save()
         volume = self._get_volume()
         self.assertEqual(volume.availability_zone, None)

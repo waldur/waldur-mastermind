@@ -97,9 +97,9 @@ class FlavorSerializer(BaseFlavorSerializer):
     class Meta(BaseFlavorSerializer.Meta):
         model = models.Flavor
         extra_kwargs = copy.deepcopy(BaseFlavorSerializer.Meta.extra_kwargs)
-        extra_kwargs["settings"][
-            "queryset"
-        ] = structure_models.ServiceSettings.objects.filter(type="OpenStackTenant")
+        extra_kwargs["settings"]["queryset"] = (
+            structure_models.ServiceSettings.objects.filter(type="OpenStackTenant")
+        )
 
 
 class UsageStatsSerializer(serializers.Serializer):

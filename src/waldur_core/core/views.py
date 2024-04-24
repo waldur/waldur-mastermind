@@ -163,9 +163,8 @@ class ObtainAuthToken(RefreshTokenMixin, APIView):
 
         if auth_failures >= 4:
             logger.debug(
-                "Not returning auth token: " "username {} from {} is locked out".format(
-                    username, source_ip
-                )
+                "Not returning auth token: "
+                f"username {username} from {source_ip} is locked out"
             )
             return Response(
                 data={
@@ -718,10 +717,10 @@ class ActionMethodMixin:
                 )
 
                 if parent_obj_name:
-                    serializer.fields[
-                        parent_obj_name
-                    ] = serializers.PrimaryKeyRelatedField(
-                        write_only=True, queryset=parent_model.objects.all()
+                    serializer.fields[parent_obj_name] = (
+                        serializers.PrimaryKeyRelatedField(
+                            write_only=True, queryset=parent_model.objects.all()
+                        )
                     )
 
                 serializer.is_valid(raise_exception=True)

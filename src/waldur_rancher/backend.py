@@ -1181,10 +1181,7 @@ class RancherBackend(ServiceBackend):
         available_templates_count = len(available_templates)
         if available_templates_count != 1:
             if available_templates_count == 0:
-                message = "There are no templates with name={}, catalog.name={}".format(
-                    LONGHORN_NAME,
-                    catalog_name,
-                )
+                message = f"There are no templates with name={LONGHORN_NAME}, catalog.name={catalog_name}"
             else:
                 message = f"There are more than one template for name={LONGHORN_NAME}, catalog.name={catalog_name}"
             logger.info(message)

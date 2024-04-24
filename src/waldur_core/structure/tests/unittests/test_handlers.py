@@ -27,10 +27,7 @@ class LogProjectSaveTest(TestCase):
             new_project.save()
 
             logger_mock.project.info.assert_called_once_with(
-                "Project {{project_name}} has been updated. Name has been changed from '{}' to '{}'.".format(
-                    old_name,
-                    new_project.name,
-                ),
+                f"Project {{project_name}} has been updated. Name has been changed from '{old_name}' to '{new_project.name}'.",
                 event_type="project_update_succeeded",
                 event_context={
                     "project": new_project,

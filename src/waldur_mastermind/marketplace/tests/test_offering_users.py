@@ -121,9 +121,9 @@ class CreateOfferingUsersTest(test.APITransactionTestCase):
 
     @data("staff", "owner")
     def test_offering_does_not_allow_to_create_user(self, user):
-        self.offering.secret_options[
-            "service_provider_can_create_offering_user"
-        ] = False
+        self.offering.secret_options["service_provider_can_create_offering_user"] = (
+            False
+        )
         self.offering.save()
         response = self.create_offering_user(user)
         self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
