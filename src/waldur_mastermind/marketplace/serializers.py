@@ -2147,7 +2147,7 @@ def check_pending_order_exists(resource):
             models.Order.States.PENDING_PROVIDER,
             models.Order.States.EXECUTING,
         ),
-    )
+    ).exists()
 
 
 def validate_order(order: models.Order, request):
@@ -2155,12 +2155,8 @@ def validate_order(order: models.Order, request):
 
     if order.type != models.Order.Types.TERMINATE:
         structure_utils.check_project_end_date(order.project)
-
-    if (
-        order.type != models.Order.Types.TERMINATE
-        and not order.offering.state == models.Offering.States.ACTIVE
-    ):
-        raise serializers.ValidationError(_("Offering is not available."))
+        if order.offering.state != models.Offering.States.ACTIVE:
+            raise serializers.ValidationError(_("Offering is not available."))
 
     if order.offering.shared:
         validate_public_offering(order)
