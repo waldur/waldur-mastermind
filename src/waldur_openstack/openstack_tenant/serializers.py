@@ -17,6 +17,7 @@ from rest_framework.reverse import reverse
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
 from waldur_core.core import utils as core_utils
+from waldur_core.quotas.models import QuotaModelMixin, SharedQuotaMixin
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.permissions import _has_admin_access
@@ -1247,7 +1248,50 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
             ):
                 raise serializers.ValidationError(_("Availability zone is mandatory."))
 
+        self.validate_quotas(attrs)
         return attrs
+
+    def validate_quotas(self, attrs):
+        parts: list[SharedQuotaMixin] = []
+
+        service_settings = attrs["service_settings"]
+        flavor: models.Flavor = attrs["flavor"]
+        system_volume_size = attrs["system_volume_size"]
+        data_volume_size = attrs.get("data_volume_size", 0)
+        data_volumes = attrs.get("data_volumes", [])
+
+        instance = models.Instance(cores=flavor.cores, ram=flavor.ram)
+        parts.append(instance)
+
+        system_volume = models.Volume(
+            size=system_volume_size,
+            type=attrs.get("system_volume_type"),
+        )
+        parts.append(system_volume)
+
+        if data_volume_size:
+            data_volume = models.Volume(
+                size=data_volume_size,
+                type=attrs.get("data_volume_type"),
+            )
+            parts.append(data_volume)
+
+        for volume in data_volumes:
+            data_volume = models.Volume(
+                size=volume["size"],
+                type=volume.get("volume_type"),
+            )
+            parts.append(data_volume)
+
+        quota_deltas = {}
+        for part in parts:
+            for quota, delta in part.get_quota_deltas().items():
+                quota_deltas.setdefault(quota, 0)
+                quota_deltas[quota] += delta
+
+        scopes: list[QuotaModelMixin] = service_settings, service_settings.scope
+        for scope in scopes:
+            scope.validate_quota_change(quota_deltas)
 
     def _find_volume_availability_zone(self, instance):
         # Find volume AZ using instance AZ. It is assumed that user can't select arbitrary
