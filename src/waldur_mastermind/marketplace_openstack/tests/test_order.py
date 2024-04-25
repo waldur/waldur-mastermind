@@ -2,7 +2,7 @@ from unittest import mock
 
 from ddt import data, ddt
 from django.core.exceptions import ObjectDoesNotExist
-from rest_framework import serializers, status, test
+from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -461,9 +461,7 @@ class InstanceDeleteTest(test.APITransactionTestCase):
         url = marketplace_factories.OrderFactory.get_url(self.order, "terminate")
         request = test.APIRequestFactory().post(url)
         request.user = self.fixture.user
-        self.assertRaises(
-            serializers.ValidationError, validate_order, self.order, request
-        )
+        validate_order(self.order, request)
 
     def test_deletion_is_scheduled(self):
         self.trigger_deletion()
