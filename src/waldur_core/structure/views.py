@@ -28,7 +28,6 @@ from waldur_auth_social.utils import pull_remote_eduteams_user
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models
 from waldur_core.core import permissions as core_permissions
-from waldur_core.core import signals as core_signals
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.utils import is_uuid_like
@@ -209,10 +208,6 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
             raise PermissionDenied()
 
         utils.check_customer_blocked_or_archived(instance)
-
-        core_signals.pre_delete_validate.send(
-            sender=models.Customer, instance=instance, user=self.request.user
-        )
 
         return super().perform_destroy(instance)
 

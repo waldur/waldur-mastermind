@@ -364,23 +364,6 @@ class DeleteCustomerWithInvoiceTest(test.APITransactionTestCase):
         response = self.client.delete(self.url)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
-    def test_owner_can_not_delete_customer_with_non_empty_invoice(self):
-        factories.InvoiceItemFactory(invoice=self.invoice, unit_price=100, quantity=10)
-
-        self.client.force_authenticate(self.fixture.owner)
-        response = self.client.delete(self.url)
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_owner_can_not_delete_customer_with_active_invoice_even_if_its_empty(self):
-        self.invoice.state = models.Invoice.States.CREATED
-        self.invoice.save()
-
-        self.client.force_authenticate(self.fixture.owner)
-        response = self.client.delete(self.url)
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
     def test_staff_can_delete_customer_with_pending_invoice(self):
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.delete(self.url)
