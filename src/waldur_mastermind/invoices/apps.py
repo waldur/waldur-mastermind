@@ -7,7 +7,6 @@ class InvoiceConfig(AppConfig):
     verbose_name = "Invoices"
 
     def ready(self):
-        from waldur_core.core import signals as core_signals
         from waldur_core.structure import models as structure_models
         from waldur_core.structure import signals as structure_signals
 
@@ -53,12 +52,6 @@ class InvoiceConfig(AppConfig):
             handlers.update_invoice_item_on_project_name_update,
             sender=structure_models.Project,
             dispatch_uid="waldur_mastermind.invoices.update_invoice_item_on_project_name_update",
-        )
-
-        core_signals.pre_delete_validate.connect(
-            handlers.prevent_deletion_of_customer_with_invoice,
-            sender=structure_models.Customer,
-            dispatch_uid="waldur_mastermind.invoices.prevent_deletion_of_customer_with_invoice",
         )
 
         structure_signals.project_moved.connect(
