@@ -28,10 +28,4 @@ gosu waldur sh -c "waldur import_roles /etc/waldur/permissions.yaml"
 echo "INFO: Customising permissions configuration"
 gosu waldur sh -c "waldur override_roles /etc/waldur/permissions-override.yaml"
 
-echo "INFO: Override support settings..."
-gosu waldur sh -c "waldur override_constance_settings /etc/waldur/support.yaml"
-
-echo "INFO: Override language configuration..."
-gosu waldur sh -c "waldur override_constance_settings /etc/waldur/languages.yaml"
-
 exit 0
