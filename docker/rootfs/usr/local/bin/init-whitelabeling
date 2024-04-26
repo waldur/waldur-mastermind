@@ -4,4 +4,10 @@ set -e
 echo "INFO: Override whitelabeling settings..."
 gosu waldur sh -c "waldur override_constance_settings /etc/waldur/whitelabeling.yaml"
 
+echo "INFO: Override support settings..."
+gosu waldur sh -c "waldur override_constance_settings /etc/waldur/support.yaml"
+
+echo "INFO: Override language configuration..."
+gosu waldur sh -c "waldur override_constance_settings /etc/waldur/languages.yaml"
+
 exit 0
