@@ -255,7 +255,6 @@ class VolumeSerializer(structure_serializers.BaseResourceSerializer):
             "action_details",
             "instance",
             "instance_name",
-            "bootable",
         )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
