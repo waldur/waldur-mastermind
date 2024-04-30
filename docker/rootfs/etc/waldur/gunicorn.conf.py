@@ -6,3 +6,4 @@ forwarded_allow_ips = "*"
 proxy_allow_ips = "*"
 accesslog = "-"
 errorlog = "-"
+capture_output = True
