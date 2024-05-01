@@ -17,7 +17,7 @@ from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage as storage
 from django.db import transaction
-from django.db.models import F, Q, Sum
+from django.db.models import Count, F, Q, Sum
 from django.db.models.fields import FloatField
 from django.db.models.functions.math import Ceil
 from django.utils import timezone
@@ -1493,3 +1493,14 @@ def validate_end_date(
 
     if end_date:
         resource.end_date_requested_by = user
+
+
+def get_category_resources_count(scope):
+    resources = models.Resource.objects.exclude(state=models.Resource.States.TERMINATED)
+    if isinstance(scope, structure_models.Project):
+        resources = resources.filter(project=scope)
+    elif isinstance(scope, structure_models.Customer):
+        resources = resources.filter(project__customer=scope)
+
+    resources = resources.values("offering__category__uuid").annotate(count=Count("*"))
+    return {row["offering__category__uuid"].hex: row["count"] for row in resources}

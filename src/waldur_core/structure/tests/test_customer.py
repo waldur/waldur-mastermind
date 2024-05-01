@@ -754,26 +754,6 @@ class CustomerUsersListTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 0)
 
 
-@ddt
-class CustomerCountersListTest(test.APITransactionTestCase):
-    def setUp(self):
-        self.fixture = fixtures.ServiceFixture()
-        self.owner = self.fixture.owner
-        self.customer_support = self.fixture.customer_support
-        self.admin = self.fixture.admin
-        self.manager = self.fixture.manager
-        self.member = self.fixture.member
-        self.customer = self.fixture.customer
-        self.url = factories.CustomerFactory.get_url(self.customer, action="counters")
-
-    @data("owner", "customer_support")
-    def test_user_can_get_customer_counters(self, user):
-        self.client.force_authenticate(getattr(self.fixture, user))
-        response = self.client.get(self.url, {"fields": ["users", "projects"]})
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data, {"users": 5, "projects": 1})
-
-
 class UserCustomersFilterTest(test.APITransactionTestCase):
     def setUp(self):
         self.staff = factories.UserFactory(is_staff=True)

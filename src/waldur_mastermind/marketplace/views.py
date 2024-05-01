@@ -63,7 +63,6 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure import utils as structure_utils
-from waldur_core.structure import views as structure_views
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_core.structure.executors import ServiceSettingsPullExecutor
 from waldur_core.structure.managers import (
@@ -85,7 +84,9 @@ from waldur_mastermind.invoices import serializers as invoice_serializers
 from waldur_mastermind.marketplace import PLUGIN_NAME as BASIC_PLUGIN_NAME
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace.managers import filter_offering_permissions
-from waldur_mastermind.marketplace.utils import validate_attributes
+from waldur_mastermind.marketplace.utils import (
+    validate_attributes,
+)
 from waldur_mastermind.marketplace_slurm_remote import (
     PLUGIN_NAME as SLURM_REMOTE_PLUGIN_NAME,
 )
@@ -3385,20 +3386,6 @@ class ProviderInvoiceItemsViewSet(core_views.ReadOnlyActionsViewSet):
     serializer_class = invoice_serializers.InvoiceItemSerializer
 
 
-for view in (structure_views.ProjectCountersView, structure_views.CustomerCountersView):
-
-    def inject_resources_counter(scope):
-        counters = models.AggregateResourceCount.objects.filter(scope=scope).only(
-            "count", "category"
-        )
-        return {
-            f"marketplace_category_{counter.category.uuid}": counter.count
-            for counter in counters
-        }
-
-    view.register_dynamic_counter(inject_resources_counter)
-
-
 def can_mutate_robot_account(request, view, obj=None):
     if obj and obj.backend_id:
         raise PermissionDenied("Remote robot account is synchronized.")
@@ -3471,3 +3458,25 @@ class CategoryComponentViewSet(rf_viewsets.ModelViewSet):
     serializer_class = serializers.CategoryComponentsSerializer
     filter_backends = (DjangoFilterBackend,)
     permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
+
+
+class ProjectCategoriesViewSet(views.APIView):
+    def get(self, request, project_uuid):
+        projects = filter_queryset_for_user(
+            structure_models.Project.objects.all(), request.user
+        )
+        if not is_uuid_like(project_uuid):
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        project = get_object_or_404(projects, uuid=project_uuid)
+        return Response(utils.get_category_resources_count(project))
+
+
+class CustomerCategoriesViewSet(views.APIView):
+    def get(self, request, customer_uuid):
+        customers = filter_queryset_for_user(
+            structure_models.Customer.objects.all(), request.user
+        )
+        if not is_uuid_like(customer_uuid):
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        customer = get_object_or_404(customers, uuid=customer_uuid)
+        return Response(utils.get_category_resources_count(customer))
