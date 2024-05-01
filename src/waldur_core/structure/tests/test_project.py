@@ -461,22 +461,6 @@ class ProjectApiPermissionTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
-class ProjectCountersListTest(test.APITransactionTestCase):
-    def setUp(self):
-        self.fixture = fixtures.ServiceFixture()
-        self.owner = self.fixture.owner
-        self.admin = self.fixture.admin
-        self.manager = self.fixture.manager
-        self.project = self.fixture.project
-        self.url = factories.ProjectFactory.get_url(self.project, action="counters")
-
-    def test_user_can_get_project_counters(self):
-        self.client.force_authenticate(self.fixture.owner)
-        response = self.client.get(self.url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data, {"users": 2})
-
-
 class TestExecutor(executors.BaseCleanupExecutor):
     pre_models = (test_models.TestNewInstance,)
 

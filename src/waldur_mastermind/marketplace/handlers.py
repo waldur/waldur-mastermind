@@ -1,9 +1,8 @@
 import logging
 
-from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
-from django.db.models import Count, signals
+from django.db.models import signals
 from django.utils.timezone import now
 
 from waldur_core.core import utils as core_utils
@@ -11,7 +10,7 @@ from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import get_permissions
 from waldur_core.structure import models as structure_models
-from waldur_core.structure.models import Customer, Project
+from waldur_core.structure.models import Customer
 from waldur_mastermind.marketplace.managers import get_connected_offerings
 from waldur_mastermind.marketplace.permissions import (
     order_should_not_be_reviewed_by_consumer,
@@ -211,60 +210,6 @@ def update_category_offerings_count(sender, **kwargs):
             category=category, state=models.Offering.States.ACTIVE
         ).count()
         category.set_quota_usage("offering_count", value)
-
-
-def update_aggregate_resources_count_when_resource_is_updated(
-    sender, instance, created=False, **kwargs
-):
-    def apply_change(delta):
-        for field in ("project", "customer"):
-            try:
-                scope = getattr(instance, field)
-            except ObjectDoesNotExist:
-                # When project is deleted, all its resources are deleted via cascade.
-                # Therefore it is okay if project does not exists.
-                continue
-            counter, _ = models.AggregateResourceCount.objects.get_or_create(
-                scope=scope,
-                category=instance.offering.category,
-            )
-            if delta == 1:
-                counter.count += 1
-            elif delta == -1:
-                counter.count = max(0, counter.count - 1)
-
-            counter.save(update_fields=["count"])
-
-    if created and instance.state != models.Resource.States.TERMINATED:
-        apply_change(1)
-    elif (
-        instance.tracker.has_changed("state")
-        and instance.state == models.Resource.States.TERMINATED
-    ):
-        apply_change(-1)
-
-
-def update_aggregate_resources_count(sender, **kwargs):
-    models.AggregateResourceCount.objects.update(count=0)
-    for category in models.Category.objects.all():
-        for field, content_type in (
-            ("project_id", ContentType.objects.get_for_model(Project)),
-            ("project__customer_id", ContentType.objects.get_for_model(Customer)),
-        ):
-            rows = (
-                models.Resource.objects.filter(offering__category=category)
-                .order_by()
-                .exclude(state=models.Resource.States.TERMINATED)
-                .values(field, "offering__category")
-                .annotate(count=Count("*"))
-            )
-            for row in rows:
-                models.AggregateResourceCount.objects.update_or_create(
-                    content_type=content_type,
-                    object_id=row[field],
-                    category=category,
-                    defaults={"count": row["count"]},
-                )
 
 
 def create_resource_plan_period_when_resource_is_created(

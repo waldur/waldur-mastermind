@@ -79,18 +79,6 @@ class MarketplaceConfig(AppConfig):
         )
 
         signals.post_save.connect(
-            handlers.update_aggregate_resources_count_when_resource_is_updated,
-            sender=models.Resource,
-            dispatch_uid="waldur_mastermind.marketplace."
-            "update_aggregate_resources_count_when_resource_is_updated",
-        )
-
-        quota_signals.recalculate_quotas.connect(
-            handlers.update_aggregate_resources_count,
-            dispatch_uid="waldur_mastermind.marketplace.update_aggregate_resources_count",
-        )
-
-        signals.post_save.connect(
             handlers.create_resource_plan_period_when_resource_is_created,
             sender=models.Resource,
             dispatch_uid="waldur_mastermind.marketplace."

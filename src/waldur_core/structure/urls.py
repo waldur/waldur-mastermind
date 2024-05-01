@@ -1,5 +1,3 @@
-from django.urls import re_path
-
 from waldur_core.structure import views
 
 
@@ -47,15 +45,4 @@ def register_in(router):
     )
 
 
-urlpatterns = [
-    re_path(
-        r"^customers/(?P<uuid>[a-f0-9]+)/counters/$",
-        views.CustomerCountersView.as_view({"get": "list"}),
-        name="customer_counters",
-    ),
-    re_path(
-        r"^projects/(?P<uuid>[a-f0-9]+)/counters/$",
-        views.ProjectCountersView.as_view({"get": "list"}),
-        name="project_counters",
-    ),
-]
+urlpatterns = []
