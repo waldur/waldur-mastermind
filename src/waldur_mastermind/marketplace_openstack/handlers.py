@@ -635,7 +635,7 @@ def set_mtu_when_network_has_been_created(sender, instance, created=False, **kwa
     if not resource:
         return
 
-    mtu = resource.offering.attributes.get("default_internal_network_mtu")
+    mtu = resource.offering.plugin_options.get("default_internal_network_mtu")
 
     if mtu:
         network.mtu = mtu
