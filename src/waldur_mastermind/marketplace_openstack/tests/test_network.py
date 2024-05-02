@@ -18,7 +18,7 @@ class NetworkMtuTest(test.APITransactionTestCase):
         network.refresh_from_db()
         self.assertEqual(network.mtu, None)
 
-        self.offering.attributes["default_internal_network_mtu"] = 1000
+        self.offering.plugin_options["default_internal_network_mtu"] = 1000
         self.offering.save()
 
         network = openstack_factories.NetworkFactory(tenant=self.tenant)
