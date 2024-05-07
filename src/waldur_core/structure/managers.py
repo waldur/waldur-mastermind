@@ -68,7 +68,8 @@ def filter_queryset_by_user_ip(queryset, request):
         none_path = customer_path + "_id"
 
     customers_ids = structure_models.Customer.objects.filter(
-        models.Q(inet__isnull=True) | models.Q(inet__net_contains_or_equals=user_ip)
+        models.Q(access_subnet_set__inet__isnull=True)
+        | models.Q(access_subnet_set__inet__net_contains_or_equals=user_ip)
     ).values_list("id", flat=True)
     subquery = models.Q(**{path: customers_ids}) | models.Q(**{none_path: None})
     return queryset.filter(subquery)

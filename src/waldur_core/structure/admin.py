@@ -295,7 +295,6 @@ class CustomerAdmin(
         "default_tax_percent",
         "blocked",
         "archived",
-        "inet",
     )
     list_display = (
         "name",
@@ -829,3 +828,4 @@ admin.site.register(models.OrganizationGroup, OrganizationGroupAdmin)
 admin.site.register(models.UserAgreement, UserAgreementAdmin)
 admin.site.register(NotificationTemplate, NotificationTemplateAdmin)
 admin.site.register(Notification, NotificationAdmin)
+admin.site.register(models.AccessSubnet, admin.ModelAdmin)

@@ -242,6 +242,28 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
         )
 
 
+class AccessSubnetViewSet(core_views.ActionsViewSet):
+    queryset = models.AccessSubnet.objects.all()
+    serializer_class = serializers.AccessSubnetSerializer
+    lookup_field = "uuid"
+    filterset_class = filters.AccessSubnetFilter
+    filter_backends = (DjangoFilterBackend, filters.GenericRoleFilter)
+    destroy_permissions = [
+        permission_factory(PermissionEnum.DELETE_ACCESS_SUBNET, ["customer"])
+    ]
+    update_permissions = partial_update_permissions = [
+        permission_factory(PermissionEnum.UPDATE_ACCESS_SUBNET, ["customer"])
+    ]
+
+    def get_queryset(self):
+        user = self.request.user
+        qs = super().get_queryset()
+        if user.is_staff or user.is_support:
+            return qs
+        connected_customers = get_connected_customers(user=user)
+        return models.AccessSubnet.objects.filter(customer__in=connected_customers)
+
+
 class ProjectTypeViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = models.ProjectType.objects.all()
     serializer_class = serializers.ProjectTypeSerializer

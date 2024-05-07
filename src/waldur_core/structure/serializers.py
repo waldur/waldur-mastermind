@@ -415,7 +415,6 @@ class CustomerSerializer(
             "archived",
             "default_tax_percent",
             "accounting_start_date",
-            "inet",
             "role",
             "projects_count",
             "users_count",
@@ -545,6 +544,30 @@ class CustomerSerializer(
 
     def get_users_count(self, customer):
         return count_customer_users(customer)
+
+
+class AccessSubnetSerializer(serializers.HyperlinkedModelSerializer):
+    class Meta:
+        model = models.AccessSubnet
+        fields = (
+            "uuid",
+            "inet",
+            "description",
+            "customer",
+        )
+        extra_kwargs = {
+            "customer": {"lookup_field": "uuid"},
+        }
+
+    def validate(self, validated_data):
+        if not self.instance:
+            customer = validated_data["customer"]
+            permission = PermissionEnum.CREATE_ACCESS_SUBNET
+
+            if not has_permission(self.context["request"], permission, customer):
+                raise exceptions.PermissionDenied()
+
+        return validated_data
 
 
 class NestedCustomerSerializer(

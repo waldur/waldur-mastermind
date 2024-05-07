@@ -355,3 +355,26 @@ class AuthTokenFactory(
     @classmethod
     def get_list_url(cls):
         return "http://testserver" + reverse("auth-tokens-list")
+
+
+class AccessSubnetFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.AccessSubnet]
+):
+    class Meta:
+        model = models.AccessSubnet
+
+    customer = factory.SubFactory(CustomerFactory)
+    inet = factory.Sequence(lambda n: "192.168.%s.0/24" % n)
+
+    @classmethod
+    def get_url(cls, access_subnet=None, action=None):
+        if access_subnet is None:
+            access_subnet = AccessSubnetFactory()
+        url = "http://testserver" + reverse(
+            "access-subnets-detail", kwargs={"uuid": access_subnet.uuid.hex}
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls):
+        return "http://testserver" + reverse("access-subnets-list")

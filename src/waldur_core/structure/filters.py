@@ -718,3 +718,20 @@ class NotificationFilter(NameFilterSet):
             if notification.templates.filter(path__in=template_names).exists() == value
         ]
         return queryset.filter(uuid__in=overridden_notifications)
+
+
+class AccessSubnetFilter(django_filters.FilterSet):
+    customer = core_filters.URLFilter(
+        view_name="customer-detail",
+        field_name="customer__uuid",
+    )
+    customer_uuid = django_filters.UUIDFilter(field_name="customer__uuid")
+    inet = django_filters.CharFilter(lookup_expr="icontains")
+
+    class Meta:
+        model = models.AccessSubnet
+        fields = [
+            "customer",
+            "customer_uuid",
+            "inet",
+        ]

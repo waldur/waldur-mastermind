@@ -43,6 +43,11 @@ def register_in(router):
         views.AuthTokenViewSet,
         basename="auth-tokens",
     )
+    router.register(
+        r"access-subnets",
+        views.AccessSubnetViewSet,
+        basename="access-subnets",
+    )
 
 
 urlpatterns = []
