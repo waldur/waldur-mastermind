@@ -10,7 +10,7 @@ from rest_framework import status, test
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
-from waldur_core.structure.models import Customer, Project
+from waldur_core.structure.models import AccessSubnet, Customer, Project
 from waldur_core.structure.tests import factories, fixtures
 from waldur_core.structure.tests.utils import (
     client_add_user,
@@ -1010,8 +1010,11 @@ class CustomerInetFilterTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
-        self.customer.inet = "128.0.0.0/16"
         self.customer.save()
+
+        self.access_subnet = AccessSubnet.objects.create(
+            customer=self.customer, inet="128.0.0.0/16"
+        )
 
         self.patcher = mock.patch("waldur_core.structure.managers.core_utils")
         self.mock = self.patcher.start()
@@ -1028,20 +1031,20 @@ class CustomerInetFilterTest(test.APITransactionTestCase):
         response = self.client.get(self.url)
         self.assertEqual(len(response.data), 1)
 
-    def test_user_can_get_project_only_if_his_ip_is_contained_inet(self):
+    def test_user_can_get_project_only_if_his_ip_contains_inet(self):
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.get(self.url)
         self.assertEqual(len(response.data), 0)
 
         self.customer = self.fixture.customer
-        self.customer.inet = "127.0.0.0/16"
-        self.customer.save()
+        self.access_subnet.inet = "127.0.0.0/24"
+        self.access_subnet.save()
         response = self.client.get(self.url)
         self.assertEqual(len(response.data), 1)
 
         self.customer = self.fixture.customer
-        self.customer.inet = ""
-        self.customer.save()
+        self.access_subnet.inet = ""
+        self.access_subnet.save()
         response = self.client.get(self.url)
         self.assertEqual(len(response.data), 1)
 
