@@ -21,7 +21,7 @@ from waldur_core.core.views import (
 )
 from waldur_core.permissions import utils as permissions_utils
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
-from waldur_core.permissions.utils import permission_factory
+from waldur_core.permissions.utils import has_permission, permission_factory
 from waldur_core.permissions.views import UserRoleMixin
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
@@ -365,6 +365,25 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             return
         raise exceptions.PermissionDenied()
 
+    def is_call_manager(request, view, obj=None):
+        if not obj:
+            return
+
+        proposal = obj
+        user = request.user
+
+        if (
+            has_permission(
+                request,
+                PermissionEnum.APPROVE_AND_REJECT_PROPOSALS,
+                proposal.round.call,
+            )
+            or user.is_staff
+        ):
+            return
+
+        raise exceptions.PermissionDenied()
+
     destroy_permissions = update_project_details_permissions = [is_creator]
 
     destroy_validators = update_project_details_validators = [
@@ -512,8 +531,34 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         permission_factory(PermissionEnum.APPROVE_AND_REJECT_PROPOSALS, ["round.call"])
     ]
     reject_serializer_class = allocate_serializer_class = (
-        serializers.ProposalAllocateSerializer
-    )
+        force_approve_serializer_class
+    ) = serializers.ProposalAllocateSerializer
+
+    @decorators.action(detail=True, methods=["post"])
+    def force_approve(self, request, uuid=None):
+        proposal = self.get_object()
+        utils.allocate_proposal(proposal)
+        proposal.state = models.Proposal.States.ACCEPTED
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        proposal.allocation_comment = serializer.validated_data.get(
+            "allocation_comment", ""
+        )
+        proposal.save()
+        return response.Response(
+            "Proposal has been allocated.",
+            status=status.HTTP_200_OK,
+        )
+
+    force_approve_validators = [
+        core_validators.StateValidator(
+            models.Proposal.States.SUBMITTED,
+            models.Proposal.States.IN_REVIEW,
+            models.Proposal.States.REJECTED,
+        )
+    ]
+
+    force_approve_permissions = [is_call_manager]
 
 
 class ReviewViewSet(ActionsViewSet):

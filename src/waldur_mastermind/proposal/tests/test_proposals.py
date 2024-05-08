@@ -214,6 +214,39 @@ class ActionTest(test.APITransactionTestCase):
 
 
 @ddt
+class ForceApproveTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.proposal = self.fixture.proposal
+        self.proposal.state = models.Proposal.States.REJECTED
+        self.proposal.save()
+        self.url = factories.ProposalFactory.get_url(self.proposal, "force_approve")
+
+    @data(
+        "staff",
+        "call_manager",
+    )
+    def test_user_can_submit_proposal(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.proposal.refresh_from_db()
+        self.assertTrue(self.proposal.state, models.Proposal.States.ACCEPTED)
+
+    @data(
+        "customer_support",
+        "proposal_creator",
+        "owner",
+    )
+    def test_user_can_not_submit_proposal(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+@ddt
 class RequestedResourceGetTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
