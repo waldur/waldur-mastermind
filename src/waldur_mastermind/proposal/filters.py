@@ -44,6 +44,7 @@ class CallFilter(django_filters.FilterSet):
     has_active_round = django_filters.BooleanFilter(
         widget=BooleanWidget, method="filter_has_active_round"
     )
+    name = django_filters.CharFilter(lookup_expr="icontains")
 
     class Meta:
         model = models.Call
@@ -76,7 +77,7 @@ class ProposalFilter(django_filters.FilterSet):
 
     class Meta:
         model = models.Proposal
-        fields = ["state", "name", "round", "call_uuid"]
+        fields = []
 
 
 class ReviewFilter(django_filters.FilterSet):
