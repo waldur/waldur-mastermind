@@ -92,7 +92,7 @@ class NestedRequestedOfferingSerializer(serializers.HyperlinkedModelSerializer):
         read_only=True,
         source="offering.options",
     )
-    plan = BasePublicPlanSerializer(read_only=True)
+    plan_details = BasePublicPlanSerializer(read_only=True, source="plan")
     components = OfferingComponentSerializer(
         source="offering.components", many=True, read_only=True
     )
@@ -111,6 +111,7 @@ class NestedRequestedOfferingSerializer(serializers.HyperlinkedModelSerializer):
             "call_managing_organisation",
             "attributes",
             "plan",
+            "plan_details",
             "options",
             "components",
         ]
