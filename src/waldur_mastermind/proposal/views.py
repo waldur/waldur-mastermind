@@ -583,10 +583,6 @@ class ReviewViewSet(ActionsViewSet):
             | Q(state=models.Review.States.SUBMITTED, proposal__created_by=user)
         )
 
-    def is_proposal_submitted(review):
-        if review.proposal.state != models.Proposal.States.SUBMITTED:
-            raise IncorrectStateException()
-
     def action_permission_check(request, view, obj: models.Review = None):
         if not obj:
             return
@@ -610,7 +606,6 @@ class ReviewViewSet(ActionsViewSet):
 
     accept_validators = [
         core_validators.StateValidator(models.Review.States.CREATED),
-        is_proposal_submitted,
     ]
 
     @decorators.action(detail=True, methods=["post"])
@@ -627,7 +622,6 @@ class ReviewViewSet(ActionsViewSet):
         core_validators.StateValidator(
             models.Review.States.CREATED, models.Review.States.IN_REVIEW
         ),
-        is_proposal_submitted,
     ]
 
     @decorators.action(detail=True, methods=["post"])
@@ -642,7 +636,6 @@ class ReviewViewSet(ActionsViewSet):
 
     submit_validators = [
         core_validators.StateValidator(models.Review.States.IN_REVIEW),
-        is_proposal_submitted,
     ]
     accept_permissions = reject_permissions = submit_permissions = (
         update_permissions
