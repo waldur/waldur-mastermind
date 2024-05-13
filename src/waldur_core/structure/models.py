@@ -292,17 +292,21 @@ CUSTOMER_DETAILS_FIELDS = (
 )
 
 
-class AccessSubnet(core_models.UuidMixin, core_models.DescribableMixin):
+class AccessSubnet(core_models.UuidMixin, core_models.DescribableMixin, LoggableMixin):
     customer = models.ForeignKey(
         on_delete=models.CASCADE, to="Customer", related_name="access_subnet_set"
     )
     inet = CidrAddressField(null=True, blank=True)
+    tracker = FieldTracker()
 
     class Meta:
         unique_together = ("customer", "inet")
 
     def __str__(self):
         return self.customer.name + " | " + str(self.inet)
+
+    def get_log_fields(self):
+        return "description", "inet"
 
 
 class CustomerDetailsMixin(core_models.NameMixin, VATMixin, CoordinatesMixin):

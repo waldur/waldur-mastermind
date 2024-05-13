@@ -73,6 +73,26 @@ class ResourceEventLogger(EventLogger):
         return {resource, resource.project, resource.project.customer}
 
 
+class AccessSubnetEventLogger(EventLogger):
+    access_subnet = models.AccessSubnet
+
+    class Meta:
+        event_types = (
+            "access_subnet_creation_succeeded",
+            "access_subnet_update_succeeded",
+            "access_subnet_deletion_succeeded",
+        )
+        event_groups = {
+            "access_subnets": event_types,
+        }
+
+    @staticmethod
+    def get_scopes(event_context):
+        access_subnet = event_context["access_subnet"]
+        return {access_subnet, access_subnet.customer}
+
+
 event_logger.register("customer", CustomerEventLogger)
 event_logger.register("project", ProjectEventLogger)
 event_logger.register("resource", ResourceEventLogger)
+event_logger.register("access_subnet", AccessSubnetEventLogger)
