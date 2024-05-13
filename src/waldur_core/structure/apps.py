@@ -17,6 +17,7 @@ class StructureConfig(AppConfig):
         from waldur_core.structure import signals as structure_signals
         from waldur_core.structure.executors import check_cleanup_executors
         from waldur_core.structure.models import (
+            AccessSubnet,
             BaseResource,
             SubResource,
             VirtualMachine,
@@ -135,4 +136,16 @@ class StructureConfig(AppConfig):
             handlers.permissions_request_approved,
             sender=PermissionRequest,
             dispatch_uid="waldur_core.structure.handlers.permissions_request_approved",
+        )
+
+        signals.post_save.connect(
+            handlers.log_access_subnet_save,
+            sender=AccessSubnet,
+            dispatch_uid="waldur_core.structure.handlers.log_access_subnet_creation_succeeded",
+        )
+
+        signals.post_delete.connect(
+            handlers.log_access_subnet_deletion_succeeded,
+            sender=AccessSubnet,
+            dispatch_uid="waldur_core.structure.handlers.log_access_subnet_deletion_succeeded",
         )

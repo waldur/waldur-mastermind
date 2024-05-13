@@ -180,6 +180,48 @@ def log_resource_action(sender, instance, name, source, target, **kwargs):
         )
 
 
+def generate_access_subnet_changes(instance, created=False):
+    changed_dict = instance.tracker.changed()
+    changes_string = f"Access subnet {instance} has been updated.\n"
+    for key, value in changed_dict.items():
+        changes_string += (
+            f"{key} has been changed from '{value}' to '{getattr(instance, key)}'. "
+        )
+    return changes_string
+
+
+def log_access_subnet_update_succeeded(instance):
+    changes = generate_access_subnet_changes(instance)
+    event_logger.access_subnet.info(
+        changes,
+        event_type="access_subnet_update_succeeded",
+        event_context={"access_subnet": instance},
+    )
+
+
+def log_access_subnet_creation_succeeded(instance):
+    event_logger.access_subnet.info(
+        f"Access subnet {instance} has been created.",
+        event_type="access_subnet_creation_succeeded",
+        event_context={"access_subnet": instance},
+    )
+
+
+def log_access_subnet_deletion_succeeded(sender, instance, **kwargs):
+    event_logger.access_subnet.info(
+        f"Access subnet {instance} has been deleted.",
+        event_type="access_subnet_deletion_succeeded",
+        event_context={"access_subnet": instance},
+    )
+
+
+def log_access_subnet_save(sender, instance, created=False, **kwargs):
+    if created:
+        log_access_subnet_creation_succeeded(instance)
+    else:
+        log_access_subnet_update_succeeded(instance)
+
+
 def update_resource_start_time(sender, instance, created=False, **kwargs):
     if created:
         return
