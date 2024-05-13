@@ -8,6 +8,8 @@ from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models, plugins
 from waldur_mastermind.marketplace.tests import factories, fixtures
 from waldur_mastermind.marketplace.tests import utils as test_utils
+from waldur_mastermind.proposal import models as proposal_models
+from waldur_mastermind.proposal.tests import factories as proposal_factories
 
 
 class CustomerResourcesFilterTest(test.APITransactionTestCase):
@@ -295,3 +297,34 @@ class PlanComponentFilterTest(test.APITransactionTestCase):
             {"offering_uuid": self.fixture_1.offering.uuid.hex},
         )
         self.assertEqual(len(response.json()), 1)
+
+
+class AccessibleViaCallsFilterTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.offering = self.fixture.offering
+        self.url = factories.OfferingFactory.get_public_list_url()
+
+    def test_accessible_via_calls(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"accessible_via_calls": "true"})
+        self.assertEqual(len(response.json()), 0)
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"accessible_via_calls": "false"})
+        self.assertEqual(len(response.json()), 1)
+
+        requested_offering = proposal_factories.RequestedOfferingFactory(
+            offering=self.offering,
+            state=proposal_models.RequestedOffering.States.ACCEPTED,
+        )
+        requested_offering.call.state = proposal_models.Call.States.ACTIVE
+        requested_offering.call.save()
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"accessible_via_calls": "true"})
+        self.assertEqual(len(response.json()), 1)
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"accessible_via_calls": "false"})
+        self.assertEqual(len(response.json()), 0)
