@@ -106,7 +106,16 @@ def process_order(order: models.Order, user):
         order.error_message = str(e)
         order.error_traceback = traceback.format_exc()
         order.set_state_erred()
-        order.resource.set_state_erred()
+
+        if (
+            order.attributes.get("action") == "force_destroy"
+            and order.type == models.RequestTypeMixin.Types.TERMINATE
+            and user.is_staff
+        ):
+            order.resource.set_state_terminated()
+        else:
+            order.resource.set_state_erred()
+
         logger.error(
             f"Error processing order {order}. "
             f"Order ID: {order.id}. "
