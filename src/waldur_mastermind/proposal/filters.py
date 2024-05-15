@@ -37,6 +37,7 @@ class CallFilter(django_filters.FilterSet):
     )
     customer_uuid = django_filters.UUIDFilter(field_name="manager__customer__uuid")
     customer_keyword = django_filters.CharFilter(method="filter_customer_keyword")
+    offering_uuid = django_filters.UUIDFilter(method="filter_offering_uuid")
     state = django_filters.MultipleChoiceFilter(choices=models.Call.States.CHOICES)
     o = django_filters.OrderingFilter(
         fields=("manager__customer__name", "created", "name")
@@ -61,6 +62,9 @@ class CallFilter(django_filters.FilterSet):
         if value:
             return queryset.filter(round__cutoff_time__gte=timezone.now())
         return queryset
+
+    def filter_offering_uuid(self, queryset, name, value):
+        return queryset.filter(offerings__uuid=value).distinct()
 
 
 class ProposalFilter(django_filters.FilterSet):
