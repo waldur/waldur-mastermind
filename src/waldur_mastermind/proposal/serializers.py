@@ -2,6 +2,8 @@ import logging
 
 from constance import config
 from django.conf import settings
+from django.db.models import Q
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 from rest_framework.reverse import reverse
@@ -312,6 +314,7 @@ class NestedRoundSerializer(serializers.HyperlinkedModelSerializer):
             "name",
             "start_time",
             "cutoff_time",
+            "status",
             "review_strategy",
             "deciding_entity",
             "allocation_time",
@@ -335,7 +338,7 @@ class PublicCallSerializer(
     state = serializers.ReadOnlyField()
     customer_name = serializers.ReadOnlyField(source="manager.customer.name")
     offerings = serializers.SerializerMethodField(method_name="get_offerings")
-    rounds = NestedRoundSerializer(many=True, read_only=True, source="round_set")
+    rounds = serializers.SerializerMethodField()
     start_date = serializers.SerializerMethodField()
     end_date = serializers.SerializerMethodField()
     documents = CallDocumentSerializer(many=True, read_only=True)
@@ -388,6 +391,27 @@ class PublicCallSerializer(
         )
         serializer = NestedRequestedOfferingSerializer(
             queryset,
+            many=True,
+            read_only=True,
+            context=self.context,
+        )
+        return serializer.data
+
+    def get_rounds(self, obj):
+        queryset = obj.round_set.all()
+        all_open_rounds = queryset.filter(
+            Q(start_time__lt=timezone.now()) & Q(cutoff_time__gt=timezone.now())
+        )
+
+        all_scheduled_rounds = queryset.filter(Q(start_time__gt=timezone.now()))
+
+        all_closed_rounds = queryset.filter(Q(cutoff_time__lt=timezone.now()))
+
+        sorted_queryset = (
+            list(all_open_rounds) + list(all_scheduled_rounds) + list(all_closed_rounds)
+        )
+        serializer = NestedRoundSerializer(
+            sorted_queryset,
             many=True,
             read_only=True,
             context=self.context,
@@ -819,7 +843,15 @@ class RoundSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = models.Round
-        fields = ["url", "uuid", "start_time", "cutoff_time", "call_uuid", "call_name"]
+        fields = [
+            "url",
+            "uuid",
+            "start_time",
+            "cutoff_time",
+            "call_uuid",
+            "call_name",
+            "status",
+        ]
 
     extra_kwargs = {
         "url": {

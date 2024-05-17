@@ -4,6 +4,7 @@ from datetime import timedelta
 from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import models
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
@@ -215,6 +216,16 @@ class Round(
     @property
     def name(self):
         return f"Round {self.start_time.strftime('%d.%m.%Y')}-{self.cutoff_time.strftime('%d.%m.%Y')}"
+
+    @property
+    def status(self):
+        now = timezone.now()
+        if self.start_time > now:
+            return "scheduled"
+        elif self.cutoff_time < now:
+            return "ended"
+        else:
+            return "open"
 
 
 class ProposalDocumentation(
