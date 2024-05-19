@@ -1102,6 +1102,12 @@ class ResourceUpdateLimitsTest(test.APITransactionTestCase):
         response = self.update_limits(self.fixture.owner, self.resource, {"vcpu": 1})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_update_limit_if_offering_is_paused(self):
+        self.resource.offering.state = models.Offering.States.PAUSED
+        self.resource.offering.save()
+        response = self.update_limits(self.fixture.owner, self.resource)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
 
 class ResourceMoveTest(test.APITransactionTestCase):
     def setUp(self):
