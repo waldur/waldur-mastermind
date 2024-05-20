@@ -2251,6 +2251,13 @@ class OrderCreateSerializer(
             name=validated_data.get("attributes").get("name") or "",
         )
         resource.init_cost()
+        attributes = validated_data.get("attributes", {})
+        end_date = attributes.get("end_date")
+
+        if end_date:
+            resource.end_date = end_date
+            resource.end_date_requested_by = request.user
+
         resource.save()
 
         order = models.Order(
@@ -2259,7 +2266,7 @@ class OrderCreateSerializer(
             created_by=request.user,
             offering=validated_data["offering"],
             plan=validated_data.get("plan"),
-            attributes=validated_data.get("attributes", {}),
+            attributes=attributes,
             limits=validated_data.get("limits", {}),
             type=validated_data.get("type"),
         )

@@ -311,6 +311,17 @@ class OrderCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(models.Order.objects.filter(created_by=user).exists())
 
+    def test_set_end_date(self):
+        user = self.fixture.staff
+        response = self.create_order(
+            user, add_payload={"attributes": {"end_date": "2025-01-01"}}
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        order = models.Order.objects.get(uuid=response.data["uuid"])
+        resource = order.resource
+        self.assertTrue(resource.end_date)
+        self.assertEqual(resource.end_date_requested_by, user)
+
     def create_order(self, user, offering=None, add_payload=None):
         if offering is None:
             offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
