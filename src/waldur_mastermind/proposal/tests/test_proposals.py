@@ -189,6 +189,9 @@ class ActionTest(test.APITransactionTestCase):
         self.proposal.state = models.Proposal.States.TEAM_VERIFICATION
         self.proposal.save()
         self.url = factories.ProposalFactory.get_url(self.proposal, "submit")
+        self.url_team_verification = factories.ProposalFactory.get_url(
+            self.proposal, "switch_to_team_verification"
+        )
 
     @data(
         "staff",
@@ -211,6 +214,48 @@ class ActionTest(test.APITransactionTestCase):
         self.client.force_authenticate(user)
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+@ddt
+class ActionSwitchToTeamVerificationTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.proposal = self.fixture.proposal
+        self.proposal.state = models.Proposal.States.DRAFT
+        self.proposal.save()
+        self.url = factories.ProposalFactory.get_url(
+            self.proposal, "switch_to_team_verification"
+        )
+
+    @data(
+        "staff",
+        "proposal_creator",
+    )
+    def test_user_can_switch_to_team_verification(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.proposal.refresh_from_db()
+        self.assertTrue(self.proposal.state, models.Proposal.States.TEAM_VERIFICATION)
+
+    @data(
+        "owner",
+        "customer_support",
+    )
+    def test_user_can_not_switch_to_team_verification(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_validate_switch_to_team_verification(self):
+        proposal = factories.ProposalFactory()
+        url = factories.ProposalFactory.get_url(proposal, "switch_to_team_verification")
+        user = self.fixture.staff
+        self.client.force_authenticate(user)
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
 @ddt
