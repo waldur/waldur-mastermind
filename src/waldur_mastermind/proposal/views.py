@@ -403,6 +403,15 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
 
         return response.Response(status=status.HTTP_200_OK)
 
+    @staticmethod
+    def validate_resource_requests_existing(proposal):
+        if not models.RequestedResource.objects.filter(proposal=proposal).exists():
+            raise exceptions.ValidationError(
+                _(
+                    "There must be at least some resource requests existing before moving to team validation."
+                )
+            )
+
     @decorators.action(detail=True, methods=["post"])
     def switch_to_team_verification(self, request, uuid=None):
         proposal = self.get_object()
@@ -411,7 +420,8 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         return response.Response(status=status.HTTP_200_OK)
 
     switch_to_team_verification_validators = [
-        core_validators.StateValidator(models.Proposal.States.DRAFT)
+        core_validators.StateValidator(models.Proposal.States.DRAFT),
+        validate_resource_requests_existing,
     ]
 
     switch_to_team_verification_permissions = [is_creator]
