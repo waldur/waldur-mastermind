@@ -35,10 +35,6 @@ class CustomerSection(FeatureSection):
         key = "customer"
         description = "Organization workspace"
 
-    category_resources_list = Feature(
-        "Render component usage charts in organization dashboard."
-    )
-
     show_domain = Feature("Allows to hide domain field in organization detail.")
 
     payments_for_staff_only = Feature(
