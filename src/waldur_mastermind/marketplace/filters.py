@@ -74,6 +74,7 @@ class OfferingFilter(structure_filters.NameFilterSet, django_filters.FilterSet):
         field_name="organization_groups__uuid"
     )
     category_uuid = django_filters.UUIDFilter(field_name="category__uuid")
+    category_group_uuid = django_filters.UUIDFilter(field_name="category__group__uuid")
     billable = django_filters.BooleanFilter(widget=BooleanWidget)
     shared = django_filters.BooleanFilter(widget=BooleanWidget)
     description = django_filters.CharFilter(lookup_expr="icontains")
