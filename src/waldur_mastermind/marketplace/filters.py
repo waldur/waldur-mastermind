@@ -679,6 +679,8 @@ class CategoryFilter(django_filters.FilterSet):
         method="filter_customer_uuid", label="Customer UUID"
     )
 
+    group_uuid = django_filters.UUIDFilter(field_name="group__uuid")
+
     title = django_filters.CharFilter(lookup_expr="icontains")
 
     customers_offerings_state = django_filters.MultipleChoiceFilter(
