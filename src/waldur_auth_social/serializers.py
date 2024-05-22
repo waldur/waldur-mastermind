@@ -45,9 +45,6 @@ class IdentityProviderSerializer(serializers.ModelSerializer):
         if provider == models.ProviderChoices.TARA:
             if hostname not in ("tara-test.ria.ee", "tara.ria.ee"):
                 raise ValidationError("Invalid discovery URL.")
-        if provider == models.ProviderChoices.EDUTEAMS:
-            if not hostname.endswith("eduteams.org"):
-                raise ValidationError("Invalid discovery URL.")
         if provider == models.ProviderChoices.KEYCLOAK:
             if hostname.endswith("eduteams.org") or hostname in (
                 "tara-test.ria.ee",
