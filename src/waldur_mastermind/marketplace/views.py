@@ -3480,3 +3480,15 @@ class CustomerCategoriesViewSet(views.APIView):
             return Response(status=status.HTTP_404_NOT_FOUND)
         customer = get_object_or_404(customers, uuid=customer_uuid)
         return Response(utils.get_category_resources_count(customer))
+
+
+class GlobalCategoriesViewSet(views.APIView):
+    """
+    Returns count of resource categories for all projects accessible by user.
+    """
+
+    def get(self, request):
+        projects = filter_queryset_for_user(
+            structure_models.Project.objects.all(), request.user
+        )
+        return Response(utils.get_category_resources_count(projects))
