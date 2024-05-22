@@ -17,7 +17,7 @@ from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage as storage
 from django.db import transaction
-from django.db.models import Count, F, Q, Sum
+from django.db.models import Count, F, Q, QuerySet, Sum
 from django.db.models.fields import FloatField
 from django.db.models.functions.math import Ceil
 from django.utils import timezone
@@ -1510,6 +1510,7 @@ def get_category_resources_count(scope):
         resources = resources.filter(project=scope)
     elif isinstance(scope, structure_models.Customer):
         resources = resources.filter(project__customer=scope)
-
+    elif isinstance(scope, QuerySet) and scope.model == structure_models.Project:
+        resources = resources.filter(project__in=scope)
     resources = resources.values("offering__category__uuid").annotate(count=Count("*"))
     return {row["offering__category__uuid"].hex: row["count"] for row in resources}

@@ -166,4 +166,8 @@ urlpatterns = [
         r"^api/marketplace-customer-categories/(?P<customer_uuid>[a-f0-9]+)/$",
         views.CustomerCategoriesViewSet.as_view(),
     ),
+    re_path(
+        r"^api/marketplace-global-categories/$",
+        views.GlobalCategoriesViewSet.as_view(),
+    ),
 ]
