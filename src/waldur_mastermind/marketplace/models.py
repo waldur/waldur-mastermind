@@ -91,6 +91,13 @@ class ServiceProvider(
             .exists()
         )
 
+    @property
+    def offering_count(self):
+        return Offering.objects.filter(
+            customer=self.customer,
+            state__in=[Offering.States.ACTIVE, Offering.States.PAUSED],
+        ).count()
+
     def generate_api_secret_code(self):
         self.api_secret_code = core_utils.pwgen()
 
