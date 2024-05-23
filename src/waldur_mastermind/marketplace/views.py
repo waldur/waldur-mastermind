@@ -3460,35 +3460,21 @@ class CategoryComponentViewSet(rf_viewsets.ModelViewSet):
     permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
 
 
-class ProjectCategoriesViewSet(views.APIView):
-    def get(self, request, project_uuid):
-        projects = filter_queryset_for_user(
-            structure_models.Project.objects.all(), request.user
-        )
-        if not is_uuid_like(project_uuid):
-            return Response(status=status.HTTP_404_NOT_FOUND)
-        project = get_object_or_404(projects, uuid=project_uuid)
-        return Response(utils.get_category_resources_count(project))
-
-
-class CustomerCategoriesViewSet(views.APIView):
-    def get(self, request, customer_uuid):
-        customers = filter_queryset_for_user(
-            structure_models.Customer.objects.all(), request.user
-        )
-        if not is_uuid_like(customer_uuid):
-            return Response(status=status.HTTP_404_NOT_FOUND)
-        customer = get_object_or_404(customers, uuid=customer_uuid)
-        return Response(utils.get_category_resources_count(customer))
-
-
 class GlobalCategoriesViewSet(views.APIView):
     """
-    Returns count of resource categories for all projects accessible by user.
+    Returns count of resource categories for all resources accessible by user.
     """
 
     def get(self, request):
-        projects = filter_queryset_for_user(
-            structure_models.Project.objects.all(), request.user
+        # We need to reset ordering to avoid extra GROUP BY created field.
+        resources = (
+            models.Resource.objects.all()
+            .order_by()
+            .filter_for_user(request.user)
+            .exclude(state=models.Resource.States.TERMINATED)
+            .values("offering__category__uuid")
+            .annotate(count=Count("*"))
         )
-        return Response(utils.get_category_resources_count(projects))
+        return Response(
+            {row["offering__category__uuid"].hex: row["count"] for row in resources}
+        )
