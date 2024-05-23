@@ -158,15 +158,6 @@ urlpatterns = [
         name="marketplace-public-offering-plan-detail",
     ),
     re_path(
-        r"^api/marketplace-project-categories/(?P<project_uuid>[a-f0-9]+)/$",
-        views.ProjectCategoriesViewSet.as_view(),
-        name="marketplace-runtime-states-list",
-    ),
-    re_path(
-        r"^api/marketplace-customer-categories/(?P<customer_uuid>[a-f0-9]+)/$",
-        views.CustomerCategoriesViewSet.as_view(),
-    ),
-    re_path(
         r"^api/marketplace-global-categories/$",
         views.GlobalCategoriesViewSet.as_view(),
     ),
