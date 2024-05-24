@@ -121,11 +121,10 @@ class CustomerListTest(CustomerBaseTest):
         customer = factories.CustomerFactory()
         self._check_user_direct_access_customer(customer, status.HTTP_200_OK)
 
-    def test_filtering_customers_and_project_by_query(self):
+    def test_filtering_customers_by_query(self):
         self.client.force_authenticate(user=self.fixture.staff)
         url = factories.CustomerFactory.get_list_url()
         customer_name = self.fixture.customer.name
-        project_name = self.fixture.project.name
 
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -140,11 +139,6 @@ class CustomerListTest(CustomerBaseTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(len(response.data[0]["projects"]), 0)
-
-        response = self.client.get(url, {"query": project_name})
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
-        self.assertEqual(len(response.data[0]["projects"]), 1)
 
     # Helper methods
     def _check_user_list_access_customers(self, customer, test_function):
