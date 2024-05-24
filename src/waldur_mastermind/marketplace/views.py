@@ -2531,10 +2531,12 @@ class ResourceOfferingsViewSet(ProjectChoicesViewSet):
     serializer_class = serializers.ResourceOfferingSerializer
 
     def get_queryset(self):
-        project = self.get_project()
+        user = self.request.user
         category = self.get_category()
         offerings = (
-            models.Resource.objects.filter(project=project, offering__category=category)
+            models.Resource.objects.all()
+            .filter_for_user(user)
+            .filter(offering__category=category)
             .exclude(state=models.Resource.States.TERMINATED)
             .values_list("offering_id", flat=True)
         )
