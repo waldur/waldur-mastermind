@@ -77,6 +77,7 @@ createuser waldur
 ``` bash
 psql
 ALTER USER waldur PASSWORD 'waldur';
+ALTER DATABASE waldur OWNER TO waldur;
 ```
 
 ### Then run poetry
