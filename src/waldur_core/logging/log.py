@@ -7,7 +7,7 @@ from celery import current_app
 
 class EventFormatter(logging.Formatter):
     def format_timestamp(self, time):
-        return datetime.datetime.utcfromtimestamp(time).isoformat() + "Z"
+        return datetime.datetime.fromtimestamp(time, datetime.UTC).isoformat() + "Z"
 
     def levelname_to_importance(self, levelname):
         if levelname == "DEBUG":
