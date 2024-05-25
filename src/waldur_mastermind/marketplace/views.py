@@ -2509,14 +2509,8 @@ class ResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
     unlink_permissions = [structure_permissions.is_staff]
 
 
-class ProjectChoicesViewSet(ListAPIView):
-    def get_project(self):
-        project_uuid = self.kwargs["project_uuid"]
-        if not is_uuid_like(project_uuid):
-            return Response(
-                status=status.HTTP_400_BAD_REQUEST, data="Project UUID is invalid."
-            )
-        return get_object_or_404(structure_models.Project, uuid=project_uuid)
+class ResourceOfferingsViewSet(ListAPIView):
+    serializer_class = serializers.ResourceOfferingSerializer
 
     def get_category(self):
         category_uuid = self.kwargs["category_uuid"]
@@ -2525,10 +2519,6 @@ class ProjectChoicesViewSet(ListAPIView):
                 status=status.HTTP_400_BAD_REQUEST, data="Category UUID is invalid."
             )
         return get_object_or_404(models.Category, uuid=category_uuid)
-
-
-class ResourceOfferingsViewSet(ProjectChoicesViewSet):
-    serializer_class = serializers.ResourceOfferingSerializer
 
     def get_queryset(self):
         user = self.request.user
