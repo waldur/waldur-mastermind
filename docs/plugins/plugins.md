@@ -16,13 +16,11 @@ Create a class inherited from
 reflect your app functionality. At least `django_app()`
 should be implemented.
 
-Add an entry point of name `waldur_extensions` to your package
-`setup.py`. Example:
+Add an entry point of name `waldur_extensions` to `pyproject.toml`:
 
-> ``` python
-> entry_points={
->     'waldur_extensions': ('waldur_demo = waldur_demo.extension:DemoExtension',)
-> }
+> ``` toml
+> [tool.poetry.plugins.waldur_extensions]
+> waldur_demo = "waldur_demo.extension:DemoExtension"
 > ```
 
 ## Plugin documentation
