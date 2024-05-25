@@ -52,7 +52,7 @@ class WaldurExtension:
     def _get_extensions(cls):
         """Get a list of available extensions"""
         assemblies = []
-        for waldur_extension in entry_points()["waldur_extensions"]:
+        for waldur_extension in entry_points(group="waldur_extensions"):
             extension_module = waldur_extension.load()
             if inspect.isclass(extension_module) and issubclass(extension_module, cls):
                 if not extension_module.is_assembly():
