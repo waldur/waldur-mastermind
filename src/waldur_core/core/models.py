@@ -369,6 +369,42 @@ class User(
         return self.get_username()
 
 
+class ImpersonatedUser(User):
+    class Meta:
+        proxy = True
+
+    impersonator = None
+
+    @property
+    def impersonator_uuid(self):
+        if self.impersonator:
+            return self.impersonator.uuid.hex
+
+    @property
+    def impersonator_full_name(self):
+        if self.impersonator:
+            username = getattr(self.impersonator, self.USERNAME_FIELD)
+            if self.impersonator.full_name:
+                return username + " / " + self.impersonator.full_name
+            return username
+
+    @property
+    def impersonator_username(self):
+        if self.impersonator:
+            return getattr(self.impersonator, self.USERNAME_FIELD)
+
+    def get_log_fields(self):
+        log_fields = super().get_log_fields()
+        return log_fields + (
+            "impersonator_uuid",
+            "impersonator_full_name",
+            "impersonator_username",
+        )
+
+    def __str__(self):
+        return super().__str__() + f" impersonator: {self.impersonator}"
+
+
 class ChangeEmailRequest(UuidMixin, TimeStampedModel):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     email = models.EmailField()

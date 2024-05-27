@@ -1,3 +1,5 @@
+import logging
+
 import rest_framework.authentication
 from django.conf import settings
 from django.utils import timezone
@@ -6,8 +8,15 @@ from rest_framework import exceptions
 
 import waldur_core.core.middleware
 import waldur_core.logging.middleware
+from waldur_core.core import models
+from waldur_core.core.utils import is_uuid_like
+
+logger = logging.getLogger(__name__)
 
 TOKEN_KEY = settings.WALDUR_CORE.get("TOKEN_KEY", "x-auth-token")
+IMPERSONATED_USER_HEADER = settings.WALDUR_CORE.get(
+    "REQUEST_HEADER_IMPERSONATED_USER_UUID"
+)
 
 
 def can_access_admin_site(user):
@@ -45,7 +54,7 @@ class TokenAuthentication(rest_framework.authentication.TokenAuthentication):
             auth = request.query_params.get(TOKEN_KEY, "")
         return auth
 
-    def authenticate_credentials(self, key):
+    def authenticate_credentials(self, key, impersonated_user_uuid=None):
         model = self.get_model()
         try:
             token = model.objects.select_related("user").get(key=key)
@@ -60,6 +69,19 @@ class TokenAuthentication(rest_framework.authentication.TokenAuthentication):
 
             if token.created < timezone.now() - lifetime:
                 raise exceptions.AuthenticationFailed(_("Token has expired."))
+
+        if impersonated_user_uuid and token.user.is_staff:
+            impersonated_user = models.ImpersonatedUser.objects.filter(
+                uuid=impersonated_user_uuid
+            ).first()
+
+            if impersonated_user:
+                impersonated_user.impersonator = token.user
+                return impersonated_user, token
+            else:
+                logger.warning(
+                    f"Incorrect impersonated user UUID {impersonated_user_uuid}. User not found"
+                )
 
         return token.user, token
 
@@ -83,6 +105,18 @@ class TokenAuthentication(rest_framework.authentication.TokenAuthentication):
                 "Invalid token header. Token string should not contain invalid characters."
             )
             raise exceptions.AuthenticationFailed(msg)
+
+        impersonated_user_uuid = request.META.get(IMPERSONATED_USER_HEADER)
+
+        if impersonated_user_uuid:
+            if is_uuid_like(impersonated_user_uuid):
+                return self.authenticate_credentials(
+                    token, impersonated_user_uuid=impersonated_user_uuid
+                )
+            else:
+                logger.warning(
+                    f"Impersonated user UUID {impersonated_user_uuid} is not correct."
+                )
 
         return self.authenticate_credentials(token)
 
