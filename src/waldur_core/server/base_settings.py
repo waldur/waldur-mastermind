@@ -90,6 +90,7 @@ MIDDLEWARE = (
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "axes.middleware.AxesMiddleware",
+    "waldur_core.server.middleware.ImpersonationMiddleware",
 )
 
 REST_FRAMEWORK = {
