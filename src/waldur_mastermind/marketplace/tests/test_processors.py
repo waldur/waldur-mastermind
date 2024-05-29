@@ -67,3 +67,24 @@ class ProcessorsTest(test.APITransactionTestCase):
 
         self.assertEqual(models.Order.States.ERRED, order.state)
         self.assertEqual(models.Resource.States.ERRED, resource.state)
+
+    def test_set_resource_options(self):
+        user = structure_factories.UserFactory()
+
+        for offering_type in manager.get_offering_types():
+            offering = factories.OfferingFactory(type=offering_type)
+            offering.resource_options = {
+                "options": {"cpu": None, "ram": None},
+                "order": [],
+            }
+            order = factories.OrderFactory(
+                offering=offering,
+                state=models.Order.States.EXECUTING,
+                attributes={"cpu": 1, "storage": 10},
+            )
+            utils.process_order(order, user)
+            order.refresh_from_db()
+
+        self.assertTrue(isinstance(order.resource.options, dict))
+        self.assertFalse("storage" in order.resource.options.keys())
+        self.assertTrue("cpu" in order.resource.options.keys())

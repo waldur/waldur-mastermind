@@ -64,6 +64,18 @@ class AbstractCreateResourceProcessor(BaseOrderProcessor):
         # scope can be a reference to a different object or a string representing
         # unique key of a scoped object, e.g. remote UUID
         resource = self.order.resource
+        resource.options = {}
+
+        for resource_option in self.order.offering.resource_options.get(
+            "options", {}
+        ).keys():
+            if resource_option in self.order.attributes:
+                resource.options[resource_option] = self.order.attributes[
+                    resource_option
+                ]
+
+        resource.save(update_fields=["options"])
+
         scope = self.send_request(user)
         backend_metadata = {}
         endpoints = {}
