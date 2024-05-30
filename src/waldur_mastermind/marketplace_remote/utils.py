@@ -355,9 +355,7 @@ def import_order(remote_order, project, resource, remote_order_uuid):
 
 
 def get_new_order_ids(client, backend_id):
-    remote_orders = client.list_orders(
-        {"resource_uuid": backend_id, "field": ["order_uuid"]}
-    )
+    remote_orders = client.list_orders({"resource_uuid": backend_id, "field": ["uuid"]})
     local_order_ids = set(
         marketplace_models.Order.objects.filter(
             resource__backend_id=backend_id
