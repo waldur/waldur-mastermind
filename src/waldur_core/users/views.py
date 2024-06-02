@@ -163,6 +163,11 @@ class InvitationViewSet(ProtectedViewSet):
 
         replace_email = False
         if invitation.email != request.user.email:
+            if settings.WALDUR_CORE["ENABLE_STRICT_CHECK_ACCEPTING_INVITATION"]:
+                raise ValidationError(
+                    _("User’s email and email of the invitation are not equal.")
+                )
+
             replace_email = bool(request.data.get("replace_email"))
 
         if settings.WALDUR_CORE["INVITATION_DISABLE_MULTIPLE_ROLES"]:

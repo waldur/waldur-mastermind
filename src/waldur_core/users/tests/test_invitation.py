@@ -814,6 +814,19 @@ class InvitationAcceptTest(BaseInvitationTest):
         self.user.refresh_from_db()
         self.assertEqual(self.user.email, invitation.email)
 
+    @override_waldur_core_settings(ENABLE_STRICT_CHECK_ACCEPTING_INVITATION=True)
+    def test_user_can_not_accept_invitation_if_emails_are_not_equal(self):
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post(
+            factories.ProjectInvitationFactory.get_url(
+                self.project_invitation, action="accept"
+            )
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.project_invitation.refresh_from_db()
+        self.assertEqual(self.project_invitation.state, models.Invitation.State.PENDING)
+
 
 class InvitationApproveTest(BaseInvitationTest):
     def test_anonymous_user_can_approve_requested_invitation(self):
