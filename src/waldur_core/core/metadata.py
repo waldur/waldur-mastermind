@@ -152,6 +152,11 @@ class WaldurCore(BaseModel):
         False,
         description="Do not allow user to grant multiple roles in the same project or organization using invitation.",
     )
+    ENABLE_STRICT_CHECK_ACCEPTING_INVITATION = Field(
+        False,
+        description="If this is true and user email is pre-validated then accepting invitation to only do that if "
+        "user’s email and email of the invitation fully match.",
+    )
     PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS: list[str] = Field(
         [],
         description="List of authentication methods which are not allowed to update user details.",
