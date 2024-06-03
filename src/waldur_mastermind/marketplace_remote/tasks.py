@@ -373,6 +373,12 @@ class OrderPullTask(BackgroundPullTask):
 
         pull_fields(("error_message",), local_order, remote_order)
 
+    def set_instance_erred(self, instance: models.Order, error_message):
+        """Mark order as erred and save error message"""
+        instance.set_state_erred()
+        instance.error_message = error_message
+        instance.save(update_fields=["state", "error_message"])
+
 
 class OrderStatePullTask(OrderPullTask):
     def pull(self, local_order):
@@ -391,6 +397,67 @@ class OrderListPullTask(BackgroundListPullTask):
             models.Order.objects.filter(offering__type=PLUGIN_NAME)
             .exclude(state__in=models.Order.States.TERMINAL_STATES)
             .exclude(backend_id="")
+        )
+
+
+class ErredOrderPullTask(OrderPullTask):
+    """Synchronises state for an erred local order and a linked resource.
+
+    If a local order with UPDATE or TERMINATE type has a link to a remote order with a valid state,
+    the state of local objects are adjusted accordingly.
+    Valid states for a remote order: PENDING_CONSUMER, PENDING_PROVIDER and EXECUTING.
+    """
+
+    def pull(self, local_order: models.Order):
+        if not local_order.backend_id:
+            return
+        client = get_client_for_offering(local_order.offering)
+        remote_order = client.get_order(local_order.backend_id)
+        local_resource: models.Resource = local_order.resource
+
+        if remote_order["state"] != local_order.get_state_display():
+            new_state = OrderInvertStates[remote_order["state"]]
+            if new_state in [
+                models.Order.States.PENDING_CONSUMER,
+                models.Order.States.PENDING_PROVIDER,
+                models.Order.States.EXECUTING,
+            ]:
+                logger.info(
+                    "Erred order %s: remote state is %s, updating local one.",
+                    local_order,
+                    remote_order["state"],
+                )
+                local_order.state = new_state
+                local_order.save(update_fields=["state"])
+
+                if local_order.type == models.Order.Types.UPDATE:
+                    local_resource.set_state_updating()
+                if local_order.type == models.Order.Types.TERMINATE:
+                    local_resource.set_state_terminating()
+
+                local_resource.save(update_fields=["state"])
+
+        backend_id = remote_order.get("marketplace_resource_uuid")
+        if backend_id and local_resource.backend_id != backend_id:
+            local_resource.backend_id = backend_id
+            local_resource.save(update_fields=["backend_id"])
+
+        pull_fields(("error_message",), local_order, remote_order)
+
+
+class ErredOrderListPullTask(BackgroundListPullTask):
+    name = "waldur_mastermind.marketplace_remote.pull_erred_orders"
+    pull_task = ErredOrderPullTask
+
+    def get_pulled_objects(self):
+        return (
+            models.Order.objects.filter(offering__type=PLUGIN_NAME)
+            .exclude(backend_id="")
+            .filter(
+                state=models.Order.States.ERRED,
+                type__in=[models.Order.Types.UPDATE, models.Order.Types.TERMINATE],
+                created__month=timezone.now().month,
+            )
         )
 
 

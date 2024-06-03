@@ -47,6 +47,11 @@ class MarketplaceRemoteExtension(WaldurExtension):
                 "schedule": timedelta(minutes=60),
                 "args": (),
             },
+            "waldur-remote-pull-erred-orders": {
+                "task": "waldur_mastermind.marketplace_remote.pull_erred_orders",
+                "schedule": timedelta(days=1),
+                "args": (),
+            },
             "waldur-remote-pull-usage": {
                 "task": "waldur_mastermind.marketplace_remote.pull_usage",
                 "schedule": timedelta(minutes=60),
