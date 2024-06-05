@@ -45,8 +45,7 @@ class RoundGetTest(test.APITransactionTestCase):
 
     @data(
         "staff",
-        "owner",
-        "customer_support",
+        "call_manager",
     )
     def test_round_should_be_visible(self, user):
         user = getattr(self.fixture, user)
@@ -55,7 +54,11 @@ class RoundGetTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(len(response.json()))
 
-    @data("user")
+    @data(
+        "user",
+        "owner",
+        "customer_support",
+    )
     def test_round_should_not_be_visible(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
@@ -75,8 +78,7 @@ class RoundCreateTest(test.APITransactionTestCase):
 
     @data(
         "staff",
-        "owner",
-        "customer_support",
+        "call_manager",
     )
     def test_user_can_add_round_to_call(self, user):
         response = self.create_round(user)
@@ -85,7 +87,11 @@ class RoundCreateTest(test.APITransactionTestCase):
             models.Round.objects.filter(uuid=response.data["uuid"]).exists()
         )
 
-    @data("user")
+    @data(
+        "user",
+        "owner",
+        "customer_support",
+    )
     def test_user_can_not_add_offering_to_call(self, user):
         response = self.create_round(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
@@ -168,8 +174,7 @@ class RoundUpdateTest(test.APITransactionTestCase):
 
     @data(
         "staff",
-        "owner",
-        "customer_support",
+        "call_manager",
     )
     def test_user_can_update_round(self, user):
         response = self.update_round(user)
@@ -177,6 +182,8 @@ class RoundUpdateTest(test.APITransactionTestCase):
 
     @data(
         "user",
+        "owner",
+        "customer_support",
     )
     def test_user_can_not_update_round(self, user):
         response = self.update_round(user)
@@ -206,14 +213,17 @@ class RoundDeleteTest(test.APITransactionTestCase):
 
     @data(
         "staff",
-        "owner",
-        "customer_support",
+        "call_manager",
     )
     def test_user_can_delete_round(self, user):
         response = self.delete_round(user)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
-    @data("user")
+    @data(
+        "user",
+        "owner",
+        "customer_support",
+    )
     def test_user_can_not_delete_round(self, user):
         response = self.delete_round(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
@@ -222,3 +232,44 @@ class RoundDeleteTest(test.APITransactionTestCase):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         return self.client.delete(self.url)
+
+
+@ddt
+class RoundCloseTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.round = self.fixture.new_round
+        self.round.minimum_number_of_reviewers = 1
+        self.round.save()
+        self.url = factories.RoundFactory.get_url(
+            self.fixture.call, self.round, "close"
+        )
+        self.proposal = factories.ProposalFactory(
+            round=self.round,
+            state=models.Proposal.States.SUBMITTED,
+            project=self.fixture.proposal_project,
+        )
+
+    @data(
+        "staff",
+        "call_manager",
+    )
+    def test_user_can_close_round(self, user):
+        self.assertEqual(self.proposal.review_set.count(), 0)
+        response = self.close_round(user)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self.proposal.review_set.count(), 1)
+
+    @data(
+        "user",
+        "owner",
+        "customer_support",
+    )
+    def test_user_can_not_close_round(self, user):
+        response = self.close_round(user)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def close_round(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        return self.client.post(self.url)

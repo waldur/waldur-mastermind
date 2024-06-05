@@ -213,3 +213,44 @@ def get_delete_permission(model_class):
 
 def get_update_permission(model_class):
     return enums.UPDATE_PERMISSIONS.get(model_class._meta.model_name)
+
+
+def queryset_factory(model, role, path=None, ordering=None, created_by=False):
+    ordering = ordering or []
+
+    if not path:
+        path_list = []
+        path = "id"
+    else:
+        path_list = path.split(".")
+        path = path.replace(".", "__")
+
+    def get_queryset(view):
+        user = view.request.user
+
+        if user.is_staff:
+            return model.objects.all()
+
+        related_model = model
+
+        for p in path_list:
+            related_model = getattr(related_model, p).field.related_model
+
+        related_model_ids = get_scope_ids(
+            user,
+            content_type=ContentType.objects.get_for_model(related_model),
+            role=role,
+        )
+
+        query = {path + "__in": related_model_ids}
+
+        if created_by:
+            return (
+                model.objects.filter(Q(**query) | Q(created_by=user))
+                .distinct()
+                .order_by(*ordering)
+            )
+        else:
+            return model.objects.filter(**query).distinct().order_by(*ordering)
+
+    return get_queryset

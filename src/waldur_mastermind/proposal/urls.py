@@ -79,3 +79,11 @@ urlpatterns += [
     )
     for action in ["resource"]
 ]
+
+urlpatterns += [
+    re_path(
+        r"^api/proposal-protected-calls/(?P<uuid>[a-f0-9]+)/rounds/(?P<obj_uuid>[a-f0-9]+)/close/$",
+        views.ProtectedCallViewSet.as_view({"post": "close_round"}),
+        name="proposal-call-close_round",
+    )
+]

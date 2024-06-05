@@ -127,13 +127,23 @@ class RoundFactory(
     cutoff_time = datetime.date.today() + datetime.timedelta(days=10)
 
     @classmethod
-    def get_url(cls, call=None, call_round=None):
+    def get_url(cls, call=None, call_round=None, action=None):
         if call_round is None:
             call_round = RoundFactory()
         return (
-            CallFactory.get_protected_url(call, action="rounds")
-            + call_round.uuid.hex
-            + "/"
+            (
+                CallFactory.get_protected_url(call, action="rounds")
+                + call_round.uuid.hex
+                + "/"
+            )
+            if not action
+            else (
+                CallFactory.get_protected_url(call, action="rounds")
+                + call_round.uuid.hex
+                + "/"
+                + action
+                + "/"
+            )
         )
 
     @classmethod

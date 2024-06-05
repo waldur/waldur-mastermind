@@ -53,14 +53,22 @@ class ManualAllocateTest(test.APITransactionTestCase):
 
     @data(
         "proposal_creator",
-        "owner",
-        "customer_support",
     )
     def test_user_can_not_allocate_proposal(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         response = self.client.post(self.allocate_url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @data(
+        "owner",
+        "customer_support",
+    )
+    def test_customer_user_can_not_allocate_proposal(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.post(self.allocate_url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     @data(
         "staff",
@@ -77,8 +85,6 @@ class ManualAllocateTest(test.APITransactionTestCase):
 
     @data(
         "proposal_creator",
-        "owner",
-        "customer_support",
     )
     def test_user_can_not_reject_proposal(self, user):
         user = getattr(self.fixture, user)

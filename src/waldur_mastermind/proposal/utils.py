@@ -72,3 +72,17 @@ def allocate_proposal(proposal: proposal_models.Proposal):
 
             requested_resource.resource = resource
             requested_resource.save()
+
+
+def create_reviews_of_round(call_round):
+    call_round.proposal_set.filter(state=proposal_models.Proposal.States.DRAFT).update(
+        state=proposal_models.Proposal.States.CANCELED
+    )
+
+    for proposal in call_round.proposal_set.filter(
+        state__in=(
+            proposal_models.Proposal.States.SUBMITTED,
+            proposal_models.Proposal.States.IN_REVIEW,
+        )
+    ):
+        process_proposals_pending_reviewers(proposal)
