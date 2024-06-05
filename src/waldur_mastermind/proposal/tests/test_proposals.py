@@ -16,8 +16,7 @@ class ProposalGetTest(test.APITransactionTestCase):
 
     @data(
         "staff",
-        "owner",
-        "customer_support",
+        "call_manager",
         "proposal_creator",
     )
     def test_proposal_should_be_visible(self, user):
@@ -27,7 +26,11 @@ class ProposalGetTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(len(response.json()))
 
-    @data("user")
+    @data(
+        "user",
+        "owner",
+        "customer_support",
+    )
     def test_proposal_should_not_be_visible(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
@@ -47,6 +50,7 @@ class ProposalCreateTest(test.APITransactionTestCase):
         "owner",
         "customer_support",
         "user",
+        "call_manager",
     )
     def test_user_can_add_proposal(self, user):
         response = self.create_proposal(user)
@@ -97,25 +101,19 @@ class UpdateProposalProjectDetailsTest(test.APITransactionTestCase):
 
     @data(
         "user",
+        "owner",
+        "customer_support",
     )
     def test_user_can_not_update_proposal(self, user):
         response = self.update_proposal(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-
-    @data(
-        "owner",
-        "customer_support",
-    )
-    def test_customer_user_can_not_update_proposal(self, user):
-        response = self.update_proposal(user)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def _upload_proposal_document(self):
         url = factories.ProposalFactory.get_url(self.proposal, action="attach_document")
         payload = {"file": dummy_image()}
         return self.client.post(url, payload, format="multipart")
 
-    @data("staff", "owner", "customer_support")
+    @data("staff", "call_manager")
     def test_upload_documents(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
@@ -168,7 +166,7 @@ class ProposalDeleteTest(test.APITransactionTestCase):
     )
     def test_customer_user_can_not_delete(self, user):
         response = self.delete_proposal(user)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     @data("user")
     def test_user_can_not_delete(self, user):
@@ -213,7 +211,7 @@ class ActionTest(test.APITransactionTestCase):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         response = self.client.post(self.url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
 @ddt
@@ -247,7 +245,7 @@ class ActionSwitchToTeamVerificationTest(test.APITransactionTestCase):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         response = self.client.post(self.url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def test_validate_switch_to_team_verification(self):
         proposal = factories.ProposalFactory()
@@ -280,15 +278,23 @@ class ForceApproveTest(test.APITransactionTestCase):
         self.assertTrue(self.proposal.state, models.Proposal.States.ACCEPTED)
 
     @data(
-        "customer_support",
         "proposal_creator",
-        "owner",
     )
     def test_user_can_not_submit_proposal(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @data(
+        "customer_support",
+        "owner",
+    )
+    def test_customer_user_can_not_submit_proposal(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
 @ddt
@@ -301,8 +307,7 @@ class RequestedResourceGetTest(test.APITransactionTestCase):
 
     @data(
         "staff",
-        "owner",
-        "customer_support",
+        "call_manager",
     )
     def test_requested_resource_should_be_visible(self, user):
         user = getattr(self.fixture, user)
@@ -311,7 +316,11 @@ class RequestedResourceGetTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(len(response.json()))
 
-    @data("user")
+    @data(
+        "user",
+        "owner",
+        "customer_support",
+    )
     def test_call_should_not_be_visible(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
@@ -330,8 +339,7 @@ class RequestedResourceCreateTest(test.APITransactionTestCase):
 
     @data(
         "staff",
-        "owner",
-        "customer_support",
+        "call_manager",
     )
     def test_user_can_add_resource_to_proposal(self, user):
         response = self.add_resource(user)
@@ -340,15 +348,17 @@ class RequestedResourceCreateTest(test.APITransactionTestCase):
             models.RequestedResource.objects.filter(uuid=response.data["uuid"]).exists()
         )
 
-    @data("user")
+    @data(
+        "user",
+        "owner",
+        "customer_support",
+    )
     def test_user_can_not_add_resource_to_proposal(self, user):
         response = self.add_resource(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     @data(
         "staff",
-        "owner",
-        "customer_support",
     )
     def test_user_can_not_add_resource_to_not_draft_proposal(self, user):
         self.proposal.state = models.Proposal.States.IN_REVIEW
@@ -358,8 +368,6 @@ class RequestedResourceCreateTest(test.APITransactionTestCase):
 
     @data(
         "staff",
-        "owner",
-        "customer_support",
     )
     def test_user_can_not_add_if_requested_offering_is_not_accepted(self, user):
         user = getattr(self.fixture, user)
@@ -391,22 +399,23 @@ class RequestedResourceUpdateTest(test.APITransactionTestCase):
 
     @data(
         "staff",
-        "owner",
-        "customer_support",
+        "call_manager",
     )
     def test_user_can_update_requested_resource(self, user):
         response = self.update_requested_resource(user)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    @data("user")
+    @data(
+        "user",
+        "owner",
+        "customer_support",
+    )
     def test_user_can_not_update_requested_resource(self, user):
         response = self.update_requested_resource(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     @data(
         "staff",
-        "owner",
-        "customer_support",
     )
     def test_user_can_not_update_not_draft_requested_resource(self, user):
         self.proposal.state = models.Proposal.States.IN_REVIEW
@@ -439,28 +448,39 @@ class RequestedResourceDeleteTest(test.APITransactionTestCase):
 
     @data(
         "staff",
-        "owner",
-        "customer_support",
+        "call_manager",
     )
     def test_user_can_delete_requested_resource(self, user):
         response = self.delete_requested_resource(user)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
-    @data("user")
+    @data(
+        "user",
+        "owner",
+        "customer_support",
+    )
     def test_user_can_not_delete_requested_resource(self, user):
         response = self.delete_requested_resource(user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     @data(
         "staff",
-        "owner",
-        "customer_support",
     )
     def test_user_can_not_delete_not_draft_requested_resource(self, user):
         self.proposal.state = models.Proposal.States.IN_REVIEW
         self.proposal.save()
         response = self.delete_requested_resource(user)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    @data(
+        "owner",
+        "customer_support",
+    )
+    def test_customer_user_can_not_delete_not_draft_requested_resource(self, user):
+        self.proposal.state = models.Proposal.States.IN_REVIEW
+        self.proposal.save()
+        response = self.delete_requested_resource(user)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     def delete_requested_resource(self, user):
         user = getattr(self.fixture, user)

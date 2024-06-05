@@ -28,6 +28,16 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
             permission=enums.PermissionEnum.APPROVE_AND_REJECT_PROPOSALS,
         )
 
+        permissions_models.RolePermission.objects.get_or_create(
+            role=CallRole.MANAGER,
+            permission=enums.PermissionEnum.CLOSE_ROUNDS,
+        )
+
+        permissions_models.RolePermission.objects.get_or_create(
+            role=CallRole.MANAGER,
+            permission=enums.PermissionEnum.CREATE_CALL_PERMISSION,
+        )
+
     @cached_property
     def manager(self):
         return proposal_factories.CallManagingOrganisationFactory(
@@ -162,4 +172,5 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
         user = structure_factories.UserFactory()
         role = CallRole.MANAGER
         permissions_utils.add_user(self.call, user, role)
+        permissions_utils.add_user(self.manager, user, role)
         return user

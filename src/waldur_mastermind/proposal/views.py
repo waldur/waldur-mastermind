@@ -2,7 +2,6 @@ import logging
 from datetime import datetime, timedelta
 
 from django.contrib import auth
-from django.contrib.contenttypes.models import ContentType
 from django.db.models import OuterRef, Q
 from django.db.models.functions import Coalesce
 from django.utils import timezone as timezone
@@ -21,7 +20,7 @@ from waldur_core.core.views import (
 )
 from waldur_core.permissions import utils as permissions_utils
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
-from waldur_core.permissions.utils import has_permission, permission_factory
+from waldur_core.permissions.utils import permission_factory
 from waldur_core.permissions.views import UserRoleMixin
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
@@ -133,11 +132,14 @@ class PublicCallViewSet(viewsets.ReadOnlyModelViewSet):
 
 class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     lookup_field = "uuid"
-    queryset = models.Call.objects.all().order_by("created")
     serializer_class = serializers.ProtectedCallSerializer
     filterset_class = filters.CallFilter
-    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    filter_backends = []
     destroy_validators = [core_validators.StateValidator(models.Call.States.DRAFT)]
+
+    get_queryset = permissions_utils.queryset_factory(
+        models.Call, RoleEnum.CALL_MANAGER, ordering=["created"]
+    )
 
     @decorators.action(detail=True, methods=["get", "post"])
     def offerings(self, request, uuid=None):
@@ -283,6 +285,34 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
 
     round_detail_serializer_class = serializers.ProtectedRoundSerializer
 
+    def close_round(self, request, uuid=None, obj_uuid=None):
+        call = self.get_object()
+
+        try:
+            call_round = call.round_set.get(uuid=obj_uuid)
+        except models.Round.DoesNotExist:
+            return response.Response(status=status.HTTP_404_NOT_FOUND)
+
+        permissions_utils.permission_factory(PermissionEnum.CLOSE_ROUNDS, "*")(
+            request, self, call
+        )
+
+        if call_round.call.state != models.Call.States.ACTIVE:
+            raise exceptions.ValidationError(_("Call is not active."))
+
+        if call_round.start_time > timezone.now():
+            call_round.start_time = timezone.now()
+
+        if call_round.cutoff_time < timezone.now():
+            call_round.cutoff_time = timezone.now()
+
+        utils.create_reviews_of_round(call_round)
+
+        return response.Response(
+            "Round has been closed.",
+            status=status.HTTP_200_OK,
+        )
+
     @decorators.action(detail=True, methods=["post"])
     def attach_documents(self, request, uuid=None):
         instance = self.get_object()
@@ -339,23 +369,9 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     disabled_actions = ["update", "partial_update"]
     model = models.Proposal
 
-    def get_queryset(self):
-        user = self.request.user
-
-        if user.is_staff:
-            return models.Proposal.objects.all()
-
-        call_ids = permissions_utils.get_scope_ids(
-            user,
-            content_type=ContentType.objects.get_for_model(models.Call),
-            role=RoleEnum.CALL_MANAGER,
-        )
-
-        return models.Proposal.objects.filter(
-            Q(round__call__manager__customer__in=get_connected_customers(user))
-            | Q(created_by=user)
-            | Q(round__call__in=call_ids)
-        ).distinct()
+    get_queryset = permissions_utils.queryset_factory(
+        models.Proposal, RoleEnum.CALL_MANAGER, "round.call", created_by=True
+    )
 
     def is_creator(request, view, obj=None):
         if not obj:
@@ -363,25 +379,6 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         user = request.user
         if obj.created_by == user or user.is_staff:
             return
-        raise exceptions.PermissionDenied()
-
-    def is_call_manager(request, view, obj=None):
-        if not obj:
-            return
-
-        proposal = obj
-        user = request.user
-
-        if (
-            has_permission(
-                request,
-                PermissionEnum.APPROVE_AND_REJECT_PROPOSALS,
-                proposal.round.call,
-            )
-            or user.is_staff
-        ):
-            return
-
         raise exceptions.PermissionDenied()
 
     destroy_permissions = update_project_details_permissions = [is_creator]
@@ -568,7 +565,9 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         )
     ]
 
-    force_approve_permissions = [is_call_manager]
+    force_approve_permissions = [
+        permission_factory(PermissionEnum.APPROVE_AND_REJECT_PROPOSALS, ["round.call"])
+    ]
 
 
 class ReviewViewSet(ActionsViewSet):
@@ -726,22 +725,9 @@ class RoundViewSet(ReadOnlyActionsViewSet):
     filterset_class = []
     filter_backends = (DjangoFilterBackend,)
 
-    def get_queryset(self):
-        user = self.request.user
-
-        if user.is_staff:
-            return models.Round.objects.all()
-
-        call_ids = permissions_utils.get_scope_ids(
-            user,
-            content_type=ContentType.objects.get_for_model(models.Call),
-            role=RoleEnum.CALL_MANAGER,
-        )
-
-        return models.Round.objects.filter(
-            Q(call__manager__customer__in=get_connected_customers(user))
-            | Q(call__in=call_ids)
-        ).distinct()
+    get_queryset = permissions_utils.queryset_factory(
+        models.Round, RoleEnum.CALL_MANAGER, "call"
+    )
 
     @decorators.action(detail=True)
     def reviewers(self, request, uuid=None):

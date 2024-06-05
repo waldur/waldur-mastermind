@@ -14,6 +14,8 @@ from waldur_core.media.serializers import (
     ProtectedImageField,
     ProtectedMediaSerializerMixin,
 )
+from waldur_core.permissions import enums as permissions_enums
+from waldur_core.permissions import utils as permissions_utils
 from waldur_core.permissions.models import Role
 from waldur_core.structure.models import Project
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -655,7 +657,13 @@ class ProtectedCallSerializer(PublicCallSerializer):
     def validate_manager(self, manager: models.CallManagingOrganisation):
         user = self.context["request"].user
 
-        if manager and not user.is_staff and not manager.customer.has_user(user):
+        if (
+            manager
+            and not user.is_staff
+            and not permissions_utils.has_permission(
+                user, permissions_enums.PermissionEnum.CREATE_CALL_PERMISSION, manager
+            )
+        ):
             raise serializers.ValidationError(
                 "Current user does not belong to the selected organisation."
             )
@@ -812,6 +820,12 @@ class ProposalSerializer(
 
         if call_round.call.state != models.Call.States.ACTIVE:
             raise serializers.ValidationError(_("Call is not active."))
+
+        if call_round.status not in (
+            models.Round.Statuses.SCHEDULED,
+            models.Round.Statuses.OPEN,
+        ):
+            raise serializers.ValidationError(_("Round is not active."))
 
         attrs["round"] = call_round
         return attrs

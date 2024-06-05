@@ -17,17 +17,7 @@ def create_reviews_if_strategy_is_after_round():
     )
 
     for r in rounds:
-        r.proposal_set.filter(state=proposal_models.Proposal.States.DRAFT).update(
-            state=proposal_models.Proposal.States.CANCELED
-        )
-
-        for proposal in r.proposal_set.filter(
-            state__in=(
-                proposal_models.Proposal.States.SUBMITTED,
-                proposal_models.Proposal.States.IN_REVIEW,
-            )
-        ):
-            utils.process_proposals_pending_reviewers(proposal)
+        utils.create_reviews_of_round(r)
 
 
 @shared_task(
