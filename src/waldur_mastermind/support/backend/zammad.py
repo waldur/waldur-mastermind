@@ -178,9 +178,6 @@ class ZammadServiceBackend(SupportBackend):
             attachment.delete()
             logger.info("Attachment %s has been deleted.", attachment.id)
 
-    def create_confirmation_comment(self, issue):
-        pass
-
     @reraise_exceptions()
     def create_comment(self, comment):
         """Create Zammad comment"""
