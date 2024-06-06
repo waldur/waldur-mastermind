@@ -129,3 +129,9 @@ class SupportBackend:
 
     def get_issue_details(self, *args, **kwargs):
         return {}
+
+    def create_issue_links(self, issue, linked_issues):
+        return
+
+    def create_confirmation_comment(self, issue, comment_tmpl=""):
+        return
