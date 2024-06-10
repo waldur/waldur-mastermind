@@ -22,6 +22,7 @@ from waldur_mastermind.marketplace.tests import factories as marketplace_factori
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
 from waldur_mastermind.marketplace_support.utils import get_order_issue
 from waldur_mastermind.support import models as support_models
+from waldur_mastermind.support.backend import SupportBackend
 from waldur_mastermind.support.log import IssueEventLogger
 from waldur_mastermind.support.tests import factories as support_factories
 from waldur_mastermind.support.tests.base import BaseTest
@@ -662,3 +663,35 @@ class IssueLogTest(test.APITransactionTestCase):
         logger = IssueEventLogger
         scope = logger.get_scopes({"issue": issue})
         self.assertTrue(order.project in scope)
+
+
+class ProcessingTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.url = marketplace_factories.OrderFactory.get_list_url()
+        self.offering = marketplace_factories.OfferingFactory(
+            type=PLUGIN_NAME, options={"order": []}
+        )
+        mock_patch = mock.patch("waldur_mastermind.support.backend.get_active_backend")
+        self.mock_get_active_backend = mock_patch.start()
+        self.mock_get_active_backend.return_value = SupportBackend()
+
+    def tearDown(self):
+        mock.patch.stopall()
+
+    def test_order_state_stays_executing_after_issue_creation(self):
+        order = marketplace_factories.OrderFactory(
+            offering=self.offering,
+            attributes={"name": "item_name", "description": "Description"},
+            state=marketplace_models.Order.States.EXECUTING,
+        )
+        marketplace_utils.process_order(order, self.fixture.staff)
+        order.refresh_from_db()
+        # Order state will be "Done" after issue resolving.
+        self.assertEqual(order.state, marketplace_models.Order.States.EXECUTING)
+        self.assertTrue(
+            marketplace_models.Resource.objects.filter(name="item_name").exists()
+        )
+        self.assertTrue(
+            support_models.Issue.objects.filter(resource_object_id=order.id).exists()
+        )
