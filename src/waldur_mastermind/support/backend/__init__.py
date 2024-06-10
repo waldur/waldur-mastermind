@@ -48,28 +48,28 @@ class SupportBackend:
     message_format = SupportedFormat.TEXT
 
     def create_issue(self, issue):
-        raise NotImplementedError
+        return
 
     def update_issue(self, issue):
-        raise NotImplementedError
+        return
 
     def delete_issue(self, issue):
-        raise NotImplementedError
+        return
 
     def create_comment(self, comment):
-        raise NotImplementedError
+        return
 
     def update_comment(self, comment):
-        raise NotImplementedError
+        return
 
     def delete_comment(self, comment):
-        raise NotImplementedError
+        return
 
     def create_attachment(self, attachment):
-        raise NotImplementedError
+        return
 
     def delete_attachment(self, attachment):
-        raise NotImplementedError
+        return
 
     def get_users(self):
         """
@@ -77,13 +77,13 @@ class SupportBackend:
 
         Each user should be represented as not saved SupportUser instance.
         """
-        raise NotImplementedError
+        return
 
     def pull_priorities(self):
         """
         This method should pull priorities from backend and to the local database.
         """
-        raise NotImplementedError
+        return
 
     def update_is_available(self, issue=None):
         return False
@@ -107,7 +107,7 @@ class SupportBackend:
         return True
 
     def pull_support_users(self):
-        raise NotImplementedError
+        return
 
     def get_confirmation_comment_template(self, issue_type):
         try:
