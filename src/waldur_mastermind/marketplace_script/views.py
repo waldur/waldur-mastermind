@@ -114,6 +114,7 @@ class DryRunView(ActionsViewSet):
         resource.init_cost()
         resource.save()
         order = marketplace_models.Order(**serializer.validated_data)
+        order.state = marketplace_models.Order.States.EXECUTING
         order.offering = offering
         order.resource = resource
         order_type = DryRunTypes.get_type_display(order.type)
