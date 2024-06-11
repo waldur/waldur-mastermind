@@ -339,6 +339,7 @@ class PublicCallSerializer(
 ):
     state = serializers.ReadOnlyField()
     customer_name = serializers.ReadOnlyField(source="manager.customer.name")
+    customer_uuid = serializers.ReadOnlyField(source="manager.customer.uuid")
     offerings = serializers.SerializerMethodField(method_name="get_offerings")
     rounds = serializers.SerializerMethodField()
     start_date = serializers.SerializerMethodField()
@@ -358,6 +359,7 @@ class PublicCallSerializer(
             "state",
             "manager",
             "customer_name",
+            "customer_uuid",
             "offerings",
             "rounds",
             "documents",
