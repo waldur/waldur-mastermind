@@ -106,6 +106,9 @@ Run migration test:
     - gitlab-ci-test/waldur-test MIGRATIONS
 
 Try building docker image:
+  image:
+    name: "gcr.io/kaniko-project/executor:debug"
+    entrypoint: [""]
   stage: test
   interruptible: true
   rules:
@@ -116,14 +119,17 @@ Try building docker image:
       changes:
         - Dockerfile
         - docker/**/*
-  services:
-    - name: "registry.hpc.ut.ee/iljatest/docker:24.0.6-dind"
-      alias: docker
-      command: ["--mtu=1400"]
+        # TODO: drop after testing
+        - .gitlab-ci.yml
   variables:
     DOCKER_REGISTRY: registry.hpc.ut.ee/mirror/
   script:
-    - docker build -t waldur-mastermind:$CI_COMMIT_REF_SLUG .
+    - /kaniko/executor
+      --context "${CI_PROJECT_DIR}"
+      --dockerfile "${CI_PROJECT_DIR}/Dockerfile"
+      --build-arg DOCKER_REGISTRY=$DOCKER_REGISTRY
+      --destination "waldur-mastermind:$CI_COMMIT_REF_SLUG"
+      --no-push
 
 Build docker image for tests:
   stage: build
@@ -143,6 +149,17 @@ Build docker image for tests:
     - echo "$WALDUR_DOCKER_HUB_PASSWORD" | docker login -u "$WALDUR_DOCKER_HUB_USER" --password-stdin
     - docker build . -f gitlab-ci-test/Dockerfile -t $WALDUR_MASTERMIND_TEST_IMAGE --build-arg DOCKER_REGISTRY=$DOCKER_REGISTRY
     - docker push $WALDUR_MASTERMIND_TEST_IMAGE
+
+Publish latest docker image:
+  before_script:
+    - echo '[+] Build and publish latest docker image'
+    - echo $CI_COMMIT_SHA > docker/rootfs/COMMIT_SHA
+
+Publish docker image with specific version:
+  before_script:
+    - echo "[+] Build and publish $CI_COMMIT_TAG docker image"
+    - echo $CI_COMMIT_TAG > docker/rootfs/COMMIT_TAG
+    - sed -i "s/version = \"0.0.0\"/version = \"$CI_COMMIT_TAG\"/" pyproject.toml
 
 Lint docker image:
   extends: .Lint docker image template
