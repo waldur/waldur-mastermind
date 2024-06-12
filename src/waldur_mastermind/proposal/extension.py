@@ -37,4 +37,9 @@ class ProposalExtension(WaldurExtension):
                 "schedule": timedelta(hours=1),
                 "args": (),
             },
+            "proposals-for-ended-rounds-should-be-cancelled": {
+                "task": "waldur_mastermind.proposal.proposals_for_ended_rounds_should_be_cancelled",
+                "schedule": timedelta(hours=1),
+                "args": (),
+            },
         }
