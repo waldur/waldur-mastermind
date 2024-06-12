@@ -10,6 +10,7 @@ class ProposalLogger(EventLogger):
         event_types = (
             "proposal_document_added",
             "proposal_document_removed",
+            "proposal_canceled",
         )
         event_groups = {
             "proposal": event_types,

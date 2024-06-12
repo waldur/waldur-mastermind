@@ -1,8 +1,10 @@
+import datetime
+
 from ddt import data, ddt
 from rest_framework import status, test
 
 from waldur_core.media.utils import dummy_image
-from waldur_mastermind.proposal import models
+from waldur_mastermind.proposal import models, tasks
 from waldur_mastermind.proposal.tests import fixtures
 
 from . import factories
@@ -486,3 +488,29 @@ class RequestedResourceDeleteTest(test.APITransactionTestCase):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         return self.client.delete(self.url)
+
+
+class TaskTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.proposal = self.fixture.proposal
+        self.proposal.state = models.Proposal.States.TEAM_VERIFICATION
+        self.proposal.save()
+        self.round = self.fixture.round
+
+    def test_proposals_for_ended_rounds_should_be_cancelled(self):
+        self.round.cutoff_time = datetime.datetime.now() + datetime.timedelta(days=1)
+        self.round.save()
+        tasks.proposals_for_ended_rounds_should_be_cancelled()
+        self.proposal.refresh_from_db()
+        self.assertEqual(self.proposal.state, models.Proposal.States.TEAM_VERIFICATION)
+
+        self.round.cutoff_time = datetime.datetime.now() - datetime.timedelta(days=1)
+        self.round.save()
+        tasks.proposals_for_ended_rounds_should_be_cancelled()
+        self.proposal.refresh_from_db()
+        self.assertEqual(self.proposal.state, models.Proposal.States.CANCELED)
+
+        from waldur_core.logging.models import Event
+
+        self.assertTrue(Event.objects.filter(event_type="proposal_canceled").exists())
