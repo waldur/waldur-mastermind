@@ -132,7 +132,9 @@ class TimestampField(serializers.Field):
             )
 
 
-COUNTRIES = [(country.alpha_2, country.name) for country in pycountry.countries]
+COUNTRIES = [(country.alpha_2, country.name) for country in pycountry.countries] + [
+    ("EU", "European Union")
+]
 COUNTRIES_DICT = dict(COUNTRIES)
 
 
