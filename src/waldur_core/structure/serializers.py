@@ -20,7 +20,6 @@ from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core.clean_html import clean_html
 from waldur_core.core.fields import MappedChoiceField
-from waldur_core.core.utils import is_uuid_like
 from waldur_core.media.serializers import ProtectedMediaSerializerMixin
 from waldur_core.permissions.enums import SYSTEM_CUSTOMER_ROLES, PermissionEnum
 from waldur_core.permissions.models import UserRole
@@ -236,7 +235,6 @@ class ProjectSerializer(
     serializers.HyperlinkedModelSerializer,
 ):
     resources_count = serializers.SerializerMethodField()
-    role = serializers.SerializerMethodField()
     oecd_fos_2007_label = serializers.ReadOnlyField(
         source="get_oecd_fos_2007_code_display"
     )
@@ -265,7 +263,6 @@ class ProjectSerializer(
             "is_industry",
             "image",
             "resources_count",
-            "role",
         )
         protected_fields = ("end_date_requested_by",)
         extra_kwargs = {
@@ -335,21 +332,6 @@ class ProjectSerializer(
             project=project,
         ).count()
 
-    def get_role(self, project):
-        user_uuid = self.context["request"].GET.get("user_uuid")
-        user = (
-            User.objects.get(uuid=user_uuid)
-            if user_uuid and is_uuid_like(user_uuid)
-            else self.context["request"].user
-        )
-        if user.is_staff:
-            return "staff"
-        if user.is_support:
-            return "support"
-        permission = get_permissions(project, user).first()
-        if permission:
-            return get_old_role_name(permission.role.name)
-
 
 class CountrySerializerMixin(serializers.Serializer):
     COUNTRIES = core_fields.COUNTRIES
@@ -390,7 +372,6 @@ class CustomerSerializer(
     organization_group_type_uuid = serializers.ReadOnlyField(
         source="organization_group.type.uuid"
     )
-    role = serializers.SerializerMethodField()
     projects_count = serializers.SerializerMethodField()
     users_count = serializers.SerializerMethodField()
 
@@ -415,7 +396,6 @@ class CustomerSerializer(
             "archived",
             "default_tax_percent",
             "accounting_start_date",
-            "role",
             "projects_count",
             "users_count",
             "sponsor_number",
@@ -507,22 +487,6 @@ class CustomerSerializer(
                         {"vat_code": _("Unable to check VAT number.")}
                     )
         return attrs
-
-    def get_role(self, customer):
-        user_uuid = self.context["request"].GET.get("user_uuid")
-        user = (
-            User.objects.get(uuid=user_uuid)
-            if user_uuid and is_uuid_like(user_uuid)
-            else self.context["request"].user
-        )
-
-        if user.is_staff:
-            return "staff"
-        if user.is_support:
-            return "support"
-        permission = get_permissions(customer, user).first()
-        if permission:
-            return get_old_role_name(permission.role.name)
 
     def get_projects_count(self, customer):
         return models.Project.available_objects.filter(customer=customer).count()
