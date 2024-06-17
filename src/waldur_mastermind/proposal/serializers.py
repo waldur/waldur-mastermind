@@ -791,6 +791,7 @@ class ProposalSerializer(
             "oecd_fos_2007_code",
             "oecd_fos_2007_label",
             "allocation_comment",
+            "created",
         ]
         read_only_fields = (
             "created_by",

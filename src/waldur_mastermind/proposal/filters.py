@@ -76,7 +76,13 @@ class ProposalFilter(django_filters.FilterSet):
         field_name="round__call__manager__customer__uuid"
     )
     o = django_filters.OrderingFilter(
-        fields=("round__call__name", "round__start_time", "round__cutoff_time", "state")
+        fields=(
+            "round__call__name",
+            "round__start_time",
+            "round__cutoff_time",
+            "state",
+            "created",
+        )
     )
 
     class Meta:
