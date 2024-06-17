@@ -1495,3 +1495,42 @@ class ResourceForceTerminateTest(test.APITransactionTestCase):
         order.refresh_from_db()
         self.resource.refresh_from_db()
         return order.state, self.resource.state
+
+
+@ddt
+class ResourceUpdateOptionsTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = MarketplaceFixture()
+        options = {
+            "email": {
+                "type": "string",
+                "label": "email",
+                "default": "user@example.com",
+                "required": False,
+            }
+        }
+        self.fixture.offering.resource_options = {"options": options}
+        self.fixture.offering.save()
+        self.resource = self.fixture.resource
+        self.url = factories.ResourceFactory.get_url(self.resource, "update_options")
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_RESOURCE_OPTIONS)
+
+    def make_request(self, user, payload=None):
+        self.client.force_authenticate(user)
+        payload = payload or {"options": {"email": "order@example.com"}}
+        return self.client.post(self.url, payload)
+
+    @data(
+        "staff",
+        "owner",
+    )
+    def test_user_can_update_resource_options(self, user):
+        response = self.make_request(getattr(self.fixture, user))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.options["email"], "order@example.com")
+
+    @data("admin")
+    def test_user_can_not_update_resource_options(self, user):
+        response = self.make_request(getattr(self.fixture, user))
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
