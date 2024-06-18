@@ -19,9 +19,28 @@ def request_ssh_key_for_heappe_robot_account(
     try:
         lexis_link = instance.lexis_link
     except models.LexisLink.DoesNotExist:
-        logger.error(
+        logger.info(
             "The robot account %s doesn't have a related lexis link, skipping ssh key request",
             instance,
+        )
+        return
+
+    if not (
+        instance.tracker.previous("username") == ""
+        and instance.tracker.has_changed("username")
+        and instance.username != ""
+    ):
+        logger.warning("The username of the robot account %s is already set", instance)
+        return
+
+    if instance.username == "":
+        logger.error("The username of the robot account %s is empty", instance)
+        return
+
+    if instance.resource.backend_id in [None, ""]:
+        logger.error(
+            "The backend_id of resource %s is empty, skipping ssh key request",
+            instance.resource,
         )
         return
 
@@ -30,21 +49,6 @@ def request_ssh_key_for_heappe_robot_account(
         models.LexisLink.States.ERRED,
     ]:
         logger.error("%s has incorrect state, skipping ssh key request", lexis_link)
-        return
-
-    if (
-        instance.tracker.previous("username") != ""
-        or not instance.tracker.has_changed("username")
-        or instance.username == ""
-    ):
-        logger.error("The username of the robot account %s is already set", instance)
-        return
-
-    if instance.resource.backend_id in [None, ""]:
-        logger.error(
-            "The backend_id of resource %s is empty, skipping ssh key request",
-            instance.resource,
-        )
         return
 
     logger.info("Requesting SSH key for %s", lexis_link)
