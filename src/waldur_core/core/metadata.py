@@ -154,6 +154,13 @@ class WaldurCore(BaseModel):
         False,
         description="Do not allow user to grant multiple roles in the same project or organization using invitation.",
     )
+    INVITATION_USE_WEBHOOKS = Field(
+        False,
+        description="Allow sending of webhooks instead of sending of emails.",
+    )
+    INVITATION_WEBHOOK_URL = Field(
+        "", description="Webhook URL for sending invitations."
+    )
     ENABLE_STRICT_CHECK_ACCEPTING_INVITATION = Field(
         False,
         description="If this is true and user email is pre-validated then accepting invitation to only do that if "

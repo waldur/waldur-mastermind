@@ -61,17 +61,32 @@ def send_invitation_created(invitation_uuid, sender):
     site_link = format_homeport_link()
     context["site_host"] = urlparse(site_link).hostname
 
-    logger.info(
-        "About to send invitation to {email} to join {name} {type} as {role}".format(
-            email=invitation.email, **context
+    if settings.WALDUR_CORE["INVITATION_USE_WEBHOOKS"]:
+        webhook_url = settings.WALDUR_CORE["INVITATION_WEBHOOK_URL"]
+
+        if settings.WALDUR_CORE["INVITATION_WEBHOOK_URL"] == "":
+            logger.error("Webhook URL for invitations is blank, skipping processing")
+            return
+
+        logger.info(
+            "About to send invitation to {url} to join {name} {type} as {role}".format(
+                url=webhook_url, **context
+            )
         )
-    )
-    try:
-        broadcast_mail("users", "invitation_created", context, [invitation.email])
-    except SMTPException as e:
-        invitation.error_message = str(e)
-        invitation.save(update_fields=["error_message"])
-        raise
+
+        utils.post_invitation_to_url(webhook_url, invitation)
+    else:
+        logger.info(
+            "About to send invitation to {email} to join {name} {type} as {role}".format(
+                email=invitation.email, **context
+            )
+        )
+        try:
+            broadcast_mail("users", "invitation_created", context, [invitation.email])
+        except SMTPException as e:
+            invitation.error_message = str(e)
+            invitation.save(update_fields=["error_message"])
+            raise
 
 
 @shared_task(name="waldur_core.users.send_invitation_requested")

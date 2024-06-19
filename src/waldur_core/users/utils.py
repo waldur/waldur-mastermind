@@ -1,3 +1,6 @@
+import logging
+
+import requests
 from django.conf import settings
 from django.core.signing import BadSignature, TimestampSigner
 from django.db import transaction
@@ -18,6 +21,8 @@ from waldur_freeipa import tasks
 from waldur_freeipa.backend import FreeIPABackend
 from waldur_freeipa.models import Profile
 from waldur_freeipa.utils import generate_username
+
+logger = logging.getLogger(__name__)
 
 
 def get_invitation_context(invitation: models.Invitation, sender):
@@ -196,3 +201,26 @@ def get_users_for_notification_about_request_has_been_submitted(
     users = users.exclude(email="").exclude(notifications_enabled=False)
 
     return users or staff_users
+
+
+def post_invitation_to_url(url: str, invitation: models.Invitation):
+    payload = {
+        "email": invitation.email,
+        "role_name": invitation.role.name,
+        "role_description": invitation.role.description,
+        "scope_type": invitation.scope,
+        "scope_name": invitation.scope.name,
+        "scope_uuid": invitation.scope.uuid,
+        "extra_invitation_text": invitation.extra_invitation_text,
+        "created_by_full_name": invitation.created_by.full_name,
+        "created_by_username": invitation.created_by.username,
+        "expires": invitation.get_expiration_time(),
+    }
+    response = requests.post(url, json=payload)
+
+    if response.status_code >= 200 and response.status_code < 300:
+        logger.info("Invitation has been successfully send to %s", url)
+    else:
+        logger.warning(
+            "Invitation sending has failed: %s, %s", response.status_code, response.text
+        )
