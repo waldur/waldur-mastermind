@@ -108,6 +108,11 @@ class LexisLinkCreateTest(test.APITransactionTestCase):
             "https://heappy.example.com/heappe/Management/ProjectAssignmentToCluster",
             json={},
         )
+        responses.add(
+            responses.POST,
+            "https://heappy.example.com/heappe/Management/InitializeClusterScriptDirectory",
+            json={},
+        )
 
         robot_account = marketplace_models.RobotAccount.objects.create(
             username="",
