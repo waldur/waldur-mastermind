@@ -2,12 +2,12 @@
 Django base settings for Waldur Core.
 """
 
-from datetime import timedelta
 import locale
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 import os
 import warnings
+from datetime import timedelta
 
 from waldur_core.core import WaldurExtension
 from waldur_core.core.metadata import WaldurConfiguration
