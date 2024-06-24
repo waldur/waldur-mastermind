@@ -718,6 +718,24 @@ def resource_has_been_renamed(sender, instance, created=False, **kwargs):
     )
 
 
+def resource_state_has_been_changed(sender, instance, created=False, **kwargs):
+    if created:
+        return
+
+    resource = instance
+
+    if not resource.tracker.has_changed("state"):
+        return
+
+    if (
+        resource.state == models.Resource.States.OK
+        and resource.tracker.previous("state") == models.Resource.States.ERRED
+        and resource.error_traceback
+    ):
+        resource.error_traceback = ""
+        resource.save()
+
+
 def delete_expired_project_if_every_resource_has_been_terminated(
     sender, instance, created=False, **kwargs
 ):

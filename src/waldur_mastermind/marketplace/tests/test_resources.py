@@ -814,6 +814,15 @@ class ResourceUpdateTest(test.APITransactionTestCase):
             response = self.make_request(self.fixture.staff, payload)
             self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_reset_error_traceback(self):
+        self.resource.state = models.Resource.States.ERRED
+        self.resource.error_traceback = "error_traceback"
+        self.resource.save()
+        self.resource.state = models.Resource.States.OK
+        self.resource.save()
+        self.resource.refresh_from_db()
+        self.assertFalse(self.resource.error_traceback)
+
 
 @ddt
 class ResourceSetEndDateByProviderTest(test.APITransactionTestCase):
