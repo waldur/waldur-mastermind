@@ -15,6 +15,7 @@ class OrderProcessedTest(test.APITransactionTestCase):
 
     @mock.patch("waldur_mastermind.marketplace_script.utils.docker")
     def test_process_order(self, mock_docker):
+        mock_docker.DockerClient().containers.run.return_value = b"OK"
         self.fixture.offering.secret_options = {
             "language": "python",
             "create": 'print("test creation")',

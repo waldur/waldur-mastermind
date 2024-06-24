@@ -78,10 +78,10 @@ class AbstractCreateResourceProcessor(BaseOrderProcessor):
 
         scope = self.send_request(user)
         backend_metadata = {}
-        endpoints = {}
+        endpoints = []
         if isinstance(scope, dict) and scope["response_type"] == "metadata":
-            backend_metadata = scope["backend_metadata"]
-            endpoints = scope["endpoints"]
+            backend_metadata = scope.get("backend_metadata") or backend_metadata
+            endpoints = scope.get("endpoints") or endpoints
             scope = scope["backend_id"]
 
         with transaction.atomic():
