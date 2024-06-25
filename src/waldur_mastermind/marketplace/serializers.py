@@ -1092,6 +1092,9 @@ class ProviderOfferingDetailsSerializer(
             "customer",
             "customer_uuid",
             "customer_name",
+            "project",
+            "project_uuid",
+            "project_name",
             "category",
             "category_uuid",
             "category_title",
@@ -1140,6 +1143,7 @@ class ProviderOfferingDetailsSerializer(
         )
         related_paths = {
             "customer": ("uuid", "name"),
+            "project": ("uuid", "name"),
             "category": ("uuid", "title"),
             "parent": (
                 "uuid",
@@ -1152,12 +1156,14 @@ class ProviderOfferingDetailsSerializer(
             "state",
             "paused_reason",
             "citation_count",
+            "project",
         )
         extra_kwargs = {
             "url": {
                 "lookup_field": "uuid",
             },
             "customer": {"lookup_field": "uuid", "view_name": "customer-detail"},
+            "project": {"lookup_field": "uuid", "view_name": "project-detail"},
             "category": {
                 "lookup_field": "uuid",
                 "view_name": "marketplace-category-detail",
