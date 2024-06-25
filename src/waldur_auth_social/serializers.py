@@ -28,6 +28,7 @@ class IdentityProviderSerializer(serializers.ModelSerializer):
             "userinfo_url": {"read_only": True},
             "token_url": {"read_only": True},
             "auth_url": {"read_only": True},
+            "logout_url": {"read_only": True},
         }
 
     def validate_provider(self, provider):
@@ -85,6 +86,7 @@ class IdentityProviderSerializer(serializers.ModelSerializer):
             "userinfo_url": endpoints["userinfo_endpoint"],
             "token_url": endpoints["token_endpoint"],
             "auth_url": endpoints["authorization_endpoint"],
+            "logout_url": endpoints.get("end_session_endpoint") or "",
         }
 
     def update(self, instance, validated_data):

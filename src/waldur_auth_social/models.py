@@ -48,6 +48,12 @@ class IdentityProvider(models.Model):
     auth_url = models.CharField(
         max_length=200, help_text="The endpoint for authorization request flow."
     )
+    logout_url = models.CharField(
+        max_length=200,
+        help_text="The endpoint used to redirect after sign-out.",
+        default="",
+        blank=True,
+    )
 
     label = models.CharField(
         help_text="Human-readable identity provider is label.", max_length=200
