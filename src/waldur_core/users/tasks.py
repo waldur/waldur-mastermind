@@ -64,7 +64,7 @@ def send_invitation_created(invitation_uuid, sender):
     if settings.WALDUR_CORE["INVITATION_USE_WEBHOOKS"]:
         webhook_url = settings.WALDUR_CORE["INVITATION_WEBHOOK_URL"]
 
-        if settings.WALDUR_CORE["INVITATION_WEBHOOK_URL"] == "":
+        if webhook_url == "":
             logger.error("Webhook URL for invitations is blank, skipping processing")
             return
 
