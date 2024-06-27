@@ -90,11 +90,10 @@ class IdentityProviderSerializer(serializers.ModelSerializer):
         }
 
     def update(self, instance, validated_data):
-        if instance.discovery_url != validated_data["discovery_url"]:
-            verify_ssl = validated_data.get("verify_ssl", True)
-            validated_data |= self.discover_urls(
-                validated_data["discovery_url"], verify_ssl
-            )
+        verify_ssl = validated_data.get("verify_ssl", True)
+        validated_data |= self.discover_urls(
+            validated_data["discovery_url"], verify_ssl
+        )
         protected_fields = validated_data.get("protected_fields")
         if isinstance(protected_fields, str):
             protected_fields = [field.strip() for field in protected_fields.split(",")]
