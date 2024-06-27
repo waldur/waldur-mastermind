@@ -161,6 +161,15 @@ class WaldurCore(BaseModel):
     INVITATION_WEBHOOK_URL = Field(
         "", description="Webhook URL for sending invitations."
     )
+    INVITATION_WEBHOOK_TOKEN_URL = Field(
+        "", description="Keycloak URL to get access token."
+    )
+    INVITATION_WEBHOOK_TOKEN_CLIENT_ID = Field(
+        "", description="Client ID to get access token from Keycloak."
+    )
+    INVITATION_WEBHOOK_TOKEN_SECRET = Field(
+        "", description="Client secret to get access token from Keycloak."
+    )
     ENABLE_STRICT_CHECK_ACCEPTING_INVITATION = Field(
         False,
         description="If this is true and user email is pre-validated then accepting invitation to only do that if "

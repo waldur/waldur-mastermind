@@ -204,23 +204,59 @@ def get_users_for_notification_about_request_has_been_submitted(
 
 
 def post_invitation_to_url(url: str, invitation: models.Invitation):
-    payload = {
+    token_url = settings.WALDUR_CORE["INVITATION_WEBHOOK_TOKEN_URL"]
+    client_id = settings.WALDUR_CORE["INVITATION_WEBHOOK_TOKEN_CLIENT_ID"]
+    client_secret = settings.WALDUR_CORE["INVITATION_WEBHOOK_TOKEN_SECRET"]
+
+    token_request_headers = {
+        "Accept": "*/*",
+        "Content-Type": "application/x-www-form-urlencoded",
+    }
+    token_params = {
+        "grant_type": "client_credentials",
+        "client_id": client_id,
+        "client_secret": client_secret,
+    }
+
+    token_response = requests.post(
+        token_url, data=token_params, headers=token_request_headers
+    )
+
+    if token_response.status_code != 200:
+        logger.error(
+            "Unable to fetch access token to send invitation, url: %s, code %s, body: %s",
+            token_url,
+            token_response.status_code,
+            token_response.text,
+        )
+        return
+
+    logger.info("Successfully fetched an access token from %s", token_url)
+
+    access_token = token_response.json()["access_token"]
+
+    invitation_payload = {
         "email": invitation.email,
         "role_name": invitation.role.name,
         "role_description": invitation.role.description,
-        "scope_type": invitation.scope,
+        "scope_type": invitation.content_type.name,
         "scope_name": invitation.scope.name,
-        "scope_uuid": invitation.scope.uuid,
+        "scope_uuid": invitation.scope.uuid.hex,
         "extra_invitation_text": invitation.extra_invitation_text,
         "created_by_full_name": invitation.created_by.full_name,
         "created_by_username": invitation.created_by.username,
-        "expires": invitation.get_expiration_time(),
+        "expires": invitation.get_expiration_time().isoformat(),
     }
-    response = requests.post(url, json=payload)
+    invitation_headers = {"Authorization": f"Bearer {access_token}"}
+    invitation_response = requests.post(
+        url, json=invitation_payload, headers=invitation_headers
+    )
 
-    if response.status_code >= 200 and response.status_code < 300:
-        logger.info("Invitation has been successfully send to %s", url)
+    if invitation_response.status_code >= 200 and invitation_response.status_code < 300:
+        logger.info("Invitation has been successfully sent to %s", url)
     else:
         logger.warning(
-            "Invitation sending has failed: %s, %s", response.status_code, response.text
+            "Invitation sending has failed: %s, %s",
+            invitation_response.status_code,
+            invitation_response.text,
         )
