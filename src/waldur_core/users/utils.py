@@ -203,7 +203,7 @@ def get_users_for_notification_about_request_has_been_submitted(
     return users or staff_users
 
 
-def post_invitation_to_url(url: str, invitation: models.Invitation):
+def post_invitation_to_url(url: str, context):
     token_url = settings.WALDUR_CORE["INVITATION_WEBHOOK_TOKEN_URL"]
     client_id = settings.WALDUR_CORE["INVITATION_WEBHOOK_TOKEN_CLIENT_ID"]
     client_secret = settings.WALDUR_CORE["INVITATION_WEBHOOK_TOKEN_SECRET"]
@@ -235,17 +235,19 @@ def post_invitation_to_url(url: str, invitation: models.Invitation):
 
     access_token = token_response.json()["access_token"]
 
+    invitation: models.Invitation = context["invitation"]
     invitation_payload = {
         "email": invitation.email,
         "role_name": invitation.role.name,
-        "role_description": invitation.role.description,
-        "scope_type": invitation.content_type.name,
-        "scope_name": invitation.scope.name,
+        "role_description": context["role"],
+        "scope_type": context["type"],
+        "scope_name": context["name"],
         "scope_uuid": invitation.scope.uuid.hex,
-        "extra_invitation_text": invitation.extra_invitation_text,
+        "extra_invitation_text": context["extra_invitation_text"],
         "created_by_full_name": invitation.created_by.full_name,
         "created_by_username": invitation.created_by.username,
         "expires": invitation.get_expiration_time().isoformat(),
+        "redirect_url": context["link"],
     }
     invitation_headers = {"Authorization": f"Bearer {access_token}"}
     invitation_response = requests.post(

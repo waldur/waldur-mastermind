@@ -74,7 +74,7 @@ def send_invitation_created(invitation_uuid, sender):
             )
         )
 
-        utils.post_invitation_to_url(webhook_url, invitation)
+        utils.post_invitation_to_url(webhook_url, context)
     else:
         logger.info(
             "About to send invitation to {email} to join {name} {type} as {role}".format(
