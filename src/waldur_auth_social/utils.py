@@ -93,16 +93,18 @@ def create_or_update_keycloak_user(backend_user):
     email = backend_user.get("email")
     first_name = backend_user.get("given_name", "")
     last_name = backend_user.get("family_name", "")
+    organization = backend_user.get("org", "")
     try:
         user = User.objects.get(username=username)
     except User.DoesNotExist:
         created = True
-        user = User.objects.create_user(
+        user: User = User.objects.create_user(
             username=username,
             registration_method=ProviderChoices.KEYCLOAK,
             email=email,
             first_name=first_name,
             last_name=last_name,
+            organization=organization,
         )
         user.set_unusable_password()
         user.save()
@@ -118,6 +120,9 @@ def create_or_update_keycloak_user(backend_user):
         if user.email != email:
             user.email = email
             update_fields.add("email")
+        if user.organization != organization:
+            user.organization = organization
+            update_fields.add("organization")
         if update_fields:
             user.save(update_fields=update_fields)
     return user, created
