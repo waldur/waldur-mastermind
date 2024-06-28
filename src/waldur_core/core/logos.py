@@ -9,6 +9,7 @@ LOGO_MAP = {
     "SITE_LOGO": "api/icons/site_logo/",
     "SIDEBAR_LOGO": "api/icons/sidebar_logo/",
     "SIDEBAR_LOGO_MOBILE": "api/icons/sidebar_logo_mobile/",
+    "SIDEBAR_LOGO_DARK": "api/icons/sidebar_logo_dark/",
     "POWERED_BY_LOGO": "api/icons/powered_by_logo/",
     "HERO_IMAGE": "api/icons/hero_image/",
     "FAVICON": "api/icons/favicon/",
