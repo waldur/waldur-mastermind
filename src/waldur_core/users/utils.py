@@ -248,6 +248,7 @@ def post_invitation_to_url(url: str, context):
         "created_by_username": invitation.created_by.username,
         "expires": invitation.get_expiration_time().isoformat(),
         "redirect_url": context["link"],
+        "invitation_uuid": invitation.uuid.hex,
     }
     invitation_headers = {"Authorization": f"Bearer {access_token}"}
     invitation_response = requests.post(
