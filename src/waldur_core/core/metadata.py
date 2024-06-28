@@ -309,6 +309,7 @@ class WaldurCore(BaseModel):
             "HOMEPORT_URL",
             "OECD_FOS_2007_CODE_MANDATORY",
             "DEFAULT_IDP",
+            "INVITATION_USE_WEBHOOKS",
         ]
 
 
