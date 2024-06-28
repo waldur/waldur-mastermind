@@ -366,6 +366,11 @@ CONSTANCE_CONFIG = {
         "The image rendered at the top of sidebar menu in HomePort.",
         "image_field",
     ),
+    "SIDEBAR_LOGO_DARK": (
+        "",
+        "The image rendered at the top of sidebar menu in dark mode.",
+        "image_field",
+    ),
     "SIDEBAR_LOGO_MOBILE": (
         "",
         "The image rendered at the top of mobile sidebar menu in HomePort.",
@@ -377,7 +382,7 @@ CONSTANCE_CONFIG = {
     # service desk integration settings
     "WALDUR_SUPPORT_ENABLED": (
         True,
-        "Toggler for Support plugin.",
+        "Toggler for support plugin.",
     ),
     "WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE": (
         "atlassian",
@@ -491,7 +496,7 @@ CONSTANCE_CONFIG = {
 }
 
 CONSTANCE_CONFIG_FIELDSETS = {
-    "Whitelabeling settings (Text, links, etc)": (
+    "Whitelabeling settings (text, links, etc)": (
         "SITE_NAME",
         "SITE_DESCRIPTION",
         "SITE_ADDRESS",
@@ -510,10 +515,11 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "COMMON_FOOTER_HTML",
         "LANGUAGE_CHOICES",
     ),
-    "Whitelabeling settings (Logos, images, favicons)": (
+    "Whitelabeling settings (logos, images, favicons)": (
         "SITE_LOGO",
         "SIDEBAR_LOGO",
         "SIDEBAR_LOGO_MOBILE",
+        "SIDEBAR_LOGO_DARK",
         "POWERED_BY_LOGO",
         "HERO_IMAGE",
         "LOGIN_LOGO",
@@ -579,7 +585,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "SMAX_CREATION_SOURCE_NAME",
         "SMAX_VERIFY_SSL",
     ),
-    "PROPOSAL settings": ("PROPOSAL_REVIEW_DURATION",),
+    "Proposal settings": ("PROPOSAL_REVIEW_DURATION",),
 }
 
 PUBLIC_CONSTANCE_SETTINGS = (
@@ -601,6 +607,7 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "SITE_LOGO",
     "SIDEBAR_LOGO",
     "SIDEBAR_LOGO_MOBILE",
+    "SIDEBAR_LOGO_DARK",
     "POWERED_BY_LOGO",
     "HERO_IMAGE",
     "LOGIN_LOGO",
