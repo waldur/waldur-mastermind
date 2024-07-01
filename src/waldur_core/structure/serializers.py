@@ -803,7 +803,7 @@ class UserSerializer(
     token = serializers.ReadOnlyField(source="auth_token.key")
     permissions = serializers.SerializerMethodField()
     requested_email = serializers.SerializerMethodField()
-    full_name = serializers.CharField(max_length=200, required=False)
+    full_name = serializers.CharField(max_length=200, required=False, read_only=True)
     identity_provider_name = serializers.SerializerMethodField()
     identity_provider_label = serializers.SerializerMethodField()
     identity_provider_management_url = serializers.SerializerMethodField()
@@ -1547,3 +1547,7 @@ class AuthTokenSerializers(serializers.HyperlinkedModelSerializer):
             },
             "user": {"lookup_field": "uuid", "view_name": "user-detail"},
         }
+
+
+class PasswordChangeSerializer(serializers.Serializer):
+    new_password = serializers.CharField(write_only=True, required=True)

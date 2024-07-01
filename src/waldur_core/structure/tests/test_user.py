@@ -11,6 +11,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.models import User
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.core.utils import format_homeport_link
+from waldur_core.logging import models as logging_models
 from waldur_core.media.utils import dummy_image
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure.tests import factories, fixtures
@@ -804,3 +805,76 @@ class UserFullnameTest(test.APITransactionTestCase):
         self.user.full_name = names[0]
         self.assertEqual(self.user.first_name, names[1])
         self.assertEqual(self.user.last_name, names[2])
+
+
+@ddt
+class UserCreateTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.UserFixture()
+        self.staff = self.fixture.staff
+        self.url = factories.UserFactory.get_list_url()
+
+    def test_staff_can_create_user(self):
+        payload = dict(
+            username="new_user",
+            email="user@example.com",
+            first_name="First",
+            last_name="Last",
+        )
+        self.client.force_authenticate(self.staff)
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        user = User.objects.get(uuid=response.data["uuid"])
+        self.assertFalse(user.agreement_date)
+        self.assertTrue(
+            logging_models.Event.objects.filter(
+                event_type="user_has_been_created_by_staff",
+                message__icontains=user.username,
+            ).exists()
+        )
+
+    @data(
+        "global_support",
+        "user",
+    )
+    def test_user_can_not_create_user(self, user):
+        payload = dict(
+            username="new_user",
+            email="user@example.com",
+            first_name="First",
+            last_name="Last",
+        )
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_staff_can_change_password(self):
+        url = factories.UserFactory.get_url(self.fixture.user, "change_password")
+        old_password = self.fixture.user.password
+        payload = dict(
+            new_password="password",
+        )
+        self.client.force_authenticate(self.staff)
+        response = self.client.post(url, payload)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.fixture.user.refresh_from_db()
+        self.assertNotEqual(old_password, self.fixture.user.password)
+        self.assertTrue(
+            logging_models.Event.objects.filter(
+                event_type="user_password_updated_by_staff",
+                message__icontains=self.fixture.user.username,
+            ).exists()
+        )
+
+    @data(
+        "global_support",
+        "user",
+    )
+    def test_user_can_not_change_password(self, user):
+        url = factories.UserFactory.get_url(self.fixture.user, "change_password")
+        payload = dict(
+            new_password="password",
+        )
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(url, payload)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
