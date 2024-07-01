@@ -28,6 +28,7 @@ from waldur_core.core import models as core_models
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
+from waldur_core.core.log import event_logger
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.core.views import ActionsViewSet
 from waldur_core.permissions import fixtures as permission_fixtures
@@ -596,6 +597,38 @@ class UserViewSet(viewsets.ModelViewSet):
             )
         pull_remote_eduteams_user(user.username)
         return Response(status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"])
+    def change_password(self, request, uuid=None):
+        if not self.request.user.is_staff:
+            raise PermissionDenied()
+
+        user = self.get_object()
+        serializer = serializers.PasswordChangeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user.set_password(serializer.validated_data["new_password"])
+        user.save()
+
+        event_logger.user.info(
+            "Password has been changed for user {affected_user_username} by %s."
+            % self.request.user,
+            event_type="user_password_updated_by_staff",
+            event_context={"affected_user": user},
+        )
+        logger.info(
+            f"Password has been changed for user {user} by {self.request.user}."
+        )
+
+        return Response({"status": "password set"}, status=status.HTTP_200_OK)
+
+    def perform_create(self, serializer):
+        user = serializer.save()
+        event_logger.user.info(
+            "User {affected_user_username} has been created by %s." % self.request.user,
+            event_type="user_has_been_created_by_staff",
+            event_context={"affected_user": user},
+        )
+        logger.info(f"User {user} has been created by {self.request.user}.")
 
 
 class CustomerPermissionReviewViewSet(
