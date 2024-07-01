@@ -24,6 +24,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.views import exception_handler as rf_exception_handler
 
+from waldur_auth_social.models import IdentityProvider
 from waldur_core import __version__
 from waldur_core.core import WaldurExtension, models, permissions
 from waldur_core.core.exceptions import ExtensionDisabled, IncorrectStateException
@@ -436,6 +437,20 @@ def get_public_settings(request=None):
                 if constance_settings.get(key) or key in DEFAULT_LOGOS:
                     constance_settings[key] = request.build_absolute_uri("/" + val)
         public_settings["WALDUR_CORE"].update(constance_settings)
+        provider_name = public_settings["WALDUR_CORE"].get("DEFAULT_IDP")
+        if provider_name:
+            try:
+                provider = IdentityProvider.objects.get(
+                    provider=provider_name, is_active=True
+                )
+            except IdentityProvider.DoesNotExist:
+                public_settings["WALDUR_CORE"]["DEFAULT_IDP"] = None
+            else:
+                public_settings["WALDUR_CORE"]["DEFAULT_IDP"] = {
+                    "provider": provider.provider,
+                    "client_id": provider.client_id,
+                    "auth_url": provider.auth_url,
+                }
     public_settings["WALDUR_SUPPORT"] = get_constance_plugin_settings(
         request,
         "WALDUR_SUPPORT",
