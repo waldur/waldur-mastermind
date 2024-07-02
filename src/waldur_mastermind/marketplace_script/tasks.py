@@ -144,3 +144,49 @@ def mark_terminating_resources_as_erred_after_timeout():
         resource = order.resource
         resource.set_state_erred()
         resource.save(update_fields=["state"])
+
+
+@shared_task
+def resource_options_have_been_changed(resource_id, options_old):
+    resource = models.Resource.objects.get(id=resource_id)
+
+    options = resource.offering.secret_options
+    if "resource_options_handler" not in options:
+        logger.debug("Missing resource options handler script, skipping")
+        return
+    serializer = serializers.ResourceSerializer(instance=resource)
+    environment = {
+        key.upper(): json.dumps(value) if isinstance(value, dict | list) else str(value)
+        for key, value in dict(serializer.data).items()
+    }
+    for opt in options.get("environ", []):
+        if isinstance(opt, dict):
+            environment.update({opt["name"]: opt["value"]})
+    environment["RESOURCE_OPTIONS_OLD"] = options_old
+    environment["RESOURCE_OPTIONS"] = resource.options
+
+    language = options["language"]
+    image = settings.WALDUR_MARKETPLACE_SCRIPT["DOCKER_IMAGES"].get(language)["image"]
+    command = settings.WALDUR_MARKETPLACE_SCRIPT["DOCKER_IMAGES"].get(language)[
+        "command"
+    ]
+
+    try:
+        utils.execute_script(
+            image=image,
+            command=command,
+            src=options["resource_options_handler"],
+            environment=environment,
+        )
+    except Exception as e:
+        resource.set_state_erred()
+        if e:
+            resource.error_message = str(e).splitlines()[0]
+            resource.error_traceback = str(e)
+    else:
+        if resource.state != models.Resource.States.OK:
+            resource.set_state_ok()
+            resource.error_message = ""
+            resource.error_traceback = ""
+    finally:
+        resource.save()
