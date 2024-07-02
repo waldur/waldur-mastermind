@@ -383,6 +383,7 @@ CONSTANCE_CONFIG = {
     "SITE_LOGO": ("", "The image used in marketplace order header.", "image_field"),
     "LOGIN_LOGO": ("", "A custom .png image file for login page", "image_field"),
     "FAVICON": ("", "A custom favicon .png image file", "image_field"),
+    "OFFERING_LOGO_PLACEHOLDER": ("", "Default logo for offering", "image_field"),
     # service desk integration settings
     "WALDUR_SUPPORT_ENABLED": (
         True,
@@ -529,6 +530,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "HERO_IMAGE",
         "LOGIN_LOGO",
         "FAVICON",
+        "OFFERING_LOGO_PLACEHOLDER",
     ),
     "Service desk integration settings": (
         "WALDUR_SUPPORT_ENABLED",
@@ -618,6 +620,7 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "HERO_IMAGE",
     "LOGIN_LOGO",
     "FAVICON",
+    "OFFERING_LOGO_PLACEHOLDER",
     "COMMON_FOOTER_TEXT",
     "COMMON_FOOTER_HTML",
     "LANGUAGE_CHOICES",

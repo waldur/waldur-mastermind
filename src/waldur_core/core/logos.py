@@ -13,6 +13,7 @@ LOGO_MAP = {
     "POWERED_BY_LOGO": "api/icons/powered_by_logo/",
     "HERO_IMAGE": "api/icons/hero_image/",
     "FAVICON": "api/icons/favicon/",
+    "OFFERING_LOGO_PLACEHOLDER": "api/icons/offering_logo_placeholder/",
 }
 
 DEFAULT_LOGOS = {
