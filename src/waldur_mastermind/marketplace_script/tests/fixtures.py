@@ -18,6 +18,7 @@ class ScriptFixture(marketplace_fixtures.MarketplaceFixture):
                 "create": "print('Hello world!')",
                 "delete": "print('Resource has been removed')",
                 "update": "print('Resource has been changed')",
+                "resource_options_handler": "print('Resource options have been changed')",
                 "language": "python",
             },
         )

@@ -1,4 +1,5 @@
 from django.apps import AppConfig
+from django.db.models import signals
 
 
 class MarketplaceScriptConfig(AppConfig):
@@ -6,9 +7,10 @@ class MarketplaceScriptConfig(AppConfig):
     verbose_name = "Marketplace Script"
 
     def ready(self):
+        from waldur_mastermind.marketplace import models as marketplace_models
         from waldur_mastermind.marketplace.plugins import manager
 
-        from . import PLUGIN_NAME, processors
+        from . import PLUGIN_NAME, handlers, processors
         from . import registrators as script_registrators
 
         manager.register(
@@ -20,3 +22,9 @@ class MarketplaceScriptConfig(AppConfig):
         )
 
         script_registrators.ScriptRegistrator.connect()
+
+        signals.post_save.connect(
+            handlers.resource_options_have_been_changed,
+            sender=marketplace_models.Resource,
+            dispatch_uid="waldur_mastermind.marketplace.resource_options_have_been_changed",
+        )
