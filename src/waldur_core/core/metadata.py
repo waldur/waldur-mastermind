@@ -177,7 +177,7 @@ class WaldurCore(BaseModel):
     )
     PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS: list[str] = Field(
         [],
-        description="List of authentication methods which are not allowed to update user details.",
+        description="List of authentication methods for which a manual update of user details is not allowed.",
     )
     ATTACHMENT_LINK_MAX_AGE = Field(
         timedelta(hours=1), description="Max age of secure token for media download."
