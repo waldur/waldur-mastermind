@@ -350,6 +350,7 @@ CONSTANCE_CONFIG = {
         ",".join(LANGUAGE_CHOICES),
         "List of enabled languages",
     ),
+    "DISABLE_DARK_THEME": (False, "Toggler for dark theme."),
     # images, logos, favicons
     "POWERED_BY_LOGO": (
         "",
@@ -519,6 +520,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "COMMON_FOOTER_TEXT",
         "COMMON_FOOTER_HTML",
         "LANGUAGE_CHOICES",
+        "DISABLE_DARK_THEME",
     ),
     "Whitelabeling settings (logos, images, favicons)": (
         "SITE_LOGO",
@@ -624,6 +626,7 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "COMMON_FOOTER_TEXT",
     "COMMON_FOOTER_HTML",
     "LANGUAGE_CHOICES",
+    "DISABLE_DARK_THEME",
     # Support plugin
     "WALDUR_SUPPORT_ENABLED",
     "WALDUR_SUPPORT_DISPLAY_REQUEST_TYPE",
