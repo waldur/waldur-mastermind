@@ -94,7 +94,7 @@ class Command(BaseCommand):
     ):
         self.stdout.write(
             self.style.SUCCESS(
-                f"Processing resource {resource}",
+                f"Processing resource {resource} / {resource.uuid} / {resource.backend_id}",
             )
         )
 
