@@ -13,6 +13,7 @@ from django.utils import timezone
 from jira import Comment, JIRAError
 from jira.utils import json_loads
 
+from waldur_core.core.models import User
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_jira.backend import JiraBackend, JiraBackendError, reraise_exceptions
 from waldur_mastermind.support import models
@@ -88,7 +89,7 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         return comment
 
     @reraise_exceptions
-    def create_issue(self, issue):
+    def create_issue(self, issue: models.Issue):
         if not issue.caller.email:
             raise ServiceBackendError(
                 "Issue is not created because caller user does not have email."
@@ -113,16 +114,20 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
             .first()
             .backend_id
         )
-        backend_issue = self.manager.waldur_create_customer_request(
-            args, use_old_api=self.use_old_api
+        on_behalf_username = (
+            issue.caller.username if config.ATLASSIAN_SHARED_USERNAME else None
         )
-        args = self._get_custom_fields(issue)
+        backend_issue = self.manager.waldur_create_customer_request(
+            args, use_old_api=self.use_old_api, username=on_behalf_username
+        )
+        if config.ATLASSIAN_CUSTOM_ISSUE_FIELD_MAPPING_ENABLED:
+            args = self._get_custom_fields(issue)
 
-        try:
-            # Update an issue, because create_customer_request doesn't allow setting custom fields.
-            backend_issue.update(**args)
-        except JIRAError as e:
-            logger.error("Error when setting custom field via JIRA API: %s" % e)
+            try:
+                # Update an issue, because create_customer_request doesn't allow setting custom fields.
+                backend_issue.update(**args)
+            except JIRAError as e:
+                logger.error("Error when setting custom field via JIRA API: %s" % e)
 
         self._backend_issue_to_issue(backend_issue, issue)
         issue.save()
@@ -142,7 +147,18 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         )
         return self._add_comment(issue.backend_id, body, is_internal=False)
 
-    def create_user(self, user):
+    def create_user(self, user: User):
+        # in case usernames are shared, skip lookups and create SupportCustomer if it is missing
+        if config.ATLASSIAN_SHARED_USERNAME:
+            try:
+                user.supportcustomer
+            except ObjectDoesNotExist:
+                support_customer = models.SupportCustomer(
+                    user=user, backend_id=user.username
+                )
+                support_customer.save()
+            return
+
         # Temporary workaround as JIRA returns 500 error if user already exists
         if self.use_old_api or self.use_teenage_api:
             # old API has a bug that causes user active status to be set to False if includeInactive is passed as True
@@ -238,9 +254,11 @@ class ServiceDeskBackend(JiraBackend, SupportBackend):
         if issue.priority:
             args["requestFieldValues"]["priority"] = {"name": issue.priority}
 
-        support_customer = issue.caller.supportcustomer
-        args["requestParticipants"] = [support_customer.backend_id]
-
+        try:
+            support_customer = issue.caller.supportcustomer
+            args["requestParticipants"] = [support_customer.backend_id]
+        except ObjectDoesNotExist:
+            pass
         return args
 
     def _get_first_sla_field(self, backend_issue):

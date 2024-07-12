@@ -170,7 +170,7 @@ def search_users(
 
 
 def create_customer_request(
-    self, fields=None, prefetch=True, use_old_api=False, **fieldargs
+    self, fields=None, prefetch=True, use_old_api=False, username=None, **fieldargs
 ):
     """The code for this function is almost completely copied from
     function create_customer_request of the JIRA library"""
@@ -191,6 +191,9 @@ def create_customer_request(
         data["requestTypeId"] = p
     elif isinstance(p, str):
         data["requestTypeId"] = self.request_type_by_name(service_desk, p).id
+
+    if username:
+        data["raiseOnBehalfOf"] = username
 
     requestParticipants = data.pop("requestParticipants", None)
 
@@ -216,7 +219,7 @@ def create_customer_request(
 
         r = self._session.post(url, headers=headers, json=data)
 
-    if r.status_code != status.HTTP_200_OK:
+    if r.status_code not in [status.HTTP_200_OK, status.HTTP_201_CREATED]:
         raise JIRAError(r.status_code, request=r)
 
     if prefetch:
