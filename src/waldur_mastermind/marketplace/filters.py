@@ -409,8 +409,8 @@ class ResourceFilter(
 
         query = queryset.filter(
             Q(name__icontains=value)
-            | Q(backend_id=value)
-            | Q(effective_id=value)
+            | Q(backend_id__iexact=value)
+            | Q(effective_id__iexact=value)
             | Q(backend_metadata__external_ips__icontains=value)
             | Q(backend_metadata__internal_ips__icontains=value)
             | Q(backend_metadata__hypervisor_hostname__icontains=value)
