@@ -426,6 +426,14 @@ CONSTANCE_CONFIG = {
         "Toggler for SSL verification",
     ),
     "ATLASSIAN_PROJECT_ID": ("", "Project-related settings"),
+    "ATLASSIAN_SHARED_USERNAME": (
+        False,
+        "Is Service Desk username the same as in Waldur",
+    ),
+    "ATLASSIAN_CUSTOM_ISSUE_FIELD_MAPPING_ENABLED": (
+        True,
+        "Should extra issue field mappings be applied",
+    ),
     "ATLASSIAN_DEFAULT_OFFERING_ISSUE_TYPE": ("Service Request", "Issue type"),
     "ATLASSIAN_EXCLUDED_ATTACHMENT_TYPES": ("", "List of attachment types"),
     "ATLASSIAN_PULL_PRIORITIES": (
