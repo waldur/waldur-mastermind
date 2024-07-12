@@ -480,8 +480,6 @@ def override_db_settings(request):
             key: value
             for key, value in constance_settings.items()
             if any(prefix.lower() in key.lower() for prefix in plugins_to_return)
-            and "password" not in key.lower()
-            and "token" not in key.lower()
         }
         return Response(filtered_dict)
     serializer = ConstanceSettingsSerializer(data=request.data)
