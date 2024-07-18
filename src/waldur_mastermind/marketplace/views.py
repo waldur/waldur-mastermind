@@ -55,7 +55,11 @@ from waldur_core.core.utils import (
 )
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.models import UserRole
-from waldur_core.permissions.utils import has_permission, permission_factory
+from waldur_core.permissions.utils import (
+    get_user_ids,
+    has_permission,
+    permission_factory,
+)
 from waldur_core.permissions.views import UserRoleMixin
 from waldur_core.quotas.models import QuotaUsage
 from waldur_core.structure import filters as structure_filters
@@ -1454,6 +1458,46 @@ class ProviderOfferingViewSet(
             PermissionEnum.UPDATE_OFFERING,
             ["*", "customer"],
         )
+    ]
+
+    @action(detail=True, methods=["GET"])
+    def list_customer_projects(self, request, uuid=None):
+        offering = self.get_object()
+        project_ids = (
+            models.Resource.objects.filter(offering=offering)
+            .exclude(state=models.Resource.States.TERMINATED)
+            .values_list("project_id", flat=True)
+        )
+        projects = structure_models.Project.objects.filter(id__in=project_ids)
+        serializer = structure_serializers.ProjectSerializer(
+            instance=projects, many=True, context={"request": request}
+        )
+        return Response(
+            status=status.HTTP_200_OK,
+            data=serializer.data,
+        )
+
+    @action(detail=True, methods=["GET"])
+    def list_customer_users(self, request, uuid=None):
+        offering = self.get_object()
+        project_ids = (
+            models.Resource.objects.filter(offering=offering)
+            .exclude(state=models.Resource.States.TERMINATED)
+            .values_list("project_id", flat=True)
+        )
+        ctype = ContentType.objects.get_for_model(structure_models.Project)
+        user_ids = get_user_ids(ctype, project_ids)
+        users = core_models.User.objects.filter(id__in=user_ids)
+        serializer = structure_serializers.UserSerializer(
+            instance=users, many=True, context={"request": request}
+        )
+        return Response(
+            status=status.HTTP_200_OK,
+            data=serializer.data,
+        )
+
+    list_customer_projects_permissions = list_customer_users_permissions = [
+        structure_permissions.is_owner
     ]
 
 

@@ -2210,3 +2210,58 @@ class OfferingBackendMetadataTest(test.APITransactionTestCase):
         payload = {"backend_metadata": {}}
         response = self.client.post(url, payload)
         self.assertEqual(403, response.status_code)
+
+
+@ddt
+class ListCustomerProjectsTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.fixture.resource.state = models.Resource.States.OK
+        self.fixture.resource.save()
+
+    @data("staff", "offering_owner")
+    def test_user_can_get_list_customer_projects(self, user):
+        response = self.get_list_customer_projects(user)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(len(response.data), 1)
+
+    @data("owner", "admin", "user")
+    def test_user_can_not_get_list_customer_projects(self, user):
+        response = self.get_list_customer_projects(user)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND, response.data)
+
+    def get_list_customer_projects(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        url = factories.OfferingFactory.get_url(
+            self.fixture.offering, "list_customer_projects"
+        )
+        return self.client.get(url)
+
+
+@ddt
+class ListCustomerUsersTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.fixture.resource.state = models.Resource.States.OK
+        self.fixture.resource.save()
+        self.fixture.admin
+
+    @data("staff", "offering_owner")
+    def test_user_can_get_list_customer_users(self, user):
+        response = self.get_list_customer_users(user)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(len(response.data), 1)
+
+    @data("owner", "admin", "user")
+    def test_user_can_not_get_list_customer_users(self, user):
+        response = self.get_list_customer_users(user)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND, response.data)
+
+    def get_list_customer_users(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        url = factories.OfferingFactory.get_url(
+            self.fixture.offering, "list_customer_users"
+        )
+        return self.client.get(url)
