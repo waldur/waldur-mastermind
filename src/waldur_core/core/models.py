@@ -255,7 +255,6 @@ class User(
         help_text=_("Indicates when the user has agreed with the policy."),
     )
     preferred_language = models.CharField(max_length=10, blank=True)
-    competence = models.CharField(max_length=255, blank=True)
     token_lifetime = models.PositiveIntegerField(
         null=True,
         help_text=_("Token lifetime in seconds."),
@@ -283,7 +282,6 @@ class User(
         "is_staff",
         "is_support",
         "preferred_language",
-        "competence",
         "backend_id",
         "is_identity_manager",
         "affiliations",

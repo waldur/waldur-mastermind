@@ -795,11 +795,6 @@ class UserSerializer(
         required=False,
         help_text=_("User must agree with the policy to register."),
     )
-    competence = serializers.ChoiceField(
-        choices=settings.WALDUR_CORE.get("USER_COMPETENCE_LIST", []),
-        allow_blank=True,
-        required=False,
-    )
     token = serializers.ReadOnlyField(source="auth_token.key")
     permissions = serializers.SerializerMethodField()
     requested_email = serializers.SerializerMethodField()
@@ -857,7 +852,6 @@ class UserSerializer(
             "agree_with_policy",
             "agreement_date",
             "preferred_language",
-            "competence",
             "permissions",
             "requested_email",
             "affiliations",

@@ -61,8 +61,6 @@ class UserSection(FeatureSection):
 
     preferred_language = Feature("Render preferred language column in users list.")
 
-    competence = Feature("Render competence column in users list.")
-
     ssh_keys = Feature("Enable SSH keys management in user workspace.")
 
     notifications = Feature(
