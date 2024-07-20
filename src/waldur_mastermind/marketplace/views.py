@@ -24,6 +24,7 @@ from django.db.models.functions import Coalesce
 from django.db.models.functions.math import Ceil
 from django.http.response import JsonResponse
 from django.shortcuts import get_object_or_404
+from django.template.defaultfilters import slugify
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.utils.translation import gettext_lazy as _
@@ -2156,6 +2157,27 @@ class ResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
             request, models.IntegrationStatus.AgentTypes.USAGE_REPORTING
         )
         return super().list(request, *args, **kwargs)
+
+    @action(detail=False, methods=["post"])
+    def suggest_name(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        project: structure_models.Project = serializer.validated_data["project"]
+        offering: models.Offering = serializer.validated_data["offering"]
+        resource_count = models.Resource.objects.filter(
+            project=project, offering=offering
+        ).count()
+        parts = [
+            project.customer.abbreviation or project.customer.name,
+            project.name,
+            offering.name,
+        ]
+        result = (
+            "-".join([slugify(p)[:10] for p in parts]) + "-" + str(resource_count + 1)
+        )
+        return Response({"name": result})
+
+    suggest_name_serializer_class = serializers.ResourceSuggestNameSerializer
 
     @action(detail=True, methods=["get"])
     def details(self, request, uuid=None):

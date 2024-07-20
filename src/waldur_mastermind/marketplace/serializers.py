@@ -2302,6 +2302,32 @@ class OrderCreateSerializer(
         return attrs
 
 
+class ResourceSuggestNameSerializer(serializers.ModelSerializer):
+    project = serializers.SlugRelatedField(
+        queryset=structure_models.Project.objects.all(), slug_field="uuid"
+    )
+    offering = serializers.SlugRelatedField(
+        queryset=models.Offering.objects.all(), slug_field="uuid"
+    )
+
+    class Meta:
+        model = models.Resource
+        fields = ("project", "offering")
+
+    def get_fields(self):
+        fields = super().get_fields()
+
+        request = self.context["request"]
+        user = request.user
+        fields["project"].queryset = filter_queryset_for_user(
+            fields["project"].queryset, user
+        )
+        fields["offering"].queryset = fields[
+            "offering"
+        ].queryset.filter_by_ordering_availability_for_user(user)
+        return fields
+
+
 class ResourceSerializer(BaseItemSerializer):
     class Meta(BaseItemSerializer.Meta):
         model = models.Resource
