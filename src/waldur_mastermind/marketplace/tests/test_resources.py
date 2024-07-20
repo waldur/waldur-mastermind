@@ -3,6 +3,7 @@ from unittest import mock
 
 from constance.test.pytest import override_config
 from ddt import data, ddt
+from django.template.defaultfilters import slugify
 from freezegun import freeze_time
 from rest_framework import status, test
 
@@ -43,6 +44,17 @@ class ResourceGetTest(test.APITransactionTestCase):
         self.client.force_authenticate(user)
         url = factories.ResourceFactory.get_url(self.resource)
         return self.client.get(url)
+
+    def test_suggest_name(self):
+        self.client.force_authenticate(self.fixture.owner)
+        url = factories.ResourceFactory.get_list_url("suggest_name")
+        response = self.client.post(
+            url, {"project": self.project.uuid.hex, "offering": self.offering.uuid.hex}
+        )
+        self.assertEqual(
+            response.data["name"],
+            f"{slugify(self.project.customer.abbreviation)[:10]}-{slugify(self.project.name)[:10]}-{slugify(self.offering.name)[:10]}-2",
+        )
 
     def test_resource_is_usage_based(self):
         factories.OfferingComponentFactory(
