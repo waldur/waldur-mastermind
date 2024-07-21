@@ -11,7 +11,7 @@ class Migration(migrations.Migration):
     operations = [
         migrations.RenameField(
             model_name="sshpublickey",
-            old_name="fingerprint_md5",
+            old_name="fingerprint",
             new_name="fingerprint_md5",
         ),
         migrations.AddField(
