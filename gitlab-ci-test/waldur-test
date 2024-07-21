@@ -49,6 +49,7 @@ elif [ "$TEST_MODE" = "MIGRATIONS" ]; then
   pytest \
       --junitxml=report.xml \
       --cov=src/ \
+      --create-db \
       --ds=waldur_mastermind.test_settings \
       src/waldur_core/core/tests/test_management.py
 else
