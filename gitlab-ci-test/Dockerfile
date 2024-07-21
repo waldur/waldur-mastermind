@@ -9,13 +9,14 @@ RUN apt-get update    &&\
     libsasl2-dev        \
     ldap-utils          \
     xmlsec1             \
+    git                 \
     lcov                \
     graphviz            \
     python3-dev
 
 RUN python3 -m pip install --upgrade pip
 RUN python3 -m pip install --upgrade setuptools==69.5.1
-RUN pip3 install poetry==1.8.2
+RUN pip3 install poetry==1.8.3
 RUN poetry config virtualenvs.create false
 
 # Copy poetry files
