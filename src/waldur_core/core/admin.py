@@ -357,8 +357,21 @@ class UserAdmin(NativeNameAdminMixin, auth_admin.UserAdmin, VersionAdmin):
 
 
 class SshPublicKeyAdmin(VersionAdmin):
-    list_display = ("user", "name", "fingerprint")
-    search_fields = ("user__username", "name", "fingerprint")
+    list_display = (
+        "user",
+        "name",
+        "type",
+        "fingerprint_md5",
+        "fingerprint_sha256",
+        "fingerprint_sha512",
+    )
+    search_fields = (
+        "user__username",
+        "name",
+        "fingerprint_md5",
+        "fingerprint_sha256",
+        "fingerprint_sha512",
+    )
 
 
 class ChangeEmailRequestAdmin(ReadOnlyAdminMixin, admin.ModelAdmin):

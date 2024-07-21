@@ -128,11 +128,11 @@ class OpenStackBackend(BaseOpenStackBackend):
         keystone = get_keystone_client(self.session)
         return keystone.domains.find(name=self.settings.domain or "Default")
 
-    def remove_ssh_key_from_tenant(self, tenant, key_name, fingerprint):
+    def remove_ssh_key_from_tenant(self, tenant, key_name, fingerprint_md5):
         nova = get_nova_client(self.session)
 
         # There could be leftovers of key duplicates: remove them all
-        keys = nova.keypairs.findall(fingerprint=fingerprint)
+        keys = nova.keypairs.findall(fingerprint=fingerprint_md5)
         for key in keys:
             # Remove only keys created with Waldur
             if key.name == key_name:

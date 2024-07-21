@@ -28,18 +28,19 @@ def remove_ssh_key_from_tenants(sender, instance, **kwargs):
         if structure_permissions._has_admin_access(instance.user, tenant.project):
             continue  # no need to delete ssh keys if user still have permissions for tenant.
         serialized_tenant = core_utils.serialize_instance(tenant)
+        key: core_models.SshPublicKey
         for key in ssh_keys:
             core_tasks.BackendMethodTask().delay(
                 serialized_tenant,
                 "remove_ssh_key_from_tenant",
                 key.name,
-                key.fingerprint,
+                key.fingerprint_md5,
             )
 
 
 def remove_ssh_key_from_all_tenants_on_it_deletion(sender, instance, **kwargs):
     """Delete key from all tenants that are accessible for user on key deletion."""
-    ssh_key = instance
+    ssh_key: core_models.SshPublicKey = instance
     user = ssh_key.user
     tenants = structure_filters.filter_queryset_for_user(Tenant.objects.all(), user)
     for tenant in tenants:
@@ -50,7 +51,7 @@ def remove_ssh_key_from_all_tenants_on_it_deletion(sender, instance, **kwargs):
             serialized_tenant,
             "remove_ssh_key_from_tenant",
             ssh_key.name,
-            ssh_key.fingerprint,
+            ssh_key.fingerprint_md5,
         )
 
 

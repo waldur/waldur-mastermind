@@ -23,7 +23,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
 from waldur_core.core.clean_html import clean_html
 from waldur_core.core.fields import NaturalChoiceField
-from waldur_core.core.models import User, get_ssh_key_fingerprint
+from waldur_core.core.models import User, get_ssh_key_fingerprints
 from waldur_core.core.serializers import GenericRelatedField
 from waldur_core.core.validators import validate_ssh_public_key
 from waldur_core.media.serializers import (
@@ -3633,9 +3633,14 @@ class ProviderOfferingSerializer(serializers.ModelSerializer):
 class RobotAccountSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
+    url = serializers.HyperlinkedIdentityField(
+        view_name="marketplace-robot-account-detail", lookup_field="uuid"
+    )
+
     class Meta:
         model = models.RobotAccount
         fields = (
+            "url",
             "uuid",
             "created",
             "modified",
@@ -3662,7 +3667,16 @@ class RobotAccountSerializer(
     fingerprints = serializers.SerializerMethodField()
 
     def get_fingerprints(self, robot_account):
-        fingerprints = [get_ssh_key_fingerprint(key) for key in robot_account.keys]
+        fingerprints = []
+        for key in robot_account.keys:
+            md5_fp, sha256fp, sha512_fp = get_ssh_key_fingerprints(key)
+            fingerprints.append(
+                {
+                    "md5": md5_fp,
+                    "sha256": sha256fp,
+                    "sha512": sha512_fp,
+                }
+            )
         return fingerprints
 
     def validate_keys(self, keys):

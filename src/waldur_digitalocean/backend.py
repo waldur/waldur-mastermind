@@ -80,7 +80,7 @@ class DigitalOceanBackend(ServiceBackend):
             backend_ssh_key = self.get_or_create_ssh_key(ssh_key)
 
             droplet.key_name = ssh_key.name
-            droplet.key_fingerprint = ssh_key.fingerprint
+            droplet.key_fingerprint = ssh_key.fingerprint_md5
 
         backend_droplet = digitalocean.Droplet(
             token=self.manager.token,
@@ -129,9 +129,9 @@ class DigitalOceanBackend(ServiceBackend):
         return action["action"]["id"]
 
     @digitalocean_error_handler
-    def remove_ssh_key(self, name, fingerprint):
+    def remove_ssh_key(self, name, fingerprint_md5):
         try:
-            backend_ssh_key = self.pull_ssh_key(name, fingerprint)
+            backend_ssh_key = self.pull_ssh_key(name, fingerprint_md5)
         except NotFoundError:
             pass  # no need to perform any action if key doesn't exist at backend
         else:
@@ -345,7 +345,7 @@ class DigitalOceanBackend(ServiceBackend):
 
     def get_or_create_ssh_key(self, ssh_key):
         try:
-            backend_ssh_key = self.pull_ssh_key(ssh_key.name, ssh_key.fingerprint)
+            backend_ssh_key = self.pull_ssh_key(ssh_key.name, ssh_key.fingerprint_md5)
         except NotFoundError:
             backend_ssh_key = self.push_ssh_key(ssh_key)
         return backend_ssh_key
@@ -360,9 +360,9 @@ class DigitalOceanBackend(ServiceBackend):
         return backend_ssh_key
 
     @digitalocean_error_handler
-    def pull_ssh_key(self, name, fingerprint):
+    def pull_ssh_key(self, name, fingerprint_md5):
         backend_ssh_key = digitalocean.SSHKey(
-            token=self.manager.token, fingerprint=fingerprint, name=name, id=None
+            token=self.manager.token, fingerprint=fingerprint_md5, name=name, id=None
         )
 
         backend_ssh_key.load()

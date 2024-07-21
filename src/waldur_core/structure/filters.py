@@ -467,7 +467,9 @@ class SshKeyFilter(NameFilterSet):
         model = core_models.SshPublicKey
         fields = [
             "name",
-            "fingerprint",
+            "fingerprint_md5",
+            "fingerprint_sha256",
+            "fingerprint_sha512",
             "uuid",
             "user_uuid",
             "is_shared",

@@ -1107,7 +1107,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         try:
             backend_flavor = nova.flavors.get(backend_flavor_id)
 
-            # instance key name and fingerprint are optional
+            # instance key name and fingerprint_md5 are optional
             # it is assumed that if public_key is specified, then
             # key_name and key_fingerprint have valid values
             if public_key:
@@ -1374,11 +1374,11 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             floating_ip.runtime_state = backend_floating_ip["status"]
             floating_ip.save()
 
-    def _get_or_create_ssh_key(self, key_name, fingerprint, public_key):
+    def _get_or_create_ssh_key(self, key_name, fingerprint_md5, public_key):
         nova = get_nova_client(self.session)
 
         try:
-            return nova.keypairs.find(fingerprint=fingerprint)
+            return nova.keypairs.find(fingerprint=fingerprint_md5)
         except nova_exceptions.NotFound:
             # Fine, it's a new key, let's add it
             try:
@@ -1389,9 +1389,9 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             except nova_exceptions.ClientException as e:
                 logger.error(
                     "Unable to import SSH public key to OpenStack, "
-                    "key_name: %s, fingerprint: %s, public_key: %s, error: %s",
+                    "key_name: %s, fingerprint_md5: %s, public_key: %s, error: %s",
                     key_name,
-                    fingerprint,
+                    fingerprint_md5,
                     public_key,
                     e,
                 )

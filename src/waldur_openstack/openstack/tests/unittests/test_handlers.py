@@ -4,6 +4,7 @@ from unittest.mock import patch
 from django.test import TestCase
 
 from waldur_core.core import utils as core_utils
+from waldur_core.core.models import SshPublicKey
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_openstack.openstack import apps
@@ -15,7 +16,9 @@ from .. import factories
 class SshKeysHandlersTest(TestCase):
     def setUp(self):
         self.user = structure_factories.UserFactory()
-        self.ssh_key = structure_factories.SshPublicKeyFactory(user=self.user)
+        self.ssh_key: SshPublicKey = structure_factories.SshPublicKeyFactory(
+            user=self.user
+        )
         self.tenant = factories.TenantFactory()
 
     def test_ssh_key_will_be_removed_if_user_lost_connection_to_tenant(
@@ -30,7 +33,7 @@ class SshKeysHandlersTest(TestCase):
             serialized_tenant,
             "remove_ssh_key_from_tenant",
             self.ssh_key.name,
-            self.ssh_key.fingerprint,
+            self.ssh_key.fingerprint_md5,
         )
 
     def test_ssh_key_will_not_be_removed_if_user_still_has_connection_to_tenant(
@@ -55,7 +58,7 @@ class SshKeysHandlersTest(TestCase):
             serialized_tenant,
             "remove_ssh_key_from_tenant",
             self.ssh_key.name,
-            self.ssh_key.fingerprint,
+            self.ssh_key.fingerprint_md5,
         )
 
     def test_ssh_key_will_be_deleted_from_tenant_on_ssh_key_deletion(
@@ -70,7 +73,7 @@ class SshKeysHandlersTest(TestCase):
             serialized_tenant,
             "remove_ssh_key_from_tenant",
             self.ssh_key.name,
-            self.ssh_key.fingerprint,
+            self.ssh_key.fingerprint_md5,
         )
 
 

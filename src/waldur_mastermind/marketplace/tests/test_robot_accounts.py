@@ -1,7 +1,7 @@
 from ddt import data, ddt
 from rest_framework import status, test
 
-from waldur_core.core.models import get_ssh_key_fingerprint
+from waldur_core.core.models import get_ssh_key_fingerprints
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_mastermind.marketplace.tests import factories, fixtures
@@ -89,5 +89,10 @@ class RobotAccountTest(test.APITransactionTestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(1, len(response.data["keys"]))
-        fingerprint = get_ssh_key_fingerprint(ssh_keys[0])
-        self.assertEqual(fingerprint, get_ssh_key_fingerprint(response.data["keys"][0]))
+        fingerprint_md5, fingerprint_sha256, fingerprint_sha512 = (
+            get_ssh_key_fingerprints(ssh_keys[0])
+        )
+
+        self.assertEqual(fingerprint_md5, response.data["fingerprints"][0]["md5"])
+        self.assertEqual(fingerprint_sha256, response.data["fingerprints"][0]["sha256"])
+        self.assertEqual(fingerprint_sha512, response.data["fingerprints"][0]["sha512"])
