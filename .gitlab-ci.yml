@@ -177,7 +177,7 @@ Lint dockerfile:
         - DL3015 # "--no-install-recommends" info
         - SC2094 # "read and write the same file in the same pipeline" info
 
-Upload configuration guide:
+Upload configuration guide and update enums in homeport:
   stage: deploy
   interruptible: true
   rules:
