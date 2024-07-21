@@ -868,11 +868,11 @@ msgid "Key is not valid: it should be single line."
 msgstr ""
 
 #: structure/serializers.py:747
-msgid "Key is not valid: cannot generate fingerprint_md5 from it."
+msgid "Key is not valid: cannot generate fingerprint from it."
 msgstr ""
 
 #: structure/serializers.py:749
-msgid "Key with same fingerprint_md5 already exists."
+msgid "Key with same fingerprint already exists."
 msgstr ""
 
 #: structure/serializers.py:997
