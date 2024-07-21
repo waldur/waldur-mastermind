@@ -76,7 +76,7 @@ class BaseDropletProvisionTest(DigitalOceanBackendTest):
         self.mock_key = mock.Mock()
         self.mock_key.id = "VALID_SSH_ID"
         self.mock_key.name = self.ssh_public_key.name
-        self.mock_key.fingerprint = self.ssh_public_key.fingerprint
+        self.mock_key.fingerprint_md5 = self.ssh_public_key.fingerprint_md5
         self.ssh_api.return_value = self.mock_key
 
         self.mock_droplet = mock.Mock()
@@ -107,7 +107,7 @@ class BaseDropletProvisionTest(DigitalOceanBackendTest):
 
         self.ssh_api.assert_called_once_with(
             token=mock.ANY,
-            fingerprint=self.ssh_public_key.fingerprint,
+            fingerprint=self.ssh_public_key.fingerprint_md5,
             name=self.ssh_public_key.name,
             id=None,
         )
@@ -137,7 +137,7 @@ class BaseDropletProvisionTest(DigitalOceanBackendTest):
         self.client.post(self.url, self.get_valid_data(ssh_public_key=self.ssh_url))
         droplet = Droplet.objects.get(backend_id=self.mock_droplet.id)
         self.assertEqual(droplet.key_name, self.mock_key.name)
-        self.assertEqual(droplet.key_fingerprint, self.mock_key.fingerprint)
+        self.assertEqual(droplet.key_fingerprint, self.mock_key.fingerprint_md5)
 
     def test_when_droplet_is_created_backend_is_called(self):
         self.client.post(

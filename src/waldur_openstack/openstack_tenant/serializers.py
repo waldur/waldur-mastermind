@@ -14,6 +14,7 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 from rest_framework.reverse import reverse
 
+from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
 from waldur_core.core import utils as core_utils
@@ -1327,14 +1328,14 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
         floating_ips_with_subnets = validated_data.pop("floating_ips", [])
         service_settings = validated_data["service_settings"]
         project = validated_data["project"]
-        ssh_key = validated_data.get("ssh_public_key")
+        ssh_key: core_models.SshPublicKey = validated_data.get("ssh_public_key")
         if ssh_key:
             # We want names to be human readable in backend.
             # OpenStack only allows latin letters, digits, dashes, underscores and spaces
             # as key names, thus we mangle the original name.
             safe_name = re.sub(r"[^-a-zA-Z0-9 _]+", "_", ssh_key.name)[:17]
             validated_data["key_name"] = f"{ssh_key.uuid.hex}-{safe_name}"
-            validated_data["key_fingerprint"] = ssh_key.fingerprint
+            validated_data["key_fingerprint"] = ssh_key.fingerprint_md5
 
         flavor = validated_data["flavor"]
         validated_data["flavor_name"] = flavor.name

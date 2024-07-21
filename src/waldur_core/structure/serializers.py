@@ -994,12 +994,19 @@ class SshKeySerializer(serializers.HyperlinkedModelSerializer):
             "uuid",
             "name",
             "public_key",
-            "fingerprint",
+            "fingerprint_md5",
+            "fingerprint_sha256",
+            "fingerprint_sha512",
             "user_uuid",
             "is_shared",
             "type",
         )
-        read_only_fields = ("fingerprint", "is_shared")
+        read_only_fields = (
+            "fingerprint_md5",
+            "fingerprint_sha256",
+            "fingerprint_sha512",
+            "is_shared",
+        )
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},
         }
@@ -1015,10 +1022,10 @@ class SshKeySerializer(serializers.HyperlinkedModelSerializer):
             )
 
         try:
-            core_models.get_ssh_key_fingerprint(value)
+            core_models.get_ssh_key_fingerprints(value)
         except (IndexError, TypeError):
             raise serializers.ValidationError(
-                _("Key is not valid: cannot generate fingerprint from it.")
+                _("Key is not valid: cannot generate fingerprint_md5 from it.")
             )
         return value
 

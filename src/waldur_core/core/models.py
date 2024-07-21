@@ -412,16 +412,32 @@ class ChangeEmailRequest(UuidMixin, TimeStampedModel):
         verbose_name_plural = _("change email requests")
 
 
-def get_ssh_key_fingerprint(ssh_key):
-    # How to get fingerprint from ssh key:
+def get_ssh_key_fingerprints(ssh_key):
+    # How to get fingerprint_md5 from ssh key:
     # http://stackoverflow.com/a/6682934/175349
     # http://www.ietf.org/rfc/rfc4716.txt Section 4.
     import base64
     import hashlib
 
     key_body = base64.b64decode(ssh_key.strip().split()[1].encode("ascii"))
-    fp_plain = hashlib.md5(key_body).hexdigest()  # noqa: S303
-    return ":".join(a + b for a, b in zip(fp_plain[::2], fp_plain[1::2]))
+    # calculate legacy md5 - AVOID RELYING ON IT!
+    md5_digest = hashlib.md5(key_body).hexdigest()  # noqa: S303
+    md5_fp = ":".join(a + b for a, b in zip(md5_digest[::2], md5_digest[1::2]))
+
+    # sha256
+    sha256_digest = hashlib.sha256(key_body).digest()
+    sha256_b64 = base64.b64encode(sha256_digest).rstrip(b"=")
+    sha256_fp = f'SHA256:{sha256_b64.decode("utf-8")}'
+
+    # sha512
+    sha512_digest = hashlib.sha512(key_body).digest()
+    sha512_b64 = base64.b64encode(sha512_digest).rstrip(b"=")
+    sha512_fp = f'SHA512:{sha512_b64.decode("utf-8")}'
+
+    return md5_fp, sha256_fp, sha512_fp
+
+
+_SSH_PUBKEY_RC = re.compile(rb"\A(\S+)[ \t]+(\S+)")
 
 
 @reversion.register()
@@ -437,7 +453,15 @@ class SshPublicKey(LoggableMixin, UuidMixin, models.Model):
     )
     # Model doesn't inherit NameMixin, because name field can be blank.
     name = models.CharField(max_length=150, blank=True)
-    fingerprint = models.CharField(max_length=47)  # In ideal world should be unique
+    fingerprint_md5 = models.CharField(
+        max_length=47
+    )  # deprecated due to known collisions
+    fingerprint_sha256 = models.CharField(
+        max_length=51, blank=True
+    )  # len('SHA256:') + 44 chars
+    fingerprint_sha512 = models.CharField(
+        max_length=94, blank=True
+    )  # len('SHA512:') + 88 chars
     public_key = models.TextField(
         validators=[validators.MaxLengthValidator(2000), validate_ssh_public_key]
     )
@@ -459,24 +483,25 @@ class SshPublicKey(LoggableMixin, UuidMixin, models.Model):
     ):
         # Fingerprint is always set based on public_key
         try:
-            self.fingerprint = get_ssh_key_fingerprint(self.public_key)
+            md5_fp, sha256_fp, sha512_fp = get_ssh_key_fingerprints(self.public_key)
+            self.fingerprint_md5 = md5_fp
+            self.fingerprint_sha256 = sha256_fp
+            self.fingerprint_sha512 = sha512_fp
         except (IndexError, TypeError):
             logger.exception("Fingerprint calculation has failed")
             raise ValueError(
                 _("Public key format is incorrect. Fingerprint calculation has failed.")
             )
 
-        if (
-            update_fields
-            and "public_key" in update_fields
-            and "fingerprint" not in update_fields
-        ):
-            update_fields.append("fingerprint")
+        if update_fields and "public_key" in update_fields:
+            update_fields.append(
+                "fingerprint_md5", "fingerprint_sha256", "fingerprint_sha512"
+            )
 
         super().save(force_insert, force_update, using, update_fields)
 
     def __str__(self):
-        return f"{self.name} - {self.fingerprint}, user: {self.user.username}, {self.user.full_name}"
+        return f"{self.name} - {self.fingerprint_sha512}, user: {self.user.username}, {self.user.full_name}"
 
 
 class RuntimeStateMixin(models.Model):

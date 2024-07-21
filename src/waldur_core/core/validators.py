@@ -3,8 +3,8 @@ import logging
 from croniter import croniter
 from cryptography import x509
 from cryptography.exceptions import UnsupportedAlgorithm
-from cryptography.hazmat import backends
-from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat import backends as hazmat_backends
+from cryptography.hazmat.primitives import serialization as hazmat_serialization
 from django import template
 from django.core.exceptions import ValidationError
 from django.core.validators import BaseValidator, URLValidator
@@ -138,7 +138,9 @@ def validate_ssh_public_key(ssh_key):
         ssh_key = ssh_key.encode("utf-8")
 
     try:
-        serialization.load_ssh_public_key(ssh_key, backends.default_backend())
+        hazmat_serialization.load_ssh_public_key(
+            ssh_key, hazmat_backends.default_backend()
+        )
     except (ValueError, UnsupportedAlgorithm) as e:
         logger.debug("Invalid SSH public key %s. Error: %s", ssh_key, e)
         raise ValidationError(_("Invalid SSH public key."))
