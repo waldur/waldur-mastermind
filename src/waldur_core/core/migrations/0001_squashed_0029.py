@@ -277,7 +277,7 @@ class Migration(migrations.Migration):
                 ),
                 ("uuid", waldur_core.core.fields.UUIDField()),
                 ("name", models.CharField(blank=True, max_length=150)),
-                ("fingerprint_md5", models.CharField(max_length=47)),
+                ("fingerprint", models.CharField(max_length=47)),
                 (
                     "public_key",
                     models.TextField(
