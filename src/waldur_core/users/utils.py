@@ -30,7 +30,9 @@ def get_invitation_context(invitation: models.Invitation, sender):
 
     context.update(
         dict(
-            type=invitation.scope._meta.verbose_name,
+            type=str(
+                invitation.scope._meta.verbose_name
+            ),  # convert from proxy object to real string
             name=invitation.scope.name,
             role=invitation.role.description,
         )
