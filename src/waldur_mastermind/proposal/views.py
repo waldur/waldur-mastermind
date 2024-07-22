@@ -137,6 +137,8 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     filter_backends = []
     destroy_validators = [core_validators.StateValidator(models.Call.States.DRAFT)]
 
+    queryset = models.Call.objects.all()
+
     get_queryset = permissions_utils.queryset_factory(
         models.Call, RoleEnum.CALL_MANAGER, ordering=["created"]
     )
