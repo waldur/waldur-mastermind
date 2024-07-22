@@ -507,7 +507,7 @@ CONSTANCE_CONFIG = {
     "SMAX_VERIFY_SSL": (True, "Toggler for SSL verification"),
     # Proposal settings
     "PROPOSAL_REVIEW_DURATION": (7, "Review duration in days."),
-    "USER_TABLE_COLUMNS": ([], "List of columns for users table."),
+    "USER_TABLE_COLUMNS": ("", "Comma-separated list of columns for users table."),
 }
 
 CONSTANCE_CONFIG_FIELDSETS = {
