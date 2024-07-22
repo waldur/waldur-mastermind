@@ -507,6 +507,7 @@ CONSTANCE_CONFIG = {
     "SMAX_VERIFY_SSL": (True, "Toggler for SSL verification"),
     # Proposal settings
     "PROPOSAL_REVIEW_DURATION": (7, "Review duration in days."),
+    "USER_TABLE_COLUMNS": ([], "List of columns for users table."),
 }
 
 CONSTANCE_CONFIG_FIELDSETS = {
@@ -605,6 +606,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "SMAX_VERIFY_SSL",
     ),
     "Proposal settings": ("PROPOSAL_REVIEW_DURATION",),
+    "Table settings": ("USER_TABLE_COLUMNS",),
 }
 
 PUBLIC_CONSTANCE_SETTINGS = (
@@ -643,6 +645,8 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE",
     # Proposal
     "PROPOSAL_REVIEW_DURATION",
+    # Tables
+    "USER_TABLE_COLUMNS",
 )
 
 for ext in WaldurExtension.get_extensions():
