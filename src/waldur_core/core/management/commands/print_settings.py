@@ -1,6 +1,7 @@
 import pprint
 from datetime import timedelta
 
+from django.conf import settings
 from django.core.management.base import BaseCommand
 
 from waldur_core.core.metadata import WaldurConfiguration
@@ -22,6 +23,27 @@ def print_section(section, section_name, print_default=False):
     print()
 
 
+def generate_markdown(config, fieldsets):
+    markdown = ""
+
+    for group, variables in fieldsets.items():
+        markdown += f"## {group}\n\n"
+        for variable in variables:
+            if variable in config:
+                default_value, description, *rest = config[variable]
+                var_type = rest[0] if rest else type(default_value).__name__
+                markdown += f"### {variable}\n\n"
+                if default_value:
+                    markdown += (
+                        f"**Type:** {var_type}, default value:** {default_value}\n\n"
+                    )
+                else:
+                    markdown += f"**Type:** {var_type}\n\n"
+                markdown += f"{description}\n\n"
+
+    return markdown
+
+
 class Command(BaseCommand):
     help = """Prints Waldur configuration options in markdown format."""
 
@@ -38,7 +60,7 @@ class Command(BaseCommand):
             if not hasattr(section.type_, "__fields__")
         ]
 
-        print("# Configuration guide", end="\n\n")
+        print("# Configuration guide for static options", end="\n\n")
 
         for section_name, section in nested:
             type_ = section.type_
@@ -55,3 +77,10 @@ class Command(BaseCommand):
         print()
         for section_name, section in flat:
             print_section(section, section_name, print_default=True)
+
+        print("# Configuration guide for dynamic options", end="\n\n")
+        print(
+            generate_markdown(
+                settings.CONSTANCE_CONFIG, settings.CONSTANCE_CONFIG_FIELDSETS
+            )
+        )
