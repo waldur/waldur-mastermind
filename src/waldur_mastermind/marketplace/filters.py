@@ -96,6 +96,7 @@ class OfferingFilter(structure_filters.NameFilterSet, django_filters.FilterSet):
             "total_customers",
             "total_cost",
             "total_cost_estimated",
+            "state",
         )
     )
     type = LooseMultipleChoiceFilter()
