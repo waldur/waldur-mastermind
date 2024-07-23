@@ -3014,6 +3014,8 @@ class OfferingUserSerializer(
     user_uuid = serializers.ReadOnlyField(source="user.uuid")
     user_username = serializers.ReadOnlyField(source="user.username")
     user_full_name = serializers.ReadOnlyField(source="user.full_name")
+    customer_uuid = serializers.ReadOnlyField(source="offering.customer.uuid")
+    customer_name = serializers.ReadOnlyField(source="offering.customer.name")
 
     class Meta:
         model = models.OfferingUser
@@ -3029,6 +3031,8 @@ class OfferingUserSerializer(
             "created",
             "modified",
             "propagation_date",
+            "customer_uuid",
+            "customer_name",
         )
         extra_kwargs = dict(
             offering={
