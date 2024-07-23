@@ -33,12 +33,9 @@ def generate_markdown(config, fieldsets):
                 default_value, description, *rest = config[variable]
                 var_type = rest[0] if rest else type(default_value).__name__
                 markdown += f"### {variable}\n\n"
+                markdown += f"**Type:** {var_type}\n\n"
                 if default_value:
-                    markdown += (
-                        f"**Type:** {var_type}, default value:** {default_value}\n\n"
-                    )
-                else:
-                    markdown += f"**Type:** {var_type}\n\n"
+                    markdown += f"**Default value**: {default_value}\n\n"
                 markdown += f"{description}\n\n"
 
     return markdown
