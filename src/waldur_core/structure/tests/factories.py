@@ -104,6 +104,7 @@ class CustomerFactory(
         model = models.Customer
 
     name = factory.Sequence(lambda n: "Customer%s" % n)
+    slug = factory.Sequence(lambda n: "cust-%s" % n)
     abbreviation = factory.Sequence(lambda n: "Cust%s" % n)
     contact_details = factory.Sequence(lambda n: "contacts %s" % n)
 
@@ -128,6 +129,7 @@ class ProjectFactory(
         model = models.Project
 
     name = factory.Sequence(lambda n: "Proj%s" % n)
+    slug = factory.Sequence(lambda n: "proj-%s" % n)
     customer = factory.SubFactory(CustomerFactory)
 
     @classmethod

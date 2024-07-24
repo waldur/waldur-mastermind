@@ -357,6 +357,7 @@ class Offering(
     core_models.BackendMixin,
     core_models.UuidMixin,
     core_models.NameMixin,
+    core_models.SlugMixin,
     core_models.DescribableMixin,
     quotas_models.QuotaModelMixin,
     structure_models.PermissionMixin,
@@ -985,6 +986,7 @@ class ResourceDetailsMixin(
     SafeAttributesMixin,
     CostEstimateMixin,
     core_models.NameMixin,
+    core_models.SlugMixin,
     core_models.DescribableMixin,
 ):
     class Meta:

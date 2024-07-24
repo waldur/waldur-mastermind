@@ -3,7 +3,6 @@ from unittest import mock
 
 from constance.test.pytest import override_config
 from ddt import data, ddt
-from django.template.defaultfilters import slugify
 from freezegun import freeze_time
 from rest_framework import status, test
 
@@ -53,7 +52,7 @@ class ResourceGetTest(test.APITransactionTestCase):
         )
         self.assertEqual(
             response.data["name"],
-            f"{slugify(self.project.customer.abbreviation)[:10]}-{slugify(self.project.name)[:10]}-{slugify(self.offering.name)[:10]}-2",
+            f"{self.project.customer.slug}-{self.project.slug}-{self.offering.slug}-2",
         )
 
     def test_resource_is_usage_based(self):
