@@ -7,6 +7,7 @@ from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
 from waldur_core.structure import models as structure_models
+from waldur_core.structure.permissions import _get_customer
 
 from . import models
 
@@ -14,6 +15,13 @@ logger = logging.getLogger(__name__)
 
 
 class PolicySerializer(serializers.HyperlinkedModelSerializer):
+    scope_name = serializers.ReadOnlyField(source="scope.name")
+    scope_uuid = serializers.ReadOnlyField(source="scope.uuid")
+    created_by_full_name = serializers.ReadOnlyField(source="created_by.full_name")
+    created_by_username = serializers.ReadOnlyField(source="created_by.username")
+    has_fired = serializers.BooleanField(read_only=True)
+    fired_datetime = serializers.DateTimeField(read_only=True)
+
     def validate_actions(self, value):
         if not value:
             return
@@ -26,6 +34,10 @@ class PolicySerializer(serializers.HyperlinkedModelSerializer):
             )
 
         return value
+
+    def create(self, validated_data):
+        validated_data["created_by"] = self.context["request"].user
+        return super().create(validated_data)
 
     def save(self, **kwargs):
         policy = super().save(**kwargs)
@@ -49,26 +61,14 @@ class PolicySerializer(serializers.HyperlinkedModelSerializer):
 
         return policy
 
-
-class ProjectEstimatedCostPolicySerializer(
-    core_serializers.AugmentedSerializerMixin, PolicySerializer
-):
-    project_name = serializers.ReadOnlyField(source="project.name")
-    project_uuid = serializers.ReadOnlyField(source="project.uuid")
-    created_by_full_name = serializers.ReadOnlyField(source="created_by.full_name")
-    created_by_username = serializers.ReadOnlyField(source="created_by.username")
-    has_fired = serializers.BooleanField(read_only=True)
-    fired_datetime = serializers.DateTimeField(read_only=True)
-
     class Meta:
-        model = models.ProjectEstimatedCostPolicy
         fields = (
             "uuid",
             "url",
             "limit_cost",
-            "project",
-            "project_name",
-            "project_uuid",
+            "scope",
+            "scope_name",
+            "scope_uuid",
             "actions",
             "created",
             "created_by_full_name",
@@ -76,31 +76,60 @@ class ProjectEstimatedCostPolicySerializer(
             "has_fired",
             "fired_datetime",
         )
+
+
+class ProjectEstimatedCostPolicySerializer(
+    core_serializers.AugmentedSerializerMixin, PolicySerializer
+):
+    def validate_scope(self, scope):
+        if not scope:
+            return
+
+        user = self.context["request"].user
+        customer = _get_customer(scope)
+
+        if user.is_staff or customer.has_user(
+            user, structure_models.CustomerRole.OWNER
+        ):
+            return scope
+
+        raise serializers.ValidationError(
+            _("User is not allowed to configure policies.")
+        )
+
+    class Meta(PolicySerializer.Meta):
+        model = models.ProjectEstimatedCostPolicy
         view_name = "marketplace-project-estimated-cost-policy-detail"
         extra_kwargs = {
             "url": {
                 "lookup_field": "uuid",
             },
-            "project": {"lookup_field": "uuid", "view_name": "project-detail"},
+            "scope": {"lookup_field": "uuid", "view_name": "project-detail"},
         }
 
-    def validate_project(self, project):
-        if not project:
-            return project
+
+class CustomerEstimatedCostPolicySerializer(
+    core_serializers.AugmentedSerializerMixin, PolicySerializer
+):
+    def validate_scope(self, scope):
+        if not scope:
+            return
 
         user = self.context["request"].user
 
-        if (
-            not project
-            or user.is_staff
-            or user.is_support
-            or project.customer.has_user(user, structure_models.CustomerRole.OWNER)
-        ):
-            return project
+        if user.is_staff:
+            return scope
+
         raise serializers.ValidationError(
-            _("Only customer owner and staff can create policy.")
+            _("User is not allowed to configure policies.")
         )
 
-    def create(self, validated_data):
-        validated_data["created_by"] = self.context["request"].user
-        return super().create(validated_data)
+    class Meta(PolicySerializer.Meta):
+        model = models.CustomerEstimatedCostPolicy
+        view_name = "marketplace-customer-estimated-cost-policy-detail"
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+            },
+            "scope": {"lookup_field": "uuid", "view_name": "customer-detail"},
+        }

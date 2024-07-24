@@ -4,6 +4,7 @@ from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
 from waldur_core.logging import models as logging_models
+from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.billing import models as billing_models
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -19,7 +20,7 @@ class ActionsTest(test.APITransactionTestCase):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.project = self.fixture.project
         self.policy = factories.ProjectEstimatedCostPolicyFactory(
-            project=self.project, created_by=self.fixture.user
+            scope=self.project, created_by=self.fixture.user
         )
         self.estimate = billing_models.PriceEstimate.objects.get(scope=self.project)
         self.admin = self.fixture.admin
@@ -34,7 +35,9 @@ class ActionsTest(test.APITransactionTestCase):
         self.policy.actions = "notify_project_team"
         self.policy.save()
 
-        serialized_scope = core_utils.serialize_instance(self.policy.project)
+        serialized_scope = core_utils.serialize_instance(
+            structure_permissions._get_project(self.policy)
+        )
         serialized_policy = core_utils.serialize_instance(self.policy)
         tasks.notify_about_limit_cost(serialized_scope, serialized_policy)
 
@@ -49,7 +52,9 @@ class ActionsTest(test.APITransactionTestCase):
         self.policy.actions = "notify_organization_owners"
         self.policy.save()
 
-        serialized_scope = core_utils.serialize_instance(self.policy.project.customer)
+        serialized_scope = core_utils.serialize_instance(
+            structure_permissions._get_customer(self.policy)
+        )
         serialized_policy = core_utils.serialize_instance(self.policy)
         tasks.notify_about_limit_cost(serialized_scope, serialized_policy)
 

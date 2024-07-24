@@ -3,11 +3,12 @@ from django.contrib import admin
 from . import models
 
 
-class ProjectEstimatedCostPolicyAdmin(admin.ModelAdmin):
+class EstimatedCostPolicyAdmin(admin.ModelAdmin):
     list_display = (
-        "project",
+        "scope",
         "limit_cost",
     )
 
 
-admin.site.register(models.ProjectEstimatedCostPolicy, ProjectEstimatedCostPolicyAdmin)
+admin.site.register(models.ProjectEstimatedCostPolicy, EstimatedCostPolicyAdmin)
+admin.site.register(models.CustomerEstimatedCostPolicy, EstimatedCostPolicyAdmin)
