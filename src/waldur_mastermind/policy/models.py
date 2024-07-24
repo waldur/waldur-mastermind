@@ -6,6 +6,7 @@ from model_utils.models import TimeStampedModel
 
 from waldur_core.core import models as core_models
 from waldur_core.structure import models as structure_models
+from waldur_core.structure import permissions as structure_permissions
 from waldur_mastermind.billing import models as billing_models
 from waldur_mastermind.marketplace import models as marketplace_models
 
@@ -32,6 +33,11 @@ class Policy(
         null=True,
     )
     actions = NotImplemented
+    scope = NotImplemented
+
+    @classmethod
+    def get_scope_class(cls):
+        return cls.scope.field.related_model
 
     def is_triggered(self):
         """Checking if the policy needs to be applied."""
@@ -60,10 +66,24 @@ class Policy(
         abstract = True
 
 
+class EstimatedCostPolicyMixin(models.Model):
+    limit_cost = models.IntegerField()
+
+    def is_triggered(self):
+        try:
+            price_estimate = billing_models.PriceEstimate.objects.get(scope=self.scope)
+            return price_estimate.total > self.limit_cost
+        except billing_models.PriceEstimate.DoesNotExist:
+            return False
+
+    class Meta:
+        abstract = True
+
+
 class ProjectPolicy(Policy):
     class Permissions:
-        customer_path = "project__customer"
-        project_path = "project"
+        customer_path = "scope__customer"
+        project_path = "scope"
 
     available_actions = {
         policy_actions.notify_project_team,
@@ -74,24 +94,45 @@ class ProjectPolicy(Policy):
         policy_actions.request_downscaling,
     }
 
-    project = models.ForeignKey(structure_models.Project, on_delete=models.CASCADE)
+    scope = models.ForeignKey(structure_models.Project, on_delete=models.CASCADE)
     actions = models.CharField(max_length=255)
+
+    @staticmethod
+    def get_scope_from_observable_object(observable_object):
+        return structure_permissions._get_project(observable_object)
 
     class Meta:
         abstract = True
 
 
-class ProjectEstimatedCostPolicy(ProjectPolicy):
-    limit_cost = models.IntegerField()
-
-    def is_triggered(self):
-        try:
-            price_estimate = billing_models.PriceEstimate.objects.get(
-                scope=self.project
-            )
-            return price_estimate.total > self.limit_cost
-        except billing_models.PriceEstimate.DoesNotExist:
-            return False
-
+class ProjectEstimatedCostPolicy(EstimatedCostPolicyMixin, ProjectPolicy):
     class Meta:
         verbose_name_plural = "Project estimated cost policies"
+
+
+class CustomerPolicy(Policy):
+    class Permissions:
+        customer_path = "scope"
+
+    available_actions = {
+        policy_actions.notify_organization_owners,
+        policy_actions.block_creation_of_new_resources,
+        policy_actions.block_modification_of_existing_resources,
+        policy_actions.terminate_resources,
+        policy_actions.request_downscaling,
+    }
+
+    scope = models.ForeignKey(structure_models.Customer, on_delete=models.CASCADE)
+    actions = models.CharField(max_length=255)
+
+    @staticmethod
+    def get_scope_from_observable_object(observable_object):
+        return structure_permissions._get_customer(observable_object)
+
+    class Meta:
+        abstract = True
+
+
+class CustomerEstimatedCostPolicy(EstimatedCostPolicyMixin, CustomerPolicy):
+    class Meta:
+        verbose_name_plural = "Customer estimated cost policies"

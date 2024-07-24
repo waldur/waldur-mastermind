@@ -19,9 +19,9 @@ def notify_about_limit_cost(serialized_scope, serialized_policy):
 
     if emails:
         context = {
-            "project_name": policy.project.name,
+            "project_name": policy.scope.name,
             "project_url": core_utils.format_homeport_link(
-                "projects/{project_uuid}/", project_uuid=policy.project.uuid.hex
+                "projects/{project_uuid}/", project_uuid=policy.scope.uuid.hex
             ),
             "limit": policy.limit_cost,
         }

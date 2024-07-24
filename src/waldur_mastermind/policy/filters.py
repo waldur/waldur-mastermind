@@ -18,3 +18,14 @@ class ProjectEstimatedCostPolicyFilter(django_filters.FilterSet):
         view_name="project-detail", field_name="project__uuid"
     )
     project_uuid = django_filters.UUIDFilter(field_name="project__uuid")
+
+
+class CustomerEstimatedCostPolicyFilter(django_filters.FilterSet):
+    class Meta:
+        model = models.CustomerEstimatedCostPolicy
+        fields = []
+
+    customer = core_filters.URLFilter(
+        view_name="customer-detail", field_name="project__customer__uuid"
+    )
+    customer_uuid = django_filters.UUIDFilter(field_name="project__customer__uuid")

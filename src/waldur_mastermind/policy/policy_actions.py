@@ -4,6 +4,7 @@ from django.db import transaction
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.utils import get_system_robot
+from waldur_core.structure import permissions as structure_permissions
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.exceptions import PolicyException
 from waldur_mastermind.marketplace_openstack import INSTANCE_TYPE
@@ -13,7 +14,8 @@ logger = logging.getLogger(__name__)
 
 
 def notify_project_team(policy):
-    serialized_scope = core_utils.serialize_instance(policy.project)
+    project = structure_permissions._get_project(policy)
+    serialized_scope = core_utils.serialize_instance(project)
     serialized_policy = core_utils.serialize_instance(policy)
     tasks.notify_about_limit_cost.delay(serialized_scope, serialized_policy)
 
@@ -33,7 +35,8 @@ notify_project_team.one_time_action = True
 
 
 def notify_organization_owners(policy):
-    serialized_scope = core_utils.serialize_instance(policy.project.customer)
+    customer = structure_permissions._get_customer(policy)
+    serialized_scope = core_utils.serialize_instance(customer)
     serialized_policy = core_utils.serialize_instance(policy)
     tasks.notify_about_limit_cost.delay(serialized_scope, serialized_policy)
 
@@ -56,8 +59,22 @@ def terminate_resources(policy):
     from waldur_mastermind.marketplace import tasks as marketplace_tasks
 
     user = get_system_robot()
+    project = structure_permissions._get_project(policy)
 
-    for resource in marketplace_models.Resource.objects.filter(project=policy.project):
+    resources = marketplace_models.Resource.objects.exclude(
+        state__in=(
+            marketplace_models.Resource.States.TERMINATED,
+            marketplace_models.Resource.States.TERMINATING,
+        )
+    )
+
+    if project:
+        resources = resources.filter(project=project)
+    else:
+        customer = structure_permissions._get_customer(policy)
+        resources = resources.filter(project__customer=customer)
+
+    for resource in resources:
         with transaction.atomic():
             attributes = (
                 {"action": "force_destroy"}
@@ -70,7 +87,7 @@ def terminate_resources(policy):
                 type=marketplace_models.Order.Types.TERMINATE,
                 state=marketplace_models.Order.States.EXECUTING,
                 attributes=attributes,
-                project=policy.project,
+                project=policy.scope,
                 created_by=user,
                 consumer_reviewed_by=user,
             )
@@ -133,7 +150,21 @@ block_modification_of_existing_resources.one_time_action = False
 
 
 def request_downscaling(policy):
-    resources = marketplace_models.Resource.objects.filter(project=policy.project)
+    project = structure_permissions._get_project(policy)
+
+    resources = marketplace_models.Resource.objects.exclude(
+        state__in=(
+            marketplace_models.Resource.States.TERMINATED,
+            marketplace_models.Resource.States.TERMINATING,
+        )
+    )
+
+    if project:
+        resources = resources.filter(project=project)
+    else:
+        customer = structure_permissions._get_customer(policy)
+        resources = resources.filter(project__customer=customer)
+
     resources.update(requested_downscaling=True)
     logger.info(
         "Policy action request_downscaling has been triggered. Policy UUID: %s. Resources: %s",
