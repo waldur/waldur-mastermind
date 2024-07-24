@@ -245,6 +245,7 @@ class ProjectSerializer(
             "url",
             "uuid",
             "name",
+            "slug",
             "customer",
             "customer_uuid",
             "customer_name",

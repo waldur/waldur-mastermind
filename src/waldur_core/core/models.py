@@ -10,6 +10,7 @@ from django.conf import settings
 from django.contrib.auth.models import PermissionsMixin, UserManager
 from django.core import validators
 from django.db import models, transaction
+from django.template.defaultfilters import slugify
 from django.utils import timezone as django_timezone
 from django.utils.translation import gettext_lazy as _
 from django_fsm import ConcurrentTransitionMixin, FSMIntegerField, transition
@@ -60,6 +61,43 @@ class NameMixin(models.Model):
         abstract = True
 
     name = models.CharField(_("name"), max_length=150, validators=[validate_name])
+
+
+SLUG_NAME_LIMIT = 8
+
+
+class SlugMixin(models.Model):
+    """
+    Mixin to automatically generate a name-based slug.
+    """
+
+    slug = models.SlugField(editable=False)
+
+    class Meta:
+        abstract = True
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            base_slug = slugify(self.name)[:SLUG_NAME_LIMIT]
+
+            existing_slugs = self.__class__.objects.filter(
+                slug__startswith=base_slug
+            ).values_list("slug", flat=True)
+
+            # Find maximum suffix
+            max_num = 0
+            for slug in existing_slugs:
+                try:
+                    num = int(slug.split("-")[-1])
+                    if num > max_num:
+                        max_num = num
+                except ValueError:
+                    pass
+
+            new_slug = f"{base_slug}-{max_num + 1}"
+            self.slug = new_slug
+
+        super().save(*args, **kwargs)
 
 
 class UiDescribableMixin(DescribableMixin):
