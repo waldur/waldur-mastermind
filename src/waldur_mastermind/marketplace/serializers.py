@@ -3590,6 +3590,7 @@ class ProviderOfferingSerializer(serializers.ModelSerializer):
         fields = (
             "uuid",
             "name",
+            "slug",
             "category_title",
             "type",
             "state",
