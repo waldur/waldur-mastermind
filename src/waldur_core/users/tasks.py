@@ -69,8 +69,8 @@ def send_invitation_created(invitation_uuid, sender):
             return
 
         logger.info(
-            "About to send invitation to {url} to join {name} {type} as {role}".format(
-                url=webhook_url, **context
+            "About to send invitation to {url} for {email} to join {name} {type} as {role}".format(
+                url=webhook_url, email=invitation.email, **context
             )
         )
 
