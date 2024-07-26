@@ -213,6 +213,7 @@ class MarketplaceOfferingUserEventLogger(EventLogger):
         event_types = (
             "marketplace_offering_user_created",
             "marketplace_offering_user_deleted",
+            "marketplace_offering_user_restriction_updated",
         )
         event_groups = {
             "users": event_types,

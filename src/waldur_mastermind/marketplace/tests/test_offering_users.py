@@ -206,3 +206,59 @@ class OfferingUsersHandlerTest(test.APITransactionTestCase):
                 event_type="marketplace_offering_user_deleted"
             ).exists()
         )
+
+
+@ddt
+class OferingUserRestrictedUpdateTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.CustomerFixture()
+        self.offering = factories.OfferingFactory(
+            shared=True, customer=self.fixture.customer
+        )
+        self.offering.secret_options = {
+            "service_provider_can_create_offering_user": True
+        }
+        self.offering.save()
+        user = UserFactory()
+
+        self.offering_user = OfferingUser.objects.create(
+            offering=self.offering, user=user, username="user"
+        )
+        CustomerRole.OWNER.add_permission(
+            PermissionEnum.UPDATE_OFFERING_USER_RESTRICTION
+        )
+        CustomerRole.MANAGER.add_permission(
+            PermissionEnum.UPDATE_OFFERING_USER_RESTRICTION
+        )
+
+    def get_url(self, offering_user, action):
+        url = "http://testserver" + reverse(
+            "marketplace-offering-user-detail",
+            kwargs={"uuid": offering_user.uuid.hex},
+        )
+        return url if action is None else url + action + "/"
+
+    def update_restriction_status(self, offering_user):
+        url = self.get_url(offering_user, "update_restricted")
+        payload = {"is_restricted": True}
+        response = self.client.post(url, payload)
+        return response
+
+    def test_user_can_not_update_offering_user_restriction(self):
+        self.client.force_authenticate(user=self.fixture.user)
+        self.fixture.customer.add_user(self.fixture.user, CustomerRole.SUPPORT)
+        response = self.update_restriction_status(self.offering_user)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @data("staff", "owner", "service_manager")
+    def test_owner_manager_can_update_offering_user_restriction(self, user):
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+        response = self.update_restriction_status(self.offering_user)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering_user.refresh_from_db()
+        self.assertTrue(self.offering_user.is_restricted)
+        self.assertTrue(
+            Event.objects.filter(
+                event_type="marketplace_offering_user_restriction_updated"
+            ).exists()
+        )

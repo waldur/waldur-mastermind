@@ -3018,10 +3018,13 @@ class OfferingUserSerializer(
     user_full_name = serializers.ReadOnlyField(source="user.full_name")
     customer_uuid = serializers.ReadOnlyField(source="offering.customer.uuid")
     customer_name = serializers.ReadOnlyField(source="offering.customer.name")
+    is_restricted = serializers.ReadOnlyField()
 
     class Meta:
         model = models.OfferingUser
         fields = (
+            "url",
+            "uuid",
             "user",
             "offering",
             "username",
@@ -3035,6 +3038,7 @@ class OfferingUserSerializer(
             "propagation_date",
             "customer_uuid",
             "customer_name",
+            "is_restricted",
         )
         extra_kwargs = dict(
             offering={
@@ -3042,6 +3046,10 @@ class OfferingUserSerializer(
                 "view_name": "marketplace-provider-offering-detail",
             },
             user={"lookup_field": "uuid", "view_name": "user-detail"},
+            url={
+                "lookup_field": "uuid",
+                "view_name": "marketplace-offering-user-detail",
+            },
         )
 
     def create(self, validated_data):
@@ -3059,6 +3067,20 @@ class OfferingUserSerializer(
             )
 
         return super().create(validated_data)
+
+
+class OfferingUserUpdateRestrictionSerializer(serializers.Serializer):
+    is_restricted = serializers.BooleanField()
+
+    def validate(self, attrs):
+        request = self.context["request"]
+        offering_user = self.instance
+        offering = offering_user.offering
+        if not has_permission(
+            request, PermissionEnum.UPDATE_OFFERING_USER_RESTRICTION, offering.customer
+        ):
+            raise rf_exceptions.PermissionDenied()
+        return attrs
 
 
 class FilterForUserField(serializers.HyperlinkedRelatedField):
