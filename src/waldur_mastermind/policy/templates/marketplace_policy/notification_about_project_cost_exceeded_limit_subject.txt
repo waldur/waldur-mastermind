@@ -1,1 +1,1 @@
-Project {{ project_name }} cost has exceeded the limit.
+{{ scope_class }} {{ scope_name }} cost has exceeded the limit.

@@ -52,3 +52,25 @@ class CustomerEstimatedCostPolicyViewSet(ActionsViewSet):
             for action in models.CustomerEstimatedCostPolicy.available_actions
         ]
         return Response(data, status=status.HTTP_200_OK)
+
+
+class OfferingEstimatedCostPolicyViewSet(ActionsViewSet):
+    queryset = models.OfferingEstimatedCostPolicy.objects.all().order_by("-created")
+    serializer_class = serializers.OfferingEstimatedCostPolicySerializer
+    filter_backends = [
+        DjangoFilterBackend,
+        structure_filters.GenericRoleFilter,
+    ]
+    filterset_class = filters.OfferingEstimatedCostPolicyFilter
+    lookup_field = "uuid"
+    destroy_permissions = update_permissions = partial_update_permissions = [
+        structure_permissions.is_owner
+    ]
+
+    @action(detail=False, methods=["get"])
+    def actions(self, request, *args, **kwargs):
+        data = [
+            action.__name__
+            for action in models.OfferingEstimatedCostPolicy.available_actions
+        ]
+        return Response(data, status=status.HTTP_200_OK)

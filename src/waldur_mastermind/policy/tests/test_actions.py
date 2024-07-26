@@ -4,7 +4,6 @@ from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
 from waldur_core.logging import models as logging_models
-from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.billing import models as billing_models
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -35,11 +34,8 @@ class ActionsTest(test.APITransactionTestCase):
         self.policy.actions = "notify_project_team"
         self.policy.save()
 
-        serialized_scope = core_utils.serialize_instance(
-            structure_permissions._get_project(self.policy)
-        )
         serialized_policy = core_utils.serialize_instance(self.policy)
-        tasks.notify_about_limit_cost(serialized_scope, serialized_policy)
+        tasks.notify_project_team(serialized_policy)
 
         mock_send_mail.assert_called_once()
 
@@ -52,11 +48,8 @@ class ActionsTest(test.APITransactionTestCase):
         self.policy.actions = "notify_organization_owners"
         self.policy.save()
 
-        serialized_scope = core_utils.serialize_instance(
-            structure_permissions._get_customer(self.policy)
-        )
         serialized_policy = core_utils.serialize_instance(self.policy)
-        tasks.notify_about_limit_cost(serialized_scope, serialized_policy)
+        tasks.notify_customer_owners(serialized_policy)
 
         mock_send_mail.assert_called_once()
         self.assertEqual(mock_send_mail.call_args.kwargs["to"][0], self.owner.email)
@@ -73,7 +66,7 @@ class ActionsTest(test.APITransactionTestCase):
         self.estimate.total = self.policy.limit_cost + 1
         self.estimate.save()
 
-        mock_tasks.notify_about_limit_cost.delay.assert_called_once()
+        mock_tasks.notify_customer_owners.delay.assert_called_once()
         self.assertTrue(
             logging_models.Event.objects.filter(event_type="notify_organization_owners")
         )
