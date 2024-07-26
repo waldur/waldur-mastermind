@@ -10,6 +10,7 @@ class PolicyConfig(AppConfig):
     def ready(self):
         from django.db.models import signals
 
+        from waldur_mastermind.invoices import models as invoices_models
         from waldur_mastermind.policy import handlers
 
         from . import models
@@ -26,6 +27,17 @@ class PolicyConfig(AppConfig):
                     % re.sub(r"(?<!^)(?=[A-Z])", "_", klass.__name__).lower(),
                 )
 
+        signals.post_save.connect(
+            handlers.offering_estimated_cost_trigger_handler,
+            sender=invoices_models.InvoiceItem,
+            dispatch_uid="offering_estimated_cost_trigger_handler",
+        )
+
+        for klass in [
+            models.ProjectEstimatedCostPolicy,
+            models.CustomerEstimatedCostPolicy,
+            models.OfferingEstimatedCostPolicy,
+        ]:
             for observable_klass in klass.observable_classes:
                 signals.post_save.connect(
                     handlers.get_estimated_cost_policy_handler_for_observable_class(

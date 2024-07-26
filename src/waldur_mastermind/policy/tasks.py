@@ -2,27 +2,18 @@ from celery import shared_task
 
 from waldur_core.core import utils as core_utils
 from waldur_core.permissions.enums import RoleEnum
-from waldur_core.structure import models as structure_models
+from waldur_core.structure.permissions import _get_customer, _get_project
 from waldur_mastermind.policy import log
 
 
-@shared_task(name="waldur_mastermind.policy.notify_about_limit_cost")
-def notify_about_limit_cost(serialized_scope, serialized_policy):
-    scope = core_utils.deserialize_instance(serialized_scope)
-    policy = core_utils.deserialize_instance(serialized_policy)
-    role = (
-        RoleEnum.CUSTOMER_OWNER
-        if isinstance(scope, structure_models.Customer)
-        else None
-    )
-    emails = scope.get_user_mails(role)
+def send_emails(emails, policy):
+    scope_class = policy.scope.__class__.__name__
 
     if emails:
         context = {
-            "project_name": policy.scope.name,
-            "project_url": core_utils.format_homeport_link(
-                "projects/{project_uuid}/", project_uuid=policy.scope.uuid.hex
-            ),
+            "scope_class": scope_class,
+            "scope_name": policy.scope.name,
+            "scope_url": policy.get_scope_homeport_url(),
             "limit": policy.limit_cost,
         }
         core_utils.broadcast_mail(
@@ -37,7 +28,23 @@ def notify_about_limit_cost(serialized_scope, serialized_policy):
         event_type="policy_notification",
         event_context={
             "policy_uuid": policy.uuid.hex,
-            "scope": serialized_scope,
+            "scope": f"{scope_class} UUID: {policy.scope.uuid.hex}",
             "emails": str(emails),
         },
     )
+
+
+@shared_task(name="waldur_mastermind.policy.notify_project_team")
+def notify_project_team(serialized_policy):
+    policy = core_utils.deserialize_instance(serialized_policy)
+    project = _get_project(policy.scope)
+    emails = project.get_user_mails()
+    send_emails(emails, policy)
+
+
+@shared_task(name="waldur_mastermind.policy.notify_customer_team")
+def notify_customer_owners(serialized_policy):
+    policy = core_utils.deserialize_instance(serialized_policy)
+    customer = _get_customer(policy.scope)
+    emails = customer.get_user_mails(RoleEnum.CUSTOMER_OWNER)
+    send_emails(emails, policy)

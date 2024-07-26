@@ -133,3 +133,49 @@ class CustomerEstimatedCostPolicySerializer(
             },
             "scope": {"lookup_field": "uuid", "view_name": "customer-detail"},
         }
+
+
+class OfferingEstimatedCostPolicySerializer(
+    core_serializers.AugmentedSerializerMixin, PolicySerializer
+):
+    organization_groups = serializers.HyperlinkedRelatedField(
+        queryset=structure_models.OrganizationGroup.objects.all(),
+        view_name="organization-group-detail",
+        lookup_field="uuid",
+        many=True,
+    )
+
+    def validate_scope(self, scope):
+        if not scope:
+            return
+
+        user = self.context["request"].user
+
+        customer = _get_customer(scope)
+
+        if user.is_staff or customer.has_user(
+            user, structure_models.CustomerRole.OWNER
+        ):
+            return scope
+
+        raise serializers.ValidationError(
+            _("User is not allowed to configure policies.")
+        )
+
+    class Meta(PolicySerializer.Meta):
+        fields = PolicySerializer.Meta.fields + ("organization_groups",)
+        model = models.OfferingEstimatedCostPolicy
+        view_name = "marketplace-offering-estimated-cost-policy-detail"
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+            },
+            "scope": {
+                "lookup_field": "uuid",
+                "view_name": "marketplace-provider-offering-detail",
+            },
+            "organization_group": {
+                "lookup_field": "uuid",
+                "view_name": "organization-group-detail",
+            },
+        }

@@ -14,10 +14,8 @@ logger = logging.getLogger(__name__)
 
 
 def notify_project_team(policy):
-    project = structure_permissions._get_project(policy)
-    serialized_scope = core_utils.serialize_instance(project)
     serialized_policy = core_utils.serialize_instance(policy)
-    tasks.notify_about_limit_cost.delay(serialized_scope, serialized_policy)
+    tasks.notify_project_team.delay(serialized_policy)
 
     logger.info(
         "Policy action notify_project_team has been triggered. Policy UUID: %s.",
@@ -35,10 +33,8 @@ notify_project_team.one_time_action = True
 
 
 def notify_organization_owners(policy):
-    customer = structure_permissions._get_customer(policy)
-    serialized_scope = core_utils.serialize_instance(customer)
     serialized_policy = core_utils.serialize_instance(policy)
-    tasks.notify_about_limit_cost.delay(serialized_scope, serialized_policy)
+    tasks.notify_customer_owners.delay(serialized_policy)
 
     logger.info(
         "Policy action notify_organization_owners has been triggered. Policy UUID: %s.",
@@ -59,7 +55,7 @@ def terminate_resources(policy):
     from waldur_mastermind.marketplace import tasks as marketplace_tasks
 
     user = get_system_robot()
-    project = structure_permissions._get_project(policy)
+    project = structure_permissions._get_project(policy.scope)
 
     resources = marketplace_models.Resource.objects.exclude(
         state__in=(
@@ -71,7 +67,7 @@ def terminate_resources(policy):
     if project:
         resources = resources.filter(project=project)
     else:
-        customer = structure_permissions._get_customer(policy)
+        customer = structure_permissions._get_customer(policy.scope)
         resources = resources.filter(project__customer=customer)
 
     for resource in resources:
@@ -87,7 +83,7 @@ def terminate_resources(policy):
                 type=marketplace_models.Order.Types.TERMINATE,
                 state=marketplace_models.Order.States.EXECUTING,
                 attributes=attributes,
-                project=policy.scope,
+                project=project,
                 created_by=user,
                 consumer_reviewed_by=user,
             )
@@ -150,7 +146,7 @@ block_modification_of_existing_resources.one_time_action = False
 
 
 def request_downscaling(policy):
-    project = structure_permissions._get_project(policy)
+    project = structure_permissions._get_project(policy.scope)
 
     resources = marketplace_models.Resource.objects.exclude(
         state__in=(
@@ -162,7 +158,7 @@ def request_downscaling(policy):
     if project:
         resources = resources.filter(project=project)
     else:
-        customer = structure_permissions._get_customer(policy)
+        customer = structure_permissions._get_customer(policy.scope)
         resources = resources.filter(project__customer=customer)
 
     resources.update(requested_downscaling=True)
