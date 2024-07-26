@@ -1433,19 +1433,26 @@ class OfferingFile(
 
 class OfferingUser(
     TimeStampedModel,
+    core_models.UuidMixin,
     common_mixins.BackendMetadataMixin,
+    LoggableMixin,
 ):
     offering = models.ForeignKey(Offering, on_delete=models.CASCADE)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     username = models.CharField(max_length=100, blank=True, null=True)
     propagation_date = models.DateTimeField(blank=True, null=True)
+    is_restricted = models.BooleanField(
+        default=False,
+        help_text=_("Signal to service if the user account is restricted or not"),
+    )
+    tracker = FieldTracker()
 
     class Meta:
         unique_together = ("offering", "user")
         ordering = ["username"]
 
     def get_log_fields(self):
-        return ("offering", "user", "username")
+        return ("offering", "user", "username", "is_restricted")
 
     def set_propagation_date(self):
         now = timezone.datetime.today()

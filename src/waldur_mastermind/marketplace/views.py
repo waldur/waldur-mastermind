@@ -53,6 +53,7 @@ from waldur_core.core.utils import (
     month_start,
     order_with_nulls,
 )
+from waldur_core.logging.loggers import event_logger
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import (
@@ -2808,6 +2809,25 @@ class OfferingUsersViewSet(
             )
         ).distinct()
         return queryset
+
+    @action(detail=True, methods=["post"])
+    def update_restricted(self, request, uuid=None):
+        offering_user = self.get_object()
+        serializer = serializers.OfferingUserUpdateRestrictionSerializer(
+            data=request.data, context={"request": request}, instance=offering_user
+        )
+        serializer.is_valid(raise_exception=True)
+        offering_user.is_restricted = serializer.validated_data["is_restricted"]
+        offering_user.save(update_fields=["is_restricted"])
+        event_logger.marketplace_offering_user.info(
+            f"Restriction status for user {offering_user.user.username} in offering {offering_user.offering.name} has been set to {offering_user.is_restricted} by {request.user.username}.",
+            event_type="marketplace_offering_user_restriction_updated",
+            event_context={"offering_user": offering_user},
+        )
+        logger.info(
+            f"Restriction status for user {offering_user.user.username} in offering {offering_user.offering.name} has been set to {offering_user.is_restricted} by {request.user.username}."
+        )
+        return Response(status=status.HTTP_200_OK)
 
 
 class OfferingUserGroupViewSet(core_views.ActionsViewSet):

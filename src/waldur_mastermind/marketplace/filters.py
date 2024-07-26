@@ -641,6 +641,7 @@ class OfferingUserFilter(OfferingFilterMixin, core_filters.CreatedModifiedFilter
         field_name="propagation_date", lookup_expr="lte"
     )
     provider_uuid = django_filters.UUIDFilter(field_name="offering__customer__uuid")
+    is_restricted = django_filters.BooleanFilter(field_name="is_restricted")
     o = django_filters.OrderingFilter(
         fields=("created", "modified", "username", "propagation_date")
     )
