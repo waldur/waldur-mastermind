@@ -134,7 +134,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     lookup_field = "uuid"
     serializer_class = serializers.ProtectedCallSerializer
     filterset_class = filters.CallFilter
-    filter_backends = []
+    filter_backends = [DjangoFilterBackend]
     destroy_validators = [core_validators.StateValidator(models.Call.States.DRAFT)]
 
     queryset = models.Call.objects.all()
