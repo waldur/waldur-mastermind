@@ -46,6 +46,9 @@ class CallFilter(django_filters.FilterSet):
         widget=BooleanWidget, method="filter_has_active_round"
     )
     name = django_filters.CharFilter(lookup_expr="icontains")
+    offerings_provider_uuid = django_filters.UUIDFilter(
+        field_name="offerings__customer__uuid"
+    )
 
     class Meta:
         model = models.Call
