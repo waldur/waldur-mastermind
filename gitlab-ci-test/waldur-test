@@ -17,8 +17,8 @@ from django.db.backends.base.schema import BaseDatabaseSchemaEditor
 # which makes them considerably faster than ordinary tables.
 BaseDatabaseSchemaEditor.sql_create_table = "CREATE UNLOGGED TABLE %(table)s (%(definition)s)"
 
-CELERY_BROKER_URL = "sqla+sqlite:///:memory:"
-CELERY_RESULT_BACKEND = "db+sqlite:///:memory:"
+CELERY_BROKER_URL = "memory://"
+CELERY_RESULT_BACKEND = "cache+memory://"
 
 DATABASES = {
 'default': {
