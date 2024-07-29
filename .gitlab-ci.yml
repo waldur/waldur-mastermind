@@ -134,6 +134,9 @@ Try building docker image:
 Build docker image for tests:
   stage: build
   interruptible: true
+  image:
+    name: "gcr.io/kaniko-project/executor:debug"
+    entrypoint: [ "" ]
   rules:
     # If scheduled pipeline for 'develop' branch is set up
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
