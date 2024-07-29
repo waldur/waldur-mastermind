@@ -415,7 +415,7 @@ CONSTANCE_CONFIG = {
         False,
         "Toggler for mapping between waldur user and service desk agents.",
     ),
-    "ATLASSIAN_STRANGE_SETTING": (1, ""),
+    "ATLASSIAN_STRANGE_SETTING": (1, "A constant in the API path, sometimes differs"),
     "ATLASSIAN_API_URL": ("http://example.com/", "Atlassian server URL"),
     "ATLASSIAN_USERNAME": ("USERNAME", "Username for access user"),
     "ATLASSIAN_PASSWORD": ("PASSWORD", "Password for access user"),
