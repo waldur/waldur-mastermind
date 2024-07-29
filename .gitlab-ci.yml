@@ -137,18 +137,27 @@ Build docker image for tests:
   rules:
     # If scheduled pipeline for 'develop' branch is set up
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
-  services:
-    - name: "registry.hpc.ut.ee/iljatest/docker:24.0.6-dind"
-      alias: docker
-      command: ["--mtu=1400"]
   variables:
     DOCKER_REGISTRY: registry.hpc.ut.ee/mirror/
   script:
     - echo $CI_COMMIT_SHA > docker/rootfs/COMMIT
     - cat docker/rootfs/COMMIT
-    - echo "$WALDUR_DOCKER_HUB_PASSWORD" | docker login -u "$WALDUR_DOCKER_HUB_USER" --password-stdin
-    - docker build . -f gitlab-ci-test/Dockerfile -t $WALDUR_MASTERMIND_TEST_IMAGE --build-arg DOCKER_REGISTRY=$DOCKER_REGISTRY
-    - docker push $WALDUR_MASTERMIND_TEST_IMAGE
+    - AUTH=$(echo -n "${WALDUR_DOCKER_HUB_USER}:${WALDUR_DOCKER_HUB_PASSWORD}" | base64)
+    - |
+      cat << EOF > /kaniko/.docker/config.json
+      {
+        "auths": {
+          "https://index.docker.io/v1/": {
+            "auth": "${AUTH}"
+          }
+        }
+      }
+      EOF
+    - /kaniko/executor
+      --context "${CI_PROJECT_DIR}"
+      --dockerfile "${CI_PROJECT_DIR}/gitlab-ci-test/Dockerfile"
+      --build-arg DOCKER_REGISTRY=$DOCKER_REGISTRY
+      --destination "$WALDUR_MASTERMIND_TEST_IMAGE"
 
 Publish latest docker image:
   before_script:

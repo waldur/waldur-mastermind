@@ -13,7 +13,6 @@ from collections import OrderedDict
 from itertools import chain
 from operator import itemgetter
 
-import httpagentparser
 import jwt
 import requests
 from constance import config
@@ -36,6 +35,7 @@ from geopy.geocoders import Nominatim
 from requests.packages.urllib3 import exceptions
 from rest_framework.settings import api_settings
 
+from ua_parser import user_agent_parser
 from waldur_core.structure.notifications import NOTIFICATIONS
 
 logger = logging.getLogger(__name__)
@@ -521,7 +521,7 @@ def get_user_agent(request):
 
 
 def get_device_info(user_agent):
-    return httpagentparser.detect(user_agent)
+    return user_agent_parser.Parse(user_agent)
 
 
 def get_last_month():

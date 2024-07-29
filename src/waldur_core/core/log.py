@@ -9,12 +9,12 @@ from . import utils
 class AuthEventMixin:
     @staticmethod
     def request_context_processor(context, request):
-        # This value will be set later if waldur geo module is enable.
+        # This value will be set later if waldur geo module is enabled.
         context["location"] = "pending"
 
         # ip_address will be get from threading.local(). The core middleware will set it.
-        context["user_agent"] = utils.get_user_agent(request)
-        context.update(utils.get_device_info(context["user_agent"]))
+        context["user_agent_raw"] = utils.get_user_agent(request)
+        context.update(utils.get_device_info(context["user_agent_raw"]))
 
     @property
     def fields(self):
