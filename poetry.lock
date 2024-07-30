@@ -3999,13 +3999,13 @@ tornado = ["tornado (>=5)"]
 
 [[package]]
 name = "setuptools"
-version = "72.0.0"
+version = "72.1.0"
 description = "Easily download, build, install, upgrade, and uninstall Python packages"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "setuptools-72.0.0-py3-none-any.whl", hash = "sha256:98b4d786a12fadd34eabf69e8d014b84e5fc655981e4ff419994700434ace132"},
-    {file = "setuptools-72.0.0.tar.gz", hash = "sha256:5a0d9c6a2f332881a0153f629d8000118efd33255cfa802757924c53312c76da"},
+    {file = "setuptools-72.1.0-py3-none-any.whl", hash = "sha256:5a03e1860cf56bb6ef48ce186b0e557fdba433237481a9a625176c2831be15d1"},
+    {file = "setuptools-72.1.0.tar.gz", hash = "sha256:8d243eff56d095e5817f796ede6ae32941278f542e0f941867cc05ae52b162ec"},
 ]
 
 [package.extras]
@@ -4459,13 +4459,13 @@ files = [
 
 [[package]]
 name = "xmlschema"
-version = "3.3.1"
+version = "3.3.2"
 description = "An XML Schema validator and decoder"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "xmlschema-3.3.1-py3-none-any.whl", hash = "sha256:93547e999896f1525a821e229991d31e4dd02563f93b0667ce6566cf2b853751"},
-    {file = "xmlschema-3.3.1.tar.gz", hash = "sha256:2066ecbc9728112073f6f44d17c5c16723aff1c7d22a7c4c6421e2d68ec5f0ea"},
+    {file = "xmlschema-3.3.2-py3-none-any.whl", hash = "sha256:e9b9663aaa313904b8bf3d7487fc8123920e199662bc09bb32e0d62d9548f1ec"},
+    {file = "xmlschema-3.3.2.tar.gz", hash = "sha256:a2f021f21d0b5ab371e9bcb5a1d5c34b9ba2c74ad3e32854474c4159bf94e158"},
 ]
 
 [package.dependencies]
@@ -4493,4 +4493,4 @@ requests = ">=2.25.1,<3.0.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10,<3.12"
-content-hash = "d6118a7d7528d6f0b9873f551d1b35e0d92d06aba0aba3b3e2a72ad5cf6a348f"
+content-hash = "5a079423f2dfd88f3f3fa0847acd908d12d440bff053d087dfe61b2361ba0433"
