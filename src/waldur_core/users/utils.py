@@ -245,6 +245,7 @@ def post_invitation_to_url(url: str, context):
         "scope_type": context["type"],
         "scope_name": context["name"],
         "scope_uuid": invitation.scope.uuid.hex,
+        "scope_slug": getattr(invitation.scope, "slug", ""),
         "extra_invitation_text": context["extra_invitation_text"],
         "created_by_full_name": invitation.created_by.full_name,
         "created_by_username": invitation.created_by.username,
