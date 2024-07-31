@@ -272,21 +272,6 @@ class ScreenshotFilter(OfferingFilterMixin, django_filters.FilterSet):
         fields = []
 
 
-class CartItemFilter(django_filters.FilterSet):
-    customer = core_filters.URLFilter(
-        view_name="customer-detail", field_name="project__customer__uuid"
-    )
-    customer_uuid = django_filters.UUIDFilter(field_name="project__customer__uuid")
-    project = core_filters.URLFilter(
-        view_name="project-detail", field_name="project__uuid"
-    )
-    project_uuid = django_filters.UUIDFilter(field_name="project__uuid")
-
-    class Meta:
-        model = models.CartItem
-        fields = []
-
-
 class OrderFilter(OfferingFilterMixin, django_filters.FilterSet):
     query = django_filters.CharFilter(method="filter_query")
     project_uuid = django_filters.UUIDFilter(field_name="project__uuid")
