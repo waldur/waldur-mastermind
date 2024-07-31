@@ -48,11 +48,6 @@ def register_in(router):
         basename="marketplace-screenshot",
     )
     router.register(
-        r"marketplace-cart-items",
-        views.CartItemViewSet,
-        basename="marketplace-cart-item",
-    )
-    router.register(
         r"marketplace-orders",
         views.OrderViewSet,
         basename="marketplace-order",

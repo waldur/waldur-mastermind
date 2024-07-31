@@ -961,27 +961,6 @@ class SafeAttributesMixin(models.Model):
         }
 
 
-class CartItem(
-    SafeAttributesMixin, core_models.UuidMixin, TimeStampedModel, RequestTypeMixin
-):
-    user = models.ForeignKey(
-        core_models.User, related_name="+", on_delete=models.CASCADE
-    )
-    project = models.ForeignKey(
-        structure_models.Project, related_name="+", on_delete=models.CASCADE
-    )
-
-    class Permissions:
-        customer_path = "project__customer"
-        project_path = "project"
-
-    class Meta:
-        ordering = ("created",)
-
-    def __str__(self):
-        return f"user: {self.user.username}, offering: {self.offering.name}"
-
-
 class ResourceDetailsMixin(
     SafeAttributesMixin,
     CostEstimateMixin,

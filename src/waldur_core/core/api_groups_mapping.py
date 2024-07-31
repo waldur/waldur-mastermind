@@ -13,7 +13,6 @@ API_GROUPS = {
     ],
     "marketplace": [
         "/api/marketplace-bookings/",
-        "/api/marketplace-cart-items/",
         "/api/marketplace-categories/",
         "/api/marketplace-category-component-usages/",
         "/api/marketplace-checklists-categories/",

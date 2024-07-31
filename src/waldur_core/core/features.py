@@ -77,7 +77,7 @@ class MarketplaceSection(FeatureSection):
         "Allow to import resources from service provider to project."
     )
 
-    conceal_prices = Feature("Do not render prices in shopping cart and order details.")
+    conceal_prices = Feature("Do not render prices in order details.")
 
     show_experimental_ui_components = Feature(
         "Enabled display of experimental or mocked components in marketplace."

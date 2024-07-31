@@ -2115,29 +2115,6 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     ]
 
 
-class CartItemViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
-    queryset = models.CartItem.objects.all()
-    lookup_field = "uuid"
-    serializer_class = serializers.CartItemSerializer
-    filter_backends = (DjangoFilterBackend,)
-    filterset_class = filters.CartItemFilter
-
-    def get_queryset(self):
-        return self.queryset.filter(user=self.request.user)
-
-    @action(detail=False, methods=["post"])
-    def submit(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        order = serializer.save()
-        order_serializer = serializers.OrderCreateSerializer(
-            instance=order, context=self.get_serializer_context()
-        )
-        return Response(order_serializer.data, status=status.HTTP_201_CREATED)
-
-    submit_serializer_class = serializers.CartSubmitSerializer
-
-
 class ResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
     queryset = models.Resource.objects.all()
     filter_backends = (DjangoFilterBackend, filters.ResourceScopeFilterBackend)

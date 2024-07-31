@@ -348,26 +348,6 @@ class OrderFactory(factory.django.DjangoModelFactory):
         return url if action is None else url + action + "/"
 
 
-class CartItemFactory(factory.django.DjangoModelFactory):
-    class Meta:
-        model = models.CartItem
-
-    offering = factory.SubFactory(OfferingFactory)
-    user = factory.SubFactory(structure_factories.UserFactory)
-    project = factory.SubFactory(structure_factories.ProjectFactory)
-
-    @classmethod
-    def get_url(cls, item=None):
-        if item is None:
-            item = CartItemFactory()
-        return reverse("marketplace-cart-item-detail", kwargs={"uuid": item.uuid.hex})
-
-    @classmethod
-    def get_list_url(cls, action=None):
-        url = reverse("marketplace-cart-item-list")
-        return url if action is None else url + action + "/"
-
-
 class ResourceFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Resource
