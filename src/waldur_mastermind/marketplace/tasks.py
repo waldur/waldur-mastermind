@@ -62,7 +62,7 @@ def create_screenshot_thumbnail(uuid):
 
 @shared_task
 def notify_consumer_about_pending_order(uuid):
-    order = models.Order.objects.get(uuid=uuid)
+    order: models.Order = models.Order.objects.get(uuid=uuid)
     approvers = get_consumer_approvers(order)
 
     if not approvers:
@@ -81,7 +81,10 @@ def notify_consumer_about_pending_order(uuid):
     }
 
     logger.info(
-        "About to send email regarding order %s to approvers: %s", order, approvers
+        "About to send email regarding order (%s) %s to approvers: %s",
+        order.uuid,
+        order,
+        approvers,
     )
 
     core_utils.broadcast_mail(
