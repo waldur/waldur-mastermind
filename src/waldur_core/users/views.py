@@ -147,6 +147,19 @@ class InvitationViewSet(ProtectedViewSet):
             status=status.HTTP_200_OK,
         )
 
+    @action(detail=True, methods=["post"])
+    def delete(self, request, uuid=None):
+        invitation: models.Invitation = self.get_object()
+
+        if not self.request.user.is_staff:
+            raise PermissionDenied()
+
+        invitation.delete()
+        return Response(
+            {"detail": _("Invitation has been successfully deleted.")},
+            status=status.HTTP_200_OK,
+        )
+
     @action(
         detail=True, methods=["post"], filter_backends=[filters.PendingInvitationFilter]
     )
