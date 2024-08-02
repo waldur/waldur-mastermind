@@ -489,12 +489,6 @@ def override_db_settings(request):
     return Response(status=status.HTTP_200_OK)
 
 
-@api_view(["GET"])
-@permission_classes((rf_permissions.AllowAny,))
-def features_description(request):
-    return Response(FEATURES)
-
-
 @api_view(["POST"])
 @permission_classes((rf_permissions.IsAdminUser,))
 def feature_values(request):
