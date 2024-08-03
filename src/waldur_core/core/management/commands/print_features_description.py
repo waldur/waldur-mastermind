@@ -18,13 +18,13 @@ class Command(BaseCommand):
         print("export const FeaturesDescription: FeatureSection[] = [")
         for section in sorted(FEATURES, key=lambda section: section["key"]):
             print("  {")
-            print(f"    'key': '{section['key']}',")
-            print(f"    'description': translate('{section['description']}'),")
-            print("    'items': [")
+            print(f"    key: '{section['key']}',")
+            print(f"    description: translate('{section['description']}'),")
+            print("    items: [")
             for feature in sorted(section["items"], key=lambda section: section["key"]):
                 print("      {")
-                print(f"        'key': '{feature['key']}',")
-                print(f"        'description': translate('{feature['description']}'),")
+                print(f"        key: '{feature['key']}',")
+                print(f"        description: translate('{feature['description']}'),")
                 print("      },")
             print("    ],")
             print("  },")
