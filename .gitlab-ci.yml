@@ -255,7 +255,7 @@ Upload HomePort enums:
     - mv /tmp/events_enums.ts $EVENTS_ENUM_PATH
     - mv /tmp/features_enums.ts $FEATURES_ENUM_PATH
     - mv /tmp/features_description.ts $FEATURES_DESCRIPTION_PATH
-    - git add $PERMISSIONS_ENUM_PATH $EVENTS_ENUM_PATH $FEATURES_ENUM_PATH
+    - git add $PERMISSIONS_ENUM_PATH $EVENTS_ENUM_PATH $FEATURES_ENUM_PATH $FEATURES_DESCRIPTION_PATH
     - git commit -m "Update enums" || exit 0
     - git branch new-enums
     - git push --set-upstream origin new-enums:develop
