@@ -237,6 +237,7 @@ Upload HomePort enums:
     EVENTS_ENUM_PATH: src/EventsEnums.ts
     FEATURES_ENUM_PATH: src/FeaturesEnums.ts
     FEATURES_DESCRIPTION_PATH: src/features/FeaturesDescription.ts
+    SETTINGS_DESCRIPTION_PATH: src/SettingsDescription.ts
     DJANGO_SETTINGS_MODULE: waldur_core.server.doc_settings
   script:
     - poetry install
@@ -245,6 +246,7 @@ Upload HomePort enums:
     - waldur print_events_enums > /tmp/events_enums.ts
     - waldur print_features_enums > /tmp/features_enums.ts
     - waldur print_features_description > /tmp/features_description.ts
+    - waldur print_settings_description > /tmp/settings_description.ts
     - cd /tmp/
     - git clone "https://UpdateEnums:$HOMEPORT_ACCESS_TOKEN@$CI_SERVER_HOST/waldur/waldur-homeport.git"
     - git config --global user.name "$GITLAB_USER_NAME"
@@ -255,7 +257,8 @@ Upload HomePort enums:
     - mv /tmp/events_enums.ts $EVENTS_ENUM_PATH
     - mv /tmp/features_enums.ts $FEATURES_ENUM_PATH
     - mv /tmp/features_description.ts $FEATURES_DESCRIPTION_PATH
-    - git add $PERMISSIONS_ENUM_PATH $EVENTS_ENUM_PATH $FEATURES_ENUM_PATH $FEATURES_DESCRIPTION_PATH
+    - mv /tmp/settings_description.ts $SETTINGS_DESCRIPTION_PATH
+    - git add $PERMISSIONS_ENUM_PATH $EVENTS_ENUM_PATH $FEATURES_ENUM_PATH $FEATURES_DESCRIPTION_PATH $SETTINGS_DESCRIPTION_PATH
     - git commit -m "Update enums" || exit 0
     - git branch new-enums
     - git push --set-upstream origin new-enums:develop

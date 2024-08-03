@@ -511,32 +511,39 @@ CONSTANCE_CONFIG = {
 }
 
 CONSTANCE_CONFIG_FIELDSETS = {
-    "Whitelabeling settings (text, links, etc)": (
+    "Branding": (
         "SITE_NAME",
+        "SHORT_PAGE_TITLE",
+        "FULL_PAGE_TITLE",
         "SITE_DESCRIPTION",
+    ),
+    "Marketplace": (
         "SITE_ADDRESS",
         "SITE_EMAIL",
         "SITE_PHONE",
         "CURRENCY_NAME",
+    ),
+    "Notifications": (
+        "COMMON_FOOTER_TEXT",
+        "COMMON_FOOTER_HTML",
+    ),
+    "Links": (
         "DOCS_URL",
-        "SHORT_PAGE_TITLE",
-        "FULL_PAGE_TITLE",
-        "BRAND_COLOR",
-        "BRAND_LABEL_COLOR",
         "HERO_LINK_LABEL",
         "HERO_LINK_URL",
         "SUPPORT_PORTAL_URL",
-        "COMMON_FOOTER_TEXT",
-        "COMMON_FOOTER_HTML",
-        "LANGUAGE_CHOICES",
+    ),
+    "Theme": (
+        "SIDEBAR_STYLE",
+        "BRAND_COLOR",
+        "BRAND_LABEL_COLOR",
         "DISABLE_DARK_THEME",
     ),
-    "Whitelabeling settings (logos, images, favicons)": (
+    "Images": (
         "SITE_LOGO",
         "SIDEBAR_LOGO",
         "SIDEBAR_LOGO_MOBILE",
         "SIDEBAR_LOGO_DARK",
-        "SIDEBAR_STYLE",
         "POWERED_BY_LOGO",
         "HERO_IMAGE",
         "LOGIN_LOGO",
