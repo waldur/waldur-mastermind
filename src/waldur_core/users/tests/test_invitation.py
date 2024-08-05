@@ -85,6 +85,10 @@ class InvitationRetrieveTest(BaseInvitationTest):
         response = self.client.get(factories.InvitationBaseFactory.get_list_url())
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
+        self.assertEqual(
+            response.data[0]["execution_state"],
+            models.Invitation.ExecutionState.SCHEDULED,
+        )
 
     def test_unauthorized_user_cannot_retrieve_project_invitation(self):
         self.client.force_authenticate(user=self.user)
@@ -561,6 +565,7 @@ class InvitationCancelTest(BaseInvitationTest):
 @ddt
 class InvitationSendTest(BaseInvitationTest):
     @data("staff", "customer_owner")
+    @override_settings(task_always_eager=True)
     def test_authorized_user_can_send_customer_invitation(self, user):
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
         self.client.force_authenticate(user=getattr(self, user))
@@ -570,6 +575,12 @@ class InvitationSendTest(BaseInvitationTest):
             )
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.customer_invitation.refresh_from_db()
+        self.assertEqual(
+            self.customer_invitation.execution_state,
+            models.Invitation.ExecutionState.OK,
+        )
 
     @override_settings(task_always_eager=True)
     def test_invitation_email_is_rendered_correctly(self):

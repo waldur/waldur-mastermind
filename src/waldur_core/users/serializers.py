@@ -117,10 +117,13 @@ class InvitationSerializer(BaseInvitationSerializer):
             "state",
             "error_message",
             "extra_invitation_text",
+            "execution_state",
+            "error_message",
         )
         read_only_fields = BaseInvitationSerializer.Meta.read_only_fields + (
             "state",
             "error_message",
+            "execution_state",
         )
         extra_kwargs = {
             "url": {
@@ -133,7 +136,15 @@ class InvitationSerializer(BaseInvitationSerializer):
 class PendingInvitationDetailsSerializer(BaseInvitationDetailsSerializer):
     class Meta:
         model = models.Invitation
-        fields = BaseInvitationDetailsSerializer.Meta.fields + ("email",)
+        fields = BaseInvitationDetailsSerializer.Meta.fields + (
+            "email",
+            "error_message",
+            "execution_state",
+        )
+        read_only_fields = (
+            "error_message",
+            "execution_state",
+        )
 
 
 class PermissionRequestSerializer(serializers.HyperlinkedModelSerializer):

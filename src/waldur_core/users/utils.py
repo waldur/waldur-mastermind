@@ -225,13 +225,9 @@ def post_invitation_to_url(url: str, context):
     )
 
     if token_response.status_code != 200:
-        logger.error(
-            "Unable to fetch access token to send invitation, url: %s, code %s, body: %s",
-            token_url,
-            token_response.status_code,
-            token_response.text,
+        raise RuntimeError(
+            f"Unable to fetch access token to send invitation, url: {token_url}, code {token_response.status_code}, body: {token_response.text}"
         )
-        return
 
     logger.info("Successfully fetched an access token from %s", token_url)
 
@@ -261,8 +257,6 @@ def post_invitation_to_url(url: str, context):
     if invitation_response.status_code >= 200 and invitation_response.status_code < 300:
         logger.info("Invitation has been successfully sent to %s", url)
     else:
-        logger.warning(
-            "Invitation sending has failed: %s, %s",
-            invitation_response.status_code,
-            invitation_response.text,
+        raise RuntimeError(
+            f"Invitation sending has failed: {invitation_response.status_code}, {invitation_response.text}"
         )

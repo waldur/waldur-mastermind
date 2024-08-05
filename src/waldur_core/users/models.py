@@ -2,6 +2,7 @@ from django.conf import settings
 from django.db import models, transaction
 from django.db.models.query_utils import Q
 from django.utils.translation import gettext_lazy as _
+from django_fsm import FSMField, transition
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
 
@@ -77,6 +78,19 @@ class Invitation(
             (EXPIRED, "Expired"),
         )
 
+    class ExecutionState:
+        SCHEDULED = "Scheduled"
+        PROCESSING = "Processing"
+        OK = "OK"
+        ERRED = "Erred"
+
+        CHOICES = (
+            (SCHEDULED, SCHEDULED),
+            (PROCESSING, PROCESSING),
+            (OK, OK),
+            (ERRED, ERRED),
+        )
+
     approved_by = models.ForeignKey(
         on_delete=models.CASCADE,
         to=settings.AUTH_USER_MODEL,
@@ -87,6 +101,9 @@ class Invitation(
 
     state = models.CharField(
         max_length=10, choices=State.CHOICES, default=State.PENDING
+    )
+    execution_state = FSMField(
+        choices=ExecutionState.CHOICES, default=ExecutionState.SCHEDULED
     )
     email = models.EmailField(
         help_text=_(
@@ -126,6 +143,26 @@ class Invitation(
     def reject(self):
         self.state = self.State.REJECTED
         self.save(update_fields=["state"])
+
+    @transition(
+        field=execution_state,
+        source=ExecutionState.SCHEDULED,
+        target=ExecutionState.PROCESSING,
+    )
+    def begin_processing(self):
+        pass
+
+    @transition(
+        field=execution_state,
+        source=ExecutionState.PROCESSING,
+        target=ExecutionState.OK,
+    )
+    def set_ok(self):
+        pass
+
+    @transition(field=execution_state, source="*", target=ExecutionState.ERRED)
+    def set_erred(self):
+        pass
 
     def __str__(self):
         return self.email

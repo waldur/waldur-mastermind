@@ -1,4 +1,5 @@
 import logging
+import traceback
 from datetime import timedelta
 from smtplib import SMTPException
 from urllib.parse import urlparse
@@ -56,6 +57,14 @@ def send_invitation_created(invitation_uuid, sender):
     Invitation notification is sent to the user so that he can accept it and receive permissions.
     """
     invitation = models.Invitation.objects.get(uuid=invitation_uuid)
+
+    invitation.begin_processing()
+    invitation.error_message = ""
+    invitation.error_traceback = ""
+    invitation.save(
+        update_fields=["execution_state", "error_message", "error_traceback"]
+    )
+
     context = utils.get_invitation_context(invitation, sender)
     context["link"] = utils.get_invitation_link(invitation_uuid)
     site_link = format_homeport_link()
@@ -73,8 +82,20 @@ def send_invitation_created(invitation_uuid, sender):
                 url=webhook_url, email=invitation.email, **context
             )
         )
+        try:
+            utils.post_invitation_to_url(webhook_url, context)
 
-        utils.post_invitation_to_url(webhook_url, context)
+            invitation.set_ok()
+            invitation.save(update_fields=["execution_state"])
+        except Exception as exc:
+            logger.error(exc)
+            invitation.error_message = str(exc)
+            invitation.error_traceback = traceback.format_exc()
+            invitation.set_erred()
+            invitation.save(
+                update_fields=["error_message", "execution_state", "error_traceback"]
+            )
+
     else:
         logger.info(
             "About to send invitation to {email} to join {name} {type} as {role}".format(
@@ -83,9 +104,13 @@ def send_invitation_created(invitation_uuid, sender):
         )
         try:
             broadcast_mail("users", "invitation_created", context, [invitation.email])
+
+            invitation.set_ok()
+            invitation.save(update_fields=["execution_state"])
         except SMTPException as e:
             invitation.error_message = str(e)
-            invitation.save(update_fields=["error_message"])
+            invitation.set_erred()
+            invitation.save(update_fields=["error_message", "execution_state"])
             raise
 
 
