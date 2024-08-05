@@ -2,7 +2,6 @@ import base64
 import logging
 import re
 from collections import OrderedDict
-from os.path import join
 
 from constance import LazyConfig, settings
 from django.conf import settings as django_settings
@@ -454,6 +453,8 @@ class ConstanceSettingsSerializer(serializers.Serializer):
                 field_class = serializers.IntegerField
             if config_type == bool:
                 field_class = serializers.BooleanField
+            if config_type in ("color_field", "html_field", "text_field", "url_field"):
+                field_class = serializers.CharField
             if not field_class:
                 continue
             kwargs = dict(required=False)
@@ -461,16 +462,9 @@ class ConstanceSettingsSerializer(serializers.Serializer):
                 kwargs["allow_blank"] = True
             if config_type == "image_field":
                 kwargs["allow_null"] = True
-            if name in ["BRAND_COLOR", "BRAND_LABEL_COLOR"]:
+            if config_type == "color_field":
                 kwargs["validators"] = [color_hex_validator]
-            if name in [
-                "HERO_LINK_URL",
-                "DOCS_URL",
-                "SUPPORT_PORTAL_URL",
-                "ATLASSIAN_API_URL",
-                "ZAMMAD_API_URL",
-                "SMAX_API_URL",
-            ]:
+            if config_type == "url_field":
                 kwargs["validators"] = [URLValidator()]
             fields[name] = field_class(**kwargs)
         return fields
@@ -483,9 +477,7 @@ class ConstanceSettingsSerializer(serializers.Serializer):
             new = self.validated_data[name]
             if current != new:
                 if hasattr(new, "name"):
-                    new = default_storage.save(
-                        join(django_settings.MEDIA_ROOT, new.name), new
-                    )
+                    new = default_storage.save(new.name, new)
                 setattr(config, name, new)
 
 

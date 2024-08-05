@@ -307,6 +307,10 @@ CONSTANCE_IGNORE_ADMIN_VERSION_CHECK = True
 CONSTANCE_ADDITIONAL_FIELDS = {
     "image_field": ["django.forms.ImageField", {"required": False}],
     "email_field": ["django.forms.EmailField", {"required": False}],
+    "color_field": ["django.forms.CharField", {"required": False}],
+    "html_field": ["django.forms.CharField", {"required": False}],
+    "text_field": ["django.forms.CharField", {"required": False}],
+    "url_field": ["django.forms.URLField", {"required": False}],
 }
 CONSTANCE_CONFIG = {
     "SITE_NAME": ("Waldur", "Human-friendly name of the Waldur deployment."),
@@ -321,7 +325,7 @@ CONSTANCE_CONFIG = {
         "EUR",
         "It is used in marketplace order details and invoices for currency formatting.",
     ),
-    "DOCS_URL": ("", "Renders link to docs in header"),
+    "DOCS_URL": ("", "Renders link to docs in header", "url_field"),
     "SHORT_PAGE_TITLE": ("Waldur", "It is used as prefix for page title."),
     "FULL_PAGE_TITLE": (
         "Waldur | Cloud Service Management",
@@ -330,22 +334,37 @@ CONSTANCE_CONFIG = {
     "BRAND_COLOR": (
         "#3a8500",
         "Hex color definition is used in HomePort landing page for login button.",
+        "color_field",
     ),
     "BRAND_LABEL_COLOR": (
         "#000000",
         "Hex color definition is used in HomePort landing page for font color of login button.",
+        "color_field",
     ),
     "HERO_LINK_LABEL": (
         "",
         "Label for link in hero section of HomePort landing page. It can be lead to support site or blog post.",
     ),
-    "HERO_LINK_URL": ("", "Link URL in hero section of HomePort landing page."),
+    "HERO_LINK_URL": (
+        "",
+        "Link URL in hero section of HomePort landing page.",
+        "url_field",
+    ),
     "SUPPORT_PORTAL_URL": (
         "",
         "Link URL to support portal. Rendered as a shortcut on dashboard",
+        "url_field",
     ),
-    "COMMON_FOOTER_TEXT": ("", "Common footer in txt format for all emails."),
-    "COMMON_FOOTER_HTML": ("", "Common footer in html format for all emails."),
+    "COMMON_FOOTER_TEXT": (
+        "",
+        "Common footer in txt format for all emails.",
+        "text_field",
+    ),
+    "COMMON_FOOTER_HTML": (
+        "",
+        "Common footer in html format for all emails.",
+        "html_field",
+    ),
     "LANGUAGE_CHOICES": (
         ",".join(LANGUAGE_CHOICES),
         "List of enabled languages",
@@ -416,7 +435,11 @@ CONSTANCE_CONFIG = {
         "Toggler for mapping between waldur user and service desk agents.",
     ),
     "ATLASSIAN_STRANGE_SETTING": (1, "A constant in the API path, sometimes differs"),
-    "ATLASSIAN_API_URL": ("http://example.com/", "Atlassian server URL"),
+    "ATLASSIAN_API_URL": (
+        "http://example.com/",
+        "Atlassian API server URL",
+        "url_field",
+    ),
     "ATLASSIAN_USERNAME": ("USERNAME", "Username for access user"),
     "ATLASSIAN_PASSWORD": ("PASSWORD", "Password for access user"),
     "ATLASSIAN_EMAIL": ("", "Email for access user", "email_field"),
@@ -473,7 +496,8 @@ CONSTANCE_CONFIG = {
     # Zammad settings
     "ZAMMAD_API_URL": (
         "",
-        "Address of Zammad server. For example <http://localhost:8080/>",
+        "Zammad API server URL. For example <http://localhost:8080/>",
+        "url_field",
     ),
     "ZAMMAD_TOKEN": ("", "Authorization token."),
     "ZAMMAD_GROUP": (
@@ -505,6 +529,7 @@ CONSTANCE_CONFIG = {
     "SMAX_API_URL": (
         "",
         "SMAX API server URL. For example <http://localhost:8080/>",
+        "url_field",
     ),
     "SMAX_TENANT_ID": ("", "User tenant ID."),
     "SMAX_LOGIN": ("", "Authorization login."),
