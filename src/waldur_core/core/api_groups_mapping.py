@@ -33,6 +33,8 @@ API_GROUPS = {
     "reporting": [
         "/api/support-feedback-average-report/",
         "/api/support-feedback-report/",
+        "/api/events/",
+        "/api/events-stats/",
     ],
     "accounting": [
         "/api/invoices/",
