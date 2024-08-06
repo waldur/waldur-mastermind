@@ -53,6 +53,18 @@ class ProjectSection(FeatureSection):
 
     show_industry_flag = Feature("Show industry flag.")
 
+    show_description_in_create_dialog = Feature(
+        "Show description field in project create dialog."
+    )
+
+    show_type_in_create_dialog = Feature("Show type field in project create dialog.")
+
+    show_end_date_in_create_dialog = Feature(
+        "Show end date field in project create dialog."
+    )
+
+    show_image_in_create_dialog = Feature("Show image field in project create dialog.")
+
 
 class UserSection(FeatureSection):
     class Meta:
