@@ -42,4 +42,9 @@ class ProposalExtension(WaldurExtension):
                 "schedule": timedelta(hours=1),
                 "args": (),
             },
+            "expired-reviews-should-be-cancelled": {
+                "task": "waldur_mastermind.proposal.expired_reviews_should_be_cancelled",
+                "schedule": timedelta(hours=1),
+                "args": (),
+            },
         }

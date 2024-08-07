@@ -65,3 +65,23 @@ def proposals_for_ended_rounds_should_be_cancelled():
             event_context={"proposal": proposal},
         )
         logger.info(f"Proposal {proposal.name} has been canceled.")
+
+
+@shared_task(name="waldur_mastermind.proposal.expired_reviews_should_be_cancelled")
+def expired_reviews_should_be_cancelled():
+    for review in proposal_models.Review.objects.filter(
+        state__in=(
+            proposal_models.Review.States.IN_REVIEW,
+            proposal_models.Review.States.CREATED,
+        ),
+        review_end_date__lt=timezone.now(),
+    ):
+        review.state = proposal_models.Review.States.REJECTED
+        review.save(update_fields=["state"])
+
+        log.event_logger.review.info(
+            f"Review for {review.proposal.name} has been canceled.",
+            event_type="review_canceled",
+            event_context={"review": review},
+        )
+        logger.info(f"Review {review.proposal.name} has been canceled.")

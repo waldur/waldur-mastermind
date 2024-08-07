@@ -1,6 +1,6 @@
 from waldur_core.logging.loggers import EventLogger, event_logger
 from waldur_core.structure.permissions import _get_customer
-from waldur_mastermind.proposal.models import Call, Proposal
+from waldur_mastermind.proposal.models import Call, Proposal, Review
 
 
 class ProposalLogger(EventLogger):
@@ -38,5 +38,20 @@ class CallLogger(EventLogger):
         return {_get_customer(event_context["call"])}
 
 
+class ReviewLogger(EventLogger):
+    review = Review
+
+    class Meta:
+        event_types = ("review_canceled",)
+        event_groups = {
+            "review": event_types,
+        }
+
+    @staticmethod
+    def get_scopes(event_context):
+        return {_get_customer(event_context["review"])}
+
+
 event_logger.register("proposal", ProposalLogger)
 event_logger.register("call", CallLogger)
+event_logger.register("review", ReviewLogger)
