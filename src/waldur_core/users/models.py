@@ -146,7 +146,7 @@ class Invitation(
 
     @transition(
         field=execution_state,
-        source=ExecutionState.SCHEDULED,
+        source="*",
         target=ExecutionState.PROCESSING,
     )
     def begin_processing(self):

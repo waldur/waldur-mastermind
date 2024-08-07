@@ -58,7 +58,9 @@ def send_invitation_created(invitation_uuid, sender):
     """
     invitation = models.Invitation.objects.get(uuid=invitation_uuid)
 
-    invitation.begin_processing()
+    if invitation.execution_state != models.Invitation.ExecutionState.PROCESSING:
+        invitation.begin_processing()
+
     invitation.error_message = ""
     invitation.error_traceback = ""
     invitation.save(
