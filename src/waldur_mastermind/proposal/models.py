@@ -382,6 +382,9 @@ class Review(
             (REJECTED, "Rejected"),
         )
 
+    class Permissions:
+        customer_path = "proposal__round__call__manager__customer"
+
     proposal = models.ForeignKey(Proposal, on_delete=models.PROTECT)
     state = models.CharField(
         default=States.CREATED, choices=States.CHOICES, db_index=True
