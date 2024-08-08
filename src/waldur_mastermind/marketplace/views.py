@@ -2114,6 +2114,14 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
         structure_utils.check_customer_blocked_or_archived,
     ]
 
+    @action(detail=True, methods=["post"])
+    def unlink(self, request, uuid=None):
+        if not request.user.is_staff:
+            raise PermissionDenied()
+        obj = self.get_object()
+        obj.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
 
 class ResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
     queryset = models.Resource.objects.all()
