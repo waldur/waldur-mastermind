@@ -2,6 +2,7 @@ import base64
 import logging
 
 import requests
+from constance import config
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.utils import timezone
@@ -94,6 +95,11 @@ class OAuthView(RefreshTokenMixin, views.APIView):
         logger.info("Received user info: %s", user_info)
 
         user, created = create_or_update_oauth_user(self.config.provider, user_info)
+
+        if config.AUTO_APPROVE_USER_TOS and user.agreement_date is None:
+            user.agreement_date = timezone.now()
+            user.save(update_fields=["agreement_date"])
+
         OAuthToken.objects.update_or_create(
             user=user,
             provider=self.config.provider,

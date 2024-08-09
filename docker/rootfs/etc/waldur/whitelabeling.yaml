@@ -22,3 +22,5 @@ site_logo: ""
 login_logo: ""
 offering_logo_placeholder: ""
 favicon: ""
+# TODO: move to a proper location
+auto_approve_user_tos: false
