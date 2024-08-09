@@ -453,7 +453,13 @@ class ConstanceSettingsSerializer(serializers.Serializer):
                 field_class = serializers.IntegerField
             if config_type == bool:
                 field_class = serializers.BooleanField
-            if config_type in ("color_field", "html_field", "text_field", "url_field"):
+            if config_type in (
+                "color_field",
+                "html_field",
+                "text_field",
+                "url_field",
+                "secret_field",
+            ):
                 field_class = serializers.CharField
             if not field_class:
                 continue

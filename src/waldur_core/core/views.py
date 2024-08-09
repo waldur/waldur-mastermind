@@ -474,14 +474,7 @@ def override_db_settings(request):
     if request.method == "GET":
         from constance.admin import get_values
 
-        constance_settings = get_values()
-        plugins_to_return = ["atlassian", "zammad", "smax"]
-        filtered_dict = {
-            key: value
-            for key, value in constance_settings.items()
-            if any(prefix.lower() in key.lower() for prefix in plugins_to_return)
-        }
-        return Response(filtered_dict)
+        return Response(get_values())
     serializer = ConstanceSettingsSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     serializer.save()
