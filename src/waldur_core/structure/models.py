@@ -566,14 +566,37 @@ class ProjectOECDFOS2007CodeMixin(models.Model):
     )
 
 
-class ProjectDetailsMixin(core_models.DescribableMixin, ProjectOECDFOS2007CodeMixin):
-    class Meta:
-        abstract = True
+class Project(
+    core_models.DescribableMixin,
+    ProjectOECDFOS2007CodeMixin,
+    core_models.UuidMixin,
+    core_models.DescendantMixin,
+    core_models.BackendMixin,
+    core_models.SlugMixin,
+    quotas_models.ExtendableQuotaModelMixin,
+    PermissionMixin,
+    StructureLoggableMixin,
+    ImageModelMixin,
+    TimeStampedModel,
+    SoftDeletableModel,
+):
+    class Permissions:
+        customer_path = "customer"
+        project_path = "self"
+
+    class Quotas(quotas_models.QuotaModelMixin.Quotas):
+        enable_fields_caching = False
+        nc_resource_count = quotas_fields.CounterQuotaField(
+            target_models=lambda: BaseResource.get_all_models(),
+            path_to_scope="project",
+        )
 
     # NameMixin is not used because it has too strict limitation for max_length.
     name = models.CharField(
         _("name"), max_length=PROJECT_NAME_LENGTH, validators=[validate_name]
     )
+
+    start_date = models.DateField(null=True, blank=True)
 
     end_date = models.DateField(
         null=True,
@@ -597,31 +620,6 @@ class ProjectDetailsMixin(core_models.DescribableMixin, ProjectOECDFOS2007CodeMi
         on_delete=models.SET_NULL,
     )
     is_industry = models.BooleanField(default=False)
-
-
-class Project(
-    ProjectDetailsMixin,
-    core_models.UuidMixin,
-    core_models.DescendantMixin,
-    core_models.BackendMixin,
-    core_models.SlugMixin,
-    quotas_models.ExtendableQuotaModelMixin,
-    PermissionMixin,
-    StructureLoggableMixin,
-    ImageModelMixin,
-    TimeStampedModel,
-    SoftDeletableModel,
-):
-    class Permissions:
-        customer_path = "customer"
-        project_path = "self"
-
-    class Quotas(quotas_models.QuotaModelMixin.Quotas):
-        enable_fields_caching = False
-        nc_resource_count = quotas_fields.CounterQuotaField(
-            target_models=lambda: BaseResource.get_all_models(),
-            path_to_scope="project",
-        )
 
     customer = models.ForeignKey(
         Customer,

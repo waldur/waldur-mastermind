@@ -1914,6 +1914,10 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     def approve_by_consumer(self, request, uuid=None):
         order: models.Order = self.get_object()
         order.review_by_consumer(request.user)
+        if order.project.start_date and order.project.start_date > timezone.now():
+            order.state = models.Order.States.PENDING_PROJECT
+            order.save(update_fields=["state"])
+            return Response(status=status.HTTP_200_OK)
         if utils.order_should_not_be_reviewed_by_provider(order):
             order.set_state_executing()
             order.save(update_fields=["state"])

@@ -62,6 +62,7 @@ class Invitation(
         customer_path = "customer"
 
     class State:
+        PENDING_PROJECT = "project"
         REQUESTED = "requested"
         REJECTED = "rejected"
         PENDING = "pending"
@@ -70,6 +71,7 @@ class Invitation(
         EXPIRED = "expired"
 
         CHOICES = (
+            (PENDING_PROJECT, "Pending project"),
             (REQUESTED, "Requested"),
             (REJECTED, "Rejected"),
             (PENDING, "Pending"),

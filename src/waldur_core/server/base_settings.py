@@ -259,6 +259,11 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": timedelta(hours=24),
         "args": (),
     },
+    "process-pending-project-invitations": {
+        "task": "waldur_core.users.process_pending_project_invitations",
+        "schedule": timedelta(hours=2),
+        "args": (),
+    },
     "structure-set-erred-stuck-resources": {
         "task": "waldur_core.structure.SetErredStuckResources",
         "schedule": timedelta(hours=1),

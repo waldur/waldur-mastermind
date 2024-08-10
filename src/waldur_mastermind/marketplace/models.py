@@ -1182,6 +1182,7 @@ class Order(
     TimeStampedModel,
 ):
     class States:
+        PENDING_PROJECT = 8
         PENDING_CONSUMER = 1
         PENDING_PROVIDER = 7
         EXECUTING = 2
@@ -1193,6 +1194,7 @@ class Order(
         CHOICES = (
             (PENDING_CONSUMER, "pending-consumer"),
             (PENDING_PROVIDER, "pending-provider"),
+            (PENDING_PROJECT, "pending-project"),
             (EXECUTING, "executing"),
             (DONE, "done"),
             (ERRED, "erred"),

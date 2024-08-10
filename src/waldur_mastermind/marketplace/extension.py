@@ -44,6 +44,11 @@ class MarketplaceExtension(WaldurExtension):
                 "schedule": timedelta(days=1),
                 "args": (),
             },
+            "process_pending_project_orders": {
+                "task": "waldur_mastermind.marketplace.process_pending_project_orders",
+                "schedule": timedelta(hours=2),
+                "args": (),
+            },
             "notification_about_project_ending": {
                 "task": "waldur_mastermind.marketplace.notification_about_project_ending",
                 "schedule": crontab(minute=0, hour=10),

@@ -485,3 +485,26 @@ def copy_future_price_to_current_price():
     ).exclude(future_price__isnull=True):
         component.price = component.future_price
         component.save(update_fields=["price"])
+
+
+@shared_task(name="waldur_mastermind.marketplace.process_pending_project_orders")
+def process_pending_project_orders():
+    active_project_ids = structure_models.Project.objects.filter(
+        start_date__lte=timezone.now()
+    ).values_list("id", flat=True)
+    orders = models.Order.objects.filter(
+        state=models.Order.States.PENDING_PROJECT, project__in=active_project_ids
+    )
+    for order in orders:
+        if utils.order_should_not_be_reviewed_by_provider(order):
+            order.set_state_executing()
+            order.save(update_fields=["state"])
+            transaction.on_commit(
+                lambda: process_order_on_commit.delay(order, order.created_by)
+            )
+        else:
+            order.state = models.Order.States.PENDING_PROVIDER
+            order.save(update_fields=["state"])
+            transaction.on_commit(
+                lambda: notify_provider_about_pending_order.delay(order.uuid)
+            )
