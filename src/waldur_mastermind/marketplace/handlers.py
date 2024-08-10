@@ -114,6 +114,10 @@ def notify_approvers_when_order_is_created(sender, instance, created=False, **kw
     ):
         if order_should_not_be_reviewed_by_consumer(order):
             order.review_by_consumer(order.created_by)
+            if order.project.start_date and order.project.start_date > now():
+                order.state = models.Order.States.PENDING_PROJECT
+                order.save(update_fields=["state"])
+                return
             if utils.order_should_not_be_reviewed_by_provider(order):
                 order.set_state_executing()
                 order.save()

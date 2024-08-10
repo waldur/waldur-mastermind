@@ -7,11 +7,13 @@ from urllib.parse import urlparse
 import requests
 from celery import shared_task
 from django.conf import settings
+from django.db import transaction
 from django.utils import timezone
 from python_freeipa import exceptions as freeipa_exceptions
 
 from waldur_core.core import models as core_models
 from waldur_core.core.utils import broadcast_mail, format_homeport_link, pwgen
+from waldur_core.structure import models as structure_models
 from waldur_core.users import models, utils
 from waldur_core.users.utils import generate_safe_username
 
@@ -254,4 +256,21 @@ def send_mail_notification_about_permission_request_has_been_submitted(
             "permission_request_submitted",
             {"permission_request": permission_request, "requests_link": requests_link},
             emails,
+        )
+
+
+@shared_task(name="waldur_core.users.process_pending_project_invitations")
+def process_pending_project_invitations():
+    active_project_ids = structure_models.Project.objects.filter(
+        start_date__lte=timezone.now()
+    ).values_list("id", flat=True)
+    invitations = models.Invitation.objects.filter(
+        state=models.Invitation.State.PENDING_PROJECT, object_id__in=active_project_ids
+    )
+    for invitation in invitations:
+        invitation.state = models.Invitation.State.PENDING
+        invitation.save()
+        sender = invitation.created_by.full_name or invitation.created_by.username
+        transaction.on_commit(
+            lambda: process_invitation.delay(invitation.uuid.hex, sender)
         )

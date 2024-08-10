@@ -2084,7 +2084,7 @@ class OrderCreateSerializer(
     @transaction.atomic
     def create(self, validated_data):
         request = self.context["request"]
-        project = validated_data["project"]
+        project: structure_models.Project = validated_data["project"]
         resource = models.Resource(
             project=project,
             offering=validated_data["offering"],

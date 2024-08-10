@@ -18,7 +18,7 @@ from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import has_user
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import serializers as structure_serializers
-from waldur_core.structure.models import Customer
+from waldur_core.structure.models import Customer, Project
 from waldur_core.users import filters, models, serializers, tasks
 from waldur_core.users.utils import can_manage_invitation_with, parse_invitation_token
 
@@ -41,7 +41,14 @@ class InvitationViewSet(ProtectedViewSet):
         if not can_manage_invitation_with(self.request, scope):
             raise PermissionDenied()
 
-        invitation = serializer.save()
+        invitation: models.Invitation = serializer.save()
+        if isinstance(invitation.scope, Project):
+            project: Project = invitation.scope
+            if project.start_date and project.start_date > timezone.now():
+                invitation.state = models.Invitation.State.PENDING_PROJECT
+                invitation.save()
+                return
+
         sender = self.request.user.full_name or self.request.user.username
         if (
             settings.WALDUR_CORE["ONLY_STAFF_CAN_INVITE_USERS"]

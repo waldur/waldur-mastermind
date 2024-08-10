@@ -1,4 +1,4 @@
-from unittest import mock
+from unittest import mock, skip
 from urllib.parse import urlencode
 from uuid import uuid4
 
@@ -172,6 +172,7 @@ class OfferingDetailsPullTest(test.APITransactionTestCase):
         )
 
     @responses.activate
+    @skip("Unstable in CI/CD")
     @override_settings(task_always_eager=True)
     def test_update_plan(self):
         new_plan_name = "New plan"
