@@ -664,6 +664,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
     ),
     "Proposal settings": ("PROPOSAL_REVIEW_DURATION",),
     "Table settings": ("USER_TABLE_COLUMNS",),
+    "Localization": ("LANGUAGE_CHOICES",),
 }
 
 PUBLIC_CONSTANCE_SETTINGS = (
