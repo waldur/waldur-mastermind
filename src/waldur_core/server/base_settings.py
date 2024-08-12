@@ -211,15 +211,12 @@ CELERY_TASK_ROUTES = ("waldur_core.server.celery.PriorityRouter",)
 
 CACHES = {
     "default": {
-        "BACKEND": "redis_cache.RedisCache",
-        "LOCATION": "redis://localhost",
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://127.0.0.1:6379/1",
         "OPTIONS": {
-            "DB": 1,
-            "PARSER_CLASS": "redis.connection.HiredisParser",
-            "CONNECTION_POOL_CLASS": "redis.BlockingConnectionPool",
-            "PICKLE_VERSION": -1,
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
         },
-    },
+    }
 }
 
 # Regular tasks
