@@ -26,9 +26,9 @@ redis_password: str = env.get("REDIS_PASSWORD")
 redis_host: str = env.get("REDIS_HOST", "localhost")
 redis_port: str = env.get("REDIS_PORT", "6379")
 if redis_password:
-    redis_url = "redis://:%s@%s:%s" % (redis_password, redis_host, redis_port)
+    redis_url = "redis://:%s@%s:%s/1" % (redis_password, redis_host, redis_port)
 else:
-    redis_url = "redis://%s:%s" % (redis_host, redis_port)
+    redis_url = "redis://%s:%s/1" % (redis_host, redis_port)
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env.get("GLOBAL_DEBUG", "false").lower() == "true"
