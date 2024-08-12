@@ -59,6 +59,10 @@ class ProjectSection(FeatureSection):
 
     show_type_in_create_dialog = Feature("Show type field in project create dialog.")
 
+    show_start_date_in_create_dialog = Feature(
+        "Show start date field in project create dialog."
+    )
+
     show_end_date_in_create_dialog = Feature(
         "Show end date field in project create dialog."
     )
