@@ -276,7 +276,7 @@ class ProjectSerializer(
             "start_date" in fields
             and isinstance(self.instance, models.Project)
             and self.instance.start_date
-            and self.instance.start_date >= timezone.now()
+            and self.instance.start_date >= timezone.now().date()
         ):
             fields["start_date"].read_only = True
 
