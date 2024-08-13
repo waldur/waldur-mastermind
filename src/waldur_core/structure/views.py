@@ -580,7 +580,10 @@ class UserViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def pull_remote_user(self, request, uuid=None):
         user = self.get_object()
-        if user.registration_method != ProviderChoices.EDUTEAMS:
+        if (
+            user.identity_source != ProviderChoices.EDUTEAMS
+            and user.registration_method != ProviderChoices.EDUTEAMS
+        ):
             raise ValidationError(_("User is not managed by eduTEAMS."))
         if not django_settings.WALDUR_AUTH_SOCIAL["REMOTE_EDUTEAMS_ENABLED"]:
             raise ValidationError(

@@ -23,7 +23,10 @@ def sync_permission_with_remote(sender, instance: UserRole, signal, **kwargs):
     if not settings.WALDUR_AUTH_SOCIAL["ENABLE_EDUTEAMS_SYNC"]:
         return
 
-    if instance.user.registration_method != ProviderChoices.EDUTEAMS:
+    if (
+        instance.user.identity_source != ProviderChoices.EDUTEAMS
+        and instance.user.registration_method != ProviderChoices.EDUTEAMS
+    ):
         return
 
     # Skip synchronization of custom roles
@@ -58,6 +61,7 @@ def create_request_when_project_is_updated(sender, instance, created=False, **kw
     if created:
         return
 
+    # TODO: check for offering type instead
     if not settings.WALDUR_AUTH_SOCIAL["ENABLE_EDUTEAMS_SYNC"]:
         return
 
