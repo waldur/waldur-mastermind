@@ -4,6 +4,7 @@ from collections import defaultdict
 
 import requests
 import urllib3
+from django.db.models import Q
 from django.utils import dateparse
 from django.utils.dateparse import parse_datetime
 from rest_framework.exceptions import ValidationError
@@ -290,8 +291,11 @@ def collect_local_permissions(
 ):
     permissions = defaultdict()
     for permission in get_permissions(project).filter(
-        user__registration_method=ProviderChoices.EDUTEAMS,
-        role__is_system_role=True,
+        Q(role__is_system_role=True)
+        & (
+            Q(user__registration_method=ProviderChoices.EDUTEAMS)
+            | Q(user__identity_source=ProviderChoices.EDUTEAMS)
+        )
     ):
         permissions[permission.user.username] = (
             permission.role.name,
@@ -301,8 +305,11 @@ def collect_local_permissions(
     if offering.customer == project.customer:
         return permissions
     for permission in get_permissions(project.customer).filter(
-        role__name=RoleEnum.CUSTOMER_OWNER,
-        user__registration_method=ProviderChoices.EDUTEAMS,
+        Q(role__name=RoleEnum.CUSTOMER_OWNER)
+        & (
+            Q(user__registration_method=ProviderChoices.EDUTEAMS)
+            | Q(user__identity_source=ProviderChoices.EDUTEAMS)
+        )
     ):
         # Organization owner is mapped to project manager in remote Waldur
         permissions[permission.user.username] = (

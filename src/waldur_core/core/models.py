@@ -284,7 +284,14 @@ class User(
         max_length=50,
         default="default",
         blank=True,
-        help_text=_("Indicates what registration method were used."),
+        help_text=_("Indicates what registration method was used."),
+    )
+    identity_source = models.CharField(
+        _("source of identity"),
+        max_length=50,
+        default="",
+        blank=True,
+        help_text=_("Indicates what identity provider was used."),
     )
     agreement_date = models.DateTimeField(
         _("agreement date"),

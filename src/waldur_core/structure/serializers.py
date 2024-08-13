@@ -882,6 +882,7 @@ class UserSerializer(
             "identity_provider_management_url",
             "identity_provider_fields",
             "image",
+            "identity_source",
         )
         read_only_fields = (
             "uuid",
@@ -890,6 +891,7 @@ class UserSerializer(
             "date_joined",
             "agreement_date",
             "affiliations",
+            "identity_source",
         )
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},

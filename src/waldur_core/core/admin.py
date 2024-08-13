@@ -334,7 +334,10 @@ class UserAdmin(NativeNameAdminMixin, auth_admin.UserAdmin, VersionAdmin):
             )
             return
         for remote_user in queryset:
-            if remote_user.registration_method == ProviderChoices.EDUTEAMS:
+            if (
+                remote_user.registration_method == ProviderChoices.EDUTEAMS
+                or remote_user.identity_source == ProviderChoices.EDUTEAMS
+            ):
                 try:
                     pull_remote_eduteams_user(remote_user.username)
                 except ParseError:
