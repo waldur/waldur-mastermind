@@ -34,7 +34,7 @@ from .shims import AbstractBaseUser
 logger = logging.getLogger(__name__)
 
 
-DESCRIPTION_LENGTH = 2000
+DESCRIPTION_LENGTH = 5000
 
 USERNAME_REGEX = r"^[a-zA-Z0-9_.][a-zA-Z0-9_.-]*[a-zA-Z0-9_.$-]?$"
 

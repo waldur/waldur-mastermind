@@ -21,6 +21,13 @@ class Command(BaseCommand):
             default=None,
             help="Specifies file to which the output is written. The output will be printed to stdout by default.",
         )
+        parser.add_argument(
+            "-g",
+            "--group",
+            dest="group",
+            default=None,
+            help="API group to expose.",
+        )
 
     def handle(self, *args, **options):
         # Rise logging level to prevent redundant log messages
@@ -39,7 +46,10 @@ class Command(BaseCommand):
             username="waldur_docs_exporter", is_staff=True
         )
         client.force_authenticate(user=user)
-        response = client.get("/docs/?format=openapi")
+        if options["group"] is None:
+            response = client.get("/docs/?format=openapi")
+        else:
+            response = client.get(f"/docs/{options['group']}/?format=openapi")
         user.delete()
 
         if response.status_code != status.HTTP_200_OK:
