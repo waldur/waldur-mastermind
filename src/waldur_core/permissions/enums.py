@@ -157,3 +157,234 @@ DELETE_PERMISSIONS = {
     "call": PermissionEnum.DELETE_CALL_PERMISSION,
     "proposal": PermissionEnum.DELETE_PROPOSAL_PERMISSION,
 }
+
+PERMISSION_DESCRIPTION = [
+    {
+        "label": "Offering",
+        "options": [
+            {
+                "label": "Create offering",
+                "value": "OFFERING.CREATE",
+            },
+            {
+                "label": "Delete offering",
+                "value": "OFFERING.DELETE",
+            },
+            {
+                "label": "Update offering thumbnail",
+                "value": "OFFERING.UPDATE_THUMBNAIL",
+            },
+            {
+                "label": "Update offering",
+                "value": "OFFERING.UPDATE",
+            },
+            {
+                "label": "Update offering attributes",
+                "value": "OFFERING.UPDATE_ATTRIBUTES",
+            },
+            {
+                "label": "Update offering location",
+                "value": "OFFERING.UPDATE_LOCATION",
+            },
+            {
+                "label": "Update offering description",
+                "value": "OFFERING.UPDATE_DESCRIPTION",
+            },
+            {
+                "label": "Update offering options",
+                "value": "OFFERING.UPDATE_OPTIONS",
+            },
+            {
+                "label": "Add offering endpoint",
+                "value": "OFFERING.ADD_ENDPOINT",
+            },
+            {
+                "label": "Delete offering endpoint",
+                "value": "OFFERING.DELETE_ENDPOINT",
+            },
+            {
+                "label": "Update offering components",
+                "value": "OFFERING.UPDATE_COMPONENTS",
+            },
+            {
+                "label": "Pause offering",
+                "value": "OFFERING.PAUSE",
+            },
+            {
+                "label": "Unpause offering",
+                "value": "OFFERING.UNPAUSE",
+            },
+            {
+                "label": "Archive offering",
+                "value": "OFFERING.ARCHIVE",
+            },
+            {
+                "label": "Dry run offering script",
+                "value": "OFFERING.DRY_RUN_SCRIPT",
+            },
+            {
+                "label": "Manage campaign",
+                "value": "OFFERING.MANAGE_CAMPAIGN",
+            },
+            {
+                "label": "Manage offering user group",
+                "value": "OFFERING.MANAGE_USER_GROUP",
+            },
+            {
+                "label": "Create offering plan",
+                "value": "OFFERING.CREATE_PLAN",
+            },
+            {
+                "label": "Update offering plan",
+                "value": "OFFERING.UPDATE_PLAN",
+            },
+            {
+                "label": "Archive offering plan",
+                "value": "OFFERING.ARCHIVE_PLAN",
+            },
+            {
+                "label": "Create offering screenshot",
+                "value": "OFFERING.CREATE_SCREENSHOT",
+            },
+            {
+                "label": "Update offering screenshot",
+                "value": "OFFERING.UPDATE_SCREENSHOT",
+            },
+            {
+                "label": "Delete offering screenshot",
+                "value": "OFFERING.DELETE_SCREENSHOT",
+            },
+            {
+                "label": "Create offering user",
+                "value": "OFFERING.CREATE_USER",
+            },
+        ],
+    },
+    {
+        "label": "Order",
+        "options": [
+            {"label": "Approve order", "value": "ORDER.APPROVE"},
+            {
+                "label": "Approve private order",
+                "value": "ORDER.APPROVE_PRIVATE",
+            },
+            {"label": "Reject order", "value": "ORDER.REJECT"},
+            {"label": "Destroy order", "value": "ORDER.DESTROY"},
+            {
+                "label": "Cancel order",
+                "value": "ORDER.CANCEL",
+            },
+        ],
+    },
+    {
+        "label": "Resource",
+        "options": [
+            {"label": "Terminate resource", "value": "RESOURCE.TERMINATE"},
+            {
+                "label": "List importable resources",
+                "value": "RESOURCE.LIST_IMPORTABLE",
+            },
+            {
+                "label": "Set resource end date",
+                "value": "RESOURCE.SET_END_DATE",
+            },
+            {"label": "Set resource usage", "value": "RESOURCE.SET_USAGE"},
+            {"label": "Switch resource plan", "value": "RESOURCE.SET_PLAN"},
+            {
+                "label": "Update resource limits",
+                "value": "RESOURCE.SET_LIMITS",
+            },
+            {
+                "label": "Set resource backend id",
+                "value": "RESOURCE.SET_BACKEND_ID",
+            },
+            {
+                "label": "Submit resource report",
+                "value": "RESOURCE.SUBMIT_REPORT",
+            },
+            {"label": "List resource users", "value": "RESOURCE.LIST_USERS"},
+            {
+                "label": "Complete resource downscaling",
+                "value": "RESOURCE.COMPLETE_DOWNSCALING",
+            },
+            {
+                "label": "Accept booking request",
+                "value": "RESOURCE.ACCEPT_BOOKING_REQUEST",
+            },
+            {
+                "label": "Reject booking request",
+                "value": "RESOURCE.REJECT_BOOKING_REQUEST",
+            },
+            {
+                "label": "Create robot account",
+                "value": "RESOURCE.CREATE_ROBOT_ACCOUNT",
+            },
+            {
+                "label": "Update robot account",
+                "value": "RESOURCE.UPDATE_ROBOT_ACCOUNT",
+            },
+            {
+                "label": "Delete robot account",
+                "value": "RESOURCE.DELETE_ROBOT_ACCOUNT",
+            },
+        ],
+    },
+    {
+        "label": "Team members",
+        "options": [
+            {
+                "label": "Create project permission",
+                "value": "PROJECT.CREATE_PERMISSION",
+            },
+            {
+                "label": "Create customer permission",
+                "value": "CUSTOMER.CREATE_PERMISSION",
+            },
+            {
+                "label": "Create offering permission",
+                "value": "OFFERING.CREATE_PERMISSION",
+            },
+            {
+                "label": "Update project permission",
+                "value": "PROJECT.UPDATE_PERMISSION",
+            },
+            {
+                "label": "Update customer permission",
+                "value": "CUSTOMER.UPDATE_PERMISSION",
+            },
+            {
+                "label": "Update offering permission",
+                "value": "OFFERING.UPDATE_PERMISSION",
+            },
+            {
+                "label": "Delete project permission",
+                "value": "PROJECT.DELETE_PERMISSION",
+            },
+            {
+                "label": "Delete customer permission",
+                "value": "CUSTOMER.DELETE_PERMISSION",
+            },
+            {
+                "label": "Delete offering permission",
+                "value": "OFFERING.DELETE_PERMISSION",
+            },
+        ],
+    },
+    {
+        "label": "Project",
+        "options": [
+            {
+                "label": "Create project",
+                "value": "PROJECT.CREATE",
+            },
+            {
+                "label": "Update project",
+                "value": "PROJECT.UPDATE",
+            },
+            {
+                "label": "Delete project",
+                "value": "PROJECT.DELETE",
+            },
+        ],
+    },
+]
