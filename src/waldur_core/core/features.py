@@ -83,6 +83,8 @@ class UserSection(FeatureSection):
         "Enable email and webhook notifications management in user workspace."
     )
 
+    disbale_user_termination = Feature("Disable user termination in user workspace.")
+
 
 class MarketplaceSection(FeatureSection):
     class Meta:
