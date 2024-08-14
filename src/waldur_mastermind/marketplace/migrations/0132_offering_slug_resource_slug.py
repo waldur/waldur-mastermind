@@ -48,11 +48,11 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name="resource",
             name="slug",
-            field=models.SlugField(editable=False),
+            field=models.SlugField(),
         ),
         migrations.AlterField(
             model_name="offering",
             name="slug",
-            field=models.SlugField(editable=False),
+            field=models.SlugField(),
         ),
     ]

@@ -19,6 +19,7 @@ from rest_framework import serializers
 from rest_framework.fields import Field, ReadOnlyField
 
 from waldur_core.core import utils as core_utils
+from waldur_core.core.models import generate_slug
 from waldur_core.core.signals import pre_serializer_fields
 
 from . import fields as core_fields
@@ -501,3 +502,33 @@ class TranslatedModelSerializerMixin(serializers.ModelSerializer):
                 for language_name in django_settings.LANGUAGE_CHOICES:
                     all_fields.append(f"{field_name}_{language_name}")
         return all_fields
+
+
+class SlugSerializerMixin(serializers.Serializer):
+    """
+    Ensures that slug is editable only by staff
+    """
+
+    slug = serializers.SlugField(required=False, allow_blank=True, max_length=50)
+
+    def get_fields(self):
+        fields = super().get_fields()
+
+        try:
+            request = self.context["view"].request
+            user = request.user
+        except (KeyError, AttributeError):
+            return fields
+
+        if not user.is_staff:
+            if "slug" in fields:
+                fields["slug"].read_only = True
+
+        return fields
+
+    def create(self, validated_data):
+        if "slug" not in validated_data:
+            validated_data["slug"] = generate_slug(
+                validated_data["name"], self.Meta.model
+            )
+        return super().create(validated_data)
