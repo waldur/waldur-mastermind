@@ -1532,6 +1532,7 @@ class OfferingDescriptionUpdateSerializer(
 
 
 class OfferingOverviewUpdateSerializer(
+    core_serializers.SlugSerializerMixin,
     MarketplaceProtectedMediaSerializerMixin,
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
@@ -1556,6 +1557,7 @@ class OfferingOverviewUpdateSerializer(
             "privacy_policy_link",
             "getting_started",
             "integration_guide",
+            "slug",
         )
 
 
