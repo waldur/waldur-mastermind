@@ -48,11 +48,11 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name="customer",
             name="slug",
-            field=models.SlugField(editable=False),
+            field=models.SlugField(),
         ),
         migrations.AlterField(
             model_name="project",
             name="slug",
-            field=models.SlugField(editable=False),
+            field=models.SlugField(),
         ),
     ]

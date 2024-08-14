@@ -215,6 +215,7 @@ class ProjectTypeSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class ProjectSerializer(
+    core_serializers.SlugSerializerMixin,
     core_serializers.RestrictedSerializerMixin,
     PermissionFieldFilteringMixin,
     ProtectedMediaSerializerMixin,
@@ -366,6 +367,7 @@ class CountrySerializerMixin(serializers.Serializer):
 
 
 class CustomerSerializer(
+    core_serializers.SlugSerializerMixin,
     ProtectedMediaSerializerMixin,
     CountrySerializerMixin,
     core_serializers.RestrictedSerializerMixin,

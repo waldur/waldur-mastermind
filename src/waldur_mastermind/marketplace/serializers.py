@@ -1041,6 +1041,7 @@ class OfferingBackendMetadataSerializer(serializers.ModelSerializer):
 
 
 class ProviderOfferingDetailsSerializer(
+    core_serializers.SlugSerializerMixin,
     core_serializers.RestrictedSerializerMixin,
     structure_serializers.CountrySerializerMixin,
     MarketplaceProtectedMediaSerializerMixin,
@@ -2188,7 +2189,7 @@ class ResourceSuggestNameSerializer(serializers.ModelSerializer):
         return fields
 
 
-class ResourceSerializer(BaseItemSerializer):
+class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerializer):
     class Meta(BaseItemSerializer.Meta):
         model = models.Resource
         fields = BaseItemSerializer.Meta.fields + (
@@ -3465,7 +3466,9 @@ class ProviderCustomerSerializer(serializers.ModelSerializer):
         return serializer.data
 
 
-class ProviderOfferingSerializer(serializers.ModelSerializer):
+class ProviderOfferingSerializer(
+    core_serializers.SlugSerializerMixin, serializers.ModelSerializer
+):
     class Meta:
         model = models.Offering
         fields = (
