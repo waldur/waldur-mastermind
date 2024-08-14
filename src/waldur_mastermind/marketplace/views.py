@@ -2346,6 +2346,35 @@ class ResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
     set_backend_id_serializer_class = serializers.ResourceBackendIDSerializer
 
     @action(detail=True, methods=["post"])
+    def set_slug(self, request, uuid=None):
+        resource = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        new_slug = serializer.validated_data["slug"]
+        old_slug = resource.slug
+        if new_slug != old_slug:
+            resource.slug = serializer.validated_data["slug"]
+            resource.save()
+            logger.info(
+                "%s has changed slug from %s to %s",
+                request.user.full_name,
+                old_slug,
+                new_slug,
+            )
+
+            return Response(
+                {"status": _("Resource slug has been changed.")},
+                status=status.HTTP_200_OK,
+            )
+        else:
+            return Response(
+                {"status": _("Resource slug is not changed.")},
+                status=status.HTTP_200_OK,
+            )
+
+    set_slug_serializer_class = serializers.ResourceSlugSerializer
+
+    @action(detail=True, methods=["post"])
     def submit_report(self, request, uuid=None):
         resource = self.get_object()
         serializer = self.get_serializer(data=request.data)

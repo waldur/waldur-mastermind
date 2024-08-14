@@ -2489,6 +2489,12 @@ class ResourceBackendIDSerializer(serializers.ModelSerializer):
         fields = ("backend_id",)
 
 
+class ResourceSlugSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Resource
+        fields = ("slug",)
+
+
 class ResourceStateSerializer(serializers.Serializer):
     state = serializers.ChoiceField(["ok", "erred", "terminated"])
 
