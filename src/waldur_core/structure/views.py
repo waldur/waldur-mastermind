@@ -31,12 +31,10 @@ from waldur_core.core import views as core_views
 from waldur_core.core.log import event_logger
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.core.views import ActionsViewSet
-from waldur_core.permissions import fixtures as permission_fixtures
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.utils import (
     has_permission,
     permission_factory,
-    role_has_permission,
 )
 from waldur_core.permissions.views import UserRoleMixin
 from waldur_core.structure import filters, models, permissions, serializers, utils
@@ -118,9 +116,6 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
         A new customer can only be created:
 
          - by users with staff privilege (is_staff=True);
-         - by any user if CUSTOMER.OWNER role has CUSTOMER.CREATE permission;
-
-        If user who has created new organization is not staff, he is granted owner permission.
 
         Example of a valid request:
 
@@ -168,17 +163,10 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
         return context
 
     def perform_create(self, serializer):
-        customer_owner_role = permission_fixtures.CustomerRole.OWNER
-        if not self.request.user.is_staff and not role_has_permission(
-            customer_owner_role, PermissionEnum.CREATE_CUSTOMER
-        ):
+        if not self.request.user.is_staff:
             raise PermissionDenied()
 
         customer = serializer.save()
-        if not self.request.user.is_staff:
-            customer.add_user(
-                self.request.user, models.CustomerRole.OWNER, self.request.user
-            )
 
         if django_settings.WALDUR_CORE.get(
             "CREATE_DEFAULT_PROJECT_ON_ORGANIZATION_CREATION", False
