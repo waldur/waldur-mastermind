@@ -85,6 +85,8 @@ class UserSection(FeatureSection):
 
     disable_user_termination = Feature("Disable user termination in user workspace.")
 
+    show_slug = Feature("Enable display of slug field in user summary.")
+
 
 class MarketplaceSection(FeatureSection):
     class Meta:
