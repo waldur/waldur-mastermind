@@ -528,7 +528,7 @@ class SlugSerializerMixin(serializers.Serializer):
 
     def create(self, validated_data):
         if "slug" not in validated_data:
-            validated_data["slug"] = generate_slug(
-                validated_data["name"], self.Meta.model
-            )
+            klass = self.Meta.model
+            slug_source = validated_data[klass.get_slug_source_field()]
+            validated_data["slug"] = generate_slug(slug_source, klass)
         return super().create(validated_data)

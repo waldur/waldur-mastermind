@@ -806,6 +806,7 @@ class ProjectPermissionLogSerializer(BasePermissionSerializer):
 
 
 class UserSerializer(
+    core_serializers.SlugSerializerMixin,
     core_serializers.RestrictedSerializerMixin,
     core_serializers.AugmentedSerializerMixin,
     ProtectedMediaSerializerMixin,
@@ -856,6 +857,7 @@ class UserSerializer(
             "url",
             "uuid",
             "username",
+            "slug",
             "full_name",
             "native_name",
             "job_title",

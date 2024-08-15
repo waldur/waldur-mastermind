@@ -78,9 +78,14 @@ class SlugMixin(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            self.slug = generate_slug(self.name, self.__class__)
+            slug_source = getattr(self, self.get_slug_source_field())
+            self.slug = generate_slug(slug_source, self.__class__)
 
         super().save(*args, **kwargs)
+
+    @classmethod
+    def get_slug_source_field(cls):
+        return "name"
 
 
 def generate_slug(name, klass):
@@ -216,6 +221,7 @@ class UserDetailsMixin(models.Model):
 
 @reversion.register()
 class User(
+    SlugMixin,
     LoggableMixin,
     UuidMixin,
     DescribableMixin,
@@ -413,6 +419,10 @@ class User(
             return f"{self.get_username()} ({self.full_name})"
 
         return self.get_username()
+
+    @classmethod
+    def get_slug_source_field(cls):
+        return "username"
 
 
 class ImpersonatedUser(User):
