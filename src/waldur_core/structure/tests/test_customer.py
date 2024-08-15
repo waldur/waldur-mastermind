@@ -239,7 +239,6 @@ class BaseCustomerMutationTest(CustomerBaseTest):
 class CustomerCreateTest(BaseCustomerMutationTest):
     @data("user", "global_support")
     def test_user_can_not_create_customer_if_he_is_not_staff(self, user):
-        CustomerRole.OWNER.delete_permission(PermissionEnum.CREATE_CUSTOMER)
         self.client.force_authenticate(user=getattr(self.fixture, user))
 
         response = self.client.post(
@@ -278,18 +277,6 @@ class CustomerCreateTest(BaseCustomerMutationTest):
         customer = Customer.objects.get(uuid=response.data["uuid"])
         self.assertEqual(customer.projects.count(), 0)
 
-    def test_user_can_create_customer_if_he_is_not_staff(self):
-        self.client.force_authenticate(user=self.fixture.user)
-        response = self.client.post(
-            factories.CustomerFactory.get_list_url(), self._get_valid_payload()
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-        # User became owner of created customer
-        customer = Customer.objects.get(uuid=response.data["uuid"])
-        self.assertTrue(customer.has_user(self.fixture.user, CustomerRole.OWNER))
-
     def test_user_can_create_customer_if_he_is_staff(self):
         self.client.force_authenticate(user=self.fixture.staff)
 
@@ -299,17 +286,6 @@ class CustomerCreateTest(BaseCustomerMutationTest):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    def test_domain_name_is_filled_from_user_organization(self):
-        self.fixture.user.organization = "ut.ee"
-        self.fixture.user.save()
-
-        self.client.force_authenticate(user=self.fixture.user)
-        response = self.client.post(
-            factories.CustomerFactory.get_list_url(), {"name": "Computer Science Lab"}
-        )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data["domain"], "ut.ee")
-
     def test_domain_name_is_filled_from_input_for_staff(self):
         self.client.force_authenticate(user=self.fixture.staff)
         response = self.client.post(
@@ -318,17 +294,6 @@ class CustomerCreateTest(BaseCustomerMutationTest):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["domain"], "ut.ee")
-
-    def test_domain_name_is_not_filled_from_input_for_owner(self):
-        self.fixture.user.organization = ""
-        self.fixture.user.save()
-        self.client.force_authenticate(user=self.fixture.user)
-        response = self.client.post(
-            factories.CustomerFactory.get_list_url(),
-            {"name": "Computer Science Lab", "domain": "ut.ee"},
-        )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data["domain"], "")
 
 
 @ddt
