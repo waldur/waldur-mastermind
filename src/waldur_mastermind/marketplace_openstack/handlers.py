@@ -436,7 +436,8 @@ def synchronize_limits_when_storage_mode_is_switched(
     logger.info(
         "Synchronizing OpenStack tenant limits because storage mode is switched "
         "from %s to %s",
-        (old_mode or "fixed", new_mode),
+        old_mode,
+        new_mode,
     )
 
     resources = marketplace_models.Resource.objects.filter(offering=offering).exclude(
