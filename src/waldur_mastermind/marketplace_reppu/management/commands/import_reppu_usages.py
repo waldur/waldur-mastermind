@@ -7,6 +7,7 @@ from django.core.management.base import BaseCommand
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace import utils as marketplace_utils
 
 # Waldur usage to LUMI usage
 component_type_mapping = {
@@ -107,10 +108,27 @@ class Command(BaseCommand):
         if component_usage is None:
             self.stdout.write(
                 self.style.WARNING(
-                    f"The resource {resource} does not have any component usages with type {component_type}, skipping processing"
+                    f"The resource {resource} does not have any component usages with type {component_type}, creating a new usage entry"
                 )
             )
-            return
+            date = datetime.date(year=year, month=month, day=1)
+            offering_component = marketplace_models.OfferingComponent.objects.get(
+                offering=resource.offering, type=component_type
+            )
+            plan_period = marketplace_utils.get_plan_period(resource, date)
+            if not self.dry_run:
+                component_usage, _ = (
+                    marketplace_models.ComponentUsage.objects.update_or_create(
+                        resource=resource,
+                        component=offering_component,
+                        billing_period=core_utils.month_start(date),
+                        plan_period=plan_period,
+                        defaults={
+                            "usage": new_usage,
+                            "date": date,
+                        },
+                    )
+                )
 
         if one_of_many:
             resource_limit = resource.limits.get(component_type)
@@ -126,7 +144,7 @@ class Command(BaseCommand):
         if self.dry_run:
             self.stdout.write(
                 self.style.SUCCESS(
-                    f"[Dry run] Setting {resource} {component_type} component usage from {component_usage.usage} to {new_usage}"
+                    f"[Dry run] Setting {resource} {component_type} component usage from {getattr(component_usage, 'usage', None)} to {new_usage}"
                 )
             )
         else:
