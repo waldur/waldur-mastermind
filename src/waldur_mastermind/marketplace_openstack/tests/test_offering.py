@@ -22,11 +22,17 @@ from waldur_mastermind.marketplace_openstack import (
     STORAGE_MODE_FIXED,
 )
 from waldur_openstack.openstack import models as openstack_models
+from waldur_openstack.openstack.tests import (
+    factories as openstack_factories,
+)
 from waldur_openstack.openstack.tests import fixtures as openstack_fixtures
 from waldur_openstack.openstack.tests.factories import VolumeTypeFactory
 from waldur_openstack.openstack.tests.unittests.test_backend import BaseBackendTestCase
 from waldur_openstack.openstack_base.tests.fixtures import OpenStackFixture
 from waldur_openstack.openstack_base.utils import volume_type_name_to_quota_name
+from waldur_openstack.openstack_tenant.tests import (
+    fixtures as openstack_tenant_fixtures,
+)
 
 from .. import INSTANCE_TYPE, TENANT_TYPE, VOLUME_TYPE
 from . import fixtures
@@ -505,3 +511,78 @@ class OfferingNameTest(test.APITransactionTestCase):
         self.fixture.openstack_tenant.save()
         offering.refresh_from_db()
         self.assertTrue("new_name" in offering.name)
+
+
+class RouterExternalIPTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.UserFixture()
+        self.router = openstack_factories.RouterFactory(fixed_ips=["100.100.100.1"])
+        self.external_ips = [
+            {
+                "floating_ip": "100.100.100.0/24",
+                "external_ip": "200.200.200.0/24",
+            }
+        ]
+        self.offering = marketplace_factories.OfferingFactory(
+            type=TENANT_TYPE,
+            secret_options={"ipv4_external_ip_mapping": self.external_ips},
+        )
+        self.resource = marketplace_factories.ResourceFactory(offering=self.offering)
+        self.resource.scope = self.router.tenant
+        self.resource.save()
+        self.url = openstack_factories.RouterFactory.get_url(self.router)
+        self.client.force_authenticate(self.fixture.staff)
+
+    def test_external_ips_has_been_added(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["offering_external_ips"], ["200.200.200.1"])
+
+    def test_external_ips_has_not_been_added(self):
+        self.router.fixed_ips = ["1.100.100.1"]
+        self.router.save()
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["offering_external_ips"], [])
+
+
+class InstanceExternalIPTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = openstack_tenant_fixtures.OpenStackTenantFixture()
+        self.external_ips = [
+            {
+                "floating_ip": "100.100.100.0/24",
+                "external_ip": "200.200.200.0/24",
+            }
+        ]
+        parent_offering = marketplace_factories.OfferingFactory(
+            type=TENANT_TYPE,
+            secret_options={"ipv4_external_ip_mapping": self.external_ips},
+        )
+        self.offering = marketplace_factories.OfferingFactory(
+            type=INSTANCE_TYPE,
+            parent=parent_offering,
+        )
+        self.resource = marketplace_factories.ResourceFactory(offering=self.offering)
+        self.resource.scope = self.fixture.instance
+        self.resource.save()
+        self.fixture.floating_ip.internal_ip = self.fixture.internal_ip
+        self.fixture.floating_ip.save()
+        self.url = marketplace_factories.ResourceFactory.get_url(
+            self.resource, "details"
+        )
+        self.client.force_authenticate(self.fixture.staff)
+
+    def test_external_ips_has_been_added(self):
+        self.fixture.floating_ip.address = "100.100.100.1"
+        self.fixture.floating_ip.save()
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["offering_external_ips"], ["200.200.200.1"])
+
+    def test_external_ips_has_not_been_added(self):
+        self.fixture.floating_ip.address = "1.100.100.1"
+        self.fixture.floating_ip.save()
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["offering_external_ips"], [])
