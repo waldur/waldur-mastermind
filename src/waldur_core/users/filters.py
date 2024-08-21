@@ -7,6 +7,7 @@ from rest_framework.filters import BaseFilterBackend
 from waldur_core.core import filters as core_filters
 from waldur_core.core.models import User
 from waldur_core.permissions.enums import TYPE_MAP
+from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import (
     get_create_permission,
     get_scope_ids,
@@ -116,13 +117,36 @@ class PermissionRequestFilter(django_filters.FilterSet):
         ]
 
 
+def filter_pending_invitations(user):
+    subquery = Q(state=models.Invitation.State.PENDING) & (
+        Q(civil_number="") | Q(civil_number=user.civil_number)
+    )
+    if settings.WALDUR_CORE["VALIDATE_INVITATION_EMAIL"]:
+        subquery = subquery & Q(email=user.email)
+
+    return subquery
+
+
+def filter_by_connected_scopes(user):
+    subquery = Q()
+
+    for user_role in UserRole.objects.filter(user=user, is_active=True):
+        subquery |= Q(
+            content_type=user_role.content_type, object_id=user_role.object_id
+        )
+    return subquery
+
+
 class PendingInvitationFilter(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
-        queryset = queryset.filter(state=models.Invitation.State.PENDING)
-        queryset = queryset.filter(
-            Q(civil_number="") | Q(civil_number=request.user.civil_number)
-        )
-        if settings.WALDUR_CORE["VALIDATE_INVITATION_EMAIL"]:
-            queryset = queryset.filter(email=request.user.email)
+        subquery = filter_pending_invitations(request.user)
+        return queryset.filter(subquery)
 
-        return queryset
+
+class VisibleInvitationFilter(BaseFilterBackend):
+    def filter_queryset(self, request, queryset, view):
+        if request.user.is_staff or request.user.is_support:
+            return queryset
+        subquery1 = filter_pending_invitations(request.user)
+        subquery2 = filter_by_connected_scopes(request.user)
+        return queryset.filter(subquery1 | subquery2)
