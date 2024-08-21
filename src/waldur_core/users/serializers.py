@@ -133,13 +133,16 @@ class InvitationSerializer(BaseInvitationSerializer):
         }
 
 
-class PendingInvitationDetailsSerializer(BaseInvitationDetailsSerializer):
+class VisibleInvitationDetailsSerializer(BaseInvitationDetailsSerializer):
+    state = serializers.ReadOnlyField(source="get_state_display")
+
     class Meta:
         model = models.Invitation
         fields = BaseInvitationDetailsSerializer.Meta.fields + (
             "email",
             "error_message",
             "execution_state",
+            "state",
         )
         read_only_fields = (
             "error_message",

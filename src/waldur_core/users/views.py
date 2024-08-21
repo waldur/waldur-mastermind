@@ -224,10 +224,10 @@ class InvitationViewSet(ProtectedViewSet):
         else:
             return Response({"email": invitation.email}, status=status.HTTP_200_OK)
 
-    @action(detail=True, filter_backends=[filters.PendingInvitationFilter])
+    @action(detail=True, filter_backends=[filters.VisibleInvitationFilter])
     def details(self, request, uuid=None):
         invitation: models.Invitation = self.get_object()
-        serializer = serializers.PendingInvitationDetailsSerializer(instance=invitation)
+        serializer = serializers.VisibleInvitationDetailsSerializer(instance=invitation)
         return Response(serializer.data)
 
 
