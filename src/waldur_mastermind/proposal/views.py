@@ -578,6 +578,12 @@ class ReviewViewSet(ActionsViewSet):
     filterset_class = filters.ReviewFilter
     create_permissions = destroy_permissions = [permissions.is_staff]
 
+    update_validators = partial_update_validators = [
+        core_validators.StateValidator(
+            models.Review.States.CREATED, models.Review.States.IN_REVIEW
+        )
+    ]
+
     def get_queryset(self):
         user = self.request.user
 
