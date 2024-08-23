@@ -2127,7 +2127,10 @@ class OrderCreateSerializer(
         return ("project",)
 
     def quotas_validate(self, order):
-        if not order.offering.scope:
+        try:
+            if not order.offering.scope:
+                return
+        except AttributeError:
             return
         processor_class = manager.get_processor(
             order.offering.type, "create_resource_processor"
