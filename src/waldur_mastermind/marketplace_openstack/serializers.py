@@ -85,7 +85,8 @@ def get_instance_external_ips(serializer, instance):
         floating_ips = instance.floating_ips.all()
         resource = marketplace_models.Resource.objects.filter(scope=instance).get()
         return _get_external_ips(
-            resource.offering.parent, [i.address for i in floating_ips]
+            resource.offering.parent,
+            [i.address for i in floating_ips if i.address is not None],
         )
     except marketplace_models.Resource.DoesNotExist:
         return
