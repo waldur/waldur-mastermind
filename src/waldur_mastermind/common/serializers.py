@@ -25,7 +25,7 @@ FIELD_CLASSES = {
 }
 
 
-def validate_options(options, attributes):
+def validate_options(options, attributes, optional=False):
     fields = {}
 
     for name, option in options.items():
@@ -36,6 +36,10 @@ def validate_options(options, attributes):
         default_value = option.get("default")
         if default_value:
             params["default"] = default_value
+        else:
+            params["required"] = option.get("required", False)
+        if optional:
+            params["required"] = False
 
         if field_class == serializers.IntegerField:
             if "min" in option:

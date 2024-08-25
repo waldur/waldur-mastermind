@@ -2531,7 +2531,7 @@ class ResourceOptionsSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 "Metadata for resource options is not defined."
             )
-        validate_options(resource_options["options"], attrs)
+        validate_options(resource_options["options"], attrs, optional=True)
         if self.instance.options:
             return {**self.instance.options, **attrs}
         else:
