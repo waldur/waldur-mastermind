@@ -20,6 +20,7 @@ from waldur_core.core.utils import (
     serialize_instance,
 )
 from waldur_core.structure import models as structure_models
+from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_core.structure.tasks import BackgroundListPullTask, BackgroundPullTask
 from waldur_mastermind.common.utils import parse_datetime
 from waldur_mastermind.invoices import models as invoice_models
@@ -474,16 +475,32 @@ def pull_offering_orders(serialized_offering):
 
 
 class UsagePullTask(BackgroundPullTask):
-    def pull(self, local_resource: models.Resource):
+    def run(self, serialized_instance, **kwargs):
+        instance = deserialize_instance(serialized_instance)
+        try:
+            self.pull(instance, **kwargs)
+        except ServiceBackendError as e:
+            self.on_pull_fail(instance, e)
+        else:
+            self.on_pull_success(instance)
+
+    def pull(self, local_resource: models.Resource, from_creation_date=False):
+        """Pull resource usage either from 4 month ago or since resource creation date."""
         client = get_client_for_offering(local_resource.offering)
 
         today = datetime.today()
-        four_months_ago = month_start(today - relativedelta(months=4))
-        four_months_ago_str = four_months_ago.strftime("%Y-%m-%d")
+        if from_creation_date:
+            start_date = month_start(local_resource.created)
+        else:
+            start_date = month_start(today - relativedelta(months=4))
+
+        start_date_str = start_date.strftime("%Y-%m-%d")
+
+        logger.info("Pulling resource % usages from %s", local_resource, start_date_str)
 
         remote_usages = client.list_component_usages(
             local_resource.backend_id,
-            date_after=four_months_ago_str,
+            date_after=start_date_str,
         )
 
         for remote_usage in remote_usages:
@@ -532,7 +549,7 @@ def pull_offering_usage(serialized_offering):
     offering = deserialize_instance(serialized_offering)
     resources = models.Resource.objects.exclude(backend_id="").filter(offering=offering)
     for resource in resources:
-        UsagePullTask().delay(serialize_instance(resource))
+        UsagePullTask().delay(serialize_instance(resource), from_creation_date=True)
 
 
 class ResourceInvoicePullTask(BackgroundPullTask):
