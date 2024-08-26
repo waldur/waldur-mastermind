@@ -5,7 +5,7 @@ from waldur_core.core import filters as core_filters
 from . import models
 
 
-class EstimatedCostPolicyFilter(django_filters.FilterSet):
+class PolicyFilter(django_filters.FilterSet):
     class Meta:
         fields = []
 
@@ -15,7 +15,7 @@ class EstimatedCostPolicyFilter(django_filters.FilterSet):
     scope_uuid = django_filters.UUIDFilter(field_name="scope__uuid")
 
 
-class ProjectEstimatedCostPolicyFilter(EstimatedCostPolicyFilter):
+class ProjectEstimatedCostPolicyFilter(PolicyFilter):
     customer = core_filters.URLFilter(
         view_name="customer-detail", field_name="scope__customer__uuid"
     )
@@ -30,16 +30,11 @@ class ProjectEstimatedCostPolicyFilter(EstimatedCostPolicyFilter):
         fields = []
 
 
-class CustomerEstimatedCostPolicyFilter(EstimatedCostPolicyFilter):
+class CustomerEstimatedCostPolicyFilter(PolicyFilter):
     customer = core_filters.URLFilter(
         view_name="customer-detail", field_name="scope__uuid"
     )
     customer_uuid = django_filters.UUIDFilter(field_name="scope__uuid")
 
-    class Meta(EstimatedCostPolicyFilter.Meta):
+    class Meta(PolicyFilter.Meta):
         model = models.CustomerEstimatedCostPolicy
-
-
-class OfferingEstimatedCostPolicyFilter(EstimatedCostPolicyFilter):
-    class Meta(EstimatedCostPolicyFilter.Meta):
-        model = models.OfferingEstimatedCostPolicy

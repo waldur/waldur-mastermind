@@ -43,6 +43,37 @@ def get_estimated_cost_policy_handler(klass):
     return handler
 
 
+customer_estimated_cost_policy_trigger_handler = get_estimated_cost_policy_handler(
+    models.CustomerEstimatedCostPolicy
+)
+project_estimated_cost_policy_trigger_handler = get_estimated_cost_policy_handler(
+    models.ProjectEstimatedCostPolicy
+)
+
+
+def get_offering_trigger_handler(klass):
+    def handler(sender, instance, created=False, **kwargs):
+        resource = instance.resource
+
+        if resource:
+            policies = klass.objects.filter(
+                scope=resource.offering,
+                organization_groups=resource.project.customer.organization_group,
+            )
+
+            run_one_time_actions(policies)
+
+    return handler
+
+
+offering_usage_policy_trigger_handler = get_offering_trigger_handler(
+    models.OfferingUsagePolicy
+)
+offering_estimated_cost_policy_trigger_handler = get_offering_trigger_handler(
+    models.OfferingEstimatedCostPolicy
+)
+
+
 def get_estimated_cost_policy_handler_for_observable_class(klass, observable_class):
     def handler(sender, instance, created=False, **kwargs):
         if not isinstance(instance, observable_class):
@@ -65,15 +96,3 @@ def get_estimated_cost_policy_handler_for_observable_class(klass, observable_cla
                     )
 
     return handler
-
-
-def offering_estimated_cost_trigger_handler(sender, instance, created=False, **kwargs):
-    invoice_item = instance
-
-    if invoice_item.resource:
-        policies = models.OfferingEstimatedCostPolicy.objects.filter(
-            scope=invoice_item.resource.offering,
-            organization_groups=invoice_item.resource.project.customer.organization_group,
-        )
-
-        run_one_time_actions(policies)

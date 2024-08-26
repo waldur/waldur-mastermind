@@ -51,6 +51,22 @@ class MarketplaceFixture(structure_fixtures.ProjectFixture):
         )
 
     @cached_property
+    def plan_usage_component(self):
+        return marketplace_factories.PlanComponentFactory(
+            plan=self.plan,
+            component=self.offering_usage_component,
+        )
+
+    @cached_property
+    def offering_usage_component(self):
+        return marketplace_factories.OfferingComponentFactory(
+            offering=self.offering,
+            type="ram",
+            name="RAM",
+            billing_type=marketplace_models.OfferingComponent.BillingTypes.USAGE,
+        )
+
+    @cached_property
     def order(self):
         return marketplace_factories.OrderFactory(
             project=self.project,
