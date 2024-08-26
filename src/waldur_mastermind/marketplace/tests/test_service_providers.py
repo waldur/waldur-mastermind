@@ -1,17 +1,13 @@
-import re
-
 from ddt import data, ddt
-from django.core import mail
 from rest_framework import status, test
 
-from waldur_core.core.utils import format_homeport_link
 from waldur_core.media.utils import dummy_image
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.permissions.utils import get_permissions
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_mastermind.marketplace import models, tasks, utils
+from waldur_mastermind.marketplace import models, utils
 from waldur_mastermind.marketplace.tests import fixtures
 from waldur_mastermind.marketplace.tests.helpers import override_marketplace_settings
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
@@ -310,47 +306,6 @@ class ServiceProviderNotificationTest(test.APITransactionTestCase):
             resource=self.resource, component=self.component
         )
         self.assertEqual(len(utils.get_info_about_missing_usage_reports()), 0)
-
-    def test_usages_notification_message(self):
-        other_offering = factories.OfferingFactory(
-            customer=self.fixture.customer,
-            type=PLUGIN_NAME,
-            name="Second",
-        )
-        factories.OfferingComponentFactory(
-            billing_type=models.OfferingComponent.BillingTypes.USAGE,
-            offering=other_offering,
-        )
-
-        factories.ResourceFactory(
-            offering=other_offering,
-            state=models.Resource.States.OK,
-            name="Second resource",
-        )
-
-        factories.ResourceFactory(
-            offering=other_offering,
-            state=models.Resource.States.OK,
-            name="Third resource",
-        )
-
-        event_type = "notification_usages"
-        structure_factories.NotificationFactory(key=f"marketplace.{event_type}")
-        tasks.send_notifications_about_usages()
-        self.assertEqual(len(mail.outbox), 1)
-        self.assertEqual(mail.outbox[0].to, [self.fixture.owner.email])
-        self.assertEqual(
-            mail.outbox[0].subject, "Reminder about missing usage reports."
-        )
-        self.assertTrue("My resource" in mail.outbox[0].body)
-        public_resources_url = format_homeport_link(
-            "organizations/{organization_uuid}/marketplace-public-resources/",
-            organization_uuid=self.fixture.customer.uuid,
-        )
-        body = re.sub(r"\s+|\n+", " ", mail.outbox[0].body)
-        self.assertTrue(public_resources_url in body)
-        self.assertTrue("1. First: - My resource" in body)
-        self.assertTrue("2. Second: - Second resource - Third resource" in body)
 
 
 class ConsumerProjectListTest(test.APITransactionTestCase):
