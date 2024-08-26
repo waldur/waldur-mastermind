@@ -2942,6 +2942,17 @@ class OfferingUserSerializer(
 
         return super().create(validated_data)
 
+    def update(self, instance, validated_data):
+        request = self.context["request"]
+        offering = instance.offering
+
+        if not has_permission(
+            request, PermissionEnum.UPDATE_OFFERING_USER, offering.customer
+        ):
+            raise rf_exceptions.PermissionDenied()
+
+        return super().update(instance, validated_data)
+
 
 class OfferingUserUpdateRestrictionSerializer(serializers.Serializer):
     is_restricted = serializers.BooleanField()

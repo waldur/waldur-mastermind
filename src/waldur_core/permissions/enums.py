@@ -66,6 +66,7 @@ class PermissionEnum(str, Enum):
     UPDATE_OFFERING_SCREENSHOT = "OFFERING.UPDATE_SCREENSHOT"
     DELETE_OFFERING_SCREENSHOT = "OFFERING.DELETE_SCREENSHOT"
     CREATE_OFFERING_USER = "OFFERING.CREATE_USER"
+    UPDATE_OFFERING_USER = "OFFERING.UPDATE_USER"
     MANAGE_OFFERING_USER_ROLE = "OFFERING.MANAGE_USER_ROLE"
     CREATE_RESOURCE_ROBOT_ACCOUNT = "RESOURCE.CREATE_ROBOT_ACCOUNT"
     UPDATE_RESOURCE_ROBOT_ACCOUNT = "RESOURCE.UPDATE_ROBOT_ACCOUNT"
@@ -257,6 +258,10 @@ PERMISSION_DESCRIPTION = [
             {
                 "label": "Create offering user",
                 "value": "OFFERING.CREATE_USER",
+            },
+            {
+                "label": "Update offering user",
+                "value": "OFFERING.UPDATE_USER",
             },
         ],
     },

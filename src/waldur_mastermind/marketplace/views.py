@@ -2778,6 +2778,7 @@ class OfferingUsersViewSet(
     mixins.RetrieveModelMixin,
     mixins.ListModelMixin,
     mixins.CreateModelMixin,
+    mixins.UpdateModelMixin,
     rf_viewsets.GenericViewSet,
 ):
     queryset = models.OfferingUser.objects.all()
