@@ -17,3 +17,8 @@ def register_in(router):
         views.OfferingEstimatedCostPolicyViewSet,
         basename="marketplace-offering-estimated-cost-policy",
     )
+    router.register(
+        r"marketplace-offering-usage-policies",
+        views.OfferingUsagePolicyViewSet,
+        basename="marketplace-offering-usage-policy",
+    )

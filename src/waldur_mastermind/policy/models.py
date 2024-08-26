@@ -2,7 +2,10 @@ import datetime
 import logging
 
 from django.conf import settings
+from django.core import exceptions
 from django.db import models
+from django.db.models import Sum
+from django.utils.translation import gettext_lazy as _
 from django_fsm import FSMIntegerField
 from model_utils.models import TimeStampedModel
 
@@ -163,6 +166,7 @@ class OfferingPolicy(Policy):
         policy_actions.notify_organization_owners,
         policy_actions.block_creation_of_new_resources,
     }
+    observable_classes = []
 
     scope = models.ForeignKey(marketplace_models.Offering, on_delete=models.CASCADE)
     organization_groups = models.ManyToManyField(structure_models.OrganizationGroup)
@@ -219,3 +223,73 @@ class OfferingEstimatedCostPolicy(EstimatedCostPolicyMixin, OfferingPolicy):
 
     class Meta:
         verbose_name_plural = "Offering estimated cost policies"
+
+
+class OfferingUsagePolicy(OfferingPolicy):
+    trigger_class = marketplace_models.ComponentUsage
+
+    class Periods:
+        TOTAL = 1
+        MONTH = 2
+
+        CHOICES = (
+            (TOTAL, "Total"),
+            (MONTH, "Month"),
+        )
+
+    period = FSMIntegerField(default=Periods.TOTAL, choices=Periods.CHOICES)
+    component_limit = models.ManyToManyField(
+        marketplace_models.OfferingComponent, through="OfferingComponentLimit"
+    )
+
+    def is_triggered(self):
+        customers = structure_models.Customer.objects.filter(
+            organization_group__in=self.organization_groups.all(),
+            blocked=False,
+            archived=False,
+        )
+        usages = marketplace_models.ComponentUsage.objects.filter(
+            resource__project__customer__in=customers
+        )
+
+        if self.period == self.Periods.MONTH:
+            usages = usages.filter(
+                billing_period__gte=core_utils.month_start(datetime.date.today()),
+                billing_period__lte=core_utils.month_end(datetime.date.today()),
+            )
+
+        for component_limit in self.component_limits_set.all():
+            total = (
+                usages.filter(component=component_limit.component).aggregate(
+                    usage=Sum("usage")
+                )["usage"]
+                or 0
+            )
+            if total > component_limit.limit:
+                return True
+            else:
+                return False
+
+
+class OfferingComponentLimit(TimeStampedModel):
+    policy = models.ForeignKey(
+        OfferingUsagePolicy,
+        on_delete=models.CASCADE,
+        null=False,
+        related_name="component_limits_set",
+    )
+    component = models.ForeignKey(
+        marketplace_models.OfferingComponent, on_delete=models.CASCADE, null=False
+    )
+    limit = models.IntegerField()
+
+    class Meta:
+        unique_together = (("policy", "component"),)
+
+    def save(self, *args, **kwargs):
+        if self.component not in self.policy.scope.components.all():
+            raise exceptions.ValidationError(
+                _("The selected component does not match the offering.")
+            )
+
+        return super().save(*args, **kwargs)

@@ -65,7 +65,6 @@ class PolicySerializer(serializers.HyperlinkedModelSerializer):
         fields = (
             "uuid",
             "url",
-            "limit_cost",
             "scope",
             "scope_name",
             "scope_uuid",
@@ -76,10 +75,24 @@ class PolicySerializer(serializers.HyperlinkedModelSerializer):
             "has_fired",
             "fired_datetime",
         )
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+            },
+            "scope": {
+                "lookup_field": "uuid",
+                "view_name": "marketplace-provider-offering-detail",
+            },
+        }
+
+
+class EstimatedCostPolicySerializer(PolicySerializer):
+    class Meta(PolicySerializer.Meta):
+        fields = PolicySerializer.Meta.fields + ("limit_cost",)
 
 
 class ProjectEstimatedCostPolicySerializer(
-    core_serializers.AugmentedSerializerMixin, PolicySerializer
+    core_serializers.AugmentedSerializerMixin, EstimatedCostPolicySerializer
 ):
     def validate_scope(self, scope):
         if not scope:
@@ -97,7 +110,7 @@ class ProjectEstimatedCostPolicySerializer(
             _("User is not allowed to configure policies.")
         )
 
-    class Meta(PolicySerializer.Meta):
+    class Meta(EstimatedCostPolicySerializer.Meta):
         model = models.ProjectEstimatedCostPolicy
         view_name = "marketplace-project-estimated-cost-policy-detail"
         extra_kwargs = {
@@ -109,7 +122,7 @@ class ProjectEstimatedCostPolicySerializer(
 
 
 class CustomerEstimatedCostPolicySerializer(
-    core_serializers.AugmentedSerializerMixin, PolicySerializer
+    core_serializers.AugmentedSerializerMixin, EstimatedCostPolicySerializer
 ):
     def validate_scope(self, scope):
         if not scope:
@@ -124,7 +137,7 @@ class CustomerEstimatedCostPolicySerializer(
             _("User is not allowed to configure policies.")
         )
 
-    class Meta(PolicySerializer.Meta):
+    class Meta(EstimatedCostPolicySerializer.Meta):
         model = models.CustomerEstimatedCostPolicy
         view_name = "marketplace-customer-estimated-cost-policy-detail"
         extra_kwargs = {
@@ -135,9 +148,7 @@ class CustomerEstimatedCostPolicySerializer(
         }
 
 
-class OfferingEstimatedCostPolicySerializer(
-    core_serializers.AugmentedSerializerMixin, PolicySerializer
-):
+class OfferingPolicySerializerMixin(core_serializers.AugmentedSerializerMixin):
     organization_groups = serializers.HyperlinkedRelatedField(
         queryset=structure_models.OrganizationGroup.objects.all(),
         view_name="organization-group-detail",
@@ -162,20 +173,89 @@ class OfferingEstimatedCostPolicySerializer(
             _("User is not allowed to configure policies.")
         )
 
-    class Meta(PolicySerializer.Meta):
-        fields = PolicySerializer.Meta.fields + ("organization_groups",)
-        model = models.OfferingEstimatedCostPolicy
-        view_name = "marketplace-offering-estimated-cost-policy-detail"
+    class Meta:
+        fields = ("organization_groups",)
         extra_kwargs = {
-            "url": {
-                "lookup_field": "uuid",
-            },
-            "scope": {
-                "lookup_field": "uuid",
-                "view_name": "marketplace-provider-offering-detail",
-            },
-            "organization_group": {
+            "organization_groups": {
                 "lookup_field": "uuid",
                 "view_name": "organization-group-detail",
             },
         }
+
+
+class OfferingEstimatedCostPolicySerializer(
+    OfferingPolicySerializerMixin, EstimatedCostPolicySerializer
+):
+    period_name = serializers.ReadOnlyField(source="get_period_display")
+
+    class Meta(EstimatedCostPolicySerializer.Meta):
+        fields = (
+            EstimatedCostPolicySerializer.Meta.fields
+            + OfferingPolicySerializerMixin.Meta.fields
+            + ("period", "period_name")
+        )
+        model = models.OfferingEstimatedCostPolicy
+        view_name = "marketplace-offering-estimated-cost-policy-detail"
+        extra_kwargs = EstimatedCostPolicySerializer.Meta.extra_kwargs
+        extra_kwargs.update(OfferingPolicySerializerMixin.Meta.extra_kwargs)
+
+
+class NestedOfferingComponentLimitSerializer(serializers.ModelSerializer):
+    type = serializers.CharField(source="component.type")
+
+    class Meta:
+        model = models.OfferingComponentLimit
+        fields = ("type", "limit")
+
+
+class OfferingUsagePolicySerializer(OfferingPolicySerializerMixin, PolicySerializer):
+    component_limits_set = NestedOfferingComponentLimitSerializer(many=True)
+    period_name = serializers.ReadOnlyField(source="get_period_display")
+
+    class Meta(PolicySerializer.Meta):
+        fields = (
+            PolicySerializer.Meta.fields
+            + OfferingPolicySerializerMixin.Meta.fields
+            + ("component_limits_set", "period", "period_name")
+        )
+        model = models.OfferingUsagePolicy
+        view_name = "marketplace-offering-usage-policy-detail"
+        extra_kwargs = EstimatedCostPolicySerializer.Meta.extra_kwargs
+        extra_kwargs.update(OfferingPolicySerializerMixin.Meta.extra_kwargs)
+
+    def _create_or_update(self, policy, component_limits):
+        if component_limits is None:
+            return
+
+        offering = policy.scope
+        components = []
+
+        for component_limit in component_limits:
+            component_type = component_limit["component"]["type"]
+            limit = component_limit["limit"]
+            component = offering.components.filter(type=component_type).first()
+            components.append(component)
+
+            if not component:
+                raise ValidationError(
+                    f"Offering has not component with type {component_type}."
+                )
+
+            models.OfferingComponentLimit.objects.update_or_create(
+                policy=policy, defaults={"component": component, "limit": limit}
+            )
+
+        models.OfferingComponentLimit.objects.filter(policy=policy).exclude(
+            component__in=components
+        ).delete()
+
+    def create(self, validated_data):
+        component_limits = validated_data.pop("component_limits_set", None)
+        policy = super().create(validated_data)
+        self._create_or_update(policy, component_limits)
+        return policy
+
+    def update(self, policy, validated_data):
+        component_limits = validated_data.pop("component_limits_set", None)
+        self._create_or_update(policy, component_limits)
+        return super().update(policy, validated_data)

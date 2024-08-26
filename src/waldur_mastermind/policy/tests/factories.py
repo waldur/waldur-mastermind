@@ -83,3 +83,35 @@ class OfferingEstimatedCostPolicyFactory(factory.django.DjangoModelFactory):
             kwargs={"uuid": policy.uuid.hex},
         )
         return url if action is None else url + action + "/"
+
+
+class OfferingUsagePolicyFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = models.OfferingUsagePolicy
+
+    scope = factory.SubFactory(marketplace_factories.OfferingFactory)
+    actions = "notify_organization_owners,block_creation_of_new_resources"
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = "http://testserver" + reverse("marketplace-offering-usage-policy-list")
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_url(cls, policy=None, action=None):
+        if policy is None:
+            policy = CustomerEstimatedCostPolicyFactory()
+        url = "http://testserver" + reverse(
+            "marketplace-offering-usage-policy-detail",
+            kwargs={"uuid": policy.uuid.hex},
+        )
+        return url if action is None else url + action + "/"
+
+
+class OfferingUsageComponentLimitFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = models.OfferingComponentLimit
+
+    policy = factory.SubFactory(OfferingUsagePolicyFactory)
+    limit = 10
+    component = factory.SubFactory(marketplace_factories.OfferingFactory)
