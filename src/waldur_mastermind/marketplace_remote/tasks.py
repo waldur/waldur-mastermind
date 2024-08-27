@@ -1155,11 +1155,15 @@ class RemoteProjectDataListPushTask(BackgroundListPullTask):
 
 @shared_task
 def push_resource_options(serialized_resource):
-    resource = deserialize_instance(serialized_resource)
-    offering = resource.offering
+    local_resource = deserialize_instance(serialized_resource)
+    offering = local_resource.offering
     client = get_client_for_offering(offering)
     try:
-        logger.info("Pushing resource %s options to remote Waldur", resource)
-        client.marketplace_resource_update_options(resource.uuid.hex, resource.options)
+        logger.info(
+            f"Pushing resource {local_resource} options {local_resource.options} to remote Waldur"
+        )
+        client.marketplace_resource_update_options(
+            local_resource.backend_id, local_resource.options
+        )
     except WaldurClientException as exc:
         logger.error("Unable to push resource options: %s", exc)
