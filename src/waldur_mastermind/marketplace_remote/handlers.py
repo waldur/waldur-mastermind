@@ -215,6 +215,9 @@ def update_remote_resource_options(sender, instance, created=False, **kwargs):
     if not instance.backend_id:
         return
 
+    if instance.offering.type != PLUGIN_NAME:
+        return
+
     transaction.on_commit(
         lambda: tasks.push_resource_options.delay(serialize_instance(instance))
     )
