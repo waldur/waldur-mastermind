@@ -81,3 +81,9 @@ class MarketplaceRemoteConfig(AppConfig):
             sender=models.Order,
             dispatch_uid="marketplace_remote.trigger_order_notification",
         )
+
+        signals.post_save.connect(
+            handlers.update_remote_resource_options,
+            sender=models.Resource,
+            dispatch_uid="marketplace_remote.update_remote_resource_options",
+        )
