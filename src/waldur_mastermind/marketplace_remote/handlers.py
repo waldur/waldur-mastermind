@@ -14,7 +14,7 @@ from waldur_core.structure import permissions as structure_permissions
 from waldur_mastermind.marketplace.models import Resource
 from waldur_mastermind.marketplace_remote.utils import INVALID_RESOURCE_STATES
 
-from . import PLUGIN_NAME, log, models, tasks
+from . import PLUGIN_NAME, log, models, tasks, utils
 
 logger = logging.getLogger(__name__)
 
@@ -218,6 +218,4 @@ def update_remote_resource_options(sender, instance, created=False, **kwargs):
     if instance.offering.type != PLUGIN_NAME:
         return
 
-    transaction.on_commit(
-        lambda: tasks.push_resource_options.delay(serialize_instance(instance))
-    )
+    transaction.on_commit(lambda: utils.push_resource_options(instance))

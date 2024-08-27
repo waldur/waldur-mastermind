@@ -448,3 +448,18 @@ def import_offering_thumbnail(local_offering, remote_offering):
     else:
         local_offering.thumbnail.delete()
     local_offering.save(update_fields=["thumbnail"])
+
+
+def push_resource_options(local_resource):
+    offering = local_resource.offering
+    client = get_client_for_offering(offering)
+    try:
+        logger.info(
+            f"Pushing resource {local_resource} with backend ID {local_resource.backend_id} and"
+            f" options {local_resource.options} to remote Waldur"
+        )
+        client.marketplace_resource_update_options(
+            local_resource.backend_id, local_resource.options
+        )
+    except WaldurClientException as exc:
+        logger.error("Unable to push resource options: %s", exc)
