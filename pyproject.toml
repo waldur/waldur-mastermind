@@ -79,7 +79,7 @@ django-upload-validator = {git = "https://github.com/waldur/django-upload-valida
 pydantic = "^1.8.2"
 cryptography = "38.0.3"
 django-binary-database-files = {git = "https://github.com/waldur/django-binary-database-files.git", rev = "fix/load-command-for-db-files"}
-python-waldur-client = "^0.3.4"
+python-waldur-client = "^0.3.5"
 kubernetes = ">=30.1.0"
 Django = "^4.2"
 azure-mgmt-consumption = "^9.0.0"
