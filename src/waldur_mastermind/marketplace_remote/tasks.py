@@ -1160,7 +1160,8 @@ def push_resource_options(serialized_resource):
     client = get_client_for_offering(offering)
     try:
         logger.info(
-            f"Pushing resource {local_resource} options {local_resource.options} to remote Waldur"
+            f"Pushing resource {local_resource} with backend ID {local_resource.backend_id} and"
+            f" options {local_resource.options} to remote Waldur"
         )
         client.marketplace_resource_update_options(
             local_resource.backend_id, local_resource.options
