@@ -186,9 +186,10 @@ def create_or_update_eduteams_user(backend_user):
         "email": email,
     }
     try:
-        user = User.objects.get(username=username)
+        user = User.all_objects.get(username=username)
         user.last_sync = timezone.now()
-        update_fields = set(["last_sync"])
+        user.is_active = True
+        update_fields = set(["last_sync", "is_active"])
         for key, value in payload.items():
             if getattr(user, key) != value:
                 setattr(user, key, value)
@@ -218,7 +219,8 @@ def pull_remote_eduteams_user(username):
         user_info = get_remote_eduteams_user_info(username)
     except NotFound:
         try:
-            user = User.objects.get(username=username, is_active=True)
+            # check across active users with default manager
+            user = User.objects.get(username=username)
         except User.DoesNotExist:
             return
         else:
