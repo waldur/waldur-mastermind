@@ -178,6 +178,91 @@ class ListUsersTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 1)
 
 
+@ddt
+class OfferingUsersUpdateTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.CustomerFixture()
+        self.offering = factories.OfferingFactory(
+            shared=True, customer=self.fixture.customer
+        )
+        self.offering.secret_options = {
+            "service_provider_can_create_offering_user": True
+        }
+        self.offering.save()
+        user = UserFactory()
+
+        self.offering_user = OfferingUser.objects.create(
+            offering=self.offering, user=user, username="user"
+        )
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_USER)
+
+    def get_url(self, offering_user, action=None):
+        url = "http://testserver" + reverse(
+            "marketplace-offering-user-detail",
+            kwargs={"uuid": offering_user.uuid.hex},
+        )
+        return url if action is None else url + action + "/"
+
+    def update_offering_user(self, user, offering_user):
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+        url = self.get_url(offering_user)
+        payload = {"username": "new_username"}
+        return self.client.patch(url, payload)
+
+    @data("staff", "owner")
+    def test_authorized_user_can_update_offering_user(self, user):
+        response = self.update_offering_user(user, self.offering_user)
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.offering_user.refresh_from_db()
+        self.assertEqual("new_username", self.offering_user.username)
+
+    @data("customer_support", "service_manager")
+    def test_unauthorized_user_can_not_update_offering_user(self, user):
+        response = self.update_offering_user(user, self.offering_user)
+        self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
+
+
+@ddt
+class OfferingUsersDeleteTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.CustomerFixture()
+        self.offering = factories.OfferingFactory(
+            shared=True, customer=self.fixture.customer
+        )
+        self.offering.secret_options = {
+            "service_provider_can_create_offering_user": True
+        }
+        self.offering.save()
+        user = UserFactory()
+
+        self.offering_user = OfferingUser.objects.create(
+            offering=self.offering, user=user, username="user"
+        )
+        CustomerRole.OWNER.add_permission(PermissionEnum.DELETE_OFFERING_USER)
+
+    def get_url(self, offering_user):
+        return "http://testserver" + reverse(
+            "marketplace-offering-user-detail",
+            kwargs={"uuid": offering_user.uuid.hex},
+        )
+
+    def delete_offering_user(self, user, offering_user):
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+        url = self.get_url(offering_user)
+        return self.client.delete(url)
+
+    @data("staff", "owner")
+    def test_authorized_user_can_delete_offering_user(self, user):
+        response = self.delete_offering_user(user, self.offering_user)
+        self.assertEqual(status.HTTP_204_NO_CONTENT, response.status_code)
+        self.assertFalse(OfferingUser.objects.filter(pk=self.offering_user.pk).exists())
+
+    @data("customer_support", "service_manager")
+    def test_unauthorized_user_can_not_delete_offering_user(self, user):
+        response = self.delete_offering_user(user, self.offering_user)
+        self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
+
+
 class OfferingUsersHandlerTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()

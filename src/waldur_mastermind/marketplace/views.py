@@ -2779,6 +2779,7 @@ class OfferingUsersViewSet(
     mixins.ListModelMixin,
     mixins.CreateModelMixin,
     mixins.UpdateModelMixin,
+    mixins.DestroyModelMixin,
     rf_viewsets.GenericViewSet,
 ):
     queryset = models.OfferingUser.objects.all()
@@ -2786,6 +2787,16 @@ class OfferingUsersViewSet(
     lookup_field = "uuid"
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.OfferingUserFilter
+
+    def perform_destroy(self, instance):
+        request = self.request
+        offering = instance.offering
+
+        if not has_permission(
+            request, PermissionEnum.DELETE_OFFERING_USER, offering.customer
+        ):
+            raise PermissionDenied(_("You do not have permission to delete this user."))
+        instance.delete()
 
     def get_queryset(self):
         queryset = super().get_queryset()
