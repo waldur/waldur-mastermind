@@ -367,6 +367,8 @@ class User(
         ordering = ["username"]
 
     def save(self, *args, **kwargs):
+        if "update_fields" in kwargs and "query_field" not in kwargs["update_fields"]:
+            kwargs["update_fields"].append("query_field")
         self.query_field = normalize_unicode(self.full_name)
         super().save(*args, **kwargs)
 

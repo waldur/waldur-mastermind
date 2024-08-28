@@ -234,6 +234,7 @@ class UserAdmin(NativeNameAdminMixin, auth_admin.UserAdmin, VersionAdmin):
                     "first_name",
                     "last_name",
                     "native_name",
+                    "query_field",
                     "email",
                     "preferred_language",
                     "phone_number",
