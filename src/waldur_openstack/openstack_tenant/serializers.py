@@ -186,26 +186,9 @@ class FloatingIPSerializer(structure_serializers.BasePropertySerializer):
         }
 
 
-class SecurityGroupRuleSerializer(BaseSecurityGroupRuleSerializer):
-    class Meta(BaseSecurityGroupRuleSerializer.Meta):
-        model = models.SecurityGroupRule
-
-
-class SecurityGroupSerializer(structure_serializers.BasePropertySerializer):
-    rules = SecurityGroupRuleSerializer(many=True)
-
-    class Meta(structure_serializers.BasePropertySerializer.Meta):
-        model = models.SecurityGroup
-        fields = ("url", "uuid", "name", "settings", "description", "rules")
-        extra_kwargs = {
-            "url": {"lookup_field": "uuid"},
-            "settings": {"lookup_field": "uuid"},
-        }
-
-
 class ServerGroupSerializer(structure_serializers.BasePropertySerializer):
     class Meta(structure_serializers.BasePropertySerializer.Meta):
-        model = models.ServerGroup
+        model = openstack_models.ServerGroup
         fields = (
             "url",
             "uuid",
@@ -217,7 +200,7 @@ class ServerGroupSerializer(structure_serializers.BasePropertySerializer):
             "settings": {"lookup_field": "uuid"},
             "server-groups": {
                 "lookup_field": "uuid",
-                "view_name": "openstacktenant-server-group-detail",
+                "view_name": "openstack-server-group-detail",
             },
         }
 
@@ -658,21 +641,21 @@ class NestedVolumeSerializer(
 
 class NestedSecurityGroupRuleSerializer(BaseSecurityGroupRuleSerializer):
     class Meta(BaseSecurityGroupRuleSerializer.Meta):
-        model = models.SecurityGroupRule
+        model = openstack_models.SecurityGroupRule
         fields = BaseSecurityGroupRuleSerializer.Meta.fields + ("id",)
 
     def to_internal_value(self, data):
         # Return exist security group as internal value if id is provided
         if "id" in data:
             try:
-                return models.SecurityGroupRule.objects.get(id=data["id"])
-            except models.SecurityGroup.DoesNotExist:
+                return openstack_models.SecurityGroupRule.objects.get(id=data["id"])
+            except openstack_models.SecurityGroup.DoesNotExist:
                 raise serializers.ValidationError(
                     _("Security group with id %s does not exist") % data["id"]
                 )
         else:
             internal_data = super().to_internal_value(data)
-            return models.SecurityGroupRule(**internal_data)
+            return openstack_models.SecurityGroupRule(**internal_data)
 
 
 class NestedSecurityGroupSerializer(
@@ -686,7 +669,7 @@ class NestedSecurityGroupSerializer(
     state = serializers.ReadOnlyField(source="get_state_display")
 
     class Meta:
-        model = models.SecurityGroup
+        model = openstack_models.SecurityGroup
         fields = ("url", "name", "rules", "description", "state")
         read_only_fields = ("name", "rules", "description", "state")
         extra_kwargs = {"url": {"lookup_field": "uuid"}}
@@ -850,9 +833,9 @@ def _validate_instance_internal_ips(internal_ips, settings):
 def _validate_instance_security_groups(security_groups, settings):
     """Make sure that security_group belong to specified setting."""
     for security_group in security_groups:
-        if security_group.settings != settings:
+        if security_group.tenant != settings.scope:
             error = _(
-                "Security group %s does not belong to the same service settings as instance."
+                "Security group %s does not belong to the same tenant as instance."
             )
             raise serializers.ValidationError(
                 {"security_groups": error % security_group.name}
@@ -862,10 +845,8 @@ def _validate_instance_security_groups(security_groups, settings):
 def _validate_instance_server_group(server_group, settings):
     """Make sure that server_group belong to specified setting."""
 
-    if server_group and server_group.settings != settings:
-        error = _(
-            "Server group %s does not belong to the same service settings as instance."
-        )
+    if server_group and server_group.tenant != settings.scope:
+        error = _("Server group %s does not belong to the same tenant as instance.")
         raise serializers.ValidationError({"server_group": error % server_group.name})
 
 
@@ -1019,7 +1000,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
     )
 
     security_groups = NestedSecurityGroupSerializer(
-        queryset=models.SecurityGroup.objects.all(), many=True, required=False
+        queryset=openstack_models.SecurityGroup.objects.all(), many=True, required=False
     )
     server_group = NestedServerGroupSerializer(
         queryset=models.ServerGroup.objects.all(), required=False
@@ -1490,15 +1471,15 @@ class InstanceDeleteSerializer(serializers.Serializer):
 
 class InstanceSecurityGroupsUpdateSerializer(serializers.Serializer):
     security_groups = NestedSecurityGroupSerializer(
-        queryset=models.SecurityGroup.objects.all(),
+        queryset=openstack_models.SecurityGroup.objects.all(),
         many=True,
     )
 
     def validate_security_groups(self, security_groups):
         for security_group in security_groups:
-            if security_group.settings != self.instance.service_settings:
+            if security_group.tenant != self.instance.service_settings.scope:
                 raise serializers.ValidationError(
-                    _("Security group %s is not within the same service settings")
+                    _("Security group %s is not within the same tenant")
                     % security_group.name
                 )
 
@@ -1644,7 +1625,7 @@ class BackupRestorationSerializer(serializers.HyperlinkedModelSerializer):
         help_text=_("New instance name. Leave blank to use source instance name."),
     )
     security_groups = NestedSecurityGroupSerializer(
-        queryset=models.SecurityGroup.objects.all(), many=True, required=False
+        queryset=openstack_models.SecurityGroup.objects.all(), many=True, required=False
     )
     internal_ips_set = NestedInternalIPSerializer(many=True, required=False)
     floating_ips = NestedFloatingIPSerializer(

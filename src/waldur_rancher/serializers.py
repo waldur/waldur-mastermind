@@ -240,10 +240,10 @@ class NestedSecurityGroupSerializer(
     core_serializers.HyperlinkedRelatedModelSerializer,
 ):
     class Meta:
-        model = openstack_tenant_models.SecurityGroup
+        model = openstack_models.SecurityGroup
         fields = ("url",)
         extra_kwargs = {
-            "url": {"lookup_field": "uuid", "view_name": "openstacktenant-sgp-detail"}
+            "url": {"lookup_field": "uuid", "view_name": "openstack-sgp-detail"}
         }
 
 
@@ -257,6 +257,9 @@ class ClusterSerializer(
         ),
         view_name="servicesettings-detail",
         lookup_field="uuid",
+    )
+    tenant_settings_scope_uuid = serializers.ReadOnlyField(
+        source="tenant_settings.scope.uuid"
     )
 
     name = serializers.CharField(
@@ -272,7 +275,7 @@ class ClusterSerializer(
     )
 
     security_groups = NestedSecurityGroupSerializer(
-        queryset=openstack_tenant_models.SecurityGroup.objects.all(),
+        queryset=openstack_models.SecurityGroup.objects.all(),
         many=True,
         required=False,
         write_only=True,
@@ -288,6 +291,7 @@ class ClusterSerializer(
             "node_command",
             "nodes",
             "tenant_settings",
+            "tenant_settings_scope_uuid",
             "runtime_state",
             "ssh_public_key",
             "install_longhorn",

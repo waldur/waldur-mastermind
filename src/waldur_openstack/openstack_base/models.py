@@ -1,54 +1,9 @@
-from django.core.validators import MaxValueValidator
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from waldur_core.core import models as core_models
 from waldur_core.core.fields import JSONField
 from waldur_core.structure import models as structure_models
-
-
-class BaseSecurityGroupRule(core_models.DescribableMixin, models.Model):
-    TCP = "tcp"
-    UDP = "udp"
-    ICMP = "icmp"
-
-    PROTOCOLS = (
-        (TCP, "tcp"),
-        (UDP, "udp"),
-        (ICMP, "icmp"),
-    )
-
-    INGRESS = "ingress"
-    EGRESS = "egress"
-
-    DIRECTIONS = (
-        (INGRESS, "ingress"),
-        (EGRESS, "egress"),
-    )
-
-    IPv4 = "IPv4"
-    IPv6 = "IPv6"
-
-    ETHER_TYPES = (
-        (IPv4, "IPv4"),
-        (IPv6, "IPv6"),
-    )
-
-    # Empty string represents any protocol
-    protocol = models.CharField(max_length=40, blank=True, choices=PROTOCOLS)
-    from_port = models.IntegerField(validators=[MaxValueValidator(65535)], null=True)
-    to_port = models.IntegerField(validators=[MaxValueValidator(65535)], null=True)
-    cidr = models.CharField(max_length=255, blank=True, null=True)
-    direction = models.CharField(max_length=8, default=INGRESS, choices=DIRECTIONS)
-    ethertype = models.CharField(max_length=40, default=IPv4, choices=ETHER_TYPES)
-
-    backend_id = models.CharField(max_length=36, blank=True)
-
-    class Meta:
-        abstract = True
-
-    def __str__(self):
-        return f"{self.security_group} ({self.protocol}): {self.cidr} ({self.from_port} -> {self.to_port})"
 
 
 class Port(core_models.BackendModelMixin, models.Model):
@@ -134,14 +89,3 @@ class BaseSubNet(models.Model):
     is_connected = models.BooleanField(
         default=True, help_text=_("Is subnet connected to the default tenant router.")
     )
-
-
-class BaseServerGroup(models.Model):
-    class Meta:
-        abstract = True
-
-    AFFINITY = "affinity"
-
-    POLICIES = ((AFFINITY, "Affinity"),)
-
-    policy = models.CharField(max_length=40, blank=True, choices=POLICIES)

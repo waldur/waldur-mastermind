@@ -242,16 +242,6 @@ class SnapshotScheduleFilter(structure_filters.BaseResourceFilter):
         model = models.SnapshotSchedule
 
 
-class SecurityGroupFilter(structure_filters.ServicePropertySettingsFilter):
-    class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
-        model = models.SecurityGroup
-
-
-class ServerGroupFilter(structure_filters.ServicePropertySettingsFilter):
-    class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
-        model = models.ServerGroup
-
-
 class ImageFilter(structure_filters.ServicePropertySettingsFilter):
     class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
         model = models.Image

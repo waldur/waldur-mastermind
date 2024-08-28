@@ -20,6 +20,7 @@ from waldur_core.structure.utils import (
     handle_resource_update_success,
     update_pulled_fields,
 )
+from waldur_openstack.openstack.models import SecurityGroup, ServerGroup
 from waldur_openstack.openstack_base.backend import (
     BaseOpenStackBackend,
 )
@@ -215,8 +216,6 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
     def pull_service_properties(self):
         self.pull_flavors()
         self.pull_images()
-        self.pull_security_groups()
-        self.pull_server_groups()
         self.pull_quotas()
         self.pull_networks()
         self.pull_subnets()
@@ -464,68 +463,6 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                     settings=self.settings, backend_id__in=stale_ids
                 ).delete()
 
-    def pull_security_groups(self):
-        neutron = get_neutron_client(self.session)
-        try:
-            security_groups = neutron.list_security_groups(tenant_id=self.tenant_id)[
-                "security_groups"
-            ]
-        except neutron_exceptions.NeutronClientException as e:
-            raise OpenStackBackendError(e)
-
-        for backend_security_group in security_groups:
-            backend_id = backend_security_group["id"]
-            defaults = {
-                "name": backend_security_group["name"],
-                "description": backend_security_group["description"],
-            }
-            try:
-                with transaction.atomic():
-                    security_group, _ = models.SecurityGroup.objects.update_or_create(
-                        settings=self.settings, backend_id=backend_id, defaults=defaults
-                    )
-                    self._extract_security_group_rules(
-                        security_group, backend_security_group
-                    )
-            except IntegrityError:
-                logger.warning(
-                    "Could not create security group with backend ID %s "
-                    "and service settings %s due to concurrent update.",
-                    backend_id,
-                    self.settings,
-                )
-
-        self._delete_stale_properties(models.SecurityGroup, security_groups)
-
-    def pull_server_groups(self):
-        nova = get_nova_client(self.session)
-        try:
-            server_groups = nova.server_groups.list()
-            server_groups_dict = [group._info for group in server_groups]
-        except nova_exceptions.ClientException as e:
-            raise OpenStackBackendError(e)
-
-        for backend_server_group in server_groups:
-            backend_id = backend_server_group.id
-            defaults = {
-                "name": backend_server_group.name,
-                "policy": backend_server_group.policies[0],
-            }
-            try:
-                with transaction.atomic():
-                    server_group, _ = models.ServerGroup.objects.update_or_create(
-                        settings=self.settings, backend_id=backend_id, defaults=defaults
-                    )
-            except IntegrityError:
-                logger.warning(
-                    "Could not create server group with backend ID %s "
-                    "and service settings %s due to concurrent update.",
-                    backend_id,
-                    self.settings,
-                )
-
-        self._delete_stale_properties(models.ServerGroup, server_groups_dict)
-
     def pull_instance_server_group(self, instance):
         nova = get_nova_client(self.session)
         server_id = instance.backend_id
@@ -547,13 +484,13 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             instance.server_group = None
         else:
             try:
-                server_group = models.ServerGroup.objects.get(
-                    settings=self.settings, backend_id=server_group_backend_id
+                server_group = ServerGroup.objects.get(
+                    tenant=self.settings.scope, backend_id=server_group_backend_id
                 )
-            except models.ServerGroup.DoesNotExist:
+            except ServerGroup.DoesNotExist:
                 logger.exception(
                     f"Server group with id {server_group_backend_id} does not exist in database. "
-                    f"Settings ID: {self.settings.id}"
+                    f"Server ID: {server_id}"
                 )
             else:
                 instance.server_group = server_group
@@ -1966,33 +1903,30 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         nova = get_nova_client(self.session)
         server_id = instance.backend_id
         try:
-            backend_groups = nova.servers.list_security_group(server_id)
+            remote_groups = nova.servers.list_security_group(server_id)
         except nova_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
+        tenant_groups = SecurityGroup.objects.filter(tenant=self.settings.scope)
 
-        backend_ids = set(g.id for g in backend_groups)
-        nc_ids = set(
-            models.SecurityGroup.objects.filter(instances=instance)
+        remote_ids = set(g.id for g in remote_groups)
+        local_ids = set(
+            tenant_groups.filter(instances=instance)
             .exclude(backend_id="")
             .values_list("backend_id", flat=True)
         )
 
         # remove stale groups
-        stale_groups = models.SecurityGroup.objects.filter(
-            backend_id__in=(nc_ids - backend_ids)
-        )
+        stale_groups = tenant_groups.filter(backend_id__in=(local_ids - remote_ids))
         instance.security_groups.remove(*stale_groups)
 
         # add missing groups
-        for group_id in backend_ids - nc_ids:
+        for group_id in remote_ids - local_ids:
             try:
-                security_group = models.SecurityGroup.objects.get(
-                    settings=self.settings, backend_id=group_id
-                )
-            except models.SecurityGroup.DoesNotExist:
+                security_group = tenant_groups.get(backend_id=group_id)
+            except SecurityGroup.DoesNotExist:
                 logger.exception(
                     f"Security group with id {group_id} does not exist in database. "
-                    f"Settings ID: {self.settings.id}"
+                    f"Server ID: {server_id}"
                 )
             else:
                 instance.security_groups.add(security_group)
@@ -2007,7 +1941,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             raise OpenStackBackendError(e)
 
         nc_ids = set(
-            models.SecurityGroup.objects.filter(instances=instance)
+            SecurityGroup.objects.filter(instances=instance)
             .exclude(backend_id="")
             .values_list("backend_id", flat=True)
         )

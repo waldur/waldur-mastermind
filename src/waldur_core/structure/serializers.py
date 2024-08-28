@@ -1090,6 +1090,7 @@ class ServiceSettingsSerializer(
         required=False,
         allow_null=True,
     )
+    scope_uuid = serializers.ReadOnlyField(source="scope.uuid")
     options = serializers.DictField()
 
     class Meta:
@@ -1107,6 +1108,7 @@ class ServiceSettingsSerializer(
             "customer_native_name",
             "terms_of_services",
             "scope",
+            "scope_uuid",
             "options",
         )
         read_only_fields = ("state", "error_message")
@@ -1202,6 +1204,9 @@ class BaseResourceSerializer(
     service_settings_error_message = serializers.ReadOnlyField(
         source="service_settings.error_message"
     )
+    service_settings_scope_uuid = serializers.ReadOnlyField(
+        source="service_settings.scope.uuid"
+    )
 
     customer = serializers.HyperlinkedRelatedField(
         source="project.customer",
@@ -1235,6 +1240,7 @@ class BaseResourceSerializer(
             "service_settings_uuid",
             "service_settings_state",
             "service_settings_error_message",
+            "service_settings_scope_uuid",
             "project",
             "project_name",
             "project_uuid",

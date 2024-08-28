@@ -51,7 +51,13 @@ class VolumeType(openstack_base_models.BaseVolumeType):
         return "openstack-volume-type"
 
 
-class ServerGroup(openstack_base_models.BaseServerGroup, structure_models.SubResource):
+class ServerGroup(structure_models.SubResource):
+    AFFINITY = "affinity"
+
+    POLICIES = ((AFFINITY, "Affinity"),)
+
+    policy = models.CharField(max_length=40, blank=True, choices=POLICIES)
+
     tenant = models.ForeignKey(
         on_delete=models.CASCADE, to="Tenant", related_name="server_groups"
     )
@@ -111,8 +117,51 @@ class SecurityGroup(structure_models.SubResource):
 
 
 class SecurityGroupRule(
-    core_models.LoggableMixin, openstack_base_models.BaseSecurityGroupRule
+    core_models.LoggableMixin, core_models.DescribableMixin, models.Model
 ):
+    TCP = "tcp"
+    UDP = "udp"
+    ICMP = "icmp"
+
+    PROTOCOLS = (
+        (TCP, "tcp"),
+        (UDP, "udp"),
+        (ICMP, "icmp"),
+    )
+
+    INGRESS = "ingress"
+    EGRESS = "egress"
+
+    DIRECTIONS = (
+        (INGRESS, "ingress"),
+        (EGRESS, "egress"),
+    )
+
+    IPv4 = "IPv4"
+    IPv6 = "IPv6"
+
+    ETHER_TYPES = (
+        (IPv4, "IPv4"),
+        (IPv6, "IPv6"),
+    )
+
+    # Empty string represents any protocol
+    protocol = models.CharField(max_length=40, blank=True, choices=PROTOCOLS)
+    from_port = models.IntegerField(
+        validators=[validators.MaxValueValidator(65535)], null=True
+    )
+    to_port = models.IntegerField(
+        validators=[validators.MaxValueValidator(65535)], null=True
+    )
+    cidr = models.CharField(max_length=255, blank=True, null=True)
+    direction = models.CharField(max_length=8, default=INGRESS, choices=DIRECTIONS)
+    ethertype = models.CharField(max_length=40, default=IPv4, choices=ETHER_TYPES)
+
+    backend_id = models.CharField(max_length=36, blank=True)
+
+    def __str__(self):
+        return f"{self.security_group} ({self.protocol}): {self.cidr} ({self.from_port} -> {self.to_port})"
+
     security_group = models.ForeignKey(
         on_delete=models.CASCADE, to=SecurityGroup, related_name="rules"
     )

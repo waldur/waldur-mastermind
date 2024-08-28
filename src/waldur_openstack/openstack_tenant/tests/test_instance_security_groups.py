@@ -4,6 +4,9 @@ from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common import utils as common_utils
+from waldur_openstack.openstack.tests import (
+    factories as openstack_factories,
+)
 from waldur_openstack.openstack_tenant import models, views
 from waldur_openstack.openstack_tenant.tests import factories, fixtures
 
@@ -43,8 +46,8 @@ class InstanceSecurityGroupsTest(test.APITransactionTestCase):
         self.admin = self.fixture.admin
         self.client.force_authenticate(self.admin)
 
-        self.security_groups = factories.SecurityGroupFactory.create_batch(
-            2, settings=self.settings
+        self.security_groups = openstack_factories.SecurityGroupFactory.create_batch(
+            2, tenant=self.fixture.tenant
         )
         self.instance.security_groups.add(*self.security_groups)
 
@@ -81,9 +84,9 @@ class InstanceSecurityGroupsTest(test.APITransactionTestCase):
         "waldur_openstack.openstack_tenant.executors.InstanceUpdateSecurityGroupsExecutor.execute"
     )
     def test_change_instance_security_groups_single_field(self, mocked_execute_method):
-        new_security_group = factories.SecurityGroupFactory(
+        new_security_group = openstack_factories.SecurityGroupFactory(
             name="test-group",
-            settings=self.settings,
+            tenant=self.settings.scope,
         )
 
         data = {
@@ -117,7 +120,9 @@ class InstanceSecurityGroupsTest(test.APITransactionTestCase):
         response = self.client.get(factories.InstanceFactory.get_url(self.instance))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        security_group = factories.SecurityGroupFactory(settings=self.settings)
+        security_group = openstack_factories.SecurityGroupFactory(
+            tenant=self.settings.scope
+        )
         data = {
             "security_groups": [self._get_valid_security_group_payload(security_group)]
         }
@@ -144,4 +149,4 @@ class InstanceSecurityGroupsTest(test.APITransactionTestCase):
 
     # Helper methods
     def _get_valid_security_group_payload(self, security_group=None):
-        return {"url": factories.SecurityGroupFactory.get_url(security_group)}
+        return {"url": openstack_factories.SecurityGroupFactory.get_url(security_group)}

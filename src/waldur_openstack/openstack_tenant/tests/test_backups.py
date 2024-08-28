@@ -6,6 +6,9 @@ from rest_framework import status, test
 
 from waldur_core.core.tests import helpers
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_openstack.openstack.tests import (
+    factories as openstack_factories,
+)
 from waldur_openstack.openstack_tenant import models
 from waldur_openstack.openstack_tenant.tests import factories, fixtures
 
@@ -153,14 +156,18 @@ class BackupRestorationTest(test.APITransactionTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    def test_security_groups_cannot_be_associated_if_they_belong_to_another_settings(
+    def test_security_groups_cannot_be_associated_if_they_belong_to_another_tenant(
         self,
     ):
-        security_group = factories.SecurityGroupFactory()
-        self.assertNotEqual(self.backup.service_settings, security_group.settings)
+        security_group = openstack_factories.SecurityGroupFactory()
+        self.assertNotEqual(self.backup.service_settings.scope, security_group.tenant)
         payload = self._get_valid_payload(
             security_groups=[
-                {"url": factories.SecurityGroupFactory.get_url(security_group)}
+                {
+                    "url": openstack_factories.SecurityGroupFactory.get_url(
+                        security_group
+                    )
+                }
             ]
         )
 
@@ -170,10 +177,16 @@ class BackupRestorationTest(test.APITransactionTestCase):
         self.assertIn("security_groups", response.data)
 
     def test_security_group_has_been_associated_with_an_instance(self):
-        security_group1 = factories.SecurityGroupFactory(settings=self.service_settings)
+        security_group1 = openstack_factories.SecurityGroupFactory(
+            tenant=self.service_settings.scope
+        )
         payload = self._get_valid_payload(
             security_groups=[
-                {"url": factories.SecurityGroupFactory.get_url(security_group1)}
+                {
+                    "url": openstack_factories.SecurityGroupFactory.get_url(
+                        security_group1
+                    )
+                }
             ]
         )
 

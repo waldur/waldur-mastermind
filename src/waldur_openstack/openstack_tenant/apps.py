@@ -25,8 +25,6 @@ class OpenStackTenantConfig(AppConfig):
         )
         from waldur_core.structure.registry import SupportedServices
         from waldur_openstack.openstack.models import (
-            SecurityGroupRule,
-            ServerGroup,
             Tenant,
         )
 
@@ -156,19 +154,6 @@ class OpenStackTenantConfig(AppConfig):
             )
 
         signals.post_save.connect(
-            handlers.sync_security_group_rule_property_when_resource_is_updated_or_created,
-            sender=SecurityGroupRule,
-            dispatch_uid="openstack_tenant.handlers."
-            "sync_security_group_rule_property_when_resource_is_updated_or_created",
-        )
-
-        signals.post_delete.connect(
-            handlers.sync_security_group_rule_on_delete,
-            sender=SecurityGroupRule,
-            dispatch_uid="openstack_tenant.handlers.sync_security_group_rule_on_delete",
-        )
-
-        signals.post_save.connect(
             handlers.log_backup_schedule_creation,
             sender=models.BackupSchedule,
             dispatch_uid="openstack_tenant.handlers.log_backup_schedule_creation",
@@ -242,17 +227,4 @@ class OpenStackTenantConfig(AppConfig):
             handlers.create_service_from_tenant,
             sender=Tenant,
             dispatch_uid="openstack_tenant.handlers.create_service_from_tenant",
-        )
-
-        signals.post_save.connect(
-            handlers.sync_server_group_property_when_resource_is_updated_or_created,
-            sender=ServerGroup,
-            dispatch_uid="openstack_tenant.handlers."
-            "sync_server_group_property_when_resource_is_updated_or_created",
-        )
-
-        signals.post_delete.connect(
-            handlers.sync_server_group_property_on_delete,
-            sender=ServerGroup,
-            dispatch_uid="openstack_tenant.handlers.sync_server_group_property_on_delete",
         )

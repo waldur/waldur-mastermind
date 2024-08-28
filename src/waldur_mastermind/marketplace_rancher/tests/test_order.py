@@ -5,6 +5,9 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_rancher import PLUGIN_NAME
+from waldur_openstack.openstack.tests import (
+    factories as openstack_factories,
+)
 from waldur_openstack.openstack_tenant.tests import (
     factories as openstack_tenant_factories,
 )
@@ -33,8 +36,8 @@ class OrderProcessedTest(test.APITransactionTestCase):
         image = openstack_tenant_factories.ImageFactory(
             settings=self.fixture.openstack_tenant_service_settings
         )
-        openstack_tenant_factories.SecurityGroupFactory(
-            name="default", settings=self.fixture.openstack_tenant_service_settings
+        openstack_factories.SecurityGroupFactory(
+            name="default", tenant=self.fixture.tenant
         )
         service_settings.options["base_image_name"] = image.name
         service_settings.save()

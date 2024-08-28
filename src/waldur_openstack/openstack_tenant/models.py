@@ -14,6 +14,7 @@ from waldur_core.quotas import models as quotas_models
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import utils as structure_utils
 from waldur_geo_ip.utils import get_coordinates_by_ip
+from waldur_openstack.openstack.models import SecurityGroup, ServerGroup
 from waldur_openstack.openstack_base import models as openstack_base_models
 from waldur_openstack.openstack_base.utils import volume_type_name_to_quota_name
 
@@ -51,42 +52,6 @@ class Image(openstack_base_models.BaseImage):
 
     class Meta(openstack_base_models.BaseImage.Meta):
         ordering = ["name"]
-
-
-class SecurityGroup(core_models.DescribableMixin, structure_models.ServiceProperty):
-    class Meta:
-        unique_together = ("settings", "backend_id")
-
-    @classmethod
-    def get_url_name(cls):
-        return "openstacktenant-sgp"
-
-
-class SecurityGroupRule(openstack_base_models.BaseSecurityGroupRule):
-    class Meta:
-        unique_together = ("security_group", "backend_id")
-
-    security_group = models.ForeignKey(
-        on_delete=models.CASCADE, to=SecurityGroup, related_name="rules"
-    )
-    remote_group = models.ForeignKey(
-        on_delete=models.CASCADE,
-        to=SecurityGroup,
-        related_name="+",
-        null=True,
-        blank=True,
-    )
-
-
-class ServerGroup(
-    openstack_base_models.BaseServerGroup, structure_models.ServiceProperty
-):
-    class Meta:
-        unique_together = ("settings", "backend_id")
-
-    @classmethod
-    def get_url_name(cls):
-        return "openstacktenant-server-group"
 
 
 class TenantQuotaMixin(quotas_models.SharedQuotaMixin):
