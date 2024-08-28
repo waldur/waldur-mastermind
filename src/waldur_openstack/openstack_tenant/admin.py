@@ -6,6 +6,7 @@ from django.utils.translation import gettext_lazy as _
 
 from waldur_core.core.admin import ExecutorAdminAction, format_json_field
 from waldur_core.structure import admin as structure_admin
+from waldur_openstack.openstack.models import SecurityGroup
 
 from . import executors, models
 
@@ -27,34 +28,6 @@ class FloatingIPAdmin(structure_admin.BackendModelAdmin):
         "backend_network_id",
         "is_booked",
     )
-
-
-class SecurityGroupRule(admin.TabularInline):
-    model = models.SecurityGroupRule
-    fields = (
-        "ethertype",
-        "direction",
-        "protocol",
-        "from_port",
-        "to_port",
-        "cidr",
-        "backend_id",
-        "description",
-        "remote_group",
-    )
-    fk_name = "security_group"
-    readonly_fields = fields
-    extra = 0
-    can_delete = False
-
-
-class SecurityGroupAdmin(structure_admin.BackendModelAdmin):
-    inlines = [SecurityGroupRule]
-    list_display = ("name", "settings")
-
-
-class ServerGroupAdmin(structure_admin.BackendModelAdmin):
-    list_display = ("name", "policy", "settings")
 
 
 class MetadataMixin(admin.ModelAdmin):
@@ -169,10 +142,8 @@ class InstanceChangeForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if self.instance.pk:
-            self.fields[
-                "security_groups"
-            ].queryset = models.SecurityGroup.objects.filter(
-                settings=self.instance.service_settings,
+            self.fields["security_groups"].queryset = SecurityGroup.objects.filter(
+                tenant=self.instance.service_settings.scope,
             )
 
 
@@ -247,8 +218,6 @@ class SnapshotScheduleAdmin(BaseScheduleAdmin):
 admin.site.register(models.Flavor, FlavorAdmin)
 admin.site.register(models.Image, ImageAdmin)
 admin.site.register(models.FloatingIP, FloatingIPAdmin)
-admin.site.register(models.SecurityGroup, SecurityGroupAdmin)
-admin.site.register(models.ServerGroup, ServerGroupAdmin)
 admin.site.register(models.Volume, VolumeAdmin)
 admin.site.register(models.VolumeType, structure_admin.ServicePropertyAdmin)
 admin.site.register(models.VolumeAvailabilityZone, structure_admin.ServicePropertyAdmin)

@@ -95,8 +95,8 @@ class BaseClusterCreateTest(test.APITransactionTestCase):
         image = openstack_tenant_factories.ImageFactory(
             settings=self.fixture.tenant_settings
         )
-        self.default_security_group = openstack_tenant_factories.SecurityGroupFactory(
-            name="default", settings=self.fixture.tenant_settings
+        self.default_security_group = openstack_factories.SecurityGroupFactory(
+            name="default", tenant=self.fixture.tenant_settings.scope
         )
         self.fixture.settings.options["base_image_name"] = image.name
         self.fixture.settings.save()
@@ -525,22 +525,22 @@ class ClusterCreateTest(BaseClusterCreateTest):
         )
 
     def test_validate_security_groups_positive(self):
-        security_group1 = openstack_tenant_factories.SecurityGroupFactory(
-            settings=self.fixture.tenant_settings,
+        security_group1 = openstack_factories.SecurityGroupFactory(
+            tenant=self.fixture.tenant_settings.scope,
         )
-        security_group2 = openstack_tenant_factories.SecurityGroupFactory(
-            settings=self.fixture.tenant_settings,
+        security_group2 = openstack_factories.SecurityGroupFactory(
+            tenant=self.fixture.tenant_settings.scope,
         )
         self.client.force_authenticate(self.fixture.staff)
         payload = {
             "security_groups": [
                 {
-                    "url": openstack_tenant_factories.SecurityGroupFactory.get_url(
+                    "url": openstack_factories.SecurityGroupFactory.get_url(
                         security_group1
                     )
                 },
                 {
-                    "url": openstack_tenant_factories.SecurityGroupFactory.get_url(
+                    "url": openstack_factories.SecurityGroupFactory.get_url(
                         security_group2
                     )
                 },
@@ -550,18 +550,18 @@ class ClusterCreateTest(BaseClusterCreateTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
     def test_validate_security_groups_negative(self):
-        security_group1 = openstack_tenant_factories.SecurityGroupFactory()
-        security_group2 = openstack_tenant_factories.SecurityGroupFactory()
+        security_group1 = openstack_factories.SecurityGroupFactory()
+        security_group2 = openstack_factories.SecurityGroupFactory()
         self.client.force_authenticate(self.fixture.owner)
         payload = {
             "security_groups": [
                 {
-                    "url": openstack_tenant_factories.SecurityGroupFactory.get_url(
+                    "url": openstack_factories.SecurityGroupFactory.get_url(
                         security_group1
                     )
                 },
                 {
-                    "url": openstack_tenant_factories.SecurityGroupFactory.get_url(
+                    "url": openstack_factories.SecurityGroupFactory.get_url(
                         security_group2
                     )
                 },
@@ -580,22 +580,22 @@ class ClusterCreateTest(BaseClusterCreateTest):
         )
 
     def test_custom_security_groups_are_propagated_to_initial_data(self):
-        security_group1 = openstack_tenant_factories.SecurityGroupFactory(
-            settings=self.fixture.tenant_settings,
+        security_group1 = openstack_factories.SecurityGroupFactory(
+            tenant=self.fixture.tenant_settings.scope,
         )
-        security_group2 = openstack_tenant_factories.SecurityGroupFactory(
-            settings=self.fixture.tenant_settings,
+        security_group2 = openstack_factories.SecurityGroupFactory(
+            tenant=self.fixture.tenant_settings.scope,
         )
         self.client.force_authenticate(self.fixture.owner)
         payload = {
             "security_groups": [
                 {
-                    "url": openstack_tenant_factories.SecurityGroupFactory.get_url(
+                    "url": openstack_factories.SecurityGroupFactory.get_url(
                         security_group1
                     )
                 },
                 {
-                    "url": openstack_tenant_factories.SecurityGroupFactory.get_url(
+                    "url": openstack_factories.SecurityGroupFactory.get_url(
                         security_group2
                     )
                 },

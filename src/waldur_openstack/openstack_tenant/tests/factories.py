@@ -128,28 +128,6 @@ class InstanceAvailabilityZoneFactory(factory.django.DjangoModelFactory):
         )
 
 
-class ServerGroupFactory(factory.django.DjangoModelFactory):
-    class Meta:
-        model = models.ServerGroup
-
-    name = factory.Sequence(lambda n: "server_group%s" % n)
-    settings = factory.SubFactory(OpenStackTenantServiceSettingsFactory)
-    backend_id = factory.Sequence(lambda n: "backend_id_%s" % n)
-
-    @classmethod
-    def get_url(cls, server_group=None):
-        if server_group is None:
-            server_group = ServerGroupFactory()
-        return "http://testserver" + reverse(
-            "openstacktenant-server-group-detail",
-            kwargs={"uuid": server_group.uuid.hex},
-        )
-
-    @classmethod
-    def get_list_url(cls):
-        return "http://testserver" + reverse("openstacktenant-server-group-list")
-
-
 class InstanceFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Instance
@@ -158,7 +136,7 @@ class InstanceFactory(factory.django.DjangoModelFactory):
     service_settings = factory.SubFactory(OpenStackTenantServiceSettingsFactory)
     project = factory.SubFactory(ProjectFactory)
     backend_id = factory.Sequence(lambda n: "backend_id_%s" % n)
-    server_group = factory.SubFactory(ServerGroupFactory)
+    server_group = factory.SubFactory(openstack_factories.ServerGroupFactory)
     ram = 2048
 
     @classmethod
@@ -233,27 +211,6 @@ class FloatingIPFactory(factory.django.DjangoModelFactory):
     @classmethod
     def get_list_url(cls):
         return "http://testserver" + reverse("openstacktenant-fip-list")
-
-
-class SecurityGroupFactory(factory.django.DjangoModelFactory):
-    class Meta:
-        model = models.SecurityGroup
-
-    name = factory.Sequence(lambda n: "security_group%s" % n)
-    settings = factory.SubFactory(OpenStackTenantServiceSettingsFactory)
-    backend_id = factory.Sequence(lambda n: "backend_id_%s" % n)
-
-    @classmethod
-    def get_url(cls, sgp=None):
-        if sgp is None:
-            sgp = SecurityGroupFactory()
-        return "http://testserver" + reverse(
-            "openstacktenant-sgp-detail", kwargs={"uuid": sgp.uuid.hex}
-        )
-
-    @classmethod
-    def get_list_url(cls):
-        return "http://testserver" + reverse("openstacktenant-sgp-list")
 
 
 class BackupScheduleFactory(factory.django.DjangoModelFactory):

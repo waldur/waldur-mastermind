@@ -500,8 +500,8 @@ class TenantViewSet(structure_views.ResourceViewSet):
                 "instances": tenant_models.Instance.objects.filter(
                     service_settings=service_settings
                 ).count(),
-                "server_groups": tenant_models.ServerGroup.objects.filter(
-                    settings=service_settings
+                "server_groups": models.ServerGroup.objects.filter(
+                    tenant=tenant
                 ).count(),
                 "flavors": tenant_models.Flavor.objects.filter(
                     settings=service_settings

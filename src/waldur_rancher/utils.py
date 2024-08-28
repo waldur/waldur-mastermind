@@ -11,6 +11,7 @@ from waldur_core.core.models import User
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.quotas import exceptions as quotas_exceptions
 from waldur_core.structure.models import ProjectRole, ServiceSettings
+from waldur_openstack.openstack.models import SecurityGroup
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 from waldur_openstack.openstack_tenant.views import InstanceViewSet
 from waldur_rancher.backend import RancherBackend
@@ -62,8 +63,8 @@ def expand_added_nodes(
 
     if not security_groups:
         try:
-            default_security_group = openstack_tenant_models.SecurityGroup.objects.get(
-                name="default", settings=tenant_settings
+            default_security_group = SecurityGroup.objects.get(
+                name="default", tenant=tenant_settings.scope
             )
             security_groups = [default_security_group]
         except ObjectDoesNotExist:

@@ -94,7 +94,6 @@ class BaseSecurityGroupRuleSerializer(serializers.ModelSerializer):
     remote_group_uuid = serializers.ReadOnlyField(source="remote_group.uuid")
 
     class Meta:
-        model = models.BaseSecurityGroupRule
         fields = (
             "ethertype",
             "direction",

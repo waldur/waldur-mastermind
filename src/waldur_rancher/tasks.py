@@ -66,7 +66,7 @@ class CreateNodeTask(core_tasks.Task):
                 for volume in data_volumes
             ],
             "security_groups": [
-                {"url": reverse("openstacktenant-sgp-detail", kwargs={"uuid": group})}
+                {"url": reverse("openstack-sgp-detail", kwargs={"uuid": group})}
                 for group in security_groups
             ],
             "internal_ips_set": [

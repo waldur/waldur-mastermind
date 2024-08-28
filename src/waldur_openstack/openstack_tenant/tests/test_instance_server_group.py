@@ -2,6 +2,7 @@ from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common import utils as common_utils
+from waldur_openstack.openstack.tests.factories import ServerGroupFactory
 from waldur_openstack.openstack_tenant import models, views
 from waldur_openstack.openstack_tenant.tests import factories, fixtures
 
@@ -41,7 +42,7 @@ class InstanceServerGroupTest(test.APITransactionTestCase):
         self.admin = fixture.admin
         self.client.force_authenticate(self.admin)
 
-        self.server_group = factories.ServerGroupFactory.create(settings=self.settings)
+        self.server_group = ServerGroupFactory.create(tenant=self.settings.scope)
         self.instance.server_group = self.server_group
         self.instance.save()
 
@@ -77,4 +78,4 @@ class InstanceServerGroupTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def _get_valid_server_group_payload(self, server_group=None):
-        return {"url": factories.ServerGroupFactory.get_url(server_group)}
+        return {"url": ServerGroupFactory.get_url(server_group)}
