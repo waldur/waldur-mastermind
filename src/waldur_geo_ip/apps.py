@@ -14,7 +14,7 @@ class GeoIPConfig(AppConfig):
         from . import handlers
 
         # Check if geolocation is enabled
-        if not settings.WALDUR_CORE.get("ENABLE_GEOIP", True):
+        if not settings.WALDUR_CORE.get("ENABLE_GEOIP", False):
             return
 
         for index, model in enumerate(IPCoordinatesMixin.get_all_models()):
