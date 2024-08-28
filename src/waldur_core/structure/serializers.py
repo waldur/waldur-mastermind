@@ -237,6 +237,7 @@ class ProjectSerializer(
             "customer",
             "customer_uuid",
             "customer_name",
+            "customer_slug",
             "customer_native_name",
             "customer_abbreviation",
             "description",
@@ -265,7 +266,7 @@ class ProjectSerializer(
             },
         }
         related_paths = {
-            "customer": ("uuid", "name", "native_name", "abbreviation"),
+            "customer": ("uuid", "name", "native_name", "abbreviation", "slug"),
             "type": ("name", "uuid"),
         }
 
@@ -309,6 +310,7 @@ class ProjectSerializer(
             "description",
             "customer__uuid",
             "customer__name",
+            "customer__slug",
             "customer__native_name",
             "customer__abbreviation",
         )
