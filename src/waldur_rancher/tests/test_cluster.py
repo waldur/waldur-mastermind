@@ -101,11 +101,11 @@ class BaseClusterCreateTest(test.APITransactionTestCase):
         self.fixture.settings.options["base_image_name"] = image.name
         self.fixture.settings.save()
 
-        self.network = openstack_tenant_factories.NetworkFactory(
-            settings=self.fixture.tenant_settings
-        )
-        self.subnet = openstack_tenant_factories.SubNetFactory(
-            network=self.network, settings=self.fixture.tenant_settings
+        self.network = openstack_factories.NetworkFactory(tenant=self.tenant)
+        self.subnet = openstack_factories.SubNetFactory(
+            network=self.network,
+            tenant=self.fixture.tenant_settings.scope,
+            project=self.fixture.project,
         )
         self.flavor = Flavor.objects.get(settings=self.fixture.tenant_settings)
         self.flavor.ram = 1024 * 8
@@ -127,36 +127,28 @@ class BaseClusterCreateTest(test.APITransactionTestCase):
             ),
             "nodes": [
                 {
-                    "subnet": openstack_tenant_factories.SubNetFactory.get_url(
-                        self.subnet
-                    ),
+                    "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
                     "system_volume_size": disk,
                     "memory": memory,
                     "cpu": cpu,
                     "roles": ["worker"],
                 },
                 {
-                    "subnet": openstack_tenant_factories.SubNetFactory.get_url(
-                        self.subnet
-                    ),
+                    "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
                     "system_volume_size": disk,
                     "memory": memory,
                     "cpu": cpu,
                     "roles": ["controlplane", "worker"],
                 },
                 {
-                    "subnet": openstack_tenant_factories.SubNetFactory.get_url(
-                        self.subnet
-                    ),
+                    "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
                     "system_volume_size": disk,
                     "memory": memory,
                     "cpu": cpu,
                     "roles": ["controlplane", "etcd"],
                 },
                 {
-                    "subnet": openstack_tenant_factories.SubNetFactory.get_url(
-                        self.subnet
-                    ),
+                    "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
                     "system_volume_size": disk,
                     "memory": memory,
                     "cpu": cpu,
@@ -199,9 +191,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
         payload = {
             "nodes": [
                 {
-                    "subnet": openstack_tenant_factories.SubNetFactory.get_url(
-                        self.subnet
-                    ),
+                    "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
                     "system_volume_size": 1024,
                     "memory": 1,
                     "cpu": 1,
@@ -229,18 +219,14 @@ class ClusterCreateTest(BaseClusterCreateTest):
         payload = {
             "nodes": [
                 {
-                    "subnet": openstack_tenant_factories.SubNetFactory.get_url(
-                        self.subnet
-                    ),
+                    "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
                     "system_volume_size": 1024,
                     "memory": 1,
                     "cpu": 1,
                     "roles": ["controlplane", "etcd", "worker"],
                 },
                 {
-                    "subnet": openstack_tenant_factories.SubNetFactory.get_url(
-                        self.subnet
-                    ),
+                    "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
                     "system_volume_size": 1024,
                     "memory": 1,
                     "cpu": 1,
@@ -261,18 +247,14 @@ class ClusterCreateTest(BaseClusterCreateTest):
         payload = {
             "nodes": [
                 {
-                    "subnet": openstack_tenant_factories.SubNetFactory.get_url(
-                        self.subnet
-                    ),
+                    "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
                     "system_volume_size": 1024,
                     "memory": 1,
                     "cpu": 1,
                     "roles": ["controlplane", "etcd", "worker"],
                 },
                 {
-                    "subnet": openstack_tenant_factories.SubNetFactory.get_url(
-                        self.subnet
-                    ),
+                    "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
                     "system_volume_size": 1024,
                     "memory": 1,
                     "cpu": 1,
@@ -291,9 +273,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
         payload = {
             "nodes": [
                 {
-                    "subnet": openstack_tenant_factories.SubNetFactory.get_url(
-                        self.subnet
-                    ),
+                    "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
                     "system_volume_size": 1024,
                     "memory": 1,
                     "cpu": 1,
@@ -315,9 +295,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
         payload = {
             "nodes": [
                 {
-                    "subnet": openstack_tenant_factories.SubNetFactory.get_url(
-                        self.subnet
-                    ),
+                    "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
                     "system_volume_size": 1024,
                     "memory": 1,
                     "cpu": 1,
@@ -631,9 +609,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
         payload = {
             "nodes": [
                 {
-                    "subnet": openstack_tenant_factories.SubNetFactory.get_url(
-                        self.subnet
-                    ),
+                    "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
                     "system_volume_size": 1024,
                     "memory": 1,
                     "cpu": 1,

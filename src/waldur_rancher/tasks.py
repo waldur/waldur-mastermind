@@ -70,22 +70,14 @@ class CreateNodeTask(core_tasks.Task):
                 for group in security_groups
             ],
             "internal_ips_set": [
-                {
-                    "subnet": reverse(
-                        "openstacktenant-subnet-detail", kwargs={"uuid": subnet}
-                    )
-                }
+                {"subnet": reverse("openstack-subnet-detail", kwargs={"uuid": subnet})}
             ],
             "user_data": utils.format_node_cloud_config(node),
         }
 
         if node.cluster.settings.get_option("allocate_floating_ip_to_all_nodes"):
             post_data["floating_ips"] = [
-                {
-                    "subnet": reverse(
-                        "openstacktenant-subnet-detail", kwargs={"uuid": subnet}
-                    )
-                }
+                {"subnet": reverse("openstack-subnet-detail", kwargs={"uuid": subnet})}
             ]
 
         if ssh_public_key:

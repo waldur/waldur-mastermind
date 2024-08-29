@@ -232,6 +232,8 @@ class SubNetFactory(
     network = factory.SubFactory(NetworkFactory)
     service_settings = factory.SubFactory(OpenStackServiceSettingsFactory)
     project = factory.SubFactory(ProjectFactory)
+    tenant = factory.SubFactory(TenantFactory)
+    backend_id = factory.Sequence(lambda n: "backend_id_%s" % n)
 
     @classmethod
     def get_url(cls, subnet=None, action=None):

@@ -2,7 +2,7 @@ from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common import utils as common_utils
-from waldur_openstack.openstack.tests.factories import ServerGroupFactory
+from waldur_openstack.openstack.tests.factories import ServerGroupFactory, SubNetFactory
 from waldur_openstack.openstack_tenant import models, views
 from waldur_openstack.openstack_tenant.tests import factories, fixtures
 
@@ -16,7 +16,7 @@ def _instance_data(user, instance=None):
     image = factories.ImageFactory(settings=instance.service_settings)
     flavor = factories.FlavorFactory(settings=instance.service_settings)
     ssh_public_key = structure_factories.SshPublicKeyFactory(user=user)
-    subnet = factories.SubNetFactory(settings=instance.service_settings)
+    subnet = SubNetFactory(tenant=instance.service_settings.scope)
     return {
         "name": "test-host",
         "description": "test description",
@@ -30,7 +30,7 @@ def _instance_data(user, instance=None):
             ssh_public_key
         ),
         "system_volume_size": max(image.min_disk, 1024),
-        "internal_ips_set": [{"subnet": factories.SubNetFactory.get_url(subnet)}],
+        "internal_ips_set": [{"subnet": SubNetFactory.get_url(subnet)}],
     }
 
 

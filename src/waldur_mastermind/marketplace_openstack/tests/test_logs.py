@@ -6,6 +6,9 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
+from waldur_openstack.openstack.tests import (
+    factories as openstack_factories,
+)
 from waldur_openstack.openstack_tenant.tests import (
     factories as openstack_tenant_factories,
 )
@@ -34,9 +37,7 @@ class InstanceCreateLogTest(test.APITransactionTestCase):
             settings=self.service_settings
         )
 
-        subnet_url = openstack_tenant_factories.SubNetFactory.get_url(
-            self.fixture.subnet
-        )
+        subnet_url = openstack_factories.SubNetFactory.get_url(self.fixture.subnet)
         attributes = {
             "flavor": openstack_tenant_factories.FlavorFactory.get_url(flavor),
             "image": openstack_tenant_factories.ImageFactory.get_url(image),

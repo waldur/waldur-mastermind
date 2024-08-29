@@ -80,9 +80,9 @@ def expand_added_nodes(
         system_volume_type = node.pop("system_volume_type", None)
         data_volumes = node.pop("data_volumes", [])
 
-        if subnet.settings != tenant_settings:
+        if subnet.tenant != tenant_settings.scope:
             raise serializers.ValidationError(
-                _("Subnet %s should belong to the service settings %s.")
+                _("Subnet %s should belong to the same tenant %s.")
                 % (
                     subnet.name,
                     tenant_settings.name,

@@ -147,20 +147,6 @@ class FlavorViewSet(openstack_base_views.FlavorViewSet):
         return FlavorUsageReporter(self, request).get_report()
 
 
-class NetworkViewSet(structure_views.BaseServicePropertyViewSet):
-    queryset = models.Network.objects.all().order_by("settings", "type", "is_external")
-    serializer_class = serializers.NetworkSerializer
-    lookup_field = "uuid"
-    filterset_class = filters.NetworkFilter
-
-
-class SubNetViewSet(structure_views.BaseServicePropertyViewSet):
-    queryset = models.SubNet.objects.all().order_by("settings")
-    serializer_class = serializers.SubNetSerializer
-    lookup_field = "uuid"
-    filterset_class = filters.SubNetFilter
-
-
 class FloatingIPViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.FloatingIP.objects.all().order_by("settings", "address")
     serializer_class = serializers.FloatingIPSerializer

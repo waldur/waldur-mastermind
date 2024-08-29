@@ -104,6 +104,10 @@ class NetworkFilter(structure_filters.BaseResourceFilter):
 
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.Network
+        fields = structure_filters.BaseResourceFilter.Meta.fields + (
+            "type",
+            "is_external",
+        )
 
 
 class SubNetFilter(structure_filters.BaseResourceFilter):
@@ -118,3 +122,7 @@ class SubNetFilter(structure_filters.BaseResourceFilter):
 
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.SubNet
+        fields = structure_filters.BaseResourceFilter.Meta.fields + (
+            "ip_version",
+            "enable_dhcp",
+        )

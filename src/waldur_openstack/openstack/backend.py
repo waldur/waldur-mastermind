@@ -907,6 +907,7 @@ class OpenStackBackend(BaseOpenStackBackend):
                     network=network,
                     service_settings=network.service_settings,
                     project=network.project,
+                    tenant=network.tenant,
                 )
 
                 try:

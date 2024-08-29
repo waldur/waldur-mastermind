@@ -92,7 +92,7 @@ class InvoiceTest(test.APITransactionTestCase):
                 ),
                 "nodes": [
                     {
-                        "subnet": openstack_tenant_factories.SubNetFactory.get_url(
+                        "subnet": openstack_factories.SubNetFactory.get_url(
                             self.fixture.subnet
                         ),
                         "system_volume_size": 1024,

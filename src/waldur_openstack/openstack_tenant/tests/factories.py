@@ -7,6 +7,7 @@ from django.urls import reverse
 from django.utils import timezone
 from factory import fuzzy
 
+from waldur_core.core.types import BaseMetaFactory
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests.factories import ProjectFactory
@@ -128,7 +129,9 @@ class InstanceAvailabilityZoneFactory(factory.django.DjangoModelFactory):
         )
 
 
-class InstanceFactory(factory.django.DjangoModelFactory):
+class InstanceFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Instance]
+):
     class Meta:
         model = models.Instance
 
@@ -327,48 +330,14 @@ class SnapshotScheduleFactory(factory.django.DjangoModelFactory):
         return "http://testserver" + reverse("openstacktenant-snapshot-schedule-list")
 
 
-class NetworkFactory(factory.django.DjangoModelFactory):
-    class Meta:
-        model = models.Network
-
-    name = factory.Sequence(lambda n: "network%s" % n)
-    backend_id = factory.Sequence(lambda n: "backend_id_%s" % n)
-    settings = factory.SubFactory(OpenStackTenantServiceSettingsFactory)
-    is_external = False
-    type = factory.Sequence(lambda n: "network type%s" % n)
-    segmentation_id = 8
-
-
-class SubNetFactory(factory.django.DjangoModelFactory):
-    class Meta:
-        model = models.SubNet
-
-    name = factory.Sequence(lambda n: "subnet%s" % n)
-    backend_id = factory.Sequence(lambda n: "backend_id_%s" % n)
-    settings = factory.SubFactory(OpenStackTenantServiceSettingsFactory)
-    network = factory.SubFactory(NetworkFactory)
-
-    @classmethod
-    def get_url(cls, subnet=None):
-        if subnet is None:
-            subnet = SubNetFactory()
-        return "http://testserver" + reverse(
-            "openstacktenant-subnet-detail", kwargs={"uuid": subnet.uuid.hex}
-        )
-
-    @classmethod
-    def get_list_url(cls):
-        return "http://testserver" + reverse("openstacktenant-subnet-list")
-
-
 class InternalIPFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.InternalIP
 
     backend_id = factory.Sequence(lambda n: "backend_id_%s" % n)
     instance = factory.SubFactory(InstanceFactory)
-    subnet = factory.SubFactory(SubNetFactory)
-    settings = factory.SelfAttribute("subnet.settings")
+    subnet = factory.SubFactory(openstack_factories.SubNetFactory)
+    settings = factory.SelfAttribute("instance.service_settings")
 
 
 class VolumeTypeFactory(factory.django.DjangoModelFactory):

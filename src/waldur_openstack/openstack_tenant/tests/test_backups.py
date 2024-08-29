@@ -143,7 +143,9 @@ class BackupRestorationTest(test.APITransactionTestCase):
         self.valid_flavor = factories.FlavorFactory(
             disk=self.disk_size + 10, settings=self.service_settings
         )
-        self.subnet = factories.SubNetFactory(settings=self.service_settings)
+        self.subnet = openstack_factories.SubNetFactory(
+            tenant=self.service_settings.scope
+        )
 
     def test_instance_should_have_bootable_volume(self):
         self.backup.instance.volumes.filter(bootable=True).delete()
@@ -204,15 +206,17 @@ class BackupRestorationTest(test.APITransactionTestCase):
         floating_ip = factories.FloatingIPFactory(
             is_booked=True, runtime_state="DOWN", settings=self.service_settings
         )
-        subnet = factories.SubNetFactory(settings=self.service_settings)
+        subnet = openstack_factories.SubNetFactory(tenant=self.service_settings.scope)
         payload = self._get_valid_payload(
             floating_ips=[
                 {
                     "url": factories.FloatingIPFactory.get_url(floating_ip),
-                    "subnet": factories.SubNetFactory.get_url(subnet),
+                    "subnet": openstack_factories.SubNetFactory.get_url(subnet),
                 }
             ],
-            internal_ips_set=[{"subnet": factories.SubNetFactory.get_url(subnet)}],
+            internal_ips_set=[
+                {"subnet": openstack_factories.SubNetFactory.get_url(subnet)}
+            ],
         )
 
         response = self.client.post(self.url, payload)
@@ -225,15 +229,17 @@ class BackupRestorationTest(test.APITransactionTestCase):
     ):
         floating_ip = factories.FloatingIPFactory(runtime_state="DOWN")
         self.assertNotEqual(self.service_settings, floating_ip.settings)
-        subnet = factories.SubNetFactory(settings=self.service_settings)
+        subnet = openstack_factories.SubNetFactory(tenant=self.service_settings.scope)
         payload = self._get_valid_payload(
             floating_ips=[
                 {
                     "url": factories.FloatingIPFactory.get_url(floating_ip),
-                    "subnet": factories.SubNetFactory.get_url(subnet),
+                    "subnet": openstack_factories.SubNetFactory.get_url(subnet),
                 }
             ],
-            internal_ips_set=[{"subnet": factories.SubNetFactory.get_url(subnet)}],
+            internal_ips_set=[
+                {"subnet": openstack_factories.SubNetFactory.get_url(subnet)}
+            ],
         )
 
         response = self.client.post(self.url, payload)
@@ -247,15 +253,17 @@ class BackupRestorationTest(test.APITransactionTestCase):
         floating_ip = factories.FloatingIPFactory(
             settings=self.service_settings, runtime_state="ACTIVE"
         )
-        subnet = factories.SubNetFactory(settings=self.service_settings)
+        subnet = openstack_factories.SubNetFactory(tenant=self.service_settings.scope)
         payload = self._get_valid_payload(
             floating_ips=[
                 {
                     "url": factories.FloatingIPFactory.get_url(floating_ip),
-                    "subnet": factories.SubNetFactory.get_url(subnet),
+                    "subnet": openstack_factories.SubNetFactory.get_url(subnet),
                 }
             ],
-            internal_ips_set=[{"subnet": factories.SubNetFactory.get_url(subnet)}],
+            internal_ips_set=[
+                {"subnet": openstack_factories.SubNetFactory.get_url(subnet)}
+            ],
         )
 
         response = self.client.post(self.url, payload)
@@ -264,7 +272,7 @@ class BackupRestorationTest(test.APITransactionTestCase):
         self.assertIn("floating_ips", response.data)
 
     def test_floating_ip_is_not_valid_if_it_is_already_assigned(self):
-        subnet = factories.SubNetFactory(settings=self.service_settings)
+        subnet = openstack_factories.SubNetFactory(tenant=self.service_settings.scope)
         internal_ip = factories.InternalIPFactory(subnet=subnet)
         floating_ip = factories.FloatingIPFactory(
             internal_ip=internal_ip,
@@ -276,10 +284,12 @@ class BackupRestorationTest(test.APITransactionTestCase):
             floating_ips=[
                 {
                     "url": factories.FloatingIPFactory.get_url(floating_ip),
-                    "subnet": factories.SubNetFactory.get_url(subnet),
+                    "subnet": openstack_factories.SubNetFactory.get_url(subnet),
                 }
             ],
-            internal_ips_set=[{"subnet": factories.SubNetFactory.get_url(subnet)}],
+            internal_ips_set=[
+                {"subnet": openstack_factories.SubNetFactory.get_url(subnet)}
+            ],
         )
 
         response = self.client.post(self.url, payload)
@@ -293,12 +303,12 @@ class BackupRestorationTest(test.APITransactionTestCase):
         floating_ip = factories.FloatingIPFactory(
             settings=self.service_settings, runtime_state="DOWN"
         )
-        subnet = factories.SubNetFactory(settings=self.service_settings)
+        subnet = openstack_factories.SubNetFactory(tenant=self.service_settings.scope)
         payload = self._get_valid_payload(
             floating_ips=[
                 {
                     "url": factories.FloatingIPFactory.get_url(floating_ip),
-                    "subnet": factories.SubNetFactory.get_url(subnet),
+                    "subnet": openstack_factories.SubNetFactory.get_url(subnet),
                 }
             ]
         )
@@ -316,7 +326,7 @@ class BackupRestorationTest(test.APITransactionTestCase):
             floating_ips=[
                 {
                     "url": factories.FloatingIPFactory.get_url(floating_ip),
-                    "subnet": factories.SubNetFactory.get_url(self.subnet),
+                    "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
                 }
             ],
         )
@@ -333,9 +343,11 @@ class BackupRestorationTest(test.APITransactionTestCase):
     def test_internal_ips_are_not_associated_with_instance_if_subnet_belongs_to_another_settings(
         self,
     ):
-        subnet = factories.SubNetFactory()
+        subnet = openstack_factories.SubNetFactory()
         payload = self._get_valid_payload(
-            internal_ips_set=[{"subnet": factories.SubNetFactory.get_url(subnet)}]
+            internal_ips_set=[
+                {"subnet": openstack_factories.SubNetFactory.get_url(subnet)}
+            ]
         )
 
         response = self.client.post(self.url, payload)
@@ -373,7 +385,7 @@ class BackupRestorationTest(test.APITransactionTestCase):
             "name": "instance name",
             "flavor": factories.FlavorFactory.get_url(self.valid_flavor),
             "internal_ips_set": [
-                {"subnet": factories.SubNetFactory.get_url(self.subnet)}
+                {"subnet": openstack_factories.SubNetFactory.get_url(self.subnet)}
             ],
         }
         payload.update(options)

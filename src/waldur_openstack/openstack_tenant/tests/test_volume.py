@@ -6,6 +6,7 @@ from rest_framework import status, test
 
 from waldur_core.structure.tests.factories import ProjectFactory, ServiceSettingsFactory
 from waldur_mastermind.common import utils as common_utils
+from waldur_openstack.openstack.tests.factories import SubNetFactory
 from waldur_openstack.openstack_base.utils import volume_type_name_to_quota_name
 from waldur_openstack.openstack_tenant import models, views
 from waldur_openstack.openstack_tenant.tests.helpers import (
@@ -415,7 +416,7 @@ class VolumeNameCreateTest(BaseVolumeCreateTest):
     def test_volume_image_name_populated_on_instance_creation(self):
         flavor = factories.FlavorFactory(settings=self.settings)
         flavor_url = factories.FlavorFactory.get_url(flavor)
-        subnet_url = factories.SubNetFactory.get_url(self.fixture.subnet)
+        subnet_url = SubNetFactory.get_url(self.fixture.subnet)
 
         payload = {
             "name": "test-instance",
@@ -436,7 +437,7 @@ class VolumeNameCreateTest(BaseVolumeCreateTest):
     def test_create_instance_with_data_volumes_with_different_names(self):
         flavor = factories.FlavorFactory(settings=self.settings)
         flavor_url = factories.FlavorFactory.get_url(flavor)
-        subnet_url = factories.SubNetFactory.get_url(self.fixture.subnet)
+        subnet_url = SubNetFactory.get_url(self.fixture.subnet)
 
         payload = {
             "name": "test-instance",

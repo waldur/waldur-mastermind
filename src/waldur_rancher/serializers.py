@@ -153,8 +153,8 @@ class BaseNodeSerializer(
 ):
     ROLE_CHOICES = ("controlplane", "etcd", "worker")
     subnet = serializers.HyperlinkedRelatedField(
-        view_name="openstacktenant-subnet-detail",
-        queryset=openstack_tenant_models.SubNet.objects.all(),
+        view_name="openstack-subnet-detail",
+        queryset=openstack_models.SubNet.objects.all(),
         lookup_field="uuid",
         allow_null=True,
         write_only=True,

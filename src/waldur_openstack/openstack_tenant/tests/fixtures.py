@@ -2,6 +2,7 @@ from django.utils.functional import cached_property
 
 from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_openstack.openstack.tests import fixtures as openstack_fixtures
+from waldur_openstack.openstack.tests.factories import NetworkFactory, SubNetFactory
 from waldur_openstack.openstack_tenant import models
 from waldur_openstack.openstack_tenant.tests import factories
 
@@ -29,13 +30,11 @@ class OpenStackTenantFixture(ProjectFixture):
 
     @cached_property
     def network(self):
-        return factories.NetworkFactory(settings=self.openstack_tenant_service_settings)
+        return NetworkFactory(tenant=self.tenant)
 
     @cached_property
     def subnet(self):
-        return factories.SubNetFactory(
-            network=self.network, settings=self.openstack_tenant_service_settings
-        )
+        return SubNetFactory(network=self.network, tenant=self.tenant)
 
     @cached_property
     def volume(self):
