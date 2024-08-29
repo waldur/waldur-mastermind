@@ -109,66 +109,6 @@ class UsageStatsSerializer(serializers.Serializer):
     service_provider = serializers.ListField(child=serializers.CharField())
 
 
-class NetworkSerializer(
-    structure_serializers.FieldFilteringMixin,
-    structure_serializers.BasePropertySerializer,
-):
-    class Meta(structure_serializers.BasePropertySerializer.Meta):
-        model = models.Network
-        fields = (
-            "url",
-            "uuid",
-            "name",
-            "type",
-            "is_external",
-            "segmentation_id",
-            "subnets",
-        )
-        extra_kwargs = {
-            "url": {"lookup_field": "uuid"},
-            "settings": {"lookup_field": "uuid"},
-            "subnets": {
-                "lookup_field": "uuid",
-                "view_name": "openstacktenant-subnet-detail",
-            },
-        }
-
-    def get_filtered_field(self):
-        return [
-            ("segmentation_id", lambda user: user.is_staff or user.is_support),
-        ]
-
-
-class SubNetSerializer(structure_serializers.BasePropertySerializer):
-    dns_nameservers = serializers.JSONField(read_only=True)
-    allocation_pools = serializers.JSONField(read_only=True)
-    network_name = serializers.ReadOnlyField(source="network.name")
-
-    class Meta(structure_serializers.BasePropertySerializer.Meta):
-        model = models.SubNet
-        fields = (
-            "url",
-            "uuid",
-            "name",
-            "cidr",
-            "gateway_ip",
-            "allocation_pools",
-            "ip_version",
-            "enable_dhcp",
-            "dns_nameservers",
-            "network",
-            "network_name",
-        )
-        extra_kwargs = {
-            "url": {"lookup_field": "uuid"},
-            "settings": {"lookup_field": "uuid"},
-            "network": {
-                "lookup_field": "uuid",
-                "view_name": "openstacktenant-network-detail",
-            },
-        }
-
-
 class FloatingIPSerializer(structure_serializers.BasePropertySerializer):
     class Meta(structure_serializers.BasePropertySerializer.Meta):
         model = models.FloatingIP
@@ -725,14 +665,18 @@ class NestedInternalIPSerializer(
         extra_kwargs = {
             "subnet": {
                 "lookup_field": "uuid",
-                "view_name": "openstacktenant-subnet-detail",
+                "view_name": "openstack-subnet-detail",
             },
         }
 
     def to_internal_value(self, data):
         internal_value = super().to_internal_value(data)
         return models.InternalIP(
-            subnet=internal_value["subnet"], settings=internal_value["subnet"].settings
+            subnet=internal_value["subnet"],
+            # To be replaced with tenant once InternalIP is merged with Port
+            settings=structure_models.ServiceSettings.objects.filter(
+                scope=internal_value["subnet"].tenant
+            ).first(),
         )
 
 
@@ -741,9 +685,9 @@ class NestedFloatingIPSerializer(
     core_serializers.HyperlinkedRelatedModelSerializer,
 ):
     subnet = serializers.HyperlinkedRelatedField(
-        queryset=models.SubNet.objects.all(),
+        queryset=openstack_models.SubNet.objects.all(),
         source="internal_ip.subnet",
-        view_name="openstacktenant-subnet-detail",
+        view_name="openstack-subnet-detail",
         lookup_field="uuid",
     )
     subnet_uuid = serializers.ReadOnlyField(source="internal_ip.subnet.uuid")
@@ -812,10 +756,9 @@ def _validate_instance_internal_ips(internal_ips, settings):
         return
     subnets = [internal_ip.subnet for internal_ip in internal_ips]
     for subnet in subnets:
-        if subnet.settings != settings:
+        if subnet.tenant != settings.scope:
             message = (
-                _("Subnet %s does not belong to the same service settings as instance.")
-                % subnet
+                _("Subnet %s does not belong to the same tenant as instance.") % subnet
             )
             raise serializers.ValidationError({"internal_ips_set": message})
     pairs = [
@@ -1509,8 +1452,8 @@ class AllowedAddressPairSerializer(serializers.Serializer):
 
 class InstanceAllowedAddressPairsUpdateSerializer(serializers.Serializer):
     subnet = serializers.HyperlinkedRelatedField(
-        queryset=models.SubNet.objects.all(),
-        view_name="openstacktenant-subnet-detail",
+        queryset=openstack_models.SubNet.objects.all(),
+        view_name="openstack-subnet-detail",
         lookup_field="uuid",
         write_only=True,
     )
@@ -1560,7 +1503,7 @@ class InstanceInternalIPsSetUpdateSerializer(serializers.Serializer):
                 models.InternalIP.objects.create(
                     instance=instance,
                     subnet=internal_ip.subnet,
-                    settings=internal_ip.subnet.settings,
+                    settings=internal_ip.settings,
                 )
 
         return instance

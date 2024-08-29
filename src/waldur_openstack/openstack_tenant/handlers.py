@@ -330,40 +330,7 @@ class FloatingIPHandler(BaseSynchronizationHandler):
     fields = ("address", "backend_network_id", "runtime_state")
 
 
-class NetworkHandler(BaseSynchronizationHandler):
-    property_model = models.Network
-    resource_model = openstack_models.Network
-    fields = ("is_external", "segmentation_id", "type")
-
-
-class SubNetHandler(BaseSynchronizationHandler):
-    property_model = models.SubNet
-    resource_model = openstack_models.SubNet
-    fields = (
-        "allocation_pools",
-        "cidr",
-        "dns_nameservers",
-        "enable_dhcp",
-        "ip_version",
-        "is_connected",
-    )
-
-    def get_tenant(self, resource):
-        return resource.network.tenant
-
-    def map_resource_to_dict(self, resource):
-        params = super().map_resource_to_dict(resource)
-        params["network"] = models.Network.objects.get(
-            backend_id=resource.network.backend_id
-        )
-        return params
-
-
-resource_handlers = (
-    FloatingIPHandler(),
-    NetworkHandler(),
-    SubNetHandler(),
-)
+resource_handlers = (FloatingIPHandler(),)
 
 
 def copy_flavor_exclude_regex_to_openstacktenant_service_settings(

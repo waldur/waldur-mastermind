@@ -4,7 +4,7 @@ import re
 from cinderclient import exceptions as cinder_exceptions
 from cinderclient.v2.contrib import list_extensions
 from django.conf import settings
-from django.db import IntegrityError, transaction
+from django.db import transaction
 from django.utils import dateparse, timezone
 from django.utils.functional import cached_property
 from keystoneclient import exceptions as keystone_exceptions
@@ -13,6 +13,7 @@ from neutronclient.v2_0 import client as neutron_client
 from novaclient import exceptions as nova_exceptions
 
 from waldur_core.structure.backend import log_backend_action
+from waldur_core.structure.models import ServiceSettings
 from waldur_core.structure.registry import get_resource_type
 from waldur_core.structure.signals import resource_pulled
 from waldur_core.structure.utils import (
@@ -20,7 +21,11 @@ from waldur_core.structure.utils import (
     handle_resource_update_success,
     update_pulled_fields,
 )
-from waldur_openstack.openstack.models import SecurityGroup, ServerGroup
+from waldur_openstack.openstack.models import (
+    SecurityGroup,
+    ServerGroup,
+    SubNet,
+)
 from waldur_openstack.openstack_base.backend import (
     BaseOpenStackBackend,
 )
@@ -91,7 +96,7 @@ class InternalIPSynchronizer:
         Prepare mapping from backend ID to local internal IP model.
         """
         internal_ips = models.InternalIP.objects.filter(
-            subnet__settings=self.settings
+            subnet__tenant=self.settings.scope
         ).exclude(backend_id=None)
         return {ip.backend_id: ip for ip in internal_ips}
 
@@ -101,7 +106,7 @@ class InternalIPSynchronizer:
         Prepare mapping from device and subnet ID to local internal IP model.
         """
         pending_internal_ips = models.InternalIP.objects.filter(
-            subnet__settings=self.settings, backend_id=None
+            subnet__tenant=self.settings.scope, backend_id=None
         ).exclude(instance__isnull=True)
         return {
             (ip.instance.backend_id, ip.subnet.backend_id): ip
@@ -135,7 +140,7 @@ class InternalIPSynchronizer:
         """
         Prepare mapping from backend ID to local subnet model.
         """
-        subnets = models.SubNet.objects.filter(settings=self.settings).exclude(
+        subnets = SubNet.objects.filter(tenant=self.settings.scope).exclude(
             backend_id=""
         )
         return {subnet.backend_id: subnet for subnet in subnets}
@@ -175,7 +180,9 @@ class InternalIPSynchronizer:
             if local_ip is None:
                 local_ip = remote_ip
                 local_ip.subnet = subnet
-                local_ip.settings = subnet.settings
+                local_ip.settings = ServiceSettings.objects.filter(
+                    scope=subnet.tenant
+                ).first()
                 local_ip.instance = instance
                 local_ip.save()
             else:
@@ -217,8 +224,6 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         self.pull_flavors()
         self.pull_images()
         self.pull_quotas()
-        self.pull_networks()
-        self.pull_subnets()
         self.pull_internal_ips()
         self.pull_floating_ips()
         self.pull_volume_types()
@@ -393,7 +398,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         internal_ips = {
             ip.backend_id: ip
             for ip in models.InternalIP.objects.filter(
-                subnet__settings=self.settings
+                subnet__tenant=self.settings.scope
             ).exclude(backend_id=None)
         }
 
@@ -497,90 +502,6 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
 
     def pull_quotas(self):
         self._pull_tenant_quotas(self.tenant_id, self.settings)
-
-    def pull_networks(self):
-        neutron = get_neutron_client(self.session)
-        try:
-            networks = neutron.list_networks(tenant_id=self.tenant_id)["networks"]
-        except neutron_exceptions.NeutronClientException as e:
-            raise OpenStackBackendError(e)
-
-        for backend_network in networks:
-            defaults = {
-                "name": backend_network["name"],
-                "description": backend_network["description"],
-            }
-            if backend_network.get("provider:network_type"):
-                defaults["type"] = backend_network["provider:network_type"]
-            if backend_network.get("provider:segmentation_id"):
-                defaults["segmentation_id"] = backend_network[
-                    "provider:segmentation_id"
-                ]
-            backend_id = backend_network["id"]
-            try:
-                models.Network.objects.update_or_create(
-                    settings=self.settings, backend_id=backend_id, defaults=defaults
-                )
-            except IntegrityError:
-                logger.warning(
-                    "Could not create network with backend ID %s "
-                    "and service settings %s due to concurrent update.",
-                    backend_id,
-                    self.settings,
-                )
-
-        self._delete_stale_properties(models.Network, networks)
-
-    def pull_subnets(self):
-        neutron = get_neutron_client(self.session)
-        try:
-            subnets = neutron.list_subnets(tenant_id=self.tenant_id)["subnets"]
-        except neutron_exceptions.NeutronClientException as e:
-            raise OpenStackBackendError(e)
-
-        current_networks = {
-            network.backend_id: network.id
-            for network in models.Network.objects.filter(settings=self.settings).only(
-                "id", "backend_id"
-            )
-        }
-        subnet_networks = set(subnet["network_id"] for subnet in subnets)
-        missing_networks = subnet_networks - set(current_networks.keys())
-        if missing_networks:
-            logger.warning(
-                "Cannot pull subnets for networks with id %s "
-                "because their networks are not pulled yet.",
-                missing_networks,
-            )
-
-        for backend_subnet in subnets:
-            backend_id = backend_subnet["id"]
-            network_id = current_networks.get(backend_subnet["network_id"])
-            if not network_id:
-                continue
-            defaults = {
-                "name": backend_subnet["name"],
-                "description": backend_subnet["description"],
-                "allocation_pools": backend_subnet["allocation_pools"],
-                "cidr": backend_subnet["cidr"],
-                "ip_version": backend_subnet["ip_version"],
-                "gateway_ip": backend_subnet.get("gateway_ip"),
-                "enable_dhcp": backend_subnet.get("enable_dhcp", False),
-                "network_id": network_id,
-            }
-            try:
-                models.SubNet.objects.update_or_create(
-                    settings=self.settings, backend_id=backend_id, defaults=defaults
-                )
-            except IntegrityError:
-                logger.warning(
-                    "Could not create subnet with backend ID %s "
-                    "and service settings %s due to concurrent update.",
-                    backend_id,
-                    self.settings,
-                )
-
-        self._delete_stale_properties(models.SubNet, subnets)
 
     @log_backend_action()
     def create_volume(self, volume):
@@ -1656,7 +1577,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             update_pulled_fields(instance, imported_instance, update_fields)
 
     @log_backend_action()
-    def pull_instance_internal_ips(self, instance):
+    def pull_instance_internal_ips(self, instance: models.Instance):
         neutron = get_neutron_client(self.session)
         try:
             backend_internal_ips = neutron.list_ports(device_id=instance.backend_id)[
@@ -1679,12 +1600,12 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             ip.backend_id: ip
             for ip in (
                 models.InternalIP.objects.filter(
-                    subnet__settings=self.settings
+                    subnet__tenant=self.settings.scope
                 ).exclude(backend_id=None)
             )
         }
 
-        subnets = models.SubNet.objects.filter(settings=self.settings)
+        subnets = SubNet.objects.filter(tenant=self.settings.scope)
         subnet_mappings = {subnet.backend_id: subnet for subnet in subnets}
 
         with transaction.atomic():
@@ -1738,7 +1659,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                     )
                     internal_ip = imported_internal_ip
                     internal_ip.subnet = subnet
-                    internal_ip.settings = subnet.settings
+                    internal_ip.settings = instance.service_settings
                     internal_ip.instance = instance
                     internal_ip.save()
 

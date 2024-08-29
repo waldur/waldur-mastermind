@@ -14,7 +14,11 @@ from waldur_core.quotas import models as quotas_models
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import utils as structure_utils
 from waldur_geo_ip.utils import get_coordinates_by_ip
-from waldur_openstack.openstack.models import SecurityGroup, ServerGroup
+from waldur_openstack.openstack.models import (
+    SecurityGroup,
+    ServerGroup,
+    SubNet,
+)
 from waldur_openstack.openstack_base import models as openstack_base_models
 from waldur_openstack.openstack_base.utils import volume_type_name_to_quota_name
 
@@ -320,7 +324,7 @@ class Instance(TenantQuotaMixin, structure_models.VirtualMachine):
     # TODO: Move this fields to resource model.
     action = models.CharField(max_length=50, blank=True)
     action_details = JSONField(default=dict)
-    subnets = models.ManyToManyField("SubNet", through="InternalIP")
+    subnets = models.ManyToManyField(SubNet, through="InternalIP")
     hypervisor_hostname = models.CharField(max_length=255, blank=True)
 
     connect_directly_to_external_network = models.BooleanField(default=False)
@@ -503,44 +507,6 @@ class SnapshotSchedule(BaseSchedule):
     @classmethod
     def get_url_name(cls):
         return "openstacktenant-snapshot-schedule"
-
-
-class Network(core_models.DescribableMixin, structure_models.ServiceProperty):
-    is_external = models.BooleanField(default=False)
-    type = models.CharField(max_length=50, blank=True)
-    segmentation_id = models.IntegerField(null=True)
-
-    class Meta:
-        unique_together = ("settings", "backend_id")
-
-    def __str__(self):
-        return self.name
-
-    @classmethod
-    def get_url_name(cls):
-        return "openstacktenant-network"
-
-
-class SubNet(
-    openstack_base_models.BaseSubNet,
-    core_models.DescribableMixin,
-    structure_models.ServiceProperty,
-):
-    network = models.ForeignKey(
-        on_delete=models.CASCADE, to=Network, related_name="subnets"
-    )
-
-    class Meta:
-        verbose_name = _("Subnet")
-        verbose_name_plural = _("Subnets")
-        unique_together = ("settings", "backend_id")
-
-    def __str__(self):
-        return f"{self.name} ({self.cidr})"
-
-    @classmethod
-    def get_url_name(cls):
-        return "openstacktenant-subnet"
 
 
 class InternalIP(openstack_base_models.Port):

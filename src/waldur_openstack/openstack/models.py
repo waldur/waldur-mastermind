@@ -383,6 +383,9 @@ class Network(core_models.RuntimeStateMixin, structure_models.SubResource):
 
 
 class SubNet(openstack_base_models.BaseSubNet, structure_models.SubResource):
+    tenant: Tenant = models.ForeignKey(
+        on_delete=models.CASCADE, to=Tenant, related_name="+"
+    )
     network = models.ForeignKey(
         on_delete=models.CASCADE, to=Network, related_name="subnets"
     )

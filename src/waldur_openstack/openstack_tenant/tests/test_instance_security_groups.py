@@ -20,7 +20,7 @@ def _instance_data(user, instance=None):
     image = factories.ImageFactory(settings=instance.service_settings)
     flavor = factories.FlavorFactory(settings=instance.service_settings)
     ssh_public_key = structure_factories.SshPublicKeyFactory(user=user)
-    subnet = factories.SubNetFactory(settings=instance.service_settings)
+    subnet = openstack_factories.SubNetFactory(tenant=instance.service_settings.scope)
     return {
         "name": "test-host",
         "description": "test description",
@@ -34,7 +34,9 @@ def _instance_data(user, instance=None):
             ssh_public_key
         ),
         "system_volume_size": max(image.min_disk, 1024),
-        "internal_ips_set": [{"subnet": factories.SubNetFactory.get_url(subnet)}],
+        "internal_ips_set": [
+            {"subnet": openstack_factories.SubNetFactory.get_url(subnet)}
+        ],
     }
 
 

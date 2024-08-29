@@ -5,6 +5,9 @@ import pkg_resources
 from rest_framework import status, test
 
 from waldur_core.structure.tests.factories import SshPublicKeyFactory
+from waldur_openstack.openstack.tests import (
+    factories as openstack_factories,
+)
 from waldur_openstack.openstack_tenant.tests import (
     factories as openstack_tenant_factories,
 )
@@ -39,7 +42,7 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         self.node_url = factories.NodeFactory.get_list_url()
         self.payload = {
             "cluster": factories.ClusterFactory.get_url(self.fixture.cluster),
-            "subnet": openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
+            "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
             "system_volume_size": 1024,
             "memory": 1,
             "cpu": 1,
@@ -81,7 +84,7 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         )
         self.payload = {
             "cluster": factories.ClusterFactory.get_url(self.fixture.cluster),
-            "subnet": openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
+            "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
             "system_volume_size": 1024,
             "memory": 1,
             "cpu": 1,
@@ -112,7 +115,7 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         )
         self.payload = {
             "cluster": factories.ClusterFactory.get_url(self.fixture.cluster),
-            "subnet": openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
+            "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
             "system_volume_size": 1024,
             "memory": 1,
             "cpu": 1,
@@ -142,7 +145,7 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         )
         self.payload = {
             "cluster": factories.ClusterFactory.get_url(self.fixture.cluster),
-            "subnet": openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
+            "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
             "system_volume_size": 1024,
             "memory": 1,
             "cpu": 1,
@@ -238,7 +241,7 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         ssh_public_key = SshPublicKeyFactory(user=self.fixture.owner)
         self.payload = {
             "cluster": factories.ClusterFactory.get_url(self.fixture.cluster),
-            "subnet": openstack_tenant_factories.SubNetFactory.get_url(self.subnet),
+            "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
             "system_volume_size": 1024,
             "memory": 1,
             "cpu": 1,

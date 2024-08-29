@@ -12,6 +12,9 @@ from rest_framework import status, test
 from waldur_core.core.utils import serialize_instance
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common import utils as common_utils
+from waldur_openstack.openstack.tests import (
+    factories as openstack_factories,
+)
 from waldur_openstack.openstack.tests.unittests import test_backend
 from waldur_openstack.openstack_base.exceptions import OpenStackBackendError
 from waldur_openstack.openstack_base.utils import volume_type_name_to_quota_name
@@ -89,7 +92,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
         return response
 
     def get_valid_data(self, **extra):
-        subnet_url = factories.SubNetFactory.get_url(self.subnet)
+        subnet_url = openstack_factories.SubNetFactory.get_url(self.subnet)
         default = {
             "service_settings": factories.OpenStackTenantServiceSettingsFactory.get_url(
                 self.openstack_settings
@@ -199,7 +202,9 @@ class InstanceCreateTest(test.APITransactionTestCase):
     def test_user_can_define_instance_subnets(self):
         subnet = self.openstack_tenant_fixture.subnet
         data = self.get_valid_data(
-            internal_ips_set=[{"subnet": factories.SubNetFactory.get_url(subnet)}]
+            internal_ips_set=[
+                {"subnet": openstack_factories.SubNetFactory.get_url(subnet)}
+            ]
         )
 
         response = self.create_instance(data)
@@ -212,13 +217,13 @@ class InstanceCreateTest(test.APITransactionTestCase):
 
     def test_user_cannot_assign_subnet_from_other_settings_to_instance(self):
         data = self.get_valid_data(
-            internal_ips_set=[{"subnet": factories.SubNetFactory.get_url()}]
+            internal_ips_set=[{"subnet": openstack_factories.SubNetFactory.get_url()}]
         )
         response = self.create_instance(data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_user_can_define_instance_floating_ips(self):
-        subnet_url = factories.SubNetFactory.get_url(self.subnet)
+        subnet_url = openstack_factories.SubNetFactory.get_url(self.subnet)
         floating_ip = self.openstack_tenant_fixture.floating_ip
         data = self.get_valid_data(
             floating_ips=[
@@ -239,14 +244,14 @@ class InstanceCreateTest(test.APITransactionTestCase):
         self.openstack_settings.options = {"external_network_id": "invalid"}
         self.openstack_settings.save()
 
-        subnet_url = factories.SubNetFactory.get_url(self.subnet)
+        subnet_url = openstack_factories.SubNetFactory.get_url(self.subnet)
         data = self.get_valid_data(floating_ips=[{"subnet": subnet_url}])
 
         response = self.create_instance(data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_user_cannot_assign_floating_ip_from_other_settings_to_instance(self):
-        subnet_url = factories.SubNetFactory.get_url(self.subnet)
+        subnet_url = openstack_factories.SubNetFactory.get_url(self.subnet)
         floating_ip = factories.FloatingIPFactory()
         data = self.get_valid_data(
             floating_ips=[
@@ -262,10 +267,12 @@ class InstanceCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_user_cannot_assign_floating_ip_to_disconnected_subnet(self):
-        disconnected_subnet = factories.SubNetFactory(
-            settings=self.openstack_tenant_fixture.openstack_tenant_service_settings
+        disconnected_subnet = openstack_factories.SubNetFactory(
+            tenant=self.openstack_tenant_fixture.tenant
         )
-        disconnected_subnet_url = factories.SubNetFactory.get_url(disconnected_subnet)
+        disconnected_subnet_url = openstack_factories.SubNetFactory.get_url(
+            disconnected_subnet
+        )
         floating_ip = self.openstack_tenant_fixture.floating_ip
         data = self.get_valid_data(
             floating_ips=[
@@ -281,7 +288,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_user_cannot_use_floating_ip_assigned_to_other_instance(self):
-        subnet_url = factories.SubNetFactory.get_url(self.subnet)
+        subnet_url = openstack_factories.SubNetFactory.get_url(self.subnet)
         internal_ip = factories.InternalIPFactory(subnet=self.subnet)
         floating_ip = factories.FloatingIPFactory(
             settings=self.openstack_settings,
@@ -303,7 +310,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
         self.assertIn("floating_ips", response.data)
 
     def test_user_can_assign_active_floating_ip(self):
-        subnet_url = factories.SubNetFactory.get_url(self.subnet)
+        subnet_url = openstack_factories.SubNetFactory.get_url(self.subnet)
         floating_ip = factories.FloatingIPFactory(
             settings=self.openstack_settings, runtime_state="ACTIVE"
         )
@@ -321,7 +328,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_user_can_allocate_floating_ip(self):
-        subnet_url = factories.SubNetFactory.get_url(self.subnet)
+        subnet_url = openstack_factories.SubNetFactory.get_url(self.subnet)
         self.openstack_tenant_fixture.floating_ip.status = "ACTIVE"
         self.openstack_tenant_fixture.floating_ip.save()
         data = self.get_valid_data(
@@ -338,7 +345,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
         self.openstack_settings.set_quota_limit(
             self.openstack_settings.Quotas.floating_ip_count, 0
         )
-        subnet_url = factories.SubNetFactory.get_url(self.subnet)
+        subnet_url = openstack_factories.SubNetFactory.get_url(self.subnet)
         self.openstack_tenant_fixture.floating_ip.status = "ACTIVE"
         self.openstack_tenant_fixture.floating_ip.save()
         data = self.get_valid_data(
@@ -823,16 +830,24 @@ class InstanceUpdateInternalIPsSetTest(test.APITransactionTestCase):
         )
         ip_to_delete = factories.InternalIPFactory(instance=self.instance)
         # instance should be connected to new subnet
-        subnet_to_connect = factories.SubNetFactory(
-            settings=self.fixture.openstack_tenant_service_settings
+        subnet_to_connect = openstack_factories.SubNetFactory(
+            tenant=self.fixture.tenant
         )
 
         response = self.client.post(
             self.url,
             data={
                 "internal_ips_set": [
-                    {"subnet": factories.SubNetFactory.get_url(self.fixture.subnet)},
-                    {"subnet": factories.SubNetFactory.get_url(subnet_to_connect)},
+                    {
+                        "subnet": openstack_factories.SubNetFactory.get_url(
+                            self.fixture.subnet
+                        )
+                    },
+                    {
+                        "subnet": openstack_factories.SubNetFactory.get_url(
+                            subnet_to_connect
+                        )
+                    },
                 ]
             },
         )
@@ -849,13 +864,13 @@ class InstanceUpdateInternalIPsSetTest(test.APITransactionTestCase):
         )
 
     def test_user_cannot_add_internal_ip_from_different_settings(self):
-        subnet = factories.SubNetFactory()
+        subnet = openstack_factories.SubNetFactory()
 
         response = self.client.post(
             self.url,
             data={
                 "internal_ips_set": [
-                    {"subnet": factories.SubNetFactory.get_url(subnet)},
+                    {"subnet": openstack_factories.SubNetFactory.get_url(subnet)},
                 ]
             },
         )
@@ -868,8 +883,16 @@ class InstanceUpdateInternalIPsSetTest(test.APITransactionTestCase):
             self.url,
             data={
                 "internal_ips_set": [
-                    {"subnet": factories.SubNetFactory.get_url(self.fixture.subnet)},
-                    {"subnet": factories.SubNetFactory.get_url(self.fixture.subnet)},
+                    {
+                        "subnet": openstack_factories.SubNetFactory.get_url(
+                            self.fixture.subnet
+                        )
+                    },
+                    {
+                        "subnet": openstack_factories.SubNetFactory.get_url(
+                            self.fixture.subnet
+                        )
+                    },
                 ]
             },
         )
@@ -897,7 +920,7 @@ class InstanceUpdateFloatingIPsTest(test.APITransactionTestCase):
         self.url = factories.InstanceFactory.get_url(
             self.instance, action=self.action_name
         )
-        self.subnet_url = factories.SubNetFactory.get_url(self.fixture.subnet)
+        self.subnet_url = openstack_factories.SubNetFactory.get_url(self.fixture.subnet)
 
     def test_user_can_update_instance_floating_ips(self):
         floating_ip_url = factories.FloatingIPFactory.get_url(self.fixture.floating_ip)
@@ -971,7 +994,7 @@ class InstanceUpdateFloatingIPsTest(test.APITransactionTestCase):
     def test_user_cannot_add_floating_ip_via_subnet_that_is_not_connected_to_instance(
         self,
     ):
-        subnet_url = factories.SubNetFactory.get_url()
+        subnet_url = openstack_factories.SubNetFactory.get_url()
         data = {"floating_ips": [{"subnet": subnet_url}]}
 
         response = self.client.post(self.url, data=data)

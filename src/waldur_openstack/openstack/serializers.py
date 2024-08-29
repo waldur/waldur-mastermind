@@ -845,6 +845,7 @@ class TenantSerializer(structure_serializers.BaseResourceSerializer):
                 name=slugified_name + "-sub-net",
                 description=_("SubNet for tenant %s internal network") % tenant.name,
                 network=network,
+                tenant=tenant,
                 service_settings=tenant.service_settings,
                 project=tenant.project,
                 cidr=subnet_cidr,
@@ -1197,6 +1198,7 @@ class SubNetSerializer(structure_serializers.BaseResourceActionSerializer):
 
         if self.instance is None:
             attrs["network"] = network = self.context["view"].get_object()
+            attrs["tenant"] = network.tenant
             if network.subnets.count() >= 1:
                 raise serializers.ValidationError(
                     _("Internal network cannot have more than one subnet.")

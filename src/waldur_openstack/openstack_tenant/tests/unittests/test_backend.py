@@ -18,7 +18,7 @@ class BaseBackendTest(TestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackTenantFixture()
         self.settings = self.fixture.openstack_tenant_service_settings
-        self.tenant = self.fixture.openstack_tenant_service_settings.scope
+        self.tenant = self.fixture.tenant
         self.mocked_neutron = mock.patch("neutronclient.v2_0.client.Client").start()()
         self.mocked_cinder = mock.patch("cinderclient.v3.client.Client").start()()
         self.mocked_nova = mock.patch("novaclient.v2.client.Client").start()()
@@ -264,121 +264,6 @@ class PullFloatingIPTest(BaseBackendTest):
         floating_ip.refresh_from_db()
         self.assertNotEqual(floating_ip.address, floating_ip.name)
         self.assertEqual(floating_ip.name, expected_name)
-
-
-class PullNetworksTest(BaseBackendTest):
-    def setUp(self):
-        super().setUp()
-        self.backend_networks = {
-            "networks": [
-                {
-                    "id": "backend_id",
-                    "name": "Private",
-                    "description": "Internal network",
-                }
-            ]
-        }
-        self.mocked_neutron.list_networks.return_value = self.backend_networks
-
-    def test_missing_networks_are_created(self):
-        self.tenant_backend.pull_networks()
-
-        self.assertEqual(models.Network.objects.count(), 1)
-        network = models.Network.objects.get(
-            settings=self.settings,
-            backend_id="backend_id",
-        )
-        self.assertEqual(network.name, "Private")
-        self.assertEqual(network.description, "Internal network")
-
-    def test_stale_networks_are_deleted(self):
-        factories.NetworkFactory(settings=self.settings)
-        self.mocked_neutron.list_networks.return_value = dict(networks=[])
-        self.tenant_backend.pull_networks()
-        self.assertEqual(models.Network.objects.count(), 0)
-
-    def test_existing_networks_are_updated(self):
-        network = factories.NetworkFactory(
-            settings=self.settings,
-            backend_id="backend_id",
-            name="Old name",
-        )
-        self.tenant_backend.pull_networks()
-        network.refresh_from_db()
-        self.assertEqual(network.name, "Private")
-
-
-class PullSubnetsTest(BaseBackendTest):
-    def setUp(self):
-        super().setUp()
-        self.network = factories.NetworkFactory(
-            settings=self.settings, backend_id="network_id"
-        )
-        self.backend_subnets = {
-            "subnets": [
-                {
-                    "id": "backend_id",
-                    "network_id": "network_id",
-                    "name": "subnet-1",
-                    "description": "",
-                    "cidr": "192.168.42.0/24",
-                    "ip_version": 4,
-                    "allocation_pools": [
-                        {
-                            "start": "192.168.42.10",
-                            "end": "192.168.42.100",
-                        }
-                    ],
-                }
-            ]
-        }
-        self.mocked_neutron.list_subnets.return_value = self.backend_subnets
-
-    def test_missing_subnets_are_created(self):
-        self.tenant_backend.pull_subnets()
-
-        self.mocked_neutron.list_subnets.assert_called_once_with(
-            tenant_id=self.tenant.backend_id
-        )
-        self.assertEqual(models.SubNet.objects.count(), 1)
-        subnet = models.SubNet.objects.get(
-            settings=self.settings,
-            backend_id="backend_id",
-            network=self.network,
-        )
-        self.assertEqual(subnet.name, "subnet-1")
-        self.assertEqual(subnet.cidr, "192.168.42.0/24")
-        self.assertEqual(
-            subnet.allocation_pools,
-            [
-                {
-                    "start": "192.168.42.10",
-                    "end": "192.168.42.100",
-                }
-            ],
-        )
-
-    def test_subnet_is_not_pulled_if_network_is_not_pulled_yet(self):
-        self.network.delete()
-        self.tenant_backend.pull_subnets()
-        self.assertEqual(models.SubNet.objects.count(), 0)
-
-    def test_stale_subnets_are_deleted(self):
-        factories.NetworkFactory(settings=self.settings)
-        self.mocked_neutron.list_subnets.return_value = dict(subnets=[])
-        self.tenant_backend.pull_subnets()
-        self.assertEqual(models.SubNet.objects.count(), 0)
-
-    def test_existing_subnets_are_updated(self):
-        subnet = factories.SubNetFactory(
-            settings=self.settings,
-            backend_id="backend_id",
-            name="Old name",
-            network=self.network,
-        )
-        self.tenant_backend.pull_subnets()
-        subnet.refresh_from_db()
-        self.assertEqual(subnet.name, "subnet-1")
 
 
 class VolumesBaseTest(BaseBackendTest):
@@ -1203,7 +1088,9 @@ class PullInstanceFloatingIpsTest(BaseBackendTest):
             instance=instance,
         )
 
-        fip = factories.FloatingIPFactory(settings=subnet.settings, internal_ip=ip1)
+        fip = factories.FloatingIPFactory(
+            settings=instance.service_settings, internal_ip=ip1
+        )
 
         floatingips = [
             {

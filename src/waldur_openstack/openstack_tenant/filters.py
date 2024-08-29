@@ -28,29 +28,6 @@ class FlavorFilter(structure_filters.ServicePropertySettingsFilter):
         )
 
 
-class NetworkFilter(structure_filters.ServicePropertySettingsFilter):
-    class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
-        model = models.Network
-        fields = structure_filters.ServicePropertySettingsFilter.Meta.fields + (
-            "type",
-            "is_external",
-        )
-
-
-class SubNetFilter(structure_filters.ServicePropertySettingsFilter):
-    network = core_filters.URLFilter(
-        view_name="openstacktenant-network-detail", field_name="network__uuid"
-    )
-    network_uuid = django_filters.UUIDFilter(field_name="network__uuid")
-
-    class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
-        model = models.SubNet
-        fields = structure_filters.ServicePropertySettingsFilter.Meta.fields + (
-            "ip_version",
-            "enable_dhcp",
-        )
-
-
 class FloatingIPFilter(structure_filters.ServicePropertySettingsFilter):
     free = django_filters.BooleanFilter(
         field_name="internal_ip", lookup_expr="isnull", widget=BooleanWidget

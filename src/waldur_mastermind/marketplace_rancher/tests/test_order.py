@@ -56,7 +56,7 @@ class OrderProcessedTest(test.APITransactionTestCase):
                 "ssh_public_key": SshPublicKeyFactory.get_url(ssh_public_key),
                 "nodes": [
                     {
-                        "subnet": openstack_tenant_factories.SubNetFactory.get_url(
+                        "subnet": openstack_factories.SubNetFactory.get_url(
                             self.fixture.subnet
                         ),
                         "system_volume_size": 1024,

@@ -406,9 +406,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
             settings=self.service_settings
         )
 
-        subnet_url = openstack_tenant_factories.SubNetFactory.get_url(
-            self.fixture.subnet
-        )
+        subnet_url = openstack_factories.SubNetFactory.get_url(self.fixture.subnet)
         attributes = {
             "flavor": openstack_tenant_factories.FlavorFactory.get_url(flavor),
             "image": openstack_tenant_factories.ImageFactory.get_url(image),

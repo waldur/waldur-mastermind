@@ -53,16 +53,6 @@ def register_in(router):
         basename="openstacktenant-snapshot-schedule",
     )
     router.register(
-        r"openstacktenant-subnets",
-        views.SubNetViewSet,
-        basename="openstacktenant-subnet",
-    )
-    router.register(
-        r"openstacktenant-networks",
-        views.NetworkViewSet,
-        basename="openstacktenant-network",
-    )
-    router.register(
         r"openstacktenant-volume-types",
         views.VolumeTypeViewSet,
         basename="openstacktenant-volume-type",
