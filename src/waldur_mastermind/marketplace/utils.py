@@ -648,16 +648,14 @@ def get_offering_projects(offering):
 
 
 def is_user_related_to_offering(offering, user):
-    if offering.type == BASIC_PLUGIN_NAME:
-        connected_projects = get_connected_projects(user)
-        return (
-            models.Resource.objects.filter(
-                offering=offering, project__in=connected_projects
-            )
-            .exclude(state=models.Resource.States.TERMINATED)
-            .exists()
+    connected_projects = get_connected_projects(user)
+    return (
+        models.Resource.objects.filter(
+            offering=offering, project__in=connected_projects
         )
-    return False
+        .exclude(state=models.Resource.States.TERMINATED)
+        .exists()
+    )
 
 
 def get_start_and_end_dates_from_request(request):
