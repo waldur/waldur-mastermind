@@ -23,9 +23,12 @@ class KeycloakBackend:
 
     def create_project_group(self, group_id, project):
         logger.info(
-            "Creating project group %s as a child of %s", project.name, group_id
+            "Creating project group %s (%s) as a child of %s",
+            project.name,
+            project.slug,
+            group_id,
         )
-        project_group_id = self.client.create_child_group(group_id, project.name)
+        project_group_id = self.client.create_child_group(group_id, project.slug)
         ProjectGroup.objects.create(project=project, backend_id=project_group_id)
 
         # Add users to project group
@@ -35,8 +38,8 @@ class KeycloakBackend:
             self.client.add_user_to_group(user_id, project_group_id)
 
     def create_customer_group(self, customer):
-        logger.info("Creating customer group %s", customer.name)
-        group_id = self.client.create_group(customer.name)
+        logger.info("Creating customer group %s (%s)", customer.name, customer.slug)
+        group_id = self.client.create_group(customer.slug)
         CustomerGroup.objects.create(customer=customer, backend_id=group_id)
 
         # Create project groups
@@ -54,7 +57,7 @@ class KeycloakBackend:
         remote_group_ids = set(remote_group_names.keys())
 
         local_group_names = {
-            str(group.backend_id): group.customer.name for group in local_groups
+            str(group.backend_id): group.customer.slug for group in local_groups
         }
         local_group_map = {
             str(group.backend_id): group.customer for group in local_groups
@@ -87,7 +90,7 @@ class KeycloakBackend:
                 project__customer=local_group_map[group_id], project__is_removed=False
             )
             local_subgroup_names = {
-                str(subgroup.backend_id): subgroup.project.name
+                str(subgroup.backend_id): subgroup.project.slug
                 for subgroup in local_subgroups
             }
             local_subgroup_map = {
