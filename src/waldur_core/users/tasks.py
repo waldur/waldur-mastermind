@@ -71,6 +71,9 @@ def send_invitation_created(invitation_uuid, sender):
 
     context = utils.get_invitation_context(invitation, sender)
     context["link"] = utils.get_invitation_link(invitation_uuid)
+    context["scope_link"] = utils.get_scope_link(
+        context["type"], invitation.scope.uuid.hex
+    )
     site_link = format_homeport_link()
     context["site_host"] = urlparse(site_link).hostname
 
