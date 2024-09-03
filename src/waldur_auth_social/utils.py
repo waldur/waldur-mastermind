@@ -93,7 +93,7 @@ def create_or_update_keycloak_user(backend_user):
     email = backend_user.get("email")
     first_name = backend_user.get("given_name", "")
     last_name = backend_user.get("family_name", "")
-    organization = backend_user.get("org", "")
+    organization = backend_user.get("affiliation") or backend_user.get("org") or ""
     identity_source = backend_user.get("identity_source", "")
     try:
         user = User.objects.get(username=username)
