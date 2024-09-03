@@ -162,6 +162,18 @@ def get_invitation_link(uuid):
     return core_utils.format_homeport_link("invitation/{uuid}/", uuid=uuid)
 
 
+def get_scope_link(scope_type, scope_uuid):
+    scope_to_homeport_prefix_map = {
+        "project": "projects",
+        "organization": "organizations",
+        "call": "calls",
+    }
+    api_suffix = scope_to_homeport_prefix_map.get(scope_type, "unknown")
+    return core_utils.format_homeport_link(
+        "{api_suffix}/{scope_uuid}/", api_suffix=api_suffix, scope_uuid=scope_uuid
+    )
+
+
 def can_manage_invitation_with(request, scope):
     if request.user.is_staff:
         return True
@@ -246,6 +258,7 @@ def post_invitation_to_url(url: str, context):
         "created_by_full_name": invitation.created_by.full_name,
         "created_by_username": invitation.created_by.username,
         "expires": invitation.get_expiration_time().isoformat(),
+        "redirect_scope_link": context["scope_link"],
         "redirect_url": context["link"],
         "invitation_uuid": invitation.uuid.hex,
     }
