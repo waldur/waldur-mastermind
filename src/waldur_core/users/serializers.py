@@ -134,8 +134,6 @@ class InvitationSerializer(BaseInvitationSerializer):
 
 
 class VisibleInvitationDetailsSerializer(BaseInvitationDetailsSerializer):
-    state = serializers.ReadOnlyField(source="get_state_display")
-
     class Meta:
         model = models.Invitation
         fields = BaseInvitationDetailsSerializer.Meta.fields + (
