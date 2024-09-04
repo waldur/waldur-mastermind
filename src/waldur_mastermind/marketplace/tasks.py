@@ -69,7 +69,7 @@ def notify_consumer_about_pending_order(uuid):
         return
 
     order_link = core_utils.format_homeport_link(
-        "projects/{project_uuid}/marketplace-order-details/{order_uuid}/",
+        "marketplace-order-details/{order_uuid}/",
         project_uuid=order.project.uuid,
         order_uuid=order.uuid,
     )
@@ -101,7 +101,7 @@ def notify_provider_about_pending_order(order_uuid):
         return
 
     link = core_utils.format_homeport_link(
-        "providers/{organization_uuid}/marketplace-orders/",
+        "providers/{organization_uuid}/orders/",
         organization_uuid=order.offering.customer.uuid,
     )
 
@@ -296,7 +296,7 @@ def notify_about_stale_resource():
     for resource in resources:
         mails = resource.project.customer.get_owner_mails()
         resource_url = core_utils.format_homeport_link(
-            "projects/{project_uuid}/marketplace-project-resource-details/{resource_uuid}/",
+            "resource-details/{resource_uuid}/",
             project_uuid=resource.project.uuid.hex,
             resource_uuid=resource.uuid.hex,
         )
@@ -346,7 +346,7 @@ def notify_about_resource_termination(resource_uuid, user_uuid, is_staff_action=
     if user.email and user.notifications_enabled:
         bcc.append(user.email)
     resource_url = core_utils.format_homeport_link(
-        "projects/{project_uuid}/marketplace-project-resource-details/{resource_uuid}/",
+        "project-resource-details/{resource_uuid}/",
         project_uuid=resource.project.uuid.hex,
         resource_uuid=resource.uuid.hex,
     )
