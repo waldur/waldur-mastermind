@@ -1,6 +1,10 @@
+import datetime
+
 from ddt import data, ddt
+from freezegun import freeze_time
 from rest_framework import status, test
 
+from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.policy.models import OfferingUsagePolicy
@@ -167,3 +171,59 @@ class OfferingUsagePolicyTriggerTest(test.APITransactionTestCase):
         )
         self.policy.refresh_from_db()
         self.assertTrue(self.policy.has_fired)
+
+    @freeze_time("2024-09-01")
+    def test_policy_period(self):
+        self.customer.organization_group = self.organization_group
+        self.customer.save()
+
+        # period = 1 month
+        usage = marketplace_factories.ComponentUsageFactory(
+            resource=self.resource,
+            component=self.component,
+            usage=self.fixture.component_limit.limit + 1,
+            billing_period=core_utils.month_start(
+                datetime.datetime(day=1, month=9, year=2024)
+            ),
+        )
+        self.policy.refresh_from_db()
+        self.assertEqual(self.policy.has_fired, True)
+
+        usage.billing_period = core_utils.month_start(
+            datetime.datetime(day=1, month=7, year=2024)
+        )
+        usage.save()
+        self.policy.refresh_from_db()
+        self.assertEqual(self.policy.has_fired, False)
+
+        url = factories.OfferingUsagePolicyFactory.get_url(self.policy)
+        self.client.force_authenticate(self.fixture.staff)
+
+        # period = 3 month
+        self.client.patch(url, {"period": OfferingUsagePolicy.Periods.MONTH_3})
+        self.policy.refresh_from_db()
+        self.assertEqual(self.policy.has_fired, True)
+
+        usage.billing_period = core_utils.month_start(
+            datetime.datetime(day=1, month=10, year=2023)
+        )
+        usage.save()
+        self.policy.refresh_from_db()
+        self.assertEqual(self.policy.has_fired, False)
+
+        # period = 12 month
+        self.client.patch(url, {"period": OfferingUsagePolicy.Periods.MONTH_12})
+        self.policy.refresh_from_db()
+        self.assertEqual(self.policy.has_fired, True)
+
+        usage.billing_period = core_utils.month_start(
+            datetime.datetime(day=1, month=9, year=2023)
+        )
+        usage.save()
+        self.policy.refresh_from_db()
+        self.assertEqual(self.policy.has_fired, False)
+
+        # period = Total
+        self.client.patch(url, {"period": OfferingUsagePolicy.Periods.TOTAL})
+        self.policy.refresh_from_db()
+        self.assertEqual(self.policy.has_fired, True)

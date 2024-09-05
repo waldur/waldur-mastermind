@@ -1,18 +1,21 @@
 from unittest import mock
 
 from ddt import data, ddt
+from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.billing import models as billing_models
+from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 from waldur_mastermind.policy.models import ProjectEstimatedCostPolicy
+from waldur_mastermind.policy.tasks import check_polices
 from waldur_mastermind.policy.tests import factories
 
 
+@freeze_time("2024-09-01")
 class ActionsFunctionsTest(test.APITransactionTestCase):
     def setUp(self):
         self.notify_project_team_mock = mock.MagicMock()
@@ -28,10 +31,29 @@ class ActionsFunctionsTest(test.APITransactionTestCase):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.project = self.fixture.project
         self.policy = factories.ProjectEstimatedCostPolicyFactory(scope=self.project)
-        self.estimate = billing_models.PriceEstimate.objects.get(scope=self.project)
+        self.invoice = invoices_factories.InvoiceFactory(
+            customer=self.fixture.customer,
+            month=9,
+            year=2024,
+            tax_percent=0,
+        )
 
     def tearDown(self):
         mock.patch.stopall()
+
+    def create_or_update_invoice_item(self, unit_price):
+        if self.invoice.items.first():
+            invoice_item = self.invoice.items.first()
+            invoice_item.unit_price = unit_price
+            invoice_item.save()
+        else:
+            invoice_item = invoices_factories.InvoiceItemFactory(
+                invoice=self.invoice,
+                project=self.project,
+                quantity=1,
+                unit_price=unit_price,
+            )
+        return invoice_item
 
     def test_calling_of_one_time_actions(self):
         with mock.patch.object(
@@ -42,29 +64,25 @@ class ActionsFunctionsTest(test.APITransactionTestCase):
                 self.block_creation_of_new_resources_mock,
             ],
         ):
-            self.estimate.total = self.policy.limit_cost + 1
-            self.estimate.save()
+            self.create_or_update_invoice_item(self.policy.limit_cost + 1)
             self.notify_project_team_mock.assert_called_once()
             self.block_creation_of_new_resources_mock.assert_not_called()
             self.notify_project_team_mock.reset_mock()
             self.block_creation_of_new_resources_mock.reset_mock()
 
-            self.estimate.total = self.policy.limit_cost + 2
-            self.estimate.save()
+            self.create_or_update_invoice_item(self.policy.limit_cost + 2)
             self.notify_project_team_mock.assert_not_called()
             self.block_creation_of_new_resources_mock.assert_not_called()
             self.notify_project_team_mock.reset_mock()
             self.block_creation_of_new_resources_mock.reset_mock()
 
-            self.estimate.total = self.policy.limit_cost - 1
-            self.estimate.save()
+            self.create_or_update_invoice_item(self.policy.limit_cost - 1)
             self.notify_project_team_mock.assert_not_called()
             self.block_creation_of_new_resources_mock.assert_not_called()
             self.notify_project_team_mock.reset_mock()
             self.block_creation_of_new_resources_mock.reset_mock()
 
-            self.estimate.total = self.policy.limit_cost + 1
-            self.estimate.save()
+            self.create_or_update_invoice_item(self.policy.limit_cost + 1)
             self.notify_project_team_mock.assert_called_once()
             self.block_creation_of_new_resources_mock.assert_not_called()
             self.notify_project_team_mock.reset_mock()
@@ -79,8 +97,7 @@ class ActionsFunctionsTest(test.APITransactionTestCase):
                 self.block_creation_of_new_resources_mock,
             ],
         ):
-            self.estimate.total = self.policy.limit_cost + 1
-            self.estimate.save()
+            self.create_or_update_invoice_item(self.policy.limit_cost + 1)
 
             self.notify_project_team_mock.reset_mock()
             self.block_creation_of_new_resources_mock.reset_mock()
@@ -98,13 +115,11 @@ class ActionsFunctionsTest(test.APITransactionTestCase):
             self.block_creation_of_new_resources_mock.assert_called()
 
     def test_has_fired(self):
-        self.estimate.total = self.policy.limit_cost + 1
-        self.estimate.save()
+        self.create_or_update_invoice_item(self.policy.limit_cost + 1)
         self.policy.refresh_from_db()
         self.assertEqual(self.policy.has_fired, True)
 
-        self.estimate.total = 0
-        self.estimate.save()
+        self.create_or_update_invoice_item(self.policy.limit_cost - 1)
         self.policy.refresh_from_db()
         self.assertEqual(self.policy.has_fired, False)
         self.assertTrue(self.policy.fired_datetime)
@@ -119,12 +134,65 @@ class ActionsFunctionsTest(test.APITransactionTestCase):
             ],
         ):
             policy_2 = factories.ProjectEstimatedCostPolicyFactory(scope=self.project)
-            self.estimate.total = self.policy.limit_cost + 100
-            self.estimate.save()
+            self.create_or_update_invoice_item(self.policy.limit_cost + 1)
             self.policy.refresh_from_db()
             policy_2.refresh_from_db()
             self.assertEqual(self.policy.has_fired, True)
             self.assertEqual(policy_2.has_fired, True)
+
+    def test_policy_period(self):
+        # period = 1 month
+        invoice_item = self.create_or_update_invoice_item(self.policy.limit_cost + 1)
+        self.policy.refresh_from_db()
+        self.assertEqual(self.policy.has_fired, True)
+
+        invoice_item.invoice.month = 7
+        invoice_item.invoice.save()
+        invoice_item.save()  # for running of a handler
+        self.policy.refresh_from_db()
+        self.assertEqual(self.policy.has_fired, False)
+
+        url = factories.ProjectEstimatedCostPolicyFactory.get_url(self.policy)
+        self.client.force_authenticate(self.fixture.staff)
+
+        # period = 3 month
+        self.client.patch(url, {"period": ProjectEstimatedCostPolicy.Periods.MONTH_3})
+        self.policy.refresh_from_db()
+        self.assertEqual(self.policy.has_fired, True)
+
+        invoice_item.invoice.month = 10
+        invoice_item.invoice.year = 2023
+        invoice_item.invoice.save()
+        invoice_item.save()
+        self.policy.refresh_from_db()
+        self.assertEqual(self.policy.has_fired, False)
+
+        # period = 12 month
+        self.client.patch(url, {"period": ProjectEstimatedCostPolicy.Periods.MONTH_12})
+        self.policy.refresh_from_db()
+        self.assertEqual(self.policy.has_fired, True)
+
+        invoice_item.invoice.month = 9
+        invoice_item.invoice.year = 2023
+        invoice_item.invoice.save()
+        invoice_item.save()
+        self.policy.refresh_from_db()
+        self.assertEqual(self.policy.has_fired, False)
+
+        # period = Total
+        self.client.patch(url, {"period": ProjectEstimatedCostPolicy.Periods.TOTAL})
+        self.policy.refresh_from_db()
+        self.assertEqual(self.policy.has_fired, True)
+
+    def test_check_polices_task(self):
+        self.create_or_update_invoice_item(self.policy.limit_cost + 1)
+        self.policy.refresh_from_db()
+        self.assertEqual(self.policy.has_fired, True)
+
+        with freeze_time("2024-10-01"):
+            check_polices()
+            self.policy.refresh_from_db()
+            self.assertEqual(self.policy.has_fired, False)
 
 
 @ddt
@@ -195,6 +263,7 @@ class CreatePolicyTest(test.APITransactionTestCase):
         response = self._create_policy("staff")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
+    @freeze_time("2024-09-01")
     def test_policies_should_be_triggered_after_creation_if_cost_limit_has_been_reached(
         self,
     ):
@@ -208,6 +277,13 @@ class CreatePolicyTest(test.APITransactionTestCase):
             "block_creation_of_new_resources"
         )
 
+        invoice = invoices_factories.InvoiceFactory(
+            customer=self.fixture.customer,
+            month=9,
+            year=2024,
+            tax_percent=0,
+        )
+
         with mock.patch.object(
             ProjectEstimatedCostPolicy,
             "get_all_actions",
@@ -216,10 +292,9 @@ class CreatePolicyTest(test.APITransactionTestCase):
                 block_creation_of_new_resources_mock,
             ],
         ):
-            estimate = billing_models.PriceEstimate.objects.get(scope=self.project)
-            estimate.total = 1000
-            estimate.save()
-
+            invoices_factories.InvoiceItemFactory(
+                invoice=invoice, project=self.project, quantity=1, unit_price=1000
+            )
             response = self._create_policy("staff")
             policy = ProjectEstimatedCostPolicy.objects.get(uuid=response.data["uuid"])
             notify_project_team_mock.assert_called_once()

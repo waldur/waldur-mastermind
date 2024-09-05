@@ -95,7 +95,13 @@ class Migration(migrations.Migration):
                 (
                     "period",
                     django_fsm.FSMIntegerField(
-                        choices=[(1, "Total"), (2, "Month")], default=1
+                        choices=[
+                            (1, "Total"),
+                            (2, "1 month"),
+                            (3, "3 month"),
+                            (4, "12 month"),
+                        ],
+                        default=2,
                     ),
                 ),
                 (

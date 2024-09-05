@@ -28,27 +28,24 @@ def run_one_time_actions(policies):
             policy.save()
 
 
-def get_estimated_cost_policy_handler(klass):
-    def handler(sender, instance, created=False, **kwargs):
-        estimated_cost = instance
-
-        if not isinstance(estimated_cost.scope, klass.get_scope_class()):
-            return
-
-        scope = estimated_cost.scope
-        policies = klass.objects.filter(scope=scope)
-
-        run_one_time_actions(policies)
-
-    return handler
+def customer_estimated_cost_policy_trigger_handler(
+    sender, instance, created=False, **kwargs
+):
+    invoice_item = instance
+    policies = models.CustomerEstimatedCostPolicy.objects.filter(
+        scope=invoice_item.invoice.customer
+    )
+    run_one_time_actions(policies)
 
 
-customer_estimated_cost_policy_trigger_handler = get_estimated_cost_policy_handler(
-    models.CustomerEstimatedCostPolicy
-)
-project_estimated_cost_policy_trigger_handler = get_estimated_cost_policy_handler(
-    models.ProjectEstimatedCostPolicy
-)
+def project_estimated_cost_policy_trigger_handler(
+    sender, instance, created=False, **kwargs
+):
+    invoice_item = instance
+    policies = models.ProjectEstimatedCostPolicy.objects.filter(
+        scope=invoice_item.project
+    )
+    run_one_time_actions(policies)
 
 
 def get_offering_trigger_handler(klass):

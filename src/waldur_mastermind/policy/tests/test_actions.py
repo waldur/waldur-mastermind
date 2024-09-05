@@ -1,11 +1,12 @@
 from unittest import mock
 
+from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
 from waldur_core.logging import models as logging_models
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.billing import models as billing_models
+from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
@@ -14,6 +15,7 @@ from waldur_mastermind.policy import tasks
 from waldur_mastermind.policy.tests import factories
 
 
+@freeze_time("2024-09-01")
 class ActionsTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
@@ -21,12 +23,25 @@ class ActionsTest(test.APITransactionTestCase):
         self.policy = factories.ProjectEstimatedCostPolicyFactory(
             scope=self.project, created_by=self.fixture.user
         )
-        self.estimate = billing_models.PriceEstimate.objects.get(scope=self.project)
         self.admin = self.fixture.admin
         self.owner = self.fixture.owner
 
         structure_factories.NotificationFactory(
             key="marketplace_policy.notification_about_project_cost_exceeded_limit"
+        )
+        self.invoice = invoices_factories.InvoiceFactory(
+            customer=self.fixture.customer,
+            month=9,
+            year=2024,
+            tax_percent=0,
+        )
+
+    def create_invoice_item(self, unit_price):
+        return invoices_factories.InvoiceItemFactory(
+            invoice=self.invoice,
+            project=self.project,
+            quantity=1,
+            unit_price=unit_price,
         )
 
     @mock.patch("waldur_core.core.utils.send_mail")
@@ -62,9 +77,7 @@ class ActionsTest(test.APITransactionTestCase):
     def test_create_event_log(self, mock_tasks):
         self.policy.actions = "notify_organization_owners"
         self.policy.save()
-
-        self.estimate.total = self.policy.limit_cost + 1
-        self.estimate.save()
+        self.create_invoice_item(self.policy.limit_cost + 1)
 
         mock_tasks.notify_customer_owners.delay.assert_called_once()
         self.assertTrue(
@@ -95,8 +108,7 @@ class ActionsTest(test.APITransactionTestCase):
         response = self.create_order()
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-        self.estimate.total = self.policy.limit_cost + 1
-        self.estimate.save()
+        self.create_invoice_item(self.policy.limit_cost + 1)
 
         response = self.create_order()
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -111,10 +123,9 @@ class ActionsTest(test.APITransactionTestCase):
             uuid=response.data["marketplace_resource_uuid"]
         )
 
-        self.estimate.total = self.policy.limit_cost + 1
-        self.estimate.save()
         resource.set_state_ok()
         resource.save()
+        self.create_invoice_item(self.policy.limit_cost + 1)
 
         self.client.force_authenticate(self.fixture.staff)
         url = marketplace_factories.ResourceFactory.get_url(resource, "update_limits")
@@ -133,8 +144,7 @@ class ActionsTest(test.APITransactionTestCase):
         resource.offering.type = INSTANCE_TYPE
         resource.offering.save()
 
-        self.estimate.total = self.policy.limit_cost + 1
-        self.estimate.save()
+        self.create_invoice_item(self.policy.limit_cost + 1)
 
         self.assertTrue(
             marketplace_models.Order.objects.filter(
@@ -155,8 +165,7 @@ class ActionsTest(test.APITransactionTestCase):
 
         resource = self.fixture.resource
 
-        self.estimate.total = self.policy.limit_cost + 1
-        self.estimate.save()
+        self.create_invoice_item(self.policy.limit_cost + 1)
 
         resource.refresh_from_db()
         self.policy.refresh_from_db()
