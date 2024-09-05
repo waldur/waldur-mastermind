@@ -87,8 +87,14 @@ class PolicySerializer(serializers.HyperlinkedModelSerializer):
 
 
 class EstimatedCostPolicySerializer(PolicySerializer):
+    period_name = serializers.ReadOnlyField(source="get_period_display")
+
     class Meta(PolicySerializer.Meta):
-        fields = PolicySerializer.Meta.fields + ("limit_cost",)
+        fields = PolicySerializer.Meta.fields + (
+            "limit_cost",
+            "period",
+            "period_name",
+        )
 
 
 class ProjectEstimatedCostPolicySerializer(

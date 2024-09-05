@@ -15,3 +15,15 @@ class PolicyExtension(WaldurExtension):
         from .urls import register_in
 
         return register_in
+
+    @staticmethod
+    def celery_tasks():
+        from celery.schedules import crontab
+
+        return {
+            "check-polices": {
+                "task": "waldur_mastermind.policy.check_polices",
+                "schedule": crontab(day_of_month=1),
+                "args": (),
+            },
+        }

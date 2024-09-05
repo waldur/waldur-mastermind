@@ -1,10 +1,11 @@
 import datetime
 import logging
 
+from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.core import exceptions
 from django.db import models
-from django.db.models import Sum
+from django.db.models import Q, Sum
 from django.utils.translation import gettext_lazy as _
 from django_fsm import FSMIntegerField
 from model_utils.models import TimeStampedModel
@@ -13,7 +14,6 @@ from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
-from waldur_mastermind.billing import models as billing_models
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import models as marketplace_models
 
@@ -26,7 +26,7 @@ class Policy(
     TimeStampedModel,
     core_models.UuidMixin,
 ):
-    trigger_class = billing_models.PriceEstimate
+    trigger_class = NotImplemented
     observable_classes = [marketplace_models.Resource]
     available_actions = NotImplemented
 
@@ -42,9 +42,9 @@ class Policy(
     actions = NotImplemented
     scope = NotImplemented
 
-    @classmethod
-    def get_scope_class(cls):
-        return cls.scope.field.related_model
+    @staticmethod
+    def get_scope_from_observable_object(observable_object):
+        return
 
     def get_scope_homeport_url(self):
         return
@@ -76,15 +76,62 @@ class Policy(
         abstract = True
 
 
-class EstimatedCostPolicyMixin(models.Model):
+class PeriodMixin(models.Model):
+    class Periods:
+        TOTAL = 1
+        MONTH_1 = 2
+        MONTH_3 = 3
+        MONTH_12 = 4
+
+        CHOICES = (
+            (TOTAL, "Total"),
+            (MONTH_1, "1 month"),
+            (MONTH_3, "3 month"),
+            (MONTH_12, "12 month"),
+        )
+
+    period = FSMIntegerField(default=Periods.MONTH_1, choices=Periods.CHOICES)
+
+    class Meta:
+        abstract = True
+
+
+class EstimatedCostPolicyMixin(PeriodMixin):
+    trigger_class = invoices_models.InvoiceItem
+
     limit_cost = models.IntegerField()
 
-    def is_triggered(self):
-        try:
-            price_estimate = billing_models.PriceEstimate.objects.get(scope=self.scope)
-            return price_estimate.total > self.limit_cost
-        except billing_models.PriceEstimate.DoesNotExist:
-            return False
+    def _is_triggered(self, invoice_items):
+        customers = structure_models.Customer.objects.filter(
+            blocked=False,
+            archived=False,
+        )
+        invoice_items = invoice_items.filter(
+            invoice__customer__in=customers,
+        ).exclude(invoice__state=invoices_models.Invoice.States.CANCELED)
+        month_start = core_utils.month_start(datetime.date.today())
+        period = 0
+
+        if self.period == self.Periods.MONTH_1:
+            period = 1
+        elif self.period == self.Periods.MONTH_3:
+            period = 3
+        elif self.period == self.Periods.MONTH_12:
+            period = 12
+
+        query = Q()
+
+        for n in range(period):
+            previous_month_date = month_start - relativedelta(months=n)
+            query |= Q(
+                invoice__month=previous_month_date.month,
+                invoice__year=previous_month_date.year,
+            )
+
+        invoice_items = invoice_items.filter(query)
+
+        total = sum([i.total for i in invoice_items])
+        return total > self.limit_cost
 
     class Meta:
         abstract = True
@@ -121,6 +168,12 @@ class ProjectPolicy(Policy):
 
 
 class ProjectEstimatedCostPolicy(EstimatedCostPolicyMixin, ProjectPolicy):
+    def is_triggered(self):
+        project = self.scope
+        invoice_items = invoices_models.InvoiceItem.objects.filter(project=project)
+
+        return self._is_triggered(invoice_items)
+
     class Meta:
         verbose_name_plural = "Project estimated cost policies"
 
@@ -154,6 +207,14 @@ class CustomerPolicy(Policy):
 
 
 class CustomerEstimatedCostPolicy(EstimatedCostPolicyMixin, CustomerPolicy):
+    def is_triggered(self):
+        customer = self.scope
+        invoice_items = invoices_models.InvoiceItem.objects.filter(
+            invoice__customer=customer
+        )
+
+        return self._is_triggered(invoice_items)
+
     class Meta:
         verbose_name_plural = "Customer estimated cost policies"
 
@@ -188,56 +249,23 @@ class OfferingPolicy(Policy):
 
 
 class OfferingEstimatedCostPolicy(EstimatedCostPolicyMixin, OfferingPolicy):
-    trigger_class = invoices_models.InvoiceItem
-
-    class Periods:
-        TOTAL = 1
-        MONTH = 2
-
-        CHOICES = (
-            (TOTAL, "Total"),
-            (MONTH, "Month"),
-        )
-
-    period = FSMIntegerField(default=Periods.TOTAL, choices=Periods.CHOICES)
-
     def is_triggered(self):
         customers = structure_models.Customer.objects.filter(
-            organization_group__in=self.organization_groups.all(),
-            blocked=False,
-            archived=False,
+            organization_group__in=self.organization_groups.all()
         )
         items = invoices_models.InvoiceItem.objects.filter(
             resource__offering=self.scope,
             invoice__customer__in=customers,
         )
-
-        if self.period == self.Periods.MONTH:
-            items = items.filter(
-                invoice__created__gte=core_utils.month_start(datetime.date.today()),
-                invoice__created__lte=core_utils.month_end(datetime.date.today()),
-            )
-
-        total = sum([i.price for i in items])
-        return total > self.limit_cost
+        return self._is_triggered(items)
 
     class Meta:
         verbose_name_plural = "Offering estimated cost policies"
 
 
-class OfferingUsagePolicy(OfferingPolicy):
+class OfferingUsagePolicy(PeriodMixin, OfferingPolicy):
     trigger_class = marketplace_models.ComponentUsage
 
-    class Periods:
-        TOTAL = 1
-        MONTH = 2
-
-        CHOICES = (
-            (TOTAL, "Total"),
-            (MONTH, "Month"),
-        )
-
-    period = FSMIntegerField(default=Periods.TOTAL, choices=Periods.CHOICES)
     component_limit = models.ManyToManyField(
         marketplace_models.OfferingComponent, through="OfferingComponentLimit"
     )
@@ -252,9 +280,24 @@ class OfferingUsagePolicy(OfferingPolicy):
             resource__project__customer__in=customers
         )
 
-        if self.period == self.Periods.MONTH:
+        if self.period in (
+            self.Periods.MONTH_1,
+            self.Periods.MONTH_3,
+            self.Periods.MONTH_12,
+        ):
+            start = core_utils.month_start(datetime.date.today())
+
+            if self.period == self.Periods.MONTH_3:
+                start = core_utils.month_start(
+                    datetime.date.today() - relativedelta(months=2)
+                )
+            elif self.period == self.Periods.MONTH_12:
+                start = core_utils.month_start(
+                    datetime.date.today() - relativedelta(months=11)
+                )
+
             usages = usages.filter(
-                billing_period__gte=core_utils.month_start(datetime.date.today()),
+                billing_period__gte=start,
                 billing_period__lte=core_utils.month_end(datetime.date.today()),
             )
 
