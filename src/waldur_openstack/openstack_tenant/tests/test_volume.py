@@ -425,7 +425,7 @@ class VolumeNameCreateTest(BaseVolumeCreateTest):
             "project": ProjectFactory.get_url(self.fixture.project),
             "flavor": flavor_url,
             "system_volume_size": 20480,
-            "internal_ips_set": [{"subnet": subnet_url}],
+            "ports": [{"subnet": subnet_url}],
         }
 
         response = self.create_instance(payload)
@@ -446,7 +446,7 @@ class VolumeNameCreateTest(BaseVolumeCreateTest):
             "project": ProjectFactory.get_url(self.fixture.project),
             "flavor": flavor_url,
             "system_volume_size": 20480,
-            "internal_ips_set": [{"subnet": subnet_url}],
+            "ports": [{"subnet": subnet_url}],
             "data_volumes": [
                 {
                     "size": 1024,

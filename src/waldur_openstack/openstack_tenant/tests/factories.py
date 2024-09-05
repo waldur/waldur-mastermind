@@ -1,5 +1,4 @@
 import uuid
-from random import randint
 
 import factory
 import pytz
@@ -191,31 +190,6 @@ class InstanceFactory(
                 self.security_groups.add(group)
 
 
-class FloatingIPFactory(factory.django.DjangoModelFactory):
-    class Meta:
-        model = models.FloatingIP
-
-    name = factory.Sequence(lambda n: "floating_ip%s" % n)
-    settings = factory.SubFactory(OpenStackTenantServiceSettingsFactory)
-    runtime_state = factory.Iterator(["ACTIVE", "DOWN"])
-    address = factory.LazyAttribute(
-        lambda o: ".".join("%s" % randint(0, 255) for _ in range(4))  # noqa: S311
-    )
-    backend_id = factory.Sequence(lambda n: "backend_id_%s" % n)
-
-    @classmethod
-    def get_url(cls, instance=None):
-        if instance is None:
-            instance = FloatingIPFactory()
-        return "http://testserver" + reverse(
-            "openstacktenant-fip-detail", kwargs={"uuid": instance.uuid.hex}
-        )
-
-    @classmethod
-    def get_list_url(cls):
-        return "http://testserver" + reverse("openstacktenant-fip-list")
-
-
 class BackupScheduleFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.BackupSchedule
@@ -328,16 +302,6 @@ class SnapshotScheduleFactory(factory.django.DjangoModelFactory):
     @classmethod
     def get_list_url(cls):
         return "http://testserver" + reverse("openstacktenant-snapshot-schedule-list")
-
-
-class InternalIPFactory(factory.django.DjangoModelFactory):
-    class Meta:
-        model = models.InternalIP
-
-    backend_id = factory.Sequence(lambda n: "backend_id_%s" % n)
-    instance = factory.SubFactory(InstanceFactory)
-    subnet = factory.SubFactory(openstack_factories.SubNetFactory)
-    settings = factory.SelfAttribute("instance.service_settings")
 
 
 class VolumeTypeFactory(factory.django.DjangoModelFactory):

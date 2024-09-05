@@ -63,6 +63,7 @@ class BaseExecutor:
                 queue=is_heavy_task and "heavy" or None,
             )
         else:
+            result = None
             try:
                 result = signature.apply()
             except Exception as exc:
@@ -76,10 +77,13 @@ class BaseExecutor:
             else:
                 callback = link if not result.failed() else link_error
 
-            if callback is not None:
-                if not callback.immutable:
-                    callback.args = (result.id,) + callback.args
-                callback.apply()
+            if result:
+                if callback is not None:
+                    if not callback.immutable:
+                        callback.args = (result.id,) + callback.args
+                    callback.apply()
+            else:
+                result = callback.apply()
             return result.get()  # wait until task is ready
 
     @classmethod

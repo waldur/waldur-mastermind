@@ -412,7 +412,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
             "image": openstack_tenant_factories.ImageFactory.get_url(image),
             "name": "virtual-machine",
             "system_volume_size": image.min_disk,
-            "internal_ips_set": [{"subnet": subnet_url}],
+            "ports": [{"subnet": subnet_url}],
             "ssh_public_key": structure_factories.SshPublicKeyFactory.get_url(
                 structure_factories.SshPublicKeyFactory(user=self.fixture.manager)
             ),

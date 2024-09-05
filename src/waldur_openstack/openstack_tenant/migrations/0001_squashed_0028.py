@@ -1141,7 +1141,7 @@ class Migration(migrations.Migration):
                     models.ForeignKey(
                         null=True,
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name="internal_ips_set",
+                        related_name="ports",
                         to="openstack_tenant.instance",
                     ),
                 ),

@@ -7,6 +7,7 @@ from keystoneauth1.exceptions.connection import ConnectFailure
 from rest_framework import decorators, exceptions, generics, response, status
 from rest_framework import serializers as rf_serializers
 
+import waldur_openstack.openstack.serializers
 from waldur_core.core import exceptions as core_exceptions
 from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
@@ -145,13 +146,6 @@ class FlavorViewSet(openstack_base_views.FlavorViewSet):
     @decorators.action(detail=False)
     def usage_stats(self, request):
         return FlavorUsageReporter(self, request).get_report()
-
-
-class FloatingIPViewSet(structure_views.BaseServicePropertyViewSet):
-    queryset = models.FloatingIP.objects.all().order_by("settings", "address")
-    serializer_class = serializers.FloatingIPSerializer
-    lookup_field = "uuid"
-    filterset_class = filters.FloatingIPFilter
 
 
 class VolumeViewSet(structure_views.ResourceViewSet):
@@ -579,11 +573,22 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         serializer.save()
         subnet = serializer.validated_data["subnet"]
         allowed_address_pairs = serializer.validated_data["allowed_address_pairs"]
-        internal_ip = models.InternalIP.objects.get(instance=instance, subnet=subnet)
+        try:
+            port = openstack_models.Port.objects.get(instance=instance, subnet=subnet)
+        except openstack_models.Port.DoesNotExist:
+            return response.Response(
+                {"status": _("Port is not found.")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except openstack_models.Port.MultipleObjectsReturned:
+            return response.Response(
+                {"status": _("Multiple ports are found.")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         executors.InstanceAllowedAddressPairsUpdateExecutor().execute(
             instance,
-            backend_id=internal_ip.backend_id,
+            backend_id=port.backend_id,
             allowed_address_pairs=allowed_address_pairs,
         )
         return response.Response(
@@ -599,32 +604,30 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     )
 
     @decorators.action(detail=True, methods=["post"])
-    def update_internal_ips_set(self, request, uuid=None):
+    def update_ports(self, request, uuid=None):
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
 
-        executors.InstanceInternalIPsSetUpdateExecutor().execute(instance)
+        executors.InstancePortsUpdateExecutor().execute(instance)
         return response.Response(
             {"status": _("internal ips update was scheduled")},
             status=status.HTTP_202_ACCEPTED,
         )
 
-    update_internal_ips_set_validators = [
+    update_ports_validators = [
         core_validators.StateValidator(models.Instance.States.OK)
     ]
-    update_internal_ips_set_serializer_class = (
-        serializers.InstanceInternalIPsSetUpdateSerializer
-    )
+    update_ports_serializer_class = serializers.InstancePortsUpdateSerializer
 
     @decorators.action(detail=True, methods=["get"])
-    def internal_ips_set(self, request, uuid=None):
+    def ports(self, request, uuid=None):
         instance = self.get_object()
-        serializer = self.get_serializer(instance.internal_ips_set.all(), many=True)
+        serializer = self.get_serializer(instance.ports.all(), many=True)
         return response.Response(serializer.data, status=status.HTTP_200_OK)
 
-    internal_ips_set_serializer_class = serializers.NestedInternalIPSerializer
+    ports_serializer_class = waldur_openstack.openstack.serializers.NestedPortSerializer
 
     @decorators.action(detail=True, methods=["post"])
     def update_floating_ips(self, request, uuid=None):
@@ -651,12 +654,14 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         instance = self.get_object()
         serializer = self.get_serializer(
             instance=instance.floating_ips.all(),
-            queryset=models.FloatingIP.objects.all(),
+            queryset=openstack_models.FloatingIP.objects.all(),
             many=True,
         )
         return response.Response(serializer.data, status=status.HTTP_200_OK)
 
-    floating_ips_serializer_class = serializers.NestedFloatingIPSerializer
+    floating_ips_serializer_class = (
+        waldur_openstack.openstack.serializers.NestedFloatingIPSerializer
+    )
 
     @decorators.action(detail=True, methods=["get"])
     def console(self, request, uuid=None):
@@ -714,7 +719,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
                 "backups": instance.backups.count(),
                 "backup_schedules": instance.backup_schedules.count(),
                 "security_groups": instance.security_groups.count(),
-                "internal_ips": instance.internal_ips_set.count(),
+                "internal_ips": instance.ports.count(),
                 "floating_ips": instance.floating_ips.count(),
             }
         )

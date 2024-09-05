@@ -1,5 +1,6 @@
 import django_filters
 from django.db.models import Q
+from django_filters.widgets import BooleanWidget
 
 from waldur_core.core import filters as core_filters
 from waldur_core.structure import filters as structure_filters
@@ -39,10 +40,16 @@ class FloatingIPFilter(structure_filters.BaseResourceFilter):
     tenant = core_filters.URLFilter(
         view_name="openstack-tenant-detail", field_name="tenant__uuid"
     )
+    free = django_filters.BooleanFilter(
+        field_name="port", lookup_expr="isnull", widget=BooleanWidget
+    )
 
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.FloatingIP
-        fields = structure_filters.BaseResourceFilter.Meta.fields + ("runtime_state",)
+        fields = structure_filters.BaseResourceFilter.Meta.fields + (
+            "runtime_state",
+            "address",
+        )
 
 
 class FlavorFilter(structure_filters.ServicePropertySettingsFilter):

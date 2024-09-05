@@ -12,9 +12,7 @@ from waldur_mastermind.support import models, utils
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 from waldur_mastermind.support.tests import base, factories
 from waldur_mastermind.support.tests.base import load_resource
-from waldur_openstack.openstack_tenant.tests import (
-    factories as openstack_tenant_factories,
-)
+from waldur_openstack.openstack.tests.factories import FloatingIPFactory, PortFactory
 from waldur_openstack.openstack_tenant.tests import (
     fixtures as openstack_tenant_fixtures,
 )
@@ -659,10 +657,8 @@ class IssueFilterTest(base.BaseTest):
         self.assertEqual(response.data[0]["uuid"], self.issue.uuid.hex)
 
     def test_filter_by_internal_ip(self):
-        self.openstack_fixture.internal_ip.fixed_ips = [
-            {"ip_address": "111.222.333.444"}
-        ]
-        self.openstack_fixture.internal_ip.save()
+        self.openstack_fixture.port.fixed_ips = [{"ip_address": "111.222.333.444"}]
+        self.openstack_fixture.port.save()
         self.client.force_authenticate(self.fixture.staff)
 
         response = self.client.get(
@@ -679,12 +675,8 @@ class IssueFilterTest(base.BaseTest):
         self.assertEqual(response.data[0]["uuid"], self.issue.uuid.hex)
 
     def test_filter_by_external_ip(self):
-        internal_ip = openstack_tenant_factories.InternalIPFactory(
-            instance=self.openstack_fixture.instance
-        )
-        floating_ip = openstack_tenant_factories.FloatingIPFactory(
-            internal_ip=internal_ip
-        )
+        port = PortFactory(instance=self.openstack_fixture.instance)
+        floating_ip = FloatingIPFactory(port=port)
         self.client.force_authenticate(self.fixture.staff)
 
         response = self.client.get(

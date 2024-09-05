@@ -566,7 +566,7 @@ class InstanceExternalIPTest(test.APITransactionTestCase):
         self.resource = marketplace_factories.ResourceFactory(offering=self.offering)
         self.resource.scope = self.fixture.instance
         self.resource.save()
-        self.fixture.floating_ip.internal_ip = self.fixture.internal_ip
+        self.fixture.floating_ip.port = self.fixture.port
         self.fixture.floating_ip.save()
         self.url = marketplace_factories.ResourceFactory.get_url(
             self.resource, "details"
