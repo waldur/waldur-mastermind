@@ -177,19 +177,15 @@ def synchronize_directly_connected_ips(sender, instance, created=False, **kwargs
     utils.import_instance_metadata(resource)
 
 
-def synchronize_internal_ips(sender, instance, created=False, **kwargs):
-    internal_ip = instance
-    if not created and not set(internal_ip.tracker.changed()) & {
+def synchronize_ports(sender, instance, created=False, **kwargs):
+    port = instance
+    if not created and not set(port.tracker.changed()) & {
         "fixed_ips",
         "instance_id",
     }:
         return
 
-    vms = {
-        vm
-        for vm in (internal_ip.instance_id, internal_ip.tracker.previous("instance_id"))
-        if vm
-    }
+    vms = {vm for vm in (port.instance_id, port.tracker.previous("instance_id")) if vm}
 
     for vm in vms:
         try:
@@ -211,23 +207,21 @@ def synchronize_floating_ips(sender, instance, created=False, **kwargs):
     floating_ip = instance
     if not created and not set(instance.tracker.changed()) & {
         "address",
-        "internal_ip_id",
+        "port_id",
     }:
         return
 
-    internal_ips = {
+    ports = {
         ip
         for ip in (
-            floating_ip.internal_ip_id,
-            floating_ip.tracker.previous("internal_ip_id"),
+            floating_ip.port_id,
+            floating_ip.tracker.previous("port_id"),
         )
         if ip
     }
-    for ip_id in internal_ips:
+    for ip_id in ports:
         try:
-            scope = openstack_tenant_models.Instance.objects.get(
-                internal_ips_set__id=ip_id
-            )
+            scope = openstack_tenant_models.Instance.objects.get(ports__id=ip_id)
             resource = marketplace_models.Resource.objects.get(scope=scope)
         except ObjectDoesNotExist:
             logger.debug(
@@ -258,7 +252,7 @@ def import_instance_metadata(vm):
         utils.import_instance_metadata(resource)
 
 
-def synchronize_internal_ips_on_delete(sender, instance, **kwargs):
+def synchronize_ports_on_delete(sender, instance, **kwargs):
     try:
         vm = instance.instance
     except ObjectDoesNotExist:
@@ -268,8 +262,8 @@ def synchronize_internal_ips_on_delete(sender, instance, **kwargs):
 
 
 def synchronize_floating_ips_on_delete(sender, instance, **kwargs):
-    if instance.internal_ip:
-        import_instance_metadata(instance.internal_ip.instance)
+    if instance.port:
+        import_instance_metadata(instance.port.instance)
 
 
 def create_resource_of_volume_if_instance_created(

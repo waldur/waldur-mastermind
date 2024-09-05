@@ -338,7 +338,7 @@ class InstanceCreateExecutor(core_executors.CreateExecutor):
             )
         ]
         _tasks += cls.create_volumes(serialized_volumes)
-        _tasks += cls.create_internal_ips(serialized_instance)
+        _tasks += cls.create_ports(serialized_instance)
         _tasks += cls.create_instance(
             serialized_instance, flavor, ssh_key, server_group
         )
@@ -398,7 +398,7 @@ class InstanceCreateExecutor(core_executors.CreateExecutor):
         return _tasks
 
     @classmethod
-    def create_internal_ips(cls, serialized_instance):
+    def create_ports(cls, serialized_instance):
         """
         Create all network ports for an OpenStack instance.
         Although OpenStack Nova REST API allows to create network ports implicitly,
@@ -408,7 +408,7 @@ class InstanceCreateExecutor(core_executors.CreateExecutor):
         """
         return [
             core_tasks.BackendMethodTask().si(
-                serialized_instance, "create_instance_internal_ips"
+                serialized_instance, "create_instance_ports"
             )
         ]
 
@@ -580,9 +580,7 @@ class InstanceDeleteExecutor(core_executors.DeleteExecutor):
         )
         detach_volumes_tasks = cls.get_detach_data_volumes_tasks(instance)
         delete_volumes_tasks = cls.get_delete_data_volumes_tasks(instance)
-        delete_internal_ips_tasks = cls.get_delete_internal_ips_tasks(
-            serialized_instance
-        )
+        delete_ports_tasks = cls.get_delete_ports_tasks(serialized_instance)
 
         # Case 1. Instance does not exist at backend
         if not instance.backend_id:
@@ -601,7 +599,7 @@ class InstanceDeleteExecutor(core_executors.DeleteExecutor):
                 + delete_volumes_tasks
                 + delete_instance_tasks
                 + release_floating_ips_tasks
-                + delete_internal_ips_tasks
+                + delete_ports_tasks
             )
 
         # Case 3. Instance exists at backend.
@@ -611,7 +609,7 @@ class InstanceDeleteExecutor(core_executors.DeleteExecutor):
                 detach_volumes_tasks
                 + delete_instance_tasks
                 + release_floating_ips_tasks
-                + delete_internal_ips_tasks
+                + delete_ports_tasks
             )
 
     @classmethod
@@ -624,7 +622,7 @@ class InstanceDeleteExecutor(core_executors.DeleteExecutor):
             )
         )
 
-        _tasks += cls.get_delete_internal_ips_tasks(serialized_instance)
+        _tasks += cls.get_delete_ports_tasks(serialized_instance)
 
         for volume in instance.volumes.all():
             if volume.backend_id:
@@ -637,7 +635,7 @@ class InstanceDeleteExecutor(core_executors.DeleteExecutor):
         return _tasks
 
     @classmethod
-    def get_delete_internal_ips_tasks(cls, serialized_instance):
+    def get_delete_ports_tasks(cls, serialized_instance):
         """
         OpenStack Neutron ports should be deleted explicitly because we're creating them explicitly.
         Otherwise when port quota is exhausted, user is not able to provision new VMs anymore.
@@ -645,7 +643,7 @@ class InstanceDeleteExecutor(core_executors.DeleteExecutor):
         return [
             core_tasks.BackendMethodTask().si(
                 serialized_instance,
-                backend_method="delete_instance_internal_ips",
+                backend_method="delete_instance_ports",
             )
         ]
 
@@ -787,7 +785,7 @@ class InstancePullExecutor(core_executors.ActionExecutor):
                 serialized_instance, "pull_instance_security_groups"
             ),
             core_tasks.BackendMethodTask().si(
-                serialized_instance, "pull_instance_internal_ips"
+                serialized_instance, "pull_instance_ports"
             ),
             core_tasks.BackendMethodTask().si(
                 serialized_instance, "pull_instance_floating_ips"
@@ -856,9 +854,11 @@ class InstanceFloatingIPsUpdateExecutor(core_executors.ActionExecutor):
                 .set(countdown=5 if not index else 0)
             )
         # Pull floating IPs again to update state of disconnected IPs
+        shared_tenant = instance.service_settings.scope
+        serialized_tenant = core_utils.serialize_instance(shared_tenant)
         _tasks.append(
-            core_tasks.IndependentBackendMethodTask().si(
-                serialized_instance, "pull_floating_ips"
+            core_tasks.BackendMethodTask().si(
+                serialized_tenant, "pull_tenant_floating_ips"
             )
         )
         return chain(*_tasks)
@@ -945,14 +945,14 @@ class InstanceAllowedAddressPairsUpdateExecutor(core_executors.ActionExecutor):
         )
 
 
-class InstanceInternalIPsSetUpdateExecutor(core_executors.ActionExecutor):
-    action = "Update internal IPs"
+class InstancePortsUpdateExecutor(core_executors.ActionExecutor):
+    action = "Update ports"
 
     @classmethod
     def get_task_signature(cls, instance, serialized_instance, **kwargs):
         return core_tasks.BackendMethodTask().si(
             serialized_instance,
-            "push_instance_internal_ips",
+            "push_instance_ports",
             state_transition="begin_updating",
         )
 

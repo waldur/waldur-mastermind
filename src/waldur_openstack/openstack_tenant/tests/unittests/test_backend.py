@@ -7,6 +7,9 @@ from django.test import TestCase
 from novaclient.v2.flavors import Flavor
 from novaclient.v2.servers import Server
 
+from waldur_openstack.openstack.backend import OpenStackBackend
+from waldur_openstack.openstack.models import Port
+from waldur_openstack.openstack.tests.factories import FloatingIPFactory, PortFactory
 from waldur_openstack.openstack_base.tests.fixtures import mock_session
 from waldur_openstack.openstack_tenant import models
 from waldur_openstack.openstack_tenant.backend import OpenStackTenantBackend
@@ -23,6 +26,9 @@ class BaseBackendTest(TestCase):
         self.mocked_cinder = mock.patch("cinderclient.v3.client.Client").start()()
         self.mocked_nova = mock.patch("novaclient.v2.client.Client").start()()
         self.tenant_backend = OpenStackTenantBackend(self.settings)
+        self.os_backend = OpenStackBackend(
+            self.tenant.service_settings, self.tenant.backend_id
+        )
         mock_session()
 
     def tearDown(self) -> None:
@@ -73,197 +79,6 @@ class BaseBackendTest(TestCase):
                 id=backend_id,
             ),
         )
-
-
-class PullFloatingIPTest(BaseBackendTest):
-    def _get_valid_new_backend_ip(self, internal_ip):
-        return dict(
-            floatingips=[
-                {
-                    "floating_ip_address": "0.0.0.0",  # noqa: S104
-                    "floating_network_id": "new_backend_network_id",
-                    "status": "DOWN",
-                    "id": "new_backend_id",
-                    "port_id": internal_ip.backend_id,
-                }
-            ]
-        )
-
-    def test_floating_ip_is_not_created_if_internal_ip_is_missing(self):
-        internal_ip = factories.InternalIPFactory(instance=self.fixture.instance)
-        backend_floating_ips = self._get_valid_new_backend_ip(internal_ip)
-        internal_ip.delete()
-        self.mocked_neutron.list_floatingips.return_value = backend_floating_ips
-        self.assertEqual(models.FloatingIP.objects.count(), 0)
-
-        self.tenant_backend.pull_floating_ips()
-
-        self.assertEqual(models.FloatingIP.objects.count(), 0)
-
-    def test_floating_ip_is_not_updated_if_internal_ip_is_missing(self):
-        internal_ip = factories.InternalIPFactory(instance=self.fixture.instance)
-        backend_floating_ips = self._get_valid_new_backend_ip(internal_ip)
-        internal_ip.delete()
-        self.mocked_neutron.list_floatingips.return_value = backend_floating_ips
-        backend_ip = backend_floating_ips["floatingips"][0]
-        floating_ip = factories.FloatingIPFactory(
-            settings=self.settings,
-            backend_id=backend_ip["id"],
-            name="old_name",
-            runtime_state="old_status",
-            backend_network_id="old_backend_network_id",
-            address="127.0.0.1",
-        )
-        self.assertEqual(models.FloatingIP.objects.count(), 1)
-
-        self.tenant_backend.pull_floating_ips()
-
-        self.assertEqual(models.FloatingIP.objects.count(), 1)
-        floating_ip.refresh_from_db()
-        self.assertNotEqual(floating_ip.address, backend_ip["floating_ip_address"])
-        self.assertNotEqual(floating_ip.name, backend_ip["floating_ip_address"])
-        self.assertNotEqual(floating_ip.runtime_state, backend_ip["status"])
-        self.assertNotEqual(
-            floating_ip.backend_network_id, backend_ip["floating_network_id"]
-        )
-
-    def test_floating_ip_is_updated_if_internal_ip_exists_even_if_not_connected_to_instance(
-        self,
-    ):
-        internal_ip = factories.InternalIPFactory(subnet=self.fixture.subnet)
-        backend_floating_ips = self._get_valid_new_backend_ip(internal_ip)
-        self.mocked_neutron.list_floatingips.return_value = backend_floating_ips
-
-        backend_ip = backend_floating_ips["floatingips"][0]
-        floating_ip = factories.FloatingIPFactory(
-            settings=self.settings,
-            backend_id=backend_ip["id"],
-            name="old_name",
-            runtime_state="old_status",
-            backend_network_id="old_backend_network_id",
-            address="127.0.0.1",
-        )
-
-        self.tenant_backend.pull_floating_ips()
-
-        floating_ip.refresh_from_db()
-
-        self.assertEqual(models.FloatingIP.objects.count(), 1)
-        self.assertEqual(floating_ip.address, backend_ip["floating_ip_address"])
-        self.assertEqual(floating_ip.runtime_state, backend_ip["status"])
-        self.assertEqual(
-            floating_ip.backend_network_id, backend_ip["floating_network_id"]
-        )
-        self.assertEqual(floating_ip.internal_ip, internal_ip)
-
-    def test_floating_ip_is_created_if_it_does_not_exist(self):
-        internal_ip = factories.InternalIPFactory(
-            subnet=self.fixture.subnet, instance=self.fixture.instance
-        )
-        backend_floating_ips = self._get_valid_new_backend_ip(internal_ip)
-        backend_ip = backend_floating_ips["floatingips"][0]
-        self.mocked_neutron.list_floatingips.return_value = backend_floating_ips
-
-        self.tenant_backend.pull_floating_ips()
-
-        self.assertEqual(models.FloatingIP.objects.count(), 1)
-        created_ip = models.FloatingIP.objects.get(backend_id=backend_ip["id"])
-        self.assertEqual(created_ip.runtime_state, backend_ip["status"])
-        self.assertEqual(
-            created_ip.backend_network_id, backend_ip["floating_network_id"]
-        )
-        self.assertEqual(created_ip.address, backend_ip["floating_ip_address"])
-
-    def test_floating_ip_is_deleted_if_it_is_not_returned_by_neutron(self):
-        floating_ip = factories.FloatingIPFactory(settings=self.settings)
-        self.mocked_neutron.list_floatingips.return_value = dict(floatingips=[])
-
-        self.tenant_backend.pull_floating_ips()
-
-        self.assertFalse(models.FloatingIP.objects.filter(id=floating_ip.id).exists())
-
-    def test_floating_ip_is_not_updated_if_it_is_in_booked_state(self):
-        internal_ip = factories.InternalIPFactory(instance=self.fixture.instance)
-        backend_floating_ips = self._get_valid_new_backend_ip(internal_ip)
-        self.mocked_neutron.list_floatingips.return_value = backend_floating_ips
-        backend_ip = backend_floating_ips["floatingips"][0]
-        expected_name = "booked ip"
-        expected_address = "127.0.0.1"
-        expected_runtime_state = "booked_state"
-        booked_ip = factories.FloatingIPFactory(
-            is_booked=True,
-            settings=self.settings,
-            backend_id=backend_ip["id"],
-            name=expected_name,
-            address=expected_address,
-            runtime_state=expected_runtime_state,
-        )
-
-        self.tenant_backend.pull_floating_ips()
-
-        booked_ip.refresh_from_db()
-        self.assertEqual(booked_ip.name, expected_name)
-        self.assertEqual(booked_ip.address, expected_address)
-        self.assertEqual(booked_ip.runtime_state, expected_runtime_state)
-
-    def test_floating_ip_is_not_duplicated_if_it_is_in_booked_state(self):
-        internal_ip = factories.InternalIPFactory(instance=self.fixture.instance)
-        backend_floating_ips = self._get_valid_new_backend_ip(internal_ip)
-        self.mocked_neutron.list_floatingips.return_value = backend_floating_ips
-        backend_ip = backend_floating_ips["floatingips"][0]
-        factories.FloatingIPFactory(
-            is_booked=True,
-            settings=self.settings,
-            backend_id=backend_ip["id"],
-            name="booked ip",
-            address=backend_ip["floating_ip_address"],
-            runtime_state="booked_state",
-        )
-
-        self.tenant_backend.pull_floating_ips()
-
-        backend_ip_address = backend_ip["floating_ip_address"]
-        self.assertEqual(
-            models.FloatingIP.objects.filter(address=backend_ip_address).count(), 1
-        )
-
-    def test_backend_id_is_filled_up_when_floating_ip_is_looked_up_by_address(self):
-        backend_floating_ips = self._get_valid_new_backend_ip(self.fixture.internal_ip)
-        self.mocked_neutron.list_floatingips.return_value = backend_floating_ips
-        backend_ip = backend_floating_ips["floatingips"][0]
-        factories.FloatingIPFactory(
-            is_booked=True,
-            settings=self.settings,
-            name="booked ip",
-            address=backend_ip["floating_ip_address"],
-            runtime_state="booked_state",
-        )
-
-        self.tenant_backend.pull_floating_ips()
-
-        backend_ip_address = backend_ip["floating_ip_address"]
-        self.assertEqual(
-            models.FloatingIP.objects.filter(address=backend_ip_address).count(), 1
-        )
-
-        floating_ip = models.FloatingIP.objects.filter(address=backend_ip_address).get()
-        self.assertEqual(floating_ip.backend_id, backend_ip["id"])
-
-    def test_floating_ip_name_is_not_update_if_it_was_set_by_user(self):
-        internal_ip = factories.InternalIPFactory(instance=self.fixture.instance)
-        backend_floating_ips = self._get_valid_new_backend_ip(internal_ip)
-        self.mocked_neutron.list_floatingips.return_value = backend_floating_ips
-        backend_ip = backend_floating_ips["floatingips"][0]
-        expected_name = "user defined ip"
-        floating_ip = factories.FloatingIPFactory(
-            settings=self.settings, backend_id=backend_ip["id"], name=expected_name
-        )
-
-        self.tenant_backend.pull_floating_ips()
-
-        floating_ip.refresh_from_db()
-        self.assertNotEqual(floating_ip.address, floating_ip.name)
-        self.assertEqual(floating_ip.name, expected_name)
 
 
 class VolumesBaseTest(BaseBackendTest):
@@ -631,7 +446,7 @@ class PullInstanceTest(BaseBackendTest):
         self.assertEqual(instance.hypervisor_hostname, "aio1.openstack.local")
 
 
-class PullInstanceInternalIpsTest(BaseBackendTest):
+class PullInstancePortsTest(BaseBackendTest):
     def setup_neutron(self, port_id, device_id, subnet_id):
         self.mocked_neutron.list_ports.return_value = {
             "ports": [
@@ -650,83 +465,87 @@ class PullInstanceInternalIpsTest(BaseBackendTest):
             ]
         }
 
-    def test_pending_internal_ips_are_updated_with_backend_id(self):
+    def test_pending_ports_are_updated_with_backend_id(self):
         # Arrange
         instance = self.fixture.instance
-        internal_ip = self.fixture.internal_ip
-        internal_ip.backend_id = None
-        internal_ip.save()
-        self.setup_neutron(
-            "port_id", instance.backend_id, internal_ip.subnet.backend_id
-        )
+        port = self.fixture.port
+        port.backend_id = ""
+        port.save()
+        self.setup_neutron("port_id", instance.backend_id, port.subnet.backend_id)
 
         # Act
-        self.tenant_backend.pull_instance_internal_ips(instance)
+        self.tenant_backend.pull_instance_ports(instance)
 
         # Assert
-        internal_ip.refresh_from_db()
-        self.assertEqual(internal_ip.backend_id, "port_id")
+        port.refresh_from_db()
+        self.assertEqual(port.backend_id, "port_id")
 
-    def test_missing_internal_ips_are_created(self):
+    def test_missing_ports_are_created(self):
         # Arrange
         instance = self.fixture.instance
         subnet = self.fixture.subnet
         self.setup_neutron("port_id", instance.backend_id, subnet.backend_id)
 
         # Act
-        self.tenant_backend.pull_instance_internal_ips(instance)
+        self.tenant_backend.pull_instance_ports(instance)
 
         # Assert
-        self.assertEqual(instance.internal_ips_set.count(), 1)
-        internal_ip = instance.internal_ips_set.first()
-        self.assertEqual(internal_ip.backend_id, "port_id")
-        self.assertEqual(internal_ip.subnet, subnet)
+        self.assertEqual(instance.ports.count(), 1)
+        port = instance.ports.first()
+        self.assertEqual(port.backend_id, "port_id")
+        self.assertEqual(port.subnet, subnet)
 
-    def test_stale_internal_ips_are_deleted(self):
+    def test_stale_ports_are_deleted(self):
         # Arrange
         instance = self.fixture.instance
 
         self.mocked_neutron.list_ports.return_value = {"ports": []}
 
         # Act
-        self.tenant_backend.pull_instance_internal_ips(instance)
+        self.tenant_backend.pull_instance_ports(instance)
 
         # Assert
-        self.assertEqual(instance.internal_ips_set.count(), 0)
+        self.assertEqual(instance.ports.count(), 0)
 
-    def test_stale_internal_ips_are_deleted_by_backend_id(self):
+    def test_stale_ports_are_deleted_by_backend_id(self):
         # Arrange
         vm = self.fixture.instance
         subnet = self.fixture.subnet
 
-        factories.InternalIPFactory(subnet=self.fixture.subnet, instance=vm)
-        ip2 = factories.InternalIPFactory(subnet=self.fixture.subnet, instance=vm)
+        PortFactory(
+            subnet=self.fixture.subnet,
+            instance=vm,
+            tenant=self.fixture.tenant,
+        )
+        ip2 = PortFactory(
+            subnet=self.fixture.subnet,
+            instance=vm,
+            tenant=self.fixture.tenant,
+        )
         self.setup_neutron(ip2.backend_id, vm.backend_id, subnet.backend_id)
 
         # Act
-        self.tenant_backend.pull_instance_internal_ips(vm)
+        self.tenant_backend.pull_instance_ports(vm)
 
         # Assert
-        self.assertEqual(vm.internal_ips_set.count(), 1)
-        self.assertEqual(vm.internal_ips_set.first(), ip2)
+        self.assertEqual(vm.ports.count(), 1)
+        self.assertEqual(vm.ports.first(), ip2)
 
-    def test_existing_internal_ips_are_updated(self):
+    def test_existing_ports_are_updated(self):
         # Arrange
         instance = self.fixture.instance
-        internal_ip = self.fixture.internal_ip
-        self.setup_neutron(
-            internal_ip.backend_id, instance.backend_id, internal_ip.subnet.backend_id
-        )
+        port = self.fixture.port
+        self.setup_neutron(port.backend_id, instance.backend_id, port.subnet.backend_id)
 
         # Act
-        self.tenant_backend.pull_instance_internal_ips(instance)
+        self.tenant_backend.pull_instance_ports(instance)
 
         # Assert
-        internal_ip.refresh_from_db()
-        self.assertEqual(internal_ip.mac_address, "DC-D6-5E-9B-49-70")
-        self.assertEqual(internal_ip.fixed_ips[0]["ip_address"], "10.0.0.2")
+        port.refresh_from_db()
+        self.assertEqual(port.mac_address, "DC-D6-5E-9B-49-70")
+        self.assertEqual(port.fixed_ips[0]["ip_address"], "10.0.0.2")
 
-    def test_shared_internal_ips_are_reassigned(self):
+    def test_shared_ports_are_reassigned(self):
         # Arrange
         vm1 = factories.InstanceFactory(
             service_settings=self.fixture.openstack_tenant_service_settings,
@@ -738,28 +557,33 @@ class PullInstanceInternalIpsTest(BaseBackendTest):
         )
 
         subnet = self.fixture.subnet
-        internal_ip = factories.InternalIPFactory(
-            subnet=self.fixture.subnet, instance=vm2
+        port = PortFactory(
+            subnet=self.fixture.subnet,
+            instance=vm2,
+            tenant=self.fixture.tenant,
         )
-        self.setup_neutron(internal_ip.backend_id, vm1.backend_id, subnet.backend_id)
+        self.setup_neutron(port.backend_id, vm1.backend_id, subnet.backend_id)
 
         # Act
-        self.tenant_backend.pull_instance_internal_ips(vm1)
+        self.tenant_backend.pull_instance_ports(vm1)
 
         # Assert
-        self.assertEqual(vm1.internal_ips_set.count(), 1)
-        self.assertEqual(vm2.internal_ips_set.count(), 0)
+        self.assertEqual(vm1.ports.count(), 1)
+        self.assertEqual(vm2.ports.count(), 0)
 
 
 @ddt
-class PullInternalIpsTest(BaseBackendTest):
+class PullPortsTest(BaseBackendTest):
     def setup_neutron(self, port_id, device_id, subnet_id):
         self.mocked_neutron.list_ports.return_value = {
             "ports": [
                 {
                     "id": port_id,
+                    "name": "",
+                    "description": "",
                     "mac_address": "DC-D6-5E-9B-49-70",
                     "device_id": device_id,
+                    "network_id": "network_id",
                     "device_owner": "compute:nova",
                     "fixed_ips": [
                         {
@@ -767,86 +591,68 @@ class PullInternalIpsTest(BaseBackendTest):
                             "subnet_id": subnet_id,
                         }
                     ],
+                    "security_groups": [],
                 }
             ]
         }
 
-    def test_pending_internal_ips_are_updated_with_backend_id(self):
-        # Arrange
-        instance = self.fixture.instance
-        internal_ip = self.fixture.internal_ip
-        internal_ip.backend_id = None
-        internal_ip.save()
-        self.setup_neutron(
-            "port_id", instance.backend_id, internal_ip.subnet.backend_id
-        )
-
-        # Act
-        self.tenant_backend.pull_internal_ips()
-
-        # Assert
-        internal_ip.refresh_from_db()
-        self.assertEqual(internal_ip.backend_id, "port_id")
-
-    def test_missing_internal_ips_are_created(self):
+    def test_missing_ports_are_created(self):
         # Arrange
         instance = self.fixture.instance
         subnet = self.fixture.subnet
         self.setup_neutron("port_id", instance.backend_id, subnet.backend_id)
 
         # Act
-        self.tenant_backend.pull_internal_ips()
+        self.os_backend.pull_ports()
 
         # Assert
-        self.assertEqual(instance.internal_ips_set.count(), 1)
-        internal_ip = instance.internal_ips_set.first()
-        self.assertEqual(internal_ip.backend_id, "port_id")
-        self.assertEqual(internal_ip.subnet, subnet)
+        self.assertEqual(instance.ports.count(), 1)
+        port = instance.ports.first()
+        self.assertEqual(port.backend_id, "port_id")
+        self.assertEqual(port.subnet, subnet)
 
-    def test_stale_internal_ips_are_deleted(self):
+    def test_stale_ports_are_deleted(self):
         # Arrange
         instance = self.fixture.instance
 
         self.mocked_neutron.list_ports.return_value = {"ports": []}
 
         # Act
-        self.tenant_backend.pull_internal_ips()
+        self.os_backend.pull_ports()
 
         # Assert
-        self.assertEqual(instance.internal_ips_set.count(), 0)
+        self.assertEqual(instance.ports.count(), 0)
 
-    def test_existing_internal_ips_are_updated(self):
+    def test_existing_ports_are_updated(self):
         # Arrange
         instance = self.fixture.instance
-        internal_ip = self.fixture.internal_ip
-        self.setup_neutron(
-            internal_ip.backend_id, instance.backend_id, internal_ip.subnet.backend_id
-        )
+        port = self.fixture.port
+        self.setup_neutron(port.backend_id, instance.backend_id, port.subnet.backend_id)
 
         # Act
-        self.tenant_backend.pull_internal_ips()
+        self.os_backend.pull_ports()
 
         # Assert
-        internal_ip.refresh_from_db()
-        self.assertEqual(internal_ip.mac_address, "DC-D6-5E-9B-49-70")
-        self.assertEqual(internal_ip.fixed_ips[0]["ip_address"], "10.0.0.2")
+        port.refresh_from_db()
+        self.assertEqual(port.mac_address, "DC-D6-5E-9B-49-70")
+        self.assertEqual(port.fixed_ips[0]["ip_address"], "10.0.0.2")
 
-    def test_even_if_internal_ip_is_not_connected_it_is_not_skipped(self):
+    def test_even_if_port_is_not_connected_it_is_not_skipped(self):
         # Arrange
-        self.setup_neutron("port_id", "", self.fixture.internal_ip.subnet.backend_id)
+        self.setup_neutron("port_id", "", self.fixture.port.subnet.backend_id)
 
         # Act
-        self.tenant_backend.pull_internal_ips()
+        self.os_backend.pull_ports()
 
         # Assert
-        internal_ips = models.InternalIP.objects.filter(subnet=self.fixture.subnet)
-        self.assertEqual(internal_ips.count(), 1)
+        ports = Port.objects.filter(subnet=self.fixture.subnet)
+        self.assertEqual(ports.count(), 1)
 
-        internal_ip = internal_ips.first()
-        self.assertEqual(internal_ip.instance, None)
-        self.assertEqual(internal_ip.backend_id, "port_id")
-        self.assertEqual(internal_ip.mac_address, "DC-D6-5E-9B-49-70")
-        self.assertEqual(internal_ip.fixed_ips[0]["ip_address"], "10.0.0.2")
+        port = ports.first()
+        self.assertEqual(port.instance, None)
+        self.assertEqual(port.backend_id, "port_id")
+        self.assertEqual(port.mac_address, "DC-D6-5E-9B-49-70")
+        self.assertEqual(port.fixed_ips[0]["ip_address"], "10.0.0.2")
 
     def test_instance_has_several_ports_in_the_same_network_connected_to_the_same_instance(
         self,
@@ -873,6 +679,10 @@ class PullInternalIpsTest(BaseBackendTest):
                             "subnet_id": subnet_id,
                         }
                     ],
+                    "name": "",
+                    "description": "",
+                    "network_id": "network_id",
+                    "security_groups": [],
                 },
                 {
                     "id": "port2",
@@ -885,24 +695,24 @@ class PullInternalIpsTest(BaseBackendTest):
                             "subnet_id": subnet_id,
                         }
                     ],
+                    "name": "",
+                    "description": "",
+                    "network_id": "network_id",
+                    "security_groups": [],
                 },
             ]
         }
 
         # Act
-        self.tenant_backend.pull_internal_ips()
+        self.os_backend.pull_ports()
 
         # Assert
-        self.assertEqual(2, instance.internal_ips_set.count())
+        self.assertEqual(2, instance.ports.count())
 
-        actual_subnets = set(
-            instance.internal_ips_set.values_list("subnet_id", flat=True)
-        )
+        actual_subnets = set(instance.ports.values_list("subnet_id", flat=True))
         self.assertEqual({subnet.id}, actual_subnets)
 
-        actual_addresses = list(
-            instance.internal_ips_set.values_list("fixed_ips", flat=True)
-        )
+        actual_addresses = list(instance.ports.values_list("fixed_ips", flat=True))
         self.assertEqual(
             [
                 [{"ip_address": "10.0.0.2", "subnet_id": subnet_id}],
@@ -911,20 +721,20 @@ class PullInternalIpsTest(BaseBackendTest):
             actual_addresses,
         )
 
-        actual_ids = set(instance.internal_ips_set.values_list("backend_id", flat=True))
+        actual_ids = set(instance.ports.values_list("backend_id", flat=True))
         self.assertEqual({"port1", "port2"}, actual_ids)
 
     @data("compute:nova", "compute:MS-ZONE")
-    def test_instance_field_of_internal_ip_is_updated(self, device_owner):
+    def test_instance_field_of_port_is_updated(self, device_owner):
         # Consider the case when instance has several IP addresses in the same subnet.
 
         # Arrange
         instance = self.fixture.instance
         subnet = self.fixture.subnet
 
-        internal_ip = self.fixture.internal_ip
-        internal_ip.instance = None
-        internal_ip.save()
+        port = self.fixture.port
+        port.instance = None
+        port.save()
 
         device_id = instance.backend_id
         subnet_id = subnet.backend_id
@@ -932,7 +742,7 @@ class PullInternalIpsTest(BaseBackendTest):
         self.mocked_neutron.list_ports.return_value = {
             "ports": [
                 {
-                    "id": internal_ip.backend_id,
+                    "id": port.backend_id,
                     "mac_address": "fa:16:3e:88:d4:69",
                     "device_id": device_id,
                     "device_owner": device_owner,
@@ -942,17 +752,21 @@ class PullInternalIpsTest(BaseBackendTest):
                             "subnet_id": subnet_id,
                         }
                     ],
+                    "name": "",
+                    "description": "",
+                    "network_id": "network_id",
+                    "security_groups": [],
                 }
             ]
         }
 
         # Act
-        self.tenant_backend.pull_internal_ips()
+        self.os_backend.pull_ports()
 
         # Assert
-        internal_ip.refresh_from_db()
-        self.assertEqual(internal_ip.instance, instance)
-        self.assertEqual(1, instance.internal_ips_set.count())
+        port.refresh_from_db()
+        self.assertEqual(port.instance, instance)
+        self.assertEqual(1, instance.ports.count())
 
 
 class GetInstancesTest(BaseBackendTest):
@@ -1070,27 +884,25 @@ class ImportInstanceTest(BaseBackendTest):
 
 
 class PullInstanceFloatingIpsTest(BaseBackendTest):
-    def test_internal_ip_is_reassigned_for_floating_ip(self):
+    def test_port_is_reassigned_for_floating_ip(self):
         # Arrange
         subnet = self.fixture.subnet
         instance = self.fixture.instance
 
-        ip1 = factories.InternalIPFactory(
+        ip1 = PortFactory(
             subnet=subnet,
             backend_id="port_id1",
             fixed_ips=[{"ip_address": "192.168.42.42", "subnet_id": subnet.backend_id}],
         )
 
-        ip2 = factories.InternalIPFactory(
+        ip2 = PortFactory(
             subnet=subnet,
             backend_id="port_id2",
             fixed_ips=[{"ip_address": "192.168.42.62", "subnet_id": subnet.backend_id}],
             instance=instance,
         )
 
-        fip = factories.FloatingIPFactory(
-            settings=instance.service_settings, internal_ip=ip1
-        )
+        fip = FloatingIPFactory(tenant=self.fixture.tenant, port=ip1)
 
         floatingips = [
             {
@@ -1110,7 +922,7 @@ class PullInstanceFloatingIpsTest(BaseBackendTest):
         self.assertEqual(1, instance.floating_ips.count())
 
         fip.refresh_from_db()
-        self.assertEqual(ip2, fip.internal_ip)
+        self.assertEqual(ip2, fip.port)
 
 
 class CreateInstanceTest(VolumesBaseTest):

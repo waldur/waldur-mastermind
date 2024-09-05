@@ -1,8 +1,6 @@
 import logging
 
 from django.contrib.contenttypes.models import ContentType
-from django.core import exceptions as django_exceptions
-from django.db import IntegrityError, transaction
 
 from waldur_core.core.models import StateMixin
 from waldur_core.quotas.models import QuotaLimit
@@ -11,7 +9,7 @@ from waldur_openstack.openstack_base.utils import is_valid_volume_type_name
 
 from ..openstack import apps as openstack_apps
 from ..openstack import models as openstack_models
-from . import apps, log, models
+from . import apps, log
 
 logger = logging.getLogger(__name__)
 
@@ -212,125 +210,6 @@ def update_service_settings_credentials(sender, instance, created=False, **kwarg
             service_settings.username = tenant.user_username
             service_settings.password = tenant.user_password
             service_settings.save()
-
-
-class BaseSynchronizationHandler:
-    """
-    This class provides signal handlers for synchronization of OpenStack properties
-    when parent OpenStack resource are created, updated or deleted.
-    Security groups, floating IPs, networks and subnets are implemented as
-    resources in openstack application. However they are implemented as service properties
-    in the openstack_tenant application.
-    """
-
-    property_model = None
-    resource_model = None
-    fields = []
-
-    def get_tenant(self, resource):
-        return resource.tenant
-
-    def get_service_settings(self, resource):
-        try:
-            return structure_models.ServiceSettings.objects.get(
-                scope=self.get_tenant(resource),
-                type=apps.OpenStackTenantConfig.service_name,
-            )
-        except (
-            django_exceptions.ObjectDoesNotExist,
-            django_exceptions.MultipleObjectsReturned,
-        ):
-            return
-
-    def get_service_property(self, resource, settings):
-        try:
-            return self.property_model.objects.get(
-                settings=settings, backend_id=resource.backend_id
-            )
-        except (
-            django_exceptions.ObjectDoesNotExist,
-            django_exceptions.MultipleObjectsReturned,
-        ):
-            return
-
-    def map_resource_to_dict(self, resource):
-        return {field: getattr(resource, field) for field in self.fields}
-
-    def create_service_property(self, resource, settings):
-        defaults = dict(name=resource.name, **self.map_resource_to_dict(resource))
-
-        try:
-            with transaction.atomic():
-                return self.property_model.objects.get_or_create(
-                    settings=settings, backend_id=resource.backend_id, defaults=defaults
-                )
-        except IntegrityError:
-            logger.warning(
-                "Could not create %s with backend ID %s "
-                "and service settings %s due to concurrent update.",
-                self.property_model,
-                resource.backend_id,
-                settings,
-            )
-
-    def update_service_property(self, resource, settings):
-        service_property = self.get_service_property(resource, settings)
-        if not service_property:
-            return
-        params = self.map_resource_to_dict(resource)
-        for key, value in params.items():
-            setattr(service_property, key, value)
-        service_property.name = resource.name
-        service_property.save()
-        return service_property
-
-    def create_handler(self, sender, instance, name, source, target, **kwargs):
-        """
-        Creates service property on resource transition from 'CREATING' state to 'OK'.
-        """
-        if source == StateMixin.States.CREATING and target == StateMixin.States.OK:
-            settings = self.get_service_settings(instance)
-            if settings and not self.get_service_property(instance, settings):
-                self.create_service_property(instance, settings)
-
-    def import_handler(self, sender, instance, created=False, **kwargs):
-        """
-        Creates service property on when resource is imported.
-        """
-        if created and instance.state == StateMixin.States.OK:
-            settings = self.get_service_settings(instance)
-            if settings and not self.get_service_property(instance, settings):
-                self.create_service_property(instance, settings)
-
-    def update_handler(self, sender, instance, name, source, target, **kwargs):
-        """
-        Updates service property on resource transition from 'UPDATING' state to 'OK'.
-        """
-        if source == StateMixin.States.UPDATING and target == StateMixin.States.OK:
-            settings = self.get_service_settings(instance)
-            if settings:
-                self.update_service_property(instance, settings)
-
-    def delete_handler(self, sender, instance, **kwargs):
-        """
-        Deletes service property on resource deletion
-        """
-        settings = self.get_service_settings(instance)
-        if not settings:
-            return
-        service_property = self.get_service_property(instance, settings)
-        if not service_property:
-            return
-        service_property.delete()
-
-
-class FloatingIPHandler(BaseSynchronizationHandler):
-    property_model = models.FloatingIP
-    resource_model = openstack_models.FloatingIP
-    fields = ("address", "backend_network_id", "runtime_state")
-
-
-resource_handlers = (FloatingIPHandler(),)
 
 
 def copy_flavor_exclude_regex_to_openstacktenant_service_settings(

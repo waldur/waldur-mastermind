@@ -299,6 +299,7 @@ class PortFactory(
     backend_id = factory.Sequence(lambda n: "backend_id_%s" % n)
     service_settings = factory.SubFactory(OpenStackServiceSettingsFactory)
     project = factory.SubFactory(ProjectFactory)
+    tenant = factory.SubFactory(TenantFactory)
 
     @classmethod
     def get_url(cls, port=None):

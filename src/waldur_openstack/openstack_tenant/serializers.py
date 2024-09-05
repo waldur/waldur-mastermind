@@ -24,7 +24,11 @@ from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.permissions import _has_admin_access
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack import serializers as openstack_serializers
-from waldur_openstack.openstack.serializers import validate_private_cidr
+from waldur_openstack.openstack.serializers import (
+    NestedFloatingIPSerializer,
+    NestedPortSerializer,
+    validate_private_cidr,
+)
 from waldur_openstack.openstack_base.serializers import (
     BaseOpenStackServiceSerializer,
     BaseSecurityGroupRuleSerializer,
@@ -107,23 +111,6 @@ class FlavorSerializer(BaseFlavorSerializer):
 class UsageStatsSerializer(serializers.Serializer):
     shared = serializers.BooleanField()
     service_provider = serializers.ListField(child=serializers.CharField())
-
-
-class FloatingIPSerializer(structure_serializers.BasePropertySerializer):
-    class Meta(structure_serializers.BasePropertySerializer.Meta):
-        model = models.FloatingIP
-        fields = (
-            "url",
-            "uuid",
-            "settings",
-            "address",
-            "runtime_state",
-            "is_booked",
-        )
-        extra_kwargs = {
-            "url": {"lookup_field": "uuid"},
-            "settings": {"lookup_field": "uuid"},
-        }
 
 
 class ServerGroupSerializer(structure_serializers.BasePropertySerializer):
@@ -628,142 +615,20 @@ class NestedServerGroupSerializer(
         extra_kwargs = {"url": {"lookup_field": "uuid"}}
 
 
-class NestedInternalIPSerializer(
-    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
-):
-    allowed_address_pairs = serializers.JSONField(read_only=True)
-    fixed_ips = serializers.JSONField(read_only=True)
-
-    class Meta:
-        model = models.InternalIP
-        fields = (
-            "fixed_ips",
-            "mac_address",
-            "subnet",
-            "subnet_uuid",
-            "subnet_name",
-            "subnet_description",
-            "subnet_cidr",
-            "allowed_address_pairs",
-            "device_id",
-            "device_owner",
-        )
-        read_only_fields = (
-            "fixed_ips",
-            "mac_address",
-            "subnet_uuid",
-            "subnet_name",
-            "subnet_description",
-            "subnet_cidr",
-            "allowed_address_pairs",
-            "device_id",
-            "device_owner",
-        )
-        related_paths = {
-            "subnet": ("uuid", "name", "description", "cidr"),
-        }
-        extra_kwargs = {
-            "subnet": {
-                "lookup_field": "uuid",
-                "view_name": "openstack-subnet-detail",
-            },
-        }
-
-    def to_internal_value(self, data):
-        internal_value = super().to_internal_value(data)
-        return models.InternalIP(
-            subnet=internal_value["subnet"],
-            # To be replaced with tenant once InternalIP is merged with Port
-            settings=structure_models.ServiceSettings.objects.filter(
-                scope=internal_value["subnet"].tenant
-            ).first(),
-        )
-
-
-class NestedFloatingIPSerializer(
-    core_serializers.AugmentedSerializerMixin,
-    core_serializers.HyperlinkedRelatedModelSerializer,
-):
-    subnet = serializers.HyperlinkedRelatedField(
-        queryset=openstack_models.SubNet.objects.all(),
-        source="internal_ip.subnet",
-        view_name="openstack-subnet-detail",
-        lookup_field="uuid",
-    )
-    subnet_uuid = serializers.ReadOnlyField(source="internal_ip.subnet.uuid")
-    subnet_name = serializers.ReadOnlyField(source="internal_ip.subnet.name")
-    subnet_description = serializers.ReadOnlyField(
-        source="internal_ip.subnet.description"
-    )
-    subnet_cidr = serializers.ReadOnlyField(source="internal_ip.subnet.cidr")
-    internal_ip_fixed_ips = serializers.JSONField(
-        source="internal_ip.fixed_ips", read_only=True
-    )
-
-    class Meta:
-        model = models.FloatingIP
-        fields = (
-            "url",
-            "uuid",
-            "address",
-            "internal_ip_fixed_ips",
-            "internal_ip_mac_address",
-            "subnet",
-            "subnet_uuid",
-            "subnet_name",
-            "subnet_description",
-            "subnet_cidr",
-        )
-        read_only_fields = (
-            "address",
-            "internal_ip_fixed_ips",
-            "internal_ip_mac_address",
-        )
-        related_paths = {"internal_ip": ("fixed_ips", "mac_address")}
-        extra_kwargs = {
-            "url": {"lookup_field": "uuid", "view_name": "openstacktenant-fip-detail"},
-        }
-
-    def to_internal_value(self, data):
-        """
-        Return pair (floating_ip, subnet) as internal value.
-
-        On floating IP creation user should specify what subnet should be used
-        for connection and may specify what exactly floating IP should be used.
-        If floating IP is not specified it will be represented as None.
-        """
-        floating_ip = None
-        if "url" in data:
-            # use HyperlinkedRelatedModelSerializer (parent of NestedFloatingIPSerializer)
-            # method to convert "url" to FloatingIP object
-            floating_ip = super().to_internal_value(data)
-
-        # use HyperlinkedModelSerializer (parent of HyperlinkedRelatedModelSerializer)
-        # to convert "subnet" to SubNet object
-        internal_value = super(
-            core_serializers.HyperlinkedRelatedModelSerializer, self
-        ).to_internal_value(data)
-        subnet = internal_value["internal_ip"]["subnet"]
-
-        return floating_ip, subnet
-
-
-def _validate_instance_internal_ips(internal_ips, settings):
-    """- make sure that internal_ips belong to specified setting;
-    - make sure that internal_ips does not connect to the same subnet twice;
+def _validate_instance_ports(ports, settings):
+    """- make sure that ports belong to specified setting;
+    - make sure that ports does not connect to the same subnet twice;
     """
-    if not internal_ips:
+    if not ports:
         return
-    subnets = [internal_ip.subnet for internal_ip in internal_ips]
+    subnets = [port.subnet for port in ports]
     for subnet in subnets:
         if subnet.tenant != settings.scope:
             message = (
                 _("Subnet %s does not belong to the same tenant as instance.") % subnet
             )
-            raise serializers.ValidationError({"internal_ips_set": message})
-    pairs = [
-        (internal_ip.subnet, internal_ip.backend_id) for internal_ip in internal_ips
-    ]
+            raise serializers.ValidationError({"ports": message})
+    pairs = [(port.subnet, port.backend_id) for port in ports]
     duplicates = [
         subnet for subnet, count in collections.Counter(pairs).items() if count > 1
     ]
@@ -812,14 +677,14 @@ def _validate_instance_floating_ips(
             raise serializers.ValidationError({"floating_ips": message})
         if not floating_ip:
             continue
-        if floating_ip.is_booked:
+        if floating_ip.state == openstack_models.FloatingIP.States.CREATION_SCHEDULED:
             message = gettext(
                 "Floating IP %s is already booked for another instance creation"
             )
             raise serializers.ValidationError({"floating_ips": message % floating_ip})
-        if floating_ip.settings != settings:
+        if floating_ip.tenant != settings.scope:
             message = gettext(
-                "Floating IP %s does not belong to the same service settings as instance."
+                "Floating IP %s does not belong to the same tenant as instance."
             )
             raise serializers.ValidationError({"floating_ips": message % floating_ip})
 
@@ -878,9 +743,11 @@ def _validate_instance_name(data, max_len=255):
         raise serializers.ValidationError({"name": msg})
 
 
-def _connect_floating_ip_to_instance(floating_ip, subnet, instance):
+def _connect_floating_ip_to_instance(
+    floating_ip, subnet: openstack_models.SubNet, instance: models.Instance
+):
     """Connect floating IP to instance via specified subnet.
-    If floating IP is not defined - take exist free one or create a new one.
+    If floating IP is not defined - take existing free one or create a new one.
     """
     external_network_id = instance.service_settings.options.get("external_network_id")
     if not core_utils.is_uuid_like(external_network_id):
@@ -889,22 +756,26 @@ def _connect_floating_ip_to_instance(floating_ip, subnet, instance):
         )
 
     if not floating_ip:
-        kwargs = {
-            "settings": instance.service_settings,
-            "is_booked": False,
-            "backend_network_id": external_network_id,
-        }
-        # TODO: figure out why internal_ip__isnull throws errors when added to kwargs
         floating_ip = (
-            models.FloatingIP.objects.filter(internal_ip__isnull=True)
-            .filter(**kwargs)
+            openstack_models.FloatingIP.objects.filter(
+                port__isnull=True,
+                tenant=subnet.tenant,
+                backend_network_id=external_network_id,
+            )
+            .exclude(backend_id="")
             .first()
         )
         if not floating_ip:
-            floating_ip = models.FloatingIP(**kwargs)
+            floating_ip = openstack_models.FloatingIP(
+                tenant=subnet.tenant,
+                backend_network_id=external_network_id,
+                service_settings=subnet.service_settings,
+                project=subnet.project,
+            )
             floating_ip.increase_backend_quotas_usage(validate=True)
-    floating_ip.is_booked = True
-    floating_ip.internal_ip = models.InternalIP.objects.filter(
+    if floating_ip.backend_id:
+        floating_ip.state = openstack_models.FloatingIP.States.UPDATE_SCHEDULED
+    floating_ip.port = openstack_models.Port.objects.filter(
         instance=instance, subnet=subnet
     ).first()
     floating_ip.save()
@@ -948,9 +819,9 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
     server_group = NestedServerGroupSerializer(
         queryset=models.ServerGroup.objects.all(), required=False
     )
-    internal_ips_set = NestedInternalIPSerializer(many=True, required=True)
+    ports = NestedPortSerializer(many=True, required=True)
     floating_ips = NestedFloatingIPSerializer(
-        queryset=models.FloatingIP.objects.all().filter(internal_ip__isnull=True),
+        queryset=openstack_models.FloatingIP.objects.all().filter(port__isnull=True),
         many=True,
         required=False,
     )
@@ -999,9 +870,8 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
             "data_volumes",
             "security_groups",
             "server_group",
-            "internal_ips",
             "floating_ips",
-            "internal_ips_set",
+            "ports",
             "availability_zone",
             "availability_zone_name",
             "connect_directly_to_external_network",
@@ -1021,7 +891,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
                 "floating_ips",
                 "security_groups",
                 "server_group",
-                "internal_ips_set",
+                "ports",
                 "availability_zone",
                 "connect_directly_to_external_network",
             )
@@ -1132,8 +1002,8 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
                 )
             )
 
-        internal_ips = attrs.get("internal_ips_set", [])
-        if len(internal_ips) == 0:
+        ports = attrs.get("ports", [])
+        if len(ports) == 0:
             raise serializers.ValidationError(
                 gettext("Please specify at least one network.")
             )
@@ -1144,8 +1014,8 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
         _validate_instance_server_group(
             attrs.get("server_group", None), service_settings
         )
-        _validate_instance_internal_ips(internal_ips, service_settings)
-        subnets = [internal_ip.subnet for internal_ip in internal_ips]
+        _validate_instance_ports(ports, service_settings)
+        subnets = [port.subnet for port in ports]
         _validate_instance_floating_ips(
             attrs.get("floating_ips", []), service_settings, subnets
         )
@@ -1248,7 +1118,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
         """
         security_groups = validated_data.pop("security_groups", [])
         server_group = validated_data.get("server_group")
-        internal_ips = validated_data.pop("internal_ips_set", [])
+        ports = validated_data.pop("ports", [])
         floating_ips_with_subnets = validated_data.pop("floating_ips", [])
         service_settings = validated_data["service_settings"]
         project = validated_data["project"]
@@ -1284,15 +1154,11 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
 
         instance = super().create(validated_data)
 
-        # security groups
         instance.security_groups.add(*security_groups)
-        # server group
         instance.server_group = server_group
-        # internal IPs
-        for internal_ip in internal_ips:
-            internal_ip.instance = instance
-            internal_ip.save()
-        # floating IPs
+        for port in ports:
+            port.instance = instance
+            port.save()
         for floating_ip, subnet in floating_ips_with_subnets:
             _connect_floating_ip_to_instance(floating_ip, subnet, instance)
 
@@ -1464,46 +1330,45 @@ class InstanceAllowedAddressPairsUpdateSerializer(serializers.Serializer):
     def update(self, instance, validated_data):
         subnet = validated_data["subnet"]
         try:
-            internal_ip = models.InternalIP.objects.get(
-                instance=instance, subnet=subnet
-            )
-        except models.InternalIP.DoesNotExist:
+            port = openstack_models.Port.objects.get(instance=instance, subnet=subnet)
+        except openstack_models.Port.DoesNotExist:
             raise serializers.ValidationError(
                 _('Instance is not connected to subnet "%s" yet.') % subnet
             )
 
-        internal_ip.allowed_address_pairs = validated_data["allowed_address_pairs"]
-        internal_ip.save(update_fields=["allowed_address_pairs"])
+        port.allowed_address_pairs = validated_data["allowed_address_pairs"]
+        port.save(update_fields=["allowed_address_pairs"])
         return instance
 
 
-class InstanceInternalIPsSetUpdateSerializer(serializers.Serializer):
-    internal_ips_set = NestedInternalIPSerializer(many=True)
+class InstancePortsUpdateSerializer(serializers.Serializer):
+    ports = NestedPortSerializer(many=True)
 
-    def validate_internal_ips_set(self, internal_ips_set):
-        _validate_instance_internal_ips(
-            internal_ips_set, self.instance.service_settings
-        )
-        return internal_ips_set
+    def validate_ports(self, ports):
+        _validate_instance_ports(ports, self.instance.service_settings)
+        return ports
 
     @transaction.atomic
     def update(self, instance, validated_data):
-        internal_ips_set = validated_data["internal_ips_set"]
-        new_subnets = [ip.subnet for ip in internal_ips_set]
-        # delete stale IPs
-        models.InternalIP.objects.filter(instance=instance).exclude(
+        ports = validated_data["ports"]
+        new_subnets = [ip.subnet for ip in ports]
+        # delete stale ports
+        openstack_models.Port.objects.filter(instance=instance).exclude(
             subnet__in=new_subnets
         ).delete()
-        # create new IPs
-        for internal_ip in internal_ips_set:
-            match = models.InternalIP.objects.filter(
-                instance=instance, subnet=internal_ip.subnet
+        # create new ports
+        for port in ports:
+            match = openstack_models.Port.objects.filter(
+                instance=instance, subnet=port.subnet
             ).first()
             if not match:
-                models.InternalIP.objects.create(
+                openstack_models.Port.objects.create(
                     instance=instance,
-                    subnet=internal_ip.subnet,
-                    settings=internal_ip.settings,
+                    subnet=port.subnet,
+                    network=port.subnet.network,
+                    tenant=port.subnet.tenant,
+                    project=port.subnet.project,
+                    service_settings=port.subnet.service_settings,
                 )
 
         return instance
@@ -1511,15 +1376,15 @@ class InstanceInternalIPsSetUpdateSerializer(serializers.Serializer):
 
 class InstanceFloatingIPsUpdateSerializer(serializers.Serializer):
     floating_ips = NestedFloatingIPSerializer(
-        queryset=models.FloatingIP.objects.all(), many=True, required=False
+        queryset=openstack_models.FloatingIP.objects.all(), many=True, required=False
     )
 
     def get_fields(self):
         fields = super().get_fields()
         instance = self.instance
         if instance:
-            queryset = models.FloatingIP.objects.all().filter(
-                Q(internal_ip__isnull=True) | Q(internal_ip__instance=instance)
+            queryset = openstack_models.FloatingIP.objects.all().filter(
+                Q(port__isnull=True) | Q(port__instance=instance)
             )
             fields["floating_ips"] = NestedFloatingIPSerializer(
                 queryset=queryset, many=True, required=False
@@ -1557,7 +1422,7 @@ class InstanceFloatingIPsUpdateSerializer(serializers.Serializer):
                 continue
             _connect_floating_ip_to_instance(floating_ip, subnet, instance)
         for floating_ip in floating_ips_to_disconnect:
-            floating_ip.internal_ip = None
+            floating_ip.port = None
             floating_ip.save()
         return instance
 
@@ -1570,9 +1435,9 @@ class BackupRestorationSerializer(serializers.HyperlinkedModelSerializer):
     security_groups = NestedSecurityGroupSerializer(
         queryset=openstack_models.SecurityGroup.objects.all(), many=True, required=False
     )
-    internal_ips_set = NestedInternalIPSerializer(many=True, required=False)
+    ports = NestedPortSerializer(many=True, required=False)
     floating_ips = NestedFloatingIPSerializer(
-        queryset=models.FloatingIP.objects.all().filter(internal_ip__isnull=True),
+        queryset=openstack_models.FloatingIP.objects.all().filter(port__isnull=True),
         many=True,
         required=False,
     )
@@ -1587,7 +1452,7 @@ class BackupRestorationSerializer(serializers.HyperlinkedModelSerializer):
             "name",
             "floating_ips",
             "security_groups",
-            "internal_ips_set",
+            "ports",
         )
         read_only_fields = ("url", "uuid", "instance", "created", "backup")
         extra_kwargs = dict(
@@ -1622,10 +1487,10 @@ class BackupRestorationSerializer(serializers.HyperlinkedModelSerializer):
 
         _validate_instance_security_groups(attrs.get("security_groups", []), settings)
 
-        internal_ips = attrs.get("internal_ips_set", [])
-        _validate_instance_internal_ips(internal_ips, settings)
+        ports = attrs.get("ports", [])
+        _validate_instance_ports(ports, settings)
 
-        subnets = [internal_ip.subnet for internal_ip in internal_ips]
+        subnets = [port.subnet for port in ports]
         _validate_instance_floating_ips(
             attrs.get("floating_ips", []), settings, subnets
         )
@@ -1658,9 +1523,7 @@ class BackupRestorationSerializer(serializers.HyperlinkedModelSerializer):
             disk=sum([snapshot.size for snapshot in backup.snapshots.all()]),
         )
 
-        instance.internal_ips_set.add(
-            *validated_data.pop("internal_ips_set", []), bulk=False
-        )
+        instance.ports.add(*validated_data.pop("ports", []), bulk=False)
         instance.security_groups.add(*validated_data.pop("security_groups", []))
 
         for floating_ip, subnet in validated_data.pop("floating_ips", []):
@@ -1691,8 +1554,8 @@ class BackupSerializer(structure_serializers.BaseResourceActionSerializer):
     instance_security_groups = NestedSecurityGroupSerializer(
         read_only=True, many=True, source="instance.security_groups"
     )
-    instance_internal_ips_set = NestedInternalIPSerializer(
-        read_only=True, many=True, source="instance.internal_ips_set"
+    instance_ports = NestedPortSerializer(
+        read_only=True, many=True, source="instance.ports"
     )
     instance_floating_ips = NestedFloatingIPSerializer(
         read_only=True, many=True, source="instance.floating_ips"
@@ -1712,7 +1575,7 @@ class BackupSerializer(structure_serializers.BaseResourceActionSerializer):
             "backup_schedule",
             "backup_schedule_uuid",
             "instance_security_groups",
-            "instance_internal_ips_set",
+            "instance_ports",
             "instance_floating_ips",
         )
         read_only_fields = (
@@ -1889,14 +1752,16 @@ def get_instance(openstack_floating_ip):
         openstack_floating_ip._instance = None
         return
     try:
-        floating_ip = models.FloatingIP.objects.exclude(internal_ip__isnull=True).get(
+        floating_ip = openstack_models.FloatingIP.objects.exclude(
+            port__isnull=True
+        ).get(
             backend_id=openstack_floating_ip.backend_id,
             address=openstack_floating_ip.address,
         )
-    except models.FloatingIP.DoesNotExist:
+    except openstack_models.FloatingIP.DoesNotExist:
         openstack_floating_ip._instance = None
     else:
-        instance = getattr(floating_ip.internal_ip, "instance", None)
+        instance = getattr(floating_ip.port, "instance", None)
         openstack_floating_ip._instance = instance
         return instance
 

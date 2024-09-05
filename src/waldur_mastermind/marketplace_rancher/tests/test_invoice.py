@@ -67,7 +67,7 @@ class InvoiceTest(test.APITransactionTestCase):
             settings=self.fixture.openstack_tenant_service_settings
         )
         openstack_factories.SecurityGroupFactory(
-            name="default", tenant=self.fixture.openstack_tenant_service_settings.scope
+            name="default", tenant=self.fixture.tenant
         )
         service_settings.options["base_image_name"] = image.name
         service_settings.save()

@@ -125,34 +125,6 @@ class OpenStackTenantConfig(AppConfig):
                 dispatch_uid="openstack_tenant.handlers.log_%s_action" % name,
             )
 
-        for handler in handlers.resource_handlers:
-            model = handler.resource_model
-            name = model.__name__.lower()
-
-            fsm_signals.post_transition.connect(
-                handler.create_handler,
-                sender=model,
-                dispatch_uid="openstack_tenant.handlers.create_%s" % name,
-            )
-
-            fsm_signals.post_transition.connect(
-                handler.update_handler,
-                sender=model,
-                dispatch_uid="openstack_tenant.handlers.update_%s" % name,
-            )
-
-            signals.post_save.connect(
-                handler.import_handler,
-                sender=model,
-                dispatch_uid="openstack_tenant.handlers.import_%s" % name,
-            )
-
-            signals.post_delete.connect(
-                handler.delete_handler,
-                sender=model,
-                dispatch_uid="openstack_tenant.handlers.delete_%s" % name,
-            )
-
         signals.post_save.connect(
             handlers.log_backup_schedule_creation,
             sender=models.BackupSchedule,

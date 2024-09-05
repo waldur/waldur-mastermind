@@ -10,6 +10,7 @@ from waldur_core.core import tasks as core_tasks
 from waldur_core.quotas import exceptions as quotas_exceptions
 from waldur_core.structure import tasks as structure_tasks
 from waldur_core.structure.registry import get_resource_type
+from waldur_openstack.openstack.models import FloatingIP
 
 from . import log, models, serializers
 
@@ -27,7 +28,7 @@ class SetInstanceOKTask(core_tasks.StateTransitionTask):
 
     def execute(self, instance, *args, **kwargs):
         super().execute(instance)
-        instance.floating_ips.update(is_booked=False)
+        instance.floating_ips.update(state=FloatingIP.States.OK)
 
 
 class SetInstanceErredTask(core_tasks.ErrorStateTransitionTask):
@@ -50,7 +51,7 @@ class SetInstanceErredTask(core_tasks.ErrorStateTransitionTask):
 
         # set instance floating IPs as free, delete not created ones.
         instance.floating_ips.filter(backend_id="").delete()
-        instance.floating_ips.update(is_booked=False)
+        instance.floating_ips.update(state=FloatingIP.States.OK)
 
 
 class SetBackupErredTask(core_tasks.ErrorStateTransitionTask):

@@ -66,7 +66,7 @@ class InstanceCreateProcessor(processors.BaseCreateResourceProcessor):
         "image",
         "security_groups",
         "server_group",
-        "internal_ips_set",
+        "ports",
         "floating_ips",
         "system_volume_size",
         "system_volume_type",

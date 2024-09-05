@@ -19,17 +19,6 @@ class ImageAdmin(structure_admin.BackendModelAdmin):
     list_display = ("name", "settings", "min_disk", "min_ram")
 
 
-class FloatingIPAdmin(structure_admin.BackendModelAdmin):
-    list_display = (
-        "name",
-        "address",
-        "settings",
-        "runtime_state",
-        "backend_network_id",
-        "is_booked",
-    )
-
-
 class MetadataMixin(admin.ModelAdmin):
     def get_readonly_fields(self, request, obj=None):
         return super().get_readonly_fields(request, obj) + ("format_metadata",)
@@ -120,20 +109,6 @@ class SnapshotAdmin(structure_admin.ResourceAdmin):
     pull = Pull()
 
 
-class InternalIpInline(admin.TabularInline):
-    model = models.InternalIP
-
-    def has_add_permission(self, request, obj=None):
-        return False
-
-    def get_readonly_fields(self, request, obj=None):
-        return models.InternalIP.get_backend_fields() + (
-            "backend_id",
-            "instance",
-            "subnet",
-        )
-
-
 class InstanceChangeForm(forms.ModelForm):
     class Meta:
         model = models.Instance
@@ -150,7 +125,6 @@ class InstanceChangeForm(forms.ModelForm):
 class InstanceAdmin(ActionDetailsMixin, structure_admin.VirtualMachineAdmin):
     actions = structure_admin.VirtualMachineAdmin.actions + ["pull"]
     exclude = ("action_details",)
-    inlines = [InternalIpInline]
     list_filter = structure_admin.VirtualMachineAdmin.list_filter + ("runtime_state",)
     search_fields = structure_admin.VirtualMachineAdmin.search_fields + (
         "uuid",
@@ -217,7 +191,6 @@ class SnapshotScheduleAdmin(BaseScheduleAdmin):
 
 admin.site.register(models.Flavor, FlavorAdmin)
 admin.site.register(models.Image, ImageAdmin)
-admin.site.register(models.FloatingIP, FloatingIPAdmin)
 admin.site.register(models.Volume, VolumeAdmin)
 admin.site.register(models.VolumeType, structure_admin.ServicePropertyAdmin)
 admin.site.register(models.VolumeAvailabilityZone, structure_admin.ServicePropertyAdmin)

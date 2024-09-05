@@ -1,5 +1,6 @@
 from django.test import TestCase
 
+from waldur_openstack.openstack.tests.factories import FloatingIPFactory, PortFactory
 from waldur_openstack.openstack_tenant.executors import (
     InstanceFloatingIPsUpdateExecutor,
 )
@@ -13,10 +14,10 @@ class InstanceFloatingIPsUpdateExecutorTest(TestCase):
         self.instance = factories.InstanceFactory()
 
     def test_executor_does_not_return_empty_message_if_no_ips_have_been_updated(self):
-        floating_ip = factories.FloatingIPFactory()
-        floating_ip.internal_ip = factories.InternalIPFactory()
+        floating_ip = FloatingIPFactory()
+        floating_ip.port = PortFactory()
         floating_ip.save()
-        self.instance.internal_ips_set.add(floating_ip.internal_ip)
+        self.instance.ports.add(floating_ip.port)
         self.instance.save()
 
         self.instance._new_floating_ips = [floating_ip]

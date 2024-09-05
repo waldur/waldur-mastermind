@@ -15,6 +15,8 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure import utils as structure_utils
 from waldur_geo_ip.utils import get_coordinates_by_ip
 from waldur_openstack.openstack.models import (
+    FloatingIP,
+    Port,
     SecurityGroup,
     ServerGroup,
     SubNet,
@@ -66,52 +68,6 @@ class TenantQuotaMixin(quotas_models.SharedQuotaMixin):
     def get_quota_scopes(self) -> list[quotas_models.QuotaModelMixin]:
         service_settings = self.service_settings
         return service_settings, service_settings.scope
-
-
-class FloatingIP(core_models.LoggableMixin, structure_models.ServiceProperty):
-    address = models.GenericIPAddressField(protocol="IPv4", null=True, default=None)
-    runtime_state = models.CharField(max_length=30)
-    backend_network_id = models.CharField(max_length=255, editable=False)
-    is_booked = models.BooleanField(
-        default=False,
-        help_text=_("Marks if floating IP has been booked for provisioning."),
-    )
-    internal_ip = models.ForeignKey(
-        "InternalIP", related_name="floating_ips", null=True, on_delete=models.SET_NULL
-    )
-    tracker = FieldTracker()
-
-    class Meta:
-        unique_together = ("settings", "address")
-        verbose_name = _("Floating IP")
-        verbose_name_plural = _("Floating IPs")
-
-    def __str__(self):
-        return f"{self.address}:{self.runtime_state} | {self.settings}"
-
-    @classmethod
-    def get_url_name(cls):
-        return "openstacktenant-fip"
-
-    def get_backend(self):
-        return self.settings.get_backend()
-
-    def increase_backend_quotas_usage(self, validate=False):
-        self.settings.add_quota_usage("floating_ip_count", 1, validate=validate)
-
-    def decrease_backend_quotas_usage(self):
-        self.settings.add_quota_usage("floating_ip_count", -1)
-
-    @classmethod
-    def get_backend_fields(cls):
-        return super().get_backend_fields() + (
-            "address",
-            "runtime_state",
-            "backend_network_id",
-        )
-
-    def get_log_fields(self):
-        return ("address", "runtime_state", "backend_id", "backend_network_id")
 
 
 class Volume(TenantQuotaMixin, structure_models.Volume):
@@ -324,7 +280,7 @@ class Instance(TenantQuotaMixin, structure_models.VirtualMachine):
     # TODO: Move this fields to resource model.
     action = models.CharField(max_length=50, blank=True)
     action_details = JSONField(default=dict)
-    subnets = models.ManyToManyField(SubNet, through="InternalIP")
+    subnets = models.ManyToManyField(SubNet, through=Port)
     hypervisor_hostname = models.CharField(max_length=255, blank=True)
 
     connect_directly_to_external_network = models.BooleanField(default=False)
@@ -350,7 +306,7 @@ class Instance(TenantQuotaMixin, structure_models.VirtualMachine):
     def internal_ips(self):
         return [
             val["ip_address"]
-            for ip_list in self.internal_ips_set.values_list("fixed_ips", flat=True)
+            for ip_list in self.ports.values_list("fixed_ips", flat=True)
             for val in ip_list
         ]
 
@@ -394,7 +350,7 @@ class Instance(TenantQuotaMixin, structure_models.VirtualMachine):
 
     @property
     def floating_ips(self):
-        return FloatingIP.objects.filter(internal_ip__instance=self)
+        return FloatingIP.objects.filter(port__instance=self)
 
     @classmethod
     def get_backend_fields(cls):
@@ -507,40 +463,6 @@ class SnapshotSchedule(BaseSchedule):
     @classmethod
     def get_url_name(cls):
         return "openstacktenant-snapshot-schedule"
-
-
-class InternalIP(openstack_base_models.Port):
-    """
-    Instance may have several IP addresses in the same subnet
-    if shared IPs are implemented using Virtual Router Redundancy Protocol.
-    """
-
-    # Name "internal_ips" is reserved by virtual machine mixin and corresponds to list of internal IPs.
-    # So another related name should be used.
-    instance = models.ForeignKey(
-        on_delete=models.CASCADE,
-        to=Instance,
-        related_name="internal_ips_set",
-        null=True,
-    )
-    subnet = models.ForeignKey(
-        on_delete=models.CASCADE, to=SubNet, related_name="internal_ips"
-    )
-
-    # backend_id is nullable on purpose, otherwise
-    # it wouldn't be possible to put a unique constraint on it
-    backend_id = models.CharField(max_length=255, null=True)
-    settings = models.ForeignKey(
-        on_delete=models.CASCADE, to=structure_models.ServiceSettings, related_name="+"
-    )
-    tracker = FieldTracker()
-
-    def __str__(self):
-        # This method should not return None
-        return self.backend_id or f"InternalIP <{self.id}>"
-
-    class Meta:
-        unique_together = ("backend_id", "settings")
 
 
 class VolumeType(openstack_base_models.BaseVolumeType):

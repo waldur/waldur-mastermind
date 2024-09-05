@@ -69,7 +69,7 @@ class CreateNodeTask(core_tasks.Task):
                 {"url": reverse("openstack-sgp-detail", kwargs={"uuid": group})}
                 for group in security_groups
             ],
-            "internal_ips_set": [
+            "ports": [
                 {"subnet": reverse("openstack-subnet-detail", kwargs={"uuid": subnet})}
             ],
             "user_data": utils.format_node_cloud_config(node),

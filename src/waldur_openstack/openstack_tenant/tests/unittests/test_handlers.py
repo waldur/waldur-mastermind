@@ -4,8 +4,7 @@ from waldur_core.core.models import StateMixin
 from waldur_core.structure import models as structure_models
 from waldur_openstack.openstack.models import Tenant
 from waldur_openstack.openstack.tests import factories as openstack_factories
-from waldur_openstack.openstack_tenant import apps, models
-from waldur_openstack.openstack_tenant.tests import factories
+from waldur_openstack.openstack_tenant import apps
 
 
 class BaseServicePropertyTest(TestCase):
@@ -14,69 +13,6 @@ class BaseServicePropertyTest(TestCase):
         self.service_settings = structure_models.ServiceSettings.objects.get(
             scope=self.tenant, type=apps.OpenStackTenantConfig.service_name
         )
-
-
-class FloatingIPHandlerTest(BaseServicePropertyTest):
-    def setUp(self):
-        super().setUp()
-
-    def test_floating_ip_create(self):
-        openstack_floating_ip = openstack_factories.FloatingIPFactory(
-            tenant=self.tenant, state=StateMixin.States.CREATING
-        )
-        self.assertEqual(models.FloatingIP.objects.count(), 0)
-
-        openstack_floating_ip.set_ok()
-        openstack_floating_ip.save()
-
-        self.assertEqual(models.FloatingIP.objects.count(), 1)
-
-    def test_floating_ip_is_not_created_if_it_already_exists(self):
-        factories.FloatingIPFactory(
-            settings=self.service_settings, backend_id="VALID_BACKEND_ID"
-        )
-        openstack_floating_ip = openstack_factories.FloatingIPFactory(
-            tenant=self.tenant,
-            state=StateMixin.States.CREATING,
-            backend_id="VALID_BACKEND_ID",
-        )
-        self.assertEqual(models.FloatingIP.objects.count(), 1)
-
-        openstack_floating_ip.set_ok()
-        openstack_floating_ip.save()
-
-        self.assertEqual(models.FloatingIP.objects.count(), 1)
-
-    def test_floating_ip_update(self):
-        openstack_floating_ip = openstack_factories.FloatingIPFactory(
-            tenant=self.tenant, name="New name", state=StateMixin.States.UPDATING
-        )
-        floating_ip = factories.FloatingIPFactory(
-            settings=self.service_settings,
-            backend_id=openstack_floating_ip.backend_id,
-        )
-
-        openstack_floating_ip.set_ok()
-        openstack_floating_ip.save()
-        floating_ip.refresh_from_db()
-
-        self.assertEqual(openstack_floating_ip.name, floating_ip.name)
-        self.assertEqual(openstack_floating_ip.address, floating_ip.address)
-        self.assertEqual(openstack_floating_ip.runtime_state, floating_ip.runtime_state)
-        self.assertEqual(
-            openstack_floating_ip.backend_network_id, floating_ip.backend_network_id
-        )
-
-    def test_floating_ip_delete(self):
-        openstack_floating_ip = openstack_factories.FloatingIPFactory(
-            tenant=self.tenant
-        )
-        factories.FloatingIPFactory(
-            settings=self.service_settings, backend_id=openstack_floating_ip.backend_id
-        )
-
-        openstack_floating_ip.delete()
-        self.assertEqual(models.FloatingIP.objects.count(), 0)
 
 
 class TenantChangeCredentialsTest(TestCase):

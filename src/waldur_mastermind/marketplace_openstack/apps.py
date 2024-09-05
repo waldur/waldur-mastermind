@@ -214,26 +214,26 @@ class MarketplaceOpenStackConfig(AppConfig):
         )
 
         signals.post_save.connect(
-            handlers.synchronize_internal_ips,
-            sender=tenant_models.InternalIP,
-            dispatch_uid="waldur_mastermind.marketplace_openstack.synchronize_internal_ips",
+            handlers.synchronize_ports,
+            sender=openstack_models.Port,
+            dispatch_uid="waldur_mastermind.marketplace_openstack.synchronize_ports",
         )
 
         signals.post_save.connect(
             handlers.synchronize_floating_ips,
-            sender=tenant_models.FloatingIP,
+            sender=openstack_models.FloatingIP,
             dispatch_uid="waldur_mastermind.marketplace_openstack.synchronize_floating_ips",
         )
 
         signals.post_delete.connect(
-            handlers.synchronize_internal_ips_on_delete,
-            sender=tenant_models.InternalIP,
-            dispatch_uid="waldur_mastermind.marketplace_openstack.synchronize_internal_ips_on_delete",
+            handlers.synchronize_ports_on_delete,
+            sender=openstack_models.Port,
+            dispatch_uid="waldur_mastermind.marketplace_openstack.synchronize_ports_on_delete",
         )
 
         signals.post_delete.connect(
             handlers.synchronize_floating_ips_on_delete,
-            sender=tenant_models.FloatingIP,
+            sender=openstack_models.FloatingIP,
             dispatch_uid="waldur_mastermind.marketplace_openstack.synchronize_floating_ips_on_delete",
         )
 

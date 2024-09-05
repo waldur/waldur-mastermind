@@ -97,22 +97,20 @@ class NetworkMetadataTest(BaseOpenStackTest):
         self.instance = self.fixture.instance
         self.resource = marketplace_factories.ResourceFactory(scope=self.instance)
 
-    def test_internal_ip_address_is_synchronized(self):
-        internal_ip = self.fixture.internal_ip
+    def test_port_address_is_synchronized(self):
+        port = self.fixture.port
 
         self.resource.refresh_from_db()
 
-        self.assertEqual(
-            self.resource.backend_metadata["internal_ips"], internal_ip.fixed_ips
-        )
+        self.assertEqual(self.resource.backend_metadata["internal_ips"], port.fixed_ips)
 
-    def test_internal_ip_address_is_updated(self):
-        internal_ip = self.fixture.internal_ip
-        internal_ip.fixed_ips = [
-            {"ip_address": "10.0.0.1", "subnet_id": internal_ip.subnet.backend_id}
+    def test_port_address_is_updated(self):
+        port = self.fixture.port
+        port.fixed_ips = [
+            {"ip_address": "10.0.0.1", "subnet_id": port.subnet.backend_id}
         ]
 
-        internal_ip.save()
+        port.save()
 
         self.resource.refresh_from_db()
         self.assertEqual(
@@ -120,24 +118,24 @@ class NetworkMetadataTest(BaseOpenStackTest):
             ["10.0.0.1"],
         )
 
-    def test_internal_ip_address_is_updated_on_delete(self):
-        internal_ip = self.fixture.internal_ip
-        internal_ip.fixed_ips = [
-            {"ip_address": "10.0.0.1", "subnet_id": internal_ip.subnet.backend_id}
+    def test_port_address_is_updated_on_delete(self):
+        port = self.fixture.port
+        port.fixed_ips = [
+            {"ip_address": "10.0.0.1", "subnet_id": port.subnet.backend_id}
         ]
-        internal_ip.save()
+        port.save()
         self.resource.refresh_from_db()
 
-        internal_ip.delete()
+        port.delete()
 
         self.resource.refresh_from_db()
         self.assertEqual(self.resource.backend_metadata["internal_ips"], [])
 
     def test_floating_ip_address_is_synchronized(self):
-        internal_ip = self.fixture.internal_ip
+        port = self.fixture.port
         floating_ip = self.fixture.floating_ip
 
-        floating_ip.internal_ip = internal_ip
+        floating_ip.port = port
         floating_ip.save()
 
         self.resource.refresh_from_db()
@@ -146,10 +144,10 @@ class NetworkMetadataTest(BaseOpenStackTest):
         )
 
     def test_floating_ip_address_is_synchronized_on_delete(self):
-        internal_ip = self.fixture.internal_ip
+        port = self.fixture.port
         floating_ip = self.fixture.floating_ip
 
-        floating_ip.internal_ip = internal_ip
+        floating_ip.port = port
         floating_ip.save()
 
         floating_ip.delete()

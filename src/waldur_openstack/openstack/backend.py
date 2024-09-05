@@ -17,6 +17,7 @@ from novaclient import exceptions as nova_exceptions
 from waldur_core.core import utils as core_utils
 from waldur_core.core.utils import create_batch_fetcher, pwgen
 from waldur_core.structure.backend import log_backend_action
+from waldur_core.structure.models import ServiceSettings
 from waldur_core.structure.registry import get_resource_type
 from waldur_core.structure.utils import (
     handle_resource_not_found,
@@ -38,6 +39,7 @@ from waldur_openstack.openstack_base.session import (
     get_nova_client,
 )
 from waldur_openstack.openstack_base.utils import is_valid_volume_type_name
+from waldur_openstack.openstack_tenant.models import Instance
 
 from . import models, signals
 from .log import event_logger
@@ -325,13 +327,13 @@ class OpenStackBackend(BaseOpenStackBackend):
             raise OpenStackBackendError(e)
 
     @log_backend_action("pull floating IPs for tenant")
-    def pull_tenant_floating_ips(self, tenant):
+    def pull_tenant_floating_ips(self, tenant: models.Tenant):
         neutron = get_neutron_client(self.session)
 
         try:
-            backend_floating_ips = neutron.list_floatingips(tenant_id=self.tenant_id)[
-                "floatingips"
-            ]
+            backend_floating_ips = neutron.list_floatingips(
+                tenant_id=tenant.backend_id
+            )["floatingips"]
         except neutron_exceptions.NeutronClientException as e:
             raise OpenStackBackendError(e)
 
@@ -358,9 +360,7 @@ class OpenStackBackend(BaseOpenStackBackend):
         for backend_ip in backend_floating_ips:
             imported_floating_ip = self._backend_floating_ip_to_floating_ip(
                 backend_ip,
-                tenant=tenant,
-                service_settings=tenant.service_settings,
-                project=tenant.project,
+                tenant,
             )
             floating_ip = floating_ips.pop(imported_floating_ip.backend_id, None)
             if floating_ip is None:
@@ -377,12 +377,14 @@ class OpenStackBackend(BaseOpenStackBackend):
             )
             handle_resource_update_success(floating_ip)
 
-    def _backend_floating_ip_to_floating_ip(self, backend_floating_ip, **kwargs):
+    def _backend_floating_ip_to_floating_ip(
+        self, backend_floating_ip, tenant: models.Tenant
+    ):
         port_id = backend_floating_ip["port_id"]
         if port_id:
             port = models.Port.objects.filter(
                 backend_id=port_id,
-                service_settings=self.settings,
+                tenant=tenant,
             ).first()
         else:
             port = None
@@ -395,9 +397,10 @@ class OpenStackBackend(BaseOpenStackBackend):
             backend_id=backend_floating_ip["id"],
             state=models.FloatingIP.States.OK,
             port=port,
+            tenant=tenant,
+            service_settings=tenant.service_settings,
+            project=tenant.project,
         )
-        for field, value in kwargs.items():
-            setattr(floating_ip, field, value)
 
         return floating_ip
 
@@ -466,11 +469,11 @@ class OpenStackBackend(BaseOpenStackBackend):
         )
 
     @log_backend_action("pull security groups for tenant")
-    def pull_tenant_security_groups(self, tenant):
+    def pull_tenant_security_groups(self, tenant: models.Tenant):
         neutron = get_neutron_client(self.session)
         try:
             backend_security_groups = neutron.list_security_groups(
-                tenant_id=self.tenant_id
+                tenant_id=tenant.backend_id
             )["security_groups"]
         except neutron_exceptions.NeutronClientException as e:
             raise OpenStackBackendError(e)
@@ -679,7 +682,11 @@ class OpenStackBackend(BaseOpenStackBackend):
         ):
             self.pull_tenant_ports(tenant)
 
-    def pull_tenant_ports(self, tenant):
+    def _tenant_mappings(self, queryset):
+        rows = queryset.exclude(backend_id="").values("id", "backend_id")
+        return {row["backend_id"]: row["id"] for row in rows}
+
+    def pull_tenant_ports(self, tenant: models.Tenant):
         neutron = get_neutron_client(self.session)
 
         try:
@@ -687,28 +694,45 @@ class OpenStackBackend(BaseOpenStackBackend):
         except neutron_exceptions.NeutronClientException as e:
             raise OpenStackBackendError(e)
 
-        networks = models.Network.objects.filter(tenant=tenant)
-        network_mappings = {network.backend_id: network for network in networks}
-
-        security_groups = models.SecurityGroup.objects.filter(tenant=tenant)
-        security_group_mappings = {
-            security_group.backend_id: security_group
-            for security_group in security_groups
-        }
+        network_mapping = self._tenant_mappings(
+            models.Network.objects.filter(tenant=tenant)
+        )
+        subnet_mapping = self._tenant_mappings(
+            models.SubNet.objects.filter(tenant=tenant)
+        )
+        security_group_mapping = self._tenant_mappings(
+            models.SecurityGroup.objects.filter(tenant=tenant)
+        )
+        instance_mapping = self._tenant_mappings(
+            Instance.objects.filter(
+                service_settings__in=ServiceSettings.objects.filter(scope=tenant)
+            )
+        )
 
         for backend_port in backend_ports:
             backend_id = backend_port["id"]
+
+            try:
+                subnet_backend_id = backend_port["fixed_ips"][0]["subnet_id"]
+            except (AttributeError, KeyError):
+                pass
+
+            device_id = backend_port.get("device_id")
+            instance_id = instance_mapping.get(device_id)
+
             defaults = {
                 "name": backend_port["name"],
                 "description": backend_port["description"],
                 "service_settings": tenant.service_settings,
                 "project": tenant.project,
+                "instance_id": instance_id,
+                "subnet_id": subnet_mapping.get(subnet_backend_id),
                 "state": models.Port.States.OK,
                 "mac_address": backend_port["mac_address"],
                 "fixed_ips": backend_port["fixed_ips"],
                 "allowed_address_pairs": backend_port.get("allowed_address_pairs", []),
-                "network": network_mappings.get(backend_port["network_id"]),
-                "device_id": backend_port.get("device_id"),
+                "network_id": network_mapping.get(backend_port["network_id"]),
+                "device_id": device_id,
                 "device_owner": backend_port.get("device_owner"),
                 "port_security_enabled": backend_port.get(
                     "port_security_enabled", True
@@ -725,9 +749,9 @@ class OpenStackBackend(BaseOpenStackBackend):
 
                 new_groups = remote_groups - local_groups
                 for group_id in new_groups:
-                    security_groups = security_group_mappings.get(group_id)
-                    if security_groups:
-                        port.security_groups.add(security_groups)
+                    local_group_id = security_group_mapping.get(group_id)
+                    if local_group_id:
+                        port.security_groups.add(local_group_id)
 
                 stale_groups = local_groups - remote_groups
                 for group in port.security_groups.filter(backend_id__in=stale_groups):
@@ -741,8 +765,10 @@ class OpenStackBackend(BaseOpenStackBackend):
                 )
 
         remote_ids = {ip["id"] for ip in backend_ports}
-        stale_ports = models.Port.objects.filter(tenant=tenant).exclude(
-            backend_id__in=remote_ids
+        stale_ports = (
+            models.Port.objects.filter(tenant=tenant)
+            .exclude(backend_id="")
+            .exclude(backend_id__in=remote_ids)
         )
         stale_ports.delete()
 
@@ -2247,7 +2273,7 @@ class OpenStackBackend(BaseOpenStackBackend):
                 )
 
     @log_backend_action("pull floating ip")
-    def pull_floating_ip(self, floating_ip):
+    def pull_floating_ip(self, floating_ip: models.FloatingIP):
         neutron = get_neutron_client(self.session)
         try:
             backend_floating_ip = neutron.show_floatingip(floating_ip.backend_id)[
@@ -2257,14 +2283,14 @@ class OpenStackBackend(BaseOpenStackBackend):
             raise OpenStackBackendError(e)
 
         imported_floating_ip = self._backend_floating_ip_to_floating_ip(
-            backend_floating_ip, tenant=floating_ip.tenant
+            backend_floating_ip, floating_ip.tenant
         )
         update_pulled_fields(
             floating_ip, imported_floating_ip, models.FloatingIP.get_backend_fields()
         )
 
     @log_backend_action("delete floating ip")
-    def delete_floating_ip(self, floating_ip):
+    def delete_floating_ip(self, floating_ip: models.FloatingIP):
         self._delete_backend_floating_ip(
             floating_ip.backend_id, floating_ip.tenant.backend_id
         )
@@ -2309,6 +2335,8 @@ class OpenStackBackend(BaseOpenStackBackend):
                 }
             )["floatingip"]
         except neutron_exceptions.NeutronClientException as e:
+            floating_ip.runtime_state = "ERRED"
+            floating_ip.save()
             raise OpenStackBackendError(e)
         else:
             floating_ip.runtime_state = backend_floating_ip["status"]
@@ -2316,6 +2344,19 @@ class OpenStackBackend(BaseOpenStackBackend):
             floating_ip.name = backend_floating_ip["floating_ip_address"]
             floating_ip.backend_id = backend_floating_ip["id"]
             floating_ip.backend_network_id = backend_floating_ip["floating_network_id"]
+            floating_ip.save()
+
+    @log_backend_action()
+    def pull_floating_ip_runtime_state(self, floating_ip):
+        neutron = get_neutron_client(self.session)
+        try:
+            backend_floating_ip = neutron.show_floatingip(floating_ip.backend_id)[
+                "floatingip"
+            ]
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(e)
+        else:
+            floating_ip.runtime_state = backend_floating_ip["status"]
             floating_ip.save()
 
     @log_backend_action()

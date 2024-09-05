@@ -1,5 +1,6 @@
 from waldur_core.logging.loggers import EventLogger, event_logger
 from waldur_core.structure import models as structure_models
+from waldur_openstack.openstack.models import FloatingIP
 
 from . import models
 
@@ -51,9 +52,9 @@ class ResourceActionEventLogger(EventLogger):
             "resource_unassign_floating_ip_scheduled",
             "resource_unassign_floating_ip_succeeded",
             "resource_unassign_floating_ip_failed",
-            "resource_update_internal_ips_scheduled",
-            "resource_update_internal_ips_succeeded",
-            "resource_update_internal_ips_failed",
+            "resource_update_ports_scheduled",
+            "resource_update_ports_succeeded",
+            "resource_update_ports_failed",
             "resource_update_allowed_address_pairs_scheduled",
             "resource_update_allowed_address_pairs_succeeded",
             "resource_update_allowed_address_pairs_failed",
@@ -135,7 +136,7 @@ class BackupEventLogger(EventLogger):
 
 
 class FloatingIPEventLogger(EventLogger):
-    floating_ip = models.FloatingIP
+    floating_ip = FloatingIP
     instance = models.Instance
 
     class Meta:

@@ -14,8 +14,8 @@ from waldur_openstack.openstack_tenant.tests import factories, fixtures
 def _instance_data(user, instance=None):
     if instance is None:
         instance = factories.InstanceFactory()
-    factories.FloatingIPFactory(
-        settings=instance.service_settings, runtime_state="DOWN"
+    openstack_factories.FloatingIPFactory(
+        tenant=instance.service_settings.scope, runtime_state="DOWN"
     )
     image = factories.ImageFactory(settings=instance.service_settings)
     flavor = factories.FlavorFactory(settings=instance.service_settings)
@@ -34,9 +34,7 @@ def _instance_data(user, instance=None):
             ssh_public_key
         ),
         "system_volume_size": max(image.min_disk, 1024),
-        "internal_ips_set": [
-            {"subnet": openstack_factories.SubNetFactory.get_url(subnet)}
-        ],
+        "ports": [{"subnet": openstack_factories.SubNetFactory.get_url(subnet)}],
     }
 
 
@@ -88,7 +86,7 @@ class InstanceSecurityGroupsTest(test.APITransactionTestCase):
     def test_change_instance_security_groups_single_field(self, mocked_execute_method):
         new_security_group = openstack_factories.SecurityGroupFactory(
             name="test-group",
-            tenant=self.settings.scope,
+            tenant=self.fixture.tenant,
         )
 
         data = {
@@ -123,7 +121,7 @@ class InstanceSecurityGroupsTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         security_group = openstack_factories.SecurityGroupFactory(
-            tenant=self.settings.scope
+            tenant=self.fixture.tenant
         )
         data = {
             "security_groups": [self._get_valid_security_group_payload(security_group)]

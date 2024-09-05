@@ -13,11 +13,6 @@ def register_in(router):
         basename="openstacktenant-flavor",
     )
     router.register(
-        r"openstacktenant-floating-ips",
-        views.FloatingIPViewSet,
-        basename="openstacktenant-fip",
-    )
-    router.register(
         r"openstacktenant-volumes",
         views.VolumeViewSet,
         basename="openstacktenant-volume",

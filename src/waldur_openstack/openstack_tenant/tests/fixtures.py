@@ -2,7 +2,12 @@ from django.utils.functional import cached_property
 
 from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_openstack.openstack.tests import fixtures as openstack_fixtures
-from waldur_openstack.openstack.tests.factories import NetworkFactory, SubNetFactory
+from waldur_openstack.openstack.tests.factories import (
+    FloatingIPFactory,
+    NetworkFactory,
+    PortFactory,
+    SubNetFactory,
+)
 from waldur_openstack.openstack_tenant import models
 from waldur_openstack.openstack_tenant.tests import factories
 
@@ -101,16 +106,19 @@ class OpenStackTenantFixture(ProjectFixture):
 
     @cached_property
     def floating_ip(self):
-        return factories.FloatingIPFactory(
-            settings=self.openstack_tenant_service_settings,
-            runtime_state="DOWN",
+        return FloatingIPFactory(
+            tenant=self.tenant,
+            project=self.tenant.project,
         )
 
     @cached_property
-    def internal_ip(self):
-        return factories.InternalIPFactory(
+    def port(self):
+        return PortFactory(
             subnet=self.subnet,
+            network=self.network,
             instance=self.instance,
+            tenant=self.tenant,
+            project=self.tenant.project,
         )
 
     @cached_property

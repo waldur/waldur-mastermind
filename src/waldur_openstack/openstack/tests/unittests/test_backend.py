@@ -34,7 +34,11 @@ class BaseBackendTestCase(test.APITransactionTestCase):
 
 @ddt
 class PullFloatingIPTest(BaseBackendTestCase):
-    def _get_valid_new_backend_ip(self, floating_ip):
+    def _get_valid_new_backend_ip(self, floating_ip=None):
+        if floating_ip is None:
+            floating_ip = self.fixture.floating_ip
+            floating_ip.delete()
+
         return dict(
             floatingips=[
                 {
@@ -52,7 +56,7 @@ class PullFloatingIPTest(BaseBackendTestCase):
     def setup_client(self, value):
         self.mocked_neutron.list_floatingips.return_value = value
 
-    def call_backend(self, is_admin):
+    def call_backend(self, is_admin=True):
         if is_admin:
             return self.backend.pull_floating_ips()
         else:

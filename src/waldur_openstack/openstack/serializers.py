@@ -15,10 +15,12 @@ from iptools.ipv6 import validate_cidr as is_valid_ipv6_cidr
 from netaddr import AddrFormatError, IPNetwork, all_matching_cidrs
 from rest_framework import serializers
 
+from waldur_core.core import serializers as core_serializers
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
+from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack_base.serializers import (
     BaseOpenStackServiceSerializer,
     BaseSecurityGroupRuleSerializer,
@@ -1283,3 +1285,120 @@ class TenantChangePasswordSerializer(serializers.Serializer):
         tenant.user_password = validated_data["user_password"]
         tenant.save(update_fields=["user_password"])
         return tenant
+
+
+class NestedPortSerializer(
+    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
+):
+    allowed_address_pairs = serializers.JSONField(read_only=True)
+    fixed_ips = serializers.JSONField(read_only=True)
+
+    class Meta:
+        model = openstack_models.Port
+        fields = (
+            "fixed_ips",
+            "mac_address",
+            "subnet",
+            "subnet_uuid",
+            "subnet_name",
+            "subnet_description",
+            "subnet_cidr",
+            "allowed_address_pairs",
+            "device_id",
+            "device_owner",
+        )
+        read_only_fields = (
+            "fixed_ips",
+            "mac_address",
+            "subnet_uuid",
+            "subnet_name",
+            "subnet_description",
+            "subnet_cidr",
+            "allowed_address_pairs",
+            "device_id",
+            "device_owner",
+        )
+        related_paths = {
+            "subnet": ("uuid", "name", "description", "cidr"),
+        }
+        extra_kwargs = {
+            "subnet": {
+                "lookup_field": "uuid",
+                "view_name": "openstack-subnet-detail",
+            },
+        }
+
+    def to_internal_value(self, data):
+        internal_value = super().to_internal_value(data)
+        subnet: openstack_models.SubNet = internal_value["subnet"]
+        return openstack_models.Port(
+            subnet=subnet,
+            network=subnet.network,
+            tenant=subnet.tenant,
+            project=subnet.project,
+            service_settings=subnet.service_settings,
+        )
+
+
+class NestedFloatingIPSerializer(
+    core_serializers.AugmentedSerializerMixin,
+    core_serializers.HyperlinkedRelatedModelSerializer,
+):
+    subnet = serializers.HyperlinkedRelatedField(
+        queryset=openstack_models.SubNet.objects.all(),
+        source="port.subnet",
+        view_name="openstack-subnet-detail",
+        lookup_field="uuid",
+    )
+    subnet_uuid = serializers.ReadOnlyField(source="port.subnet.uuid")
+    subnet_name = serializers.ReadOnlyField(source="port.subnet.name")
+    subnet_description = serializers.ReadOnlyField(source="port.subnet.description")
+    subnet_cidr = serializers.ReadOnlyField(source="port.subnet.cidr")
+    port_fixed_ips = serializers.JSONField(source="port.fixed_ips", read_only=True)
+
+    class Meta:
+        model = openstack_models.FloatingIP
+        fields = (
+            "url",
+            "uuid",
+            "address",
+            "port_fixed_ips",
+            "port_mac_address",
+            "subnet",
+            "subnet_uuid",
+            "subnet_name",
+            "subnet_description",
+            "subnet_cidr",
+        )
+        read_only_fields = (
+            "address",
+            "port_fixed_ips",
+            "port_mac_address",
+        )
+        related_paths = {"port": ("fixed_ips", "mac_address")}
+        extra_kwargs = {
+            "url": {"lookup_field": "uuid", "view_name": "openstacktenant-fip-detail"},
+        }
+
+    def to_internal_value(self, data):
+        """
+        Return pair (floating_ip, subnet) as internal value.
+
+        On floating IP creation user should specify what subnet should be used
+        for connection and may specify what exactly floating IP should be used.
+        If floating IP is not specified it will be represented as None.
+        """
+        floating_ip = None
+        if "url" in data:
+            # use HyperlinkedRelatedModelSerializer (parent of NestedFloatingIPSerializer)
+            # method to convert "url" to FloatingIP object
+            floating_ip = super().to_internal_value(data)
+
+        # use HyperlinkedModelSerializer (parent of HyperlinkedRelatedModelSerializer)
+        # to convert "subnet" to SubNet object
+        internal_value = super(
+            core_serializers.HyperlinkedRelatedModelSerializer, self
+        ).to_internal_value(data)
+        subnet = internal_value["port"]["subnet"]
+
+        return floating_ip, subnet

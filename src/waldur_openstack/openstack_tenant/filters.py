@@ -1,5 +1,4 @@
 import django_filters
-from django_filters.widgets import BooleanWidget
 
 from waldur_core.core import filters as core_filters
 from waldur_core.structure import filters as structure_filters
@@ -25,20 +24,6 @@ class FlavorFilter(structure_filters.ServicePropertySettingsFilter):
                 field: ["exact"]
                 for field in structure_filters.ServicePropertySettingsFilter.Meta.fields
             },
-        )
-
-
-class FloatingIPFilter(structure_filters.ServicePropertySettingsFilter):
-    free = django_filters.BooleanFilter(
-        field_name="internal_ip", lookup_expr="isnull", widget=BooleanWidget
-    )
-
-    class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
-        model = models.FloatingIP
-        fields = structure_filters.ServicePropertySettingsFilter.Meta.fields + (
-            "runtime_state",
-            "address",
-            "is_booked",
         )
 
 
@@ -134,9 +119,7 @@ class InstanceAvailabilityZoneFilter(structure_filters.ServicePropertySettingsFi
 
 
 class InstanceFilter(structure_filters.BaseResourceFilter):
-    external_ip = django_filters.CharFilter(
-        field_name="internal_ips_set__floating_ips__address"
-    )
+    external_ip = django_filters.CharFilter(field_name="ports__floating_ips__address")
     availability_zone_name = django_filters.CharFilter(
         field_name="availability_zone__name"
     )
@@ -179,8 +162,8 @@ class InstanceFilter(structure_filters.BaseResourceFilter):
         )
 
     ORDERING_FIELDS = structure_filters.BaseResourceFilter.ORDERING_FIELDS + (
-        ("internal_ips_set__fixed_ips__0__ip_address", "ip_address"),
-        ("internal_ips_set__floating_ips__address", "external_ips"),
+        ("ports__fixed_ips__0__ip_address", "ip_address"),
+        ("ports__floating_ips__address", "external_ips"),
     )
 
 

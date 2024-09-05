@@ -2,7 +2,11 @@ from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common import utils as common_utils
-from waldur_openstack.openstack.tests.factories import ServerGroupFactory, SubNetFactory
+from waldur_openstack.openstack.tests.factories import (
+    FloatingIPFactory,
+    ServerGroupFactory,
+    SubNetFactory,
+)
 from waldur_openstack.openstack_tenant import models, views
 from waldur_openstack.openstack_tenant.tests import factories, fixtures
 
@@ -10,9 +14,7 @@ from waldur_openstack.openstack_tenant.tests import factories, fixtures
 def _instance_data(user, instance=None):
     if instance is None:
         instance = factories.InstanceFactory()
-    factories.FloatingIPFactory(
-        settings=instance.service_settings, runtime_state="DOWN"
-    )
+    FloatingIPFactory(tenant=instance.service_settings.scope, runtime_state="DOWN")
     image = factories.ImageFactory(settings=instance.service_settings)
     flavor = factories.FlavorFactory(settings=instance.service_settings)
     ssh_public_key = structure_factories.SshPublicKeyFactory(user=user)
@@ -30,7 +32,7 @@ def _instance_data(user, instance=None):
             ssh_public_key
         ),
         "system_volume_size": max(image.min_disk, 1024),
-        "internal_ips_set": [{"subnet": SubNetFactory.get_url(subnet)}],
+        "ports": [{"subnet": SubNetFactory.get_url(subnet)}],
     }
 
 
@@ -42,7 +44,7 @@ class InstanceServerGroupTest(test.APITransactionTestCase):
         self.admin = fixture.admin
         self.client.force_authenticate(self.admin)
 
-        self.server_group = ServerGroupFactory.create(tenant=self.settings.scope)
+        self.server_group = ServerGroupFactory.create(tenant=fixture.tenant)
         self.instance.server_group = self.server_group
         self.instance.save()
 
