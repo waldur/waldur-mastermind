@@ -66,6 +66,11 @@ def register_in(router):
         basename="marketplace-component-usage",
     )
     router.register(
+        r"marketplace-component-user-usages",
+        views.ComponentUserUsageViewSet,
+        basename="marketplace-component-user-usage",
+    )
+    router.register(
         r"marketplace-public-api",
         views.MarketplaceAPIViewSet,
         basename="marketplace-public-api",

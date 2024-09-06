@@ -10,8 +10,9 @@ from waldur_mastermind.invoices.models import InvoiceItem
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
+from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 from waldur_mastermind.marketplace_slurm import PLUGIN_NAME
-from waldur_slurm.models import Allocation
+from waldur_slurm.models import Allocation, AllocationUserUsage
 from waldur_slurm.parser import SlurmReportLine
 from waldur_slurm.tests import factories as slurm_factories
 
@@ -154,3 +155,45 @@ class ComponentUsageTest(test.APITransactionTestCase):
             resource=self.resource, details__offering_component_type="ram"
         )
         self.assertEqual(item.quantity, 1)
+
+
+class ComponentUserUsageTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.allocation = slurm_factories.AllocationFactory(
+            project=self.fixture.project
+        )
+        self.resource.scope = self.allocation
+        self.resource.save()
+        offering = self.fixture.offering
+        offering.type = PLUGIN_NAME
+        offering.save()
+
+        self.user = self.fixture.user
+
+    def test_component_user_usage_is_created_when_allocation_user_usage_is_submitted(
+        self,
+    ):
+        offering_component = self.fixture.offering_component
+        component_usage = marketplace_factories.ComponentUsageFactory(
+            resource=self.resource,
+            component=offering_component,
+            usage=10,
+            date=datetime.date(year=2022, month=1, day=3),
+            billing_period=datetime.date(year=2022, month=1, day=1),
+        )
+
+        allocation_user_usage = AllocationUserUsage.objects.create(
+            allocation=self.allocation,
+            username=self.user.username,
+            user=self.user,
+            month=1,
+            year=2022,
+        )
+        component_user_usage = marketplace_models.ComponentUserUsage.objects.filter(
+            username=self.user.username,
+            component_usage=component_usage,
+        ).first()
+        self.assertIsNotNone(component_user_usage)
+        self.assertEqual(allocation_user_usage.cpu_usage, component_user_usage.usage)

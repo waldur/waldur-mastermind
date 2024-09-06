@@ -2653,6 +2653,85 @@ class ComponentUsageSerializer(BaseComponentUsageSerializer):
         return fields
 
 
+class ComponentUserUsageSerializer(serializers.HyperlinkedModelSerializer):
+    user = serializers.HyperlinkedRelatedField(
+        queryset=models.OfferingUser.objects.all(),
+        view_name="marketplace-offering-user-detail",
+        lookup_field="uuid",
+    )
+    component_usage = serializers.HyperlinkedRelatedField(
+        queryset=models.ComponentUsage.objects.all(),
+        view_name="marketplace-component-usage-detail",
+        lookup_field="uuid",
+    )
+    measured_unit = serializers.ReadOnlyField(
+        source="component_usage.component.measured_unit"
+    )
+
+    resource_name = serializers.ReadOnlyField(source="component_usage.resource.name")
+    resource_uuid = serializers.ReadOnlyField(source="component_usage.resource.uuid")
+
+    offering_name = serializers.ReadOnlyField(
+        source="component_usage.resource.offering.name"
+    )
+    offering_uuid = serializers.ReadOnlyField(
+        source="component_usage.resource.offering.uuid"
+    )
+
+    project_uuid = serializers.ReadOnlyField(
+        source="component_usage.resource.project.uuid"
+    )
+    project_name = serializers.ReadOnlyField(
+        source="component_usage.resource.project.name"
+    )
+
+    customer_name = serializers.ReadOnlyField(
+        source="component_usage.resource.project.customer.name"
+    )
+    customer_uuid = serializers.ReadOnlyField(
+        source="component_usage.resource.project.customer.uuid"
+    )
+
+    class Meta:
+        fields = (
+            "uuid",
+            "user",
+            "username",
+            "component_usage",
+            "usage",
+            "measured_unit",
+            "description",
+            "created",
+            "modified",
+            "backend_id",
+            "resource_name",
+            "resource_uuid",
+            "offering_name",
+            "offering_uuid",
+            "project_name",
+            "project_uuid",
+            "customer_name",
+            "customer_uuid",
+        )
+        model = models.ComponentUserUsage
+
+
+class ComponentUserUsageCreateSerializer(serializers.ModelSerializer):
+    user = serializers.HyperlinkedRelatedField(
+        queryset=models.OfferingUser.objects.all(),
+        view_name="marketplace-offering-user-detail",
+        lookup_field="uuid",
+    )
+
+    class Meta:
+        model = models.ComponentUserUsage
+        fields = (
+            "usage",
+            "username",
+            "user",
+        )
+
+
 class ResourcePlanPeriodSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.ResourcePlanPeriod

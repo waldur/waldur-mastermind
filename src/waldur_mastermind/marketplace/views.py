@@ -2686,6 +2686,7 @@ class CategoryComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
 
 class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
     queryset = models.ComponentUsage.objects.all().order_by("-date", "component__type")
+    lookup_field = "uuid"
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.ComponentUsageFilter
     serializer_class = serializers.ComponentUsageSerializer
@@ -2709,6 +2710,46 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
         return Response(status=status.HTTP_201_CREATED)
 
     set_usage_serializer_class = serializers.ComponentUsageCreateSerializer
+
+    @action(detail=True, methods=["post"])
+    def set_user_usage(self, request, *args, **kwargs):
+        component_usage = self.get_object()
+        serializer = self.get_serializer(
+            data=request.data,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        validated_data = serializer.validated_data
+        existing_user_usage = models.ComponentUserUsage.objects.filter(
+            component_usage=component_usage, username=validated_data["username"]
+        ).first()
+
+        if existing_user_usage is None:
+            serializer.validated_data["component_usage"] = component_usage
+            serializer.save()
+        else:
+            existing_user_usage.usage = validated_data["usage"]
+            existing_user_usage.save()
+        return Response(status=status.HTTP_201_CREATED)
+
+    set_user_usage_serializer_class = serializers.ComponentUserUsageCreateSerializer
+
+    set_user_usage_permissions = [
+        permission_factory(
+            PermissionEnum.SET_RESOURCE_USAGE,
+            ["resource.offering", "resource.offering.customer"],
+        )
+    ]
+
+
+class ComponentUserUsageViewSet(core_views.ReadOnlyActionsViewSet):
+    lookup_field = "uuid"
+    queryset = models.ComponentUserUsage.objects.all().order_by(
+        "-component_usage__date", "component_usage__component__type"
+    )
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    filterset_class = filters.ComponentUserUsageFilter
+    serializer_class = serializers.ComponentUserUsageSerializer
 
 
 class MarketplaceAPIViewSet(rf_viewsets.ViewSet):

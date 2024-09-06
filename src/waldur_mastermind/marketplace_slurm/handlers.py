@@ -6,6 +6,7 @@ from django.utils import timezone
 
 from waldur_core.core.utils import month_start
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace_slurm import PLUGIN_NAME
 
@@ -138,3 +139,9 @@ def drop_offering_user_for_slurm_user(sender, allocation, user, **kwargs):
     marketplace_models.OfferingUser.objects.filter(
         offering=offering, user=user
     ).delete()
+
+
+def sync_component_user_usage_when_allocation_user_usage_is_submitted(
+    sender, instance, **kwargs
+):
+    marketplace_utils.sync_component_user_usage(instance, PLUGIN_NAME)

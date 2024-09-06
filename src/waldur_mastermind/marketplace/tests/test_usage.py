@@ -1,6 +1,7 @@
 import datetime
 
 from ddt import data, ddt
+from django.urls import reverse
 from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
@@ -299,6 +300,71 @@ class SubmitUsageTest(test.APITransactionTestCase):
             component_usage.usage,
         )
         self.assertEqual(self.fixture.staff, component_usage.modified_by)
+
+    @data("staff", "owner")
+    def test_authenticated_user_can_submit_user_usage_via_api(self, role):
+        self.client.force_authenticate(getattr(self.fixture, role))
+        component_usage = models.ComponentUsage.objects.create(
+            resource=self.resource,
+            plan_period=self.plan_period,
+            component=self.offering_component,
+            usage=200,
+            date=parse_datetime("2019-06-21"),
+            billing_period=parse_datetime("2019-06-01"),
+        )
+        offering_user = models.OfferingUser.objects.create(
+            offering=self.offering, user=self.fixture.user, username="user_00"
+        )
+        usage_amount = 100.01
+        offering_user_url = "http://testserver" + reverse(
+            "marketplace-offering-user-detail",
+            kwargs={"uuid": offering_user.uuid.hex},
+        )
+        payload = {
+            "usage": usage_amount,
+            "username": "test_username_00",
+            "user": offering_user_url,
+        }
+        response = self.client.post(
+            f"/api/marketplace-component-usages/{component_usage.uuid.hex}/set_user_usage/",
+            payload,
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        component_user_usage = models.ComponentUserUsage.objects.filter(
+            component_usage=component_usage
+        ).first()
+        self.assertIsNotNone(component_user_usage)
+        self.assertEqual(usage_amount, float(component_user_usage.usage))
+
+    @data("admin", "manager", "user")
+    def test_other_user_can_not_submit_user_usage_via_api(self, role):
+        self.client.force_authenticate(getattr(self.fixture, role))
+        component_usage = models.ComponentUsage.objects.create(
+            resource=self.resource,
+            plan_period=self.plan_period,
+            component=self.offering_component,
+            usage=200,
+            date=parse_datetime("2019-06-21"),
+            billing_period=parse_datetime("2019-06-01"),
+        )
+        offering_user = models.OfferingUser.objects.create(
+            offering=self.offering, user=self.fixture.user, username="user_00"
+        )
+        usage_amount = 100.01
+        offering_user_url = "http://testserver" + reverse(
+            "marketplace-offering-user-detail",
+            kwargs={"uuid": offering_user.uuid.hex},
+        )
+        payload = {
+            "usage": usage_amount,
+            "username": "test_username_00",
+            "user": offering_user_url,
+        }
+        response = self.client.post(
+            f"/api/marketplace-component-usages/{component_usage.uuid.hex}/set_user_usage/",
+            payload,
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_total_amount_exceeds_month_limit(self):
         self.offering_component.limit_period = (

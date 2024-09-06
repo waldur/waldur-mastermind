@@ -83,3 +83,9 @@ class MarketplaceSlurmConfig(AppConfig):
             sender=slurm_models.Allocation,
             dispatch_uid="waldur_mastermind.marketplace_slurm.drop_offering_user_for_slurm_user",
         )
+
+        signals.post_save.connect(
+            handlers.sync_component_user_usage_when_allocation_user_usage_is_submitted,
+            sender=slurm_models.AllocationUserUsage,
+            dispatch_uid="waldur_mastermind.marketplace_slurm.sync_component_user_usage_when_allocation_user_usage_is_submitted",
+        )
