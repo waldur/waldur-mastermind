@@ -377,6 +377,9 @@ class ResourceFilter(
     lexis_links_supported = django_filters.BooleanFilter(
         method="filter_lexis_links_supported", label="LEXIS links supported"
     )
+    visible_to_username = django_filters.CharFilter(
+        method="filter_visible_to_username", label="Visible to username"
+    )
     o = django_filters.OrderingFilter(
         fields=(
             "name",
@@ -437,6 +440,17 @@ class ResourceFilter(
             return queryset.filter(offering__plugin_options__has_key="heappe_url")
         else:
             return queryset.exclude(offering__plugin_options__has_key="heappe_url")
+
+    def filter_visible_to_username(self, queryset, name, value):
+        if value:
+            user = User.objects.filter(username=value).first()
+
+            if not user:
+                return queryset.none()
+
+            return queryset.filter_for_user(user)
+        else:
+            return queryset
 
 
 class ResourceScopeFilterBackend(core_filters.GenericKeyFilterBackend):
