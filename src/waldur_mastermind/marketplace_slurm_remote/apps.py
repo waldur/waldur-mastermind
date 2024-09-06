@@ -46,3 +46,9 @@ class MarketplaceSlurmConfig(AppConfig):
             sender=marketplace_models.Resource,
             dispatch_uid="waldur_mastermind.marketplace_slurm_remote.terminate_allocation_when_resource_is_terminated",
         )
+
+        signals.post_save.connect(
+            handlers.sync_component_user_usage_when_allocation_user_usage_is_submitted,
+            sender=slurm_models.AllocationUserUsage,
+            dispatch_uid="waldur_mastermind.marketplace_slurm_remote.sync_component_user_usage_when_allocation_user_usage_is_submitted",
+        )

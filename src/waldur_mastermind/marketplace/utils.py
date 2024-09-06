@@ -1500,3 +1500,57 @@ def validate_end_date(
 
     if end_date:
         resource.end_date_requested_by = user
+
+
+def sync_component_user_usage(allocation_user_usage, plugin_name):
+    allocation = allocation_user_usage.allocation
+    resource = models.Resource.objects.filter(
+        scope=allocation, offering__type=plugin_name
+    ).first()
+    if resource is None:
+        logger.error(
+            "The allocation %s does not have a linked resource, skipping processing"
+        )
+        return
+
+    if resource.offering.type != plugin_name:
+        return
+
+    offering_user = None
+    if allocation_user_usage.user is not None:
+        offering_user = models.OfferingUser.objects.filter(
+            offering=resource.offering, user=allocation_user_usage.user
+        ).first()
+
+    for offering_component in models.OfferingComponent.objects.filter(
+        offering=resource.offering
+    ):
+        usage = getattr(allocation_user_usage, offering_component.type + "_usage")
+
+        component_usage = models.ComponentUsage.objects.filter(
+            resource=resource,
+            billing_period__month=allocation_user_usage.month,
+            billing_period__year=allocation_user_usage.year,
+            component=offering_component,
+        ).first()
+
+        if component_usage is None:
+            logger.warning(
+                "The component usage for %s component of %s does not exist, skipping component user usage sync",
+                offering_component,
+                allocation,
+            )
+            continue
+
+        component_user_usage, created = (
+            models.ComponentUserUsage.objects.update_or_create(
+                username=allocation_user_usage.username,
+                component_usage=component_usage,
+                defaults={"usage": usage, "user": offering_user},
+            )
+        )
+
+        if created:
+            logger.info("%s has been created", component_user_usage)
+        else:
+            logger.info("%s has been updated, new usage: %s", component_usage, usage)

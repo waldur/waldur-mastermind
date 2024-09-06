@@ -1391,6 +1391,28 @@ class ComponentUsage(
         return ("uuid", "description", "usage", "date", "resource", "component")
 
 
+class ComponentUserUsage(
+    TimeStampedModel,
+    core_models.DescribableMixin,
+    core_models.BackendMixin,
+    core_models.UuidMixin,
+    LoggableMixin,
+):
+    """
+    This model represents an amount of a component consumed by a user.
+    """
+
+    user = models.ForeignKey(
+        to="OfferingUser", on_delete=models.CASCADE, blank=True, null=True
+    )
+    username = models.CharField(max_length=100)
+    component_usage = models.ForeignKey(ComponentUsage, on_delete=models.CASCADE)
+    usage = models.DecimalField(default=0, decimal_places=2, max_digits=20)
+
+    class Meta:
+        unique_together = ("username", "component_usage")
+
+
 class OfferingFile(
     core_models.UuidMixin,
     core_models.NameMixin,

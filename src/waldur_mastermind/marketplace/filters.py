@@ -522,6 +522,36 @@ class ComponentUsageFilter(django_filters.FilterSet):
         fields = ["billing_period"]
 
 
+class ComponentUserUsageFilter(django_filters.FilterSet):
+    resource = core_filters.URLFilter(
+        view_name="marketplace-resource-detail",
+        field_name="component_usage__resource__uuid",
+    )
+    resource_uuid = django_filters.UUIDFilter(
+        field_name="component_usage__resource__uuid"
+    )
+    offering_uuid = django_filters.UUIDFilter(
+        field_name="component_usage__resource__offering__uuid"
+    )
+    project_uuid = django_filters.UUIDFilter(
+        field_name="component_usage__resource__project__uuid"
+    )
+    customer_uuid = django_filters.UUIDFilter(
+        field_name="component_usage__resource__project__customer__uuid"
+    )
+    date_before = django_filters.DateFilter(
+        field_name="component_usage__date__date", lookup_expr="lte"
+    )
+    date_after = django_filters.DateFilter(
+        field_name="component_usage__date__date", lookup_expr="gte"
+    )
+    type = django_filters.CharFilter(field_name="component_usage__component__type")
+
+    class Meta:
+        model = models.ComponentUserUsage
+        fields = ["component_usage__billing_period"]
+
+
 class OfferingReferralFilter(django_filters.FilterSet):
     o = django_filters.OrderingFilter(
         fields=(

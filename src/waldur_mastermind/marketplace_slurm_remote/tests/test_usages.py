@@ -1,8 +1,12 @@
+from datetime import date
+
 from ddt import data, ddt
 from django.urls import reverse
 from rest_framework import test
 
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures
 from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME
 from waldur_slurm import models as slurm_models
@@ -47,6 +51,16 @@ class AllocationUserUsageCreationTest(test.APITransactionTestCase):
     @data("staff", "offering_owner", "service_manager")
     def test_usage_setting_is_allowed(self, user):
         self.client.force_login(getattr(self.fixture, user))
+        offering_component = self.fixture.offering_component
+        component_usage = marketplace_factories.ComponentUsageFactory(
+            resource=self.resource,
+            component=offering_component,
+            usage=10,
+            date=date(year=2022, month=1, day=3),
+            billing_period=date(year=2022, month=1, day=1),
+        )
+        plan_period = component_usage.plan_period
+        self.assertIsNotNone(plan_period)
         response = self.client.post(self.url, self.new_usage)
         self.assertEqual(200, response.status_code)
         self.assertEqual(
@@ -72,3 +86,33 @@ class AllocationUserUsageCreationTest(test.APITransactionTestCase):
         self.client.force_login(getattr(self.fixture, user))
         response = self.client.post(self.url, self.new_usage)
         self.assertEqual(403, response.status_code)
+
+    def test_component_user_usage_is_created_when_allocation_user_usage_is_submitted(
+        self,
+    ):
+        offering_component = self.fixture.offering_component
+        component_usage = marketplace_factories.ComponentUsageFactory(
+            resource=self.resource,
+            component=offering_component,
+            usage=10,
+            date=date(year=2022, month=1, day=3),
+            billing_period=date(year=2022, month=1, day=1),
+        )
+
+        self.client.force_login(self.fixture.offering_owner)
+        response = self.client.post(self.url, self.new_usage)
+        self.assertEqual(200, response.status_code)
+
+        allocation_user_usage = slurm_models.AllocationUserUsage.objects.get(
+            allocation=self.allocation,
+            username=self.user.username,
+            user=self.user,
+            month=1,
+            year=2022,
+        )
+        cpu_user_usage = marketplace_models.ComponentUserUsage.objects.filter(
+            username=self.user.username,
+            component_usage=component_usage,
+        ).first()
+        self.assertIsNotNone(cpu_user_usage)
+        self.assertEqual(allocation_user_usage.cpu_usage, cpu_user_usage.usage)
