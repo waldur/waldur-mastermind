@@ -163,7 +163,18 @@ class NestedSectionSerializer(serializers.ModelSerializer):
 class NestedColumnSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.CategoryColumn
-        fields = ("index", "title", "attribute", "widget")
+        fields = ("uuid", "index", "title", "attribute", "widget")
+
+
+class CategoryColumnSerializer(NestedColumnSerializer):
+    category = serializers.HyperlinkedRelatedField(
+        queryset=models.Category.objects.all(),
+        view_name="marketplace-category-detail",
+        lookup_field="uuid",
+    )
+
+    class Meta(NestedColumnSerializer.Meta):
+        fields = NestedColumnSerializer.Meta.fields + ("category",)
 
 
 class CategoryComponentSerializer(serializers.ModelSerializer):

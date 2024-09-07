@@ -242,3 +242,108 @@ class CategoryDeleteTest(test.APITransactionTestCase):
         url = factories.CategoryFactory.get_url(self.category)
         response = self.client.delete(url)
         return response
+
+
+@ddt
+class CategoryColumnCreateTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.category = factories.CategoryFactory()
+
+    @data(
+        "staff",
+    )
+    def test_authorized_user_can_create_category_column(self, user):
+        response = self.create_category_columns(user)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(
+            models.CategoryColumn.objects.filter(
+                category=self.category, title="column", index=0, attribute="column"
+            ).exists()
+        )
+
+    @data("owner", "user", "customer_support", "admin", "manager")
+    def test_unauthorized_user_can_not_create_category_column(self, user):
+        response = self.create_category_columns(user)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def create_category_columns(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        url = factories.CategoryColumnFactory.get_list_url()
+        payload = {
+            "category": factories.CategoryFactory.get_url(self.category),
+            "title": "column",
+            "index": 0,
+            "attribute": "column",
+        }
+        return self.client.post(url, payload)
+
+
+@ddt
+class CategoryColumnUpdateTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.category = factories.CategoryFactory()
+        self.category_column = factories.CategoryColumnFactory(
+            category=self.category, title="column", attribute="column"
+        )
+
+    @data(
+        "staff",
+    )
+    def test_authorized_user_can_update_category_column(self, user):
+        response, category_column = self.update_category_column(user)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(category_column.title, "new_column")
+        self.assertTrue(
+            models.CategoryColumn.objects.filter(
+                category=self.category, title="new_column"
+            ).exists()
+        )
+
+    @data("owner", "user", "customer_support", "admin", "manager")
+    def test_unauthorized_user_can_not_update_category_column(self, user):
+        response, category_column = self.update_category_column(user)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def update_category_column(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        url = factories.CategoryColumnFactory.get_url(self.category_column)
+        response = self.client.patch(url, {"title": "new_column"})
+        self.category_column.refresh_from_db()
+        return response, self.category_column
+
+
+@ddt
+class CategoryColumnDeleteTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.category = factories.CategoryFactory()
+        self.category_column = factories.CategoryColumnFactory(
+            category=self.category, title="column", attribute="column"
+        )
+
+    @data(
+        "staff",
+    )
+    def test_authorized_user_can_delete_category_column(self, user):
+        response = self.delete_category_column(user)
+        self.assertEqual(
+            response.status_code, status.HTTP_204_NO_CONTENT, response.data
+        )
+        self.assertFalse(models.CategoryColumn.objects.filter(title="column").exists())
+
+    @data("owner", "user", "customer_support", "admin", "manager")
+    def test_unauthorized_user_can_not_delete_category_column(self, user):
+        response = self.delete_category_column(user)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(models.CategoryColumn.objects.filter(title="column").exists())
+
+    def delete_category_column(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        url = factories.CategoryColumnFactory.get_url(self.category_column)
+        response = self.client.delete(url)
+        return response

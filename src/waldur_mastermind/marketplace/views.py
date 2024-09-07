@@ -511,6 +511,18 @@ class CategoryViewSet(PublicViewsetMixin, EagerLoadMixin, core_views.ActionsView
     ) = [structure_permissions.is_staff]
 
 
+class CategoryColumnsViewSet(PublicViewsetMixin, core_views.ActionsViewSet):
+    queryset = models.CategoryColumn.objects.all()
+    serializer_class = serializers.CategoryColumnSerializer
+    lookup_field = "uuid"
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.CategoryColumnFilter
+
+    create_permissions = update_permissions = partial_update_permissions = (
+        destroy_permissions
+    ) = [structure_permissions.is_staff]
+
+
 class CategoryGroupViewSet(PublicViewsetMixin, core_views.ActionsViewSet):
     queryset = models.CategoryGroup.objects.all()
     serializer_class = serializers.CategoryGroupSerializer

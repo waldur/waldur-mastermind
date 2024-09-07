@@ -15,6 +15,11 @@ def register_in(router):
         basename="marketplace-category",
     )
     router.register(
+        r"marketplace-category-columns",
+        views.CategoryColumnsViewSet,
+        basename="marketplace-category-columns",
+    )
+    router.register(
         r"marketplace-category-groups",
         views.CategoryGroupViewSet,
         basename="marketplace-category-group",

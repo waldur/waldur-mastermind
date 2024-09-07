@@ -207,7 +207,9 @@ class Category(
         return "marketplace-category"
 
 
-class CategoryColumn(models.Model):
+class CategoryColumn(
+    core_models.UuidMixin,
+):
     """
     This model is needed in order to render resources table with extra columns.
     Usually each column corresponds to specific resource attribute.
