@@ -90,7 +90,7 @@ class ServiceProviderFilterTest(test.APITransactionTestCase):
 class ResourceFilterTest(test.APITransactionTestCase):
     def setUp(self):
         with freeze_time("2020-01-01"):
-            self.fixture = structure_fixtures.UserFixture()
+            self.fixture = fixtures.MarketplaceFixture()
             self.resource_1 = factories.ResourceFactory(
                 backend_metadata={
                     "external_ips": ["200.200.200.200", "200.200.200.201"],
@@ -131,8 +131,17 @@ class ResourceFilterTest(test.APITransactionTestCase):
     def test_filter_created(self):
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.get(self.url)
-        self.assertEqual(len(response.data), 2)
+        self.assertEqual(len(response.data), 3)
         response = self.client.get(self.url, {"created": "2021-01-01"})
+        self.assertEqual(len(response.data), 1)
+
+    def test_filter_visible_to_username(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(len(response.data), 3)
+        response = self.client.get(
+            self.url, {"visible_to_username": self.fixture.admin.username}
+        )
         self.assertEqual(len(response.data), 1)
 
 
