@@ -749,6 +749,15 @@ class CategoryFilter(django_filters.FilterSet):
         return queryset.filter(id__in=category_ids)
 
 
+class CategoryColumnFilter(django_filters.FilterSet):
+    class Meta:
+        model = models.CategoryColumn
+        fields = []
+
+    category_uuid = django_filters.UUIDFilter(field_name="category__uuid")
+    title = django_filters.CharFilter(lookup_expr="icontains")
+
+
 class PlanComponentFilter(django_filters.FilterSet):
     class Meta:
         model = models.PlanComponent
