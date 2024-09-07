@@ -16,7 +16,7 @@ def gen_uuid(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("marketplace", "0138_clean_resource_options"),
+        ("marketplace", "0139_componentuserusage"),
     ]
 
     operations = [
