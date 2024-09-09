@@ -9,8 +9,6 @@ class MarketplaceSlurmConfig(AppConfig):
 
     def ready(self):
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
-        from waldur_mastermind.marketplace import models as marketplace_models
-        from waldur_mastermind.marketplace import signals as marketplace_signals
         from waldur_mastermind.marketplace.plugins import manager
         from waldur_mastermind.marketplace_slurm_remote import (
             PLUGIN_NAME,
@@ -39,12 +37,6 @@ class MarketplaceSlurmConfig(AppConfig):
             update_resource_processor=processor.UpdateAllocationLimitsProcessor,
             delete_resource_processor=processor.DeleteAllocationProcessor,
             can_update_limits=True,
-        )
-
-        marketplace_signals.resource_deletion_succeeded.connect(
-            handlers.terminate_allocation_when_resource_is_terminated,
-            sender=marketplace_models.Resource,
-            dispatch_uid="waldur_mastermind.marketplace_slurm_remote.terminate_allocation_when_resource_is_terminated",
         )
 
         signals.post_save.connect(
