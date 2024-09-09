@@ -334,6 +334,37 @@ class SubmitUsageTest(test.APITransactionTestCase):
             component_usage=component_usage
         ).first()
         self.assertIsNotNone(component_user_usage)
+        self.assertIsNotNone(component_user_usage.user)
+        self.assertEqual(usage_amount, float(component_user_usage.usage))
+
+    @data("staff", "owner")
+    def test_authenticated_user_can_submit_user_usage_with_missing_user_via_api(
+        self, role
+    ):
+        self.client.force_authenticate(getattr(self.fixture, role))
+        component_usage = models.ComponentUsage.objects.create(
+            resource=self.resource,
+            plan_period=self.plan_period,
+            component=self.offering_component,
+            usage=200,
+            date=parse_datetime("2019-06-21"),
+            billing_period=parse_datetime("2019-06-01"),
+        )
+        usage_amount = 100.01
+        payload = {
+            "usage": usage_amount,
+            "username": "test_username_00",
+        }
+        response = self.client.post(
+            f"/api/marketplace-component-usages/{component_usage.uuid.hex}/set_user_usage/",
+            payload,
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        component_user_usage = models.ComponentUserUsage.objects.filter(
+            component_usage=component_usage
+        ).first()
+        self.assertIsNotNone(component_user_usage)
+        self.assertIsNone(component_user_usage.user)
         self.assertEqual(usage_amount, float(component_user_usage.usage))
 
     @data("admin", "manager", "user")

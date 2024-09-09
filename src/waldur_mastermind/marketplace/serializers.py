@@ -2732,6 +2732,7 @@ class ComponentUserUsageCreateSerializer(serializers.ModelSerializer):
         queryset=models.OfferingUser.objects.all(),
         view_name="marketplace-offering-user-detail",
         lookup_field="uuid",
+        required=False,
     )
 
     class Meta:
