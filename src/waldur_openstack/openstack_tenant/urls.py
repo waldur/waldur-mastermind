@@ -5,14 +5,6 @@ from . import views
 
 def register_in(router):
     router.register(
-        r"openstacktenant-images", views.ImageViewSet, basename="openstacktenant-image"
-    )
-    router.register(
-        r"openstacktenant-flavors",
-        views.FlavorViewSet,
-        basename="openstacktenant-flavor",
-    )
-    router.register(
         r"openstacktenant-volumes",
         views.VolumeViewSet,
         basename="openstacktenant-volume",
@@ -46,11 +38,6 @@ def register_in(router):
         r"openstacktenant-snapshot-schedules",
         views.SnapshotScheduleViewSet,
         basename="openstacktenant-snapshot-schedule",
-    )
-    router.register(
-        r"openstacktenant-volume-types",
-        views.VolumeTypeViewSet,
-        basename="openstacktenant-volume-type",
     )
     router.register(
         r"openstacktenant-volume-availability-zones",

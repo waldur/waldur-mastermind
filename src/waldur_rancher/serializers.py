@@ -116,8 +116,8 @@ class DataVolumeSerializer(
 ):
     size = serializers.IntegerField()
     volume_type = serializers.HyperlinkedRelatedField(
-        view_name="openstacktenant-volume-type-detail",
-        queryset=openstack_tenant_models.VolumeType.objects.all(),
+        view_name="openstack-volume-type-detail",
+        queryset=openstack_models.VolumeType.objects.all(),
         lookup_field="uuid",
         allow_null=True,
         required=False,
@@ -160,8 +160,8 @@ class BaseNodeSerializer(
         write_only=True,
     )
     flavor = serializers.HyperlinkedRelatedField(
-        view_name="openstacktenant-flavor-detail",
-        queryset=openstack_tenant_models.Flavor.objects.all(),
+        view_name="openstack-flavor-detail",
+        queryset=openstack_models.Flavor.objects.all(),
         lookup_field="uuid",
         allow_null=True,
         write_only=True,
@@ -177,8 +177,8 @@ class BaseNodeSerializer(
         ],
     )
     system_volume_type = serializers.HyperlinkedRelatedField(
-        view_name="openstacktenant-volume-type-detail",
-        queryset=openstack_tenant_models.VolumeType.objects.all(),
+        view_name="openstack-volume-type-detail",
+        queryset=openstack_models.VolumeType.objects.all(),
         lookup_field="uuid",
         allow_null=True,
         required=False,
@@ -349,9 +349,10 @@ class ClusterSerializer(
             raise serializers.ValidationError(_("Name is not unique."))
 
         tenant_settings = attrs.get("tenant_settings")
+        tenant: openstack_models.Tenant = tenant_settings.scope
         security_groups = attrs.pop("security_groups", [])
         if tenant_settings and security_groups:
-            _validate_instance_security_groups(security_groups, tenant_settings)
+            _validate_instance_security_groups(security_groups, tenant)
         utils.expand_added_nodes(
             name,
             nodes,

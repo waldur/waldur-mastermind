@@ -25,7 +25,7 @@ from waldur_mastermind.marketplace_openstack import (
     VOLUME_TYPE,
 )
 from waldur_openstack.openstack import models as openstack_models
-from waldur_openstack.openstack_base.utils import (
+from waldur_openstack.openstack.utils import (
     is_valid_volume_type_name,
     volume_type_name_to_quota_name,
 )

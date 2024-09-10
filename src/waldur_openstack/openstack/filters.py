@@ -4,15 +4,33 @@ from django_filters.widgets import BooleanWidget
 
 from waldur_core.core import filters as core_filters
 from waldur_core.structure import filters as structure_filters
+from waldur_openstack.openstack.utils import filter_property_for_tenant
 
 from . import models
 
 
-class SecurityGroupFilter(structure_filters.BaseResourceFilter):
+class TenantFilterSet(django_filters.FilterSet):
     tenant_uuid = django_filters.UUIDFilter(field_name="tenant__uuid")
     tenant = core_filters.URLFilter(
         view_name="openstack-tenant-detail", field_name="tenant__uuid"
     )
+
+
+class SharedTenantFilterSet(django_filters.FilterSet):
+    tenant_uuid = django_filters.UUIDFilter(method="filter_tenant")
+    tenant = core_filters.URLFilter(
+        view_name="openstack-tenant-detail", method="filter_tenant"
+    )
+
+    def filter_tenant(self, queryset, name, value):
+        try:
+            tenant = models.Tenant.objects.get(uuid=value)
+        except models.Tenant.DoesNotExist:
+            return queryset.none()
+        return filter_property_for_tenant(queryset, tenant)
+
+
+class SecurityGroupFilter(TenantFilterSet, structure_filters.BaseResourceFilter):
     query = django_filters.CharFilter(method="filter_query")
 
     class Meta(structure_filters.BaseResourceFilter.Meta):
@@ -25,21 +43,12 @@ class SecurityGroupFilter(structure_filters.BaseResourceFilter):
         return query
 
 
-class ServerGroupFilter(structure_filters.BaseResourceFilter):
-    tenant_uuid = django_filters.UUIDFilter(field_name="tenant__uuid")
-    tenant = core_filters.URLFilter(
-        view_name="openstack-tenant-detail", field_name="tenant__uuid"
-    )
-
+class ServerGroupFilter(TenantFilterSet, structure_filters.BaseResourceFilter):
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.ServerGroup
 
 
-class FloatingIPFilter(structure_filters.BaseResourceFilter):
-    tenant_uuid = django_filters.UUIDFilter(field_name="tenant__uuid")
-    tenant = core_filters.URLFilter(
-        view_name="openstack-tenant-detail", field_name="tenant__uuid"
-    )
+class FloatingIPFilter(TenantFilterSet, structure_filters.BaseResourceFilter):
     free = django_filters.BooleanFilter(
         field_name="port", lookup_expr="isnull", widget=BooleanWidget
     )
@@ -52,8 +61,11 @@ class FloatingIPFilter(structure_filters.BaseResourceFilter):
         )
 
 
-class FlavorFilter(structure_filters.ServicePropertySettingsFilter):
+class FlavorFilter(
+    SharedTenantFilterSet, structure_filters.ServicePropertySettingsFilter
+):
     o = django_filters.OrderingFilter(fields=("cores", "ram", "disk"))
+    name_iregex = django_filters.CharFilter(field_name="name", lookup_expr="iregex")
 
     class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
         model = models.Flavor
@@ -70,45 +82,35 @@ class FlavorFilter(structure_filters.ServicePropertySettingsFilter):
         )
 
 
-class ImageFilter(structure_filters.ServicePropertySettingsFilter):
+class ImageFilter(
+    SharedTenantFilterSet, structure_filters.ServicePropertySettingsFilter
+):
     class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
         model = models.Image
 
 
-class VolumeTypeFilter(structure_filters.ServicePropertySettingsFilter):
+class VolumeTypeFilter(
+    SharedTenantFilterSet, structure_filters.ServicePropertySettingsFilter
+):
     class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
         model = models.VolumeType
 
 
-class RouterFilter(structure_filters.NameFilterSet):
-    tenant_uuid = django_filters.UUIDFilter(field_name="tenant__uuid")
-    tenant = core_filters.URLFilter(
-        view_name="openstack-tenant-detail", field_name="tenant__uuid"
-    )
-
+class RouterFilter(TenantFilterSet, structure_filters.NameFilterSet):
     class Meta:
         model = models.Router
-        fields = ("tenant", "tenant_uuid")
+        fields = ()
 
 
-class PortFilter(structure_filters.NameFilterSet):
-    tenant_uuid = django_filters.UUIDFilter(field_name="tenant__uuid")
-    tenant = core_filters.URLFilter(
-        view_name="openstack-tenant-detail", field_name="tenant__uuid"
-    )
+class PortFilter(TenantFilterSet, structure_filters.NameFilterSet):
     o = django_filters.OrderingFilter(fields=(("network__name", "network_name"),))
 
     class Meta:
         model = models.Port
-        fields = ("tenant", "tenant_uuid")
+        fields = ()
 
 
-class NetworkFilter(structure_filters.BaseResourceFilter):
-    tenant_uuid = django_filters.UUIDFilter(field_name="tenant__uuid")
-    tenant = core_filters.URLFilter(
-        view_name="openstack-tenant-detail", field_name="tenant__uuid"
-    )
-
+class NetworkFilter(TenantFilterSet, structure_filters.BaseResourceFilter):
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.Network
         fields = structure_filters.BaseResourceFilter.Meta.fields + (
@@ -117,11 +119,7 @@ class NetworkFilter(structure_filters.BaseResourceFilter):
         )
 
 
-class SubNetFilter(structure_filters.BaseResourceFilter):
-    tenant_uuid = django_filters.UUIDFilter(field_name="network__tenant__uuid")
-    tenant = core_filters.URLFilter(
-        view_name="openstack-tenant-detail", field_name="network__tenant__uuid"
-    )
+class SubNetFilter(TenantFilterSet, structure_filters.BaseResourceFilter):
     network_uuid = django_filters.UUIDFilter(field_name="network__uuid")
     network = core_filters.URLFilter(
         view_name="openstack-network-detail", field_name="network__uuid"

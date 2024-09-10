@@ -7,26 +7,6 @@ from waldur_openstack.openstack_tenant.utils import get_valid_availability_zones
 from . import models
 
 
-class FlavorFilter(structure_filters.ServicePropertySettingsFilter):
-    name_iregex = django_filters.CharFilter(field_name="name", lookup_expr="iregex")
-
-    o = django_filters.OrderingFilter(fields=("cores", "ram", "disk"))
-
-    class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
-        model = models.Flavor
-        fields = dict(
-            {
-                "cores": ["exact", "gte", "lte"],
-                "ram": ["exact", "gte", "lte"],
-                "disk": ["exact", "gte", "lte"],
-            },
-            **{
-                field: ["exact"]
-                for field in structure_filters.ServicePropertySettingsFilter.Meta.fields
-            },
-        )
-
-
 class VolumeFilter(structure_filters.BaseResourceFilter):
     instance = core_filters.URLFilter(
         view_name="openstacktenant-instance-detail", field_name="instance__uuid"
@@ -200,16 +180,6 @@ class SnapshotScheduleFilter(structure_filters.BaseResourceFilter):
 
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.SnapshotSchedule
-
-
-class ImageFilter(structure_filters.ServicePropertySettingsFilter):
-    class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
-        model = models.Image
-
-
-class VolumeTypeFilter(structure_filters.ServicePropertySettingsFilter):
-    class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
-        model = models.VolumeType
 
 
 class VolumeAvailabilityZoneFilter(structure_filters.ServicePropertySettingsFilter):

@@ -490,8 +490,6 @@ class TenantPullQuotasExecutor(core_executors.ActionExecutor):
 class ExistingTenantPullExecutor(core_executors.ActionExecutor):
     @classmethod
     def get_task_signature(cls, tenant, serialized_tenant, **kwargs):
-        service_settings = structure_models.ServiceSettings.objects.get(scope=tenant)
-        serialized_settings = core_utils.serialize_instance(service_settings)
         return chain(
             core_tasks.BackendMethodTask().si(
                 serialized_tenant, "pull_tenant", state_transition="begin_updating"
@@ -511,14 +509,10 @@ class ExistingTenantPullExecutor(core_executors.ActionExecutor):
             core_tasks.BackendMethodTask().si(
                 serialized_tenant, "pull_tenant_networks"
             ),
-            core_tasks.IndependentBackendMethodTask().si(
-                serialized_settings, "pull_images"
-            ),
-            core_tasks.IndependentBackendMethodTask().si(
-                serialized_settings, "pull_flavors"
-            ),
-            core_tasks.IndependentBackendMethodTask().si(
-                serialized_settings, "pull_volume_types"
+            core_tasks.BackendMethodTask().si(serialized_tenant, "pull_tenant_images"),
+            core_tasks.BackendMethodTask().si(serialized_tenant, "pull_tenant_flavors"),
+            core_tasks.BackendMethodTask().si(
+                serialized_tenant, "pull_tenant_volume_types"
             ),
             core_tasks.BackendMethodTask().si(serialized_tenant, "pull_subnets"),
             core_tasks.BackendMethodTask().si(

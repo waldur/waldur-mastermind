@@ -6,7 +6,7 @@ from waldur_mastermind.marketplace_openstack import (
     STORAGE_TYPE,
     TENANT_TYPE,
 )
-from waldur_openstack.openstack_base.utils import is_valid_volume_type_name
+from waldur_openstack.openstack.utils import is_valid_volume_type_name
 
 
 class OpenStackBaseRegistrator(MarketplaceRegistrator):

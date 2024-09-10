@@ -24,10 +24,6 @@ from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack_base.serializers import (
     BaseOpenStackServiceSerializer,
     BaseSecurityGroupRuleSerializer,
-    BaseVolumeTypeSerializer,
-)
-from waldur_openstack.openstack_base.serializers import (
-    FlavorSerializer as BaseFlavorSerializer,
 )
 from waldur_openstack.openstack_tenant.models import Instance
 
@@ -129,33 +125,52 @@ class OpenStackServiceSerializer(BaseOpenStackServiceSerializer):
     )
 
 
-class FlavorSerializer(BaseFlavorSerializer):
+class FlavorSerializer(structure_serializers.BasePropertySerializer):
     display_name = serializers.SerializerMethodField()
 
-    class Meta(BaseFlavorSerializer.Meta):
+    class Meta(structure_serializers.BasePropertySerializer.Meta):
         model = models.Flavor
-        fields = BaseFlavorSerializer.Meta.fields + ("display_name",)
-        extra_kwargs = copy.deepcopy(BaseFlavorSerializer.Meta.extra_kwargs)
-        extra_kwargs["settings"]["queryset"] = (
-            structure_models.ServiceSettings.objects.filter(type="OpenStack")
+        fields = (
+            "url",
+            "uuid",
+            "name",
+            "settings",
+            "cores",
+            "ram",
+            "disk",
+            "backend_id",
+            "display_name",
         )
+        extra_kwargs = {
+            "url": {"lookup_field": "uuid"},
+            "settings": {"lookup_field": "uuid"},
+        }
 
-    def get_display_name(self, flavor):
+    def get_display_name(self, flavor: models.Flavor):
         return f"{flavor.name} ({flavor.cores} CPU, {flavor.ram} MB RAM, {flavor.disk} MB HDD)"
 
 
 class ImageSerializer(structure_serializers.BasePropertySerializer):
     class Meta:
         model = models.Image
-        fields = ("url", "uuid", "name", "min_disk", "min_ram")
+        fields = ("url", "uuid", "name", "min_disk", "min_ram", "settings")
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},
+            "settings": {"lookup_field": "uuid"},
         }
 
 
-class VolumeTypeSerializer(BaseVolumeTypeSerializer):
-    class Meta(BaseVolumeTypeSerializer.Meta):
+class VolumeTypeSerializer(structure_serializers.BasePropertySerializer):
+    class Meta(structure_serializers.BasePropertySerializer.Meta):
         model = models.VolumeType
+        fields = ("url", "uuid", "name", "description", "settings")
+        extra_kwargs = {
+            "url": {"lookup_field": "uuid"},
+            "settings": {
+                "lookup_field": "uuid",
+                "view_name": "servicesettings-detail",
+            },
+        }
 
 
 class TenantQuotaSerializer(serializers.Serializer):
@@ -1402,3 +1417,8 @@ class NestedFloatingIPSerializer(
         subnet = internal_value["port"]["subnet"]
 
         return floating_ip, subnet
+
+
+class UsageStatsSerializer(serializers.Serializer):
+    shared = serializers.BooleanField()
+    service_provider = serializers.ListField(child=serializers.CharField())

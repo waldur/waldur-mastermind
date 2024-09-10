@@ -6,17 +6,10 @@ from django.utils.translation import gettext_lazy as _
 
 from waldur_core.core.admin import ExecutorAdminAction, format_json_field
 from waldur_core.structure import admin as structure_admin
-from waldur_openstack.openstack.models import SecurityGroup
+from waldur_openstack.openstack.models import SecurityGroup, VolumeType
+from waldur_openstack.openstack.utils import filter_property_for_tenant
 
 from . import executors, models
-
-
-class FlavorAdmin(structure_admin.BackendModelAdmin):
-    list_display = ("name", "settings", "cores", "ram", "disk")
-
-
-class ImageAdmin(structure_admin.BackendModelAdmin):
-    list_display = ("name", "settings", "min_disk", "min_ram")
 
 
 class MetadataMixin(admin.ModelAdmin):
@@ -60,8 +53,8 @@ class VolumeChangeForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if self.instance.pk:
-            self.fields["type"].queryset = models.VolumeType.objects.filter(
-                settings=self.instance.service_settings,
+            self.fields["type"].queryset = filter_property_for_tenant(
+                VolumeType.objects.all(), self.instance.tenant
             )
             self.fields["instance"].queryset = models.Instance.objects.filter(
                 service_settings=self.instance.service_settings,
@@ -189,10 +182,7 @@ class SnapshotScheduleAdmin(BaseScheduleAdmin):
     list_display = BaseScheduleAdmin.list_display + ("source_volume",)
 
 
-admin.site.register(models.Flavor, FlavorAdmin)
-admin.site.register(models.Image, ImageAdmin)
 admin.site.register(models.Volume, VolumeAdmin)
-admin.site.register(models.VolumeType, structure_admin.ServicePropertyAdmin)
 admin.site.register(models.VolumeAvailabilityZone, structure_admin.ServicePropertyAdmin)
 admin.site.register(models.Snapshot, SnapshotAdmin)
 admin.site.register(

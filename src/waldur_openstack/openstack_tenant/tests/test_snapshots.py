@@ -1,7 +1,7 @@
 from ddt import data, ddt
 from rest_framework import status, test
 
-from waldur_openstack.openstack_base.utils import volume_type_name_to_quota_name
+from waldur_openstack.openstack.utils import volume_type_name_to_quota_name
 from waldur_openstack.openstack_tenant import models
 
 from . import factories, fixtures

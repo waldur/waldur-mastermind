@@ -6,6 +6,7 @@ from rest_framework import status, test
 
 from waldur_core.core.tests import helpers
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_openstack.openstack.models import Tenant
 from waldur_openstack.openstack.tests import (
     factories as openstack_factories,
 )
@@ -140,9 +141,9 @@ class BackupRestorationTest(test.APITransactionTestCase):
         self.service_settings = self.backup.instance.service_settings
         self.service_settings.options = {"external_network_id": uuid.uuid4().hex}
         self.service_settings.save()
-        self.tenant = self.service_settings.scope
-        self.valid_flavor = factories.FlavorFactory(
-            disk=self.disk_size + 10, settings=self.service_settings
+        self.tenant: Tenant = self.service_settings.scope
+        self.valid_flavor = openstack_factories.FlavorFactory(
+            disk=self.disk_size + 10, settings=self.tenant.service_settings
         )
         self.subnet = openstack_factories.SubNetFactory(tenant=self.tenant)
 
@@ -366,7 +367,7 @@ class BackupRestorationTest(test.APITransactionTestCase):
     def _get_valid_payload(self, **options):
         payload = {
             "name": "instance name",
-            "flavor": factories.FlavorFactory.get_url(self.valid_flavor),
+            "flavor": openstack_factories.FlavorFactory.get_url(self.valid_flavor),
             "ports": [
                 {"subnet": openstack_factories.SubNetFactory.get_url(self.subnet)}
             ],

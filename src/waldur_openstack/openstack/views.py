@@ -1,5 +1,6 @@
 import logging
 
+from django.db.models import Count
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import decorators, exceptions, response, status
@@ -13,28 +14,142 @@ from waldur_core.logging.loggers import event_logger
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import has_permission
 from waldur_core.structure import filters as structure_filters
-from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import views as structure_views
-from waldur_openstack.openstack_base import views as openstack_base_views
+from waldur_openstack.openstack_tenant.models import Instance, Volume
 
 from . import executors, filters, models, serializers
 
 logger = logging.getLogger(__name__)
 
 
-class FlavorViewSet(openstack_base_views.FlavorViewSet):
+class UsageReporter:
+    """
+    This class implements service for counting number of instances grouped
+    by image and flavor name and by instance runtime status.
+    Please note that even when flavors have different UUIDs they are treated
+    as the same as long as they have the same name.
+    This is needed because in OpenStack UUID is not stable for images and flavors.
+    """
+
+    def __init__(self, view, request):
+        self.view = view
+        self.request = request
+        self.query = None
+
+    def get_report(self):
+        if self.request.query_params:
+            self.query = self.parse_query(self.request)
+
+        running_stats = self.get_stats(Instance.RuntimeStates.ACTIVE)
+        created_stats = self.get_stats()
+        qs = self.get_initial_queryset().values_list("name", flat=True).distinct()
+
+        page = self.view.paginate_queryset(qs)
+        result = self.serialize_result(page, running_stats, created_stats)
+        return self.view.get_paginated_response(result)
+
+    def serialize_result(self, queryset, running_stats, created_stats):
+        result = []
+        for name in queryset:
+            result.append(
+                {
+                    "name": name,
+                    "running_instances_count": running_stats.get(name, 0),
+                    "created_instances_count": created_stats.get(name, 0),
+                }
+            )
+        return result
+
+    def apply_filters(self, qs):
+        if self.query:
+            filter_dict = dict()
+            if self.query.get("shared", None):
+                filter_dict["service_settings__shared"] = self.query["shared"]
+            if self.query.get("service_provider", None):
+                filter_dict["service_settings__uuid__in"] = self.query[
+                    "service_provider"
+                ]
+                filter_dict["service_settings__type"] = "OpenStack"
+            return qs.filter(**filter_dict)
+        return qs
+
+    def parse_query(self, request):
+        serializer_class = serializers.UsageStatsSerializer
+        serializer = serializer_class(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        query = serializer.validated_data
+        return query
+
+    def get_initial_queryset(self):
+        raise NotImplementedError
+
+    def get_stats(self, runtime_state=None):
+        raise NotImplementedError
+
+
+class ImageUsageReporter(UsageReporter):
+    def get_initial_queryset(self):
+        return models.Image.objects.all()
+
+    def get_stats(self, runtime_state=None):
+        volumes = Volume.objects.filter(bootable=True)
+        if runtime_state:
+            volumes = volumes.filter(instance__runtime_state=runtime_state)
+        rows = (
+            self.apply_filters(volumes)
+            .values("image_name")
+            .annotate(count=Count("image_name"))
+            .order_by()  # remove the extra group by arguments caused by default ordering
+        )
+        return {row["image_name"]: row["count"] for row in rows}
+
+
+class FlavorUsageReporter(UsageReporter):
+    def get_initial_queryset(self):
+        return models.Flavor.objects.all()
+
+    def get_stats(self, runtime_state=None):
+        instances = Instance.objects.all()
+        if runtime_state:
+            instances = instances.filter(runtime_state=runtime_state)
+        rows = (
+            self.apply_filters(instances)
+            .values("flavor_name")
+            .annotate(count=Count("flavor_name"))
+            .order_by()  # remove the extra group by arguments caused by default ordering
+        )
+        return {row["flavor_name"]: row["count"] for row in rows}
+
+
+class FlavorViewSet(structure_views.BaseServicePropertyViewSet):
+    """
+    VM instance flavor is a pre-defined set of virtual hardware parameters that the instance will use:
+    CPU, memory, disk size etc. VM instance flavor is not to be confused with VM template -- flavor is a set of virtual
+    hardware parameters whereas template is a definition of a system to be installed on this instance.
+    """
+
     queryset = models.Flavor.objects.all().order_by("settings", "cores", "ram", "disk")
     serializer_class = serializers.FlavorSerializer
     lookup_field = "uuid"
+    filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
     filterset_class = filters.FlavorFilter
+
+    @decorators.action(detail=False)
+    def usage_stats(self, request):
+        return FlavorUsageReporter(self, request).get_report()
 
 
 class ImageViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Image.objects.all().order_by("name")
     serializer_class = serializers.ImageSerializer
     lookup_field = "uuid"
+    filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
     filterset_class = filters.ImageFilter
+
+    @decorators.action(detail=False)
+    def usage_stats(self, request):
+        return ImageUsageReporter(self, request).get_report()
 
 
 class VolumeTypeViewSet(structure_views.BaseServicePropertyViewSet):
@@ -486,45 +601,6 @@ class TenantViewSet(structure_views.ResourceViewSet):
         )
 
     pull_quotas_validators = [core_validators.StateValidator(models.Tenant.States.OK)]
-
-    @decorators.action(detail=True, methods=["get"])
-    def counters(self, request, uuid=None):
-        from waldur_openstack.openstack_tenant import models as tenant_models
-
-        tenant = self.get_object()
-        service_settings = structure_models.ServiceSettings.objects.filter(
-            scope=tenant
-        ).first()
-        return response.Response(
-            {
-                "instances": tenant_models.Instance.objects.filter(
-                    service_settings=service_settings
-                ).count(),
-                "server_groups": models.ServerGroup.objects.filter(
-                    tenant=tenant
-                ).count(),
-                "flavors": tenant_models.Flavor.objects.filter(
-                    settings=service_settings
-                ).count(),
-                "images": tenant_models.Image.objects.filter(
-                    settings=service_settings
-                ).count(),
-                "volumes": tenant_models.Volume.objects.filter(
-                    service_settings=service_settings
-                ).count(),
-                "snapshots": tenant_models.Snapshot.objects.filter(
-                    service_settings=service_settings
-                ).count(),
-                "networks": models.Network.objects.filter(tenant=tenant).count(),
-                "floating_ips": models.FloatingIP.objects.filter(tenant=tenant).count(),
-                "ports": models.Port.objects.filter(tenant=tenant).count(),
-                "routers": models.Router.objects.filter(tenant=tenant).count(),
-                "subnets": models.SubNet.objects.filter(network__tenant=tenant).count(),
-                "security_groups": models.SecurityGroup.objects.filter(
-                    tenant=tenant
-                ).count(),
-            }
-        )
 
 
 class RouterViewSet(core_views.ReadOnlyActionsViewSet):

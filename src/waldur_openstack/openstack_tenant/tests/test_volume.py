@@ -6,8 +6,13 @@ from rest_framework import status, test
 
 from waldur_core.structure.tests.factories import ProjectFactory, ServiceSettingsFactory
 from waldur_mastermind.common import utils as common_utils
-from waldur_openstack.openstack.tests.factories import SubNetFactory
-from waldur_openstack.openstack_base.utils import volume_type_name_to_quota_name
+from waldur_openstack.openstack.tests.factories import (
+    FlavorFactory,
+    ImageFactory,
+    SubNetFactory,
+    VolumeTypeFactory,
+)
+from waldur_openstack.openstack.utils import volume_type_name_to_quota_name
 from waldur_openstack.openstack_tenant import models, views
 from waldur_openstack.openstack_tenant.tests.helpers import (
     override_openstack_tenant_settings,
@@ -381,9 +386,10 @@ class VolumeCreateSnapshotScheduleTest(test.APITransactionTestCase):
 class BaseVolumeCreateTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackTenantFixture()
+        self.tenant = self.fixture.tenant
         self.settings = self.fixture.openstack_tenant_service_settings
-        self.image = factories.ImageFactory(settings=self.settings)
-        self.image_url = factories.ImageFactory.get_url(self.image)
+        self.image = ImageFactory(settings=self.tenant.service_settings)
+        self.image_url = ImageFactory.get_url(self.image)
         self.client.force_authenticate(self.fixture.owner)
 
     def create_volume(self, **extra):
@@ -414,8 +420,8 @@ class VolumeNameCreateTest(BaseVolumeCreateTest):
         self.assertEqual(response.data["image_name"], self.image.name)
 
     def test_volume_image_name_populated_on_instance_creation(self):
-        flavor = factories.FlavorFactory(settings=self.settings)
-        flavor_url = factories.FlavorFactory.get_url(flavor)
+        flavor = FlavorFactory(settings=self.tenant.service_settings)
+        flavor_url = FlavorFactory.get_url(flavor)
         subnet_url = SubNetFactory.get_url(self.fixture.subnet)
 
         payload = {
@@ -435,8 +441,8 @@ class VolumeNameCreateTest(BaseVolumeCreateTest):
         self.assertEqual(system_volume["image_name"], self.image.name)
 
     def test_create_instance_with_data_volumes_with_different_names(self):
-        flavor = factories.FlavorFactory(settings=self.settings)
-        flavor_url = factories.FlavorFactory.get_url(flavor)
+        flavor = FlavorFactory(settings=self.tenant.service_settings)
+        flavor_url = FlavorFactory.get_url(flavor)
         subnet_url = SubNetFactory.get_url(self.fixture.subnet)
 
         payload = {
@@ -450,11 +456,11 @@ class VolumeNameCreateTest(BaseVolumeCreateTest):
             "data_volumes": [
                 {
                     "size": 1024,
-                    "type": factories.VolumeTypeFactory.get_url(),
+                    "type": VolumeTypeFactory.get_url(),
                 },
                 {
                     "size": 1024 * 3,
-                    "type": factories.VolumeTypeFactory.get_url(),
+                    "type": VolumeTypeFactory.get_url(),
                 },
             ],
         }
@@ -474,10 +480,10 @@ class VolumeNameCreateTest(BaseVolumeCreateTest):
 class VolumeTypeCreateTest(BaseVolumeCreateTest):
     def setUp(self):
         super().setUp()
-        self.type = factories.VolumeTypeFactory(
-            settings=self.settings, backend_id="ssd", name="ssd"
+        self.type = VolumeTypeFactory(
+            settings=self.tenant.service_settings, backend_id="ssd", name="ssd"
         )
-        self.type_url = factories.VolumeTypeFactory.get_url(self.type)
+        self.type_url = VolumeTypeFactory.get_url(self.type)
 
     def test_type_populated_on_volume_creation(self):
         response = self.create_volume(type=self.type_url)
@@ -488,7 +494,7 @@ class VolumeTypeCreateTest(BaseVolumeCreateTest):
         )
 
     def test_volume_type_should_be_related_to_the_same_service_settings(self):
-        response = self.create_volume(type=factories.VolumeTypeFactory.get_url())
+        response = self.create_volume(type=VolumeTypeFactory.get_url())
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("type", response.data)
 
@@ -496,14 +502,14 @@ class VolumeTypeCreateTest(BaseVolumeCreateTest):
         self.create_volume(type=self.type_url, size=1024 * 10)
 
         key = volume_type_name_to_quota_name(self.type.name)
-        usage = self.settings.get_quota_usage(key)
+        usage = self.tenant.get_quota_usage(key)
         self.assertEqual(usage, 10)
 
     def test_user_can_not_create_volume_if_resulting_quota_usage_is_greater_than_limit(
         self,
     ):
-        self.settings.set_quota_usage("gigabytes_ssd", 0)
-        self.settings.set_quota_limit("gigabytes_ssd", 0)
+        self.tenant.set_quota_usage("gigabytes_ssd", 0)
+        self.tenant.set_quota_limit("gigabytes_ssd", 0)
 
         response = self.create_volume(type=self.type_url, size=1024)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -552,23 +558,22 @@ class VolumeAvailabilityZoneCreateTest(BaseVolumeCreateTest):
 class VolumeRetypeTestCase(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackTenantFixture()
+        self.tenant = self.fixture.tenant
         self.admin = self.fixture.admin
         self.manager = self.fixture.manager
         self.staff = self.fixture.staff
         self.volume = self.fixture.volume
         self.volume.runtime_state = "available"
         self.volume.save()
-        self.new_type = factories.VolumeTypeFactory(
-            settings=self.fixture.openstack_tenant_service_settings,
+        self.new_type = VolumeTypeFactory(
+            settings=self.tenant.service_settings,
             backend_id="new_volume_type_id",
         )
 
     def retype_volume(self, user, new_type):
         url = factories.VolumeFactory.get_url(self.volume, action="retype")
         self.client.force_authenticate(user)
-        return self.client.post(
-            url, {"type": factories.VolumeTypeFactory.get_url(new_type)}
-        )
+        return self.client.post(url, {"type": VolumeTypeFactory.get_url(new_type)})
 
     @data("admin", "manager")
     def test_user_can_retype_volume_he_has_access_to(self, user):

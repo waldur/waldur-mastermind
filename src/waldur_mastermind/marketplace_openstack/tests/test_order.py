@@ -399,17 +399,17 @@ class InstanceCreateTest(test.APITransactionTestCase):
         self.assertEqual(order.resource.parent, tenant_resource)
 
     def trigger_instance_creation(self, **kwargs):
-        image = openstack_tenant_factories.ImageFactory(
-            settings=self.service_settings, min_disk=10240, min_ram=1024
+        image = openstack_factories.ImageFactory(
+            settings=self.fixture.tenant.service_settings, min_disk=10240, min_ram=1024
         )
-        flavor = openstack_tenant_factories.FlavorFactory(
-            settings=self.service_settings
+        flavor = openstack_factories.FlavorFactory(
+            settings=self.fixture.tenant.service_settings
         )
 
         subnet_url = openstack_factories.SubNetFactory.get_url(self.fixture.subnet)
         attributes = {
-            "flavor": openstack_tenant_factories.FlavorFactory.get_url(flavor),
-            "image": openstack_tenant_factories.ImageFactory.get_url(image),
+            "flavor": openstack_factories.FlavorFactory.get_url(flavor),
+            "image": openstack_factories.ImageFactory.get_url(image),
             "name": "virtual-machine",
             "system_volume_size": image.min_disk,
             "ports": [{"subnet": subnet_url}],
@@ -655,12 +655,12 @@ class VolumeCreateTest(test.APITransactionTestCase):
         self.assertEqual(order.state, order.States.DONE)
 
     def trigger_volume_creation(self, **kwargs):
-        image = openstack_tenant_factories.ImageFactory(
-            settings=self.service_settings, min_disk=10240, min_ram=1024
+        image = openstack_factories.ImageFactory(
+            settings=self.fixture.tenant.service_settings, min_disk=10240, min_ram=1024
         )
 
         attributes = {
-            "image": openstack_tenant_factories.ImageFactory.get_url(image),
+            "image": openstack_factories.ImageFactory.get_url(image),
             "name": "Volume",
             "size": 10 * 1024,
         }

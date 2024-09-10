@@ -79,8 +79,8 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
 
     @mock.patch("waldur_rancher.executors.tasks")
     def test_use_data_volumes(self, mock_tasks):
-        volume_type = openstack_tenant_factories.VolumeTypeFactory(
-            settings=self.fixture.tenant_settings
+        volume_type = openstack_factories.VolumeTypeFactory(
+            settings=self.tenant.service_settings
         )
         self.payload = {
             "cluster": factories.ClusterFactory.get_url(self.fixture.cluster),
@@ -92,7 +92,7 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
             "data_volumes": [
                 {
                     "size": 12 * 1024,
-                    "volume_type": openstack_tenant_factories.VolumeTypeFactory.get_url(
+                    "volume_type": openstack_factories.VolumeTypeFactory.get_url(
                         volume_type
                     ),
                     "mount_point": "/var/lib/etcd",
@@ -110,8 +110,8 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
     @utils.override_plugin_settings(MOUNT_POINT_CHOICE_IS_MANDATORY=False)
     @mock.patch("waldur_rancher.executors.tasks")
     def test_use_data_volumes_without_mount_point(self, mock_tasks):
-        volume_type = openstack_tenant_factories.VolumeTypeFactory(
-            settings=self.fixture.tenant_settings
+        volume_type = openstack_factories.VolumeTypeFactory(
+            settings=self.tenant.service_settings
         )
         self.payload = {
             "cluster": factories.ClusterFactory.get_url(self.fixture.cluster),
@@ -123,7 +123,7 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
             "data_volumes": [
                 {
                     "size": 12 * 1024,
-                    "volume_type": openstack_tenant_factories.VolumeTypeFactory.get_url(
+                    "volume_type": openstack_factories.VolumeTypeFactory.get_url(
                         volume_type
                     ),
                 }
@@ -140,8 +140,8 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
     @utils.override_plugin_settings(MOUNT_POINT_CHOICE_IS_MANDATORY=True)
     @mock.patch("waldur_rancher.executors.tasks")
     def test_if_mount_point_is_required(self, mock_tasks):
-        volume_type = openstack_tenant_factories.VolumeTypeFactory(
-            settings=self.fixture.tenant_settings
+        volume_type = openstack_factories.VolumeTypeFactory(
+            settings=self.tenant.service_settings
         )
         self.payload = {
             "cluster": factories.ClusterFactory.get_url(self.fixture.cluster),
@@ -153,7 +153,7 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
             "data_volumes": [
                 {
                     "size": 12 * 1024,
-                    "volume_type": openstack_tenant_factories.VolumeTypeFactory.get_url(
+                    "volume_type": openstack_factories.VolumeTypeFactory.get_url(
                         volume_type
                     ),
                 }
@@ -208,9 +208,7 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
     def test_create_node_if_flavor_has_been_specified(self, mock_tasks):
         del self.payload["cpu"]
         del self.payload["memory"]
-        self.payload["flavor"] = openstack_tenant_factories.FlavorFactory.get_url(
-            self.flavor
-        )
+        self.payload["flavor"] = openstack_factories.FlavorFactory.get_url(self.flavor)
         response = self.create_node(self.fixture.staff)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(mock_tasks.CreateNodeTask.return_value.si.call_count, 1)
@@ -223,9 +221,7 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
 
         del self.payload["cpu"]
         del self.payload["memory"]
-        self.payload["flavor"] = openstack_tenant_factories.FlavorFactory.get_url(
-            self.flavor
-        )
+        self.payload["flavor"] = openstack_factories.FlavorFactory.get_url(self.flavor)
         response = self.create_node(self.fixture.staff)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

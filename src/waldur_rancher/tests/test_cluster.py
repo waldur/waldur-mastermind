@@ -14,7 +14,6 @@ from waldur_core.structure.tests.factories import (
 )
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack.tests import factories as openstack_factories
-from waldur_openstack.openstack_tenant.models import Flavor
 from waldur_openstack.openstack_tenant.tests import (
     factories as openstack_tenant_factories,
 )
@@ -82,21 +81,16 @@ class BaseClusterCreateTest(test.APITransactionTestCase):
         super().setUp()
         self.fixture = fixtures.RancherFixture()
         self.url = factories.ClusterFactory.get_list_url()
-        openstack_service_settings = (
-            openstack_factories.OpenStackServiceSettingsFactory(
-                customer=self.fixture.customer
-            )
-        )
-        self.tenant = openstack_factories.TenantFactory(
-            service_settings=openstack_service_settings
-        )
+        self.tenant = self.fixture.tenant
 
-        openstack_tenant_factories.FlavorFactory(settings=self.fixture.tenant_settings)
-        image = openstack_tenant_factories.ImageFactory(
-            settings=self.fixture.tenant_settings
+        self.flavor = openstack_factories.FlavorFactory(
+            settings=self.tenant.service_settings,
+            ram=1024 * 8,
+            cores=2,
         )
+        image = openstack_factories.ImageFactory(settings=self.tenant.service_settings)
         self.default_security_group = openstack_factories.SecurityGroupFactory(
-            name="default", tenant=self.fixture.tenant_settings.scope
+            name="default", tenant=self.tenant
         )
         self.fixture.settings.options["base_image_name"] = image.name
         self.fixture.settings.save()
@@ -104,13 +98,9 @@ class BaseClusterCreateTest(test.APITransactionTestCase):
         self.network = openstack_factories.NetworkFactory(tenant=self.tenant)
         self.subnet = openstack_factories.SubNetFactory(
             network=self.network,
-            tenant=self.fixture.tenant_settings.scope,
+            tenant=self.tenant,
             project=self.fixture.project,
         )
-        self.flavor = Flavor.objects.get(settings=self.fixture.tenant_settings)
-        self.flavor.ram = 1024 * 8
-        self.flavor.cores = 2
-        self.flavor.save()
         self.fixture.settings.options["base_subnet_name"] = self.subnet.name
         self.fixture.settings.save()
 
@@ -185,8 +175,10 @@ class ClusterCreateTest(BaseClusterCreateTest):
     @mock.patch("waldur_rancher.executors.core_tasks")
     def test_use_data_volumes(self, mock_core_tasks):
         self.client.force_authenticate(self.fixture.owner)
-        volume_type = openstack_tenant_factories.VolumeTypeFactory(
-            settings=self.fixture.tenant_settings
+        self.tenant.service_settings.shared = True
+        self.tenant.service_settings.save()
+        volume_type = openstack_factories.VolumeTypeFactory(
+            settings=self.tenant.service_settings
         )
         payload = {
             "nodes": [
@@ -199,7 +191,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
                     "data_volumes": [
                         {
                             "size": 12 * 1024,
-                            "volume_type": openstack_tenant_factories.VolumeTypeFactory.get_url(
+                            "volume_type": openstack_factories.VolumeTypeFactory.get_url(
                                 volume_type
                             ),
                             "mount_point": "/var/lib/etcd",
@@ -209,7 +201,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
             ]
         }
         response = self._create_request_("new-cluster", add_payload=payload)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertTrue(models.Cluster.objects.filter(name="new-cluster").exists())
         cluster = models.Cluster.objects.get(name="new-cluster")
         self.assertEqual(len(cluster.node_set.first().initial_data["data_volumes"]), 1)
@@ -503,12 +495,8 @@ class ClusterCreateTest(BaseClusterCreateTest):
         )
 
     def test_validate_security_groups_positive(self):
-        security_group1 = openstack_factories.SecurityGroupFactory(
-            tenant=self.fixture.tenant_settings.scope,
-        )
-        security_group2 = openstack_factories.SecurityGroupFactory(
-            tenant=self.fixture.tenant_settings.scope,
-        )
+        security_group1 = openstack_factories.SecurityGroupFactory(tenant=self.tenant)
+        security_group2 = openstack_factories.SecurityGroupFactory(tenant=self.tenant)
         self.client.force_authenticate(self.fixture.staff)
         payload = {
             "security_groups": [
@@ -558,12 +546,8 @@ class ClusterCreateTest(BaseClusterCreateTest):
         )
 
     def test_custom_security_groups_are_propagated_to_initial_data(self):
-        security_group1 = openstack_factories.SecurityGroupFactory(
-            tenant=self.fixture.tenant_settings.scope,
-        )
-        security_group2 = openstack_factories.SecurityGroupFactory(
-            tenant=self.fixture.tenant_settings.scope,
-        )
+        security_group1 = openstack_factories.SecurityGroupFactory(tenant=self.tenant)
+        security_group2 = openstack_factories.SecurityGroupFactory(tenant=self.tenant)
         self.client.force_authenticate(self.fixture.owner)
         payload = {
             "security_groups": [
@@ -579,7 +563,9 @@ class ClusterCreateTest(BaseClusterCreateTest):
                 },
             ]
         }
-        self._create_request_("new-cluster", add_payload=payload)
+        response = self._create_request_("new-cluster", add_payload=payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
         cluster = models.Cluster.objects.get(name="new-cluster")
         self.assertEqual(
             cluster.node_set.first().initial_data["security_groups"],
@@ -603,8 +589,8 @@ class ClusterCreateTest(BaseClusterCreateTest):
     @mock.patch("waldur_rancher.executors.core_tasks")
     def test_disable_data_volumes(self, mock_core_tasks):
         self.client.force_authenticate(self.fixture.owner)
-        volume_type = openstack_tenant_factories.VolumeTypeFactory(
-            settings=self.fixture.tenant_settings
+        volume_type = openstack_factories.VolumeTypeFactory(
+            settings=self.tenant.service_settings
         )
         payload = {
             "nodes": [
@@ -617,7 +603,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
                     "data_volumes": [
                         {
                             "size": 12 * 1024,
-                            "volume_type": openstack_tenant_factories.VolumeTypeFactory.get_url(
+                            "volume_type": openstack_factories.VolumeTypeFactory.get_url(
                                 volume_type
                             ),
                             "mount_point": "/var/lib/etcd",

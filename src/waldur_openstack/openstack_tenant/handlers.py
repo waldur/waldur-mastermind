@@ -5,7 +5,7 @@ from django.contrib.contenttypes.models import ContentType
 from waldur_core.core.models import StateMixin
 from waldur_core.quotas.models import QuotaLimit
 from waldur_core.structure import models as structure_models
-from waldur_openstack.openstack_base.utils import is_valid_volume_type_name
+from waldur_openstack.openstack.utils import is_valid_volume_type_name
 
 from ..openstack import apps as openstack_apps
 from ..openstack import models as openstack_models

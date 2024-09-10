@@ -2,7 +2,7 @@ import copy
 
 from django.db import migrations
 
-from waldur_openstack.openstack_base.utils import is_valid_volume_type_name
+from waldur_openstack.openstack.utils import is_valid_volume_type_name
 
 
 def fix_limits(apps, schema_editor):

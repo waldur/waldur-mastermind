@@ -17,8 +17,8 @@ from waldur_openstack.openstack.tests import (
     factories as openstack_factories,
 )
 from waldur_openstack.openstack.tests.unittests import test_backend
+from waldur_openstack.openstack.utils import volume_type_name_to_quota_name
 from waldur_openstack.openstack_base.exceptions import OpenStackBackendError
-from waldur_openstack.openstack_base.utils import volume_type_name_to_quota_name
 from waldur_openstack.openstack_tenant import executors, models, views
 from waldur_openstack.openstack_tenant.tasks import LimitedPerTypeThrottleMixin
 from waldur_openstack.openstack_tenant.tests import factories, fixtures, helpers
@@ -78,12 +78,16 @@ class InstanceCreateTest(test.APITransactionTestCase):
         self.openstack_settings.save()
         self.project = self.fixture.project
         self.customer = self.fixture.customer
-        self.image = factories.ImageFactory(
-            settings=self.openstack_settings, min_disk=10240, min_ram=1024
+        self.image = openstack_factories.ImageFactory(
+            settings=self.tenant.service_settings, min_disk=10240, min_ram=1024
         )
-        self.flavor = factories.FlavorFactory(settings=self.openstack_settings)
+        self.flavor = openstack_factories.FlavorFactory(
+            settings=self.tenant.service_settings
+        )
         self.subnet = self.fixture.subnet
-        self.volume_type = factories.VolumeTypeFactory(settings=self.openstack_settings)
+        self.volume_type = openstack_factories.VolumeTypeFactory(
+            settings=self.tenant.service_settings
+        )
 
     def create_instance(self, post_data=None):
         user = self.fixture.owner
@@ -98,8 +102,8 @@ class InstanceCreateTest(test.APITransactionTestCase):
                 self.openstack_settings
             ),
             "project": structure_factories.ProjectFactory.get_url(self.project),
-            "flavor": factories.FlavorFactory.get_url(self.flavor),
-            "image": factories.ImageFactory.get_url(self.image),
+            "flavor": openstack_factories.FlavorFactory.get_url(self.flavor),
+            "image": openstack_factories.ImageFactory.get_url(self.image),
             "name": "valid-name",
             "system_volume_size": self.image.min_disk,
             "ports": [{"subnet": subnet_url}],
@@ -113,10 +117,12 @@ class InstanceCreateTest(test.APITransactionTestCase):
         self.openstack_settings.set_quota_usage(quota_name, 100)
         response = self.create_instance(
             self.get_valid_data(
-                system_volume_type=factories.VolumeTypeFactory.get_url(
+                system_volume_type=openstack_factories.VolumeTypeFactory.get_url(
                     self.volume_type
                 ),
-                data_volume_type=factories.VolumeTypeFactory.get_url(self.volume_type),
+                data_volume_type=openstack_factories.VolumeTypeFactory.get_url(
+                    self.volume_type
+                ),
             )
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -357,7 +363,9 @@ class InstanceCreateTest(test.APITransactionTestCase):
 
     def test_show_volume_type_in_instance_serializer(self):
         instance = factories.InstanceFactory()
-        volume_type = factories.VolumeTypeFactory(settings=instance.service_settings)
+        volume_type = openstack_factories.VolumeTypeFactory(
+            settings=instance.tenant.service_settings
+        )
         factories.VolumeFactory(
             service_settings=instance.service_settings,
             project=instance.project,

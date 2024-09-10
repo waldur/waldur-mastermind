@@ -1206,9 +1206,6 @@ class BaseResourceSerializer(
     service_settings_error_message = serializers.ReadOnlyField(
         source="service_settings.error_message"
     )
-    service_settings_scope_uuid = serializers.ReadOnlyField(
-        source="service_settings.scope.uuid"
-    )
 
     customer = serializers.HyperlinkedRelatedField(
         source="project.customer",
@@ -1242,7 +1239,6 @@ class BaseResourceSerializer(
             "service_settings_uuid",
             "service_settings_state",
             "service_settings_error_message",
-            "service_settings_scope_uuid",
             "project",
             "project_name",
             "project_uuid",

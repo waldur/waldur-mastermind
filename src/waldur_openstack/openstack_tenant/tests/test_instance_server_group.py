@@ -3,7 +3,9 @@ from rest_framework import status, test
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common import utils as common_utils
 from waldur_openstack.openstack.tests.factories import (
+    FlavorFactory,
     FloatingIPFactory,
+    ImageFactory,
     ServerGroupFactory,
     SubNetFactory,
 )
@@ -14,16 +16,17 @@ from waldur_openstack.openstack_tenant.tests import factories, fixtures
 def _instance_data(user, instance=None):
     if instance is None:
         instance = factories.InstanceFactory()
-    FloatingIPFactory(tenant=instance.service_settings.scope, runtime_state="DOWN")
-    image = factories.ImageFactory(settings=instance.service_settings)
-    flavor = factories.FlavorFactory(settings=instance.service_settings)
+    tenant = instance.tenant
+    FloatingIPFactory(tenant=tenant, runtime_state="DOWN")
+    image = ImageFactory(settings=tenant.service_settings)
+    flavor = FlavorFactory(settings=tenant.service_settings)
     ssh_public_key = structure_factories.SshPublicKeyFactory(user=user)
-    subnet = SubNetFactory(tenant=instance.service_settings.scope)
+    subnet = SubNetFactory(tenant=tenant)
     return {
         "name": "test-host",
         "description": "test description",
-        "flavor": factories.FlavorFactory.get_url(flavor),
-        "image": factories.ImageFactory.get_url(image),
+        "flavor": FlavorFactory.get_url(flavor),
+        "image": ImageFactory.get_url(image),
         "service_settings": factories.OpenStackTenantServiceSettingsFactory.get_url(
             instance.service_settings
         ),

@@ -9,7 +9,12 @@ from novaclient.v2.servers import Server
 
 from waldur_openstack.openstack.backend import OpenStackBackend
 from waldur_openstack.openstack.models import Port
-from waldur_openstack.openstack.tests.factories import FloatingIPFactory, PortFactory
+from waldur_openstack.openstack.tests.factories import (
+    FloatingIPFactory,
+    ImageFactory,
+    PortFactory,
+    VolumeTypeFactory,
+)
 from waldur_openstack.openstack_base.tests.fixtures import mock_session
 from waldur_openstack.openstack_tenant import models
 from waldur_openstack.openstack_tenant.backend import OpenStackTenantBackend
@@ -113,7 +118,7 @@ class CreateVolumesTest(VolumesBaseTest):
         self.mocked_cinder.volumes.create.return_value = self._generate_volumes()[0]
 
     def test_use_default_volume_type_if_type_not_populated(self):
-        volume_type = factories.VolumeTypeFactory(settings=self.settings)
+        volume_type = VolumeTypeFactory(settings=self.tenant.service_settings)
         self.tenant.default_volume_type_name = volume_type.name
         self.tenant.save()
         volume = self._get_volume()
@@ -135,8 +140,8 @@ class CreateVolumesTest(VolumesBaseTest):
 
     @mock.patch("waldur_openstack.openstack_tenant.backend.logger")
     def test_not_use_default_volume_type_if_two_types_exist(self, mock_logger):
-        volume_type = factories.VolumeTypeFactory(settings=self.settings)
-        factories.VolumeTypeFactory(name=volume_type.name, settings=self.settings)
+        volume_type = VolumeTypeFactory(settings=self.tenant.service_settings)
+        VolumeTypeFactory(name=volume_type.name, settings=self.tenant.service_settings)
         self.tenant.default_volume_type_name = volume_type.name
         self.tenant.save()
         volume = self._get_volume()
@@ -260,7 +265,7 @@ class PullVolumeTest(BaseBackendTest):
             service_settings=self.fixture.openstack_tenant_service_settings,
             project=self.fixture.project,
         )
-        image = factories.ImageFactory(settings=self.settings)
+        image = ImageFactory(settings=self.fixture.tenant.service_settings)
         self.backend_volume.volume_image_metadata = {"image_id": image.backend_id}
         self.tenant_backend.pull_volume(volume)
         volume.refresh_from_db()

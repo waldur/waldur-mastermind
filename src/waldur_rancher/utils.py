@@ -11,7 +11,12 @@ from waldur_core.core.models import User
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.quotas import exceptions as quotas_exceptions
 from waldur_core.structure.models import ProjectRole, ServiceSettings
-from waldur_openstack.openstack.models import SecurityGroup
+from waldur_openstack.openstack.models import Flavor, Image, SecurityGroup, Tenant
+from waldur_openstack.openstack.utils import (
+    filter_property_for_tenant,
+    is_flavor_valid_for_tenant,
+    is_volume_type_valid_for_tenant,
+)
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 from waldur_openstack.openstack_tenant.views import InstanceViewSet
 from waldur_rancher.backend import RancherBackend
@@ -53,18 +58,18 @@ def expand_added_nodes(
     ssh_public_key,
     security_groups=None,
 ):
+    tenant: Tenant = tenant_settings.scope
+    valid_images = filter_property_for_tenant(Image.objects.all(), tenant)
     try:
         base_image_name = rancher_settings.get_option("base_image_name")
-        image = openstack_tenant_models.Image.objects.get(
-            name=base_image_name, settings=tenant_settings
-        )
+        image = valid_images.get(name=base_image_name)
     except ObjectDoesNotExist:
         raise serializers.ValidationError(_("No matching image found."))
 
     if not security_groups:
         try:
             default_security_group = SecurityGroup.objects.get(
-                name="default", tenant=tenant_settings.scope
+                name="default", tenant=tenant
             )
             security_groups = [default_security_group]
         except ObjectDoesNotExist:
@@ -80,17 +85,14 @@ def expand_added_nodes(
         system_volume_type = node.pop("system_volume_type", None)
         data_volumes = node.pop("data_volumes", [])
 
-        if subnet.tenant != tenant_settings.scope:
+        if subnet.tenant != tenant:
             raise serializers.ValidationError(
                 _("Subnet %s should belong to the same tenant %s.")
-                % (
-                    subnet.name,
-                    tenant_settings.name,
-                )
+                % (subnet.name, tenant.name)
             )
 
-        validate_data_volumes(data_volumes, tenant_settings)
-        flavor = validate_flavor(flavor, roles, tenant_settings, cpu, memory)
+        validate_data_volumes(data_volumes, tenant)
+        flavor = validate_flavor(flavor, roles, tenant, cpu, memory)
 
         node["initial_data"] = {
             "flavor": flavor.uuid.hex,
@@ -133,16 +135,13 @@ def expand_added_nodes(
     validate_quotas(nodes, tenant_settings, project)
 
 
-def validate_data_volumes(data_volumes, tenant_settings):
+def validate_data_volumes(data_volumes, tenant):
     for volume in data_volumes:
         volume_type = volume.get("volume_type")
-        if volume_type and volume_type.settings != tenant_settings:
+        if volume_type and not is_volume_type_valid_for_tenant(volume_type, tenant):
             raise serializers.ValidationError(
-                _("Volume type %s should belong to the service settings %s.")
-                % (
-                    volume_type.name,
-                    tenant_settings.name,
-                )
+                _("Volume type %s is not visible in tenant %s.")
+                % (volume_type.name, tenant.name)
             )
 
     mount_points = [
@@ -154,7 +153,7 @@ def validate_data_volumes(data_volumes, tenant_settings):
         )
 
 
-def validate_flavor(flavor, roles, tenant_settings, cpu=None, memory=None):
+def validate_flavor(flavor, roles, tenant: Tenant, cpu=None, memory=None):
     if flavor:
         if cpu or memory:
             raise serializers.ValidationError(
@@ -168,9 +167,8 @@ def validate_flavor(flavor, roles, tenant_settings, cpu=None, memory=None):
 
     if not flavor:
         flavor = (
-            openstack_tenant_models.Flavor.objects.filter(
-                cores__gte=cpu, ram__gte=memory, settings=tenant_settings
-            )
+            filter_property_for_tenant(Flavor.objects.all(), tenant)
+            .filter(cores__gte=cpu, ram__gte=memory)
             .order_by("cores", "ram")
             .first()
         )
@@ -178,13 +176,9 @@ def validate_flavor(flavor, roles, tenant_settings, cpu=None, memory=None):
     if not flavor:
         raise serializers.ValidationError(_("No matching flavor found."))
 
-    if flavor.settings != tenant_settings:
+    if not is_flavor_valid_for_tenant(flavor, tenant):
         raise serializers.ValidationError(
-            _("Flavor %s should belong to the service settings %s.")
-            % (
-                flavor.name,
-                tenant_settings.name,
-            )
+            _("Flavor %s is not visible in tenant %s.") % (flavor.name, tenant)
         )
 
     requirements = list(

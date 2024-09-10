@@ -2,10 +2,7 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
 from waldur_core.core.validators import BackendURLValidator, validate_x509_certificate
-from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
-
-from . import models
 
 
 class BaseOpenStackServiceSerializer(structure_serializers.ServiceOptionsSerializer):
@@ -76,19 +73,6 @@ class BaseOpenStackServiceSerializer(structure_serializers.ServiceOptionsSeriali
     )
 
 
-class BaseVolumeTypeSerializer(structure_serializers.BasePropertySerializer):
-    class Meta(structure_serializers.BasePropertySerializer.Meta):
-        model = models.BaseVolumeType
-        fields = ("url", "uuid", "name", "description", "settings")
-        extra_kwargs = {
-            "url": {"lookup_field": "uuid"},
-            "settings": {
-                "lookup_field": "uuid",
-                "view_name": "servicesettings-detail",
-            },
-        }
-
-
 class BaseSecurityGroupRuleSerializer(serializers.ModelSerializer):
     remote_group_name = serializers.ReadOnlyField(source="remote_group.name")
     remote_group_uuid = serializers.ReadOnlyField(source="remote_group.uuid")
@@ -105,38 +89,3 @@ class BaseSecurityGroupRuleSerializer(serializers.ModelSerializer):
             "remote_group_name",
             "remote_group_uuid",
         )
-
-
-class FlavorSerializer(structure_serializers.BasePropertySerializer):
-    state = serializers.ReadOnlyField(source="get_state_display")
-
-    class Meta(structure_serializers.BasePropertySerializer.Meta):
-        model = NotImplemented
-        fields = (
-            "url",
-            "uuid",
-            "name",
-            "settings",
-            "cores",
-            "ram",
-            "disk",
-            "state",
-            "error_message",
-            "backend_id",
-        )
-        read_only_fields = ("error_message", "backend_id")
-        extra_kwargs = {
-            "url": {"lookup_field": "uuid"},
-            "settings": {"lookup_field": "uuid"},
-        }
-
-    def validate_settings(self, value):
-        user = self.context["request"].user
-        message = _("You do not have permissions to create flavor in selected service.")
-
-        if not structure_permissions._has_service_manager_access(
-            user, structure_permissions._get_customer(value)
-        ):
-            raise serializers.ValidationError(message)
-
-        return value
