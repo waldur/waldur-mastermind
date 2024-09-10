@@ -28,8 +28,8 @@ from waldur_openstack.openstack.tests import (
 from waldur_openstack.openstack.tests import fixtures as openstack_fixtures
 from waldur_openstack.openstack.tests.factories import VolumeTypeFactory
 from waldur_openstack.openstack.tests.unittests.test_backend import BaseBackendTestCase
+from waldur_openstack.openstack.utils import volume_type_name_to_quota_name
 from waldur_openstack.openstack_base.tests.fixtures import OpenStackFixture
-from waldur_openstack.openstack_base.utils import volume_type_name_to_quota_name
 from waldur_openstack.openstack_tenant.tests import (
     fixtures as openstack_tenant_fixtures,
 )

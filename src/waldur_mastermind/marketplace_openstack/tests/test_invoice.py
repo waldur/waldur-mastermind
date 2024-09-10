@@ -18,8 +18,8 @@ from waldur_mastermind.marketplace_openstack import (
     STORAGE_MODE_FIXED,
     STORAGE_TYPE,
 )
+from waldur_openstack.openstack.tests.factories import FlavorFactory
 from waldur_openstack.openstack_base.tests.fixtures import OpenStackFixture
-from waldur_openstack.openstack_tenant.tests.factories import FlavorFactory
 from waldur_openstack.openstack_tenant.tests.fixtures import OpenStackTenantFixture
 
 from .. import TENANT_TYPE

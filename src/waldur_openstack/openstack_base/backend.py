@@ -1,8 +1,6 @@
 import logging
 
 from cinderclient import exceptions as cinder_exceptions
-from django.db import transaction
-from glanceclient import exc as glance_exceptions
 from keystoneclient import exceptions as keystone_exceptions
 from neutronclient.client import exceptions as neutron_exceptions
 from novaclient import exceptions as nova_exceptions
@@ -10,16 +8,15 @@ from requests import ConnectionError
 
 from waldur_core.quotas.models import QuotaModelMixin
 from waldur_core.structure.backend import ServiceBackend
+from waldur_openstack.openstack.utils import is_valid_volume_type_name
 from waldur_openstack.openstack_base.exceptions import OpenStackBackendError
 from waldur_openstack.openstack_base.session import (
     get_cinder_client,
-    get_glance_client,
     get_keystone_client,
     get_keystone_session,
     get_neutron_client,
     get_nova_client,
 )
-from waldur_openstack.openstack_base.utils import is_valid_volume_type_name
 
 logger = logging.getLogger(__name__)
 
@@ -154,58 +151,3 @@ class BaseOpenStackBackend(ServiceBackend):
                 quotas[name] = value["in_use"]
 
         return quotas
-
-    def _get_current_properties(self, model):
-        return {p.backend_id: p for p in model.objects.filter(settings=self.settings)}
-
-    def _pull_images(self, model_class, filter_function=None):
-        glance = get_glance_client(self.session)
-        try:
-            images = glance.images.list()
-        except glance_exceptions.ClientException as e:
-            raise OpenStackBackendError(e)
-
-        images = [image for image in images if not image["status"] == "deleted"]
-        if filter_function:
-            images = list(filter(filter_function, images))
-
-        with transaction.atomic():
-            cur_images = self._get_current_properties(model_class)
-            for backend_image in images:
-                cur_images.pop(backend_image["id"], None)
-                model_class.objects.update_or_create(
-                    settings=self.settings,
-                    backend_id=backend_image["id"],
-                    defaults={
-                        "name": backend_image["name"],
-                        "min_ram": backend_image["min_ram"],
-                        "min_disk": self.gb2mb(backend_image["min_disk"]),
-                    },
-                )
-            model_class.objects.filter(
-                backend_id__in=cur_images.keys(), settings=self.settings
-            ).delete()
-
-    def _delete_backend_floating_ip(self, backend_id, tenant_backend_id):
-        neutron = get_neutron_client(self.session)
-        try:
-            logger.info(
-                "Deleting floating IP %s from tenant %s", backend_id, tenant_backend_id
-            )
-            neutron.delete_floatingip(backend_id)
-        except neutron_exceptions.NotFound:
-            logger.debug(
-                "Floating IP %s is already gone from tenant %s",
-                backend_id,
-                tenant_backend_id,
-            )
-        except neutron_exceptions.NeutronClientException as e:
-            raise OpenStackBackendError(e)
-
-    def _get_current_volume_types(self):
-        """
-        It is expected that this method is implemented in inherited backend classes
-        so that it would be possible to avoid circular dependency between base and openstack_tenant
-        applications.
-        """
-        return []

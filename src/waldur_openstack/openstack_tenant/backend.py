@@ -1,5 +1,4 @@
 import logging
-import re
 
 from cinderclient import exceptions as cinder_exceptions
 from cinderclient.v2.contrib import list_extensions
@@ -19,7 +18,9 @@ from waldur_core.structure.utils import (
     update_pulled_fields,
 )
 from waldur_openstack.openstack.models import (
+    Flavor,
     FloatingIP,
+    Image,
     Port,
     SecurityGroup,
     ServerGroup,
@@ -81,10 +82,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         return self.settings.options["external_network_id"]
 
     def pull_service_properties(self):
-        self.pull_flavors()
-        self.pull_images()
         self.pull_quotas()
-        self.pull_volume_types()
         self.pull_volume_availability_zones()
         self.pull_instance_availability_zones()
 
@@ -166,50 +164,6 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
 
         update_pulled_fields(instance, backend_instance, fields)
 
-    def pull_flavors(self):
-        nova = get_nova_client(self.session)
-        try:
-            flavors = nova.flavors.findall()
-        except nova_exceptions.ClientException as e:
-            raise OpenStackBackendError(e)
-
-        flavor_exclude_regex = self.settings.options.get("flavor_exclude_regex", "")
-        name_pattern = (
-            re.compile(flavor_exclude_regex) if flavor_exclude_regex else None
-        )
-        with transaction.atomic():
-            cur_flavors = self._get_current_properties(models.Flavor)
-            for backend_flavor in flavors:
-                if (
-                    name_pattern is not None
-                    and name_pattern.match(backend_flavor.name) is not None
-                ):
-                    logger.debug(
-                        "Skipping pull of %s flavor as it matches %s regex pattern.",
-                        backend_flavor.name,
-                        flavor_exclude_regex,
-                    )
-                    continue
-
-                cur_flavors.pop(backend_flavor.id, None)
-                models.Flavor.objects.update_or_create(
-                    settings=self.settings,
-                    backend_id=backend_flavor.id,
-                    defaults={
-                        "name": backend_flavor.name,
-                        "cores": backend_flavor.vcpus,
-                        "ram": backend_flavor.ram,
-                        "disk": self.gb2mb(backend_flavor.disk),
-                    },
-                )
-
-            models.Flavor.objects.filter(
-                backend_id__in=cur_flavors.keys(), settings=self.settings
-            ).delete()
-
-    def pull_images(self):
-        self._pull_images(models.Image)
-
     def _backend_floating_ip_to_floating_ip(self, backend_floating_ip, **kwargs):
         floating_ip = FloatingIP(
             tenant=self.tenant,
@@ -265,7 +219,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         self._pull_tenant_quotas(self.tenant_id, self.settings)
 
     @log_backend_action()
-    def create_volume(self, volume):
+    def create_volume(self, volume: models.Volume):
         kwargs = {
             "size": self.mb2gb(volume.size),
             "name": volume.name,
@@ -275,7 +229,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         if volume.source_snapshot:
             kwargs["snapshot_id"] = volume.source_snapshot.backend_id
 
-        tenant = volume.service_settings.scope
+        tenant: models.Tenant = volume.service_settings.scope
 
         # there is an issue in RHOS13 that doesn't allow to restore a snapshot to a volume if also a volume type ID is provided
         # a workaround is to avoid setting volume type in this case at all
@@ -288,7 +242,7 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
                     try:
                         volume_type = models.VolumeType.objects.get(
                             name=volume_type_name,
-                            settings=volume.service_settings,
+                            settings=tenant.service_settings,
                         )
                         volume.type = volume_type
                         kwargs["volume_type"] = volume_type.backend_id
@@ -466,10 +420,10 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             try:
                 image_id = volume.image_metadata.get("image_id")
                 if image_id:
-                    volume.image = models.Image.objects.get(
-                        settings=self.settings, backend_id=image_id
+                    volume.image = Image.objects.get(
+                        settings=self.tenant.service_settings, backend_id=image_id
                     )
-            except models.Image.DoesNotExist:
+            except Image.DoesNotExist:
                 pass
 
             volume.image_name = volume.image_metadata.get("image_name", "")
@@ -1111,14 +1065,14 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
 
         if backend_flavor_id:
             try:
-                flavor = models.Flavor.objects.get(
-                    settings=self.settings, backend_id=backend_flavor_id
+                flavor = Flavor.objects.get(
+                    settings=self.tenant.service_settings, backend_id=backend_flavor_id
                 )
                 instance.flavor_name = flavor.name
                 instance.flavor_disk = flavor.disk
                 instance.cores = flavor.cores
                 instance.ram = flavor.ram
-            except models.Flavor.DoesNotExist:
+            except Flavor.DoesNotExist:
                 backend_flavor = self._get_flavor(backend_flavor_id)
                 # If flavor has been removed in OpenStack cloud, we should skip update
                 if backend_flavor:
@@ -1712,42 +1666,6 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         except nova_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
 
-    def _get_current_volume_types(self):
-        return self._get_current_properties(models.VolumeType)
-
-    def pull_volume_types(self):
-        cinder = get_cinder_client(self.session)
-        try:
-            volume_types = cinder.volume_types.list()
-        except cinder_exceptions.ClientException as e:
-            raise OpenStackBackendError(e)
-
-        default_volume_type_id = None
-        try:
-            default_volume_type_id = cinder.volume_types.default().id
-        except cinder_exceptions.NotFound:
-            pass
-        except cinder_exceptions.ClientException as e:
-            raise OpenStackBackendError(e)
-
-        with transaction.atomic():
-            cur_volume_types = self._get_current_volume_types()
-            for backend_type in volume_types:
-                cur_volume_types.pop(backend_type.id, None)
-                models.VolumeType.objects.update_or_create(
-                    settings=self.settings,
-                    backend_id=backend_type.id,
-                    defaults={
-                        "name": backend_type.name,
-                        "description": backend_type.description or "",
-                        "is_default": backend_type.id == default_volume_type_id,
-                    },
-                )
-
-            models.VolumeType.objects.filter(
-                backend_id__in=cur_volume_types.keys(), settings=self.settings
-            ).delete()
-
     def pull_volume_availability_zones(self):
         if not self.is_volume_availability_zone_supported():
             return
@@ -1759,53 +1677,3 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
             raise OpenStackBackendError(e)
 
         self._pull_zones(backend_zones, models.VolumeAvailabilityZone)
-
-    def create_flavor(self, flavor):
-        session = self.get_admin_session()
-        nova = get_nova_client(session)
-
-        data = {
-            "name": flavor.name,
-            "vcpus": flavor.cores,
-            "ram": flavor.ram,
-            "disk": flavor.disk / 1024,
-            "is_public": False,
-        }
-        try:
-            response = nova.flavors.create(**data)
-            flavor.backend_id = response.id
-            flavor.save()
-            nova.flavors.api.client.post(
-                "/flavors/%s/action" % flavor.backend_id,
-                body={"addTenantAccess": {"tenant": self.tenant_id}},
-            )
-        except nova_exceptions.ClientException as e:
-            raise OpenStackBackendError(e)
-        else:
-            event_logger.openstack_tenant_flavor.info(
-                "Flavor %s has been created in the backend." % flavor.name,
-                event_type="openstack_flavor_created",
-                event_context={
-                    "flavor": flavor,
-                },
-            )
-
-    def delete_flavor(self, flavor):
-        if not flavor.backend_id:
-            return
-
-        session = self.get_admin_session()
-        nova = get_nova_client(session)
-
-        try:
-            nova.flavors.delete(flavor.backend_id)
-        except nova_exceptions.ClientException as e:
-            raise OpenStackBackendError(e)
-        else:
-            event_logger.openstack_tenant_flavor.info(
-                "Flavor %s has been deleted in the backend." % flavor.name,
-                event_type="openstack_flavor_deleted",
-                event_context={
-                    "flavor": flavor,
-                },
-            )

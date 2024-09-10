@@ -39,8 +39,9 @@ class FlavorFactory(
         )
 
     @classmethod
-    def get_list_url(cls):
-        return "http://testserver" + reverse("openstack-flavor-list")
+    def get_list_url(cls, action=None):
+        url = "http://testserver" + reverse("openstack-flavor-list")
+        return url if action is None else url + action + "/"
 
 
 class ImageFactory(
@@ -63,8 +64,9 @@ class ImageFactory(
         )
 
     @classmethod
-    def get_list_url(cls):
-        return "http://testserver" + reverse("openstack-image-list")
+    def get_list_url(cls, action=None):
+        url = "http://testserver" + reverse("openstack-image-list")
+        return url if action is None else url + action + "/"
 
 
 class TenantMixin:

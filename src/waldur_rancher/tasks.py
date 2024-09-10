@@ -42,8 +42,8 @@ class CreateNodeTask(core_tasks.Task):
 
         post_data = {
             "name": node.name,
-            "flavor": reverse("openstacktenant-flavor-detail", kwargs={"uuid": flavor}),
-            "image": reverse("openstacktenant-image-detail", kwargs={"uuid": image}),
+            "flavor": reverse("openstack-flavor-detail", kwargs={"uuid": flavor}),
+            "image": reverse("openstack-image-detail", kwargs={"uuid": image}),
             "service_settings": reverse(
                 "servicesettings-detail", kwargs={"uuid": service_settings}
             ),
@@ -51,7 +51,7 @@ class CreateNodeTask(core_tasks.Task):
             "system_volume_size": system_volume_size,
             "system_volume_type": system_volume_type
             and reverse(
-                "openstacktenant-volume-type-detail",
+                "openstack-volume-type-detail",
                 kwargs={"uuid": system_volume_type},
             ),
             "data_volumes": [
@@ -59,7 +59,7 @@ class CreateNodeTask(core_tasks.Task):
                     "size": volume["size"],
                     "volume_type": volume.get("volume_type")
                     and reverse(
-                        "openstacktenant-volume-type-detail",
+                        "openstack-volume-type-detail",
                         kwargs={"uuid": volume.get("volume_type")},
                     ),
                 }

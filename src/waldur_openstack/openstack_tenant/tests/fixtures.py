@@ -3,10 +3,12 @@ from django.utils.functional import cached_property
 from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_openstack.openstack.tests import fixtures as openstack_fixtures
 from waldur_openstack.openstack.tests.factories import (
+    FlavorFactory,
     FloatingIPFactory,
     NetworkFactory,
     PortFactory,
     SubNetFactory,
+    VolumeTypeFactory,
 )
 from waldur_openstack.openstack_tenant import models
 from waldur_openstack.openstack_tenant.tests import factories
@@ -123,8 +125,8 @@ class OpenStackTenantFixture(ProjectFixture):
 
     @cached_property
     def volume_type(self):
-        return factories.VolumeTypeFactory(
-            settings=self.openstack_tenant_service_settings,
+        return VolumeTypeFactory(
+            settings=self.tenant.service_settings,
         )
 
     @cached_property
@@ -135,6 +137,4 @@ class OpenStackTenantFixture(ProjectFixture):
 
     @cached_property
     def flavor(self):
-        return factories.FlavorFactory(
-            settings=self.openstack_tenant_service_settings,
-        )
+        return FlavorFactory(settings=self.tenant.service_settings)

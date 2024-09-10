@@ -9,6 +9,7 @@ from django.utils import timezone
 from django.utils.crypto import get_random_string
 from django.utils.decorators import method_decorator
 from django.utils.translation import gettext_lazy as _
+from glanceclient import exc as glance_exceptions
 from keystoneauth1.exceptions.http import NotFound
 from keystoneclient import exceptions as keystone_exceptions
 from neutronclient.client import exceptions as neutron_exceptions
@@ -24,6 +25,7 @@ from waldur_core.structure.utils import (
     handle_resource_update_success,
     update_pulled_fields,
 )
+from waldur_openstack.openstack.utils import is_valid_volume_type_name
 from waldur_openstack.openstack_base.backend import (
     BaseOpenStackBackend,
 )
@@ -33,12 +35,12 @@ from waldur_openstack.openstack_base.exceptions import (
 )
 from waldur_openstack.openstack_base.session import (
     get_cinder_client,
+    get_glance_client,
     get_keystone_client,
     get_keystone_session,
     get_neutron_client,
     get_nova_client,
 )
-from waldur_openstack.openstack_base.utils import is_valid_volume_type_name
 from waldur_openstack.openstack_tenant.models import Instance
 
 from . import models, signals
@@ -76,7 +78,6 @@ class OpenStackBackend(BaseOpenStackBackend):
     def pull_service_properties(self):
         self.pull_flavors()
         self.pull_images()
-        self.pull_volume_types()
         self.pull_service_settings_quotas()
 
     def pull_resources(self):
@@ -163,75 +164,190 @@ class OpenStackBackend(BaseOpenStackBackend):
             return False
         return True
 
+    def pull_images(self):
+        glance = get_glance_client(self.session)
+        try:
+            remote_images = glance.images.list()
+        except glance_exceptions.ClientException as e:
+            raise OpenStackBackendError(e)
+        models.Image.objects.filter(settings=self.settings).exclude(
+            backend_id__in=[image.id for image in remote_images]
+        ).delete()
+
     def pull_flavors(self):
         nova = get_nova_client(self.session)
         try:
-            flavors = nova.flavors.findall(is_public=True)
+            remote_flavors = nova.flavors.findall()
         except nova_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
-
-        flavor_exclude_regex = self.settings.options.get("flavor_exclude_regex", "")
-        name_pattern = (
-            re.compile(flavor_exclude_regex) if flavor_exclude_regex else None
-        )
-        with transaction.atomic():
-            cur_flavors = self._get_current_properties(models.Flavor)
-            for backend_flavor in flavors:
-                if (
-                    name_pattern is not None
-                    and name_pattern.match(backend_flavor.name) is not None
-                ):
-                    logger.debug(
-                        "Skipping pull of %s flavor as it matches %s regex pattern.",
-                        backend_flavor.name,
-                        flavor_exclude_regex,
-                    )
-                    continue
-
-                cur_flavors.pop(backend_flavor.id, None)
-                models.Flavor.objects.update_or_create(
-                    settings=self.settings,
-                    backend_id=backend_flavor.id,
-                    defaults={
-                        "name": backend_flavor.name,
-                        "cores": backend_flavor.vcpus,
-                        "ram": backend_flavor.ram,
-                        "disk": self.gb2mb(backend_flavor.disk),
-                        "state": models.Flavor.States.OK,
-                    },
-                )
-
-            models.Flavor.objects.filter(backend_id__in=cur_flavors.keys()).delete()
-
-    def pull_images(self):
-        self._pull_images(models.Image, lambda image: image["visibility"] == "public")
-
-    def _get_current_volume_types(self):
-        return self._get_current_properties(models.VolumeType)
+        models.Flavor.objects.filter(settings=self.settings).exclude(
+            backend_id__in=[flavor.id for flavor in remote_flavors]
+        ).delete()
 
     def pull_volume_types(self):
         cinder = get_cinder_client(self.session)
         try:
-            volume_types = cinder.volume_types.list(is_public=True)
+            remote_volume_types = cinder.volume_types.list()
+        except cinder_exceptions.ClientException as e:
+            raise OpenStackBackendError(e)
+        models.VolumeType.objects.filter(settings=self.settings).exclude(
+            backend_id__in=[volume_type.id for volume_type in remote_volume_types]
+        ).delete()
+
+    def pull_tenant_images(self, tenant: models.Tenant):
+        session = get_keystone_session(tenant.service_settings, tenant.backend_id)
+        glance = get_glance_client(session)
+        try:
+            remote_images = glance.images.list()
+        except glance_exceptions.ClientException as e:
+            raise OpenStackBackendError(e)
+
+        remote_images = [
+            image for image in remote_images if not image["status"] == "deleted"
+        ]
+
+        local_image_mapping = self._tenant_mappings(
+            models.Image.objects.filter(settings=tenant.service_settings)
+        )
+        local_image_ids = set(local_image_mapping.keys())
+
+        remote_image_mapping = {image["id"]: image for image in remote_images}
+        remote_image_ids = set(remote_image_mapping.keys())
+
+        stale_image_ids = local_image_ids - remote_image_ids
+        for image_backend_id in stale_image_ids:
+            local_image = local_image_mapping[image_backend_id]
+            tenant.images.remove(local_image)
+
+        new_image_ids = remote_image_ids - local_image_ids
+        for image_backend_id in new_image_ids:
+            remote_image = remote_image_mapping[image_backend_id]
+            local_image, _ = models.Image.objects.update_or_create(
+                settings=self.settings,
+                backend_id=remote_image["id"],
+                defaults={
+                    "name": remote_image["name"],
+                    "min_ram": remote_image["min_ram"],
+                    "min_disk": self.gb2mb(remote_image["min_disk"]),
+                },
+            )
+            tenant.images.add(local_image)
+
+        existing_image_ids = remote_image_ids & local_image_ids
+        for image_backend_id in existing_image_ids:
+            remote_image = remote_image_mapping[image_backend_id]
+            local_image, _ = models.Image.objects.update_or_create(
+                settings=self.settings,
+                backend_id=remote_image["id"],
+                defaults={
+                    "name": remote_image["name"],
+                    "min_ram": remote_image["min_ram"],
+                    "min_disk": self.gb2mb(remote_image["min_disk"]),
+                },
+            )
+
+    def pull_tenant_flavors(self, tenant: models.Tenant):
+        session = get_keystone_session(tenant.service_settings, tenant.backend_id)
+        nova = get_nova_client(session)
+        try:
+            remote_flavors = nova.flavors.findall()
+        except nova_exceptions.ClientException as e:
+            raise OpenStackBackendError(e)
+
+        flavor_exclude_regex = self.settings.options.get("flavor_exclude_regex", "")
+        if flavor_exclude_regex:
+            name_pattern = re.compile(flavor_exclude_regex)
+            filtered_remote_flavors = filter(
+                lambda flavor: name_pattern.match(flavor.name) is None, remote_flavors
+            )
+            skipped_flavors = set(
+                flavor.id for flavor in filtered_remote_flavors
+            ) - set(flavor.id for flavor in remote_flavors)
+            if skipped_flavors:
+                logger.debug(
+                    "Skipping pull of %s flavors as they match %s regex pattern.",
+                    ", ".join(skipped_flavors),
+                    flavor_exclude_regex,
+                )
+            remote_flavors = filtered_remote_flavors
+
+        local_flavor_mapping = self._tenant_mappings(
+            models.Flavor.objects.filter(settings=tenant.service_settings)
+        )
+        local_flavor_ids = set(local_flavor_mapping.keys())
+
+        remote_flavor_mapping = {flavor.id: flavor for flavor in remote_flavors}
+        remote_flavor_ids = set(remote_flavor_mapping.keys())
+
+        stale_flavor_ids = local_flavor_ids - remote_flavor_ids
+        for flavor_backend_id in stale_flavor_ids:
+            local_flavor = local_flavor_mapping[flavor_backend_id]
+            tenant.flavors.remove(local_flavor)
+
+        new_flavor_ids = remote_flavor_ids - local_flavor_ids
+        for flavor_backend_id in new_flavor_ids:
+            remote_flavor = remote_flavor_mapping[flavor_backend_id]
+            local_flavor, _ = models.Flavor.objects.update_or_create(
+                settings=self.settings,
+                backend_id=remote_flavor.id,
+                defaults={
+                    "name": remote_flavor.name,
+                    "cores": remote_flavor.vcpus,
+                    "ram": remote_flavor.ram,
+                    "disk": self.gb2mb(remote_flavor.disk),
+                },
+            )
+            tenant.flavors.add(local_flavor)
+
+        existing_flavor_ids = remote_flavor_ids - local_flavor_ids
+        for flavor_backend_id in existing_flavor_ids:
+            remote_flavor = remote_flavor_mapping[flavor_backend_id]
+            local_flavor, _ = models.Flavor.objects.update_or_create(
+                settings=self.settings,
+                backend_id=remote_flavor.id,
+                defaults={
+                    "name": remote_flavor.name,
+                    "cores": remote_flavor.vcpus,
+                    "ram": remote_flavor.ram,
+                    "disk": self.gb2mb(remote_flavor.disk),
+                },
+            )
+
+    def pull_tenant_volume_types(self, tenant: models.Tenant):
+        session = get_keystone_session(tenant.service_settings, tenant.backend_id)
+        cinder = get_cinder_client(session)
+        try:
+            remote_volume_types = cinder.volume_types.list()
         except cinder_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
 
-        with transaction.atomic():
-            cur_volume_types = self._get_current_volume_types()
-            for backend_type in volume_types:
-                cur_volume_types.pop(backend_type.id, None)
-                models.VolumeType.objects.update_or_create(
-                    settings=self.settings,
-                    backend_id=backend_type.id,
-                    defaults={
-                        "name": backend_type.name,
-                        "description": backend_type.description or "",
-                    },
-                )
+        local_volume_type_mapping = self._tenant_mappings(
+            models.VolumeType.objects.filter(settings=tenant.service_settings)
+        )
+        local_volume_type_ids = set(local_volume_type_mapping.keys())
 
-            models.VolumeType.objects.filter(
-                backend_id__in=cur_volume_types.keys(), settings=self.settings
-            ).delete()
+        remote_volume_type_mapping = {
+            volume_type.id: volume_type for volume_type in remote_volume_types
+        }
+        remote_volume_type_ids = set(remote_volume_type_mapping.keys())
+
+        stale_volume_type_ids = local_volume_type_ids - remote_volume_type_ids
+        for volume_type_backend_id in stale_volume_type_ids:
+            local_volume_type = local_volume_type_mapping[volume_type_backend_id]
+            tenant.volume_types.remove(local_volume_type)
+
+        new_volume_type_ids = remote_volume_type_ids - local_volume_type_ids
+        for volume_type_backend_id in new_volume_type_ids:
+            remote_volume_type = remote_volume_type_mapping[volume_type_backend_id]
+            local_volume_type, _ = models.VolumeType.objects.update_or_create(
+                settings=self.settings,
+                backend_id=remote_volume_type.id,
+                defaults={
+                    "name": remote_volume_type.name,
+                    "description": remote_volume_type.description or "",
+                },
+            )
+            tenant.volume_types.add(local_volume_type)
 
     @log_backend_action("push quotas for tenant")
     def push_tenant_quotas(self, tenant, quotas: dict[str, int]):
@@ -2296,6 +2412,22 @@ class OpenStackBackend(BaseOpenStackBackend):
         )
         floating_ip.decrease_backend_quotas_usage()
 
+    def _delete_backend_floating_ip(self, backend_id, tenant_backend_id):
+        neutron = get_neutron_client(self.session)
+        try:
+            logger.info(
+                "Deleting floating IP %s from tenant %s", backend_id, tenant_backend_id
+            )
+            neutron.delete_floatingip(backend_id)
+        except neutron_exceptions.NotFound:
+            logger.debug(
+                "Floating IP %s is already gone from tenant %s",
+                backend_id,
+                tenant_backend_id,
+            )
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(e)
+
     @log_backend_action("update floating ip description")
     def update_floating_ip_description(self, floating_ip, serialized_description):
         description = serialized_description
@@ -2797,45 +2929,3 @@ class OpenStackBackend(BaseOpenStackBackend):
         with transaction.atomic():
             self._update_tenant_server_groups(tenant, backend_server_groups)
             self._remove_stale_server_groups([tenant], backend_server_groups)
-
-    def create_flavor(self, flavor):
-        nova = get_nova_client(self.session)
-        data = {
-            "name": flavor.name,
-            "vcpus": flavor.cores,
-            "ram": flavor.ram,
-            "disk": flavor.disk / 1024,
-        }
-        try:
-            response = nova.flavors.create(**data)
-            flavor.backend_id = response.id
-            flavor.save()
-        except nova_exceptions.ClientException as e:
-            raise OpenStackBackendError(e)
-        else:
-            event_logger.openstack_flavor.info(
-                "Flavor %s has been created in the backend." % flavor.name,
-                event_type="openstack_flavor_created",
-                event_context={
-                    "flavor": flavor,
-                },
-            )
-
-    def delete_flavor(self, flavor):
-        if not flavor.backend_id:
-            return
-
-        nova = get_nova_client(self.session)
-
-        try:
-            nova.flavors.delete(flavor.backend_id)
-        except nova_exceptions.ClientException as e:
-            raise OpenStackBackendError(e)
-        else:
-            event_logger.openstack_flavor.info(
-                "Flavor %s has been deleted in the backend." % flavor.name,
-                event_type="openstack_flavor_deleted",
-                event_context={
-                    "flavor": flavor,
-                },
-            )

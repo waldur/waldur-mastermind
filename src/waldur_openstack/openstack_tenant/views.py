@@ -1,5 +1,5 @@
 from django.conf import settings
-from django.db.models import Count, OuterRef, Value
+from django.db.models import OuterRef, Value
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext_lazy as _
@@ -21,131 +21,10 @@ from waldur_core.structure.signals import resource_imported
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack import views as openstack_views
 from waldur_openstack.openstack.apps import OpenStackConfig
-from waldur_openstack.openstack_base import views as openstack_base_views
 from waldur_openstack.openstack_base.exceptions import OpenStackBackendError
 from waldur_openstack.openstack_tenant import backend as openstack_tenant_backend
 
 from . import executors, filters, models, serializers
-
-
-class UsageReporter:
-    """
-    This class implements service for counting number of instances grouped
-    by image and flavor name and by instance runtime status.
-    Please note that even when flavors have different UUIDs they are treated
-    as the same as long as they have the same name.
-    This is needed because in OpenStack UUID is not stable for images and flavors.
-    """
-
-    def __init__(self, view, request):
-        self.view = view
-        self.request = request
-        self.query = None
-
-    def get_report(self):
-        if self.request.query_params:
-            self.query = self.parse_query(self.request)
-
-        running_stats = self.get_stats(models.Instance.RuntimeStates.ACTIVE)
-        created_stats = self.get_stats()
-        qs = self.get_initial_queryset().values_list("name", flat=True).distinct()
-
-        page = self.view.paginate_queryset(qs)
-        result = self.serialize_result(page, running_stats, created_stats)
-        return self.view.get_paginated_response(result)
-
-    def serialize_result(self, queryset, running_stats, created_stats):
-        result = []
-        for name in queryset:
-            result.append(
-                {
-                    "name": name,
-                    "running_instances_count": running_stats.get(name, 0),
-                    "created_instances_count": created_stats.get(name, 0),
-                }
-            )
-        return result
-
-    def apply_filters(self, qs):
-        if self.query:
-            filter_dict = dict()
-            if self.query.get("shared", None):
-                filter_dict["service_settings__shared"] = self.query["shared"]
-            if self.query.get("service_provider", None):
-                filter_dict["service_settings__uuid__in"] = self.query[
-                    "service_provider"
-                ]
-                filter_dict["service_settings__type"] = "OpenStackTenant"
-            return qs.filter(**filter_dict)
-        return qs
-
-    def parse_query(self, request):
-        serializer_class = serializers.UsageStatsSerializer
-        serializer = serializer_class(data=request.query_params)
-        serializer.is_valid(raise_exception=True)
-        query = serializer.validated_data
-        return query
-
-    def get_initial_queryset(self):
-        raise NotImplementedError
-
-    def get_stats(self, runtime_state=None):
-        raise NotImplementedError
-
-
-class ImageUsageReporter(UsageReporter):
-    def get_initial_queryset(self):
-        return models.Image.objects.all()
-
-    def get_stats(self, runtime_state=None):
-        volumes = models.Volume.objects.filter(bootable=True)
-        if runtime_state:
-            volumes = volumes.filter(instance__runtime_state=runtime_state)
-        rows = (
-            self.apply_filters(volumes)
-            .values("image_name")
-            .annotate(count=Count("image_name"))
-            .order_by()  # remove the extra group by arguments caused by default ordering
-        )
-        return {row["image_name"]: row["count"] for row in rows}
-
-
-class FlavorUsageReporter(UsageReporter):
-    def get_initial_queryset(self):
-        return models.Flavor.objects.all()
-
-    def get_stats(self, runtime_state=None):
-        instances = models.Instance.objects.all()
-        if runtime_state:
-            instances = instances.filter(runtime_state=runtime_state)
-        rows = (
-            self.apply_filters(instances)
-            .values("flavor_name")
-            .annotate(count=Count("flavor_name"))
-            .order_by()  # remove the extra group by arguments caused by default ordering
-        )
-        return {row["flavor_name"]: row["count"] for row in rows}
-
-
-class ImageViewSet(structure_views.BaseServicePropertyViewSet):
-    queryset = models.Image.objects.all().order_by("settings", "name")
-    serializer_class = serializers.ImageSerializer
-    lookup_field = "uuid"
-    filterset_class = filters.ImageFilter
-
-    @decorators.action(detail=False)
-    def usage_stats(self, request):
-        return ImageUsageReporter(self, request).get_report()
-
-
-class FlavorViewSet(openstack_base_views.FlavorViewSet):
-    queryset = models.Flavor.objects.all().order_by("settings", "cores", "ram", "disk")
-    serializer_class = serializers.FlavorSerializer
-    filterset_class = filters.FlavorFilter
-
-    @decorators.action(detail=False)
-    def usage_stats(self, request):
-        return FlavorUsageReporter(self, request).get_report()
 
 
 class VolumeViewSet(structure_views.ResourceViewSet):
@@ -1029,13 +908,6 @@ class SharedSettingsCustomers(SharedSettingsBaseView):
         return structure_models.Customer.objects.filter(
             pk__in=private_settings.values("customer")
         ).annotate(vm_count=vm_count)
-
-
-class VolumeTypeViewSet(structure_views.BaseServicePropertyViewSet):
-    queryset = models.VolumeType.objects.all().order_by("settings", "name")
-    serializer_class = serializers.VolumeTypeSerializer
-    lookup_field = "uuid"
-    filterset_class = filters.VolumeTypeFilter
 
 
 class VolumeAvailabilityZoneViewSet(structure_views.BaseServicePropertyViewSet):

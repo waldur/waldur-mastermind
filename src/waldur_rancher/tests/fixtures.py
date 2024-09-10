@@ -3,6 +3,7 @@ from django.utils.functional import cached_property
 
 from waldur_core.core.models import StateMixin
 from waldur_core.structure.tests.fixtures import ProjectFixture
+from waldur_openstack.openstack.models import Tenant
 from waldur_openstack.openstack_tenant.tests import (
     factories as openstack_tenant_factories,
 )
@@ -25,6 +26,10 @@ class RancherFixture(ProjectFixture):
         return openstack_tenant_factories.OpenStackTenantServiceSettingsFactory(
             customer=self.customer
         )
+
+    @cached_property
+    def tenant(self) -> Tenant:
+        return self.tenant_settings.scope
 
     @cached_property
     def cluster(self):

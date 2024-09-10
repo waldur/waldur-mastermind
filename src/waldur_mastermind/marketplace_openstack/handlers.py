@@ -10,7 +10,7 @@ from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_openstack.openstack import models as openstack_models
-from waldur_openstack.openstack_base.utils import volume_type_name_to_quota_name
+from waldur_openstack.openstack.utils import volume_type_name_to_quota_name
 from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
 from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 
@@ -517,7 +517,7 @@ def update_usage_when_instance_configuration_is_updated(
         )
         return
 
-    if not isinstance(flavor, openstack_tenant_models.Flavor):
+    if not isinstance(flavor, openstack_models.Flavor):
         logger.warning(
             "Skipping OpenStack instance usage synchronization because flavor is not found."
             "Resource ID: %s",

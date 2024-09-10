@@ -1,5 +1,6 @@
 from rest_framework import status, test
 
+from waldur_openstack.openstack.tests.factories import FlavorFactory, ImageFactory
 from waldur_openstack.openstack_tenant import models
 
 from . import factories, fixtures
@@ -39,18 +40,10 @@ class TestImageUsageStats(test.APITransactionTestCase):
             service_settings=self.fixture.openstack_tenant_service_settings,
             project=self.fixture.project,
         )
-        factories.ImageFactory(
-            name="Ubuntu 16.04", settings=self.fixture.openstack_tenant_service_settings
-        )
-        factories.ImageFactory(
-            name="CentOS 10.04", settings=self.fixture.openstack_tenant_service_settings
-        )
-        factories.ImageFactory(
-            name="Windows 10", settings=self.fixture.openstack_tenant_service_settings
-        )
-        factories.ImageFactory(
-            name="Windows 10", settings=self.fixture.openstack_tenant_service_settings
-        )
+        ImageFactory(name="Ubuntu 16.04", settings=self.fixture.tenant.service_settings)
+        ImageFactory(name="CentOS 10.04", settings=self.fixture.tenant.service_settings)
+        ImageFactory(name="Windows 10", settings=self.fixture.tenant.service_settings)
+        ImageFactory(name="Windows 10", settings=self.fixture.tenant.service_settings)
 
     def test_usage_stats(self):
         expected = [
@@ -72,7 +65,7 @@ class TestImageUsageStats(test.APITransactionTestCase):
         ]
         self.client.force_authenticate(user=self.admin)
 
-        url = factories.ImageFactory.get_list_url(action="usage_stats")
+        url = ImageFactory.get_list_url(action="usage_stats")
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -102,18 +95,10 @@ class TestFlavorUsageStats(test.APITransactionTestCase):
             project=self.fixture.project,
         )
 
-        factories.FlavorFactory(
-            name="Small", settings=self.fixture.openstack_tenant_service_settings
-        )
-        factories.FlavorFactory(
-            name="Medium", settings=self.fixture.openstack_tenant_service_settings
-        )
-        factories.FlavorFactory(
-            name="Large", settings=self.fixture.openstack_tenant_service_settings
-        )
-        factories.FlavorFactory(
-            name="Large", settings=self.fixture.openstack_tenant_service_settings
-        )
+        FlavorFactory(name="Small", settings=self.fixture.tenant.service_settings)
+        FlavorFactory(name="Medium", settings=self.fixture.tenant.service_settings)
+        FlavorFactory(name="Large", settings=self.fixture.tenant.service_settings)
+        FlavorFactory(name="Large", settings=self.fixture.tenant.service_settings)
 
     def test_usage_stats(self):
         expected = [
@@ -135,7 +120,7 @@ class TestFlavorUsageStats(test.APITransactionTestCase):
         ]
         self.client.force_authenticate(user=self.admin)
 
-        url = factories.FlavorFactory.get_list_url(action="usage_stats")
+        url = FlavorFactory.get_list_url(action="usage_stats")
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)

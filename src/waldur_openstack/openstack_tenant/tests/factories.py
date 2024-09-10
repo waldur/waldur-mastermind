@@ -30,56 +30,6 @@ class OpenStackTenantServiceSettingsFactory(structure_factories.ServiceSettingsF
     options = {"tenant_id": uuid.uuid4().hex}
 
 
-class FlavorFactory(factory.django.DjangoModelFactory):
-    class Meta:
-        model = models.Flavor
-
-    name = factory.Sequence(lambda n: "flavor%s" % n)
-    settings = factory.SubFactory(OpenStackTenantServiceSettingsFactory)
-
-    cores = 2
-    ram = 2 * 1024
-    disk = 10 * 1024
-
-    backend_id = factory.Sequence(lambda n: "flavor-id%s" % n)
-
-    @classmethod
-    def get_url(cls, flavor=None):
-        if flavor is None:
-            flavor = FlavorFactory()
-        return "http://testserver" + reverse(
-            "openstacktenant-flavor-detail", kwargs={"uuid": flavor.uuid.hex}
-        )
-
-    @classmethod
-    def get_list_url(cls, action=None):
-        url = "http://testserver" + reverse("openstacktenant-flavor-list")
-        return url if action is None else url + action + "/"
-
-
-class ImageFactory(factory.django.DjangoModelFactory):
-    class Meta:
-        model = models.Image
-
-    name = factory.Sequence(lambda n: "image%s" % n)
-    settings = factory.SubFactory(OpenStackTenantServiceSettingsFactory)
-
-    backend_id = factory.Sequence(lambda n: "image-id%s" % n)
-
-    @classmethod
-    def get_url(cls, image=None):
-        if image is None:
-            image = ImageFactory()
-        return "http://testserver" + reverse(
-            "openstacktenant-image-detail", kwargs={"uuid": image.uuid.hex}
-        )
-
-    @classmethod
-    def get_list_url(cls, action=None):
-        url = "http://testserver" + reverse("openstacktenant-image-list")
-        return url if action is None else url + action + "/"
-
-
 class VolumeFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.Volume
@@ -302,27 +252,6 @@ class SnapshotScheduleFactory(factory.django.DjangoModelFactory):
     @classmethod
     def get_list_url(cls):
         return "http://testserver" + reverse("openstacktenant-snapshot-schedule-list")
-
-
-class VolumeTypeFactory(factory.django.DjangoModelFactory):
-    class Meta:
-        model = models.VolumeType
-
-    name = factory.Sequence(lambda n: "volume_type_%s" % n)
-    backend_id = factory.Sequence(lambda n: "backend_id_%s" % n)
-    settings = factory.SubFactory(OpenStackTenantServiceSettingsFactory)
-
-    @classmethod
-    def get_url(cls, volume_type=None):
-        if volume_type is None:
-            volume_type = VolumeTypeFactory()
-        return "http://testserver" + reverse(
-            "openstacktenant-volume-type-detail", kwargs={"uuid": volume_type.uuid.hex}
-        )
-
-    @classmethod
-    def get_list_url(cls):
-        return "http://testserver" + reverse("openstacktenant-volume-type-list")
 
 
 class VolumeAvailabilityZoneFactory(factory.django.DjangoModelFactory):

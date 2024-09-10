@@ -2,6 +2,7 @@ from urllib.parse import urlparse
 
 from django.core import validators
 from django.db import models
+from django.db.models import Q
 from django.template.defaultfilters import slugify
 from django.utils.translation import gettext_lazy as _
 from model_utils import FieldTracker
@@ -10,21 +11,28 @@ from model_utils.models import TimeStampedModel
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.fields import JSONField
-from waldur_core.core.models import StateMixin
-from waldur_core.logging.loggers import LoggableMixin
 from waldur_core.quotas.fields import QuotaField
 from waldur_core.quotas.models import QuotaModelMixin
 from waldur_core.structure import models as structure_models
-from waldur_openstack.openstack_base import models as openstack_base_models
+from waldur_core.structure.managers import filter_queryset_for_user
 
 
-class Flavor(StateMixin, LoggableMixin, structure_models.ServiceProperty):
+def build_tenants_query(user):
+    tenants = filter_queryset_for_user(Tenant.objects.all(), user)
+    settings = filter_queryset_for_user(
+        structure_models.ServiceSettings.objects.all(), user
+    )
+    return Q(Q(tenants=None) | Q(tenants__in=tenants)) & Q(settings__in=settings)
+
+
+class Flavor(structure_models.ServiceProperty):
     cores = models.PositiveSmallIntegerField(help_text=_("Number of cores in a VM"))
     ram = models.PositiveIntegerField(help_text=_("Memory size in MiB"))
     disk = models.PositiveIntegerField(help_text=_("Root disk size in MiB"))
+    tenants = models.ManyToManyField(to="Tenant", related_name="flavors")
 
     class Permissions:
-        customer_path = "settings__customer"
+        build_query = build_tenants_query
 
     @classmethod
     def get_url_name(cls):
@@ -39,13 +47,39 @@ class Flavor(StateMixin, LoggableMixin, structure_models.ServiceProperty):
         return self.settings.get_backend()
 
 
-class Image(openstack_base_models.BaseImage):
+class Image(structure_models.ServiceProperty):
+    min_disk = models.PositiveIntegerField(
+        default=0, help_text=_("Minimum disk size in MiB")
+    )
+    min_ram = models.PositiveIntegerField(
+        default=0, help_text=_("Minimum memory size in MiB")
+    )
+    tenants = models.ManyToManyField(to="Tenant", related_name="images")
+
+    class Permissions:
+        build_query = build_tenants_query
+
+    @classmethod
+    def get_backend_fields(cls):
+        return super().get_backend_fields() + ("min_disk", "min_ram")
+
     @classmethod
     def get_url_name(cls):
         return "openstack-image"
 
 
-class VolumeType(openstack_base_models.BaseVolumeType):
+class VolumeType(core_models.DescribableMixin, structure_models.ServiceProperty):
+    tenants = models.ManyToManyField(to="Tenant", related_name="volume_types")
+
+    class Meta:
+        unique_together = ("settings", "backend_id")
+
+    class Permissions:
+        build_query = build_tenants_query
+
+    def __str__(self):
+        return self.name
+
     @classmethod
     def get_url_name(cls):
         return "openstack-volume-type"

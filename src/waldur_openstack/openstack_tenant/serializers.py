@@ -1,5 +1,4 @@
 import collections
-import copy
 import logging
 import re
 
@@ -21,7 +20,6 @@ from waldur_core.core import utils as core_utils
 from waldur_core.quotas.models import QuotaModelMixin, SharedQuotaMixin
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import serializers as structure_serializers
-from waldur_core.structure.permissions import _has_admin_access
 from waldur_openstack.openstack import models as openstack_models
 from waldur_openstack.openstack import serializers as openstack_serializers
 from waldur_openstack.openstack.serializers import (
@@ -29,15 +27,16 @@ from waldur_openstack.openstack.serializers import (
     NestedPortSerializer,
     validate_private_cidr,
 )
+from waldur_openstack.openstack.utils import (
+    is_flavor_valid_for_tenant,
+    is_image_valid_for_tenant,
+    is_volume_type_valid_for_tenant,
+    volume_type_name_to_quota_name,
+)
 from waldur_openstack.openstack_base.serializers import (
     BaseOpenStackServiceSerializer,
     BaseSecurityGroupRuleSerializer,
-    BaseVolumeTypeSerializer,
 )
-from waldur_openstack.openstack_base.serializers import (
-    FlavorSerializer as BaseFlavorSerializer,
-)
-from waldur_openstack.openstack_base.utils import volume_type_name_to_quota_name
 from waldur_openstack.openstack_tenant.utils import get_valid_availability_zones
 
 from . import models
@@ -82,37 +81,6 @@ class BaseAvailabilityZoneSerializer(structure_serializers.BasePropertySerialize
         }
 
 
-class ImageSerializer(structure_serializers.BasePropertySerializer):
-    class Meta(structure_serializers.BasePropertySerializer.Meta):
-        model = models.Image
-        fields = (
-            "url",
-            "uuid",
-            "name",
-            "settings",
-            "min_disk",
-            "min_ram",
-        )
-        extra_kwargs = {
-            "url": {"lookup_field": "uuid"},
-            "settings": {"lookup_field": "uuid"},
-        }
-
-
-class FlavorSerializer(BaseFlavorSerializer):
-    class Meta(BaseFlavorSerializer.Meta):
-        model = models.Flavor
-        extra_kwargs = copy.deepcopy(BaseFlavorSerializer.Meta.extra_kwargs)
-        extra_kwargs["settings"]["queryset"] = (
-            structure_models.ServiceSettings.objects.filter(type="OpenStackTenant")
-        )
-
-
-class UsageStatsSerializer(serializers.Serializer):
-    shared = serializers.BooleanField()
-    service_provider = serializers.ListField(child=serializers.CharField())
-
-
 class ServerGroupSerializer(structure_serializers.BasePropertySerializer):
     class Meta(structure_serializers.BasePropertySerializer.Meta):
         model = openstack_models.ServerGroup
@@ -145,6 +113,7 @@ class VolumeSerializer(structure_serializers.BaseResourceSerializer):
     availability_zone_name = serializers.CharField(
         source="availability_zone.name", read_only=True
     )
+    tenant_uuid = serializers.ReadOnlyField(source="tenant.uuid")
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Volume
@@ -166,6 +135,7 @@ class VolumeSerializer(structure_serializers.BaseResourceSerializer):
             "action_details",
             "instance",
             "instance_name",
+            "tenant_uuid",
         )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
@@ -194,14 +164,14 @@ class VolumeSerializer(structure_serializers.BaseResourceSerializer):
                 "lookup_field": "uuid",
                 "view_name": "openstacktenant-instance-detail",
             },
-            image={"lookup_field": "uuid", "view_name": "openstacktenant-image-detail"},
+            image={"lookup_field": "uuid", "view_name": "openstack-image-detail"},
             source_snapshot={
                 "lookup_field": "uuid",
                 "view_name": "openstacktenant-snapshot-detail",
             },
             type={
                 "lookup_field": "uuid",
-                "view_name": "openstacktenant-volume-type-detail",
+                "view_name": "openstack-volume-type-detail",
             },
             availability_zone={
                 "lookup_field": "uuid",
@@ -222,9 +192,10 @@ class VolumeSerializer(structure_serializers.BaseResourceSerializer):
             # image validation
             image = attrs.get("image")
             service_settings = attrs["service_settings"]
-            if image and image.settings != service_settings:
+            tenant: openstack_models.Tenant = service_settings.scope
+            if image and not is_image_valid_for_tenant(image, tenant):
                 raise serializers.ValidationError(
-                    {"image": _("Image must belong to the same service settings")}
+                    {"image": _("Image is not visible in tenant.")}
                 )
             # snapshot & size validation
             size = attrs.get("size")
@@ -250,9 +221,9 @@ class VolumeSerializer(structure_serializers.BaseResourceSerializer):
                 )
             # type validation
             type = attrs.get("type")
-            if type and type.settings != service_settings:
+            if type and not is_volume_type_valid_for_tenant(type, tenant):
                 raise serializers.ValidationError(
-                    {"type": _("Volume type must belong to the same service settings")}
+                    {"type": _("Volume type is not visible in tenant.")}
                 )
 
             availability_zone = attrs.get("availability_zone")
@@ -376,27 +347,27 @@ class VolumeRetypeSerializer(serializers.HyperlinkedModelSerializer):
         fields = ["type"]
 
     type = serializers.HyperlinkedRelatedField(
-        view_name="openstacktenant-volume-type-detail",
-        queryset=models.VolumeType.objects.all(),
+        view_name="openstack-volume-type-detail",
+        queryset=openstack_models.VolumeType.objects.all(),
         lookup_field="uuid",
         allow_null=False,
         required=True,
     )
 
-    def validate_type(self, type):
-        volume = self.instance
-        if type.settings != volume.service_settings:
-            raise serializers.ValidationError(
-                _("Volume and type should belong to the same service.")
-            )
+    def validate_type(self, type: models.VolumeType):
+        volume: models.Volume = self.instance
         if type == volume.type:
             raise serializers.ValidationError(_("Volume already has requested type."))
+        if not is_volume_type_valid_for_tenant(type, volume.tenant):
+            raise serializers.ValidationError(
+                _("Volume type is not visible in tenant.")
+            )
         return type
 
     @transaction.atomic
     def update(self, instance: models.Volume, validated_data):
         old_type = instance.type
-        new_type = validated_data.get("type")
+        new_type: models.VolumeType = validated_data.get("type")
 
         for quota_holder in instance.get_quota_scopes():
             if not quota_holder:
@@ -561,7 +532,7 @@ class NestedVolumeSerializer(
             "url": {"lookup_field": "uuid"},
             "type": {
                 "lookup_field": "uuid",
-                "view_name": "openstacktenant-volume-type-detail",
+                "view_name": "openstack-volume-type-detail",
             },
         }
 
@@ -615,7 +586,7 @@ class NestedServerGroupSerializer(
         extra_kwargs = {"url": {"lookup_field": "uuid"}}
 
 
-def _validate_instance_ports(ports, settings):
+def _validate_instance_ports(ports, tenant):
     """- make sure that ports belong to specified setting;
     - make sure that ports does not connect to the same subnet twice;
     """
@@ -623,7 +594,7 @@ def _validate_instance_ports(ports, settings):
         return
     subnets = [port.subnet for port in ports]
     for subnet in subnets:
-        if subnet.tenant != settings.scope:
+        if subnet.tenant != tenant:
             message = (
                 _("Subnet %s does not belong to the same tenant as instance.") % subnet
             )
@@ -638,10 +609,10 @@ def _validate_instance_ports(ports, settings):
         )
 
 
-def _validate_instance_security_groups(security_groups, settings):
-    """Make sure that security_group belong to specified setting."""
+def _validate_instance_security_groups(security_groups, tenant):
+    """Make sure that security_group belong to specific tenant."""
     for security_group in security_groups:
-        if security_group.tenant != settings.scope:
+        if security_group.tenant != tenant:
             error = _(
                 "Security group %s does not belong to the same tenant as instance."
             )
@@ -650,10 +621,10 @@ def _validate_instance_security_groups(security_groups, settings):
             )
 
 
-def _validate_instance_server_group(server_group, settings):
-    """Make sure that server_group belong to specified setting."""
+def _validate_instance_server_group(server_group, tenant):
+    """Make sure that server_group belong to specified tenant."""
 
-    if server_group and server_group.tenant != settings.scope:
+    if server_group and server_group.tenant != tenant:
         error = _("Server group %s does not belong to the same tenant as instance.")
         raise serializers.ValidationError({"server_group": error % server_group.name})
 
@@ -790,8 +761,8 @@ class InstanceAvailabilityZoneSerializer(BaseAvailabilityZoneSerializer):
 class DataVolumeSerializer(serializers.Serializer):
     size = serializers.IntegerField()
     volume_type = serializers.HyperlinkedRelatedField(
-        view_name="openstacktenant-volume-type-detail",
-        queryset=models.VolumeType.objects.all(),
+        view_name="openstack-volume-type-detail",
+        queryset=openstack_models.VolumeType.objects.all(),
         lookup_field="uuid",
         allow_null=True,
         required=False,
@@ -800,16 +771,16 @@ class DataVolumeSerializer(serializers.Serializer):
 
 class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
     flavor = serializers.HyperlinkedRelatedField(
-        view_name="openstacktenant-flavor-detail",
+        view_name="openstack-flavor-detail",
         lookup_field="uuid",
-        queryset=models.Flavor.objects.all().select_related("settings"),
+        queryset=openstack_models.Flavor.objects.all().select_related("settings"),
         write_only=True,
     )
 
     image = serializers.HyperlinkedRelatedField(
-        view_name="openstacktenant-image-detail",
+        view_name="openstack-image-detail",
         lookup_field="uuid",
-        queryset=models.Image.objects.all().select_related("settings"),
+        queryset=openstack_models.Image.objects.all().select_related("settings"),
         write_only=True,
     )
 
@@ -828,8 +799,8 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
 
     system_volume_size = serializers.IntegerField(min_value=1024, write_only=True)
     system_volume_type = serializers.HyperlinkedRelatedField(
-        view_name="openstacktenant-volume-type-detail",
-        queryset=models.VolumeType.objects.all(),
+        view_name="openstack-volume-type-detail",
+        queryset=openstack_models.VolumeType.objects.all(),
         lookup_field="uuid",
         allow_null=True,
         required=False,
@@ -839,8 +810,8 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
         min_value=1024, required=False, write_only=True
     )
     data_volume_type = serializers.HyperlinkedRelatedField(
-        view_name="openstacktenant-volume-type-detail",
-        queryset=models.VolumeType.objects.all(),
+        view_name="openstack-volume-type-detail",
+        queryset=openstack_models.VolumeType.objects.all(),
         lookup_field="uuid",
         allow_null=True,
         required=False,
@@ -853,7 +824,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
     availability_zone_name = serializers.CharField(
         source="availability_zone.name", read_only=True
     )
-    tenant_uuid = serializers.SerializerMethodField()
+    tenant_uuid = serializers.ReadOnlyField(source="tenant.uuid")
 
     class Meta(structure_serializers.VirtualMachineSerializer.Meta):
         model = models.Instance
@@ -924,22 +895,6 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
 
         return fields
 
-    def get_tenant_uuid(self, instance):
-        service_settings = instance.service_settings
-        tenant = service_settings.scope
-        if not tenant:
-            return
-        if not isinstance(tenant, openstack_models.Tenant):
-            return
-        try:
-            request = self.context["request"]
-            user = request.user
-        except (KeyError, AttributeError):
-            return
-        if not _has_admin_access(user, tenant.project):
-            return
-        return tenant.uuid.hex
-
     @staticmethod
     def eager_load(queryset, request):
         queryset = structure_serializers.VirtualMachineSerializer.eager_load(
@@ -963,16 +918,32 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
             return attrs
 
         service_settings = attrs["service_settings"]
-        flavor = attrs["flavor"]
-        image = attrs["image"]
+        tenant: openstack_models.Tenant = service_settings.scope
+        flavor: openstack_models.Flavor = attrs["flavor"]
+        image: openstack_models.Image = attrs["image"]
+        system_volume_type: openstack_models.VolumeType = attrs.get(
+            "system_volume_type"
+        )
+        data_volume_type: openstack_models.VolumeType = attrs.get("data_volume_type")
 
-        if any(
-            [flavor.settings != service_settings, image.settings != service_settings]
+        if not is_flavor_valid_for_tenant(flavor, tenant):
+            raise serializers.ValidationError(_("Flavor is not visible in tenant."))
+
+        if not is_image_valid_for_tenant(image, tenant):
+            raise serializers.ValidationError(_("Image is not visible in tenant."))
+
+        if system_volume_type and not is_volume_type_valid_for_tenant(
+            system_volume_type, tenant
         ):
             raise serializers.ValidationError(
-                _(
-                    "Flavor and image must belong to the same service settings as instance."
-                )
+                _("System volume type is not visible in tenant.")
+            )
+
+        if data_volume_type and not is_volume_type_valid_for_tenant(
+            data_volume_type, tenant
+        ):
+            raise serializers.ValidationError(
+                _("Data volume type is not visible in tenant.")
             )
 
         if image.min_ram > flavor.ram:
@@ -1008,13 +979,9 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
                 gettext("Please specify at least one network.")
             )
 
-        _validate_instance_security_groups(
-            attrs.get("security_groups", []), service_settings
-        )
-        _validate_instance_server_group(
-            attrs.get("server_group", None), service_settings
-        )
-        _validate_instance_ports(ports, service_settings)
+        _validate_instance_security_groups(attrs.get("security_groups", []), tenant)
+        _validate_instance_server_group(attrs.get("server_group", None), tenant)
+        _validate_instance_ports(ports, tenant)
         subnets = [port.subnet for port in ports]
         _validate_instance_floating_ips(
             attrs.get("floating_ips", []), service_settings, subnets
@@ -1049,7 +1016,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
         parts: list[SharedQuotaMixin] = []
 
         service_settings = attrs["service_settings"]
-        flavor: models.Flavor = attrs["flavor"]
+        flavor: openstack_models.Flavor = attrs["flavor"]
         system_volume_size = attrs["system_volume_size"]
         data_volume_size = attrs.get("data_volume_size", 0)
         data_volumes = attrs.get("data_volumes", [])
@@ -1210,40 +1177,36 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
 
 class InstanceFlavorChangeSerializer(serializers.Serializer):
     flavor = serializers.HyperlinkedRelatedField(
-        view_name="openstacktenant-flavor-detail",
+        view_name="openstack-flavor-detail",
         lookup_field="uuid",
-        queryset=models.Flavor.objects.all(),
+        queryset=openstack_models.Flavor.objects.all(),
     )
 
-    def validate_flavor(self, value):
-        if value is not None:
-            if value.name == self.instance.flavor_name:
+    def validate_flavor(self, flavor: openstack_models.Flavor):
+        if flavor is not None:
+            if flavor.name == self.instance.flavor_name:
                 raise serializers.ValidationError(
                     _("New flavor is the same as current.")
                 )
 
-            if value.settings != self.instance.service_settings:
+            tenant: openstack_models.Tenant = self.instance.tenant
+
+            if not is_flavor_valid_for_tenant(flavor, tenant):
                 raise serializers.ValidationError(
-                    _("New flavor is not within the same service settings")
+                    _("New flavor is not visible in tenant.")
                 )
 
-        return value
+        return flavor
 
     @transaction.atomic
-    def update(self, instance, validated_data):
+    def update(self, instance: models.Instance, validated_data):
         flavor = validated_data.get("flavor")
 
-        settings = instance.service_settings
-        quota_holders = [settings]
-
-        # Service settings has optional field for related tenant resource.
-        # We should update tenant quotas if related tenant is defined.
+        # We should update tenant quotas.
         # Otherwise stale quotas would be used for quota validation during instance provisioning.
         # Note that all tenant quotas are injected to service settings when application is bootstrapped.
-        if settings.scope:
-            quota_holders.append(settings.scope)
 
-        for quota_holder in quota_holders:
+        for quota_holder in (instance.service_settings, instance.tenant):
             quota_holder.add_quota_usage(
                 "ram", flavor.ram - instance.ram, validate=True
             )
@@ -1286,7 +1249,7 @@ class InstanceSecurityGroupsUpdateSerializer(serializers.Serializer):
 
     def validate_security_groups(self, security_groups):
         for security_group in security_groups:
-            if security_group.tenant != self.instance.service_settings.scope:
+            if security_group.tenant != self.instance.tenant:
                 raise serializers.ValidationError(
                     _("Security group %s is not within the same tenant")
                     % security_group.name
@@ -1345,7 +1308,7 @@ class InstancePortsUpdateSerializer(serializers.Serializer):
     ports = NestedPortSerializer(many=True)
 
     def validate_ports(self, ports):
-        _validate_instance_ports(ports, self.instance.service_settings)
+        _validate_instance_ports(ports, self.instance.tenant)
         return ports
 
     @transaction.atomic
@@ -1462,7 +1425,7 @@ class BackupRestorationSerializer(serializers.HyperlinkedModelSerializer):
             },
             flavor={
                 "lookup_field": "uuid",
-                "view_name": "openstacktenant-flavor-detail",
+                "view_name": "openstack-flavor-detail",
                 "allow_null": False,
                 "required": True,
             },
@@ -1470,7 +1433,7 @@ class BackupRestorationSerializer(serializers.HyperlinkedModelSerializer):
 
     def validate(self, attrs):
         flavor = attrs["flavor"]
-        backup = self.context["view"].get_object()
+        backup: models.Backup = self.context["view"].get_object()
         try:
             backup.instance.volumes.get(bootable=True)
         except ObjectDoesNotExist:
@@ -1478,21 +1441,21 @@ class BackupRestorationSerializer(serializers.HyperlinkedModelSerializer):
                 _("OpenStack instance should have bootable volume.")
             )
 
-        settings = backup.instance.service_settings
+        tenant = backup.instance.tenant
 
-        if flavor.settings != settings:
+        if not is_flavor_valid_for_tenant(flavor, tenant):
             raise serializers.ValidationError(
-                {"flavor": _("Flavor is not within services' settings.")}
+                {"flavor": _("Flavor is not visible in tenant.")}
             )
 
-        _validate_instance_security_groups(attrs.get("security_groups", []), settings)
+        _validate_instance_security_groups(attrs.get("security_groups", []), tenant)
 
         ports = attrs.get("ports", [])
-        _validate_instance_ports(ports, settings)
+        _validate_instance_ports(ports, tenant)
 
         subnets = [port.subnet for port in ports]
         _validate_instance_floating_ips(
-            attrs.get("floating_ips", []), settings, subnets
+            attrs.get("floating_ips", []), backup.instance.service_settings, subnets
         )
 
         return attrs
@@ -1563,6 +1526,7 @@ class BackupSerializer(structure_serializers.BaseResourceActionSerializer):
 
     restorations = BackupRestorationSerializer(many=True, read_only=True)
     backup_schedule_uuid = serializers.ReadOnlyField(source="backup_schedule.uuid")
+    tenant_uuid = serializers.ReadOnlyField(source="tenant.uuid")
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Backup
@@ -1577,6 +1541,7 @@ class BackupSerializer(structure_serializers.BaseResourceActionSerializer):
             "instance_security_groups",
             "instance_ports",
             "instance_floating_ips",
+            "tenant_uuid",
         )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
@@ -1805,12 +1770,6 @@ core_signals.pre_serializer_fields.connect(
 
 class ConsoleLogSerializer(serializers.Serializer):
     length = serializers.IntegerField(required=False)
-
-
-class VolumeTypeSerializer(BaseVolumeTypeSerializer):
-    class Meta(BaseVolumeTypeSerializer.Meta):
-        model = models.VolumeType
-        fields = BaseVolumeTypeSerializer.Meta.fields + ("is_default",)
 
 
 class SharedSettingsCustomerSerializer(serializers.Serializer):

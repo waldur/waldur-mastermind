@@ -9,55 +9,24 @@ from model_utils.models import TimeStampedModel
 
 from waldur_core.core import models as core_models
 from waldur_core.core.fields import JSONField
-from waldur_core.logging.loggers import LoggableMixin
 from waldur_core.quotas import models as quotas_models
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import utils as structure_utils
 from waldur_geo_ip.utils import get_coordinates_by_ip
 from waldur_openstack.openstack.models import (
+    Flavor,
     FloatingIP,
+    Image,
     Port,
     SecurityGroup,
     ServerGroup,
     SubNet,
+    Tenant,
+    VolumeType,
 )
-from waldur_openstack.openstack_base import models as openstack_base_models
-from waldur_openstack.openstack_base.utils import volume_type_name_to_quota_name
+from waldur_openstack.openstack.utils import volume_type_name_to_quota_name
 
 logger = logging.getLogger(__name__)
-
-
-class Flavor(core_models.StateMixin, LoggableMixin, structure_models.ServiceProperty):
-    cores = models.PositiveSmallIntegerField(help_text=_("Number of cores in a VM"))
-    ram = models.PositiveIntegerField(help_text=_("Memory size in MiB"))
-    disk = models.PositiveIntegerField(help_text=_("Root disk size in MiB"))
-
-    class Permissions:
-        customer_path = "settings__customer"
-
-    class Meta:
-        unique_together = ("settings", "backend_id")
-        ordering = ["name"]
-
-    @classmethod
-    def get_url_name(cls):
-        return "openstacktenant-flavor"
-
-    @classmethod
-    def get_backend_fields(cls):
-        return super().get_backend_fields() + ("cores", "ram", "disk")
-
-    def get_backend(self):
-        return self.settings.get_backend()
-
-
-class Image(openstack_base_models.BaseImage):
-    @classmethod
-    def get_url_name(cls):
-        return "openstacktenant-image"
-
-    class Meta(openstack_base_models.BaseImage.Meta):
-        ordering = ["name"]
 
 
 class TenantQuotaMixin(quotas_models.SharedQuotaMixin):
@@ -98,8 +67,8 @@ class Volume(TenantQuotaMixin, structure_models.Volume):
     image = models.ForeignKey(Image, blank=True, null=True, on_delete=models.SET_NULL)
     image_name = models.CharField(max_length=150, blank=True)
     image_metadata = JSONField(blank=True)
-    type: "VolumeType" = models.ForeignKey(
-        "VolumeType", blank=True, null=True, on_delete=models.SET_NULL
+    type: VolumeType = models.ForeignKey(
+        VolumeType, blank=True, null=True, on_delete=models.SET_NULL
     )
     availability_zone = models.ForeignKey(
         "VolumeAvailabilityZone", blank=True, null=True, on_delete=models.SET_NULL
@@ -151,6 +120,10 @@ class Volume(TenantQuotaMixin, structure_models.Volume):
             "image_metadata",
             "image_name",
         )
+
+    @property
+    def tenant(self) -> Tenant:
+        return self.service_settings.scope
 
 
 class Snapshot(TenantQuotaMixin, structure_models.Snapshot):
@@ -314,6 +287,10 @@ class Instance(TenantQuotaMixin, structure_models.VirtualMachine):
     def size(self):
         return self.volumes.aggregate(models.Sum("size"))["size__sum"]
 
+    @property
+    def tenant(self) -> Tenant:
+        return self.service_settings.scope
+
     @classmethod
     def get_url_name(cls):
         return "openstacktenant-instance"
@@ -403,6 +380,10 @@ class Backup(structure_models.SubResource):
     def get_url_name(cls):
         return "openstacktenant-backup"
 
+    @property
+    def tenant(self) -> Tenant:
+        return self.service_settings.scope
+
 
 class BackupRestoration(core_models.UuidMixin, TimeStampedModel):
     """This model corresponds to instance restoration from backup."""
@@ -463,14 +444,6 @@ class SnapshotSchedule(BaseSchedule):
     @classmethod
     def get_url_name(cls):
         return "openstacktenant-snapshot-schedule"
-
-
-class VolumeType(openstack_base_models.BaseVolumeType):
-    is_default = models.BooleanField(default=False)
-
-    @classmethod
-    def get_url_name(cls):
-        return "openstacktenant-volume-type"
 
 
 class VolumeAvailabilityZone(structure_models.BaseServiceProperty):
