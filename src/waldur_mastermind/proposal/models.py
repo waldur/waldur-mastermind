@@ -83,7 +83,7 @@ class Call(
     manager = models.ForeignKey(CallManagingOrganisation, on_delete=models.PROTECT)
     created_by = models.ForeignKey(
         core_models.User,
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
         null=True,
         related_name="+",
     )
@@ -131,14 +131,14 @@ class RequestedOffering(
 
     approved_by = models.ForeignKey(
         core_models.User,
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
         null=True,
         related_name="+",
         blank=True,
     )
     created_by = models.ForeignKey(
         core_models.User,
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
         null=True,
         related_name="+",
     )
@@ -300,14 +300,14 @@ class Proposal(
     )
     approved_by = models.ForeignKey(
         core_models.User,
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
         null=True,
         related_name="+",
         blank=True,
     )
     created_by = models.ForeignKey(
         core_models.User,
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
         null=True,
         related_name="+",
     )
