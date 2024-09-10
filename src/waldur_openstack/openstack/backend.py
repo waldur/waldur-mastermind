@@ -466,11 +466,8 @@ class OpenStackBackend(BaseOpenStackBackend):
         stale_ips.delete()
 
     def _update_tenant_floating_ips(self, tenant, backend_floating_ips):
-        floating_ips = {
-            ip.backend_id: ip
-            for ip in tenant.floating_ips.filter(
-                state__in=[models.FloatingIP.States.OK, models.FloatingIP.States.ERRED]
-            )
+        floating_ips: dict[str, models.FloatingIP] = {
+            ip.backend_id: ip for ip in tenant.floating_ips.exclude(backend_id="")
         }
 
         for backend_ip in backend_floating_ips:
@@ -481,6 +478,15 @@ class OpenStackBackend(BaseOpenStackBackend):
             floating_ip = floating_ips.pop(imported_floating_ip.backend_id, None)
             if floating_ip is None:
                 imported_floating_ip.save()
+                continue
+            if floating_ip.state not in (
+                models.FloatingIP.States.OK,
+                models.FloatingIP.States.ERRED,
+            ):
+                logger.debug(
+                    "Skipping floating IP %s pull because it is not OK or ERRED",
+                    imported_floating_ip.backend_id,
+                )
                 continue
 
             # Don't update user defined name.
