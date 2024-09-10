@@ -1504,12 +1504,11 @@ def validate_end_date(
 
 def sync_component_user_usage(allocation_user_usage, plugin_name):
     allocation = allocation_user_usage.allocation
-    resource = models.Resource.objects.filter(
-        scope=allocation, offering__type=plugin_name
-    ).first()
+    resource = models.Resource.objects.filter(scope=allocation).first()
     if resource is None:
         logger.error(
-            "The allocation %s does not have a linked resource, skipping processing"
+            "The allocation %s does not have a linked resource, skipping processing",
+            allocation,
         )
         return
 
