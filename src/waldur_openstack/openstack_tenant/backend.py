@@ -381,7 +381,8 @@ class OpenStackTenantBackend(BaseOpenStackBackend):
         try:
             if backend_volume.volume_type:
                 volume_type = models.VolumeType.objects.get(
-                    name=backend_volume.volume_type, settings=self.settings
+                    name=backend_volume.volume_type,
+                    settings=self.tenant.service_settings,
                 )
         except models.VolumeType.DoesNotExist:
             pass
