@@ -164,7 +164,7 @@ class RancherUser(
     BackendMixin,
     structure_models.StructureLoggableMixin,
 ):
-    user = models.ForeignKey(core_models.User, on_delete=models.PROTECT)
+    user = models.ForeignKey(core_models.User, on_delete=models.CASCADE)
     clusters = models.ManyToManyField(Cluster, through="RancherUserClusterLink")
     settings = models.ForeignKey("structure.ServiceSettings", on_delete=models.PROTECT)
     is_active = models.BooleanField(default=True)
