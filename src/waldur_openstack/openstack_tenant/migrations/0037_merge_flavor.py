@@ -7,7 +7,7 @@ def migrate_flavor(apps, schema_editor):
     Flavor = apps.get_model("openstack", "Flavor")
     Tenant = apps.get_model("openstack", "Tenant")
 
-    for backup_restoration in BackupRestoration.objects.all():
+    for backup_restoration in BackupRestoration.objects.exclude(flavor__isnull=True):
         tenant_id = backup_restoration.instance.service_settings.object_id
         try:
             tenant = Tenant.objects.get(id=tenant_id)
