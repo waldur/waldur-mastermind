@@ -226,7 +226,7 @@ class OpenStackBackend(BaseOpenStackBackend):
                 settings=self.settings,
                 backend_id=remote_image["id"],
                 defaults={
-                    "name": remote_image["name"],
+                    "name": remote_image["name"] or "",
                     "min_ram": remote_image["min_ram"],
                     "min_disk": self.gb2mb(remote_image["min_disk"]),
                 },
@@ -240,7 +240,7 @@ class OpenStackBackend(BaseOpenStackBackend):
                 settings=self.settings,
                 backend_id=remote_image["id"],
                 defaults={
-                    "name": remote_image["name"],
+                    "name": remote_image["name"] or "",
                     "min_ram": remote_image["min_ram"],
                     "min_disk": self.gb2mb(remote_image["min_disk"]),
                 },
