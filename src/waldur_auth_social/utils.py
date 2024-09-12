@@ -317,7 +317,8 @@ def refresh_remote_eduteams_token():
             },
         )
         if token_response.status_code != 200:
-            raise ParseError("Unable to get access token. Service is down.")
+            message = f"Unable to get access token. Reason: {token_response.json()}"
+            raise ParseError(message)
         try:
             access_token = token_response.json()["access_token"]
             cache.set("REMOTE_EDUTEAMS_ACCESS_TOKEN", access_token, 30 * 60)

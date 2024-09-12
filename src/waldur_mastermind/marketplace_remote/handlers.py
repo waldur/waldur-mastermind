@@ -141,7 +141,7 @@ def sync_remote_project_when_request_is_approved(
         return
 
     transaction.on_commit(
-        lambda: tasks.sync_remote_project.delay(serialize_instance(instance))
+        lambda: tasks.sync_remote_project(serialize_instance(instance))
     )
 
 

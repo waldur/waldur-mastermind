@@ -32,6 +32,8 @@ class ProjectUpdateRequestCreateTest(test.APITransactionTestCase):
 
         self.project = fixture.project
         self.offering = fixture.offering
+        self.offering.secret_options = {"api_url": "", "token": ""}
+        self.offering.save()
         self.fixture = fixture
 
         self.patcher = mock.patch(
