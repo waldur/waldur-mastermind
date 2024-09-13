@@ -1,3 +1,4 @@
+import datetime
 from datetime import timedelta
 
 from ddt import data, ddt
@@ -436,6 +437,24 @@ class InvitationCreateTest(BaseInvitationTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(
             response.data["extra_invitation_text"], self.extra_invitation_text
+        )
+
+    def test_state_is_pending_project_if_project_has_start_date(self):
+        self.client.force_authenticate(user=self.staff)
+        self.project_invitation.scope.start_date = (
+            datetime.date.today() + datetime.timedelta(weeks=1)
+        )
+        self.project_invitation.scope.save()
+        payload = self._get_valid_project_invitation_payload(
+            self.project_invitation,
+            role=ProjectRole.ADMIN,
+        )
+        response = self.client.post(
+            factories.InvitationBaseFactory.get_list_url(), data=payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(
+            response.data["state"], models.Invitation.State.PENDING_PROJECT
         )
 
     # Helper methods
