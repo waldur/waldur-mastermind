@@ -44,7 +44,7 @@ class InvitationViewSet(ProtectedViewSet):
         invitation: models.Invitation = serializer.save()
         if isinstance(invitation.scope, Project):
             project: Project = invitation.scope
-            if project.start_date and project.start_date > timezone.now():
+            if project.start_date and project.start_date > timezone.now().date():
                 invitation.state = models.Invitation.State.PENDING_PROJECT
                 invitation.save()
                 return
