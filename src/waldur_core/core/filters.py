@@ -315,10 +315,11 @@ def filter_by_full_name(queryset, value, field=""):
     )
 
 
-def filter_by_full_name_and_email(queryset, value):
+def filter_by_user_keyword(queryset, value):
     return queryset.filter(
         Q(**{"query_field__icontains": core_utils.normalize_unicode(value)})
         | Q(email__icontains=value)
+        | Q(username__icontains=value)
     ).distinct()
 
 
