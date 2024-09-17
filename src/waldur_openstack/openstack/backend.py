@@ -1,3 +1,4 @@
+import functools
 import logging
 import re
 from collections import defaultdict
@@ -15,6 +16,7 @@ from keystoneclient import exceptions as keystone_exceptions
 from neutronclient.client import exceptions as neutron_exceptions
 from novaclient import exceptions as nova_exceptions
 
+from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.utils import create_batch_fetcher, pwgen
 from waldur_core.structure.backend import log_backend_action
@@ -53,6 +55,27 @@ VALID_ROUTER_INTERFACE_OWNERS = (
     "network:router_interface_distributed",
     "network:ha_router_replicated_interface",
 )
+
+
+def reraise_exceptions(func):
+    @functools.wraps(func)
+    def wrapped(self, *args, **kwargs):
+        try:
+            return func(self, *args, **kwargs)
+        except (
+            neutron_exceptions.NeutronException,
+            cinder_exceptions.ClientException,
+            nova_exceptions.ClientException,
+        ) as e:
+            instance = args[0]
+
+            if isinstance(instance, core_models.ErrorMessageMixin):
+                instance.error_message = str(e)
+                instance.save(update_fields=["error_message"])
+
+            raise OpenStackBackendError(e)
+
+    return wrapped
 
 
 class OpenStackBackend(BaseOpenStackBackend):
@@ -2251,6 +2274,7 @@ class OpenStackBackend(BaseOpenStackBackend):
             )
 
     @log_backend_action()
+    @reraise_exceptions
     def update_subnet(self, subnet):
         neutron = get_neutron_client(self.session)
 
@@ -2262,26 +2286,19 @@ class OpenStackBackend(BaseOpenStackBackend):
 
         # We should send gateway_ip only when it is changed, because
         # updating gateway_ip is prohibited when the ip is used.
-        try:
-            backend_subnet = neutron.show_subnet(subnet.backend_id)["subnet"]
-        except neutron_exceptions.NeutronClientException as e:
-            raise OpenStackBackendError(e)
+        backend_subnet = neutron.show_subnet(subnet.backend_id)["subnet"]
 
         if backend_subnet["gateway_ip"] != subnet.gateway_ip:
             data["gateway_ip"] = subnet.gateway_ip
 
-        try:
-            neutron.update_subnet(subnet.backend_id, {"subnet": data})
-        except neutron_exceptions.NeutronException as e:
-            raise OpenStackBackendError(e)
-        else:
-            event_logger.openstack_subnet.info(
-                "SubNet %s has been updated" % subnet.name,
-                event_type="openstack_subnet_updated",
-                event_context={
-                    "subnet": subnet,
-                },
-            )
+        neutron.update_subnet(subnet.backend_id, {"subnet": data})
+        event_logger.openstack_subnet.info(
+            "SubNet %s has been updated" % subnet.name,
+            event_type="openstack_subnet_updated",
+            event_context={
+                "subnet": subnet,
+            },
+        )
 
     def disconnect_subnet(self, subnet):
         neutron = get_neutron_client(self.session)
