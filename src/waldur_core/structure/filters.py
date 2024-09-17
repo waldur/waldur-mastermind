@@ -174,9 +174,14 @@ class ProjectTypeFilter(NameFilterSet):
         fields = ["name"]
 
 
+class CustomerInFilter(django_filters.BaseInFilter, django_filters.UUIDFilter):
+    pass
+
+
 class ProjectFilter(NameFilterSet):
-    customer = django_filters.UUIDFilter(
+    customer = CustomerInFilter(
         field_name="customer__uuid",
+        lookup_expr="in",
         distinct=True,
     )
 
