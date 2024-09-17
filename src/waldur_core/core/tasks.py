@@ -221,7 +221,19 @@ class RuntimeStateChangeTask(Task):
         return instance
 
 
-class BackendMethodTask(RuntimeStateChangeTask, StateTransitionTask):
+class ResetErrorMessageTask(Task):
+    def pre_execute(self, instance):
+        if isinstance(instance, models.ErrorMessageMixin) and instance.error_message:
+            instance.error_message = ""
+            instance.error_traceback = ""
+            instance.save(update_fields=["error_message", "error_traceback"])
+
+        super().pre_execute(instance)
+
+
+class BackendMethodTask(
+    RuntimeStateChangeTask, StateTransitionTask, ResetErrorMessageTask
+):
     """Execute method of instance backend"""
 
     @classmethod
@@ -291,7 +303,7 @@ class ErrorMessageTask(Task):
     def save_error_message(self, instance):
         if isinstance(instance, models.ErrorMessageMixin):
             try:
-                error_message = self.result.result or ""
+                error_message = instance.error_message or self.result.result or ""
                 error_traceback = str(self.result.traceback)
             except AttributeError as ex:
                 error_message = f"Internal error: {ex.message}"
@@ -301,6 +313,7 @@ class ErrorMessageTask(Task):
             instance.error_traceback = error_traceback
 
             instance.save(update_fields=["error_message", "error_traceback"])
+
             # log exception if instance is not already ERRED.
             if instance.state != models.StateMixin.States.ERRED:
                 message = "Instance: %s.\n" % utils.serialize_instance(instance)
