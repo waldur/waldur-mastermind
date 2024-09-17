@@ -2384,6 +2384,8 @@ class ResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
                 status=status.HTTP_200_OK,
             )
 
+    set_slug_permissions = [structure_permissions.is_staff]
+
     set_slug_serializer_class = serializers.ResourceSlugSerializer
 
     @action(detail=True, methods=["post"])
