@@ -2602,6 +2602,20 @@ class ResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
 
     unlink_permissions = [structure_permissions.is_staff]
 
+    @action(detail=True, methods=["post"])
+    def set_as_erred(self, request, uuid=None):
+        resource = self.get_object()
+        resource.set_state_erred()
+        resource.save()
+
+        if resource.scope and hasattr(resource.scope, "set_erred"):
+            resource.scope.set_erred()
+            resource.scope.save()
+
+        return Response(status=status.HTTP_200_OK)
+
+    set_as_erred_permissions = [structure_permissions.is_staff]
+
 
 class ResourceOfferingsViewSet(ListAPIView):
     serializer_class = serializers.ResourceOfferingSerializer

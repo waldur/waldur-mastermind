@@ -1554,3 +1554,27 @@ class ResourceUpdateOptionsTest(test.APITransactionTestCase):
     def test_user_can_not_update_resource_options(self, user):
         response = self.make_request(getattr(self.fixture, user))
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+@ddt
+class ResourceSetAsErredTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.url = factories.ResourceFactory.get_url(self.resource, "set_as_erred")
+
+    @data(
+        "staff",
+    )
+    def test_user_can_set_resource_as_erred(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.state, models.Resource.States.ERRED)
+
+    @data("admin", "owner")
+    def test_user_can_not_set_resource_as_erred(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
