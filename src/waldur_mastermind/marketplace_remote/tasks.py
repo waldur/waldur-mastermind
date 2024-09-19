@@ -1151,3 +1151,8 @@ class RemoteProjectDataListPushTask(BackgroundListPullTask):
 
     def get_pulled_objects(self):
         return models.Offering.objects.filter(type=PLUGIN_NAME)
+
+
+class RemoteResourcePermissionsPushTask(BackgroundPullTask):
+    def pull(self, instance: models.Offering):
+        pass

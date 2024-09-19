@@ -1,12 +1,14 @@
 from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import permissions as rf_permissions
 from rest_framework import status
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from waldur_client import WaldurClient, WaldurClientException
 
+from waldur_core.core import permissions as core_permissions
 from waldur_core.core.utils import is_uuid_like, serialize_instance
 from waldur_core.core.views import ReviewViewSet
 from waldur_core.permissions.enums import PermissionEnum
@@ -243,3 +245,13 @@ class PullOfferingRobotAccounts(OfferingActionView):
 
 class PushProjectData(OfferingActionView):
     task = tasks.RemoteProjectDataPushTask()
+
+
+class SyncResourceProjectPermissions(APIView):
+    permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
+
+    def post(self, request, uuid):
+        qs = models.Resource.objects.filter(offering__type=PLUGIN_NAME)
+        resource = get_object_or_404(qs, uuid=uuid)
+        utils.sync_resource_team(resource)
+        return Response(status=status.HTTP_200_OK)

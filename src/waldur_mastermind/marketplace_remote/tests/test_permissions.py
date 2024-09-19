@@ -143,3 +143,35 @@ class RemoteProjectPermissionsTestCase(test.APITransactionTestCase):
             REMOTE_USER_UUID,
             RoleEnum.PROJECT_ADMIN,
         )
+
+    def test_sync_resource_team(self):
+        self.mp_fixture.manager
+        self.client_mock().create_project_permission.reset_mock()
+        stale_user_uuid = uuid.uuid4().hex
+        self.client_mock().marketplace_resource_get_team.return_value = [
+            {
+                "uuid": stale_user_uuid,
+                "role": RoleEnum.PROJECT_ADMIN,
+                "username": "stale_username_00",
+            }
+        ]
+        self.client_mock().get_project_permissions.side_effect = [
+            [{"role_name": RoleEnum.PROJECT_ADMIN}],
+            [],
+        ]
+
+        self.client.force_login(self.mp_fixture.staff)
+        url = f"http://testserver/api/remote-waldur-api/sync_resource_project_permissions/{self.resource.uuid.hex}/"
+        response = self.client.post(url)
+
+        self.assertEqual(200, response.status_code)
+
+        self.client_mock().remove_project_permission.assert_called_once_with(
+            REMOTE_PROJECT_UUID,
+            stale_user_uuid,
+            RoleEnum.PROJECT_ADMIN,
+        )
+
+        self.client_mock().create_project_permission.assert_called_once_with(
+            REMOTE_PROJECT_UUID, REMOTE_USER_UUID, RoleEnum.PROJECT_MANAGER.value, None
+        )

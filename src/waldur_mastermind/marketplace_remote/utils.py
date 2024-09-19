@@ -13,6 +13,7 @@ from waldur_client import WaldurClient, WaldurClientException
 from waldur_auth_social.models import ProviderChoices
 from waldur_core.core.utils import get_system_robot
 from waldur_core.permissions.enums import RoleEnum
+from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import get_permissions
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -169,6 +170,42 @@ def update_remote_project(request):
         )
         if any(remote_project.get(key) != value for key, value in payload.items()):
             client.update_project(project_uuid=remote_project["uuid"], **payload)
+
+
+def sync_resource_team(resource):
+    offering = resource.offering
+    client = get_client_for_offering(resource.offering)
+    project = resource.project
+    remote_project, _ = get_or_create_remote_project(offering, project, client)
+
+    remote_team = client.marketplace_resource_get_team(resource.uuid.hex)
+    remote_permissions = {
+        (record["username"], record["role"]): record["uuid"] for record in remote_team
+    }
+
+    local_roles = UserRole.objects.filter(scope=project, is_active=True)
+    local_permissions = {
+        (record.user.username, record.role.name): record for record in local_roles
+    }
+
+    stale_permissions = set(remote_permissions) - set(local_permissions)
+
+    for username, role_name in stale_permissions:
+        user_uuid = remote_permissions[username, role_name]
+        remove_project_permission(client, remote_project["uuid"], user_uuid, role_name)
+
+    new_and_existing_users = (
+        set(local_permissions) | set(remote_permissions)
+    ) - stale_permissions
+
+    for username, role_name in new_and_existing_users:
+        user_uuid = remote_permissions.get((username, role_name))
+        if user_uuid is None:
+            user_uuid = client.get_remote_eduteams_user(username)["uuid"]
+        expiration_time = local_permissions[username, role_name].expiration_time
+        create_or_update_project_permission(
+            client, remote_project["uuid"], user_uuid, role_name, expiration_time
+        )
 
 
 def create_or_update_project_permission(

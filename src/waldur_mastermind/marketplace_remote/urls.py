@@ -56,6 +56,10 @@ urlpatterns = [
         r"^api/remote-waldur-api/push_project_data/(?P<uuid>[a-f0-9]+)/$",
         views.PushProjectData.as_view(),
     ),
+    re_path(
+        r"^api/remote-waldur-api/sync_resource_project_permissions/(?P<uuid>[a-f0-9]+)/$",
+        views.SyncResourceProjectPermissions.as_view(),
+    ),
 ]
 
 
