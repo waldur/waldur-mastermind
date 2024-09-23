@@ -1,5 +1,3 @@
-from unittest import mock
-
 from rest_framework import test
 
 from waldur_core.structure.tests import factories as structure_factories
@@ -20,11 +18,6 @@ class InstanceCreateLogTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = openstack_tenant_fixtures.OpenStackTenantFixture()
         self.service_settings = self.fixture.openstack_tenant_service_settings
-
-    @mock.patch("waldur_mastermind.marketplace.handlers.log")
-    def test_ranamed_log_is_not_created_if_instance_has_been_created(self, mock_log):
-        self.trigger_instance_creation()
-        mock_log.log_marketplace_resource_renamed.assert_not_called()
 
     def trigger_instance_creation(self, **kwargs):
         image = openstack_factories.ImageFactory(

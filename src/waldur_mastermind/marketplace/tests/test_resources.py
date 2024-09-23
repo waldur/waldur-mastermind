@@ -711,17 +711,6 @@ class ResourceUpdateTest(test.APITransactionTestCase):
         response = self.make_request(self.fixture.user)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_renaming_of_resource_should_generate_audit_log(self):
-        old_name = self.resource.name
-        response = self.make_request(self.fixture.staff)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.resource.refresh_from_db()
-        self.assertTrue(
-            logging_models.Event.objects.filter(
-                message=f"Marketplace resource {self.resource.name} has been renamed. Old name: {old_name}."
-            ).exists()
-        )
-
     def test_authorized_user_can_update_end_date(self):
         with freeze_time("2020-01-01"):
             response = self.make_request(self.fixture.staff, {"end_date": "2021-01-01"})
@@ -833,6 +822,20 @@ class ResourceUpdateTest(test.APITransactionTestCase):
         self.resource.save()
         self.resource.refresh_from_db()
         self.assertFalse(self.resource.error_traceback)
+
+    def test_changing_of_resource_should_generate_audit_log(self):
+        response = self.make_request(self.fixture.staff)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(
+            logging_models.Event.objects.filter(
+                event_type="marketplace_resource_has_been_changed",
+                message__contains=self.resource.name,
+            )
+            .filter(message__contains="name")
+            .count(),
+            1,
+        )
 
 
 @ddt

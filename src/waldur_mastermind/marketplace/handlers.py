@@ -710,16 +710,24 @@ def offering_has_been_created_or_updated(sender, instance, created=False, **kwar
             )
 
 
-def resource_has_been_renamed(sender, instance, created=False, **kwargs):
+def resource_has_been_changed(sender, instance, created=False, **kwargs):
     if created:
         return
 
-    if not instance.tracker.has_changed("name"):
+    if not instance.tracker.changed():
         return
 
-    log.log_marketplace_resource_renamed(
-        instance, instance.tracker.previous("name") or ""
-    )
+    changed = []
+
+    for field, old_value in instance.tracker.changed().items():
+        if field == "modified":
+            continue
+
+        changed.append(
+            {"name": field, "from": old_value, "to": getattr(instance, field)}
+        )
+
+    log.log_marketplace_resource_has_been_changed(instance, changed)
 
 
 def resource_state_has_been_changed(sender, instance, created=False, **kwargs):
