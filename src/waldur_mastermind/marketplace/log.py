@@ -2,6 +2,7 @@ from numbers import Number
 
 from django.conf import settings
 from django.db import transaction
+from django.template import Context, Template
 
 from waldur_core.logging.loggers import EventLogger, event_logger
 from waldur_mastermind.marketplace import models, tasks
@@ -192,10 +193,10 @@ class MarketplaceResourceLogger(EventLogger):
             "marketplace_resource_terminate_canceled",
             "marketplace_resource_update_limits_succeeded",
             "marketplace_resource_update_limits_failed",
-            "marketplace_resource_renamed",
             "marketplace_resource_update_end_date_succeeded",
             "marketplace_resource_downscaled",
             "marketplace_resource_erred_on_backend",
+            "marketplace_resource_has_been_changed",
         )
         nullable_fields = ["old_name"]
         event_groups = {"resources": event_types}
@@ -258,7 +259,6 @@ class MarketplaceServiceProviderLogger(EventLogger):
             "marketplace_resource_update_requested",
             "marketplace_resource_create_requested",
             "marketplace_resource_create_failed",
-            "marketplace_resource_renamed",
         )
         event_groups = {"providers": event_types}
 
@@ -368,7 +368,7 @@ def log_resource_update_requested(resource):
 
 def log_resource_update_succeeded(resource):
     event_logger.marketplace_resource.info(
-        "Resource {resource_name} has been updated.",
+        "Resource {resource_name} has been updated successfully.",
         event_type="marketplace_resource_update_succeeded",
         event_context={"resource": resource},
     )
@@ -435,20 +435,6 @@ def log_resource_limit_update_failed(resource):
         "Updating limits of resource {resource_name} has failed.",
         event_type="marketplace_resource_update_limits_failed",
         event_context={"resource": resource},
-    )
-
-
-def log_marketplace_resource_renamed(resource, old_name):
-    event_context = {
-        "old_name": old_name,
-        "resource": resource,
-    }
-
-    event_logger.marketplace_resource.info(
-        "Marketplace resource {resource_name} has been renamed."
-        " Old name: {old_name}.",
-        event_type="marketplace_resource_renamed",
-        event_context=event_context,
     )
 
 
@@ -525,4 +511,35 @@ def log_resource_erred_on_backend(resource):
         "Resource {resource_name} got error on backend.",
         event_type="marketplace_resource_erred_on_backend",
         event_context={"resource": resource},
+    )
+
+
+def log_marketplace_resource_has_been_changed(resource, changed):
+    if not changed:
+        return
+
+    template = (
+        "Marketplace resource '{{ resource_name }}' has been changed. "
+        "{% for field in changed %}"
+        "Field '{{ field.name }}': from {{ field.from|safe }} to {{ field.to|safe }}"
+        "{% if forloop.last %}.{% else %},{% endif %}"
+        "{% endfor %}"
+    )
+
+    context = {
+        "resource_name": resource.name,
+        "changed": changed,
+    }
+
+    event_context = {
+        "resource": resource,
+    }
+
+    event_logger.marketplace_resource.info(
+        Template(template)
+        .render(Context(context))
+        .replace("{", "{{")
+        .replace("}", "}}"),
+        event_type="marketplace_resource_has_been_changed",
+        event_context=event_context,
     )
