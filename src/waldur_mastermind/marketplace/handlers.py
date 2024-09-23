@@ -720,12 +720,18 @@ def resource_has_been_changed(sender, instance, created=False, **kwargs):
     changed = []
 
     for field, old_value in instance.tracker.changed().items():
-        if field == "modified":
+        if field in ("modified", "backend_metadata"):
             continue
 
-        changed.append(
-            {"name": field, "from": old_value, "to": getattr(instance, field)}
-        )
+        if field == "state":
+            old_value = models.Resource.get_state_display(
+                models.Resource(state=old_value)
+            )
+            new_value = instance.get_state_display()
+        else:
+            new_value = getattr(instance, field)
+
+        changed.append({"name": field, "from": old_value, "to": new_value})
 
     log.log_marketplace_resource_has_been_changed(instance, changed)
 
