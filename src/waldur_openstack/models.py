@@ -161,6 +161,7 @@ class Image(structure_models.ServiceProperty):
 
 class VolumeType(core_models.DescribableMixin, structure_models.ServiceProperty):
     tenants = models.ManyToManyField(to=Tenant, related_name="volume_types")
+    disabled = models.BooleanField(default=False)
 
     class Meta:
         unique_together = ("settings", "backend_id")

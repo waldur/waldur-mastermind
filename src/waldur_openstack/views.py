@@ -164,7 +164,9 @@ class ImageViewSet(structure_views.BaseServicePropertyViewSet):
 
 
 class VolumeTypeViewSet(structure_views.BaseServicePropertyViewSet):
-    queryset = models.VolumeType.objects.all().order_by("settings", "name")
+    queryset = models.VolumeType.objects.filter(disabled=False).order_by(
+        "settings", "name"
+    )
     serializer_class = serializers.VolumeTypeSerializer
     lookup_field = "uuid"
     filterset_class = filters.VolumeTypeFilter

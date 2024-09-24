@@ -86,6 +86,14 @@ class OpenStackServiceSerializer(structure_serializers.ServiceOptionsSerializer)
         required=False,
     )
 
+    volume_type_blacklist = serializers.CharField(
+        source="options.volume_type_blacklist",
+        help_text=_(
+            "List of coma-separated volume types which should not be possible to select when creating VM/Volume."
+        ),
+        required=False,
+    )
+
     console_type = serializers.CharField(
         source="options.console_type",
         help_text=_(

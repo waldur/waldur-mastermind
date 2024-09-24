@@ -56,6 +56,10 @@ VALID_ROUTER_INTERFACE_OWNERS = (
 )
 
 
+def parse_comma_separated_list(value):
+    return [field.strip() for field in value.split(",")]
+
+
 def get_tenant_session(tenant: models.Tenant):
     return get_keystone_session(tenant.service_settings, tenant)
 
@@ -478,6 +482,10 @@ class OpenStackBackend(ServiceBackend):
         except cinder_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
 
+        volume_type_blacklist = parse_comma_separated_list(
+            tenant.settings.options.get("volume_type_blacklist", "")
+        )
+
         local_volume_type_mapping = self._tenant_mappings(tenant.volume_types.all())
         local_volume_type_ids = set(local_volume_type_mapping.keys())
 
@@ -500,6 +508,7 @@ class OpenStackBackend(ServiceBackend):
                 defaults={
                     "name": remote_volume_type.name,
                     "description": remote_volume_type.description or "",
+                    "disabled": remote_volume_type.name in volume_type_blacklist,
                 },
             )
             tenant.volume_types.add(local_volume_type)
@@ -513,6 +522,7 @@ class OpenStackBackend(ServiceBackend):
                 defaults={
                     "name": remote_volume_type.name,
                     "description": remote_volume_type.description or "",
+                    "disabled": remote_volume_type.name in volume_type_blacklist,
                 },
             )
 
