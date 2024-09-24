@@ -8,7 +8,6 @@ from rest_framework import status, test
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
-from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.common.mixins import UnitPriceMixin
@@ -21,21 +20,15 @@ from waldur_mastermind.marketplace_openstack import (
     STORAGE_MODE_DYNAMIC,
     STORAGE_MODE_FIXED,
 )
-from waldur_openstack.openstack import models as openstack_models
-from waldur_openstack.openstack.tests import (
-    factories as openstack_factories,
-)
-from waldur_openstack.openstack.tests import fixtures as openstack_fixtures
-from waldur_openstack.openstack.tests.factories import VolumeTypeFactory
-from waldur_openstack.openstack.tests.unittests.test_backend import BaseBackendTestCase
-from waldur_openstack.openstack.utils import volume_type_name_to_quota_name
-from waldur_openstack.openstack_base.tests.fixtures import OpenStackFixture
-from waldur_openstack.openstack_tenant.tests import (
-    fixtures as openstack_tenant_fixtures,
-)
+from waldur_openstack import models as openstack_models
+from waldur_openstack.tests import factories as openstack_factories
+from waldur_openstack.tests import fixtures as openstack_fixtures
+from waldur_openstack.tests.factories import VolumeTypeFactory
+from waldur_openstack.tests.fixtures import OpenStackFixture
+from waldur_openstack.tests.unittests.test_backend import BaseBackendTestCase
+from waldur_openstack.utils import volume_type_name_to_quota_name
 
 from .. import INSTANCE_TYPE, TENANT_TYPE, VOLUME_TYPE
-from . import fixtures
 from .utils import BaseOpenStackTest, override_plugin_settings
 
 
@@ -136,10 +129,8 @@ class OpenStackResourceOfferingTest(BaseOpenStackTest):
         tenant = self.trigger_offering_creation()
 
         offering = marketplace_models.Offering.objects.get(type=offering_type)
-        service_settings = offering.scope
 
-        self.assertTrue(isinstance(service_settings, structure_models.ServiceSettings))
-        self.assertEqual(service_settings.scope, tenant)
+        self.assertEqual(offering.scope, tenant)
         self.assertEqual(offering.customer, tenant.project.customer)
 
     @data(INSTANCE_TYPE, VOLUME_TYPE)
@@ -158,7 +149,7 @@ class OpenStackResourceOfferingTest(BaseOpenStackTest):
     ):
         fixture = OpenStackFixture()
         tenant = openstack_models.Tenant.objects.create(
-            service_settings=fixture.openstack_service_settings,
+            service_settings=fixture.settings,
             project=fixture.project,
             state=openstack_models.Tenant.States.CREATING,
         )
@@ -182,7 +173,7 @@ class OpenStackResourceOfferingTest(BaseOpenStackTest):
     def trigger_offering_creation(self):
         fixture = OpenStackFixture()
         tenant = openstack_models.Tenant.objects.create(
-            service_settings=fixture.openstack_service_settings,
+            service_settings=fixture.settings,
             project=fixture.project,
             state=openstack_models.Tenant.States.CREATING,
         )
@@ -199,7 +190,7 @@ class OfferingComponentForVolumeTypeTest(test.APITransactionTestCase):
         self.fixture = openstack_fixtures.OpenStackFixture()
         self.offering = marketplace_factories.OfferingFactory(
             type=TENANT_TYPE,
-            scope=self.fixture.openstack_service_settings,
+            scope=self.fixture.settings,
             plugin_options={"storage_mode": STORAGE_MODE_DYNAMIC},
         )
         self.volume_type = self.fixture.volume_type
@@ -224,9 +215,7 @@ class OfferingComponentForVolumeTypeTest(test.APITransactionTestCase):
         self.offering.plugin_options = {"storage_mode": STORAGE_MODE_FIXED}
         self.offering.save()
 
-        new_volume_type = VolumeTypeFactory(
-            settings=self.fixture.openstack_service_settings
-        )
+        new_volume_type = VolumeTypeFactory(settings=self.fixture.settings)
 
         self.assertFalse(
             marketplace_models.OfferingComponent.objects.filter(
@@ -289,10 +278,10 @@ class OfferingCreateTest(BaseBackendTestCase):
         )
         self.category_url = marketplace_factories.CategoryFactory.get_url()
         self.url = marketplace_factories.OfferingFactory.get_list_url()
-        mock_executors_patch = mock.patch(
-            "waldur_mastermind.marketplace_openstack.views.executors"
+        patcher = mock.patch(
+            "waldur_mastermind.marketplace_openstack.views.TenantCreateExecutor"
         )
-        mock_executors_patch.start()
+        patcher.start()
 
     def tearDown(self):
         mock.patch.stopall()
@@ -407,7 +396,7 @@ class OfferingUpdateTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = openstack_fixtures.OpenStackFixture()
         self.offering = marketplace_factories.OfferingFactory(
-            type=TENANT_TYPE, scope=self.fixture.openstack_service_settings
+            type=TENANT_TYPE, scope=self.fixture.settings
         )
         self.component = marketplace_factories.OfferingComponentFactory(
             offering=self.offering,
@@ -457,7 +446,7 @@ class OfferingDetailsTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = openstack_fixtures.OpenStackFixture()
         self.offering = marketplace_factories.OfferingFactory(
-            type=TENANT_TYPE, scope=self.fixture.openstack_service_settings
+            type=TENANT_TYPE, scope=self.fixture.settings
         )
         marketplace_factories.OfferingComponentFactory(
             offering=self.offering, type="cores"
@@ -497,7 +486,7 @@ class OfferingDetailsTest(test.APITransactionTestCase):
 @ddt
 class OfferingNameTest(test.APITransactionTestCase):
     def setUp(self):
-        self.fixture = fixtures.MarketplaceOpenStackFixture()
+        self.fixture = OpenStackFixture()
 
     @data(INSTANCE_TYPE, VOLUME_TYPE)
     def test_renaming_openstack_tenant_should_also_rename_linked_private_offerings(
@@ -505,10 +494,10 @@ class OfferingNameTest(test.APITransactionTestCase):
     ):
         offering = marketplace_factories.OfferingFactory(
             type=offering_type,
-            scope=self.fixture.private_settings,
+            scope=self.fixture.tenant,
         )
-        self.fixture.openstack_tenant.name = "new_name"
-        self.fixture.openstack_tenant.save()
+        self.fixture.tenant.name = "new_name"
+        self.fixture.tenant.save()
         offering.refresh_from_db()
         self.assertTrue("new_name" in offering.name)
 
@@ -527,9 +516,9 @@ class RouterExternalIPTest(test.APITransactionTestCase):
             type=TENANT_TYPE,
             secret_options={"ipv4_external_ip_mapping": self.external_ips},
         )
-        self.resource = marketplace_factories.ResourceFactory(offering=self.offering)
-        self.resource.scope = self.router.tenant
-        self.resource.save()
+        self.resource = marketplace_factories.ResourceFactory(
+            offering=self.offering, scope=self.router.tenant
+        )
         self.url = openstack_factories.RouterFactory.get_url(self.router)
         self.client.force_authenticate(self.fixture.staff)
 
@@ -548,7 +537,7 @@ class RouterExternalIPTest(test.APITransactionTestCase):
 
 class InstanceExternalIPTest(test.APITransactionTestCase):
     def setUp(self):
-        self.fixture = openstack_tenant_fixtures.OpenStackTenantFixture()
+        self.fixture = openstack_fixtures.OpenStackFixture()
         self.external_ips = [
             {
                 "floating_ip": "100.100.100.0/24",

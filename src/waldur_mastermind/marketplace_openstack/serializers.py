@@ -6,10 +6,7 @@ from rest_framework import serializers
 from waldur_core.core import signals as core_signals
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace_openstack.utils import _apply_quotas
-from waldur_openstack.openstack import serializers as openstack_serializers
-from waldur_openstack.openstack_tenant import (
-    serializers as openstack_tenant_serializers,
-)
+from waldur_openstack import serializers as openstack_serializers
 
 
 class MarketplaceTenantCreateSerializer(openstack_serializers.TenantSerializer):
@@ -48,7 +45,7 @@ def add_marketplace_resource_uuid(sender, fields, **kwargs):
 
 
 core_signals.pre_serializer_fields.connect(
-    sender=openstack_tenant_serializers.NestedVolumeSerializer,
+    sender=openstack_serializers.NestedVolumeSerializer,
     receiver=add_marketplace_resource_uuid,
 )
 
@@ -98,7 +95,7 @@ def add_resource_external_ips(sender, fields, **kwargs):
 
 
 core_signals.pre_serializer_fields.connect(
-    sender=openstack_tenant_serializers.InstanceSerializer,
+    sender=openstack_serializers.InstanceSerializer,
     receiver=add_resource_external_ips,
 )
 

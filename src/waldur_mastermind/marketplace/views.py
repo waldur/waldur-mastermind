@@ -820,7 +820,10 @@ class ProviderOfferingViewSet(
             )
 
         backend = offering.scope.get_backend()
-        resources = getattr(backend, method)()
+        if isinstance(offering.scope, structure_models.BaseResource):
+            resources = getattr(backend, method)(offering.scope)
+        else:
+            resources = getattr(backend, method)()
         page = self.paginate_queryset(resources)
         return self.get_paginated_response(page)
 
@@ -849,15 +852,26 @@ class ProviderOfferingViewSet(
 
         resource_model = plugins.manager.get_resource_model(offering.type)
 
+        if isinstance(offering.scope, structure_models.BaseResource):
+            field = "tenant"
+        else:
+            field = "service_settings"
         if resource_model.objects.filter(
-            service_settings=offering.scope, backend_id=backend_id
+            **{field: offering.scope}, backend_id=backend_id
         ).exists():
             raise rf_exceptions.ValidationError(
                 _("Resource has been imported already.")
             )
 
         try:
-            resource = getattr(backend, method)(backend_id=backend_id, project=project)
+            if isinstance(offering.scope, structure_models.BaseResource):
+                resource = getattr(backend, method)(
+                    offering.scope, backend_id=backend_id, project=project
+                )
+            else:
+                resource = getattr(backend, method)(
+                    backend_id=backend_id, project=project
+                )
         except ServiceBackendError as e:
             raise rf_exceptions.ValidationError(str(e))
         else:
@@ -2513,13 +2527,13 @@ class ResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
         resource = self.get_object()
 
         try:
-            service_settings = structure_models.ServiceSettings.objects.get(
+            scope = structure_models.ServiceSettings.objects.get(
                 scope=resource.scope,
             )
-        except structure_models.ServiceSettingsDoesNotExist:
-            return Response([])
+        except structure_models.ServiceSettings.DoesNotExist:
+            scope = resource.scope
 
-        offerings = models.Offering.objects.filter(scope=service_settings)
+        offerings = models.Offering.objects.filter(scope=scope)
         result = [
             {"uuid": offering.uuid.hex, "type": offering.type} for offering in offerings
         ]

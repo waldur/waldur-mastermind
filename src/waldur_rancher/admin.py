@@ -48,7 +48,7 @@ class CatalogAdmin(admin.ModelAdmin):
 
 class ClusterAdmin(structure_admin.ResourceAdmin):
     list_display = structure_admin.ResourceAdmin.list_display + ("runtime_state",)
-    list_filter = structure_admin.ResourceAdmin.list_filter + ("tenant_settings",)
+    list_filter = structure_admin.ResourceAdmin.list_filter + ("tenant",)
 
 
 class ProjectAdmin(admin.ModelAdmin):

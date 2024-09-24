@@ -163,7 +163,7 @@ class EventLogger(BaseLogger):
 
     .. code-block:: python
 
-        from waldur_core.openstack.models import Tenant
+        from waldur_openstack.models import Tenant
 
         class QuotaEventLogger(EventLogger):
             tenant = Tenant

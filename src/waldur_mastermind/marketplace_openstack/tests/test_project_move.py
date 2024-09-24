@@ -3,7 +3,7 @@ from rest_framework import test
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.utils import move_project
 from waldur_mastermind.marketplace.tests import fixtures
-from waldur_openstack.openstack.tests import factories as openstack_factories
+from waldur_openstack.tests import factories as openstack_factories
 
 
 class ProjectMoveTest(test.APITransactionTestCase):

@@ -25,7 +25,6 @@ class MarketplaceOpenStackConfig(AppConfig):
 
     def ready(self):
         from waldur_core.quotas import models as quota_models
-        from waldur_core.structure import models as structure_models
         from waldur_core.structure import signals as structure_signals
         from waldur_mastermind.marketplace import filters as marketplace_filters
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
@@ -35,12 +34,10 @@ class MarketplaceOpenStackConfig(AppConfig):
             OpenStackInstanceRegistrator,
             OpenStackTenantRegistrator,
         )
-        from waldur_openstack.openstack import models as openstack_models
-        from waldur_openstack.openstack import signals as openstack_signals
-        from waldur_openstack.openstack.apps import OpenStackConfig
-        from waldur_openstack.openstack_tenant import executors as tenant_executors
-        from waldur_openstack.openstack_tenant import models as tenant_models
-        from waldur_openstack.openstack_tenant.apps import OpenStackTenantConfig
+        from waldur_openstack import executors as tenant_executors
+        from waldur_openstack import models as openstack_models
+        from waldur_openstack import signals as openstack_signals
+        from waldur_openstack.apps import OpenStackConfig
 
         from . import (
             AVAILABLE_LIMITS,
@@ -69,13 +66,13 @@ class MarketplaceOpenStackConfig(AppConfig):
 
         signals.pre_delete.connect(
             handlers.archive_offering,
-            sender=structure_models.ServiceSettings,
+            sender=openstack_models.Tenant,
             dispatch_uid="waldur_mastermind.marketplace_openstack.archive_offering",
         )
 
         resource_models = (
-            tenant_models.Instance,
-            tenant_models.Volume,
+            openstack_models.Instance,
+            openstack_models.Volume,
             openstack_models.Tenant,
         )
         marketplace_handlers.connect_resource_metadata_handlers(*resource_models)
@@ -172,26 +169,26 @@ class MarketplaceOpenStackConfig(AppConfig):
                     limit_period=MONTH,
                 ),
             ),
-            service_type=OpenStackTenantConfig.service_name,
+            service_type=OpenStackConfig.service_name,
             secret_attributes=get_secret_attributes,
             components_filter=components_filter,
         )
 
         signals.post_save.connect(
             handlers.synchronize_volume_metadata_on_save,
-            sender=tenant_models.Volume,
+            sender=openstack_models.Volume,
             dispatch_uid="waldur_mastermind.marketplace_openstack.synchronize_volume_metadata_on_save",
         )
 
         structure_signals.resource_pulled.connect(
             handlers.synchronize_volume_metadata_on_pull,
-            sender=tenant_models.Volume,
+            sender=openstack_models.Volume,
             dispatch_uid="waldur_mastermind.marketplace_openstack.synchronize_volume_metadata_on_pull",
         )
 
         signals.post_save.connect(
             handlers.synchronize_instance_hypervisor_hostname,
-            sender=tenant_models.Instance,
+            sender=openstack_models.Instance,
             dispatch_uid="waldur_mastermind.marketplace_openstack.synchronize_instance_hypervisor_hostname",
         )
 
@@ -203,13 +200,13 @@ class MarketplaceOpenStackConfig(AppConfig):
 
         signals.post_save.connect(
             handlers.synchronize_instance_name,
-            sender=tenant_models.Instance,
+            sender=openstack_models.Instance,
             dispatch_uid="waldur_mastermind.marketplace_openstack.synchronize_instance_name",
         )
 
         signals.post_save.connect(
             handlers.synchronize_instance_after_pull,
-            sender=tenant_models.Instance,
+            sender=openstack_models.Instance,
             dispatch_uid="waldur_mastermind.marketplace_openstack.synchronize_instance_after_pull",
         )
 
@@ -239,7 +236,7 @@ class MarketplaceOpenStackConfig(AppConfig):
 
         signals.post_save.connect(
             handlers.synchronize_directly_connected_ips,
-            sender=tenant_models.Instance,
+            sender=openstack_models.Instance,
             dispatch_uid="waldur_mastermind.marketplace_openstack.synchronize_synchronize_directly_connected_ips",
         )
 
@@ -251,8 +248,8 @@ class MarketplaceOpenStackConfig(AppConfig):
         )
 
         for model in [
-            tenant_models.Instance,
-            tenant_models.Volume,
+            openstack_models.Instance,
+            openstack_models.Volume,
             openstack_models.Tenant,
         ]:
             structure_signals.resource_imported.connect(

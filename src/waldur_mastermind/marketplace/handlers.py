@@ -89,13 +89,15 @@ def init_resource_parent(sender, instance, created=False, **kwargs):
         # Skipping support offering
         return
 
-    if not isinstance(service, structure_models.ServiceSettings):
+    if isinstance(service, structure_models.BaseResource):
+        base_resource = service
+    elif not isinstance(service, structure_models.ServiceSettings):
         return
+    else:
+        base_resource = service.scope
 
-    base_resource = service.scope
-
-    if not isinstance(base_resource, structure_models.BaseResource):
-        return
+        if not isinstance(base_resource, structure_models.BaseResource):
+            return
 
     try:
         parent_resource = models.Resource.objects.get(scope=base_resource)

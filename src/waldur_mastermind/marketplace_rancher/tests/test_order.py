@@ -5,14 +5,11 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_rancher import PLUGIN_NAME
-from waldur_openstack.openstack.tests import (
+from waldur_openstack.tests import (
     factories as openstack_factories,
 )
-from waldur_openstack.openstack_tenant.tests import (
-    factories as openstack_tenant_factories,
-)
-from waldur_openstack.openstack_tenant.tests import (
-    fixtures as openstack_tenant_fixtures,
+from waldur_openstack.tests import (
+    fixtures as openstack_fixtures,
 )
 from waldur_rancher import models as rancher_models
 from waldur_rancher.tests import factories as rancher_factories
@@ -20,7 +17,7 @@ from waldur_rancher.tests import factories as rancher_factories
 
 class OrderProcessedTest(test.APITransactionTestCase):
     def setUp(self):
-        self.fixture = openstack_tenant_fixtures.OpenStackTenantFixture()
+        self.fixture = openstack_fixtures.OpenStackFixture()
 
     def test_resource_is_created_when_order_is_processed(self):
         service_settings = rancher_factories.RancherServiceSettingsFactory()
@@ -49,8 +46,8 @@ class OrderProcessedTest(test.APITransactionTestCase):
             offering=offering,
             attributes={
                 "name": "name",
-                "tenant_settings": openstack_tenant_factories.OpenStackTenantServiceSettingsFactory.get_url(
-                    self.fixture.openstack_tenant_service_settings
+                "tenant": openstack_factories.TenantFactory.get_url(
+                    self.fixture.tenant
                 ),
                 "project": ProjectFactory.get_url(self.fixture.project),
                 "ssh_public_key": SshPublicKeyFactory.get_url(ssh_public_key),

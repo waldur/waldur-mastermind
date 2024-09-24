@@ -5,7 +5,6 @@ from ddt import data, ddt
 from rest_framework import status, test
 
 from waldur_core.structure import signals as structure_signals
-from waldur_core.structure.models import ServiceSettings
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests.factories import OfferingFactory
@@ -20,16 +19,17 @@ from waldur_mastermind.marketplace_openstack.tests.mocks import (
     MOCK_TENANT,
     MOCK_VOLUME,
 )
-from waldur_openstack.openstack import models
-from waldur_openstack.openstack.tests.factories import TenantFactory
-from waldur_openstack.openstack.tests.fixtures import OpenStackFixture
-from waldur_openstack.openstack.tests.test_tenant import BaseTenantActionsTest
-from waldur_openstack.openstack.tests.unittests.test_backend import BaseBackendTestCase
-from waldur_openstack.openstack_tenant.tests.factories import (
+from waldur_openstack import models
+from waldur_openstack.tests.factories import (
     InstanceFactory,
+    TenantFactory,
     VolumeFactory,
 )
-from waldur_openstack.openstack_tenant.tests.fixtures import OpenStackTenantFixture
+from waldur_openstack.tests.fixtures import (
+    OpenStackFixture,
+)
+from waldur_openstack.tests.test_tenant import BaseTenantActionsTest
+from waldur_openstack.tests.unittests.test_backend import BaseBackendTestCase
 
 from .mocks import MockTenant
 from .utils import BaseOpenStackTest
@@ -38,12 +38,12 @@ from .utils import BaseOpenStackTest
 class ImportAsMarketplaceResourceTest(BaseOpenStackTest):
     def setUp(self):
         super().setUp()
-        self.fixture = OpenStackTenantFixture()
+        self.fixture = OpenStackFixture()
 
     def test_import_volume_as_marketplace_resource(self):
         volume = self.fixture.volume
         marketplace_factories.OfferingFactory(
-            scope=self.fixture.openstack_tenant_service_settings, type=VOLUME_TYPE
+            scope=self.fixture.tenant, type=VOLUME_TYPE
         )
 
         structure_signals.resource_imported.send(
@@ -58,7 +58,7 @@ class ImportAsMarketplaceResourceTest(BaseOpenStackTest):
     def test_import_instance_as_marketplace_resource(self):
         instance = self.fixture.instance
         marketplace_factories.OfferingFactory(
-            scope=self.fixture.openstack_tenant_service_settings, type=INSTANCE_TYPE
+            scope=self.fixture.tenant, type=INSTANCE_TYPE
         )
 
         structure_signals.resource_imported.send(
@@ -101,9 +101,9 @@ class ImportAsMarketplaceResourceTest(BaseOpenStackTest):
 class BaseInstanceImportTest(BaseBackendTestCase, BaseOpenStackTest):
     def setUp(self):
         super().setUp()
-        self.fixture = OpenStackTenantFixture()
+        self.fixture = OpenStackFixture()
         self.offering = marketplace_factories.OfferingFactory(
-            scope=self.fixture.openstack_tenant_service_settings,
+            scope=self.fixture.tenant,
             type=INSTANCE_TYPE,
             shared=False,
             customer=self.fixture.customer,
@@ -128,7 +128,7 @@ class InstanceImportableResourcesTest(BaseInstanceImportTest):
             response.data,
             [
                 {
-                    "type": "OpenStackTenant.Instance",
+                    "type": "OpenStack.Instance",
                     "name": "VM-1",
                     "backend_id": "1",
                     "description": "",
@@ -157,9 +157,7 @@ class InstanceImportTest(BaseInstanceImportTest):
             "project": self.fixture.project.uuid.hex,
         }
 
-    @mock.patch(
-        "waldur_openstack.openstack_tenant.executors.InstancePullExecutor.execute"
-    )
+    @mock.patch("waldur_openstack.executors.InstancePullExecutor.execute")
     def test_instance_can_be_imported(self, resource_import_execute_mock):
         response = self.client.post(self.url, self._get_payload())
 
@@ -170,7 +168,7 @@ class InstanceImportTest(BaseInstanceImportTest):
 
     def test_existing_instance_cannot_be_imported(self):
         InstanceFactory(
-            service_settings=self.fixture.openstack_tenant_service_settings,
+            tenant=self.fixture.tenant,
             backend_id=MOCK_INSTANCE.id,
         )
         payload = self._get_payload(MOCK_INSTANCE.id)
@@ -185,9 +183,9 @@ class InstanceImportTest(BaseInstanceImportTest):
 class BaseVolumeImportTest(BaseBackendTestCase, test.APITransactionTestCase):
     def setUp(self):
         super().setUp()
-        self.fixture = OpenStackTenantFixture()
+        self.fixture = OpenStackFixture()
         self.offering = marketplace_factories.OfferingFactory(
-            scope=self.fixture.openstack_tenant_service_settings,
+            scope=self.fixture.tenant,
             type=VOLUME_TYPE,
             shared=False,
             customer=self.fixture.customer,
@@ -210,7 +208,7 @@ class VolumeImportableResourcesTest(BaseVolumeImportTest):
             response.data,
             [
                 {
-                    "type": "OpenStackTenant.Volume",
+                    "type": "OpenStack.Volume",
                     "name": "ssd-volume",
                     "backend_id": "1",
                     "description": "",
@@ -239,10 +237,7 @@ class VolumeImportTest(BaseVolumeImportTest):
         self.assertEqual(instance.backend_id, "1")
 
     def test_backend_volume_cannot_be_imported_if_it_is_registered_in_waldur(self):
-        volume = VolumeFactory(
-            service_settings=self.fixture.openstack_tenant_service_settings,
-            project=self.fixture.project,
-        )
+        volume = VolumeFactory(tenant=self.fixture.tenant, project=self.fixture.project)
 
         response = self.client.post(self.url, self._get_payload(volume.backend_id))
 
@@ -262,7 +257,7 @@ class TenantImportableResourcesTest(BaseBackendTestCase, BaseTenantActionsTest):
     def setUp(self):
         super().setUp()
         self.offering = marketplace_factories.OfferingFactory(
-            scope=self.fixture.openstack_service_settings,
+            scope=self.fixture.settings,
             type=TENANT_TYPE,
             project=self.fixture.project,
             customer=self.fixture.customer,
@@ -311,11 +306,11 @@ class TenantImportTest(BaseBackendTestCase):
         super().setUp()
         self.fixture = OpenStackFixture()
         self.backend_tenant = TenantFactory.build(
-            service_settings=self.fixture.openstack_service_settings,
+            service_settings=self.fixture.settings,
             project=self.fixture.project,
         )
         self.offering = marketplace_factories.OfferingFactory(
-            scope=self.fixture.openstack_service_settings,
+            scope=self.fixture.settings,
             type=TENANT_TYPE,
             project=self.fixture.project,
             customer=self.fixture.customer,
@@ -361,16 +356,6 @@ class TenantImportTest(BaseBackendTestCase):
         tenant = models.Tenant.objects.get(backend_id=self.backend_tenant.backend_id)
         self.assertIsNotNone(tenant.user_username)
         self.assertIsNotNone(tenant.user_password)
-
-    def test_imported_tenant_settings_have_username_and_password_set(self):
-        response = self.import_tenant()
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
-
-        tenant = models.Tenant.objects.get(backend_id=self.backend_tenant.backend_id)
-        service_settings = ServiceSettings.objects.get(scope=tenant)
-
-        self.assertEqual(tenant.user_username, service_settings.username)
-        self.assertEqual(tenant.user_password, service_settings.password)
 
     @mock.patch("waldur_mastermind.marketplace_openstack.handlers.tasks")
     def test_import_instances_and_volumes_if_tenant_has_been_imported(self, mock_tasks):

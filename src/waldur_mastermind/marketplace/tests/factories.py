@@ -46,7 +46,9 @@ def backend_metadata_generator(number):
     }
 
 
-class ServiceProviderFactory(factory.django.DjangoModelFactory):
+class ServiceProviderFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.ServiceProvider]
+):
     class Meta:
         model = models.ServiceProvider
 
@@ -68,7 +70,9 @@ class ServiceProviderFactory(factory.django.DjangoModelFactory):
         return url if action is None else url + action + "/"
 
 
-class CategoryFactory(factory.django.DjangoModelFactory):
+class CategoryFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Category]
+):
     class Meta:
         model = models.Category
 
@@ -89,7 +93,9 @@ class CategoryFactory(factory.django.DjangoModelFactory):
         return url if action is None else url + action + "/"
 
 
-class CategoryColumnFactory(factory.django.DjangoModelFactory):
+class CategoryColumnFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.CategoryColumn]
+):
     class Meta:
         model = models.CategoryColumn
 
@@ -114,7 +120,9 @@ class CategoryColumnFactory(factory.django.DjangoModelFactory):
         return url if action is None else url + action + "/"
 
 
-class CategoryGroupFactory(factory.django.DjangoModelFactory):
+class CategoryGroupFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.CategoryGroup]
+):
     class Meta:
         model = models.CategoryGroup
 
@@ -135,7 +143,10 @@ class CategoryGroupFactory(factory.django.DjangoModelFactory):
         return url if action is None else url + action + "/"
 
 
-class CategoryComponentFactory(factory.django.DjangoModelFactory):
+class CategoryComponentFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.CategoryComponent],
+):
     class Meta:
         model = models.CategoryComponent
 
@@ -194,7 +205,10 @@ class OfferingFactory(
         )
 
 
-class ReferralFactory(factory.django.DjangoModelFactory):
+class ReferralFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[pid_models.DataciteReferral],
+):
     class Meta:
         model = pid_models.DataciteReferral
         exclude = ["scope"]
@@ -236,7 +250,9 @@ class OfferingReferralFactory(ReferralFactory):
         model = pid_models.DataciteReferral
 
 
-class SectionFactory(factory.django.DjangoModelFactory):
+class SectionFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Section]
+):
     class Meta:
         model = models.Section
 
@@ -244,7 +260,9 @@ class SectionFactory(factory.django.DjangoModelFactory):
     category = factory.SubFactory(CategoryFactory)
 
 
-class AttributeFactory(factory.django.DjangoModelFactory):
+class AttributeFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Attribute]
+):
     class Meta:
         model = models.Attribute
 
@@ -253,7 +271,9 @@ class AttributeFactory(factory.django.DjangoModelFactory):
 
 
 @factory.django.mute_signals(signals.pre_save, signals.post_save)
-class ScreenshotFactory(factory.django.DjangoModelFactory):
+class ScreenshotFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Screenshot]
+):
     class Meta:
         model = models.Screenshot
 
@@ -276,7 +296,9 @@ class ScreenshotFactory(factory.django.DjangoModelFactory):
         return url if action is None else url + action + "/"
 
 
-class PlanFactory(factory.django.DjangoModelFactory):
+class PlanFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Plan]
+):
     class Meta:
         model = models.Plan
 
@@ -309,7 +331,10 @@ class PlanFactory(factory.django.DjangoModelFactory):
         return url if action is None else url + action + "/"
 
 
-class OfferingComponentFactory(factory.django.DjangoModelFactory):
+class OfferingComponentFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.OfferingComponent],
+):
     class Meta:
         model = models.OfferingComponent
 
@@ -319,7 +344,9 @@ class OfferingComponentFactory(factory.django.DjangoModelFactory):
     billing_type = models.OfferingComponent.BillingTypes.FIXED
 
 
-class PlanComponentFactory(factory.django.DjangoModelFactory):
+class PlanComponentFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.PlanComponent]
+):
     class Meta:
         model = models.PlanComponent
 
@@ -334,7 +361,9 @@ class PlanComponentFactory(factory.django.DjangoModelFactory):
         return url if action is None else url + action + "/"
 
 
-class OrderFactory(factory.django.DjangoModelFactory):
+class OrderFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Order]
+):
     class Meta:
         model = models.Order
         rename = {"order_attributes": "attributes"}
@@ -373,7 +402,9 @@ class OrderFactory(factory.django.DjangoModelFactory):
         return url if action is None else url + action + "/"
 
 
-class ResourceFactory(factory.django.DjangoModelFactory):
+class ResourceFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Resource]
+):
     class Meta:
         model = models.Resource
 
@@ -397,7 +428,9 @@ class ResourceFactory(factory.django.DjangoModelFactory):
         return url if action is None else url + action + "/"
 
 
-class OfferingFileFactory(factory.django.DjangoModelFactory):
+class OfferingFileFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.OfferingFile]
+):
     class Meta:
         model = models.OfferingFile
 
@@ -420,7 +453,9 @@ class OfferingFileFactory(factory.django.DjangoModelFactory):
         return url if action is None else url + action + "/"
 
 
-class ComponentUsageFactory(factory.django.DjangoModelFactory):
+class ComponentUsageFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.ComponentUsage]
+):
     class Meta:
         model = models.ComponentUsage
 
@@ -438,7 +473,10 @@ class ComponentUsageFactory(factory.django.DjangoModelFactory):
     )
 
 
-class ResourcePlanPeriodFactory(factory.django.DjangoModelFactory):
+class ResourcePlanPeriodFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.ResourcePlanPeriod],
+):
     class Meta:
         model = models.ResourcePlanPeriod
 
@@ -447,7 +485,9 @@ class ResourcePlanPeriodFactory(factory.django.DjangoModelFactory):
     start = core_utils.month_start(timezone.now())
 
 
-class RobotAccountFactory(factory.django.DjangoModelFactory):
+class RobotAccountFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.RobotAccount]
+):
     class Meta:
         model = models.RobotAccount
 
@@ -468,7 +508,9 @@ class RobotAccountFactory(factory.django.DjangoModelFactory):
         return "http://testserver" + reverse("marketplace-robot-account-list")
 
 
-class SectionFactory(factory.django.DjangoModelFactory):
+class SectionFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Section]
+):
     class Meta:
         model = models.Section
 
@@ -489,7 +531,10 @@ class SectionFactory(factory.django.DjangoModelFactory):
         return "http://testserver" + reverse("marketplace-section-list")
 
 
-class IntegrationStatusFactory(factory.django.DjangoModelFactory):
+class IntegrationStatusFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.IntegrationStatus],
+):
     class Meta:
         model = models.IntegrationStatus
 

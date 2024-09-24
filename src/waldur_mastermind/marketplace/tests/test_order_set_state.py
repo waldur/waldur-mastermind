@@ -147,7 +147,7 @@ class OrderCancelTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
     def test_cannot_cancel_order_if_it_is_not_supported_by_offering(self):
-        self.offering.type = "OpenStack.Admin"
+        self.offering.type = "OpenStack.Tenant"
         self.offering.save()
         response = self.cancel_order("staff")
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)

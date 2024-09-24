@@ -4,7 +4,7 @@ from rest_framework import test
 from waldur_mastermind.common.utils import parse_datetime
 from waldur_mastermind.marketplace import callbacks, models
 from waldur_mastermind.marketplace.tests import factories
-from waldur_openstack.openstack_tenant.tests.factories import InstanceFactory
+from waldur_openstack.tests.factories import InstanceFactory
 
 
 @freeze_time("2018-11-01")

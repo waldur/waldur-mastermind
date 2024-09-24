@@ -11,14 +11,14 @@ from waldur_core.core.models import User
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.quotas import exceptions as quotas_exceptions
 from waldur_core.structure.models import ProjectRole, ServiceSettings
-from waldur_openstack.openstack.models import Flavor, Image, SecurityGroup, Tenant
-from waldur_openstack.openstack.utils import (
+from waldur_openstack import models as openstack_models
+from waldur_openstack.models import Flavor, Image, SecurityGroup, Tenant
+from waldur_openstack.utils import (
     filter_property_for_tenant,
     is_flavor_valid_for_tenant,
     is_volume_type_valid_for_tenant,
 )
-from waldur_openstack.openstack_tenant import models as openstack_tenant_models
-from waldur_openstack.openstack_tenant.views import InstanceViewSet
+from waldur_openstack.views import InstanceViewSet
 from waldur_rancher.backend import RancherBackend
 
 from . import exceptions, models
@@ -26,13 +26,15 @@ from . import exceptions, models
 logger = logging.getLogger(__name__)
 
 
-def get_unique_node_name(name, tenant_settings, rancher_settings, existing_names=None):
+def get_unique_node_name(
+    name, tenant: openstack_models.Tenant, rancher_settings, existing_names=None
+):
     existing_names = existing_names or []
     # This has a potential risk of race condition when requests to create nodes come exactly at the same time.
     # But we consider this use case highly unrealistic and avoid creation of additional complexity
     # to protect against it
-    names_instances = openstack_tenant_models.Instance.objects.filter(
-        service_settings=tenant_settings
+    names_instances = openstack_models.Instance.objects.filter(
+        tenant=tenant
     ).values_list("name", flat=True)
     names_nodes = models.Node.objects.filter(
         cluster__service_settings=rancher_settings
@@ -54,11 +56,10 @@ def expand_added_nodes(
     nodes,
     project,
     rancher_settings,
-    tenant_settings,
+    tenant,
     ssh_public_key,
     security_groups=None,
 ):
-    tenant: Tenant = tenant_settings.scope
     valid_images = filter_property_for_tenant(Image.objects.all(), tenant)
     try:
         base_image_name = rancher_settings.get_option("base_image_name")
@@ -100,7 +101,8 @@ def expand_added_nodes(
             "ram": flavor.ram,
             "image": image.uuid.hex,
             "subnet": subnet.uuid.hex,
-            "service_settings": tenant_settings.uuid.hex,
+            "tenant": tenant.uuid.hex,
+            "service_settings": tenant.service_settings.uuid.hex,
             "project": project.uuid.hex,
             "security_groups": [group.uuid.hex for group in security_groups],
             "system_volume_size": system_volume_size,
@@ -124,7 +126,7 @@ def expand_added_nodes(
 
         node["name"] = get_unique_node_name(
             cluster_name + "-rancher-node",
-            tenant_settings,
+            tenant,
             rancher_settings,
             existing_names=[n["name"] for n in nodes if n.get("name")],
         )
@@ -132,7 +134,7 @@ def expand_added_nodes(
         if ssh_public_key:
             node["initial_data"]["ssh_public_key"] = ssh_public_key.uuid.hex
 
-    validate_quotas(nodes, tenant_settings, project)
+    validate_quotas(nodes, tenant, project)
 
 
 def validate_data_volumes(data_volumes, tenant):
@@ -203,11 +205,11 @@ def validate_flavor(flavor, roles, tenant: Tenant, cpu=None, memory=None):
     return flavor
 
 
-def validate_quotas(nodes, tenant_settings, project):
+def validate_quotas(nodes, tenant, project):
     quota_sources = [
         project,
         project.customer,
-        tenant_settings,
+        tenant,
     ]
     for quota_name in ["storage", "vcpu", "ram"]:
         requested = sum(get_node_quota(quota_name, node) for node in nodes)
@@ -621,7 +623,7 @@ def check_permissions_for_console_log():
 
 
 def get_management_tenant(cluster):
-    from waldur_openstack.openstack.models import Tenant
+    from waldur_openstack.models import Tenant
 
     tenant = None
 

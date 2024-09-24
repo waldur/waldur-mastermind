@@ -24,8 +24,8 @@ from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.models import ServiceSettings
 from waldur_core.structure.permissions import is_administrator
 from waldur_mastermind.common import utils as common_utils
-from waldur_openstack.openstack import models as openstack_models
-from waldur_openstack.openstack import views as openstack_views
+from waldur_openstack import models as openstack_models
+from waldur_openstack import views as openstack_views
 from waldur_rancher import (
     exceptions,
     executors,
