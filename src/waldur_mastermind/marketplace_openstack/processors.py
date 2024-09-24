@@ -1,11 +1,15 @@
 from django.utils.translation import gettext_lazy as _
+from rest_framework import serializers
+from rest_framework.reverse import reverse
 
 from waldur_mastermind.marketplace import processors, signals
-from waldur_mastermind.marketplace.processors import get_order_post_data
+from waldur_mastermind.marketplace.processors import (
+    copy_attributes,
+    get_order_post_data,
+)
 from waldur_mastermind.marketplace_openstack import views
-from waldur_openstack.openstack import models as openstack_models
-from waldur_openstack.openstack import views as openstack_views
-from waldur_openstack.openstack_tenant import views as tenant_views
+from waldur_openstack import models as openstack_models
+from waldur_openstack import views as openstack_views
 
 from . import utils
 
@@ -56,8 +60,27 @@ class TenantDeleteProcessor(processors.DeleteScopedResourceProcessor):
     viewset = openstack_views.TenantViewSet
 
 
-class InstanceCreateProcessor(processors.BaseCreateResourceProcessor):
-    viewset = tenant_views.MarketplaceInstanceViewSet
+class TenantMixin:
+    def get_post_data(self):
+        if not self.order.offering.scope:
+            raise serializers.ValidationError(
+                "Offering is invalid: it does not have a scope."
+            )
+        project_url = reverse(
+            "project-detail", kwargs={"uuid": self.order.project.uuid}
+        )
+        tenant_url = reverse(
+            "openstack-tenant-detail", kwargs={"uuid": self.order.offering.scope.uuid}
+        )
+        return dict(
+            tenant=tenant_url,
+            project=project_url,
+            **copy_attributes(self.fields, self.order),
+        )
+
+
+class InstanceCreateProcessor(TenantMixin, processors.BaseCreateResourceProcessor):
+    viewset = openstack_views.MarketplaceInstanceViewSet
 
     fields = (
         "name",
@@ -81,11 +104,11 @@ class InstanceCreateProcessor(processors.BaseCreateResourceProcessor):
 
 
 class InstanceDeleteProcessor(processors.DeleteScopedResourceProcessor):
-    viewset = tenant_views.MarketplaceInstanceViewSet
+    viewset = openstack_views.MarketplaceInstanceViewSet
 
 
-class VolumeCreateProcessor(processors.BaseCreateResourceProcessor):
-    viewset = tenant_views.MarketplaceVolumeViewSet
+class VolumeCreateProcessor(TenantMixin, processors.BaseCreateResourceProcessor):
+    viewset = openstack_views.MarketplaceVolumeViewSet
 
     fields = (
         "name",
@@ -98,4 +121,4 @@ class VolumeCreateProcessor(processors.BaseCreateResourceProcessor):
 
 
 class VolumeDeleteProcessor(processors.DeleteScopedResourceProcessor):
-    viewset = tenant_views.MarketplaceVolumeViewSet
+    viewset = openstack_views.MarketplaceVolumeViewSet

@@ -12,8 +12,8 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.exceptions import RuntimeStateException
 from waldur_core.structure.signals import resource_imported
 from waldur_mastermind.common import utils as common_utils
-from waldur_openstack.openstack_tenant import models as openstack_tenant_models
-from waldur_openstack.openstack_tenant.views import MarketplaceInstanceViewSet
+from waldur_openstack import models as openstack_models
+from waldur_openstack.views import MarketplaceInstanceViewSet
 from waldur_rancher.enums import LONGHORN_NAME, LONGHORN_NAMESPACE
 from waldur_rancher.utils import SyncUser
 
@@ -25,9 +25,7 @@ logger = logging.getLogger(__name__)
 class CreateNodeTask(core_tasks.Task):
     def execute(self, instance, user_id):
         node = instance
-        content_type = ContentType.objects.get_for_model(
-            openstack_tenant_models.Instance
-        )
+        content_type = ContentType.objects.get_for_model(openstack_models.Instance)
         flavor = node.initial_data["flavor"]
         system_volume_size = node.initial_data["system_volume_size"]
         system_volume_type = node.initial_data.get("system_volume_type")
@@ -35,8 +33,9 @@ class CreateNodeTask(core_tasks.Task):
         image = node.initial_data["image"]
         subnet = node.initial_data["subnet"]
         security_groups = node.initial_data["security_groups"]
-        service_settings = node.initial_data["service_settings"]
-        project = node.initial_data["project"]
+        service_settings: str = node.initial_data["service_settings"]
+        tenant: str = node.initial_data["tenant"]
+        project: str = node.initial_data["project"]
         user = auth.get_user_model().objects.get(pk=user_id)
         ssh_public_key = node.initial_data.get("ssh_public_key")
 
@@ -47,6 +46,7 @@ class CreateNodeTask(core_tasks.Task):
             "service_settings": reverse(
                 "servicesettings-detail", kwargs={"uuid": service_settings}
             ),
+            "tenant": reverse("openstack-tenant-detail", kwargs={"uuid": tenant}),
             "project": reverse("project-detail", kwargs={"uuid": project}),
             "system_volume_size": system_volume_size,
             "system_volume_type": system_volume_type
@@ -93,7 +93,7 @@ class CreateNodeTask(core_tasks.Task):
             raise exceptions.RancherException(response.data)
 
         instance_uuid = response.data["uuid"]
-        instance = openstack_tenant_models.Instance.objects.get(uuid=instance_uuid)
+        instance = openstack_models.Instance.objects.get(uuid=instance_uuid)
         node.content_type = content_type
         node.object_id = instance.id
         node.state = models.Node.States.CREATING

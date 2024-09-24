@@ -6,8 +6,8 @@ from waldur_mastermind.marketplace.callbacks import create_resource_plan_period
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.utils import create_offering_components
 from waldur_mastermind.marketplace_openstack import TENANT_TYPE
-from waldur_openstack.openstack import models as openstack_models
-from waldur_openstack.openstack.tests import fixtures as openstack_fixtures
+from waldur_openstack import models as openstack_models
+from waldur_openstack.tests import fixtures as openstack_fixtures
 
 TenantQuotas = openstack_models.Tenant.Quotas
 

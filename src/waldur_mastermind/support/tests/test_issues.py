@@ -12,10 +12,10 @@ from waldur_mastermind.support import models, utils
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 from waldur_mastermind.support.tests import base, factories
 from waldur_mastermind.support.tests.base import load_resource
-from waldur_openstack.openstack.tests.factories import FloatingIPFactory, PortFactory
-from waldur_openstack.openstack_tenant.tests import (
-    fixtures as openstack_tenant_fixtures,
+from waldur_openstack.tests import (
+    fixtures as openstack_fixtures,
 )
+from waldur_openstack.tests.factories import FloatingIPFactory, PortFactory
 
 
 @ddt
@@ -638,7 +638,7 @@ class IssueFilterTest(base.BaseTest):
             customer=self.fixture.customer, project=self.fixture.project
         )
         self.url = factories.IssueFactory.get_list_url()
-        self.openstack_fixture = openstack_tenant_fixtures.OpenStackTenantFixture()
+        self.openstack_fixture = openstack_fixtures.OpenStackFixture()
         self.issue.resource = self.openstack_fixture.instance
         self.issue.save()
 

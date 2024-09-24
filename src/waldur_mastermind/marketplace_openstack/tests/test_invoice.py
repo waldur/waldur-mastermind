@@ -18,9 +18,10 @@ from waldur_mastermind.marketplace_openstack import (
     STORAGE_MODE_FIXED,
     STORAGE_TYPE,
 )
-from waldur_openstack.openstack.tests.factories import FlavorFactory
-from waldur_openstack.openstack_base.tests.fixtures import OpenStackFixture
-from waldur_openstack.openstack_tenant.tests.fixtures import OpenStackTenantFixture
+from waldur_openstack.tests.factories import FlavorFactory
+from waldur_openstack.tests.fixtures import (
+    OpenStackFixture,
+)
 
 from .. import TENANT_TYPE
 
@@ -145,7 +146,7 @@ class StorageModeInvoiceTest(BaseTenantInvoiceTest):
         # Arrange
         super().setUp()
         fixture = OpenStackFixture()
-        tenant = fixture.openstack_tenant
+        tenant = fixture.tenant
         offering_component = marketplace_models.OfferingComponent.objects.create(
             offering=self.offering,
             type="gigabytes_gpfs",
@@ -236,7 +237,7 @@ class SharedInstanceTest(test.APITransactionTestCase):
                 billing_type=marketplace_models.OfferingComponent.BillingTypes.USAGE,
             )
 
-        fixture = OpenStackTenantFixture()
+        fixture = OpenStackFixture()
         resource = marketplace_factories.ResourceFactory(
             offering=offering,
             attributes={

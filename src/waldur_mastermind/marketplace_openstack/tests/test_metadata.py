@@ -1,15 +1,15 @@
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_openstack.tests.utils import BaseOpenStackTest
-from waldur_openstack.openstack.tests import factories as openstack_factories
-from waldur_openstack.openstack_tenant.tests import (
-    fixtures as openstack_tenant_fixtures,
+from waldur_openstack.tests import factories as openstack_factories
+from waldur_openstack.tests import (
+    fixtures as openstack_fixtures,
 )
 
 
 class VolumeMetadataTest(BaseOpenStackTest):
     def setUp(self):
         super().setUp()
-        self.fixture = openstack_tenant_fixtures.OpenStackTenantFixture()
+        self.fixture = openstack_fixtures.OpenStackFixture()
 
         self.volume = self.fixture.volume
         self.resource = marketplace_factories.ResourceFactory(scope=self.volume)
@@ -93,7 +93,7 @@ class VolumeMetadataTest(BaseOpenStackTest):
 class NetworkMetadataTest(BaseOpenStackTest):
     def setUp(self):
         super().setUp()
-        self.fixture = openstack_tenant_fixtures.OpenStackTenantFixture()
+        self.fixture = openstack_fixtures.OpenStackFixture()
         self.instance = self.fixture.instance
         self.resource = marketplace_factories.ResourceFactory(scope=self.instance)
 
@@ -158,7 +158,7 @@ class NetworkMetadataTest(BaseOpenStackTest):
 class HypervisorHostnameMetadataTest(BaseOpenStackTest):
     def setUp(self):
         super().setUp()
-        self.fixture = openstack_tenant_fixtures.OpenStackTenantFixture()
+        self.fixture = openstack_fixtures.OpenStackFixture()
         self.instance = self.fixture.instance
         self.resource = marketplace_factories.ResourceFactory(scope=self.instance)
 
@@ -176,7 +176,7 @@ class HypervisorHostnameMetadataTest(BaseOpenStackTest):
 class RouterMetadataTest(BaseOpenStackTest):
     def setUp(self):
         super().setUp()
-        self.fixture = openstack_tenant_fixtures.OpenStackTenantFixture()
+        self.fixture = openstack_fixtures.OpenStackFixture()
         self.tenant = self.fixture.tenant
         self.resource = marketplace_factories.ResourceFactory(scope=self.tenant)
 

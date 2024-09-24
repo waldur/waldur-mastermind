@@ -15,15 +15,15 @@ based on restored volumes and backup metadata.
 ## REST API
 
 To create new backup, issue POST request with instance, backup name
-and description to `/api/openstacktenant-backups/` endpoint. backup
+and description to `/api/openstack-backups/` endpoint. backup
 has fields `state` and `runtime_state` that indicate backup creation
 progress.
 
 It is possible to update backup name and description with POST
-request against `/api/openstacktenant-backups/<uuid>/` endpoint.
+request against `/api/openstack-backups/<uuid>/` endpoint.
 
 To restore backup - issue POST request with backup, new tenant and
-new instance flavor against `/api/openstacktenant-backups/<uuid>/restore/`
+new instance flavor against `/api/openstack-backups/<uuid>/restore/`
 endpoint. Make sure that flavor is big enough for instance. You can
 check backup metadata to get stored instance minimum ram, cores and
 storage. On successful start of the restoration, endpoint will return

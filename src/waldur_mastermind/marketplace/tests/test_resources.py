@@ -22,7 +22,7 @@ from waldur_mastermind.marketplace.tests import helpers as test_helpers
 from waldur_mastermind.marketplace.tests import utils as test_utils
 from waldur_mastermind.marketplace.tests.fixtures import MarketplaceFixture
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
-from waldur_openstack.openstack.tests import factories as openstack_factories
+from waldur_openstack.tests import factories as openstack_factories
 
 
 class ResourceGetTest(test.APITransactionTestCase):

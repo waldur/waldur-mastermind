@@ -11,7 +11,7 @@ from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
 
 from waldur_core.core import models as core_models
-from waldur_core.core.fields import JSONField
+from waldur_core.core.mixins import ActionMixin
 from waldur_core.structure import models as structure_models
 
 
@@ -30,15 +30,15 @@ class ProjectTemplate(
         )
 
 
-class Project(structure_models.BaseResource, core_models.RuntimeStateMixin):
+class Project(
+    ActionMixin, structure_models.BaseResource, core_models.RuntimeStateMixin
+):
     class Permissions(structure_models.BaseResource.Permissions):
         pass
 
     template = models.ForeignKey(
         on_delete=models.CASCADE, to=ProjectTemplate, blank=True, null=True
     )
-    action = models.CharField(max_length=50, blank=True)
-    action_details = JSONField(default=dict)
 
     def get_backend(self):
         return super().get_backend(project=self.backend_id)

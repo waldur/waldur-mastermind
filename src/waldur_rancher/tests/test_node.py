@@ -5,11 +5,8 @@ import pkg_resources
 from rest_framework import status, test
 
 from waldur_core.structure.tests.factories import SshPublicKeyFactory
-from waldur_openstack.openstack.tests import (
+from waldur_openstack.tests import (
     factories as openstack_factories,
-)
-from waldur_openstack.openstack_tenant.tests import (
-    factories as openstack_tenant_factories,
 )
 from waldur_rancher import models, tasks
 from waldur_rancher import utils as rancher_utils
@@ -417,10 +414,8 @@ class NodeLinkTest(test_cluster.BaseClusterCreateTest):
         self.cluster = factories.ClusterFactory(settings=self.settings)
         self.node = factories.NodeFactory(cluster=self.cluster)
         self.url = factories.NodeFactory.get_url(self.node, "link_openstack")
-        self.instance = openstack_tenant_factories.InstanceFactory()
-        self.instance_url = openstack_tenant_factories.InstanceFactory.get_url(
-            self.instance
-        )
+        self.instance = openstack_factories.InstanceFactory()
+        self.instance_url = openstack_factories.InstanceFactory.get_url(self.instance)
 
     def test_link_is_enabled_when_read_only_mode_is_disabled(self):
         self.client.force_authenticate(self.fixture.staff)
@@ -459,7 +454,7 @@ class NodeUnlinkTest(test_cluster.BaseClusterCreateTest):
         super().setUp()
         self.settings = factories.RancherServiceSettingsFactory()
         self.cluster = factories.ClusterFactory(settings=self.settings)
-        self.instance = openstack_tenant_factories.InstanceFactory()
+        self.instance = openstack_factories.InstanceFactory()
         self.node = factories.NodeFactory(cluster=self.cluster, instance=self.instance)
         self.url = factories.NodeFactory.get_url(self.node, "unlink_openstack")
 
@@ -496,8 +491,7 @@ class NodeActionsTest(test.APITransactionTestCase):
 
         self.url = factories.NodeFactory.get_url(self.node, action=self.action)
         self.mock_path = mock.patch(
-            "waldur_openstack.openstack_tenant.backend.OpenStackTenantBackend.%s"
-            % self.backend_method
+            "waldur_openstack.backend.OpenStackBackend.%s" % self.backend_method
         )
         self.mock_console = self.mock_path.start()
         self.mock_console.return_value = self.backend_return_value

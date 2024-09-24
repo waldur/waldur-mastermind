@@ -5,7 +5,6 @@ from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from django.db import transaction
 from rest_framework import exceptions
 
-from waldur_core.structure import models as structure_models
 from waldur_core.structure.backend import ServiceBackend
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import plugins
@@ -24,14 +23,12 @@ from waldur_mastermind.marketplace_openstack import (
     TENANT_TYPE,
     VOLUME_TYPE,
 )
-from waldur_openstack.openstack import models as openstack_models
-from waldur_openstack.openstack.utils import (
+from waldur_openstack import models as openstack_models
+from waldur_openstack.backend import OpenStackBackend
+from waldur_openstack.utils import (
     is_valid_volume_type_name,
     volume_type_name_to_quota_name,
 )
-from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
-from waldur_openstack.openstack_tenant import backend as openstack_tenant_backend
-from waldur_openstack.openstack_tenant import models as openstack_tenant_models
 
 logger = logging.getLogger(__name__)
 TenantQuotas = openstack_models.Tenant.Quotas
@@ -57,14 +54,14 @@ def get_offering_category_for_volume():
     return marketplace_models.Category.objects.get(default_volume_category=True)
 
 
-def get_category_and_name_for_offering_type(offering_type, service_settings):
+def get_category_and_name_for_offering_type(offering_type, tenant):
     if offering_type == INSTANCE_TYPE:
         category = get_offering_category_for_instance()
-        name = get_offering_name_for_instance(service_settings)
+        name = get_offering_name_for_instance(tenant)
         return category, name
     elif offering_type == VOLUME_TYPE:
         category = get_offering_category_for_volume()
-        name = get_offering_name_for_volume(service_settings)
+        name = get_offering_name_for_volume(tenant)
         return category, name
 
 
@@ -99,7 +96,7 @@ def import_volume_metadata(resource):
 
 def import_instance_metadata(resource: marketplace_models.Resource):
     import_resource_metadata(resource)
-    instance: openstack_tenant_models.Instance = resource.scope
+    instance: openstack_models.Instance = resource.scope
     resource.backend_metadata["internal_ips"] = instance.internal_ips
     resource.backend_metadata["external_ips"] = instance.external_ips
     bootable_volume = instance.volumes.filter(bootable=True).first()
@@ -110,20 +107,18 @@ def import_instance_metadata(resource: marketplace_models.Resource):
     resource.save(update_fields=["backend_metadata"])
 
 
-def get_offering(offering_type, service_settings):
+def get_offering(offering_type, scope):
     try:
-        return marketplace_models.Offering.objects.get(
-            scope=service_settings, type=offering_type
-        )
+        return marketplace_models.Offering.objects.get(scope=scope, type=offering_type)
     except ObjectDoesNotExist:
         logger.warning(
-            "Marketplace offering is not found. " "ServiceSettings ID: %s",
-            service_settings.id,
+            "Marketplace offering is not found. Scope: %s",
+            scope,
         )
     except MultipleObjectsReturned:
         logger.warning(
-            "Multiple marketplace offerings are found. " "ServiceSettings ID: %s",
-            service_settings.id,
+            "Multiple marketplace offerings are found. Scope: %s",
+            scope,
         )
 
 
@@ -242,12 +237,10 @@ def update_limits(order):
     backend.push_tenant_quotas(tenant, quotas)
     with transaction.atomic():
         _apply_quotas(tenant, quotas)
-        for target in structure_models.ServiceSettings.objects.filter(scope=tenant):
-            _apply_quotas(target, quotas)
 
 
-def import_limits_when_storage_mode_is_switched(resource):
-    tenant = resource.scope
+def import_limits_when_storage_mode_is_switched(resource: marketplace_models.Resource):
+    tenant: openstack_models.Tenant = resource.scope
 
     if not tenant:
         return
@@ -283,8 +276,6 @@ def push_tenant_limits(resource):
     backend.push_tenant_quotas(tenant, quotas)
     with transaction.atomic():
         _apply_quotas(tenant, quotas)
-        for target in structure_models.ServiceSettings.objects.filter(scope=tenant):
-            _apply_quotas(target, quotas)
 
 
 def restore_limits(resource):
@@ -309,45 +300,26 @@ def restore_limits(resource):
     update_limits(order)
 
 
-def get_tenant_backend_of_tenant(tenant):
-    try:
-        service_settings = structure_models.ServiceSettings.objects.get(scope=tenant)
-    except structure_models.ServiceSettings.DoesNotExist:
-        logger.error(
-            "An import of instances and volumes is impossible because service settings do not exist."
-            "Tenant: %s" % tenant
-        )
-        return
+def import_instances_and_volumes_of_tenant(tenant: openstack_models.Tenant):
+    backend = OpenStackBackend(tenant.service_settings)
 
-    return openstack_tenant_backend.OpenStackTenantBackend(service_settings)
-
-
-def import_instances_and_volumes_of_tenant(tenant):
-    tenant_backend = get_tenant_backend_of_tenant(tenant)
-
-    if not tenant_backend:
-        return
-
-    for instance in tenant_backend.get_importable_instances():
-        created_instance = tenant_backend.import_instance(
-            instance["backend_id"], tenant.project
+    for instance in backend.get_importable_instances(tenant):
+        created_instance = backend.import_instance(
+            tenant, instance["backend_id"], tenant.project
         )
         create_marketplace_resource_for_imported_resources(created_instance)
 
-    for volume in tenant_backend.get_importable_volumes():
-        created_volume = tenant_backend.import_volume(
-            volume["backend_id"], tenant.project
+    for volume in backend.get_importable_volumes(tenant):
+        created_volume = backend.import_volume(
+            tenant, volume["backend_id"], tenant.project
         )
         create_marketplace_resource_for_imported_resources(created_volume)
 
 
-def terminate_expired_instances_and_volumes_of_tenant(tenant):
-    tenant_backend = get_tenant_backend_of_tenant(tenant)
+def terminate_expired_instances_and_volumes_of_tenant(tenant: openstack_models.Tenant):
+    backend = OpenStackBackend(tenant.service_settings)
 
-    if not tenant_backend:
-        return
-
-    for instance in tenant_backend.get_expired_instances():
+    for instance in backend.get_expired_instances(tenant):
         try:
             resource = marketplace_models.Resource.objects.get(
                 project=instance.project, scope=instance
@@ -358,7 +330,7 @@ def terminate_expired_instances_and_volumes_of_tenant(tenant):
             pass
         instance.delete()
 
-    for volume in tenant_backend.get_expired_volumes():
+    for volume in backend.get_expired_volumes(tenant):
         try:
             resource = marketplace_models.Resource.objects.get(
                 project=volume.project, scope=volume
@@ -370,7 +342,7 @@ def terminate_expired_instances_and_volumes_of_tenant(tenant):
         volume.delete()
 
 
-def create_offerings_for_volume_and_instance(tenant):
+def create_offerings_for_volume_and_instance(tenant: openstack_models.Tenant):
     if not settings.WALDUR_MARKETPLACE_OPENSTACK[
         "AUTOMATICALLY_CREATE_PRIVATE_OFFERING"
     ]:
@@ -386,24 +358,11 @@ def create_offerings_for_volume_and_instance(tenant):
         )
         return
 
-    try:
-        service_settings = structure_models.ServiceSettings.objects.get(
-            scope=tenant,
-            type=openstack_tenant_apps.OpenStackTenantConfig.service_name,
-        )
-    except ObjectDoesNotExist:
-        logger.debug(
-            "Skipping offering creation for tenant because service settings "
-            "object does not exist. OpenStack tenant ID: %s",
-            tenant.id,
-        )
-        return
-
     parent_offering = resource.offering
     for offering_type in (INSTANCE_TYPE, VOLUME_TYPE):
         try:
             category, offering_name = get_category_and_name_for_offering_type(
-                offering_type, service_settings
+                offering_type, tenant
             )
         except ObjectDoesNotExist:
             logger.warning(
@@ -415,7 +374,7 @@ def create_offerings_for_volume_and_instance(tenant):
         payload = dict(
             type=offering_type,
             name=offering_name,
-            scope=service_settings,
+            scope=tenant,
             shared=False,
             category=category,
             # OpenStack instance and volume offerings are charged as a part of its tenant
@@ -465,8 +424,8 @@ def create_marketplace_resource_for_imported_resources(
         offering=offering,
     )
 
-    if isinstance(instance, openstack_tenant_models.Instance):
-        offering = offering or get_offering(INSTANCE_TYPE, instance.service_settings)
+    if isinstance(instance, openstack_models.Instance):
+        offering = offering or get_offering(INSTANCE_TYPE, instance.tenant)
 
         if not offering:
             return
@@ -477,8 +436,8 @@ def create_marketplace_resource_for_imported_resources(
         resource.save()
         import_instance_metadata(resource)
 
-    if isinstance(instance, openstack_tenant_models.Volume):
-        offering = offering or get_offering(VOLUME_TYPE, instance.service_settings)
+    if isinstance(instance, openstack_models.Volume):
+        offering = offering or get_offering(VOLUME_TYPE, instance.tenant)
 
         if not offering:
             return

@@ -778,25 +778,17 @@ class WaldurOpenstack(BaseModel):
         False,
         description="If true, generated credentials of a tenant are exposed to project users",
     )
-
-    class Meta:
-        public_settings = [
-            "TENANT_CREDENTIALS_VISIBLE",
-        ]
-
-
-class WaldurOpenstackTenant(BaseModel):
     MAX_CONCURRENT_PROVISION = Field(
         {
-            "OpenStackTenant.Instance": 4,
-            "OpenStackTenant.Volume": 4,
-            "OpenStackTenant.Snapshot": 4,
+            "OpenStack.Instance": 4,
+            "OpenStack.Volume": 4,
+            "OpenStack.Snapshot": 4,
         },
-        description="Maximum parallel executions of provisioning operations for OpenStackTenant resources",
+        description="Maximum parallel executions of provisioning operations for OpenStack resources",
     )
     ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS = Field(
         True,
-        description="If true, customer users would be offered actions for accessing OpenStack Console",
+        description="If true, customer users would be offered actions for accessing OpenStack console",
     )
     REQUIRE_AVAILABILITY_ZONE = Field(
         False,
@@ -804,7 +796,7 @@ class WaldurOpenstackTenant(BaseModel):
     )
     ALLOW_DIRECT_EXTERNAL_NETWORK_CONNECTION = Field(
         False,
-        description="If true, allow connecting of Instances directly to external networks",
+        description="If true, allow connecting of instances directly to external networks",
     )
 
     class Meta:
@@ -812,6 +804,7 @@ class WaldurOpenstackTenant(BaseModel):
             "ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS",
             "REQUIRE_AVAILABILITY_ZONE",
             "ALLOW_DIRECT_EXTERNAL_NETWORK_CONNECTION",
+            "TENANT_CREDENTIALS_VISIBLE",
         ]
 
 
@@ -824,7 +817,6 @@ class WaldurConfiguration(BaseModel):
     WALDUR_SLURM = WaldurSlurm()
     WALDUR_PID = WaldurPID()
     WALDUR_OPENSTACK = WaldurOpenstack()
-    WALDUR_OPENSTACK_TENANT = WaldurOpenstackTenant()
     WALDUR_MARKETPLACE = WaldurMarketplace()
     WALDUR_MARKETPLACE_SCRIPT = WaldurMarketplaceScript()
     WALDUR_MARKETPLACE_REMOTE_SLURM = WaldurMarketplaceRemoteSlurm()

@@ -13,6 +13,7 @@ from model_utils.models import TimeStampedModel
 from rest_framework import response, status
 
 from waldur_core.core import models
+from waldur_core.core.fields import JSONField
 
 User = get_user_model()
 
@@ -199,3 +200,11 @@ class ReviewMixin(ReviewStateMixin, TimeStampedModel):
     @property
     def is_rejected(self):
         return self.state == self.States.REJECTED
+
+
+class ActionMixin(django_models.Model):
+    class Meta:
+        abstract = True
+
+    action = django_models.CharField(max_length=50, blank=True)
+    action_details = JSONField(default=dict)

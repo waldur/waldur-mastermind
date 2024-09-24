@@ -2,7 +2,7 @@ from django.core.exceptions import MultipleObjectsReturned
 from django.core.management.base import BaseCommand
 
 from waldur_mastermind.marketplace.models import Offering, Resource
-from waldur_openstack.openstack_base.session import get_keystone_client
+from waldur_openstack.session import get_keystone_client
 
 
 class Command(BaseCommand):

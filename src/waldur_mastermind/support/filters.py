@@ -8,8 +8,8 @@ from waldur_core.core import filters as core_filters
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_openstack.openstack.models import FloatingIP, Port
-from waldur_openstack.openstack_tenant import models as openstack_tenant_models
+from waldur_openstack import models as openstack_models
+from waldur_openstack.models import FloatingIP, Port
 
 from . import models
 
@@ -110,20 +110,16 @@ class IssueFilter(django_filters.FilterSet):
         instance_ids = FloatingIP.objects.filter(address=value).values_list(
             "port__instance_id", flat=True
         )
-        content_type = ContentType.objects.get_for_model(
-            openstack_tenant_models.Instance
-        )
+        content_type = ContentType.objects.get_for_model(openstack_models.Instance)
         return queryset.filter(
             resource_object_id__in=instance_ids, resource_content_type=content_type
         )
 
     def filter_by_resource_internal_ip(self, queryset, name, value):
         instance_ids = Port.objects.filter(
-            fixed_ips__icontains=value, instance_id__isnull=False
+            fixed_ips__contains=value, instance_id__isnull=False
         ).values_list("instance_id", flat=True)
-        content_type = ContentType.objects.get_for_model(
-            openstack_tenant_models.Instance
-        )
+        content_type = ContentType.objects.get_for_model(openstack_models.Instance)
         return queryset.filter(
             resource_object_id__in=instance_ids, resource_content_type=content_type
         )

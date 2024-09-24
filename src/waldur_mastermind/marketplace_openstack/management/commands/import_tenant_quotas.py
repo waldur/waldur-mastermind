@@ -3,7 +3,7 @@ from django.contrib.contenttypes.models import ContentType
 from waldur_core.core.utils import DryRunCommand
 from waldur_mastermind.marketplace.models import Resource
 from waldur_mastermind.marketplace_openstack import utils
-from waldur_openstack.openstack.models import Tenant
+from waldur_openstack.models import Tenant
 
 
 class Command(DryRunCommand):

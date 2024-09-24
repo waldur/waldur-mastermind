@@ -6,13 +6,10 @@ from django.db import transaction
 from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
-from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
-from waldur_openstack.openstack import models as openstack_models
-from waldur_openstack.openstack.utils import volume_type_name_to_quota_name
-from waldur_openstack.openstack_tenant import apps as openstack_tenant_apps
-from waldur_openstack.openstack_tenant import models as openstack_tenant_models
+from waldur_openstack import models as openstack_models
+from waldur_openstack.utils import volume_type_name_to_quota_name
 
 from . import (
     CORES_TYPE,
@@ -48,17 +45,9 @@ def create_offering_from_tenant(sender, instance, created=False, **kwargs):
 
 
 def archive_offering(sender, instance, **kwargs):
-    service_settings = instance
-
-    if (
-        service_settings.type
-        == openstack_tenant_apps.OpenStackTenantConfig.service_name
-        and service_settings.content_type
-        == ContentType.objects.get_for_model(openstack_models.Tenant)
-    ):
-        marketplace_models.Offering.objects.filter(scope=service_settings).update(
-            state=marketplace_models.Offering.States.ARCHIVED
-        )
+    marketplace_models.Offering.objects.filter(scope=instance).update(
+        state=marketplace_models.Offering.States.ARCHIVED
+    )
 
 
 def synchronize_volume_metadata_on_save(sender, instance, created=False, **kwargs):
@@ -189,7 +178,7 @@ def synchronize_ports(sender, instance, created=False, **kwargs):
 
     for vm in vms:
         try:
-            scope = openstack_tenant_models.Instance.objects.get(id=vm)
+            scope = openstack_models.Instance.objects.get(id=vm)
             resource = marketplace_models.Resource.objects.get(scope=scope)
         except ObjectDoesNotExist:
             logger.debug(
@@ -221,7 +210,7 @@ def synchronize_floating_ips(sender, instance, created=False, **kwargs):
     }
     for ip_id in ports:
         try:
-            scope = openstack_tenant_models.Instance.objects.get(ports__id=ip_id)
+            scope = openstack_models.Instance.objects.get(ports__id=ip_id)
             resource = marketplace_models.Resource.objects.get(scope=scope)
         except ObjectDoesNotExist:
             logger.debug(
@@ -319,10 +308,10 @@ def import_resource_metadata_when_resource_is_created(
     #  and the tracker includes the fields set when the resource was created.
     instance.tracker.set_saved_fields(fields=instance.tracker.changed())
 
-    if isinstance(instance.scope, openstack_tenant_models.Volume):
+    if isinstance(instance.scope, openstack_models.Volume):
         utils.import_volume_metadata(instance)
 
-    if isinstance(instance.scope, openstack_tenant_models.Instance):
+    if isinstance(instance.scope, openstack_models.Instance):
         utils.import_instance_metadata(instance)
 
 
@@ -351,7 +340,7 @@ def update_openstack_tenant_usages(sender, instance, created=False, **kwargs):
 def create_offering_component_for_volume_type(
     sender, instance, created=False, **kwargs
 ):
-    volume_type = instance
+    volume_type: openstack_models.VolumeType = instance
 
     try:
         offering = marketplace_models.Offering.objects.get(scope=volume_type.settings)
@@ -360,7 +349,7 @@ def create_offering_component_for_volume_type(
             "Skipping synchronization of volume type with "
             "marketplace because offering for service settings is not have found. "
             "Settings ID: %s",
-            instance.settings.id,
+            volume_type.settings.id,
         )
         return
 
@@ -382,12 +371,12 @@ def create_offering_component_for_volume_type(
         content_type=content_type,
         defaults=dict(
             offering=offering,
-            name="Storage (%s)" % instance.name,
+            name="Storage (%s)" % volume_type.name,
             # It is expected that internal name of offering component related to volume type
             # matches storage quota name generated in OpenStack
-            type=volume_type_name_to_quota_name(instance.name),
+            type=volume_type_name_to_quota_name(volume_type.name),
             measured_unit="GB",
-            description=instance.description,
+            description=volume_type.description,
             billing_type=marketplace_models.OfferingComponent.BillingTypes.LIMIT,
             limit_period=marketplace_models.OfferingComponent.LimitPeriods.MONTH,
         ),
@@ -401,7 +390,7 @@ def delete_offering_component_for_volume_type(sender, instance, **kwargs):
 def synchronize_limits_when_storage_mode_is_switched(
     sender, instance, created=False, **kwargs
 ):
-    offering = instance
+    offering: marketplace_models.Offering = instance
 
     if created:
         return
@@ -476,22 +465,17 @@ def synchronize_tenant_name(sender, instance, offering=None, plan=None, **kwargs
     if not instance.tracker.has_changed("name"):
         return
 
-    service_settings = structure_models.ServiceSettings.objects.filter(
+    offerings = marketplace_models.Offering.objects.filter(
         object_id=tenant.id, content_type=ContentType.objects.get_for_model(tenant)
     )
 
-    for ss in service_settings:
-        offerings = marketplace_models.Offering.objects.filter(
-            object_id=ss.id, content_type=ContentType.objects.get_for_model(ss)
-        )
+    for offering in offerings.filter(type=INSTANCE_TYPE):
+        offering.name = utils.get_offering_name_for_instance(tenant)
+        offering.save(update_fields=["name"])
 
-        for offering in offerings.filter(type=INSTANCE_TYPE):
-            offering.name = utils.get_offering_name_for_instance(tenant)
-            offering.save(update_fields=["name"])
-
-        for offering in offerings.filter(type=VOLUME_TYPE):
-            offering.name = utils.get_offering_name_for_volume(tenant)
-            offering.save(update_fields=["name"])
+    for offering in offerings.filter(type=VOLUME_TYPE):
+        offering.name = utils.get_offering_name_for_volume(tenant)
+        offering.save(update_fields=["name"])
 
 
 def update_usage_when_instance_configuration_is_updated(

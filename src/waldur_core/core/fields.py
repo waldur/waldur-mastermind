@@ -11,16 +11,6 @@ from rest_framework import serializers
 
 from waldur_core.core import utils
 from waldur_core.core import validators as core_validators
-from waldur_core.core.validators import validate_cron_schedule
-
-
-class CronScheduleField(models.CharField):
-    description = "A cron schedule in textual form"
-
-    def __init__(self, *args, **kwargs):
-        kwargs["validators"] = [validate_cron_schedule] + kwargs.get("validators", [])
-        kwargs["max_length"] = kwargs.get("max_length", 15)
-        super().__init__(*args, **kwargs)
 
 
 class MappedChoiceField(serializers.ChoiceField):

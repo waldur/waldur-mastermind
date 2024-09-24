@@ -7,20 +7,20 @@ from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure.tests.factories import ProjectFactory
 from waldur_mastermind.common import utils as common_utils
 from waldur_mastermind.marketplace_openstack import views
-from waldur_mastermind.marketplace_openstack.tests import fixtures
-from waldur_openstack.openstack.tests import factories as openstack_factories
+from waldur_openstack.tests import factories as openstack_factories
+from waldur_openstack.tests.fixtures import OpenStackFixture
 
 
 @ddt
 class MarketplaceTenantCreateTest(test.APITransactionTestCase):
     def setUp(self):
-        self.fixture = fixtures.MarketplaceOpenStackFixture()
+        self.fixture = OpenStackFixture()
         self.view = views.MarketplaceTenantViewSet.as_view({"post": "create"})
 
     def get_valid_payload(self):
         return {
-            "service_settings": openstack_factories.OpenStackServiceSettingsFactory.get_url(
-                self.fixture.openstack_service_settings
+            "service_settings": openstack_factories.SettingsFactory.get_url(
+                self.fixture.settings
             ),
             "project": ProjectFactory.get_url(self.fixture.project),
             "name": "test_tenant",
@@ -76,13 +76,11 @@ class MarketplaceTenantCreateTest(test.APITransactionTestCase):
     def _request_with_skip_connection_extnet(self, skip_connection_extnet=False):
         payload = self.get_valid_payload()
         payload["skip_connection_extnet"] = skip_connection_extnet
-        patch = mock.patch("waldur_mastermind.marketplace_openstack.views.executors")
-        mock_executors = patch.start()
-        common_utils.create_request(self.view, self.fixture.staff, payload)
-        transmitted_skip = (
-            mock_executors.MarketplaceTenantCreateExecutor.execute.call_args[1][
-                "skip_connection_extnet"
-            ]
+        patcher = mock.patch(
+            "waldur_mastermind.marketplace_openstack.views.TenantCreateExecutor"
         )
+        mock_executors = patcher.start()
+        common_utils.create_request(self.view, self.fixture.staff, payload)
+        transmitted_skip = mock_executors.execute.call_args[1]["skip_connection_extnet"]
         mock.patch.stopall()
         return transmitted_skip

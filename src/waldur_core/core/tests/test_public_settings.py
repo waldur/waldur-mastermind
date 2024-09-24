@@ -36,7 +36,6 @@ class TestPublicSettings(TestCase):
             "WALDUR_AUTH_SAML2": {},
             "WALDUR_MARKETPLACE": {},
             "WALDUR_OPENSTACK": {},
-            "WALDUR_OPENSTACK_TENANT": {},
             "WALDUR_EXTENSION_1": {"ENABLED": False},
             "WALDUR_EXTENSION_2": {"ENABLED": True},
             "WALDUR_EXTENSION_3": {"SECRET": "secret", "INFO": "info"},

@@ -1076,7 +1076,6 @@ class ProviderOfferingDetailsSerializer(
     scope = GenericRelatedField(read_only=True)
     scope_uuid = serializers.ReadOnlyField(source="scope.uuid")
     scope_state = serializers.ReadOnlyField(source="scope.get_state_display")
-    parent_scope_uuid = serializers.ReadOnlyField(source="scope.scope.uuid")
     files = NestedOfferingFileSerializer(many=True, read_only=True)
     quotas = serializers.ReadOnlyField(source="scope.quotas")
     organization_groups = structure_serializers.OrganizationGroupSerializer(
@@ -1136,7 +1135,6 @@ class ProviderOfferingDetailsSerializer(
             "scope",
             "scope_uuid",
             "scope_state",
-            "parent_scope_uuid",
             "files",
             "quotas",
             "paused_reason",
@@ -2273,7 +2271,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
         )
 
     state = serializers.ReadOnlyField(source="get_state_display")
-    scope = core_serializers.GenericRelatedField()
+    scope = core_serializers.GenericRelatedField(read_only=True)
     resource_uuid = serializers.ReadOnlyField(source="backend_uuid")
     resource_type = serializers.ReadOnlyField(source="backend_type")
     project = serializers.HyperlinkedRelatedField(

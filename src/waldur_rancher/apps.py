@@ -10,7 +10,7 @@ class RancherConfig(AppConfig):
     def ready(self):
         from waldur_core.structure import models as structure_models
         from waldur_core.structure.registry import SupportedServices
-        from waldur_openstack.openstack_tenant.models import Instance
+        from waldur_openstack.models import Instance
 
         from . import handlers, models
         from . import signals as rancher_signals

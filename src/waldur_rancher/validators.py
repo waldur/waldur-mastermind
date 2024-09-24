@@ -4,7 +4,7 @@ from django.core.validators import RegexValidator
 from django.utils.translation import gettext_lazy as _
 from rest_framework.exceptions import ValidationError
 
-from waldur_openstack.openstack_tenant.views import (
+from waldur_openstack.views import (
     InstanceViewSet,
     MarketplaceInstanceViewSet,
 )

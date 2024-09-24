@@ -12,10 +12,9 @@ from waldur_core.structure.tests.factories import (
     SshPublicKeyFactory,
     UserFactory,
 )
-from waldur_openstack.openstack import models as openstack_models
-from waldur_openstack.openstack.tests import factories as openstack_factories
-from waldur_openstack.openstack_tenant.tests import (
-    factories as openstack_tenant_factories,
+from waldur_openstack import models as openstack_models
+from waldur_openstack.tests import (
+    factories as openstack_factories,
 )
 from waldur_rancher import exceptions, models, tasks
 from waldur_rancher.tests import factories, fixtures, utils
@@ -43,7 +42,7 @@ class ClusterGetTest(test.APITransactionTestCase):
     def test_rancher_cluster_is_exposed_for_openstack_instance(self):
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.get(
-            openstack_tenant_factories.InstanceFactory.get_url(self.fixture.instance)
+            openstack_factories.InstanceFactory.get_url(self.fixture.instance)
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(
@@ -54,7 +53,7 @@ class ClusterGetTest(test.APITransactionTestCase):
         self.fixture.node.delete()
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.get(
-            openstack_tenant_factories.InstanceFactory.get_url(self.fixture.instance)
+            openstack_factories.InstanceFactory.get_url(self.fixture.instance)
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["rancher_cluster"], None)
@@ -63,15 +62,14 @@ class ClusterGetTest(test.APITransactionTestCase):
         project = ProjectFactory(customer=self.fixture.customer)
         admin = UserFactory()
         project.add_user(admin, ProjectRole.ADMIN)
-        vm = openstack_tenant_factories.InstanceFactory(
-            service_settings=self.fixture.tenant_settings,
+        vm = openstack_factories.InstanceFactory(
+            tenant=self.fixture.tenant,
+            service_settings=self.fixture.tenant.service_settings,
             project=project,
             state=StateMixin.States.OK,
         )
         self.client.force_authenticate(admin)
-        response = self.client.get(
-            openstack_tenant_factories.InstanceFactory.get_url(vm)
-        )
+        response = self.client.get(openstack_factories.InstanceFactory.get_url(vm))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["rancher_cluster"], None)
 
@@ -112,9 +110,7 @@ class BaseClusterCreateTest(test.APITransactionTestCase):
             "name": name,
             "service_settings": ServiceSettingsFactory.get_url(self.fixture.settings),
             "project": ProjectFactory.get_url(self.fixture.project),
-            "tenant_settings": openstack_tenant_factories.OpenStackTenantServiceSettingsFactory.get_url(
-                self.fixture.tenant_settings
-            ),
+            "tenant": openstack_factories.TenantFactory.get_url(self.fixture.tenant),
             "nodes": [
                 {
                     "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
@@ -389,6 +385,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
             "image": "",
             "subnet": "",
             "service_settings": "",
+            "tenant": "",
             "project": "",
             "system_volume_size": "",
             "system_volume_type": "",

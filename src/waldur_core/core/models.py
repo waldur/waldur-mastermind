@@ -19,10 +19,11 @@ from model_utils.models import TimeStampedModel
 from reversion import revisions as reversion
 
 from waldur_core.core import managers as core_managers
-from waldur_core.core.fields import CronScheduleField, UUIDField
+from waldur_core.core.fields import UUIDField
 from waldur_core.core.utils import normalize_unicode, send_mail
 from waldur_core.core.validators import (
     MinCronValueValidator,
+    validate_cron_schedule,
     validate_name,
     validate_ssh_public_key,
 )
@@ -150,7 +151,9 @@ class ScheduleMixin(models.Model):
     class Meta:
         abstract = True
 
-    schedule = CronScheduleField(max_length=15, validators=[MinCronValueValidator(1)])
+    schedule = models.CharField(
+        max_length=15, validators=[validate_cron_schedule, MinCronValueValidator(1)]
+    )
     next_trigger_at = models.DateTimeField(null=True)
     timezone = models.CharField(
         max_length=50, default=django_timezone.get_current_timezone_name
