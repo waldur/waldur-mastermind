@@ -9,6 +9,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
+
 from waldur_core.core import models as core_models
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.models import Role
