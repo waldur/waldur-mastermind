@@ -28,6 +28,21 @@ class OpenStackExtension(WaldurExtension):
                 "schedule": timedelta(hours=12),
                 "args": (),
             },
+            "openstack-tenant-resources-list-pull-task": {
+                "task": "openstack.tenant_resources_list_pull_task",
+                "schedule": timedelta(hours=1),
+                "args": (),
+            },
+            "openstack-tenant-subresources-list-pull-task": {
+                "task": "openstack.tenant_subresources_list_pull_task",
+                "schedule": timedelta(hours=2),
+                "args": (),
+            },
+            "openstack-tenant-properties-list-pull-task": {
+                "task": "openstack.tenant_properties_list_pull_task",
+                "schedule": timedelta(hours=24),
+                "args": (),
+            },
             "openstack_mark_as_erred_old_tenants_in_deleting_state": {
                 "task": "openstack.mark_as_erred_old_tenants_in_deleting_state",
                 "schedule": timedelta(hours=24),

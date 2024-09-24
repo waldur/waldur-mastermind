@@ -251,9 +251,7 @@ class TenantImportExecutor(core_executors.ActionExecutor):
             core_tasks.BackendMethodTask().si(
                 serialized_tenant, "import_tenant_networks"
             ),
-            core_tasks.BackendMethodTask().si(
-                serialized_tenant, "import_tenant_subnets"
-            ),
+            core_tasks.BackendMethodTask().si(serialized_tenant, "pull_tenant_subnets"),
             core_tasks.BackendMethodTask().si(
                 serialized_tenant, "detect_external_network"
             ),

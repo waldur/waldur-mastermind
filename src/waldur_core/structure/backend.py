@@ -51,15 +51,11 @@ class ServiceBackend(ABC):
     def sync(self):
         self.pull_service_properties()
         self.pull_resources()
-        self.pull_subresources()
 
     def pull_service_properties(self):
         pass
 
     def pull_resources(self):
-        pass
-
-    def pull_subresources(self):
         pass
 
     def has_global_properties(self):
