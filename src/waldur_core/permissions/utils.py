@@ -81,7 +81,7 @@ def get_scope_ids(user, content_type, role=None, permission=None):
         qs = qs.filter(role__name__in=role)
     if permission:
         qs = qs.filter(role__permissions__permission=permission)
-    return qs.values_list("object_id", flat=True).distinct()
+    return qs.order_by().values_list("object_id", flat=True).distinct()
 
 
 def get_user_ids(content_type, scope_ids, role=None):

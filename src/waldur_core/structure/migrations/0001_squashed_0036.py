@@ -494,6 +494,7 @@ class Migration(migrations.Migration):
             options={
                 "abstract": False,
                 "base_manager_name": "objects",
+                "ordering": ["name"],
             },
             bases=(
                 waldur_core.core.models.DescendantMixin,

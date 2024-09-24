@@ -80,5 +80,8 @@ class Migration(migrations.Migration):
                 ),
                 ("protected_fields", models.JSONField(default=list)),
             ],
+            options={
+                "ordering": ["label"],
+            },
         ),
     ]

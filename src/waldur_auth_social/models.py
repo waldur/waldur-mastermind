@@ -64,3 +64,6 @@ class IdentityProvider(models.Model):
         blank=True,
     )
     protected_fields = models.JSONField(default=list)
+
+    class Meta:
+        ordering = ["label"]

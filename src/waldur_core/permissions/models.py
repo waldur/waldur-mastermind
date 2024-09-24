@@ -87,6 +87,9 @@ class UserRole(ScopeMixin, UuidMixin):
             current_user=current_user,
         )
 
+    class Meta:
+        ordering = ["created"]
+
 
 class RolePermission(models.Model):
     role = models.ForeignKey(
