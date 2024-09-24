@@ -231,11 +231,6 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": timedelta(hours=1),
         "args": (),
     },
-    "pull-service-subresources": {
-        "task": "waldur_core.structure.ServiceSubResourcesListPullTask",
-        "schedule": timedelta(hours=2),
-        "args": (),
-    },
     "check-expired-permissions": {
         "task": "waldur_core.permissions.check_expired_permissions",
         "schedule": timedelta(hours=24),

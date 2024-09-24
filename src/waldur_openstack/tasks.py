@@ -12,6 +12,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.quotas import exceptions as quotas_exceptions
 from waldur_core.structure import tasks as structure_tasks
 from waldur_core.structure.registry import get_resource_type
+from waldur_openstack.backend import OpenStackBackend
 
 from . import log, models, serializers, signals
 
@@ -490,3 +491,51 @@ class ThrottleProvisionStateTask(
     LimitedPerTypeThrottleMixin, structure_tasks.ThrottleProvisionStateTask
 ):
     pass
+
+
+class TenantResourcesPullTask(structure_tasks.BackgroundPullTask):
+    def pull(self, tenant: models.Tenant):
+        backend = OpenStackBackend(tenant.service_settings)
+        backend.pull_tenant_instances(tenant)
+        backend.pull_tenant_volumes(tenant)
+        backend.pull_tenant_snapshots(tenant)
+
+
+class TenantResourcesListPullTask(structure_tasks.BackgroundListPullTask):
+    name = "openstack.tenant_resources_list_pull_task"
+    pull_task = TenantResourcesPullTask
+    model = models.Tenant
+
+
+class TenantSubresourcesPullTask(structure_tasks.BackgroundPullTask):
+    def pull(self, tenant: models.Tenant):
+        backend = OpenStackBackend(tenant.service_settings)
+        backend.pull_tenant_security_groups(tenant)
+        backend.pull_tenant_server_groups(tenant)
+        backend.pull_tenant_floating_ips(tenant)
+        backend.pull_tenant_networks(tenant)
+        backend.pull_tenant_subnets(tenant)
+        backend.pull_tenant_routers(tenant)
+        backend.pull_tenant_ports(tenant)
+
+
+class TenantSubresourcesListPullTask(structure_tasks.BackgroundListPullTask):
+    name = "openstack.tenant_subresources_list_pull_task"
+    pull_task = TenantSubresourcesPullTask
+    model = models.Tenant
+
+
+class TenantPropertiesPullTask(structure_tasks.BackgroundPullTask):
+    def pull(self, tenant: models.Tenant):
+        backend = OpenStackBackend(tenant.service_settings)
+        backend.pull_tenant_volume_types(tenant)
+        backend.pull_tenant_volume_availability_zones(tenant)
+        backend.pull_tenant_instance_availability_zones(tenant)
+        backend.pull_tenant_flavors(tenant)
+        backend.pull_tenant_images(tenant)
+
+
+class TenantPropertiesListPullTask(structure_tasks.BackgroundListPullTask):
+    name = "openstack.tenant_properties_list_pull_task"
+    pull_task = TenantPropertiesPullTask
+    model = models.Tenant

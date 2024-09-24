@@ -592,7 +592,7 @@ class PullPortsTest(BaseBackendTest):
         self.setup_neutron("port_id", instance.backend_id, subnet.backend_id)
 
         # Act
-        self.backend.pull_ports()
+        self.backend.pull_tenant_ports(self.tenant)
 
         # Assert
         self.assertEqual(instance.ports.count(), 1)
@@ -607,7 +607,7 @@ class PullPortsTest(BaseBackendTest):
         self.mocked_neutron.list_ports.return_value = {"ports": []}
 
         # Act
-        self.backend.pull_ports()
+        self.backend.pull_tenant_ports(self.tenant)
 
         # Assert
         self.assertEqual(instance.ports.count(), 0)
@@ -619,7 +619,7 @@ class PullPortsTest(BaseBackendTest):
         self.setup_neutron(port.backend_id, instance.backend_id, port.subnet.backend_id)
 
         # Act
-        self.backend.pull_ports()
+        self.backend.pull_tenant_ports(self.tenant)
 
         # Assert
         port.refresh_from_db()
@@ -631,7 +631,7 @@ class PullPortsTest(BaseBackendTest):
         self.setup_neutron("port_id", "", self.fixture.port.subnet.backend_id)
 
         # Act
-        self.backend.pull_ports()
+        self.backend.pull_tenant_ports(self.tenant)
 
         # Assert
         ports = Port.objects.filter(subnet=self.fixture.subnet)
@@ -693,7 +693,7 @@ class PullPortsTest(BaseBackendTest):
         }
 
         # Act
-        self.backend.pull_ports()
+        self.backend.pull_tenant_ports(self.tenant)
 
         # Assert
         self.assertEqual(2, instance.ports.count())
@@ -750,7 +750,7 @@ class PullPortsTest(BaseBackendTest):
         }
 
         # Act
-        self.backend.pull_ports()
+        self.backend.pull_tenant_ports(self.tenant)
 
         # Assert
         port.refresh_from_db()

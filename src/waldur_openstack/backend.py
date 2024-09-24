@@ -1,7 +1,6 @@
 import functools
 import logging
 import re
-from collections import defaultdict
 
 from cinderclient import exceptions as cinder_exceptions
 from cinderclient.v2.contrib import list_extensions
@@ -240,15 +239,6 @@ class OpenStackBackend(ServiceBackend):
 
     def pull_resources(self):
         self.pull_tenants()
-
-    def pull_subresources(self):
-        self.pull_security_groups()
-        self.pull_server_groups()
-        self.pull_floating_ips()
-        self.pull_networks()
-        self.pull_subnets()
-        self.pull_routers()
-        self.pull_ports()
 
     def pull_tenants(self):
         keystone = get_keystone_client(self.admin_session)
@@ -590,39 +580,6 @@ class OpenStackBackend(ServiceBackend):
         ):
             self.pull_tenant_quotas(tenant)
 
-    def pull_floating_ips(self, tenants=None):
-        if tenants is None:
-            tenants = models.Tenant.objects.filter(
-                state=models.Tenant.States.OK,
-                service_settings=self.settings,
-            ).prefetch_related("floating_ips")
-        tenant_mappings = {tenant.backend_id: tenant for tenant in tenants}
-        if not tenant_mappings:
-            return
-
-        backend_floating_ips = self.list_floatingips(list(tenant_mappings.keys()))
-
-        tenant_floating_ips = defaultdict(list)
-        for floating_ip in backend_floating_ips:
-            tenant_id = floating_ip["tenant_id"]
-            tenant = tenant_mappings[tenant_id]
-            tenant_floating_ips[tenant].append(floating_ip)
-
-        with transaction.atomic():
-            for tenant, floating_ips in tenant_floating_ips.items():
-                self._update_tenant_floating_ips(tenant, floating_ips)
-
-            self._remove_stale_floating_ips(tenants, backend_floating_ips)
-
-    @method_decorator(create_batch_fetcher)
-    def list_floatingips(self, tenants):
-        neutron = get_neutron_client(self.admin_session)
-
-        try:
-            return neutron.list_floatingips(tenant_id=tenants)["floatingips"]
-        except neutron_exceptions.NeutronClientException as e:
-            raise OpenStackBackendError(e)
-
     @log_backend_action("pull floating IPs for tenant")
     def pull_tenant_floating_ips(self, tenant: models.Tenant):
         session = get_tenant_session(tenant)
@@ -703,40 +660,6 @@ class OpenStackBackend(ServiceBackend):
         )
 
         return floating_ip
-
-    def pull_security_groups(self, tenants=None):
-        if tenants is None:
-            tenants = models.Tenant.objects.filter(
-                state=models.Tenant.States.OK,
-                service_settings=self.settings,
-            ).prefetch_related("security_groups")
-        tenant_mappings = {tenant.backend_id: tenant for tenant in tenants}
-        if not tenant_mappings:
-            return
-
-        backend_security_groups = self.list_security_groups(
-            list(tenant_mappings.keys())
-        )
-
-        tenant_security_groups = defaultdict(list)
-        for security_group in backend_security_groups:
-            tenant_id = security_group["tenant_id"]
-            tenant = tenant_mappings[tenant_id]
-            tenant_security_groups[tenant].append(security_group)
-
-        with transaction.atomic():
-            for tenant, security_groups in tenant_security_groups.items():
-                self._update_tenant_security_groups(tenant, security_groups)
-            self._remove_stale_security_groups(tenants, backend_security_groups)
-
-    @method_decorator(create_batch_fetcher)
-    def list_security_groups(self, tenants):
-        neutron = get_neutron_client(self.admin_session)
-
-        try:
-            return neutron.list_security_groups(tenant_id=tenants)["security_groups"]
-        except neutron_exceptions.NeutronClientException as e:
-            raise OpenStackBackendError(e)
 
     def pull_security_group(self, local_security_group: models.SecurityGroup):
         session = get_tenant_session(local_security_group.tenant)
@@ -921,13 +844,6 @@ class OpenStackBackend(ServiceBackend):
 
         return security_group
 
-    def pull_routers(self):
-        for tenant in models.Tenant.objects.filter(
-            state=models.Tenant.States.OK,
-            service_settings=self.settings,
-        ):
-            self.pull_tenant_routers(tenant)
-
     def pull_tenant_routers(self, tenant: models.Tenant):
         session = get_tenant_session(tenant)
         neutron = get_neutron_client(session)
@@ -981,13 +897,6 @@ class OpenStackBackend(ServiceBackend):
             backend_id__in=remote_ids
         )
         stale_routers.delete()
-
-    def pull_ports(self):
-        for tenant in models.Tenant.objects.filter(
-            state=models.Tenant.States.OK,
-            service_settings=self.settings,
-        ):
-            self.pull_tenant_ports(tenant)
 
     def _tenant_mappings(self, queryset):
         rows = queryset.exclude(backend_id="").values("id", "backend_id")
@@ -1077,18 +986,6 @@ class OpenStackBackend(ServiceBackend):
             .exclude(backend_id__in=remote_ids)
         )
         stale_ports.delete()
-
-    def pull_networks(self):
-        tenants = (
-            models.Tenant.objects.exclude(backend_id="")
-            .filter(
-                state__in=[models.Tenant.States.OK, models.Tenant.States.UPDATING],
-                service_settings=self.settings,
-            )
-            .prefetch_related("networks")
-        )
-
-        self._pull_networks(tenants)
 
     def pull_tenant_networks(self, tenant: models.Tenant):
         self._pull_networks([tenant])
@@ -1191,6 +1088,9 @@ class OpenStackBackend(ServiceBackend):
 
         return network
 
+    def pull_tenant_subnets(self, tenant: models.Tenant):
+        self.pull_subnets(tenant)
+
     def pull_subnets(self, tenant: models.Tenant = None, network=None):
         neutron = get_neutron_client(self.admin_session)
 
@@ -1287,10 +1187,6 @@ class OpenStackBackend(ServiceBackend):
                     },
                 )
             stale_subnets.delete()
-
-    @log_backend_action()
-    def import_tenant_subnets(self, tenant: models.Tenant):
-        self.pull_subnets(tenant)
 
     def _backend_subnet_to_subnet(self, backend_subnet, **kwargs):
         subnet = models.SubNet(
@@ -3090,40 +2986,6 @@ class OpenStackBackend(ServiceBackend):
                 },
             )
         stale_groups.delete()
-
-    def list_server_groups(self, tenants):
-        nova = get_nova_client(self.admin_session)
-        try:
-            list_of_all_server_groups = nova.server_groups.list(all_projects=True)
-            return [
-                server_group
-                for server_group in list_of_all_server_groups
-                if server_group.project_id in tenants
-            ]
-        except nova_exceptions.ClientException as e:
-            raise OpenStackBackendError(e)
-
-    def pull_server_groups(self, tenants=None):
-        if tenants is None:
-            tenants = models.Tenant.objects.filter(
-                state=models.Tenant.States.OK,
-                service_settings=self.settings,
-            ).prefetch_related("server_groups")
-        tenant_mappings = {tenant.backend_id: tenant for tenant in tenants}
-        if not tenant_mappings:
-            return
-
-        backend_server_groups = self.list_server_groups(list(tenant_mappings.keys()))
-        tenant_server_groups = defaultdict(list)
-        for server_group in backend_server_groups:
-            tenant_id = server_group.project_id
-            tenant = tenant_mappings[tenant_id]
-            tenant_server_groups[tenant].append(server_group)
-
-        with transaction.atomic():
-            for tenant, server_groups in tenant_server_groups.items():
-                self._update_tenant_server_groups(tenant, server_groups)
-            self._remove_stale_server_groups(tenants, backend_server_groups)
 
     def pull_server_group(self, local_server_group: models.ServerGroup):
         session = get_tenant_session(local_server_group.tenant)

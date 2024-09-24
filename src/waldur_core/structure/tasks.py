@@ -146,12 +146,6 @@ class ServiceResourcesPullTask(BackgroundPullTask):
             backend.pull_resources()
 
 
-class ServiceSubResourcesPullTask(BackgroundPullTask):
-    def pull(self, service_settings):
-        backend = service_settings.get_backend()
-        backend.pull_subresources()
-
-
 class ServicePropertiesListPullTask(ServiceListPullTask):
     name = "waldur_core.structure.ServicePropertiesListPullTask"
     pull_task = ServicePropertiesPullTask
@@ -160,11 +154,6 @@ class ServicePropertiesListPullTask(ServiceListPullTask):
 class ServiceResourcesListPullTask(ServiceListPullTask):
     name = "waldur_core.structure.ServiceResourcesListPullTask"
     pull_task = ServiceResourcesPullTask
-
-
-class ServiceSubResourcesListPullTask(ServiceListPullTask):
-    name = "waldur_core.structure.ServiceSubResourcesListPullTask"
-    pull_task = ServiceSubResourcesPullTask
 
 
 class RetryUntilAvailableTask(core_tasks.Task):
