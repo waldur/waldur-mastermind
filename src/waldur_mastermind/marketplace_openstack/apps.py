@@ -31,7 +31,6 @@ class MarketplaceOpenStackConfig(AppConfig):
         from waldur_mastermind.marketplace import models as marketplace_models
         from waldur_mastermind.marketplace.plugins import Component, manager
         from waldur_mastermind.marketplace_openstack.registrators import (
-            OpenStackInstanceRegistrator,
             OpenStackTenantRegistrator,
         )
         from waldur_openstack import executors as tenant_executors
@@ -44,7 +43,6 @@ class MarketplaceOpenStackConfig(AppConfig):
             CORES_TYPE,
             INSTANCE_TYPE,
             RAM_TYPE,
-            SHARED_INSTANCE_TYPE,
             STORAGE_TYPE,
             TENANT_TYPE,
             VOLUME_TYPE,
@@ -79,7 +77,6 @@ class MarketplaceOpenStackConfig(AppConfig):
         marketplace_handlers.connect_resource_handlers(*resource_models)
 
         LIMIT = marketplace_models.OfferingComponent.BillingTypes.LIMIT
-        USAGE = marketplace_models.OfferingComponent.BillingTypes.USAGE
         MONTH = marketplace_models.OfferingComponent.LimitPeriods.MONTH
         manager.register(
             offering_type=TENANT_TYPE,
@@ -138,40 +135,6 @@ class MarketplaceOpenStackConfig(AppConfig):
             delete_resource_processor=processors.VolumeDeleteProcessor,
             get_importable_resources_backend_method="get_importable_volumes",
             import_resource_backend_method="import_volume",
-        )
-
-        manager.register(
-            offering_type=SHARED_INSTANCE_TYPE,
-            create_resource_processor=processors.InstanceCreateProcessor,
-            delete_resource_processor=processors.InstanceDeleteProcessor,
-            components=(
-                Component(
-                    type=CORES_TYPE,
-                    name="Cores",
-                    measured_unit="cores",
-                    billing_type=USAGE,
-                    limit_period=MONTH,
-                ),
-                Component(
-                    type=RAM_TYPE,
-                    name="RAM",
-                    measured_unit="GB",
-                    billing_type=USAGE,
-                    factor=1024,
-                    limit_period=MONTH,
-                ),
-                Component(
-                    type=STORAGE_TYPE,
-                    name="Storage",
-                    measured_unit="GB",
-                    billing_type=USAGE,
-                    factor=1024,
-                    limit_period=MONTH,
-                ),
-            ),
-            service_type=OpenStackConfig.service_name,
-            secret_attributes=get_secret_attributes,
-            components_filter=components_filter,
         )
 
         signals.post_save.connect(
@@ -274,7 +237,6 @@ class MarketplaceOpenStackConfig(AppConfig):
         )
 
         OpenStackTenantRegistrator.connect()
-        OpenStackInstanceRegistrator.connect()
 
         signals.post_save.connect(
             handlers.create_offering_component_for_volume_type,
@@ -309,13 +271,6 @@ class MarketplaceOpenStackConfig(AppConfig):
             sender=openstack_models.Tenant,
             dispatch_uid="waldur_mastermind.marketplace_openstack."
             "import_instances_and_volumes_if_tenant_has_been_imported_if_tenant_has_been_pulled",
-        )
-
-        signals.post_save.connect(
-            handlers.update_usage_when_instance_configuration_is_updated,
-            sender=marketplace_models.Resource,
-            dispatch_uid="waldur_mastermind.marketplace_openstack."
-            "update_usage_when_instance_configuration_is_updated",
         )
 
         signals.post_save.connect(
