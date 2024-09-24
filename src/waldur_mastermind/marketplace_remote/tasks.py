@@ -496,7 +496,9 @@ class UsagePullTask(BackgroundPullTask):
 
         start_date_str = start_date.strftime("%Y-%m-%d")
 
-        logger.info("Pulling resource % usages from %s", local_resource, start_date_str)
+        logger.info(
+            "Pulling resource %s usages from %s", local_resource, start_date_str
+        )
 
         remote_usages = client.list_component_usages(
             local_resource.backend_id,
