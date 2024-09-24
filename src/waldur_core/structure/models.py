@@ -678,6 +678,7 @@ class Project(
 
     class Meta:
         base_manager_name = "objects"
+        ordering = ["name"]
 
 
 class CustomerPermissionReview(core_models.UuidMixin):

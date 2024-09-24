@@ -188,6 +188,7 @@ class Migration(migrations.Migration):
             ],
             options={
                 "unique_together": {("resource", "type")},
+                "ordering": ["created"],
             },
         ),
         migrations.AlterField(

@@ -1510,6 +1510,7 @@ class RobotAccount(
 
     class Meta:
         unique_together = ("resource", "type")
+        ordering = ["created"]
 
     def get_log_fields(self):
         return (
