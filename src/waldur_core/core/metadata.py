@@ -224,7 +224,7 @@ class WaldurCore(BaseModel):
         'For example: {"label": "Helpdesk", "url": "`https://example.com/`"}',
     )
     USER_MANDATORY_FIELDS: list[str] = Field(
-        ["full_name", "email"],
+        ["first_name", "last_name", "email"],
         description="List of user profile attributes that would be required for filling in HomePort. "
         "Note that backend will not be affected. If a mandatory field is missing in profile, "
         "a profile edit view will be forced upon user on any HomePort logged in action. "
