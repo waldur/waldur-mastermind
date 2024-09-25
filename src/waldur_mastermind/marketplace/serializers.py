@@ -1269,7 +1269,7 @@ class ProviderOfferingDetailsSerializer(
             "password": service.password,
             "domain": service.domain,
             "token": service.token,
-            **getattr(service, "options", {}),
+            **service.options,
         }
 
 
