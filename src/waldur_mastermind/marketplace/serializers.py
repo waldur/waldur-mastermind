@@ -1262,12 +1262,14 @@ class ProviderOfferingDetailsSerializer(
         if not service:
             return {}
         return {
-            "backend_url": service.backend_url,
-            "username": service.username,
-            "password": service.password,
-            "domain": service.domain,
-            "token": service.token,
-            **service.options,
+            "backend_url": getattr(service, "backend_url", None),
+            "username": getattr(service, "username", None),
+            "password": getattr(service, "password", None),
+            "domain": getattr(service, "domain", None),
+            "token": getattr(service, "token", None),
+            "user_username": getattr(service, "user_username", None),
+            "user_password": getattr(service, "user_password", None),
+            **getattr(service, "options", {}),
         }
 
 
