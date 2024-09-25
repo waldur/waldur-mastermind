@@ -1259,16 +1259,16 @@ class ProviderOfferingDetailsSerializer(
             service = offering.scope
         except AttributeError:
             return {}
+        if isinstance(service, structure_models.BaseResource):
+            service = service.service_settings
         if not service:
             return {}
         return {
-            "backend_url": getattr(service, "backend_url", None),
-            "username": getattr(service, "username", None),
-            "password": getattr(service, "password", None),
-            "domain": getattr(service, "domain", None),
-            "token": getattr(service, "token", None),
-            "user_username": getattr(service, "user_username", None),
-            "user_password": getattr(service, "user_password", None),
+            "backend_url": service.backend_url,
+            "username": service.username,
+            "password": service.password,
+            "domain": service.domain,
+            "token": service.token,
             **getattr(service, "options", {}),
         }
 
