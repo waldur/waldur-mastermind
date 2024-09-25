@@ -473,7 +473,7 @@ class OpenStackBackend(ServiceBackend):
             raise OpenStackBackendError(e)
 
         volume_type_blacklist = parse_comma_separated_list(
-            tenant.settings.options.get("volume_type_blacklist", "")
+            tenant.service_settings.options.get("volume_type_blacklist", "")
         )
 
         local_volume_type_mapping = self._tenant_mappings(tenant.volume_types.all())
