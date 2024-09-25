@@ -142,3 +142,11 @@ class ImportableResourcesListTest(test.APITransactionTestCase):
         self.assertEqual(
             response.status_code, status.HTTP_400_BAD_REQUEST, response.data
         )
+
+    def test_get_empty_list_if_import_method_throw_exception(self):
+        self.mock_backend().get_importable_virtual_machines.side_effect = mock.Mock(
+            side_effect=Exception("Test")
+        )
+        response = self.list_resources(shared=True, user="staff")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])

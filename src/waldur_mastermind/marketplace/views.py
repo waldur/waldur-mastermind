@@ -820,10 +820,19 @@ class ProviderOfferingViewSet(
             )
 
         backend = offering.scope.get_backend()
-        if isinstance(offering.scope, structure_models.BaseResource):
-            resources = getattr(backend, method)(offering.scope)
-        else:
-            resources = getattr(backend, method)()
+        try:
+            if isinstance(offering.scope, structure_models.BaseResource):
+                resources = getattr(backend, method)(offering.scope)
+            else:
+                resources = getattr(backend, method)()
+        except Exception as e:
+            resources = []
+            logger.error(
+                "Listing importable resources of offering %s failed. Error %s",
+                offering,
+                str(e),
+            )
+
         page = self.paginate_queryset(resources)
         return self.get_paginated_response(page)
 
