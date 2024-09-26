@@ -186,6 +186,11 @@ class MarketplaceSection(NotificationSection):
         "A notification about project ending. The recipients are project managers and customer owners.",
     )
 
+    notification_about_resource_ending = Notification(
+        "notification_about_resource_ending",
+        "A notification about resource ending. The recipients are project managers and customer owners.",
+    )
+
     marketplace_resource_update_limits_failed = Notification(
         "marketplace_resource_update_limits_failed",
         "A notification of failed resource limits update",

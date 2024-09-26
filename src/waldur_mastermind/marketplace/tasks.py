@@ -411,6 +411,41 @@ def notification_about_project_ending():
             )
 
 
+@shared_task(name="waldur_mastermind.marketplace.notification_about_resource_ending")
+def notification_about_resource_ending():
+    date_1 = timezone.datetime.today().date() + datetime.timedelta(days=1)
+    date_7 = timezone.datetime.today().date() + datetime.timedelta(days=7)
+    expired_resources = marketplace_models.Resource.objects.exclude(
+        end_date__isnull=True
+    ).filter(Q(end_date=date_1) | Q(end_date=date_7))
+
+    for resource in expired_resources:
+        users = (
+            resource.project.get_users()
+            .exclude(email="")
+            .exclude(notifications_enabled=False)
+        )
+
+        resource_url = core_utils.format_homeport_link(
+            "resource-details/{resource_uuid}/",
+            resource_uuid=resource.uuid.hex,
+        )
+
+        for user in users:
+            context = {
+                "resource_url": resource_url,
+                "resource": resource,
+                "user": user,
+                "delta": (resource.end_date - timezone.datetime.today().date()).days,
+            }
+            core_utils.broadcast_mail(
+                "marketplace",
+                "notification_about_resource_ending",
+                context,
+                [user.email],
+            )
+
+
 @shared_task(name="waldur_mastermind.marketplace.send_metrics")
 def send_metrics():
     if not core_models.Feature.objects.filter(key="telemetry.send_metrics").exists():
