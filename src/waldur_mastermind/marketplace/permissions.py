@@ -72,7 +72,7 @@ def user_can_reject_order_as_consumer(request, view, order=None):
     raise exceptions.PermissionDenied()
 
 
-def user_can_list_importable_resources(request, view, offering=None):
+def user_can_list_importable_resources(request, view, offering: models.Offering = None):
     if not offering:
         return
 
@@ -86,10 +86,10 @@ def user_can_list_importable_resources(request, view, offering=None):
         )
 
     # Import private offerings must be available for admins and managers
-    if offering.scope and offering.scope.scope and offering.scope.scope.project:
-        project = offering.scope.scope.project
-        if has_permission(request, PermissionEnum.LIST_IMPORTABLE_RESOURCES, project):
-            return
+    if offering.project and has_permission(
+        request, PermissionEnum.LIST_IMPORTABLE_RESOURCES, offering.project
+    ):
+        return
 
     if not has_permission(
         request, PermissionEnum.LIST_IMPORTABLE_RESOURCES, offering.customer

@@ -4,7 +4,7 @@ import django_filters
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Q
+from django.db.models import Q, QuerySet
 from django.utils.translation import gettext_lazy as _
 from django_filters.widgets import BooleanWidget
 from rest_framework import exceptions as rf_exceptions
@@ -177,7 +177,7 @@ class OfferingCustomersFilterBackend(BaseFilterBackend):
 
 
 class OfferingImportableFilterBackend(BaseFilterBackend):
-    def filter_queryset(self, request, queryset, view):
+    def filter_queryset(self, request, queryset: QuerySet[models.Offering], view):
         if "importable" in request.query_params:
             queryset = queryset.filter(
                 type__in=plugins.manager.get_importable_offering_types()
@@ -188,14 +188,6 @@ class OfferingImportableFilterBackend(BaseFilterBackend):
             if user.is_staff:
                 return queryset
 
-            queryset = queryset.filter(shared=False)
-
-            owned_offerings_ids = set(
-                queryset.filter(
-                    customer__in=get_connected_customers(user, RoleEnum.CUSTOMER_OWNER)
-                ).values_list("id", flat=True)
-            )
-
             # Import private offerings must be available for admins and managers
             projects_ids = set(
                 get_connected_projects(
@@ -203,18 +195,10 @@ class OfferingImportableFilterBackend(BaseFilterBackend):
                 )
             )
 
-            used_offerings_ids = {
-                offering.id
-                for offering in queryset.all()
-                if (
-                    offering.scope
-                    and offering.scope.scope
-                    and offering.scope.scope.project
-                    and offering.scope.scope.project.id in projects_ids
-                )
-            }
-
-            return queryset.filter(id__in=owned_offerings_ids | used_offerings_ids)
+            return queryset.filter(shared=False).filter(
+                Q(customer__in=get_connected_customers(user, RoleEnum.CUSTOMER_OWNER))
+                | Q(project__in=projects_ids)
+            )
         return queryset
 
 
