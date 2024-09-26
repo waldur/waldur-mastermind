@@ -721,8 +721,28 @@ def resource_has_been_changed(sender, instance, created=False, **kwargs):
 
     changed = []
 
+    def get_relative_object_name(field_name, value):
+        if not value:
+            return ""
+
+        try:
+            return str(
+                getattr(models.Resource, field_name.replace("_id", ""))
+                .get_queryset()
+                .get(id=value)
+            )
+        except ObjectDoesNotExist:
+            return ""
+
     for field, old_value in instance.tracker.changed().items():
-        if field in ("modified", "backend_metadata"):
+        if field in (
+            "modified",
+            "backend_metadata",
+            "object_id",
+            "content_type_id",
+            "options",
+            "error_message",
+        ):
             continue
 
         if field == "state":
@@ -730,6 +750,14 @@ def resource_has_been_changed(sender, instance, created=False, **kwargs):
                 models.Resource(state=old_value)
             )
             new_value = instance.get_state_display()
+        elif field == "project_id":
+            old_value = get_relative_object_name("project_id", old_value)
+            new_value = get_relative_object_name("project_id", getattr(instance, field))
+        elif field == "offering_id":
+            old_value = get_relative_object_name("offering_id", old_value)
+            new_value = get_relative_object_name(
+                "offering_id", getattr(instance, field)
+            )
         else:
             new_value = getattr(instance, field)
 

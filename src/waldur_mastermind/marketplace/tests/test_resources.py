@@ -837,6 +837,20 @@ class ResourceUpdateTest(test.APITransactionTestCase):
             1,
         )
 
+    def test_log_message_includes_name_of_relative_object(self):
+        new_project = ProjectFactory()
+        self.resource.project = new_project
+        self.resource.save()
+        self.assertEqual(
+            logging_models.Event.objects.filter(
+                event_type="marketplace_resource_has_been_changed",
+                message__contains=self.resource.name,
+            )
+            .filter(message__contains=str(new_project))
+            .count(),
+            1,
+        )
+
 
 @ddt
 class ResourceSetEndDateByProviderTest(test.APITransactionTestCase):
