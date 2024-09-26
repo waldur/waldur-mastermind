@@ -521,8 +521,9 @@ def log_marketplace_resource_has_been_changed(resource, changed):
     template = (
         "Marketplace resource '{{ resource_name }}' has been changed. "
         "{% for field in changed %}"
-        "Field '{{ field.name }}': from {{ field.from|safe }} to {{ field.to|safe }}"
-        "{% if forloop.last %}.{% else %},{% endif %}"
+        "{% if forloop.first %}Field{% else %}field{% endif %} "
+        "'{{ field.name }}': from {{ field.from|safe }} to {{ field.to|safe }}"
+        "{% if forloop.last %}.{% else %}, {% endif %}"
         "{% endfor %}"
     )
 
