@@ -1,0 +1,7 @@
+Dear {{ user.full_name }},
+
+Termination date of your {{ resource.name }} is approaching and it will be deleted{% if delta == 1 %} tomorrow {% else %} in {{ delta }} days{% endif %}.
+If you are aware of that, then no actions are needed from your side.
+If you need to update resource end date, please update it in resource details {{ resource_url }}.
+
+Thank you!

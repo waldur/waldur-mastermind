@@ -1,0 +1,1 @@
+Resource {{ resource.name }} will be deleted.

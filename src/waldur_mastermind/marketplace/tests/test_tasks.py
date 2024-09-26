@@ -352,3 +352,18 @@ class ResourceEndDate(test.APITransactionTestCase):
             )
             self.assertTrue(order.state, models.Order.States.EXECUTING)
             self.assertEqual(order.created_by, user)
+
+    def test_notification_about_resource_ending(self):
+        self.fixtures.manager
+        self.fixtures.admin
+        self.fixtures.member
+
+        with freeze_time("2019-12-25"):
+            event_type = "notification_about_resource_ending"
+            structure_factories.NotificationFactory(key=f"marketplace.{event_type}")
+            tasks.notification_about_resource_ending()
+
+            self.assertEqual(len(mail.outbox), 3)
+            subject = "Resource %s will be deleted." % self.resource.name
+            self.assertEqual(mail.outbox[0].subject, subject)
+            self.assertTrue(self.resource.uuid.hex in mail.outbox[0].body)
