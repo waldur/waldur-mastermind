@@ -1890,9 +1890,11 @@ class OrderDetailsSerializer(BaseOrderSerializer):
             "created_by_civil_number",
             "customer_name",
             "customer_uuid",
+            "customer_slug",
             "project_name",
             "project_uuid",
             "project_description",
+            "project_slug",
             "old_plan_name",
             "new_plan_name",
             "old_plan_uuid",
@@ -1928,10 +1930,12 @@ class OrderDetailsSerializer(BaseOrderSerializer):
 
     customer_name = serializers.ReadOnlyField(source="project.customer.name")
     customer_uuid = serializers.ReadOnlyField(source="project.customer.uuid")
+    customer_slug = serializers.ReadOnlyField(source="project.customer.slug")
 
     project_name = serializers.ReadOnlyField(source="project.name")
     project_uuid = serializers.ReadOnlyField(source="project.uuid")
     project_description = serializers.ReadOnlyField(source="project.description")
+    project_slug = serializers.ReadOnlyField(source="project.slug")
 
     old_plan_name = serializers.ReadOnlyField(source="old_plan.name")
     new_plan_name = serializers.ReadOnlyField(source="plan.name")

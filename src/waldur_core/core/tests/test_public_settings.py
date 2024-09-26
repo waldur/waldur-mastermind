@@ -29,7 +29,6 @@ class TestPublicSettings(TestCase):
             "WALDUR_CORE": {},
             "WALDUR_AUTH_SOCIAL": {},
             "WALDUR_FREEIPA": {},
-            "WALDUR_KEYCLOAK": {},
             "WALDUR_HPC": {},
             "WALDUR_SLURM": {},
             "WALDUR_PID": {},
