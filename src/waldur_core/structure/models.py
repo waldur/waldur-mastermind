@@ -961,6 +961,15 @@ class BaseResource(
     def customer(self):
         return self.project.customer
 
+    @property
+    def marketplace_uuid(self):
+        from waldur_mastermind.marketplace.models import Resource
+
+        try:
+            return Resource.objects.get(scope=self).uuid
+        except (Resource.DoesNotExist, Resource.MultipleObjectsReturned):
+            return None
+
 
 class VirtualMachine(IPCoordinatesMixin, core_models.RuntimeStateMixin, BaseResource):
     def __init__(self, *args, **kwargs):

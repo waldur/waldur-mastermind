@@ -1,5 +1,8 @@
+from typing import TypeVar
+
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
+from django.db.models import QuerySet
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.managers import GenericKeyMixin
@@ -14,7 +17,10 @@ def build_filter(path, ids):
     return models.Q(**{f"{path}__in": ids})
 
 
-def filter_queryset_for_user(queryset, user):
+T = TypeVar("T")
+
+
+def filter_queryset_for_user(queryset: QuerySet[T], user) -> QuerySet[T]:
     if user is None or user.is_staff or user.is_support:
         return queryset
 
