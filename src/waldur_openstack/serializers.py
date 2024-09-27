@@ -1560,7 +1560,10 @@ class VolumeAvailabilityZoneSerializer(BaseAvailabilityZoneSerializer):
 class VolumeSerializer(structure_serializers.BaseResourceSerializer):
     action_details = serializers.JSONField(read_only=True)
     metadata = serializers.JSONField(read_only=True)
-    instance_name = serializers.SerializerMethodField()
+    instance_name = serializers.ReadOnlyField(source="instance.name")
+    instance_marketplace_uuid = serializers.ReadOnlyField(
+        source="instance.marketplace_uuid"
+    )
     type_name = serializers.CharField(source="type.name", read_only=True)
     availability_zone_name = serializers.CharField(
         source="availability_zone.name", read_only=True
@@ -1597,6 +1600,7 @@ class VolumeSerializer(structure_serializers.BaseResourceSerializer):
             "action_details",
             "instance",
             "instance_name",
+            "instance_marketplace_uuid",
             "tenant",
             "tenant_uuid",
         )
@@ -1644,10 +1648,6 @@ class VolumeSerializer(structure_serializers.BaseResourceSerializer):
             size={"required": False, "allow_null": True},
             **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs,
         )
-
-    def get_instance_name(self, volume):
-        if volume.instance:
-            return volume.instance.name
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
@@ -1910,6 +1910,9 @@ class SnapshotRestorationSerializer(
 
 class SnapshotSerializer(structure_serializers.BaseResourceActionSerializer):
     source_volume_name = serializers.ReadOnlyField(source="source_volume.name")
+    source_volume_marketplace_uuid = serializers.ReadOnlyField(
+        source="source_volume.marketplace_uuid"
+    )
     action_details = serializers.JSONField(read_only=True)
     metadata = serializers.JSONField(required=False)
     restorations = SnapshotRestorationSerializer(many=True, read_only=True)
@@ -1923,6 +1926,7 @@ class SnapshotSerializer(structure_serializers.BaseResourceActionSerializer):
             "metadata",
             "runtime_state",
             "source_volume_name",
+            "source_volume_marketplace_uuid",
             "action",
             "action_details",
             "restorations",
@@ -2997,6 +3001,9 @@ class BackupRestorationSerializer(serializers.HyperlinkedModelSerializer):
 class BackupSerializer(structure_serializers.BaseResourceActionSerializer):
     metadata = serializers.JSONField(read_only=True)
     instance_name = serializers.ReadOnlyField(source="instance.name")
+    instance_marketplace_uuid = serializers.ReadOnlyField(
+        source="instance.marketplace_uuid"
+    )
     instance_security_groups = NestedSecurityGroupSerializer(
         read_only=True, many=True, source="instance.security_groups"
     )
@@ -3018,6 +3025,7 @@ class BackupSerializer(structure_serializers.BaseResourceActionSerializer):
             "metadata",
             "instance",
             "instance_name",
+            "instance_marketplace_uuid",
             "restorations",
             "backup_schedule",
             "backup_schedule_uuid",

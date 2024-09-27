@@ -380,6 +380,9 @@ class NodeSerializer(serializers.HyperlinkedModelSerializer):
     cluster_uuid = serializers.ReadOnlyField(source="cluster.uuid")
     instance_name = serializers.ReadOnlyField(source="instance.name")
     instance_uuid = serializers.ReadOnlyField(source="instance.uuid")
+    instance_marketplace_uuid = serializers.ReadOnlyField(
+        source="instance.marketplace_uuid"
+    )
 
     class Meta:
         model = models.Node
@@ -401,6 +404,7 @@ class NodeSerializer(serializers.HyperlinkedModelSerializer):
             "instance",
             "instance_name",
             "instance_uuid",
+            "instance_marketplace_uuid",
             "controlplane_role",
             "etcd_role",
             "worker_role",
@@ -1099,12 +1103,11 @@ def get_rancher_cluster_for_openstack_instance(serializer, scope):
             return
 
         cluster = queryset.filter(tenant=scope.tenant).get()
-    except models.Cluster.DoesNotExist:
-        return None
-    except MultipleObjectsReturned:
+    except (models.Cluster.DoesNotExist, MultipleObjectsReturned):
         return None
     return {
         "name": cluster.name,
+        "marketplace_uuid": cluster.marketplace_uuid,
         "uuid": cluster.uuid,
     }
 

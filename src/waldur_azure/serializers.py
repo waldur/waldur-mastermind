@@ -352,6 +352,9 @@ class SQLDatabaseSerializer(BaseResourceSerializer):
     )
     server_name = serializers.ReadOnlyField(source="server.name")
     server_uuid = serializers.ReadOnlyField(source="server.uuid")
+    server_marketplace_uuid = serializers.ReadOnlyField(
+        source="server.marketplace_uuid"
+    )
 
     server = serializers.HyperlinkedRelatedField(
         view_name="azure-sql-server-detail",
@@ -370,6 +373,7 @@ class SQLDatabaseSerializer(BaseResourceSerializer):
             "location_name",
             "server_name",
             "server_uuid",
+            "server_marketplace_uuid",
         )
 
 
