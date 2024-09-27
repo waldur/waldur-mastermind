@@ -2322,7 +2322,6 @@ class OpenStackBackend(ServiceBackend):
                 subnet.gateway_ip = backend_subnet["gateway_ip"]
 
             # Automatically create router for subnet
-            # TODO: Ideally: Create separate model for router and create it separately.
             self.connect_subnet(subnet)
         except neutron_exceptions.NeutronException as e:
             raise OpenStackBackendError(e)
@@ -2394,26 +2393,22 @@ class OpenStackBackend(ServiceBackend):
             )
 
     def connect_subnet(self, subnet: models.SubNet):
-        try:
-            self.connect_router(
-                subnet.network.tenant,
-                subnet.network.name,
-                subnet.backend_id,
-                network_id=subnet.network.backend_id,
-            )
-        except neutron_exceptions.NeutronException as e:
-            raise OpenStackBackendError(e)
-        else:
-            subnet.is_connected = True
-            subnet.save(update_fields=["is_connected"])
+        self.connect_router(
+            subnet.network.tenant,
+            subnet.network.name,
+            subnet.backend_id,
+            network_id=subnet.network.backend_id,
+        )
+        subnet.is_connected = True
+        subnet.save(update_fields=["is_connected"])
 
-            event_logger.openstack_subnet.info(
-                "SubNet %s has been connected to network" % subnet.name,
-                event_type="openstack_subnet_updated",
-                event_context={
-                    "subnet": subnet,
-                },
-            )
+        event_logger.openstack_subnet.info(
+            "SubNet %s has been connected to network" % subnet.name,
+            event_type="openstack_subnet_updated",
+            event_context={
+                "subnet": subnet,
+            },
+        )
 
     @log_backend_action()
     def delete_subnet(self, subnet: models.SubNet):
@@ -2654,8 +2649,7 @@ class OpenStackBackend(ServiceBackend):
         return routers[0] if routers else None
 
     def _create_router(self, tenant: models.Tenant, router_name):
-        session = get_tenant_session(tenant)
-        neutron = get_neutron_client(session)
+        neutron = get_neutron_client(self.admin_session)
         create_ha_routers = bool(
             tenant.service_settings.options.get("create_ha_routers")
         )
