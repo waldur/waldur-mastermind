@@ -1551,8 +1551,7 @@ class OpenStackBackend(ServiceBackend):
 
     @log_backend_action()
     def delete_tenant_security_groups(self, tenant: models.Tenant):
-        session = get_tenant_session(tenant)
-        neutron = get_neutron_client(session)
+        neutron = get_neutron_client(self.admin_session)
 
         try:
             sgroups = neutron.list_security_groups(tenant_id=tenant.backend_id)[
