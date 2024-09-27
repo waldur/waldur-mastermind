@@ -239,6 +239,9 @@ def resource_deletion_canceled(resource: models.Resource, validate=False):
 
 
 def resource_erred_on_backend(resource: models.Resource, validate=False):
+    if resource.state == models.Resource.States.ERRED:
+        return
+
     resource.set_state_erred()
     resource.save(update_fields=["state"])
 
