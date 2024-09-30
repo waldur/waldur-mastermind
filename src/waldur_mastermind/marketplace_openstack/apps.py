@@ -33,7 +33,7 @@ class MarketplaceOpenStackConfig(AppConfig):
         from waldur_mastermind.marketplace_openstack.registrators import (
             OpenStackTenantRegistrator,
         )
-        from waldur_openstack import executors as tenant_executors
+        from waldur_openstack import executors as openstack_executors
         from waldur_openstack import models as openstack_models
         from waldur_openstack import signals as openstack_signals
         from waldur_openstack.apps import OpenStackConfig
@@ -118,6 +118,7 @@ class MarketplaceOpenStackConfig(AppConfig):
             limits_validator=utils.tenant_limits_validator,
             get_importable_resources_backend_method="get_importable_tenants",
             import_resource_backend_method="import_tenant",
+            import_resource_executor=openstack_executors.TenantImportExecutor,
         )
 
         manager.register(
@@ -126,7 +127,7 @@ class MarketplaceOpenStackConfig(AppConfig):
             delete_resource_processor=processors.InstanceDeleteProcessor,
             get_importable_resources_backend_method="get_importable_instances",
             import_resource_backend_method="import_instance",
-            import_resource_executor=tenant_executors.InstancePullExecutor,
+            import_resource_executor=openstack_executors.InstancePullExecutor,
         )
 
         manager.register(
