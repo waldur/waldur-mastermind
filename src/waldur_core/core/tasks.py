@@ -3,9 +3,10 @@ import traceback
 from uuid import uuid4
 
 from celery import Task as CeleryTask
-from celery import current_app
+from celery import current_app, shared_task
 from celery.app.task import _reprtask
 from celery.local import Proxy
+from celery.result import AsyncResult
 from celery.worker.request import Request
 from django.db import IntegrityError
 from django.db import models as django_models
@@ -530,3 +531,21 @@ class ExtensionTaskMixin(CeleryTask, metaclass=TaskType):
             logger.info(message)
             return self.AsyncResult(options.get("task_id") or str(uuid4()))
         return super().apply_async(args=args, kwargs=kwargs, **options)
+
+
+@shared_task(name="waldur_core.reset_updating_resources")
+def reset_updating_resources():
+    for model in models.ActionMixin.get_all_models():
+        for instance in model.objects.filter(
+            state=models.StateMixin.States.UPDATING
+        ).exclude(task_id=None):
+            async_result = AsyncResult(instance.task_id)
+            if async_result.ready():
+                instance_description = f"{instance.__class__.__name__} instance `{instance}` (PK: {instance.pk})"
+                logger.info(
+                    "State of %s changed from UPDATING to OK because Celery task is ready.",
+                    instance_description,
+                )
+                instance.set_ok()
+                instance.task_id = None
+                instance.save(update_fields=["state", "task_id"])

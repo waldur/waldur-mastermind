@@ -19,7 +19,7 @@ from model_utils.models import TimeStampedModel
 from reversion import revisions as reversion
 
 from waldur_core.core import managers as core_managers
-from waldur_core.core.fields import UUIDField
+from waldur_core.core.fields import JSONField, UUIDField
 from waldur_core.core.utils import normalize_unicode, send_mail
 from waldur_core.core.validators import (
     MinCronValueValidator,
@@ -738,3 +738,17 @@ class Notification(UuidMixin, DescribableMixin, TimeStampedModel):
 
     def __str__(self):
         return self.key
+
+
+class ActionMixin(StateMixin):
+    class Meta:
+        abstract = True
+
+    action = models.CharField(max_length=50, blank=True)
+    action_details = JSONField(default=dict)
+    task_id = models.CharField(max_length=155, blank=True, null=True)
+
+    @classmethod
+    @lru_cache(maxsize=1)
+    def get_all_models(cls):
+        return [model for model in apps.get_models() if issubclass(model, cls)]

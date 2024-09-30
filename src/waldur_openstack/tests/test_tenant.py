@@ -8,6 +8,7 @@ from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
+from waldur_core.core.utils import is_uuid_like
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
@@ -371,25 +372,12 @@ class TenantCreateTest(BaseTenantActionsTest):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @patch("waldur_openstack.executors.core_tasks.BackendMethodTask")
-    def test_override_external_network_id_if_exists_customer_openstack(
-        self, mock_core_tasks
-    ):
-        EXTERNAL_NETWORK_ID = "test_external_network_id"
+    def test_task_id(self):
         self.client.force_authenticate(self.fixture.staff)
-        self.fixture.settings.shared = True
-        factories.CustomerOpenStackFactory(
-            settings=self.fixture.settings,
-            customer=self.fixture.project.customer,
-            external_network_id=EXTERNAL_NETWORK_ID,
+        response = self.client.post(self.url, data=self.valid_data)
+        self.assertTrue(
+            is_uuid_like(models.Tenant.objects.get(uuid=response.data["uuid"]).task_id)
         )
-        self.client.post(self.url, data=self.valid_data)
-        mock_kwargs = [
-            s[2]
-            for s in mock_core_tasks.mock_calls
-            if "connect_tenant_to_external_network" in s[1]
-        ]
-        self.assertEqual(EXTERNAL_NETWORK_ID, mock_kwargs[0]["external_network_id"])
 
 
 @ddt

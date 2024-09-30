@@ -208,6 +208,8 @@ CELERY_TASK_QUEUES = {
 }
 CELERY_TASK_DEFAULT_QUEUE = "tasks"
 CELERY_TASK_ROUTES = ("waldur_core.server.celery.PriorityRouter",)
+CELERY_TRACK_STARTED = True
+CELERY_SEND_EVENTS = True
 
 CACHES = {
     "default": {
@@ -254,6 +256,11 @@ CELERY_BEAT_SCHEDULE = {
     "process-pending-project-invitations": {
         "task": "waldur_core.users.process_pending_project_invitations",
         "schedule": timedelta(hours=2),
+        "args": (),
+    },
+    "core-reset-updating-resources": {
+        "task": "waldur_core.reset_updating_resources",
+        "schedule": timedelta(minutes=10),
         "args": (),
     },
     "structure-set-erred-stuck-resources": {
