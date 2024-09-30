@@ -11,7 +11,6 @@ from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
 
 from waldur_core.core import models as core_models
-from waldur_core.core.mixins import ActionMixin
 from waldur_core.structure import models as structure_models
 
 
@@ -31,7 +30,9 @@ class ProjectTemplate(
 
 
 class Project(
-    ActionMixin, structure_models.BaseResource, core_models.RuntimeStateMixin
+    core_models.ActionMixin,
+    structure_models.BaseResource,
+    core_models.RuntimeStateMixin,
 ):
     class Permissions(structure_models.BaseResource.Permissions):
         pass

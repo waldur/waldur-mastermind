@@ -155,6 +155,10 @@ def handle_resource_update_success(resource):
         resource.error_message = ""
         update_fields.append("error_message")
 
+    if hasattr(resource, "task_id"):
+        resource.task_id = None
+        update_fields.append("task_id")
+
     if update_fields:
         resource.save(update_fields=update_fields)
     logger.info(

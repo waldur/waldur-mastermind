@@ -13,7 +13,6 @@ from model_utils.models import TimeStampedModel
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.fields import JSONField
-from waldur_core.core.mixins import ActionMixin
 from waldur_core.quotas import models as quotas_models
 from waldur_core.quotas.fields import QuotaField
 from waldur_core.quotas.models import QuotaModelMixin
@@ -33,7 +32,7 @@ def build_tenants_query(user):
     return Q(Q(tenants=None) | Q(tenants__in=tenants)) & Q(settings__in=settings)
 
 
-class Tenant(structure_models.PrivateCloud):
+class Tenant(core_models.ActionMixin, structure_models.PrivateCloud):
     class Quotas(QuotaModelMixin.Quotas):
         vcpu = QuotaField(default_limit=20, is_backend=True)
         ram = QuotaField(default_limit=51200, is_backend=True)
@@ -606,7 +605,7 @@ class VolumeAvailabilityZone(structure_models.BaseServiceProperty):
         return "openstack-volume-availability-zone"
 
 
-class Volume(ActionMixin, TenantQuotaMixin, structure_models.Volume):
+class Volume(core_models.ActionMixin, TenantQuotaMixin, structure_models.Volume):
     tenant = models.ForeignKey(
         on_delete=models.CASCADE, to=Tenant, related_name="volumes"
     )
@@ -690,7 +689,7 @@ class Volume(ActionMixin, TenantQuotaMixin, structure_models.Volume):
         )
 
 
-class Snapshot(ActionMixin, TenantQuotaMixin, structure_models.Snapshot):
+class Snapshot(core_models.ActionMixin, TenantQuotaMixin, structure_models.Snapshot):
     tenant = models.ForeignKey(
         on_delete=models.CASCADE, to=Tenant, related_name="snapshots"
     )
@@ -777,7 +776,9 @@ class InstanceAvailabilityZone(structure_models.BaseServiceProperty):
         return "openstack-instance-availability-zone"
 
 
-class Instance(ActionMixin, TenantQuotaMixin, structure_models.VirtualMachine):
+class Instance(
+    core_models.ActionMixin, TenantQuotaMixin, structure_models.VirtualMachine
+):
     class RuntimeStates:
         # All possible OpenStack Instance states on backend.
         # See https://docs.openstack.org/developer/nova/vmstates.html
