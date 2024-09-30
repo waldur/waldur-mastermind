@@ -242,6 +242,11 @@ class TenantImportExecutor(core_executors.ActionExecutor):
                 serialized_tenant, "create_or_update_tenant_user"
             ),
             core_tasks.BackendMethodTask().si(serialized_tenant, "pull_tenant_quotas"),
+            core_tasks.BackendMethodTask().si(serialized_tenant, "pull_tenant_images"),
+            core_tasks.BackendMethodTask().si(serialized_tenant, "pull_tenant_flavors"),
+            core_tasks.BackendMethodTask().si(
+                serialized_tenant, "pull_tenant_volume_types"
+            ),
             core_tasks.BackendMethodTask().si(
                 serialized_tenant, "pull_tenant_floating_ips"
             ),
@@ -249,11 +254,20 @@ class TenantImportExecutor(core_executors.ActionExecutor):
                 serialized_tenant, "pull_tenant_security_groups"
             ),
             core_tasks.BackendMethodTask().si(
+                serialized_tenant, "pull_tenant_server_groups"
+            ),
+            core_tasks.BackendMethodTask().si(
                 serialized_tenant, "import_tenant_networks"
             ),
             core_tasks.BackendMethodTask().si(serialized_tenant, "pull_tenant_subnets"),
             core_tasks.BackendMethodTask().si(
                 serialized_tenant, "detect_external_network"
+            ),
+            core_tasks.BackendMethodTask().si(
+                serialized_tenant, backend_method="pull_tenant_routers"
+            ),
+            core_tasks.BackendMethodTask().si(
+                serialized_tenant, backend_method="pull_tenant_ports"
             ),
             core_tasks.BackendMethodTask().si(
                 serialized_tenant, "pull_tenant_instance_availability_zones"
@@ -499,8 +513,11 @@ class ExistingTenantPullExecutor(core_executors.ActionExecutor):
                 serialized_tenant, "pull_tenant", state_transition="begin_updating"
             ),
             core_tasks.BackendMethodTask().si(serialized_tenant, "pull_tenant_quotas"),
-            # Some resources are synchronized from openstack to openstack_tenant via handlers,
-            # so for pulling them needed use serialized_tenant
+            core_tasks.BackendMethodTask().si(serialized_tenant, "pull_tenant_images"),
+            core_tasks.BackendMethodTask().si(serialized_tenant, "pull_tenant_flavors"),
+            core_tasks.BackendMethodTask().si(
+                serialized_tenant, "pull_tenant_volume_types"
+            ),
             core_tasks.BackendMethodTask().si(
                 serialized_tenant, "pull_tenant_floating_ips"
             ),
@@ -512,11 +529,6 @@ class ExistingTenantPullExecutor(core_executors.ActionExecutor):
             ),
             core_tasks.BackendMethodTask().si(
                 serialized_tenant, "pull_tenant_networks"
-            ),
-            core_tasks.BackendMethodTask().si(serialized_tenant, "pull_tenant_images"),
-            core_tasks.BackendMethodTask().si(serialized_tenant, "pull_tenant_flavors"),
-            core_tasks.BackendMethodTask().si(
-                serialized_tenant, "pull_tenant_volume_types"
             ),
             core_tasks.BackendMethodTask().si(serialized_tenant, "pull_subnets"),
             core_tasks.BackendMethodTask().si(
