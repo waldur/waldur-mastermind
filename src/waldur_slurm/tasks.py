@@ -2,6 +2,7 @@ from celery import shared_task
 
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
+from waldur_core.structure.exceptions import ServiceBackendNotImplemented
 
 from . import backend, models, utils
 
@@ -41,7 +42,13 @@ def process_role_granted(serialized_profile, serialized_structure):
     allocations = get_structure_allocations(structure)
 
     for allocation in allocations:
-        allocation.get_backend().add_user(allocation, profile.user, profile.username)
+        try:
+            allocation.get_backend().add_user(
+                allocation, profile.user, profile.username
+            )
+        except ServiceBackendNotImplemented:
+            # Ignore a case of the remote SLURM allocation
+            pass
 
 
 @shared_task(name="waldur_slurm.process_role_revoked")
