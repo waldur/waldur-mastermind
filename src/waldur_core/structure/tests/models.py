@@ -26,13 +26,13 @@ class TestNewInstance(QuotaModelMixin, structure_models.VirtualMachine):
         return ["8.8.8.8"]
 
 
-class TestSubResource(structure_models.SubResource):
+class TestSubResource(structure_models.BaseResource):
     pass
 
 
-class TestVolume(structure_models.Volume):
+class TestVolume(structure_models.Storage):
     pass
 
 
-class TestSnapshot(structure_models.Snapshot):
+class TestSnapshot(structure_models.Storage):
     pass

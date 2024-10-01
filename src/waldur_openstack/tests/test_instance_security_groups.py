@@ -47,7 +47,7 @@ class InstanceSecurityGroupsTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
         reread_instance = models.Instance.objects.get(pk=self.instance.pk)
-        reread_security_groups = list(reread_instance.security_groups.all())
+        reread_security_groups = list(reread_instance.security_groups.order_by("name"))
         self.assertEqual(reread_security_groups, self.security_groups)
 
     @patch("waldur_openstack.executors.InstanceUpdateSecurityGroupsExecutor.execute")
