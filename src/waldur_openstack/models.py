@@ -32,7 +32,12 @@ def build_tenants_query(user):
     return Q(Q(tenants=None) | Q(tenants__in=tenants)) & Q(settings__in=settings)
 
 
-class Tenant(core_models.ActionMixin, structure_models.PrivateCloud):
+class Tenant(
+    core_models.ActionMixin,
+    quotas_models.QuotaModelMixin,
+    core_models.RuntimeStateMixin,
+    structure_models.BaseResource,
+):
     class Quotas(QuotaModelMixin.Quotas):
         vcpu = QuotaField(default_limit=20, is_backend=True)
         ram = QuotaField(default_limit=51200, is_backend=True)
@@ -176,7 +181,7 @@ class VolumeType(core_models.DescribableMixin, structure_models.ServiceProperty)
         return "openstack-volume-type"
 
 
-class ServerGroup(structure_models.SubResource):
+class ServerGroup(structure_models.BaseResource):
     AFFINITY = "affinity"
 
     POLICIES = ((AFFINITY, "Affinity"),)
@@ -204,7 +209,7 @@ class ServerGroup(structure_models.SubResource):
         )
 
 
-class SecurityGroup(structure_models.SubResource):
+class SecurityGroup(structure_models.BaseResource):
     tenant = models.ForeignKey(
         on_delete=models.CASCADE, to=Tenant, related_name="security_groups"
     )
@@ -312,7 +317,7 @@ class SecurityGroupRule(
         )
 
 
-class FloatingIP(core_models.RuntimeStateMixin, structure_models.SubResource):
+class FloatingIP(core_models.RuntimeStateMixin, structure_models.BaseResource):
     tenant = models.ForeignKey(
         on_delete=models.CASCADE, to=Tenant, related_name="floating_ips"
     )
@@ -363,7 +368,7 @@ class FloatingIP(core_models.RuntimeStateMixin, structure_models.SubResource):
         self.tenant.add_quota_usage("floating_ip_count", -1)
 
 
-class Router(structure_models.SubResource):
+class Router(structure_models.BaseResource):
     tenant: Tenant = models.ForeignKey(
         on_delete=models.CASCADE, to=Tenant, related_name="routers"
     )
@@ -380,7 +385,7 @@ class Router(structure_models.SubResource):
         return "openstack-router"
 
 
-class Network(core_models.RuntimeStateMixin, structure_models.SubResource):
+class Network(core_models.RuntimeStateMixin, structure_models.BaseResource):
     tenant = models.ForeignKey(
         on_delete=models.CASCADE, to=Tenant, related_name="networks"
     )
@@ -424,7 +429,7 @@ class Network(core_models.RuntimeStateMixin, structure_models.SubResource):
         )
 
 
-class SubNet(structure_models.SubResource):
+class SubNet(structure_models.BaseResource):
     tenant: Tenant = models.ForeignKey(
         on_delete=models.CASCADE, to=Tenant, related_name="+"
     )
@@ -485,7 +490,7 @@ class SubNet(structure_models.SubResource):
         return super().get_log_fields() + ("network",)
 
 
-class Port(structure_models.SubResource):
+class Port(structure_models.BaseResource):
     tenant: Tenant = models.ForeignKey(
         on_delete=models.CASCADE, to=Tenant, related_name="ports"
     )
@@ -605,7 +610,7 @@ class VolumeAvailabilityZone(structure_models.BaseServiceProperty):
         return "openstack-volume-availability-zone"
 
 
-class Volume(core_models.ActionMixin, TenantQuotaMixin, structure_models.Volume):
+class Volume(core_models.ActionMixin, TenantQuotaMixin, structure_models.Storage):
     tenant = models.ForeignKey(
         on_delete=models.CASCADE, to=Tenant, related_name="volumes"
     )
@@ -689,7 +694,7 @@ class Volume(core_models.ActionMixin, TenantQuotaMixin, structure_models.Volume)
         )
 
 
-class Snapshot(core_models.ActionMixin, TenantQuotaMixin, structure_models.Snapshot):
+class Snapshot(core_models.ActionMixin, TenantQuotaMixin, structure_models.Storage):
     tenant = models.ForeignKey(
         on_delete=models.CASCADE, to=Tenant, related_name="snapshots"
     )
@@ -916,7 +921,7 @@ class Instance(
         return Instance.RuntimeStates.SHUTOFF
 
 
-class Backup(structure_models.SubResource):
+class Backup(structure_models.BaseResource):
     tenant = models.ForeignKey(
         on_delete=models.CASCADE, to=Tenant, related_name="backups"
     )

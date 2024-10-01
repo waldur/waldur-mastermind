@@ -704,8 +704,8 @@ class PullPortsTest(BaseBackendTest):
         actual_addresses = list(instance.ports.values_list("fixed_ips", flat=True))
         self.assertEqual(
             [
-                [{"ip_address": "10.0.0.2", "subnet_id": subnet_id}],
                 [{"ip_address": "10.0.0.3", "subnet_id": subnet_id}],
+                [{"ip_address": "10.0.0.2", "subnet_id": subnet_id}],
             ],
             actual_addresses,
         )

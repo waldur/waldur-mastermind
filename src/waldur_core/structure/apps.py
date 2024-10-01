@@ -19,7 +19,6 @@ class StructureConfig(AppConfig):
         from waldur_core.structure.models import (
             AccessSubnet,
             BaseResource,
-            SubResource,
             VirtualMachine,
         )
         from waldur_core.users.models import PermissionRequest
@@ -69,10 +68,7 @@ class StructureConfig(AppConfig):
             dispatch_uid="waldur_core.structure.handlers.revoke_roles_on_project_deletion",
         )
 
-        resource_and_subresources = set(
-            BaseResource.get_all_models() + SubResource.get_all_models()
-        )
-        for index, model in enumerate(resource_and_subresources):
+        for index, model in enumerate(BaseResource.get_all_models()):
             signals.pre_delete.connect(
                 handlers.log_resource_deleted,
                 sender=model,

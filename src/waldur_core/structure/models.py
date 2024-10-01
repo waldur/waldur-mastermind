@@ -1041,40 +1041,11 @@ class VirtualMachine(IPCoordinatesMixin, core_models.RuntimeStateMixin, BaseReso
         return []
 
 
-class PrivateCloud(
-    quotas_models.QuotaModelMixin, core_models.RuntimeStateMixin, BaseResource
-):
-    class Meta:
-        abstract = True
-
-
 class Storage(core_models.RuntimeStateMixin, BaseResource):
     size = models.PositiveIntegerField(help_text=_("Size in MiB"))
 
     class Meta:
         abstract = True
-
-
-class Volume(Storage):
-    class Meta:
-        abstract = True
-
-
-class Snapshot(Storage):
-    class Meta:
-        abstract = True
-
-
-class SubResource(BaseResource):
-    """Resource dependent object that cannot exist without resource."""
-
-    class Meta:
-        abstract = True
-
-    @classmethod
-    @lru_cache(maxsize=1)
-    def get_all_models(cls):
-        return [model for model in apps.get_models() if issubclass(model, cls)]
 
 
 class UserAgreement(core_models.UuidMixin, LoggableMixin, TimeStampedModel):
