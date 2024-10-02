@@ -997,7 +997,9 @@ class TenantSerializer(structure_serializers.BaseResourceSerializer):
         return tenant
 
 
-class _NestedSubNetSerializer(serializers.ModelSerializer):
+class NestedSubNetSerializer(serializers.ModelSerializer):
+    allocation_pools = serializers.JSONField(read_only=True)
+
     class Meta:
         model = models.SubNet
         fields = (
@@ -1179,7 +1181,7 @@ class NetworkSerializer(
     structure_serializers.FieldFilteringMixin,
     structure_serializers.BaseResourceActionSerializer,
 ):
-    subnets = _NestedSubNetSerializer(many=True, read_only=True)
+    subnets = NestedSubNetSerializer(many=True, read_only=True)
     tenant_name = serializers.CharField(source="tenant.name", read_only=True)
     tenant_uuid = serializers.CharField(source="tenant.uuid", read_only=True)
 
