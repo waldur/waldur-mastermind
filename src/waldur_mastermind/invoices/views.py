@@ -587,6 +587,9 @@ class CustomerCreditViewSet(core_views.ActionsViewSet):
     ) = [structure_permissions.is_staff]
     queryset = models.CustomerCredit.objects.all().order_by("created")
     serializer_class = serializers.CustomerCreditSerializer
+    create_serializer_class = update_serializer_class = (
+        partial_update_serializer_class
+    ) = serializers.CreateCustomerCreditSerializer
 
 
 class ProjectCreditViewSet(core_views.ActionsViewSet):

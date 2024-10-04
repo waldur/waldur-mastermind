@@ -772,13 +772,21 @@ class FinancialReportEmailSerializer(serializers.Serializer):
         return value
 
 
+class NestedOfferingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = marketplace_models.Offering
+        fields = ("uuid", "url", "type", "name")
+        extra_kwargs = {
+            "url": {
+                "view_name": "marketplace-provider-offering-detail",
+                "lookup_field": "uuid",
+            },
+        }
+
+
 class CustomerCreditSerializer(serializers.HyperlinkedModelSerializer):
-    offerings = serializers.HyperlinkedRelatedField(
-        view_name="marketplace-provider-offering-detail",
-        lookup_field="uuid",
-        queryset=marketplace_models.Offering.objects.all(),
-        required=False,
-        allow_null=True,
+    offerings = NestedOfferingSerializer(
+        read_only=True,
         many=True,
     )
 
@@ -802,6 +810,17 @@ class CustomerCreditSerializer(serializers.HyperlinkedModelSerializer):
                 "lookup_field": "uuid",
             },
         }
+
+
+class CreateCustomerCreditSerializer(CustomerCreditSerializer):
+    offerings = serializers.HyperlinkedRelatedField(
+        view_name="marketplace-provider-offering-detail",
+        lookup_field="uuid",
+        queryset=marketplace_models.Offering.objects.all(),
+        required=False,
+        allow_null=True,
+        many=True,
+    )
 
 
 class ProjectCreditSerializer(serializers.HyperlinkedModelSerializer):
