@@ -423,22 +423,8 @@ class ResourceFactory(
         return url if action is None else url + action + "/"
 
     @classmethod
-    def get_provider_resource_url(cls, resource=None, action=None):
-        if resource is None:
-            resource = ResourceFactory()
-        url = reverse(
-            "marketplace-provider-resource-detail", kwargs={"uuid": resource.uuid.hex}
-        )
-        return url if action is None else url + action + "/"
-
-    @classmethod
     def get_list_url(cls, action=None):
         url = reverse("marketplace-resource-list")
-        return url if action is None else url + action + "/"
-
-    @classmethod
-    def get_provider_resource_list_url(cls, action=None):
-        url = reverse("marketplace-provider-resource-list")
         return url if action is None else url + action + "/"
 
 
