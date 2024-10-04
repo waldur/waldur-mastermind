@@ -45,7 +45,6 @@ from waldur_core.structure.managers import (
     PrivateServiceSettingsManager,
     ServiceSettingsManager,
     SharedServiceSettingsManager,
-    StructureManager,
     filter_queryset_for_user,
     get_connected_customers,
     get_customer_users,
@@ -490,7 +489,7 @@ class ProjectType(
         return self.name
 
 
-class SoftDeletableManager(SoftDeletableManagerMixin, StructureManager):
+class SoftDeletableManager(SoftDeletableManagerMixin, models.Manager):
     pass
 
 
@@ -631,7 +630,7 @@ class Project(
     # Entities returned in manager available_objects are limited to not-deleted instances.
     # Entities returned in manager objects include deleted objects.
     available_objects = SoftDeletableManager()
-    objects = StructureManager()
+    objects = models.Manager()
 
     @property
     def is_expired(self):
