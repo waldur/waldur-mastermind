@@ -155,18 +155,8 @@ class ResourceQuerySet(django_models.QuerySet):
         return self.filter(
             Q(project__in=connected_projects)
             | Q(project__customer__in=connected_customers)
+            | Q(offering__customer__in=connected_customers)
         ).distinct()
-
-    def filter_for_offering_customer(self, user):
-        """
-        Resources are available to service provider.
-        """
-        if user.is_staff or user.is_support:
-            return self
-
-        connected_customers = get_connected_customers(user)
-
-        return self.filter(offering__customer__in=connected_customers).distinct()
 
 
 class ResourceManager(MixinManager):
