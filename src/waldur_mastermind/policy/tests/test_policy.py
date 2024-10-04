@@ -28,6 +28,10 @@ class ActionsFunctionsTest(test.APITransactionTestCase):
             "block_creation_of_new_resources"
         )
 
+        self.restrict_members_mock = mock.MagicMock()
+        self.restrict_members_mock.one_time_action = False
+        self.restrict_members_mock.__name__ = "restrict_members"
+
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.project = self.fixture.project
         self.policy = factories.ProjectEstimatedCostPolicyFactory(scope=self.project)
@@ -95,12 +99,14 @@ class ActionsFunctionsTest(test.APITransactionTestCase):
             return_value=[
                 self.notify_project_team_mock,
                 self.block_creation_of_new_resources_mock,
+                self.restrict_members_mock,
             ],
         ):
             self.create_or_update_invoice_item(self.policy.limit_cost + 1)
 
             self.notify_project_team_mock.reset_mock()
             self.block_creation_of_new_resources_mock.reset_mock()
+            self.restrict_members_mock.reset_mock()
 
             order = marketplace_factories.OrderFactory(
                 project=self.project,
@@ -113,6 +119,29 @@ class ActionsFunctionsTest(test.APITransactionTestCase):
 
             self.notify_project_team_mock.assert_not_called()
             self.block_creation_of_new_resources_mock.assert_called()
+            self.restrict_members_mock.assert_called()
+
+    def test_policy_reset_actions(self):
+        self.policy.actions = "restrict_members"
+        self.policy.save()
+        self.create_or_update_invoice_item(self.policy.limit_cost + 1)
+
+        resource = self.fixture.resource
+
+        offering = resource.offering
+        offering.secret_options["service_provider_can_create_offering_user"] = True
+        offering.save()
+
+        resource.project = self.project
+        resource.save()
+
+        resource.refresh_from_db()
+        self.assertTrue(resource.restrict_member_access)
+
+        with freeze_time("2024-10-01"):
+            check_polices()
+            resource.refresh_from_db()
+            self.assertFalse(resource.restrict_member_access)
 
     def test_has_fired(self):
         self.create_or_update_invoice_item(self.policy.limit_cost + 1)

@@ -1055,6 +1055,7 @@ class Resource(
     # Effective ID is used when resource is provisioned through remote Waldur
     effective_id = models.CharField(max_length=255, blank=True)
     requested_downscaling = models.BooleanField(default=False)
+    restrict_member_access = models.BooleanField(default=False)
 
     @property
     def customer(self):
