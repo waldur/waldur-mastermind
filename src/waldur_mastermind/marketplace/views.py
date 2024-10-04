@@ -80,7 +80,6 @@ from waldur_core.structure.managers import (
 )
 from waldur_core.structure.registry import SupportedServices, get_resource_type
 from waldur_core.structure.serializers import (
-    ProjectUserSerializer,
     get_resource_serializer_class,
 )
 from waldur_core.structure.signals import resource_imported
@@ -2493,10 +2492,14 @@ class ResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
         project = resource.project
 
         return Response(
-            ProjectUserSerializer(
+            serializers.ProjectUserSerializer(
                 instance=project.get_users(),
                 many=True,
-                context={"project": project, "request": request},
+                context={
+                    "project": project,
+                    "offering": resource.offering,
+                    "request": request,
+                },
             ).data,
             status=status.HTTP_200_OK,
         )

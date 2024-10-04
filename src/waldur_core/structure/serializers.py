@@ -24,7 +24,7 @@ from waldur_core.media.serializers import ProtectedMediaSerializerMixin
 from waldur_core.permissions.enums import SYSTEM_CUSTOMER_ROLES, PermissionEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.serializers import PermissionSerializer
-from waldur_core.permissions.utils import get_permissions, has_permission
+from waldur_core.permissions.utils import has_permission
 from waldur_core.structure import models, utils
 from waldur_core.structure.filters import filter_visible_users
 from waldur_core.structure.managers import (
@@ -673,33 +673,6 @@ class CustomerUserSerializer(
         setattr(user, "perm", permission)
         setattr(user, "role", permission and get_old_role_name(permission.role.name))
         setattr(user, "projects", projects)
-        return super().to_representation(user)
-
-
-class ProjectUserSerializer(serializers.ModelSerializer):
-    role = serializers.ReadOnlyField()
-    expiration_time = serializers.ReadOnlyField(source="perm.expiration_time")
-
-    class Meta:
-        model = User
-        fields = [
-            "url",
-            "uuid",
-            "username",
-            "full_name",
-            "email",
-            "role",
-            "expiration_time",
-        ]
-        extra_kwargs = {
-            "url": {"lookup_field": "uuid"},
-        }
-
-    def to_representation(self, user):
-        project = self.context["project"]
-        permission = get_permissions(project, user).first()
-        setattr(user, "perm", permission)
-        setattr(user, "role", permission and get_old_role_name(permission.role.name))
         return super().to_representation(user)
 
 
