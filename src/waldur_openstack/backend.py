@@ -233,8 +233,8 @@ class OpenStackBackend(ServiceBackend):
         return quotas
 
     def pull_service_properties(self):
-        self.pull_flavors()
-        self.pull_images()
+        self.remove_stale_flavors()
+        self.remove_stale_images()
         self.pull_service_settings_quotas()
 
     def pull_resources(self):
@@ -315,7 +315,7 @@ class OpenStackBackend(ServiceBackend):
             return False
         return True
 
-    def pull_images(self):
+    def remove_stale_images(self):
         glance = get_glance_client(self.admin_session)
         try:
             remote_images = glance.images.list()
@@ -324,8 +324,15 @@ class OpenStackBackend(ServiceBackend):
         models.Image.objects.filter(settings=self.settings).exclude(
             backend_id__in=[image.id for image in remote_images]
         ).delete()
+        tenant_ids = set(models.Tenant.objects.values_list("backend_id", flat=True))
+        image_ids = {
+            image.id
+            for image in remote_images
+            if image.owner not in tenant_ids and image.visibility == "private"
+        }
+        models.Image.objects.filter(backend_id__in=image_ids).delete()
 
-    def pull_flavors(self):
+    def remove_stale_flavors(self):
         nova = get_nova_client(self.admin_session)
         try:
             remote_flavors = nova.flavors.findall()
@@ -335,7 +342,7 @@ class OpenStackBackend(ServiceBackend):
             backend_id__in=[flavor.id for flavor in remote_flavors]
         ).delete()
 
-    def pull_volume_types(self):
+    def remove_stale_volume_types(self):
         cinder = get_cinder_client(self.admin_session)
         try:
             remote_volume_types = cinder.volume_types.list()
