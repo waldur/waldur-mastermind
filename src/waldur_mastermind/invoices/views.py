@@ -574,3 +574,29 @@ def send_financial_report_by_mail(request):
             status=status.HTTP_202_ACCEPTED,
         )
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class CustomerCreditViewSet(core_views.ActionsViewSet):
+    lookup_field = "uuid"
+    filter_backends = (
+        structure_filters.GenericRoleFilter,
+        DjangoFilterBackend,
+    )
+    create_permissions = update_permissions = partial_update_permissions = (
+        destroy_permissions
+    ) = [structure_permissions.is_staff]
+    queryset = models.CustomerCredit.objects.all().order_by("created")
+    serializer_class = serializers.CustomerCreditSerializer
+
+
+class ProjectCreditViewSet(core_views.ActionsViewSet):
+    lookup_field = "uuid"
+    filter_backends = (
+        structure_filters.GenericRoleFilter,
+        DjangoFilterBackend,
+    )
+    update_permissions = partial_update_permissions = destroy_permissions = [
+        structure_permissions.is_owner
+    ]
+    queryset = models.ProjectCredit.objects.all().order_by("created")
+    serializer_class = serializers.ProjectCreditSerializer

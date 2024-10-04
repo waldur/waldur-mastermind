@@ -4,11 +4,12 @@ from decimal import ROUND_HALF_UP, Decimal
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
-from rest_framework import serializers
+from rest_framework import exceptions, serializers
 
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
 from waldur_core.core import utils as core_utils
+from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
 from waldur_mastermind.common.mixins import PRICE_DECIMAL_PLACES, PRICE_MAX_DIGITS
@@ -769,3 +770,66 @@ class FinancialReportEmailSerializer(serializers.Serializer):
         if len(value) < 1:
             raise serializers.ValidationError("Provide at least one email address")
         return value
+
+
+class CustomerCreditSerializer(serializers.HyperlinkedModelSerializer):
+    offerings = serializers.HyperlinkedRelatedField(
+        view_name="marketplace-provider-offering-detail",
+        lookup_field="uuid",
+        queryset=marketplace_models.Offering.objects.all(),
+        required=False,
+        allow_null=True,
+        many=True,
+    )
+
+    class Meta:
+        model = models.CustomerCredit
+        fields = (
+            "uuid",
+            "url",
+            "value",
+            "customer",
+            "offerings",
+        )
+
+        extra_kwargs = {
+            "url": {
+                "view_name": "customer-credit-detail",
+                "lookup_field": "uuid",
+            },
+            "customer": {
+                "view_name": "customer-detail",
+                "lookup_field": "uuid",
+            },
+        }
+
+
+class ProjectCreditSerializer(serializers.HyperlinkedModelSerializer):
+    def validate_project(self, project):
+        user = self.context["request"].user
+
+        if user.is_staff or user in project.customer.get_users(CustomerRole.OWNER):
+            return project
+
+        raise exceptions.PermissionDenied()
+
+    class Meta:
+        model = models.ProjectCredit
+        fields = (
+            "uuid",
+            "url",
+            "value",
+            "project",
+            "use_organisation_credit",
+        )
+
+        extra_kwargs = {
+            "url": {
+                "view_name": "project-credit-detail",
+                "lookup_field": "uuid",
+            },
+            "project": {
+                "view_name": "project-detail",
+                "lookup_field": "uuid",
+            },
+        }

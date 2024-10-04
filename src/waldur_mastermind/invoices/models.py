@@ -6,10 +6,12 @@ from calendar import monthrange
 from dateutil.parser import parse as parse_datetime
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
-from django.db import models
+from django.db import models, transaction
+from django.db.models.aggregates import Sum
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from model_utils import FieldTracker
+from rest_framework import exceptions as rf_exceptions
 from reversion import revisions as reversion
 
 from waldur_core.core import models as core_models
@@ -155,12 +157,84 @@ class Invoice(core_models.UuidMixin, core_models.BackendMixin, models.Model):
     def number(self):
         return 100000 + self.id
 
+    def _process_credits(self):
+        credit = CustomerCredit.objects.filter(customer=self.customer).first()
+
+        if not credit or not credit.value:
+            return
+
+        items = sorted(
+            [i for i in self.items.all() if i.resource], key=InvoiceItem._price
+        )
+
+        for item in items:
+            if (
+                credit.offerings.all()
+                and item.resource.offering not in credit.offerings.all()
+            ):
+                continue
+
+            with transaction.atomic():
+                projects_credit = ProjectCredit.objects.filter(
+                    project=item.resource.project
+                ).first()
+                cost = item.total
+
+                if projects_credit:
+                    if cost >= projects_credit.value:
+                        cost -= projects_credit.value
+                        credit_compensation = projects_credit.value
+                        projects_credit.value = 0
+                        projects_credit.save()
+                        credit.value -= projects_credit.value
+                        credit.save()
+
+                        if projects_credit.use_organisation_credit:
+                            if cost >= credit.value:
+                                credit_compensation += credit.value
+                                credit.value = 0
+                                credit.save()
+                                break
+                            else:
+                                credit_compensation += cost
+                                credit.value -= cost
+                                credit.save()
+                    else:
+                        credit_compensation = cost
+                        projects_credit.value -= cost
+                        projects_credit.save()
+                        credit.value -= cost
+                        credit.save()
+                else:
+                    if cost >= credit.value:
+                        credit_compensation = credit.value
+                        credit.value = 0
+                        credit.save()
+                    else:
+                        credit_compensation = cost
+                        credit.value -= cost
+                        credit.save()
+
+                if credit_compensation:
+                    InvoiceItem.objects.create(
+                        invoice=self,
+                        unit_price=credit_compensation * -1,
+                        quantity=1,
+                        unit=InvoiceItem.Units.QUANTITY,
+                        credit=credit,
+                        name=f"Credit compensation. {item.name}",
+                    )
+                if not credit.value:
+                    break
+
     def set_created(self):
         """
         Change state from pending to billed
         """
         if self.state != self.States.PENDING:
             raise IncorrectStateException(_("Invoice must be in pending state."))
+
+        self._process_credits()
 
         if self.customer.paymentprofile_set.filter(
             is_active=True, payment_type=PaymentType.FIXED_PRICE
@@ -276,6 +350,9 @@ class InvoiceItem(
     )
     project_uuid = models.CharField(max_length=32, blank=True)
     backend_uuid = models.UUIDField(null=True, blank=True)
+    credit = models.ForeignKey(
+        "CustomerCredit", on_delete=models.SET_NULL, null=True, editable=False
+    )
 
     tracker = FieldTracker()
 
@@ -491,6 +568,75 @@ class Payment(core_models.UuidMixin, core_models.TimeStampedModel):
     @classmethod
     def get_url_name(cls):
         return "payment"
+
+
+class CustomerCredit(core_models.UuidMixin, core_models.TimeStampedModel):
+    customer = models.OneToOneField(structure_models.Customer, on_delete=models.CASCADE)
+    value = models.DecimalField(
+        default=0,
+        validators=[MinValueValidator(decimal.Decimal("0"))],
+        max_digits=11,
+        decimal_places=5,
+    )
+    offerings = models.ManyToManyField(marketplace_models.Offering)
+
+    class Permissions:
+        customer_path = "customer"
+
+    def save(self, *args, **kwargs):
+        project_total_value = (
+            ProjectCredit.objects.filter(project__customer=self.customer).aggregate(
+                sum=Sum("value")
+            )["sum"]
+            or 0
+        )
+
+        if project_total_value > self.value:
+            raise rf_exceptions.ValidationError(
+                _(
+                    "The sum of project credits cannot exceed the credit for organization."
+                )
+            )
+
+        return super().save(*args, **kwargs)
+
+
+class ProjectCredit(core_models.UuidMixin, core_models.TimeStampedModel):
+    project = models.OneToOneField(structure_models.Project, on_delete=models.CASCADE)
+    value = models.DecimalField(
+        default=0,
+        validators=[MinValueValidator(decimal.Decimal("0"))],
+        max_digits=11,
+        decimal_places=5,
+    )
+    use_organisation_credit = models.BooleanField(default=True)
+
+    class Permissions:
+        customer_path = "project__customer"
+
+    def save(self, *args, **kwargs):
+        customer_credit = CustomerCredit.objects.filter(
+            customer=self.project.customer
+        ).first()
+
+        if not customer_credit:
+            raise rf_exceptions.ValidationError(_("Customer credit does not exist."))
+
+        total_value = (
+            ProjectCredit.objects.filter(project__customer=self.project.customer)
+            .exclude(pk=self.pk)
+            .aggregate(sum=Sum("value"))["sum"]
+            or 0 + self.value
+        )
+
+        if total_value > customer_credit.value:
+            raise rf_exceptions.ValidationError(
+                _(
+                    "The sum of project credits cannot exceed the credit for organization."
+                )
+            )
+
+        return super().save(*args, **kwargs)
 
 
 reversion.register(InvoiceItem)

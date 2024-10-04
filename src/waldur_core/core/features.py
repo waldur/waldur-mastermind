@@ -191,3 +191,11 @@ class TelemetrySection(FeatureSection):
         description = "Telemetry settings"
 
     send_metrics = Feature("Send telemetry metrics.")
+
+
+class InvoiceSection(FeatureSection):
+    class Meta:
+        key = "invoice"
+        description = "Invoice settings"
+
+    display_credit_management = Feature("Display credit management.")
