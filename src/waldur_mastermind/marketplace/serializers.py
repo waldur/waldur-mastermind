@@ -33,7 +33,7 @@ from waldur_core.media.serializers import (
 )
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.models import UserRole
-from waldur_core.permissions.utils import count_users, has_permission
+from waldur_core.permissions.utils import count_users, get_permissions, has_permission
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
@@ -3476,6 +3476,46 @@ class ProviderUserSerializer(
             "email",
             "image",
         )
+
+
+class ProjectUserSerializer(serializers.ModelSerializer):
+    role = serializers.ReadOnlyField()
+    expiration_time = serializers.ReadOnlyField(source="perm.expiration_time")
+    offering_user_username = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = [
+            "url",
+            "uuid",
+            "username",
+            "full_name",
+            "email",
+            "role",
+            "expiration_time",
+            "offering_user_username",
+        ]
+        extra_kwargs = {
+            "url": {"lookup_field": "uuid"},
+        }
+
+    def get_offering_user_username(self, user):
+        offering = self.context["offering"]
+        offering_user = models.OfferingUser.objects.filter(
+            user=user, offering=offering
+        ).first()
+        return offering_user.username if offering_user else None
+
+    def to_representation(self, user):
+        project = self.context["project"]
+        permission = get_permissions(project, user).first()
+        setattr(user, "perm", permission)
+        setattr(
+            user,
+            "role",
+            permission and structure_models.get_old_role_name(permission.role.name),
+        )
+        return super().to_representation(user)
 
 
 class DetailedProviderUserSerializer(serializers.ModelSerializer):
