@@ -89,3 +89,45 @@ class PaymentFactory(factory.django.DjangoModelFactory):
     @classmethod
     def get_list_url(cls):
         return "http://testserver" + reverse("payment-list")
+
+
+class CustomerCreditFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = models.CustomerCredit
+
+    customer = factory.SubFactory(structure_factories.CustomerFactory)
+    value = 100
+
+    @classmethod
+    def get_url(cls, credit=None, action=None):
+        if credit is None:
+            credit = cls()
+        url = "http://testserver" + reverse(
+            "customer-credit-detail", kwargs={"uuid": credit.uuid.hex}
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls):
+        return "http://testserver" + reverse("customer-credit-list")
+
+
+class ProjectCreditFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = models.ProjectCredit
+
+    project = factory.SubFactory(structure_factories.ProjectFactory)
+    value = 50
+
+    @classmethod
+    def get_url(cls, credit=None, action=None):
+        if credit is None:
+            credit = cls()
+        url = "http://testserver" + reverse(
+            "project-credit-detail", kwargs={"uuid": credit.uuid.hex}
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls):
+        return "http://testserver" + reverse("project-credit-list")

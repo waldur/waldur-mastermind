@@ -129,6 +129,22 @@ class PaymentAdmin(admin.ModelAdmin):
     list_display = ("profile", "date_of_payment", "sum")
 
 
+class CustomerCreditAdmin(admin.ModelAdmin):
+    list_display = (
+        "customer",
+        "value",
+    )
+
+
+class ProjectCreditAdmin(admin.ModelAdmin):
+    list_display = (
+        "project",
+        "value",
+    )
+
+
 admin.site.register(models.Invoice, InvoiceAdmin)
 admin.site.register(models.PaymentProfile, PaymentProfileAdmin)
 admin.site.register(models.Payment, PaymentAdmin)
+admin.site.register(models.CustomerCredit, CustomerCreditAdmin)
+admin.site.register(models.ProjectCredit, ProjectCreditAdmin)

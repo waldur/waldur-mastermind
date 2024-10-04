@@ -6,6 +6,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
     dependencies = [
         ("structure", "0040_useragreement_uuid"),
+        ("permissions", "0002_import_data"),
     ]
 
     operations = [

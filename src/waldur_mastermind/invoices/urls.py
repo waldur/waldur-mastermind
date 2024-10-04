@@ -16,6 +16,16 @@ def register_in(router):
         views.PaymentViewSet,
         basename="payment",
     )
+    router.register(
+        r"customer-credits",
+        views.CustomerCreditViewSet,
+        basename="customer-credit",
+    )
+    router.register(
+        r"project-credits",
+        views.ProjectCreditViewSet,
+        basename="project-credit",
+    )
 
 
 urlpatterns = [
