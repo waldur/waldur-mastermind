@@ -149,6 +149,7 @@ class ProjectPolicy(Policy):
         policy_actions.block_modification_of_existing_resources,
         policy_actions.terminate_resources,
         policy_actions.request_downscaling,
+        policy_actions.restrict_members,
     }
 
     scope = models.ForeignKey(structure_models.Project, on_delete=models.CASCADE)
@@ -188,6 +189,7 @@ class CustomerPolicy(Policy):
         policy_actions.block_modification_of_existing_resources,
         policy_actions.terminate_resources,
         policy_actions.request_downscaling,
+        policy_actions.restrict_members,
     }
 
     scope = models.ForeignKey(structure_models.Customer, on_delete=models.CASCADE)

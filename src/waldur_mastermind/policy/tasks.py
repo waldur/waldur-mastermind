@@ -77,7 +77,7 @@ def check_polices():
                     for action in policy.get_one_time_actions():
                         action(policy)
                         logger.info(
-                            "%s action of policy %s has been triggerd.",
+                            "%s action of policy %s has been triggered.",
                             action.__name__,
                             policy.uuid.hex,
                         )
@@ -92,5 +92,10 @@ def check_polices():
                         "A policy %s has not fired.",
                         policy.uuid.hex,
                     )
+
+                    for action in policy.get_not_one_time_actions():
+                        reset_action = getattr(action, "reset", None)
+                        if reset_action:
+                            action.reset(policy)
 
             return policy

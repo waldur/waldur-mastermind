@@ -176,3 +176,57 @@ def request_downscaling(policy):
 
 
 request_downscaling.one_time_action = True
+
+
+def restrict_members(policy, _):
+    project = structure_permissions._get_project(policy.scope)
+
+    resources = marketplace_models.Resource.objects.filter(
+        offering__secret_options__service_provider_can_create_offering_user=True
+    ).exclude(state__in=(marketplace_models.Resource.States.TERMINATED,))
+
+    if project:
+        resources = resources.filter(project=project)
+    else:
+        customer = structure_permissions._get_customer(policy.scope)
+        resources = resources.filter(project__customer=customer)
+
+    resources.update(restrict_member_access=True)
+
+    logger.info(
+        "Policy action restrict_members has been triggered. Policy UUID: %s. Resources: %s",
+        policy.uuid.hex,
+        ", ".join([r.name for r in resources]),
+    )
+    log.event_logger.policy_action.info(
+        "Cost policy has been triggered and account removal has been requested. Resources: %s"
+        % ", ".join([str(r) for r in resources]),
+        event_type="restrict_members",
+        event_context={"policy_uuid": policy.uuid.hex},
+    )
+
+
+def reset_member_restriction(policy):
+    project = structure_permissions._get_project(policy.scope)
+
+    resources = marketplace_models.Resource.objects.filter(
+        offering__secret_options__service_provider_can_create_offering_user=True
+    ).exclude(state__in=(marketplace_models.Resource.States.TERMINATED,))
+
+    if project:
+        resources = resources.filter(project=project)
+    else:
+        customer = structure_permissions._get_customer(policy.scope)
+        resources = resources.filter(project__customer=customer)
+
+    resources.update(restrict_member_access=False)
+
+    logger.info(
+        "Policy action restrict_members has been reset. Policy UUID: %s. Resources: %s",
+        policy.uuid.hex,
+        ", ".join([f"{r.name} ({r.slug})" for r in resources]),
+    )
+
+
+restrict_members.one_time_action = False
+restrict_members.reset = reset_member_restriction
