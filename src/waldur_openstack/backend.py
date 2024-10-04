@@ -235,6 +235,7 @@ class OpenStackBackend(ServiceBackend):
     def pull_service_properties(self):
         self.remove_stale_flavors()
         self.remove_stale_images()
+        self.remove_stale_volume_types()
         self.pull_service_settings_quotas()
 
     def pull_resources(self):
