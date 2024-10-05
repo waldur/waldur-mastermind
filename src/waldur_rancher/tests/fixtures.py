@@ -21,7 +21,7 @@ class RancherFixture(ProjectFixture):
 
     @cached_property
     def tenant(self) -> Tenant:
-        return openstack_factories.TenantFactory()
+        return openstack_factories.TenantFactory(project=self.project)
 
     @cached_property
     def cluster(self):

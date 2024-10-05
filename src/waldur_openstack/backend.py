@@ -233,9 +233,6 @@ class OpenStackBackend(ServiceBackend):
         return quotas
 
     def pull_service_properties(self):
-        self.remove_stale_flavors()
-        self.remove_stale_images()
-        self.remove_stale_volume_types()
         self.pull_service_settings_quotas()
 
     def pull_resources(self):
@@ -315,43 +312,6 @@ class OpenStackBackend(ServiceBackend):
         if backend_rule["description"] != local_rule.description:
             return False
         return True
-
-    def remove_stale_images(self):
-        glance = get_glance_client(self.admin_session)
-        try:
-            remote_images = glance.images.list()
-        except glance_exceptions.ClientException as e:
-            raise OpenStackBackendError(e)
-        models.Image.objects.filter(settings=self.settings).exclude(
-            backend_id__in=[image.id for image in remote_images]
-        ).delete()
-        tenant_ids = set(models.Tenant.objects.values_list("backend_id", flat=True))
-        image_ids = {
-            image.id
-            for image in remote_images
-            if image.owner not in tenant_ids and image.visibility == "private"
-        }
-        models.Image.objects.filter(backend_id__in=image_ids).delete()
-
-    def remove_stale_flavors(self):
-        nova = get_nova_client(self.admin_session)
-        try:
-            remote_flavors = nova.flavors.findall()
-        except nova_exceptions.ClientException as e:
-            raise OpenStackBackendError(e)
-        models.Flavor.objects.filter(settings=self.settings).exclude(
-            backend_id__in=[flavor.id for flavor in remote_flavors]
-        ).delete()
-
-    def remove_stale_volume_types(self):
-        cinder = get_cinder_client(self.admin_session)
-        try:
-            remote_volume_types = cinder.volume_types.list()
-        except cinder_exceptions.ClientException as e:
-            raise OpenStackBackendError(e)
-        models.VolumeType.objects.filter(settings=self.settings).exclude(
-            backend_id__in=[volume_type.id for volume_type in remote_volume_types]
-        ).delete()
 
     def pull_tenant_images(self, tenant: models.Tenant):
         session = get_tenant_session(tenant)
@@ -580,13 +540,6 @@ class OpenStackBackend(ServiceBackend):
             tenant.set_quota_limit(quota_name, limit)
         for quota_name, usage in self.get_tenant_quotas_usage(tenant).items():
             tenant.set_quota_usage(quota_name, usage)
-
-    def pull_quotas(self):
-        for tenant in models.Tenant.objects.filter(
-            state=models.Tenant.States.OK,
-            service_settings=self.settings,
-        ):
-            self.pull_tenant_quotas(tenant)
 
     @log_backend_action("pull floating IPs for tenant")
     def pull_tenant_floating_ips(self, tenant: models.Tenant):

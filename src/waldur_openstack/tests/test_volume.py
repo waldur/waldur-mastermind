@@ -375,7 +375,7 @@ class BaseVolumeCreateTest(test.APITransactionTestCase):
         self.fixture = fixtures.OpenStackFixture()
         self.tenant = self.fixture.tenant
         self.openstack_settings = self.fixture.tenant.service_settings
-        self.image = factories.ImageFactory(settings=self.openstack_settings)
+        self.image = self.fixture.image
         self.image_url = factories.ImageFactory.get_url(self.image)
         self.client.force_authenticate(self.fixture.owner)
 
@@ -409,6 +409,7 @@ class VolumeNameCreateTest(BaseVolumeCreateTest):
 
     def test_volume_image_name_populated_on_instance_creation(self):
         flavor = factories.FlavorFactory(settings=self.tenant.service_settings)
+        flavor.tenants.add(self.tenant)
         flavor_url = factories.FlavorFactory.get_url(flavor)
         subnet_url = factories.SubNetFactory.get_url(self.fixture.subnet)
 
@@ -431,6 +432,7 @@ class VolumeNameCreateTest(BaseVolumeCreateTest):
 
     def test_create_instance_with_data_volumes_with_different_names(self):
         flavor = factories.FlavorFactory(settings=self.tenant.service_settings)
+        flavor.tenants.add(self.tenant)
         flavor_url = factories.FlavorFactory.get_url(flavor)
         subnet_url = factories.SubNetFactory.get_url(self.fixture.subnet)
 
@@ -473,6 +475,7 @@ class VolumeTypeCreateTest(BaseVolumeCreateTest):
         self.type = factories.VolumeTypeFactory(
             settings=self.tenant.service_settings, backend_id="ssd", name="ssd"
         )
+        self.type.tenants.add(self.tenant)
         self.type_url = factories.VolumeTypeFactory.get_url(self.type)
 
     def test_type_populated_on_volume_creation(self):
@@ -559,6 +562,7 @@ class VolumeRetypeTestCase(test.APITransactionTestCase):
             settings=self.tenant.service_settings,
             backend_id="new_volume_type_id",
         )
+        self.new_type.tenants.add(self.tenant)
 
     def retype_volume(self, user, new_type):
         url = factories.VolumeFactory.get_url(self.volume, action="retype")

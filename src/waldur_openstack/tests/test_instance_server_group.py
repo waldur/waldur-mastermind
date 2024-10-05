@@ -9,12 +9,12 @@ from . import factories, fixtures
 
 class InstanceServerGroupTest(test.APITransactionTestCase):
     def setUp(self):
-        fixture = fixtures.OpenStackFixture()
-        self.instance = fixture.instance
-        self.admin = fixture.admin
+        self.fixture = fixtures.OpenStackFixture()
+        self.instance = self.fixture.instance
+        self.admin = self.fixture.admin
         self.client.force_authenticate(self.admin)
 
-        self.server_group = factories.ServerGroupFactory.create(tenant=fixture.tenant)
+        self.server_group = self.fixture.server_group
         self.instance.server_group = self.server_group
         self.instance.save()
 
@@ -33,7 +33,7 @@ class InstanceServerGroupTest(test.APITransactionTestCase):
         self.assertEqual(expected, actual)
 
     def test_add_instance_with_server_group(self):
-        data = get_instance_data(self.admin, self.instance)
+        data = get_instance_data(self.fixture)
         data["server_group"] = self._get_valid_server_group_payload(self.server_group)
 
         response = self.create_instance(data)
@@ -44,7 +44,7 @@ class InstanceServerGroupTest(test.APITransactionTestCase):
         self.assertEqual(reread_server_group, self.server_group)
 
     def test_server_group_is_not_required(self):
-        data = get_instance_data(self.admin, self.instance)
+        data = get_instance_data(self.fixture)
         self.assertNotIn("server_group", data)
         response = self.create_instance(data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)

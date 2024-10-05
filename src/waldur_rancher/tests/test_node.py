@@ -79,6 +79,7 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         volume_type = openstack_factories.VolumeTypeFactory(
             settings=self.tenant.service_settings
         )
+        volume_type.tenants.add(self.tenant)
         self.payload = {
             "cluster": factories.ClusterFactory.get_url(self.fixture.cluster),
             "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
@@ -110,6 +111,7 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         volume_type = openstack_factories.VolumeTypeFactory(
             settings=self.tenant.service_settings
         )
+        volume_type.tenants.add(self.tenant)
         self.payload = {
             "cluster": factories.ClusterFactory.get_url(self.fixture.cluster),
             "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),
@@ -140,6 +142,7 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         volume_type = openstack_factories.VolumeTypeFactory(
             settings=self.tenant.service_settings
         )
+        volume_type.tenants.add(self.tenant)
         self.payload = {
             "cluster": factories.ClusterFactory.get_url(self.fixture.cluster),
             "subnet": openstack_factories.SubNetFactory.get_url(self.subnet),

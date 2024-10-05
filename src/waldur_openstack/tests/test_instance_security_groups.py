@@ -38,7 +38,7 @@ class InstanceSecurityGroupsTest(test.APITransactionTestCase):
             self.assertEqual(expected, actual)
 
     def test_add_instance_with_security_groups(self):
-        data = get_instance_data(self.admin, self.instance)
+        data = get_instance_data(self.fixture)
         data["security_groups"] = [
             self._get_valid_security_group_payload(sg) for sg in self.security_groups
         ]
@@ -106,7 +106,7 @@ class InstanceSecurityGroupsTest(test.APITransactionTestCase):
         mocked_execute_method.assert_called_once()
 
     def test_security_groups_is_not_required(self):
-        data = get_instance_data(self.admin, self.instance)
+        data = get_instance_data(self.fixture)
         self.assertNotIn("security_groups", data)
         response = self.create_instance(data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)

@@ -72,7 +72,9 @@ class OpenStackFixture(ProjectFixture):
 
     @cached_property
     def volume_type(self):
-        return factories.VolumeTypeFactory(settings=self.settings)
+        volume_type = factories.VolumeTypeFactory(settings=self.settings)
+        volume_type.tenants.add(self.tenant)
+        return volume_type
 
     @cached_property
     def port(self):
@@ -153,7 +155,17 @@ class OpenStackFixture(ProjectFixture):
 
     @cached_property
     def flavor(self):
-        return factories.FlavorFactory(settings=self.settings)
+        flavor = factories.FlavorFactory(settings=self.settings)
+        flavor.tenants.add(self.tenant)
+        return flavor
+
+    @cached_property
+    def image(self):
+        image = factories.ImageFactory(
+            settings=self.settings, min_disk=10240, min_ram=1024
+        )
+        image.tenants.add(self.tenant)
+        return image
 
 
 def mock_session():
