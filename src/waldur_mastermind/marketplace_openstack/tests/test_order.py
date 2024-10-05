@@ -339,7 +339,9 @@ class InstanceCreateTest(test.APITransactionTestCase):
 
     def test_instance_is_created_when_order_is_processed(self):
         order = self.trigger_instance_creation()
-        self.assertEqual(order.state, marketplace_models.Order.States.EXECUTING)
+        self.assertEqual(
+            order.state, marketplace_models.Order.States.EXECUTING, order.error_message
+        )
         self.assertTrue(
             openstack_models.Instance.objects.filter(name="virtual-machine").exists()
         )
@@ -393,17 +395,12 @@ class InstanceCreateTest(test.APITransactionTestCase):
         self.assertEqual(order.resource.parent, tenant_resource)
 
     def trigger_instance_creation(self, **kwargs):
-        image = openstack_factories.ImageFactory(
-            settings=self.service_settings, min_disk=10240, min_ram=1024
-        )
-        flavor = openstack_factories.FlavorFactory(settings=self.service_settings)
-
         subnet_url = openstack_factories.SubNetFactory.get_url(self.fixture.subnet)
         attributes = {
-            "flavor": openstack_factories.FlavorFactory.get_url(flavor),
-            "image": openstack_factories.ImageFactory.get_url(image),
+            "flavor": openstack_factories.FlavorFactory.get_url(self.fixture.flavor),
+            "image": openstack_factories.ImageFactory.get_url(self.fixture.image),
             "name": "virtual-machine",
-            "system_volume_size": image.min_disk,
+            "system_volume_size": self.fixture.image.min_disk,
             "ports": [{"subnet": subnet_url}],
             "ssh_public_key": structure_factories.SshPublicKeyFactory.get_url(
                 structure_factories.SshPublicKeyFactory(user=self.fixture.manager)
@@ -641,12 +638,8 @@ class VolumeCreateTest(test.APITransactionTestCase):
         self.assertEqual(order.state, order.States.DONE)
 
     def trigger_volume_creation(self, **kwargs):
-        image = openstack_factories.ImageFactory(
-            settings=self.service_settings, min_disk=10240, min_ram=1024
-        )
-
         attributes = {
-            "image": openstack_factories.ImageFactory.get_url(image),
+            "image": openstack_factories.ImageFactory.get_url(self.fixture.image),
             "name": "Volume",
             "size": 10 * 1024,
         }

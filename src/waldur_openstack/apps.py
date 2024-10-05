@@ -24,6 +24,7 @@ class OpenStackConfig(AppConfig):
 
         from . import handlers
 
+        Tenant = self.get_model("Tenant")
         Network = self.get_model("Network")
         SubNet = self.get_model("SubNet")
         SecurityGroup = self.get_model("SecurityGroup")
@@ -98,6 +99,12 @@ class OpenStackConfig(AppConfig):
             handlers.log_server_group_cleaned,
             sender=ServerGroup,
             dispatch_uid="openstack.handlers.log_server_group_cleaned",
+        )
+
+        signals.post_delete.connect(
+            handlers.delete_state_service_properties,
+            sender=Tenant,
+            dispatch_uid="openstack.handlers.delete_state_service_properties",
         )
 
         Project.add_quota_field(

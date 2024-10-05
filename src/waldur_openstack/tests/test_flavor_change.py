@@ -8,6 +8,21 @@ from . import factories, fixtures
 
 
 @ddt
+class FlavorListRetrieveTestCase(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.OpenStackFixture()
+        self.flavor = self.fixture.flavor
+        self.url = factories.FlavorFactory.get_list_url()
+
+    @data("staff", "owner", "service_manager", "admin", "manager")
+    def test_user_can_get_flavors_list(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+
+@ddt
 class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
@@ -28,6 +43,7 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
         new_flavor = factories.FlavorFactory(
             settings=self.settings, disk=self.instance.disk + 1
         )
+        new_flavor.tenants.add(self.fixture.tenant)
 
         data = {"flavor": factories.FlavorFactory.get_url(new_flavor)}
         response = self.client.post(self.url, data)
@@ -53,6 +69,7 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
             cores=self.instance.cores + 1,
             ram=self.instance.ram + 1024,
         )
+        new_flavor.tenants.add(self.fixture.tenant)
 
         self.instance.service_settings.add_quota_usage(Quotas.vcpu, self.instance.cores)
         self.instance.service_settings.add_quota_usage(Quotas.ram, self.instance.ram)
@@ -88,6 +105,7 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
             disk=self.instance.disk + 1,
             cores=instance.cores - 1,
         )
+        new_flavor.tenants.add(self.fixture.tenant)
 
         data = {"flavor": factories.FlavorFactory.get_url(new_flavor)}
 
@@ -120,6 +138,7 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
             disk=self.instance.disk + 1,
             ram=instance.ram - 1,
         )
+        new_flavor.tenants.add(self.fixture.tenant)
         data = {"flavor": factories.FlavorFactory.get_url(new_flavor)}
 
         response = self.client.post(self.url, data)
@@ -133,7 +152,7 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
         )
 
     @data("admin", "manager")
-    def test_authorized_user_cannot_change_flavor_of_stopped_instance_if_settings_quota_would_be_exceeded(
+    def test_authorized_user_cannot_change_flavor_of_stopped_instance_if_tenant_quota_would_be_exceeded(
         self, user
     ):
         self.client.force_authenticate(user=getattr(self.fixture, user))
@@ -146,6 +165,7 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
             settings=self.settings,
             ram=self.instance.tenant.get_quota_limit("ram") * 10,
         )
+        big_ram_flavor.tenants.add(self.fixture.tenant)
         data = {"flavor": factories.FlavorFactory.get_url(big_ram_flavor)}
         response = self.client.post(self.url, data)
         self.assertEqual(
@@ -157,13 +177,14 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
             settings=self.settings,
             cores=self.instance.tenant.get_quota_limit("vcpu") * 10,
         )
+        many_core_flavor.tenants.add(self.fixture.tenant)
         data = {"flavor": factories.FlavorFactory.get_url(many_core_flavor)}
         response = self.client.post(self.url, data)
         self.assertEqual(
             response.status_code, status.HTTP_400_BAD_REQUEST, response.data
         )
 
-    def test_user_cannot_change_flavor_to_flavor_from_different_service(self):
+    def test_user_cannot_use_flavor_not_connected_to_the_tenant(self):
         self.client.force_authenticate(user=self.fixture.admin)
 
         new_flavor = factories.FlavorFactory(disk=self.instance.disk + 1)
@@ -193,6 +214,7 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
             settings=inaccessible_instance.service_settings,
             disk=self.instance.disk + 1,
         )
+        new_flavor.tenants.add(self.fixture.tenant)
 
         response = self.client.post(
             factories.InstanceFactory.get_url(
@@ -236,6 +258,7 @@ class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
             instance.project.add_user(self.fixture.user, ProjectRole.ADMIN)
 
             changed_flavor = factories.FlavorFactory(settings=instance.service_settings)
+            changed_flavor.tenants.add(self.fixture.tenant)
 
             data = {"flavor": factories.FlavorFactory.get_url(changed_flavor)}
 

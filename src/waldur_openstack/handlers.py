@@ -306,3 +306,9 @@ def log_backup_schedule_deletion(sender, instance, **kwargs):
             "backup_schedule": backup_schedule,
         },
     )
+
+
+def delete_state_service_properties(sender, instance, **kwargs):
+    models.Image.objects.filter(tenants=None).delete()
+    models.Flavor.objects.filter(tenants=None).delete()
+    models.VolumeType.objects.filter(tenants=None).delete()

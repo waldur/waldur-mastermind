@@ -55,14 +55,13 @@ class InvoiceTest(test.APITransactionTestCase):
             plan=self.plan,
             component=self.offering_component,
         )
-        openstack_factories.FlavorFactory(
+        flavor = openstack_factories.FlavorFactory(
             settings=self.fixture.tenant.service_settings,
             ram=1024 * 8,
             cores=8,
         )
-        image = openstack_factories.ImageFactory(
-            settings=self.fixture.tenant.service_settings
-        )
+        flavor.tenants.add(self.fixture.tenant)
+        image = self.fixture.image
         openstack_factories.SecurityGroupFactory(
             name="default", tenant=self.fixture.tenant
         )
@@ -92,7 +91,7 @@ class InvoiceTest(test.APITransactionTestCase):
                         "subnet": openstack_factories.SubNetFactory.get_url(
                             self.fixture.subnet
                         ),
-                        "system_volume_size": 1024,
+                        "system_volume_size": 10240,
                         "memory": 1,
                         "cpu": 1,
                         "roles": ["controlplane", "etcd", "worker"],

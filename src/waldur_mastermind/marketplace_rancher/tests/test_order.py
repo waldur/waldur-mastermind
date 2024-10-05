@@ -25,14 +25,13 @@ class OrderProcessedTest(test.APITransactionTestCase):
             type=PLUGIN_NAME, scope=service_settings
         )
 
-        openstack_factories.FlavorFactory(
+        flavor = openstack_factories.FlavorFactory(
             settings=self.fixture.tenant.service_settings,
             ram=1024 * 8,
             cores=8,
         )
-        image = openstack_factories.ImageFactory(
-            settings=self.fixture.tenant.service_settings
-        )
+        flavor.tenants.add(self.fixture.tenant)
+        image = self.fixture.image
         openstack_factories.SecurityGroupFactory(
             name="default", tenant=self.fixture.tenant
         )

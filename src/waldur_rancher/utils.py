@@ -14,7 +14,6 @@ from waldur_core.structure.models import ProjectRole, ServiceSettings
 from waldur_openstack import models as openstack_models
 from waldur_openstack.models import Flavor, Image, SecurityGroup, Tenant
 from waldur_openstack.utils import (
-    filter_property_for_tenant,
     is_flavor_valid_for_tenant,
     is_volume_type_valid_for_tenant,
 )
@@ -60,7 +59,7 @@ def expand_added_nodes(
     ssh_public_key,
     security_groups=None,
 ):
-    valid_images = filter_property_for_tenant(Image.objects.all(), tenant)
+    valid_images = Image.objects.filter(tenants=tenant)
     try:
         base_image_name = rancher_settings.get_option("base_image_name")
         image = valid_images.get(name=base_image_name)
@@ -169,8 +168,7 @@ def validate_flavor(flavor, roles, tenant: Tenant, cpu=None, memory=None):
 
     if not flavor:
         flavor = (
-            filter_property_for_tenant(Flavor.objects.all(), tenant)
-            .filter(cores__gte=cpu, ram__gte=memory)
+            Flavor.objects.filter(tenants=tenant, cores__gte=cpu, ram__gte=memory)
             .order_by("cores", "ram")
             .first()
         )

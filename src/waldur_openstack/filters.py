@@ -4,10 +4,7 @@ from django_filters.widgets import BooleanWidget
 
 from waldur_core.core import filters as core_filters
 from waldur_core.structure import filters as structure_filters
-from waldur_openstack.utils import (
-    filter_property_for_tenant,
-    get_valid_availability_zones,
-)
+from waldur_openstack.utils import get_valid_availability_zones
 
 from . import models
 
@@ -30,7 +27,7 @@ class SharedTenantFilterSet(django_filters.FilterSet):
             tenant = models.Tenant.objects.get(uuid=value)
         except models.Tenant.DoesNotExist:
             return queryset.none()
-        return filter_property_for_tenant(queryset, tenant)
+        return queryset.filter(tenants=tenant)
 
 
 class SecurityGroupFilter(TenantFilterSet, structure_filters.BaseResourceFilter):

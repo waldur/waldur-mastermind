@@ -86,7 +86,9 @@ class BaseClusterCreateTest(test.APITransactionTestCase):
             ram=1024 * 8,
             cores=2,
         )
+        self.flavor.tenants.add(self.tenant)
         image = openstack_factories.ImageFactory(settings=self.tenant.service_settings)
+        image.tenants.add(self.fixture.tenant)
         self.default_security_group = openstack_factories.SecurityGroupFactory(
             name="default", tenant=self.tenant
         )
@@ -173,9 +175,8 @@ class ClusterCreateTest(BaseClusterCreateTest):
         self.client.force_authenticate(self.fixture.owner)
         self.tenant.service_settings.shared = True
         self.tenant.service_settings.save()
-        volume_type = openstack_factories.VolumeTypeFactory(
-            settings=self.tenant.service_settings
-        )
+        volume_type = openstack_factories.VolumeTypeFactory()
+        volume_type.tenants.add(self.tenant)
         payload = {
             "nodes": [
                 {
@@ -589,6 +590,7 @@ class ClusterCreateTest(BaseClusterCreateTest):
         volume_type = openstack_factories.VolumeTypeFactory(
             settings=self.tenant.service_settings
         )
+        volume_type.tenants.add(self.tenant)
         payload = {
             "nodes": [
                 {

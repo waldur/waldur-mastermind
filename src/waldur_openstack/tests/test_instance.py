@@ -73,12 +73,10 @@ class InstanceCreateTest(test.APITransactionTestCase):
         self.openstack_settings.save()
         self.project = self.fixture.project
         self.customer = self.fixture.customer
-        self.image = factories.ImageFactory(
-            settings=self.openstack_settings, min_disk=10240, min_ram=1024
-        )
-        self.flavor = factories.FlavorFactory(settings=self.openstack_settings)
+        self.image = self.fixture.image
+        self.flavor = self.fixture.flavor
         self.subnet = self.fixture.subnet
-        self.volume_type = factories.VolumeTypeFactory(settings=self.openstack_settings)
+        self.volume_type = self.fixture.volume_type
 
     def create_instance(self, post_data=None):
         user = self.fixture.owner
@@ -341,6 +339,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
         volume_type = factories.VolumeTypeFactory(
             settings=instance.tenant.service_settings
         )
+        volume_type.tenants.add(self.tenant)
         factories.VolumeFactory(
             service_settings=instance.service_settings,
             project=instance.project,

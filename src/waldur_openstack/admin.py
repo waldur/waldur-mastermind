@@ -12,7 +12,6 @@ from waldur_core.core.admin import (
     format_json_field,
 )
 from waldur_core.structure import admin as structure_admin
-from waldur_openstack.utils import filter_property_for_tenant
 
 from . import executors, models
 
@@ -216,8 +215,8 @@ class VolumeChangeForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if self.instance.pk:
-            self.fields["type"].queryset = filter_property_for_tenant(
-                models.VolumeType.objects.all(), self.instance.tenant
+            self.fields["type"].queryset = models.VolumeType.objects.filter(
+                tenants=self.instance.tenant
             )
             self.fields["instance"].queryset = models.Instance.objects.filter(
                 tenant=self.instance.tenant,

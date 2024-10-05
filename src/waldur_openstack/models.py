@@ -25,11 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 def build_tenants_query(user):
-    tenants = filter_queryset_for_user(Tenant.objects.all(), user)
-    settings = filter_queryset_for_user(
-        structure_models.ServiceSettings.objects.all(), user
-    )
-    return Q(Q(tenants=None) | Q(tenants__in=tenants)) & Q(settings__in=settings)
+    return Q(tenants__in=filter_queryset_for_user(Tenant.objects.all(), user))
 
 
 class Tenant(
