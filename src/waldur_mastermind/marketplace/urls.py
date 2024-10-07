@@ -61,6 +61,11 @@ def register_in(router):
         r"marketplace-resources", views.ResourceViewSet, basename="marketplace-resource"
     )
     router.register(
+        r"marketplace-provider-resources",
+        views.ProviderResourceViewSet,
+        basename="marketplace-provider-resource",
+    )
+    router.register(
         r"marketplace-category-component-usages",
         views.CategoryComponentUsageViewSet,
         basename="marketplace-category-component-usage",

@@ -71,7 +71,7 @@ class TokenAuthentication(rest_framework.authentication.TokenAuthentication):
                 raise exceptions.AuthenticationFailed(_("Token has expired."))
 
         if impersonated_user_uuid and token.user.is_staff:
-            impersonated_user = models.ImpersonatedUser.objects.filter(
+            impersonated_user = models.ImpersonatedUser.all_objects.filter(
                 uuid=impersonated_user_uuid
             ).first()
 
