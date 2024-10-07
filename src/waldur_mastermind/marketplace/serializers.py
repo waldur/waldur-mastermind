@@ -2248,6 +2248,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "username",
             "limit_usage",
             "requested_downscaling",
+            "restrict_member_access",
             "endpoints",
             "error_message",
             "error_traceback",
@@ -2268,6 +2269,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "error_message",
             "error_traceback",
             "options",
+            "restrict_member_access",
         )
         view_name = "marketplace-resource-detail"
         extra_kwargs = dict(
