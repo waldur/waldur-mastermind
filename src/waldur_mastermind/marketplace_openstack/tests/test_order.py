@@ -360,7 +360,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
         order = self.trigger_instance_creation(system_volume_size=100)
         self.assertEqual(order.state, marketplace_models.Order.States.ERRED)
 
-    def test_instance_state_is_synchronized(self):
+    def test_instance_state_is_synchronized_when_it_is_done(self):
         order = self.trigger_instance_creation()
         instance = order.resource.scope
 
@@ -378,6 +378,22 @@ class InstanceCreateTest(test.APITransactionTestCase):
 
         order.refresh_from_db()
         self.assertEqual(order.state, marketplace_models.Order.States.DONE)
+
+    def test_instance_state_is_synchronized_when_it_is_erred(self):
+        order = self.trigger_instance_creation()
+        instance = order.resource.scope
+
+        instance.begin_creating()
+        instance.save()
+
+        instance.set_erred()
+        instance.save()
+
+        order.refresh_from_db()
+        self.assertEqual(order.state, order.States.ERRED)
+
+        order.resource.refresh_from_db()
+        self.assertEqual(order.resource.state, marketplace_models.Resource.States.ERRED)
 
     def test_create_resource_of_volume_if_instance_created(self):
         order = self.trigger_instance_creation()
