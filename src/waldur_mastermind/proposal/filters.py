@@ -63,7 +63,7 @@ class CallFilter(django_filters.FilterSet):
 
     def filter_has_active_round(self, queryset, name, value):
         if value:
-            return queryset.filter(round__cutoff_time__gte=timezone.now())
+            return queryset.filter(round__cutoff_time__gte=timezone.now()).distinct()
         return queryset
 
     def filter_offering_uuid(self, queryset, name, value):
