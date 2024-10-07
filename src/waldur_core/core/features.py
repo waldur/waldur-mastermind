@@ -193,10 +193,10 @@ class TelemetrySection(FeatureSection):
     send_metrics = Feature("Send telemetry metrics.")
 
 
-class InvoiceSection(FeatureSection):
-    class Meta:
-        key = "invoice"
-        description = "Invoice settings"
+# Temporarily commented out to fix Homeport linter
+# class InvoiceSection(FeatureSection):
+#    class Meta:
+#        key = "invoice"
+#        description = "Invoice settings"
 
-    # Temporarily commented out to fix Homeport linter
-    # display_credit_management = Feature("Display credit management.")
+# display_credit_management = Feature("Display credit management.")
