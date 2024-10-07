@@ -77,3 +77,21 @@ class ImpersonationTest(test.APITransactionTestCase):
         self.assertEqual(
             event_log.context["user_impersonator_uuid"], self.fixture.staff.uuid.hex
         )
+
+    def test_impersonation_if_impersonated_user_is_not_active(self):
+        impersonator = self.fixture.staff
+        self.impersonated_user.is_active = False
+        self.impersonated_user.save()
+        token = TokenAuthentication().get_model().objects.get(user=impersonator)
+        self.client.credentials(
+            **{
+                "HTTP_AUTHORIZATION": "Token " + token.key,
+                IMPERSONATED_USER_HEADER: self.impersonated_user.uuid.hex,
+            }
+        )
+        response = self.client.get("http://testserver/api/users/me/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["uuid"], self.impersonated_user.uuid.hex)
+        self.assertEqual(
+            response.headers[IMPERSONATOR_HEADER.lower()], impersonator.uuid.hex
+        )
