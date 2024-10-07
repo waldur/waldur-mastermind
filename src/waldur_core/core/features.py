@@ -198,4 +198,5 @@ class InvoiceSection(FeatureSection):
         key = "invoice"
         description = "Invoice settings"
 
-    display_credit_management = Feature("Display credit management.")
+    # Temporarily commented out to fix Homeport linter
+    # display_credit_management = Feature("Display credit management.")
