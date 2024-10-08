@@ -798,6 +798,8 @@ class CustomerCreditSerializer(serializers.HyperlinkedModelSerializer):
             "value",
             "customer",
             "offerings",
+            "end_date",
+            "minimal_consumption",
         )
 
         extra_kwargs = {
@@ -813,6 +815,22 @@ class CustomerCreditSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class CreateCustomerCreditSerializer(CustomerCreditSerializer):
+    def validate_end_date(self, end_date):
+        if end_date < datetime.date.today():
+            raise exceptions.ValidationError(
+                _("The end date must be greater than today's date.")
+            )
+
+        return end_date
+
+    def validate_minimal_consumption(self, minimal_consumption):
+        if minimal_consumption >= self.value:
+            raise exceptions.ValidationError(
+                _("Minimum consumption must be less than the credit.")
+            )
+
+        return minimal_consumption
+
     offerings = serializers.HyperlinkedRelatedField(
         view_name="marketplace-provider-offering-detail",
         lookup_field="uuid",
