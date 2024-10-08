@@ -4,6 +4,7 @@ from ddt import data, ddt
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import status, test
 
+from waldur_core.core.models import StateMixin
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
@@ -385,6 +386,23 @@ class InstanceCreateTest(test.APITransactionTestCase):
 
         instance.begin_creating()
         instance.save()
+
+        instance.set_erred()
+        instance.save()
+
+        order.refresh_from_db()
+        self.assertEqual(order.state, order.States.ERRED)
+
+        order.resource.refresh_from_db()
+        self.assertEqual(order.resource.state, marketplace_models.Resource.States.ERRED)
+
+    def test_instance_state_is_synchronized_when_it_is_switched_from_scheduled_to_erred(
+        self,
+    ):
+        order = self.trigger_instance_creation()
+        instance = order.resource.scope
+
+        self.assertEqual(instance.state, StateMixin.States.CREATION_SCHEDULED)
 
         instance.set_erred()
         instance.save()
