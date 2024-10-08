@@ -21,7 +21,7 @@ from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.marketplace import models as marketplace_models
 
-from . import utils
+from . import log, utils
 
 logger = logging.getLogger(__name__)
 
@@ -158,7 +158,11 @@ class Invoice(core_models.UuidMixin, core_models.BackendMixin, models.Model):
         return 100000 + self.id
 
     def _process_credits(self):
-        credit = CustomerCredit.objects.filter(customer=self.customer).first()
+        credit = (
+            CustomerCredit.objects.filter(customer=self.customer)
+            .exclude(end_date__lte=datetime.date.today())
+            .first()
+        )
 
         if not credit or not credit.value:
             return
@@ -166,6 +170,7 @@ class Invoice(core_models.UuidMixin, core_models.BackendMixin, models.Model):
         items = sorted(
             [i for i in self.items.all() if i.resource], key=InvoiceItem._price
         )
+        compensations = []
 
         for item in items:
             if (
@@ -216,16 +221,44 @@ class Invoice(core_models.UuidMixin, core_models.BackendMixin, models.Model):
                         credit.save()
 
                 if credit_compensation:
-                    InvoiceItem.objects.create(
-                        invoice=self,
-                        unit_price=credit_compensation * -1,
-                        quantity=1,
-                        unit=InvoiceItem.Units.QUANTITY,
-                        credit=credit,
-                        name=f"Credit compensation. {item.name}",
+                    compensations.append(
+                        InvoiceItem(
+                            invoice=self,
+                            unit_price=credit_compensation * -1,
+                            quantity=1,
+                            unit=InvoiceItem.Units.QUANTITY,
+                            credit=credit,
+                            name=f"Credit compensation. {item.name}",
+                        )
                     )
                 if not credit.value:
                     break
+
+        InvoiceItem.objects.bulk_create(compensations)
+
+        if credit.minimal_consumption:
+            total_compensation = sum(credit.unit_price * -1 for credit in compensations)
+
+            if total_compensation < credit.minimal_consumption:
+                tail = credit.minimal_consumption - total_compensation
+
+                if credit.value - tail < 0:
+                    tail = credit.value
+                    credit.value = 0
+                else:
+                    credit.value -= tail
+
+                log.event_logger.credit.info(
+                    "Reduction of credit by {consumption} due to minimal consumption of {minimal_consumption}",
+                    event_type="reduction_of_credit_due_to_minimal_consumption",
+                    event_context={
+                        "consumption": tail,
+                        "minimal_consumption": credit.minimal_consumption,
+                        "customer": self.customer,
+                    },
+                )
+
+                credit.save()
 
     def set_created(self):
         """
@@ -579,6 +612,13 @@ class CustomerCredit(core_models.UuidMixin, core_models.TimeStampedModel):
         decimal_places=5,
     )
     offerings = models.ManyToManyField(marketplace_models.Offering)
+    end_date = models.DateField(null=True)
+    minimal_consumption = models.DecimalField(
+        default=0,
+        validators=[MinValueValidator(decimal.Decimal("0"))],
+        max_digits=11,
+        decimal_places=5,
+    )
 
     class Permissions:
         customer_path = "customer"

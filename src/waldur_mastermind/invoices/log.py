@@ -70,3 +70,22 @@ class PaymentLogger(EventLogger):
 
 
 event_logger.register("payment", PaymentLogger)
+
+
+class CreditLogger(EventLogger):
+    consumption = decimal.Decimal
+    minimal_consumption = decimal.Decimal
+    customer = "structure.Customer"
+
+    class Meta:
+        event_types = ("reduction_of_credit_due_to_minimal_consumption",)
+        event_groups = {
+            "customers": event_types,
+        }
+
+    @staticmethod
+    def get_scopes(event_context):
+        return {event_context["customer"]}
+
+
+event_logger.register("credit", CreditLogger)
