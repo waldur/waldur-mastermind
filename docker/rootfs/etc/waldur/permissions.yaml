@@ -163,3 +163,8 @@
   permissions:
     - CALL.APPROVE_AND_REJECT_PROPOSALS
     - CALL.CLOSE_ROUNDS
+
+- role: PROPOSAL.MANAGER
+  description: Proposal manager
+  permissions:
+    - PROPOSAL.MANAGE

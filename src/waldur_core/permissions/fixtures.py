@@ -100,3 +100,11 @@ class ProposalRole:
             RoleEnum.PROPOSAL_MEMBER,
             content_type=ContentType.objects.get_by_natural_key("proposal", "proposal"),
         )
+
+    @classmethod
+    @property
+    def MANAGER(self):
+        return Role.objects.get_system_role(
+            RoleEnum.PROPOSAL_MANAGER,
+            content_type=ContentType.objects.get_by_natural_key("proposal", "proposal"),
+        )

@@ -11,13 +11,14 @@ from rest_framework import status, test
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole, ProposalRole
 from waldur_core.permissions.models import Role
 from waldur_core.permissions.utils import get_permissions
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.users import models, tasks
 from waldur_core.users.tests import factories
 from waldur_core.users.utils import get_invitation_link, get_invitation_token
+from waldur_mastermind.proposal.tests.factories import ProposalFactory
 
 
 class BaseInvitationTest(test.APITransactionTestCase):
@@ -457,6 +458,18 @@ class InvitationCreateTest(BaseInvitationTest):
             response.data["state"], models.Invitation.State.PENDING_PROJECT
         )
 
+    def test_proposal_creator_can_create_invitation(self):
+        ProposalRole.MANAGER.add_permission(PermissionEnum.MANAGE_PROPOSAL)
+        proposal = ProposalFactory()
+        proposal.add_user(proposal.created_by, ProposalRole.MANAGER)
+        scope = ProposalFactory.get_url(proposal)
+        self.client.force_authenticate(user=proposal.created_by)
+        payload = self._get_valid_proposal_invitation_payload(scope)
+        response = self.client.post(
+            factories.InvitationBaseFactory.get_list_url(), data=payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
     # Helper methods
     def _get_valid_project_invitation_payload(
         self, invitation: models.Invitation = None, role: Role = None
@@ -477,6 +490,15 @@ class InvitationCreateTest(BaseInvitationTest):
         return {
             "email": invitation.email,
             "scope": structure_factories.CustomerFactory.get_url(invitation.scope),
+            "role": role.uuid.hex,
+        }
+
+    def _get_valid_proposal_invitation_payload(self, scope):
+        email = "john@doe.com"
+        role = ProposalRole.MEMBER
+        return {
+            "email": email,
+            "scope": scope,
             "role": role.uuid.hex,
         }
 
