@@ -264,6 +264,7 @@ def filter_proposals(user):
 
 class Proposal(
     TimeStampedModel,
+    structure_models.PermissionMixin,
     core_models.UuidMixin,
     core_models.NameMixin,
     core_models.DescribableMixin,

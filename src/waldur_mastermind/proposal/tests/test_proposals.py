@@ -4,6 +4,8 @@ from ddt import data, ddt
 from rest_framework import status, test
 
 from waldur_core.media.utils import dummy_image
+from waldur_core.permissions.fixtures import ProposalRole
+from waldur_core.permissions.utils import has_user
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.proposal import models, tasks
 from waldur_mastermind.proposal.tests import factories, fixtures
@@ -56,8 +58,13 @@ class ProposalCreateTest(test.APITransactionTestCase):
     def test_user_can_add_proposal(self, user):
         response = self.create_proposal(user)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        proposal = models.Proposal.objects.get(uuid=response.data["uuid"])
         self.assertTrue(
             models.Proposal.objects.filter(uuid=response.data["uuid"]).exists()
+        )
+        # Check if user has been added to proposal in MANAGER role
+        self.assertTrue(
+            has_user(proposal, getattr(self.fixture, user), ProposalRole.MANAGER)
         )
 
     def test_create_project_if_proposal_has_been_created(self):
