@@ -183,6 +183,7 @@ class OpenstackSection(FeatureSection):
     hide_volume_type_selector = Feature(
         "Allow to hide OpenStack volume type selector when instance or volume is provisioned."
     )
+    show_migrations = Feature("Show OpenStack tenant migrations action and tab")
 
 
 class TelemetrySection(FeatureSection):
