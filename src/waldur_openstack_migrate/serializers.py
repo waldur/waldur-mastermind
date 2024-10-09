@@ -250,7 +250,7 @@ class MigrationCreateSerializer(
         limits = self.get_limits(validated_data, src_resource)
         quotas = map_limits_to_quotas(limits, dst_offering)
 
-        for key, value in quotas.values():
+        for key, value in quotas.items():
             dst_tenant.set_quota_limit(key, value)
 
         dst_resource = Resource.objects.create(
