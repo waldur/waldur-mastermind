@@ -483,6 +483,8 @@ class PlanFilter(OfferingFilterMixin, django_filters.FilterSet):
         model = models.Plan
         fields = []
 
+    offering_uuid = django_filters.UUIDFilter(field_name="offering__uuid")
+
 
 class CategoryComponentUsageScopeFilterBackend(core_filters.GenericKeyFilterBackend):
     def get_related_models(self):
