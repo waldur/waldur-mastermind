@@ -518,6 +518,10 @@ def process_pending_project_orders():
         state=models.Order.States.PENDING_PROJECT, project__in=active_project_ids
     )
     for order in orders:
+        # Setting the state to PENDING_PROVIDER because direct transition
+        # from PENDING_PROJECT to EXECUTING is not supported
+        order.state = models.Order.States.PENDING_PROVIDER
+        order.save(update_fields=["state"])
         if utils.order_should_not_be_reviewed_by_provider(order):
             order.set_state_executing()
             order.save(update_fields=["state"])
@@ -525,8 +529,6 @@ def process_pending_project_orders():
                 lambda: process_order_on_commit.delay(order, order.created_by)
             )
         else:
-            order.state = models.Order.States.PENDING_PROVIDER
-            order.save(update_fields=["state"])
             transaction.on_commit(
                 lambda: notify_provider_about_pending_order.delay(order.uuid)
             )
