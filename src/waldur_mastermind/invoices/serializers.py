@@ -789,6 +789,9 @@ class CustomerCreditSerializer(serializers.HyperlinkedModelSerializer):
         read_only=True,
         many=True,
     )
+    customer_name = serializers.ReadOnlyField(source="customer.name")
+    customer_uuid = serializers.ReadOnlyField(source="customer.uuid")
+    customer_slug = serializers.ReadOnlyField(source="customer.slug")
 
     class Meta:
         model = models.CustomerCredit
@@ -797,6 +800,9 @@ class CustomerCreditSerializer(serializers.HyperlinkedModelSerializer):
             "url",
             "value",
             "customer",
+            "customer_name",
+            "customer_uuid",
+            "customer_slug",
             "offerings",
             "end_date",
             "minimal_consumption",
@@ -816,7 +822,7 @@ class CustomerCreditSerializer(serializers.HyperlinkedModelSerializer):
 
 class CreateCustomerCreditSerializer(CustomerCreditSerializer):
     def validate_end_date(self, end_date):
-        if end_date < datetime.date.today():
+        if end_date and end_date < datetime.date.today():
             raise exceptions.ValidationError(
                 _("The end date must be greater than today's date.")
             )
@@ -824,9 +830,9 @@ class CreateCustomerCreditSerializer(CustomerCreditSerializer):
         return end_date
 
     def validate_minimal_consumption(self, minimal_consumption):
-        if minimal_consumption >= self.value:
+        if minimal_consumption and minimal_consumption >= self.value:
             raise exceptions.ValidationError(
-                _("Minimum consumption must be less than the credit.")
+                _("Minimum consumption must be smaller than the credit.")
             )
 
         return minimal_consumption
