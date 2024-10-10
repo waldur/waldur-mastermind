@@ -113,9 +113,13 @@ def dry_run_executor(dry_run_id):
     executor = utils.ContainerExecutorMixin()
     executor.order = order
     executor.hook_type = dry_run.order_type
-    dry_run.output = executor.send_request(dry_run.order.created_by, dry_run=True)
-    dry_run.save()
-    structure_models.Project.objects.filter(id=dry_run.order.project.id).delete()
+    try:
+        dry_run.output = executor.send_request(dry_run.order.created_by, dry_run=True)
+    except Exception as exc:
+        logger.error("An unexpected error occurred while executing dry run: %s", exc)
+    finally:
+        dry_run.save()
+        structure_models.Project.objects.filter(id=dry_run.order.project.id).delete()
 
 
 @shared_task(name="waldur_marketplace_script.remove_old_dry_runs")
