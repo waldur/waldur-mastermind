@@ -31,7 +31,7 @@ class MigrationExecutor(CreateExecutor):
             BackendMethodTask().si(
                 serialized_tenant,
                 "push_tenant_quotas",
-                migration.dst_tenant.quota_limits,
+                dst_tenant.quota_limits,
             ),
         ]
         for network in dst_tenant.networks.all():
