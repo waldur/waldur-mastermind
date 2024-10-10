@@ -3469,7 +3469,7 @@ class OpenStackBackend(ServiceBackend):
             backend_snapshot = cinder.volume_snapshots.get(snapshot.backend_id)
         except cinder_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
-        snapshot = self._backend_snapshot_to_snapshot(backend_snapshot)
+        snapshot = self._backend_snapshot_to_snapshot(snapshot.tenant, backend_snapshot)
         snapshot.service_settings = snapshot.service_settings
         snapshot.tenant = snapshot.tenant
         snapshot.project = project
