@@ -1,6 +1,6 @@
 from celery import chain
 
-from waldur_core.core.executors import ActionExecutor
+from waldur_core.core.executors import CreateExecutor
 from waldur_core.core.tasks import BackendMethodTask
 from waldur_core.core.utils import serialize_instance
 from waldur_openstack.executors import (
@@ -13,7 +13,7 @@ from waldur_openstack.models import Tenant
 from . import models
 
 
-class MigrationExecutor(ActionExecutor):
+class MigrationExecutor(CreateExecutor):
     @classmethod
     def get_task_signature(
         cls, migration: models.Migration, serialized_migration, **kwargs
