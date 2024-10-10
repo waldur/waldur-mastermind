@@ -17,6 +17,7 @@ from waldur_openstack.models import (
 )
 from waldur_openstack.serializers import (
     _generate_subnet_allocation_pool,
+    can_create_tenant,
     validate_private_subnet_cidr,
 )
 from waldur_openstack.utils import (
@@ -111,11 +112,15 @@ class MigrationCreateSerializer(
         return ("src_resource", "dst_offering", "dst_plan")
 
     def validate(self, attrs):
-        src_resource = attrs["src_resource"]
+        src_resource: Resource = attrs["src_resource"]
         src_tenant: Tenant = src_resource.scope
 
         dst_offering: Resource = attrs["dst_offering"]
         dst_settings: ServiceSettings = dst_offering.scope
+        dst_project = src_resource.project
+
+        user = self.context["request"].user
+        can_create_tenant(user, dst_settings, dst_project)
 
         mappings = attrs.get("mappings", {})
         for volume_type_mapping in mappings.get("volume_types", []):
