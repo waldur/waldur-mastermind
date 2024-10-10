@@ -624,6 +624,8 @@ class CustomerCredit(core_models.UuidMixin, core_models.TimeStampedModel):
         decimal_places=5,
     )
 
+    tracker = FieldTracker()
+
     class Permissions:
         customer_path = "customer"
 

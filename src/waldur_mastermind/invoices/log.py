@@ -76,6 +76,8 @@ event_logger.register("payment", PaymentLogger)
 class CreditLogger(EventLogger):
     consumption = decimal.Decimal
     minimal_consumption = decimal.Decimal
+    old_value = int
+    new_value = int
     customer = "structure.Customer"
     invoice_item = str
     credit_end_date = datetime.date
@@ -85,6 +87,8 @@ class CreditLogger(EventLogger):
             "reduction_of_credit_due_to_minimal_consumption",
             "reduction_of_credit",
             "set_to_zero_overdue_credit",
+            "update_of_credit_by_staff",
+            "create_of_credit_by_staff",
         )
         event_groups = {
             "customers": event_types,
@@ -95,6 +99,8 @@ class CreditLogger(EventLogger):
             "minimal_consumption",
             "invoice_item",
             "credit_end_date",
+            "old_value",
+            "new_value",
         ]
 
     @staticmethod

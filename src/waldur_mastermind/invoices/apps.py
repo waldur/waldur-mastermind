@@ -65,3 +65,9 @@ class InvoiceConfig(AppConfig):
             sender=models.Invoice,
             dispatch_uid="waldur_mastermind.invoices.create_recurring_usage_if_invoice_has_been_created",
         )
+
+        signals.post_save.connect(
+            handlers.log_credit,
+            sender=models.CustomerCredit,
+            dispatch_uid="waldur_mastermind.invoices.log_credit",
+        )

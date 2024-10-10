@@ -48,6 +48,11 @@ class CustomerCreditCreateTest(test.APITransactionTestCase):
     def test_user_with_access_can_create_credit(self, user):
         response = self.create_credit(user)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(
+            logging_models.Event.objects.filter(
+                event_type="create_of_credit_by_staff"
+            ).exists()
+        )
 
     @data("global_support", "owner", "manager", "admin", "user")
     def test_user_cannot_create_credit(self, user):
@@ -59,6 +64,7 @@ class CustomerCreditCreateTest(test.APITransactionTestCase):
 class CustomerCreditUpdateTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.CreditFixture()
+        self.fixture.customer_credit
 
     def update_credit(self, user):
         payload = {"value": 500}
@@ -70,6 +76,11 @@ class CustomerCreditUpdateTest(test.APITransactionTestCase):
     def test_user_with_access_can_update_credit(self, user):
         response = self.update_credit(user)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(
+            logging_models.Event.objects.filter(
+                event_type="update_of_credit_by_staff"
+            ).exists()
+        )
 
     @data("global_support", "owner", "manager", "admin", "user")
     def test_user_cannot_update_credit(self, user):
