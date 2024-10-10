@@ -1,6 +1,7 @@
 import functools
 import logging
 import re
+from urllib.parse import urlparse
 
 from cinderclient import exceptions as cinder_exceptions
 from cinderclient.v2.contrib import list_extensions
@@ -4617,10 +4618,26 @@ class OpenStackBackend(ServiceBackend):
             raise OpenStackBackendError(e)
 
         # newer API seems to return remote_console sometimes. According to spec it should be 'console'
+        result_url = ""
         if "console" in url:
-            return url["console"]["url"]
+            result_url = url["console"]["url"]
         elif "remote_console" in url:
-            return url["remote_console"]["url"]
+            result_url = url["remote_console"]["url"]
+
+        console_domain_override = instance.tenant.offering.get(
+            "openstack_console_domain_override"
+        )
+        if console_domain_override:
+            parsed_url = urlparse(result_url)
+            if parsed_url.port:
+                parsed_url._replace(
+                    netloc=f"{console_domain_override}:{parsed_url.port}"
+                )
+            else:
+                parsed_url._replace(netloc=console_domain_override)
+            result_url = parsed_url.geturl()
+
+        return result_url
 
     @log_backend_action()
     def get_console_output(self, instance: models.Instance, length=None):
