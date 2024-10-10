@@ -26,7 +26,6 @@ class MarketplaceOpenStackConfig(AppConfig):
     def ready(self):
         from waldur_core.quotas import models as quota_models
         from waldur_core.structure import signals as structure_signals
-        from waldur_mastermind.marketplace import filters as marketplace_filters
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
         from waldur_mastermind.marketplace import models as marketplace_models
         from waldur_mastermind.marketplace.plugins import Component, manager
@@ -46,14 +45,9 @@ class MarketplaceOpenStackConfig(AppConfig):
             STORAGE_TYPE,
             TENANT_TYPE,
             VOLUME_TYPE,
-            filters,
             handlers,
             processors,
             utils,
-        )
-
-        marketplace_filters.ExternalOfferingFilterBackend.register(
-            filters.VpcExternalFilter()
         )
 
         signals.post_save.connect(

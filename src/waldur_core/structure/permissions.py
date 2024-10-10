@@ -1,7 +1,6 @@
 import logging
 from functools import reduce
 
-from django.conf import settings as django_settings
 from rest_framework import exceptions, permissions
 
 from waldur_core.core.permissions import SAFE_METHODS, IsAdminOrReadOnly
@@ -114,11 +113,3 @@ def _get_project(obj, **kwargs):
 
 def _get_customer(obj, **kwargs):
     return _get_parent_by_permission_path(obj, "customer_path", **kwargs)
-
-
-def check_access_to_services_management(request, view, obj=None):
-    if (
-        django_settings.WALDUR_CORE["ONLY_STAFF_MANAGES_SERVICES"]
-        and not request.user.is_staff
-    ):
-        raise exceptions.PermissionDenied()

@@ -57,9 +57,6 @@ class WaldurCore(BaseModel):
         False,
         description="Enables generation of the first project on organization creation.",
     )
-    ONLY_STAFF_MANAGES_SERVICES = Field(
-        False, description="Allows to restrict provider management only to staff users."
-    )
     NATIVE_NAME_ENABLED = Field(
         False,
         description="Allows to render native name field in customer and user forms.",
@@ -292,7 +289,6 @@ class WaldurCore(BaseModel):
             "INVITATIONS_ENABLED",
             "VALIDATE_INVITATION_EMAIL",
             "NATIVE_NAME_ENABLED",
-            "ONLY_STAFF_MANAGES_SERVICES",
             "PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS",
             "TRANSLATION_DOMAIN",
             "MATOMO_URL_BASE",
