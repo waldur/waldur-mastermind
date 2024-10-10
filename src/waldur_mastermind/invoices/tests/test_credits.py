@@ -1,12 +1,11 @@
 import datetime
 
 from ddt import data, ddt
-from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.logging import models as logging_models
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.invoices import models
+from waldur_mastermind.invoices import models, tasks
 from waldur_mastermind.invoices.tests import factories, fixtures
 
 
@@ -220,6 +219,11 @@ class CreditTest(test.APITransactionTestCase):
         self.assertEqual(self.invoice.total, old_total - credit.value)
         credit.refresh_from_db()
         self.assertEqual(credit.value, 0)
+        self.assertTrue(
+            logging_models.Event.objects.filter(
+                event_type="reduction_of_credit"
+            ).exists()
+        )
 
     def test_compensate_cost_if_credit_greater_than_item_cost(self):
         credit_value = self.invoice.total * 2
@@ -234,17 +238,6 @@ class CreditTest(test.APITransactionTestCase):
         self.assertEqual(self.invoice.total, 0)
         credit.refresh_from_db()
         self.assertEqual(credit.value, credit_value - old_total)
-
-    @freeze_time("2024-10-01")
-    def test_credit_end_date(self):
-        credit_value = self.invoice.total // 2
-        credit = factories.CustomerCreditFactory(
-            customer=self.invoice.customer,
-            value=credit_value,
-            end_date=datetime.date.today() - datetime.timedelta(days=10),
-        )
-        self.invoice.set_created()
-        self.assertFalse(models.InvoiceItem.objects.filter(credit=credit).exists())
 
     def test_minimal_consumption(self):
         old_total = self.invoice.total
@@ -261,5 +254,26 @@ class CreditTest(test.APITransactionTestCase):
         self.assertTrue(
             logging_models.Event.objects.filter(
                 event_type="reduction_of_credit_due_to_minimal_consumption"
+            ).exists()
+        )
+
+    def test_task_set_to_zero_overdue_credits(self):
+        credit_1 = factories.CustomerCreditFactory()
+        credit_2 = factories.CustomerCreditFactory(
+            end_date=datetime.date.today() + datetime.timedelta(days=5)
+        )
+        credit_3 = factories.CustomerCreditFactory(
+            end_date=datetime.date.today() - datetime.timedelta(days=5)
+        )
+        tasks.set_to_zero_overdue_credits()
+        credit_1.refresh_from_db()
+        credit_2.refresh_from_db()
+        credit_3.refresh_from_db()
+        self.assertTrue(credit_1.value)
+        self.assertTrue(credit_2.value)
+        self.assertFalse(credit_3.value)
+        self.assertTrue(
+            logging_models.Event.objects.filter(
+                event_type="set_to_zero_overdue_credit"
             ).exists()
         )
