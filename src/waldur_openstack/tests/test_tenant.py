@@ -7,7 +7,6 @@ from django.contrib.auth import get_user_model
 from freezegun import freeze_time
 from rest_framework import status, test
 
-from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import ProjectRole
@@ -116,22 +115,6 @@ class TenantCreateTest(BaseTenantActionsTest):
         self.assertFalse(
             models.Tenant.objects.filter(name=self.valid_data["name"]).exists()
         )
-
-    @override_waldur_core_settings(ONLY_STAFF_MANAGES_SERVICES=True)
-    @data("staff")
-    def test_if_only_staff_manages_services_he_can_create_tenant(self, user):
-        self.client.force_authenticate(getattr(self.fixture, user))
-        response = self.client.post(self.url, data=self.valid_data)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-    @override_waldur_core_settings(ONLY_STAFF_MANAGES_SERVICES=True)
-    @data("admin", "manager", "owner")
-    def test_if_only_staff_manages_services_other_users_can_not_create_tenant(
-        self, user
-    ):
-        self.client.force_authenticate(getattr(self.fixture, user))
-        response = self.client.post(self.url, data=self.valid_data)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_cannot_create_tenant_with_service_settings_username(self):
         self.fixture.settings.username = "admin"
@@ -406,28 +389,10 @@ class TenantUpdateTest(BaseTenantActionsTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(models.Tenant.objects.filter(name=payload["name"]).count(), 1)
 
-    @override_waldur_core_settings(ONLY_STAFF_MANAGES_SERVICES=True)
-    @data("staff")
-    def test_if_only_staff_manages_services_he_can_update_tenant(self, user):
+    @data("staff", "admin", "manager", "owner")
+    def test_if_authorized_user_can_update_tenant(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.patch(self.get_url(), dict(name="new valid tenant name"))
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-    @override_waldur_core_settings(ONLY_STAFF_MANAGES_SERVICES=True)
-    @data("admin", "manager", "owner")
-    def test_if_only_staff_manages_services_other_users_can_not_update_tenant(
-        self, user
-    ):
-        self.client.force_authenticate(getattr(self.fixture, user))
-        response = self.client.patch(self.get_url(), dict(name="new valid tenant name"))
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-    @override_waldur_core_settings(ONLY_STAFF_MANAGES_SERVICES=True)
-    def test_authorized_user_can_update_description_of_tenant(self):
-        self.client.force_authenticate(self.fixture.staff)
-        response = self.client.patch(
-            self.get_url(), dict(description="new description")
-        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def get_url(self):
@@ -558,26 +523,6 @@ class TenantDeleteTest(BaseTenantActionsTest):
 
         response = self.client.delete(self.get_url())
 
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertEqual(mocked_task.call_count, 0)
-
-    @override_waldur_core_settings(ONLY_STAFF_MANAGES_SERVICES=True)
-    @data("staff")
-    def test_if_only_staff_manages_services_he_can_delete_tenant(
-        self, user, mocked_task
-    ):
-        self.client.force_authenticate(getattr(self.fixture, user))
-        response = self.client.delete(self.get_url())
-        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
-        self.assertEqual(mocked_task.call_count, 1)
-
-    @override_waldur_core_settings(ONLY_STAFF_MANAGES_SERVICES=True)
-    @data("admin", "manager", "owner")
-    def test_if_only_staff_manages_services_other_users_can_not_delete_tenant(
-        self, user, mocked_task
-    ):
-        self.client.force_authenticate(getattr(self.fixture, user))
-        response = self.client.delete(self.get_url())
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(mocked_task.call_count, 0)
 

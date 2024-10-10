@@ -376,13 +376,7 @@ class TenantViewSet(structure_views.ResourceViewSet):
             )
 
     delete_executor = executors.TenantDeleteExecutor
-    destroy_permissions = [
-        delete_permission_check,
-        structure_permissions.check_access_to_services_management,
-    ]
-    create_permissions = update_permissions = partial_update_permissions = [
-        structure_permissions.check_access_to_services_management,
-    ]
+    destroy_permissions = [delete_permission_check]
 
     @decorators.action(detail=True, methods=["post"])
     def set_quotas(self, request, uuid=None):
