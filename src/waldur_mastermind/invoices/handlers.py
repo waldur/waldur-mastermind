@@ -201,3 +201,27 @@ def create_recurring_usage_if_invoice_has_been_created(
                 "modified_by": usage.modified_by,
             },
         )
+
+
+def log_credit(sender, instance, created=False, **kwargs):
+    credit = instance
+
+    if created:
+        log.event_logger.credit.info(
+            "Credit has been created. Value: {new_value}",
+            event_type="create_of_credit_by_staff",
+            event_context={
+                "new_value": int(credit.value),
+                "customer": credit.customer,
+            },
+        )
+    elif credit.tracker.has_changed("value"):
+        log.event_logger.credit.info(
+            "Credit has been updated from {old_value} to {new_value}. ",
+            event_type="update_of_credit_by_staff",
+            event_context={
+                "new_value": int(credit.value),
+                "old_value": int(credit.tracker.previous("value")),
+                "customer": credit.customer,
+            },
+        )
