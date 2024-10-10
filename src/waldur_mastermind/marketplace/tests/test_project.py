@@ -107,3 +107,21 @@ class ProjectMoveTest(test.APITransactionTestCase):
         self.assertEqual(self.new_customer, self.project.customer)
         private_offering.refresh_from_db()
         self.assertEqual(private_offering.customer, self.new_customer)
+
+
+class ProjectStartDateTest(test.APITransactionTestCase):
+    def setUp(self) -> None:
+        self.fixture = fixtures.MarketplaceFixture()
+        self.project = self.fixture.project
+        self.project.start_date = datetime.date.today()
+        self.project.save()
+        self.order = self.fixture.order
+        self.order.state = models.Order.States.PENDING_PROJECT
+        self.order.save()
+
+    def test_order_process_when_project_start_date_unset(self):
+        self.project.start_date = None
+        self.project.save()
+
+        self.order.refresh_from_db()
+        self.assertEqual(models.Order.States.PENDING_PROVIDER, self.order.state)
