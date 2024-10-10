@@ -158,11 +158,7 @@ class Invoice(core_models.UuidMixin, core_models.BackendMixin, models.Model):
         return 100000 + self.id
 
     def _process_credits(self):
-        credit = (
-            CustomerCredit.objects.filter(customer=self.customer)
-            .exclude(end_date__lte=datetime.date.today())
-            .first()
-        )
+        credit = CustomerCredit.objects.filter(customer=self.customer).first()
 
         if not credit or not credit.value:
             return
@@ -228,17 +224,25 @@ class Invoice(core_models.UuidMixin, core_models.BackendMixin, models.Model):
                             quantity=1,
                             unit=InvoiceItem.Units.QUANTITY,
                             credit=credit,
-                            name=f"Credit compensation. {item.name}",
+                            name=f"Credit compensation. {item}",
                         )
+                    )
+                    log.event_logger.credit.info(
+                        "Reduction of credit by {consumption} due to compensation of invoice item {invoice_item}.",
+                        event_type="reduction_of_credit",
+                        event_context={
+                            "consumption": credit_compensation,
+                            "customer": self.customer,
+                            "invoice_item": str(item),
+                        },
                     )
                 if not credit.value:
                     break
 
         InvoiceItem.objects.bulk_create(compensations)
+        total_compensation = sum(credit.unit_price * -1 for credit in compensations)
 
         if credit.minimal_consumption:
-            total_compensation = sum(credit.unit_price * -1 for credit in compensations)
-
             if total_compensation < credit.minimal_consumption:
                 tail = credit.minimal_consumption - total_compensation
 

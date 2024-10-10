@@ -15,7 +15,7 @@ from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices.utils import get_previous_month
 from waldur_mastermind.marketplace.tasks import copy_future_price_to_current_price
 
-from . import models, registrators, serializers, utils
+from . import log, models, registrators, serializers, utils
 
 logger = logging.getLogger(__name__)
 
@@ -263,4 +263,21 @@ def send_monthly_invoicing_reports_about_customers():
             attachment=report,
             filename=filename,
             content_type="text/html",
+        )
+
+
+@shared_task(name="invoices.set_to_zero_overdue_credits")
+def set_to_zero_overdue_credits():
+    for credit in models.CustomerCredit.objects.filter(
+        end_date__lt=datetime.date.today()
+    ).exclude(value=0):
+        credit.value = 0
+        credit.save()
+        log.event_logger.credit.info(
+            "Credit has been set to zero due as the end date {credit_end_date} has arrived.",
+            event_type="set_to_zero_overdue_credit",
+            event_context={
+                "customer": credit.customer,
+                "credit_end_date": credit.end_date,
+            },
         )
