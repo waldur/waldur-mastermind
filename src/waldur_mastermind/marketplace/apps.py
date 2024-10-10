@@ -207,6 +207,12 @@ class MarketplaceConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.process_invitations_and_orders_when_project_start_date_is_unset,
+            sender=structure_models.Project,
+            dispatch_uid="waldur_mastermind.marketplace.process_invitations_and_orders_when_project_start_date_is_unset",
+        )
+
+        signals.post_save.connect(
             handlers.resource_state_has_been_changed,
             sender=models.Resource,
             dispatch_uid="waldur_mastermind.marketplace.resource_state_has_been_changed",

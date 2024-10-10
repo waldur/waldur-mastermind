@@ -1,5 +1,6 @@
 import logging
 
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from django.db.models import signals
@@ -11,6 +12,8 @@ from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import get_permissions
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.models import Customer
+from waldur_core.users import models as users_models
+from waldur_core.users.tasks import process_invitation
 from waldur_mastermind.marketplace.managers import get_connected_offerings
 from waldur_mastermind.marketplace.permissions import (
     order_should_not_be_reviewed_by_consumer,
@@ -139,6 +142,54 @@ def notify_approvers_when_order_is_created(sender, instance, created=False, **kw
         else:
             transaction.on_commit(
                 lambda: tasks.notify_consumer_about_pending_order.delay(order.uuid)
+            )
+
+
+def process_invitations_and_orders_when_project_start_date_is_unset(
+    sender, instance, created=False, **kwargs
+):
+    if created:
+        return
+
+    project = instance
+
+    if not project.tracker.has_changed("start_date"):
+        return
+
+    if project.start_date:
+        return
+
+    project_content_type = ContentType.objects.get_for_model(structure_models.Project)
+    invitations = users_models.Invitation.objects.filter(
+        state=users_models.Invitation.State.PENDING_PROJECT,
+        object_id=project.id,
+        content_type=project_content_type,
+    )
+    for invitation in invitations:
+        invitation.state = models.Invitation.State.PENDING
+        invitation.save()
+        sender = invitation.created_by.full_name or invitation.created_by.username
+        transaction.on_commit(
+            lambda: process_invitation.delay(invitation.uuid.hex, sender)
+        )
+
+    orders = models.Order.objects.filter(
+        state=models.Order.States.PENDING_PROJECT, project=project
+    )
+    for order in orders:
+        # Setting the state to PENDING_PROVIDER because direct transition
+        # from PENDING_PROJECT to EXECUTING is not supported
+        order.state = models.Order.States.PENDING_PROVIDER
+        order.save(update_fields=["state"])
+        if utils.order_should_not_be_reviewed_by_provider(order):
+            order.set_state_executing()
+            order.save(update_fields=["state"])
+            transaction.on_commit(
+                lambda: tasks.process_order_on_commit.delay(order, order.created_by)
+            )
+        else:
+            transaction.on_commit(
+                lambda: tasks.notify_provider_about_pending_order.delay(order.uuid)
             )
 
 

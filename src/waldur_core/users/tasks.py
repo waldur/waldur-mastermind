@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 import requests
 from celery import shared_task
 from django.conf import settings
+from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.utils import timezone
 from python_freeipa import exceptions as freeipa_exceptions
@@ -264,11 +265,14 @@ def send_mail_notification_about_permission_request_has_been_submitted(
 
 @shared_task(name="waldur_core.users.process_pending_project_invitations")
 def process_pending_project_invitations():
+    project_content_type = ContentType.objects.get_for_model(structure_models.Project)
     active_project_ids = structure_models.Project.objects.filter(
         start_date__lte=timezone.now()
     ).values_list("id", flat=True)
     invitations = models.Invitation.objects.filter(
-        state=models.Invitation.State.PENDING_PROJECT, object_id__in=active_project_ids
+        state=models.Invitation.State.PENDING_PROJECT,
+        object_id__in=active_project_ids,
+        content_type=project_content_type,
     )
     for invitation in invitations:
         invitation.state = models.Invitation.State.PENDING
