@@ -267,6 +267,14 @@ class MigrationCreateSerializer(
 
         limits = self.get_limits(validated_data, src_resource)
         quotas = map_limits_to_quotas(limits, dst_offering)
+        for quota_name in (
+            "instances",
+            "volumes",
+            "snapshots",
+            "security_group_count",
+            "security_group_rule_count",
+        ):
+            quotas[quota_name] = src_tenant.get_quota_limit(quota_name)
 
         _apply_quotas(dst_tenant, quotas)
 
