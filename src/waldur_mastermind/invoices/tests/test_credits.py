@@ -288,3 +288,33 @@ class CreditTest(test.APITransactionTestCase):
                 event_type="set_to_zero_overdue_credit"
             ).exists()
         )
+
+
+class ProjectCreditTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.CreditFixture()
+        self.customer_credit = self.fixture.customer_credit
+        self.project_credit = self.fixture.project_credit
+        self.invoice = self.fixture.invoice
+        self.invoice_item = self.fixture.invoice_item
+
+    def test_project_credits_reduced(self):
+        old_project_credit_value = self.project_credit.value
+        self.invoice.set_created()
+        self.project_credit.refresh_from_db()
+        self.assertTrue(self.project_credit.value < old_project_credit_value)
+
+    def test_use_organisation_credit_enabled(self):
+        self.project_credit.use_organisation_credit = False
+        self.project_credit.save()
+        old_customer_credit_value = self.customer_credit.value
+        self.invoice.set_created()
+        self.customer_credit.refresh_from_db()
+        self.assertEqual(self.customer_credit.value, old_customer_credit_value)
+
+    def test_use_organisation_credit_disable(self):
+        self.project_credit.use_organisation_credit = True
+        self.project_credit.save()
+        self.invoice.set_created()
+        self.customer_credit.refresh_from_db()
+        self.assertEqual(self.customer_credit.value, 0)
