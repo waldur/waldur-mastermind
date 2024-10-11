@@ -37,15 +37,20 @@ class MigrationExecutor(CreateExecutor):
                 "push_tenant_quotas",
                 dst_tenant.quota_limits,
             ),
+            BackendMethodTask().si(
+                serialized_tenant,
+                "sync_default_security_group",
+            ),
         ]
         for network in dst_tenant.networks.all():
             creation_tasks.append(NetworkCreateExecutor.as_signature(network))
             for subnet in network.subnets.all():
                 SubNetCreateExecutor.as_signature(subnet)
         for security_group in dst_tenant.security_groups.all():
-            creation_tasks.append(
-                SecurityGroupCreateExecutor.as_signature(security_group)
-            )
+            if security_group.name != "default":
+                creation_tasks.append(
+                    SecurityGroupCreateExecutor.as_signature(security_group)
+                )
         creation_tasks += [
             BackendMethodTask().si(serialized_tenant, "pull_tenant_quotas"),
             BackendMethodTask().si(serialized_tenant, "pull_tenant_images"),

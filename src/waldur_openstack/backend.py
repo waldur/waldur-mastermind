@@ -654,6 +654,29 @@ class OpenStackBackend(ServiceBackend):
             local_security_group.tenant, [remote_security_group]
         )
 
+    def sync_default_security_group(self, tenant: models.Tenant):
+        session = get_tenant_session(tenant)
+        neutron = get_neutron_client(session)
+        try:
+            backend_security_groups = neutron.list_security_groups(
+                tenant_id=tenant.backend_id
+            )["security_groups"]
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(e)
+        backend_default_group = None
+        for backend_group in backend_security_groups:
+            if backend_group["name"] == "default":
+                backend_default_group = backend_group
+        local_default_group = tenant.security_groups.filter(name="default").first()
+        if backend_default_group and local_default_group:
+            local_default_group.backend_id = backend_default_group["id"]
+            local_default_group.save(update_fields=["backend_id"])
+            self.push_security_group_rules(local_default_group)
+        else:
+            logger.debug(
+                "Default security group for tenant %s is not found.", tenant.backend_id
+            )
+
     @log_backend_action("pull security groups for tenant")
     def pull_tenant_security_groups(self, tenant: models.Tenant):
         session = get_tenant_session(tenant)
