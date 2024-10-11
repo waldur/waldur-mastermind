@@ -1679,8 +1679,7 @@ class OpenStackBackend(ServiceBackend):
 
     @log_backend_action()
     def delete_tenant_user(self, tenant: models.Tenant):
-        session = get_tenant_session(tenant)
-        keystone = get_keystone_client(session)
+        keystone = get_keystone_client(self.admin_session)
         try:
             user = keystone.users.find(name=tenant.user_username)
             logger.info(
