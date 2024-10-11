@@ -1,10 +1,10 @@
 from waldur_core.core import WaldurExtension
 
 
-class OpenStackMigrateExtension(WaldurExtension):
+class OpenStackReplicationExtension(WaldurExtension):
     @staticmethod
     def django_app():
-        return "waldur_openstack_migrate"
+        return "waldur_openstack_replication"
 
     @staticmethod
     def rest_urls():
