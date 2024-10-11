@@ -1,7 +1,7 @@
 from celery import chain
 
 from waldur_core.core.executors import CreateExecutor
-from waldur_core.core.tasks import BackendMethodTask
+from waldur_core.core.tasks import BackendMethodTask, StateTransitionTask
 from waldur_core.core.utils import serialize_instance
 from waldur_openstack.executors import (
     NetworkCreateExecutor,
@@ -21,6 +21,10 @@ class MigrationExecutor(CreateExecutor):
         dst_tenant: Tenant = migration.dst_resource.scope
         serialized_tenant = serialize_instance(dst_tenant)
         creation_tasks = [
+            StateTransitionTask().si(
+                serialized_migration,
+                state_transition="begin_creating",
+            ),
             BackendMethodTask().si(
                 serialized_tenant,
                 "create_tenant_safe",
