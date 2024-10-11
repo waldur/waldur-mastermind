@@ -619,6 +619,16 @@ class TenantChangeUserPasswordExecutor(core_executors.ActionExecutor):
         )
 
 
+class RouterCreateExecutor(core_executors.CreateExecutor):
+    @classmethod
+    def get_task_signature(cls, router, serialized_router, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_router,
+            "create_router",
+            state_transition="begin_creating",
+        )
+
+
 class RouterSetRoutesExecutor(core_executors.ActionExecutor):
     action = "set_static_routes"
 

@@ -5,6 +5,7 @@ from waldur_core.core.tasks import BackendMethodTask, StateTransitionTask
 from waldur_core.core.utils import serialize_instance
 from waldur_openstack.executors import (
     NetworkCreateExecutor,
+    RouterCreateExecutor,
     SecurityGroupCreateExecutor,
     SubNetCreateExecutor,
 )
@@ -51,6 +52,8 @@ class MigrationExecutor(CreateExecutor):
                 creation_tasks.append(
                     SecurityGroupCreateExecutor.as_signature(security_group)
                 )
+        for router in dst_tenant.routers.all():
+            creation_tasks.append(RouterCreateExecutor.as_signature(router))
         creation_tasks += [
             BackendMethodTask().si(serialized_tenant, "pull_tenant_quotas"),
             BackendMethodTask().si(serialized_tenant, "pull_tenant_images"),
@@ -62,5 +65,6 @@ class MigrationExecutor(CreateExecutor):
             BackendMethodTask().si(
                 serialized_tenant, "pull_tenant_volume_availability_zones"
             ),
+            StateTransitionTask().si(serialized_tenant, state_transition="set_ok"),
         ]
         return chain(*creation_tasks)

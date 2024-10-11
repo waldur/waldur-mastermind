@@ -15,6 +15,7 @@ from waldur_mastermind.marketplace_openstack.utils import (
 )
 from waldur_openstack.models import (
     Network,
+    Router,
     SecurityGroup,
     SecurityGroupRule,
     SubNet,
@@ -208,6 +209,16 @@ class MigrationCreateSerializer(
                     direction=src_rule.direction,
                     ethertype=src_rule.ethertype,
                 )
+        src_routers: QuerySet[Router] = src_tenant.routers.all()
+        for src_router in src_routers:
+            Router.objects.create(
+                name=src_router.name,
+                description=src_router.description,
+                service_settings=dst_settings,
+                project=dst_project,
+                tenant=dst_tenant,
+                routes=src_router.routes,
+            )
 
     def get_limits(self, validated_data, src_resource: Resource):
         volume_type_mappings = {}

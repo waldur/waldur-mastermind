@@ -667,11 +667,15 @@ class OpenStackBackend(ServiceBackend):
         for backend_group in backend_security_groups:
             if backend_group["name"] == "default":
                 backend_default_group = backend_group
-        local_default_group = tenant.security_groups.filter(name="default").first()
+        local_default_group: models.SecurityGroup = tenant.security_groups.filter(
+            name="default"
+        ).first()
         if backend_default_group and local_default_group:
             local_default_group.backend_id = backend_default_group["id"]
             local_default_group.save(update_fields=["backend_id"])
             self.push_security_group_rules(local_default_group)
+            local_default_group.set_ok()
+            local_default_group.save()
         else:
             logger.debug(
                 "Default security group for tenant %s is not found.", tenant.backend_id
@@ -2631,6 +2635,11 @@ class OpenStackBackend(ServiceBackend):
 
         # If any router in Tenant exists, use it
         return routers[0] if routers else None
+
+    def create_router(self, router: models.Router):
+        backend_router = self._create_router(router.tenant, router.name)
+        router.backend_id = backend_router["id"]
+        router.save(update_fields=["backend_id"])
 
     def _create_router(self, tenant: models.Tenant, router_name):
         neutron = get_neutron_client(self.admin_session)
