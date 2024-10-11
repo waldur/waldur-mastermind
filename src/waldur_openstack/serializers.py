@@ -746,6 +746,24 @@ def validate_private_subnet_cidr(value):
     return validate_private_cidr(value, 24)
 
 
+def can_create_tenant(
+    user: core_models.User,
+    service_settings: structure_models.ServiceSettings,
+    project: structure_models.Project,
+):
+    """Administrator can create tenant only using not shared service settings"""
+
+    message = _(
+        "You do not have permissions to create tenant in this project using selected service."
+    )
+    if service_settings.shared and not user.is_staff:
+        raise serializers.ValidationError(message)
+    if not service_settings.shared and not structure_permissions._has_admin_access(
+        user, project
+    ):
+        raise serializers.ValidationError(message)
+
+
 class TenantSerializer(structure_serializers.BaseResourceSerializer):
     quotas = serializers.ReadOnlyField()
     subnet_cidr = serializers.CharField(
@@ -798,18 +816,13 @@ class TenantSerializer(structure_serializers.BaseResourceSerializer):
 
         return fields
 
-    def _validate_service_settings(self, service_settings, project):
-        """Administrator can create tenant only using not shared service settings"""
+    def _validate_service_settings(
+        self,
+        service_settings: structure_models.ServiceSettings,
+        project: structure_models.Project,
+    ):
         user = self.context["request"].user
-        message = _(
-            "You do not have permissions to create tenant in this project using selected service."
-        )
-        if service_settings.shared and not user.is_staff:
-            raise serializers.ValidationError(message)
-        if not service_settings.shared and not structure_permissions._has_admin_access(
-            user, project
-        ):
-            raise serializers.ValidationError(message)
+        can_create_tenant(user, service_settings, project)
 
     def validate_security_groups_configuration(self):
         plugin_settings = getattr(settings, "WALDUR_OPENSTACK", {})
@@ -926,7 +939,9 @@ class TenantSerializer(structure_serializers.BaseResourceSerializer):
         return attrs
 
     def create(self, validated_data):
-        service_settings = validated_data["service_settings"]
+        service_settings: structure_models.ServiceSettings = validated_data[
+            "service_settings"
+        ]
         # get availability zone from service settings if it is not defined
         if not validated_data.get("availability_zone"):
             validated_data["availability_zone"] = (
@@ -942,7 +957,7 @@ class TenantSerializer(structure_serializers.BaseResourceSerializer):
 
         subnet_cidr = validated_data.pop("subnet_cidr")
         with transaction.atomic():
-            tenant = super().create(validated_data)
+            tenant: models.Tenant = super().create(validated_data)
             network = models.Network.objects.create(
                 name=slugified_name + "-int-net",
                 description=_("Internal network for tenant %s") % tenant.name,
