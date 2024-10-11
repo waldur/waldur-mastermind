@@ -6,6 +6,7 @@ from waldur_core.core.utils import serialize_instance
 from waldur_openstack.executors import (
     NetworkCreateExecutor,
     RouterCreateExecutor,
+    RouterSetRoutesExecutor,
     SecurityGroupCreateExecutor,
     SubNetCreateExecutor,
 )
@@ -43,6 +44,9 @@ class MigrationExecutor(CreateExecutor):
                 "sync_default_security_group",
             ),
         ]
+        for router in dst_tenant.routers.all():
+            creation_tasks.append(RouterCreateExecutor.as_signature(router))
+            creation_tasks.append(RouterSetRoutesExecutor.as_signature(router))
         for network in dst_tenant.networks.all():
             creation_tasks.append(NetworkCreateExecutor.as_signature(network))
             for subnet in network.subnets.all():
@@ -52,8 +56,6 @@ class MigrationExecutor(CreateExecutor):
                 creation_tasks.append(
                     SecurityGroupCreateExecutor.as_signature(security_group)
                 )
-        for router in dst_tenant.routers.all():
-            creation_tasks.append(RouterCreateExecutor.as_signature(router))
         creation_tasks += [
             BackendMethodTask().si(serialized_tenant, "pull_tenant_quotas"),
             BackendMethodTask().si(serialized_tenant, "pull_tenant_images"),
