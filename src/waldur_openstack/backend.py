@@ -1641,8 +1641,7 @@ class OpenStackBackend(ServiceBackend):
 
     @log_backend_action()
     def delete_tenant_volumes(self, tenant: models.Tenant):
-        session = get_tenant_session(tenant)
-        cinder = get_cinder_client(session)
+        cinder = get_cinder_client(self.admin_session)
 
         try:
             volumes = cinder.volumes.list()
