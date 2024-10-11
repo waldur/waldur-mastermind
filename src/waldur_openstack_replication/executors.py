@@ -46,7 +46,7 @@ class MigrationExecutor(CreateExecutor):
         for network in dst_tenant.networks.all():
             creation_tasks.append(NetworkCreateExecutor.as_signature(network))
             for subnet in network.subnets.all():
-                SubNetCreateExecutor.as_signature(subnet)
+                creation_tasks.append(SubNetCreateExecutor.as_signature(subnet))
         for security_group in dst_tenant.security_groups.all():
             if security_group.name != "default":
                 creation_tasks.append(
