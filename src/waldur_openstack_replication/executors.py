@@ -57,6 +57,10 @@ class MigrationExecutor(CreateExecutor):
                     SecurityGroupCreateExecutor.as_signature(security_group)
                 )
         creation_tasks += [
+            BackendMethodTask().si(
+                serialized_tenant,
+                backend_method="pull_tenant_routers",
+            ),
             BackendMethodTask().si(serialized_tenant, "pull_tenant_quotas"),
             BackendMethodTask().si(serialized_tenant, "pull_tenant_images"),
             BackendMethodTask().si(serialized_tenant, "pull_tenant_flavors"),
