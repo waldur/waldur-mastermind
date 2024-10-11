@@ -1644,7 +1644,9 @@ class OpenStackBackend(ServiceBackend):
         cinder = get_cinder_client(self.admin_session)
 
         try:
-            volumes = cinder.volumes.list()
+            volumes = cinder.volumes.list(
+                search_opts={"project_id": tenant.backend_id, "all_tenants": 1}
+            )
         except cinder_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
 
