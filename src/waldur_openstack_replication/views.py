@@ -22,3 +22,12 @@ class MigrationViewSet(ActionsViewSet):
         migration = self.get_object()
         executors.MigrationExecutor.execute(migration)
         return Response(status=status.HTTP_200_OK)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return Response(
+            serializers.MigrationDetailsSerializer(instance=serializer.instance).data,
+            status=status.HTTP_201_CREATED,
+        )

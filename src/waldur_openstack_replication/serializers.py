@@ -1,12 +1,18 @@
 from collections import defaultdict
 
+from django.db.models import QuerySet
 from rest_framework import serializers
 
+from waldur_core.core.utils import pwgen
+from waldur_core.core.validators import validate_name
 from waldur_core.structure.models import Project, ServiceSettings
 from waldur_core.structure.serializers import PermissionFieldFilteringMixin
 from waldur_mastermind.marketplace.models import Offering, Plan, Resource
 from waldur_mastermind.marketplace_openstack import AVAILABLE_LIMITS
-from waldur_mastermind.marketplace_openstack.utils import map_limits_to_quotas
+from waldur_mastermind.marketplace_openstack.utils import (
+    _apply_quotas,
+    map_limits_to_quotas,
+)
 from waldur_openstack.models import (
     Network,
     SecurityGroup,
@@ -94,7 +100,9 @@ class MigrationCreateSerializer(
             "dst_plan",
         )
 
-    name = serializers.CharField(write_only=True, required=False)
+    name = serializers.CharField(
+        write_only=True, required=False, validators=[validate_name]
+    )
     description = serializers.CharField(write_only=True, required=False)
     src_resource = serializers.SlugRelatedField(
         queryset=Resource.objects.all(), slug_field="uuid"
@@ -151,7 +159,8 @@ class MigrationCreateSerializer(
             src_cidr = subnet["src_cidr"]
             dst_cidr = subnet["dst_cidr"]
             subnet_mappings[src_cidr] = dst_cidr
-        for src_network in src_tenant.networks.all():
+        src_networks: QuerySet[Network] = src_tenant.networks.all()
+        for src_network in src_networks:
             dst_network = Network.objects.create(
                 name=src_network.name,
                 description=src_network.description,
@@ -160,7 +169,8 @@ class MigrationCreateSerializer(
                 tenant=dst_tenant,
                 mtu=src_network.mtu,
             )
-            for src_subnet in src_network.subnets.all():
+            src_subnets: QuerySet[SubNet] = src_network.subnets.all()
+            for src_subnet in src_subnets:
                 subnet_cidr = subnet_mappings.get(src_subnet.cidr) or src_subnet.cidr
                 SubNet.objects.create(
                     name=src_network.name,
@@ -194,7 +204,7 @@ class MigrationCreateSerializer(
                     ethertype=src_rule.ethertype,
                 )
 
-    def get_limits(self, validated_data, src_resource):
+    def get_limits(self, validated_data, src_resource: Resource):
         volume_type_mappings = {}
         for volume_type in validated_data.get("mappings", {}).get("volume_types", []):
             src_type_uuid = volume_type["src_type_uuid"]
@@ -203,21 +213,22 @@ class MigrationCreateSerializer(
             dst_type = VolumeType.objects.get(uuid=dst_type_uuid)
             volume_type_mappings[src_type.name] = dst_type.name
 
-        volume_type_quotas = defaultdict(int)
-        for key, value in src_resource.limits.items():
-            if not is_valid_volume_type_name(key):
-                continue
-            if not value:
-                continue
-            _, name = key.split("_")
-            if name in volume_type_mappings:
-                key = volume_type_name_to_quota_name(volume_type_mappings.get(name))
-            volume_type_quotas[key] += value
-
-        limits = {name: src_resource.limits.get(name) for name in AVAILABLE_LIMITS}
-
-        limits.update(volume_type_quotas)
-        limits = {k: v for k, v in limits.items() if v is not None}
+        if volume_type_mappings:
+            limits = {name: src_resource.limits.get(name) for name in AVAILABLE_LIMITS}
+            volume_type_quotas = defaultdict(int)
+            for key, value in src_resource.limits.items():
+                if not is_valid_volume_type_name(key):
+                    continue
+                if not value:
+                    continue
+                _, name = key.split("_", 1)
+                if name in volume_type_mappings:
+                    key = volume_type_name_to_quota_name(volume_type_mappings.get(name))
+                volume_type_quotas[key] += value
+            limits.update(volume_type_quotas)
+            limits = {k: v for k, v in limits.items() if v is not None}
+        else:
+            limits = src_resource.limits
         return limits
 
     def create(self, validated_data):
@@ -238,6 +249,8 @@ class MigrationCreateSerializer(
             project=dst_project,
             name=name,
             description=description,
+            user_username=Tenant.generate_username(name),
+            user_password=pwgen(),
         )
         self.connect_networks(
             validated_data,
@@ -250,8 +263,7 @@ class MigrationCreateSerializer(
         limits = self.get_limits(validated_data, src_resource)
         quotas = map_limits_to_quotas(limits, dst_offering)
 
-        for key, value in quotas.items():
-            dst_tenant.set_quota_limit(key, value)
+        _apply_quotas(dst_tenant, quotas)
 
         dst_resource = Resource.objects.create(
             project=src_resource.project,

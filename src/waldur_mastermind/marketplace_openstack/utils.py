@@ -141,7 +141,7 @@ def import_quotas(offering, source_values):
     return result_values
 
 
-def _apply_quotas(target, quotas):
+def _apply_quotas(target: openstack_models.Tenant, quotas: dict[str, int]):
     for name, limit in quotas.items():
         target.set_quota_limit(name, limit)
 
