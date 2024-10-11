@@ -198,7 +198,7 @@ class MigrationCreateSerializer(
                 name=src_group.name,
                 description=src_group.description,
             )
-            for src_rule in dst_group.rules.all():
+            for src_rule in src_group.rules.all():
                 rule_cidr = subnet_mappings.get(src_rule.cidr) or src_rule.cidr
                 SecurityGroupRule.objects.create(
                     security_group=dst_group,

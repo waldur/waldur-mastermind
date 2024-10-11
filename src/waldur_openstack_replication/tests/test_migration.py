@@ -92,3 +92,22 @@ class MigrationTest(test.APITransactionTestCase):
         self.assertEqual(
             10, dst_resource.limits[volume_type_name_to_quota_name(volume_type2.name)]
         )
+
+    def test_security_group_rules_are_replicated(self):
+        offering = OfferingFactory(scope=self.fixture.settings)
+        plan = PlanFactory(offering=offering)
+        resource = ResourceFactory(offering=offering, scope=self.fixture.tenant)
+        self.fixture.security_group_rule
+        self.client.force_login(self.fixture.staff)
+        response = self.client.post(
+            reverse("openstack-migrations-list"),
+            {
+                "src_resource": resource.uuid.hex,
+                "dst_offering": offering.uuid.hex,
+                "dst_plan": plan.uuid.hex,
+            },
+        )
+        dst_resource_uuid = response.data["dst_resource_uuid"]
+        dst_resource = Resource.objects.get(uuid=dst_resource_uuid)
+        tenant: Tenant = dst_resource.scope
+        self.assertEqual(tenant.security_groups.get().rules.count(), 1)

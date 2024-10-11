@@ -62,6 +62,12 @@ class OpenStackFixture(ProjectFixture):
         )
 
     @cached_property
+    def security_group_rule(self):
+        return factories.SecurityGroupRuleFactory(
+            security_group=self.security_group,
+        )
+
+    @cached_property
     def server_group(self):
         return factories.ServerGroupFactory(
             service_settings=self.settings,
