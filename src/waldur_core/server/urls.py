@@ -11,7 +11,6 @@ from waldur_core.core.logos import DEFAULT_LOGOS, LOGO_MAP
 from waldur_core.core.routers import SortedDefaultRouter as DefaultRouter
 from waldur_core.core.schemas import WaldurSchemaView
 from waldur_core.logging import urls as logging_urls
-from waldur_core.media import urls as media_urls
 from waldur_core.permissions import urls as permissions_urls
 from waldur_core.structure import urls as structure_urls
 from waldur_core.users import urls as users_urls
@@ -21,7 +20,6 @@ logging_urls.register_in(router)
 permissions_urls.register_in(router)
 structure_urls.register_in(router)
 users_urls.register_in(router)
-media_urls.register_in(router)
 
 urlpatterns = [
     re_path(r"^admin/", admin.site.urls),
