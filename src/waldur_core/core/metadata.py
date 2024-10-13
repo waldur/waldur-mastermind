@@ -793,7 +793,7 @@ class WaldurConfiguration(BaseModel):
     WALDUR_MARKETPLACE_REMOTE_SLURM = WaldurMarketplaceRemoteSlurm()
     WALDUR_AUTH_SAML2 = WaldurAuthSAML2()
     USE_PROTECTED_URL = Field(
-        False, description="Protect media URLs using signed token."
+        True, description="Protect media URLs using signed token."
     )
     VERIFY_WEBHOOK_REQUESTS = Field(
         True,
