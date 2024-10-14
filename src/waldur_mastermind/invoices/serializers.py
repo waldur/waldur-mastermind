@@ -848,6 +848,10 @@ class CreateCustomerCreditSerializer(CustomerCreditSerializer):
 
 
 class ProjectCreditSerializer(serializers.HyperlinkedModelSerializer):
+    project_name = serializers.ReadOnlyField(source="project.name")
+    project_uuid = serializers.ReadOnlyField(source="project.uuid")
+    project_slug = serializers.ReadOnlyField(source="project.slug")
+
     def validate_project(self, project):
         user = self.context["request"].user
 
@@ -863,6 +867,9 @@ class ProjectCreditSerializer(serializers.HyperlinkedModelSerializer):
             "url",
             "value",
             "project",
+            "project_name",
+            "project_uuid",
+            "project_slug",
             "use_organisation_credit",
         )
 
