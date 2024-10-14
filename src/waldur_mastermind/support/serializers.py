@@ -19,7 +19,6 @@ from waldur_core.core.utils import is_uuid_like
 from waldur_core.media.serializers import ProtectedMediaSerializerMixin
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.registry import get_resource_type
-from waldur_jira import serializers as jira_serializers
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 
@@ -474,24 +473,135 @@ class SupportUserSerializer(
         )
 
 
-class WebHookReceiverSerializer(jira_serializers.WebHookReceiverSerializer):
-    def get_project(self, project_key):
-        class Project:
-            def get_backend(self):
-                return ServiceDeskBackend()
+class JiraCommentSerializer(serializers.Serializer):
+    id = serializers.CharField()
 
-        return Project()
 
-    def get_issue(self, project, key, create):
+class JiraChangelogSerializer(serializers.Serializer):
+    items = serializers.ListField()
+
+
+class JiraFieldSerializer(serializers.Serializer):
+    id = serializers.CharField()
+    name = serializers.CharField()
+
+
+class JiraIssueProjectSerializer(JiraFieldSerializer):
+    key = serializers.CharField()
+
+
+class JiraIssueFieldsSerializer(serializers.Serializer):
+    project = JiraIssueProjectSerializer()
+    comment = serializers.DictField(required=False)
+
+
+class JiraIssueSerializer(serializers.Serializer):
+    key = serializers.CharField()
+    fields = JiraIssueFieldsSerializer()
+
+
+class WebHookReceiverSerializer(serializers.Serializer):
+    class Event:
+        ISSUE_UPDATE = 2
+        ISSUE_DELETE = 4
+        COMMENT_CREATE = 5
+        COMMENT_UPDATE = 6
+        COMMENT_DELETE = 7
+
+        ISSUE_ACTIONS = (ISSUE_UPDATE, ISSUE_DELETE)
+        COMMENT_ACTIONS = (COMMENT_CREATE, COMMENT_UPDATE, COMMENT_DELETE)
+
+        CHOICES = {
+            ("jira:issue_updated", ISSUE_UPDATE),
+            ("jira:issue_deleted", ISSUE_DELETE),
+            ("comment_created", COMMENT_CREATE),
+            ("comment_updated", COMMENT_UPDATE),
+            ("comment_deleted", COMMENT_DELETE),
+        }
+
+    webhookEvent = serializers.ChoiceField(choices=Event.CHOICES)
+    issue = JiraIssueSerializer()
+    comment = JiraCommentSerializer(required=False)
+    changelog = JiraChangelogSerializer(required=False)
+    issue_event_type_name = serializers.CharField(
+        required=False
+    )  # For old Jira's version
+
+    def create(self, validated_data):
+        event_type = dict(self.Event.CHOICES).get(validated_data["webhookEvent"])
+        fields = validated_data["issue"]["fields"]
+        key = validated_data["issue"]["key"]
+        backend = ServiceDeskBackend()
+        issue = self.get_issue(key)
+
+        if fields.get("comment", False):
+            # The processing of hooks requests for the old and new Jira versions is different.
+            # The main difference is that in the old version, when changing comments,
+            # jira:issue_updated event is sent to the new comment_X event.
+            old_jira = validated_data.get("issue_event_type_name", True)
+        else:
+            old_jira = False
+
+        if event_type == self.Event.ISSUE_UPDATE:
+            if old_jira:
+                if old_jira == "issue_commented":
+                    comment_backend_id = validated_data["comment"]["id"]
+                    backend.create_comment_from_jira(issue, comment_backend_id)
+
+                if old_jira == "issue_comment_edited":
+                    comment_backend_id = validated_data["comment"]["id"]
+                    comment = self.get_comment(issue, comment_backend_id, False)
+                    backend.update_comment_from_jira(comment)
+
+                if old_jira == "issue_comment_deleted":
+                    backend.delete_old_comments(issue)
+
+                if old_jira in ("issue_updated", "issue_generic"):
+                    items = validated_data["changelog"]["items"]
+                    if any(item["field"] == "Attachment" for item in items):
+                        backend.update_attachment_from_jira(issue)
+
+                    backend.update_issue_from_jira(issue)
+
+            else:
+                backend.update_issue_from_jira(issue)
+                backend.update_attachment_from_jira(issue)
+
+        elif event_type == self.Event.ISSUE_DELETE:
+            backend.delete_issue_from_jira(issue)
+
+        elif event_type in self.Event.COMMENT_ACTIONS:
+            try:
+                comment_backend_id = validated_data["comment"]["id"]
+            except KeyError:
+                raise serializers.ValidationError(
+                    "Request not include fields.comment.id"
+                )
+
+            create_comment = event_type == self.Event.COMMENT_CREATE
+            comment = self.get_comment(issue, comment_backend_id, create_comment)
+
+            if not comment and create_comment:
+                backend.create_comment_from_jira(issue, comment_backend_id)
+                backend.update_attachment_from_jira(issue)
+
+            if event_type == self.Event.COMMENT_UPDATE:
+                backend.update_comment_from_jira(comment)
+                backend.update_attachment_from_jira(issue)
+
+            if event_type == self.Event.COMMENT_DELETE:
+                backend.delete_comment_from_jira(comment)
+                backend.update_attachment_from_jira(issue)
+
+        return validated_data
+
+    def get_issue(self, key):
         issue = None
 
         try:
             issue = models.Issue.objects.get(backend_id=key)
         except models.Issue.DoesNotExist:
-            if not create:
-                raise serializers.ValidationError(
-                    "Issue with id %s does not exist." % key
-                )
+            raise serializers.ValidationError("Issue with id %s does not exist." % key)
 
         return issue
 
@@ -507,9 +617,6 @@ class WebHookReceiverSerializer(jira_serializers.WebHookReceiverSerializer):
                 )
 
         return comment
-
-
-WebHookReceiverSerializer.remove_event(["jira:issue_created"])
 
 
 class AttachmentSerializer(

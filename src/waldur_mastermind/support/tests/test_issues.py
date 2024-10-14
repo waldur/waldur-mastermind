@@ -112,7 +112,7 @@ class IssueCreateBaseTest(base.BaseTest):
 
     def _mock_jira(self, old_jira=False, user=None):
         mock.patch.stopall()
-        mock_patch = mock.patch("waldur_jira.backend.JIRA")
+        mock_patch = mock.patch("waldur_mastermind.support.backend.atlassian.JIRA")
         self.mock_jira = mock_patch.start()
         self.mock_jira().fields.return_value = json.loads(
             load_resource("jira_fields.json")

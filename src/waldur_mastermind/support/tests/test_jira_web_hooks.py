@@ -12,9 +12,12 @@ from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APITransactionTestCase
 
-from waldur_jira.backend import AttachmentSynchronizer, CommentSynchronizer
 from waldur_mastermind.support.backend import SupportBackendType
-from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
+from waldur_mastermind.support.backend.atlassian import (
+    AttachmentSynchronizer,
+    CommentSynchronizer,
+    ServiceDeskBackend,
+)
 from waldur_mastermind.support.tests import factories
 from waldur_mastermind.support.tests.base import load_resource
 

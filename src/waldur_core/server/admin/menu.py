@@ -63,8 +63,6 @@ class CustomMenu(Menu):
         "waldur_paypal.*",
     )
 
-    APPLICATION_PROVIDERS = ("waldur_jira.*",)
-
     SUPPORT_MODULES = ("waldur_mastermind.support.*",)
 
     MARKETPLACE = (
@@ -101,10 +99,6 @@ class CustomMenu(Menu):
                 models=self.IAAS_CLOUDS,
             ),
             CustomAppList(
-                _("Applications"),
-                models=self.APPLICATION_PROVIDERS,
-            ),
-            CustomAppList(
                 _("Support"),
                 models=self.SUPPORT_MODULES,
             ),
@@ -113,7 +107,6 @@ class CustomMenu(Menu):
                 exclude=flatten(
                     self.EXTRA_MODELS,
                     self.IAAS_CLOUDS,
-                    self.APPLICATION_PROVIDERS,
                     self.SUPPORT_MODULES,
                     self.ACCOUNTING,
                     self.USERS,

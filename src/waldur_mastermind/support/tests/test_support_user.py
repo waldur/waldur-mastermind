@@ -46,7 +46,7 @@ class SupportUserRetrieveTest(base.BaseTest):
 @override_config(WALDUR_SUPPORT_ENABLED=True)
 class SupportUserPullTest(base.BaseTest):
     def setUp(self):
-        mock_patch = mock.patch("waldur_jira.backend.JIRA")
+        mock_patch = mock.patch("waldur_mastermind.support.backend.atlassian.JIRA")
         self.mocked_jira = mock_patch.start()
 
         class AtlassianUser:
@@ -93,7 +93,7 @@ class SupportUserPullTest(base.BaseTest):
 
 
 @override_config(WALDUR_SUPPORT_ENABLED=True)
-@mock.patch("waldur_jira.backend.JIRA")
+@mock.patch("waldur_mastermind.support.backend.atlassian.JIRA")
 class SupportUserValidateTest(base.BaseTest):
     def test_not_create_user_if_user_exists_but_he_inactive(self, mocked_jira):
         def side_effect(*args, **kwargs):
