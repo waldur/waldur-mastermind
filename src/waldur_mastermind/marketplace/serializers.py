@@ -2249,6 +2249,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "limit_usage",
             "requested_downscaling",
             "restrict_member_access",
+            "requested_pausing",
             "endpoints",
             "error_message",
             "error_traceback",

@@ -2609,6 +2609,29 @@ class ProviderResourceViewSet(BaseResourceViewSet):
     ]
     downscaling_request_completed_validators = [downscaling_is_requested]
 
+    def pause_is_requested(obj):
+        if not obj.requested_pausing:
+            raise ValidationError("Pausing has not been requested.")
+
+    @action(detail=True, methods=["post"])
+    def pausing_request_completed(self, request, uuid=None):
+        resource = self.get_object()
+        resource.requested_pausing = False
+        resource.save(update_fields=["requested_pausing"])
+        logger.info(
+            "Pause request for resource %s completed",
+            resource,
+        )
+        log.log_resource_paused(resource)
+        return Response(status=status.HTTP_200_OK)
+
+    pausing_request_completed_permissions = [
+        permission_factory(
+            PermissionEnum.COMPLETE_RESOURCE_DOWNSCALING, ["offering.customer"]
+        )
+    ]
+    pausing_request_completed_validators = [pause_is_requested]
+
     @action(detail=True, methods=["get"])
     def team(self, request, uuid=None):
         resource = self.get_object()

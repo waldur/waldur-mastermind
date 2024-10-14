@@ -195,6 +195,7 @@ class MarketplaceResourceLogger(EventLogger):
             "marketplace_resource_update_limits_failed",
             "marketplace_resource_update_end_date_succeeded",
             "marketplace_resource_downscaled",
+            "marketplace_resource_paused",
             "marketplace_resource_erred_on_backend",
             "marketplace_resource_has_been_changed",
         )
@@ -502,6 +503,14 @@ def log_resource_downscaled(resource):
     event_logger.marketplace_resource.info(
         "Resource {resource_name} has been downscaled.",
         event_type="marketplace_resource_downscaled",
+        event_context={"resource": resource},
+    )
+
+
+def log_resource_paused(resource):
+    event_logger.marketplace_resource.info(
+        "Resource {resource_name} has been paused.",
+        event_type="marketplace_resource_paused",
         event_context={"resource": resource},
     )
 

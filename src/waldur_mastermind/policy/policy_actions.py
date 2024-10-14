@@ -230,3 +230,33 @@ def reset_member_restriction(policy):
 
 restrict_members.one_time_action = False
 restrict_members.reset = reset_member_restriction
+
+
+def request_pausing(policy):
+    project = structure_permissions._get_project(policy.scope)
+
+    resources = marketplace_models.Resource.objects.exclude(
+        state__in=(marketplace_models.Resource.States.TERMINATED,)
+    )
+
+    if project:
+        resources = resources.filter(project=project)
+    else:
+        customer = structure_permissions._get_customer(policy.scope)
+        resources = resources.filter(project__customer=customer)
+
+    resources.update(requested_pausing=True)
+    logger.info(
+        "Policy action request_pausing has been triggered. Policy UUID: %s. Resources: %s",
+        policy.uuid.hex,
+        ", ".join([r.name for r in resources]),
+    )
+    log.event_logger.policy_action.info(
+        "Cost policy has been triggered and pausing has been requested. Resources: %s"
+        % ", ".join([str(r) for r in resources]),
+        event_type="block_modification_of_existing_resources",
+        event_context={"policy_uuid": policy.uuid.hex},
+    )
+
+
+request_pausing.one_time_action = True

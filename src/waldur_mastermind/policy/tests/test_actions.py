@@ -169,5 +169,19 @@ class ActionsTest(test.APITransactionTestCase):
 
         resource.refresh_from_db()
         self.policy.refresh_from_db()
-        self.assertEqual(self.policy.has_fired, True)
-        self.assertEqual(resource.requested_downscaling, True)
+        self.assertTrue(self.policy.has_fired)
+        self.assertTrue(resource.requested_downscaling)
+
+    def test_request_pausing(self):
+        self.policy.actions = "request_pausing"
+        self.policy.created_by = self.fixture.user
+        self.policy.save()
+
+        resource = self.fixture.resource
+
+        self.create_invoice_item(self.policy.limit_cost + 1)
+
+        resource.refresh_from_db()
+        self.policy.refresh_from_db()
+        self.assertTrue(self.policy.has_fired)
+        self.assertTrue(resource.requested_pausing)
