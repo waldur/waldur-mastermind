@@ -582,6 +582,7 @@ class CustomerCreditViewSet(core_views.ActionsViewSet):
         structure_filters.GenericRoleFilter,
         DjangoFilterBackend,
     )
+    filterset_class = filters.CustomerCreditFilter
     create_permissions = update_permissions = partial_update_permissions = (
         destroy_permissions
     ) = [structure_permissions.is_staff]

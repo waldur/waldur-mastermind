@@ -72,3 +72,25 @@ class PaymentFilter(django_filters.FilterSet):
     class Meta:
         model = models.Payment
         fields = ["date_of_payment"]
+
+
+class CustomerCreditFilter(django_filters.FilterSet):
+    customer_uuid = django_filters.UUIDFilter(field_name="customer__uuid")
+    customer_name = django_filters.CharFilter(
+        field_name="customer__name", lookup_expr="icontains"
+    )
+    customer_slug = django_filters.CharFilter(
+        field_name="customer__slug", lookup_expr="exact"
+    )
+    o = django_filters.OrderingFilter(
+        fields=(
+            ("customer__name", "customer_name"),
+            ("value", "value"),
+            ("end_date", "end_date"),
+            ("minimal_consumption", "minimal_consumption"),
+        ),
+    )
+
+    class Meta:
+        model = models.CustomerCredit
+        fields = []
