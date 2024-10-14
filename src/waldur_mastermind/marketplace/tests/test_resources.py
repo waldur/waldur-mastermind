@@ -1433,7 +1433,7 @@ class ResourceUsageLimitsTest(test.APITransactionTestCase):
         self.assertEqual(response.data["limit_usage"], {"cpu": 5})
 
 
-class DownscalingRequestCompletedTest(test.APITransactionTestCase):
+class RequestCompletedTest(test.APITransactionTestCase):
     def setUp(self) -> None:
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
@@ -1445,17 +1445,22 @@ class DownscalingRequestCompletedTest(test.APITransactionTestCase):
             project=self.project,
             offering=self.offering,
             requested_downscaling=True,
+            requested_pausing=True,
         )
 
-        self.url = factories.ResourceFactory.get_provider_resource_url(
+        self.downscaling_url = factories.ResourceFactory.get_provider_resource_url(
             self.resource, action="downscaling_request_completed"
+        )
+
+        self.pause_url = factories.ResourceFactory.get_provider_resource_url(
+            self.resource, action="pausing_request_completed"
         )
         CustomerRole.OWNER.add_permission(PermissionEnum.COMPLETE_RESOURCE_DOWNSCALING)
 
     def test_service_owner_can_downscaling_request_completed(self):
         self.client.force_authenticate(self.service_owner)
 
-        response = self.client.post(self.url)
+        response = self.client.post(self.downscaling_url)
         self.assertEqual(200, response.status_code)
 
         self.assertTrue(
@@ -1465,18 +1470,30 @@ class DownscalingRequestCompletedTest(test.APITransactionTestCase):
             ).exists()
         )
 
+    def test_service_owner_can_pausing_request_completed(self):
+        self.client.force_authenticate(self.service_owner)
+
+        response = self.client.post(self.pause_url)
+        self.assertEqual(200, response.status_code)
+
+        self.assertTrue(
+            logging_models.Event.objects.filter(
+                message__contains="Resource %s has been paused." % self.resource.name
+            ).exists()
+        )
+
     def test_validate_downscaling_requesting(self):
         self.resource.requested_downscaling = False
         self.resource.save()
         self.client.force_authenticate(self.service_owner)
 
-        response = self.client.post(self.url)
+        response = self.client.post(self.downscaling_url)
         self.assertEqual(400, response.status_code)
 
     def test_user_can_not_downscaling_request_completed(self):
         self.client.force_authenticate(self.admin)
 
-        response = self.client.post(self.url)
+        response = self.client.post(self.downscaling_url)
         self.assertEqual(404, response.status_code)
 
 

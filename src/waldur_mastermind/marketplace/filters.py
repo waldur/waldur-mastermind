@@ -360,6 +360,10 @@ class ResourceFilter(
     requested_downscaling = django_filters.BooleanFilter(
         field_name="requested_downscaling"
     )
+    restrict_member_access = django_filters.BooleanFilter(
+        field_name="restrict_member_access"
+    )
+    requested_pausing = django_filters.BooleanFilter(field_name="requested_pausing")
     lexis_links_supported = django_filters.BooleanFilter(
         method="filter_lexis_links_supported", label="LEXIS links supported"
     )

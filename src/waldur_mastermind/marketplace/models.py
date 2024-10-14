@@ -1056,6 +1056,7 @@ class Resource(
     effective_id = models.CharField(max_length=255, blank=True)
     requested_downscaling = models.BooleanField(default=False)
     restrict_member_access = models.BooleanField(default=False)
+    requested_pausing = models.BooleanField(default=False)
 
     @property
     def customer(self):

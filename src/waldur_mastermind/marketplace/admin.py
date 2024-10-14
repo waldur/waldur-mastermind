@@ -617,6 +617,8 @@ class ResourceAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
         "plan",
         "state",
         "requested_downscaling",
+        "restrict_member_access",
+        "requested_pausing",
     )
     date_hierarchy = "created"
     search_fields = ("name", "uuid")
