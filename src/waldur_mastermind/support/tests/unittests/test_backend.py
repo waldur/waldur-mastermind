@@ -20,7 +20,7 @@ class BaseBackendTest(TestCase):
         self.fixture = fixtures.SupportFixture()
         self.backend = ServiceDeskBackend()
 
-        jira_patcher = mock.patch("waldur_jira.backend.JIRA")
+        jira_patcher = mock.patch("waldur_mastermind.support.backend.atlassian.JIRA")
         self.mocked_jira = jira_patcher.start()()
 
         self.mocked_jira.fields.return_value = json.loads(
