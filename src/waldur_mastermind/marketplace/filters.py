@@ -338,7 +338,7 @@ class ResourceFilter(
     structure_filters.NameFilterSet,
     core_filters.CreatedModifiedFilter,
 ):
-    query = django_filters.CharFilter(method="filter_query")
+    query = django_filters.CharFilter(method="filter_query", label="Query")
     offering_type = django_filters.CharFilter(field_name="offering__type")
     offering_billable = django_filters.UUIDFilter(field_name="offering__billable")
     project_uuid = django_filters.UUIDFilter(field_name="project__uuid")
@@ -347,13 +347,15 @@ class ResourceFilter(
     customer = core_filters.URLFilter(
         view_name="customer-detail", field_name="project__customer__uuid"
     )
-    service_manager_uuid = django_filters.UUIDFilter(method="filter_service_manager")
+    service_manager_uuid = django_filters.UUIDFilter(
+        method="filter_service_manager", label="Service Manager UUID"
+    )
     category_uuid = django_filters.UUIDFilter(field_name="offering__category__uuid")
     provider_uuid = django_filters.UUIDFilter(field_name="offering__customer__uuid")
-    backend_id = django_filters.CharFilter()
+    backend_id = django_filters.CharFilter(label="Backend ID")
     state = core_filters.MappedMultipleChoiceFilter(models.Resource.States.CHOICES)
     runtime_state = django_filters.CharFilter(
-        field_name="backend_metadata__runtime_state"
+        field_name="backend_metadata__runtime_state", label="Runtime state"
     )
     requested_downscaling = django_filters.BooleanFilter(
         field_name="requested_downscaling"
