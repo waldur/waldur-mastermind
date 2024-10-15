@@ -797,6 +797,7 @@ class UserSerializer(
 
     def get_permissions(self, user):
         perms = UserRole.objects.filter(user=user, is_active=True)
+        perms = [perm for perm in perms if perm.scope]
         serializer = PermissionSerializer(instance=perms, many=True)
         return serializer.data
 
