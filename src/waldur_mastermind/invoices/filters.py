@@ -94,3 +94,21 @@ class CustomerCreditFilter(django_filters.FilterSet):
     class Meta:
         model = models.CustomerCredit
         fields = []
+
+
+class ProjectCreditFilter(django_filters.FilterSet):
+    project_uuid = django_filters.UUIDFilter(field_name="project__uuid")
+    project_name = django_filters.CharFilter(
+        field_name="project__name", lookup_expr="icontains"
+    )
+    o = django_filters.OrderingFilter(
+        fields=(
+            ("project__name", "project_name"),
+            ("value", "value"),
+            ("use_organisation_credit", "use_organisation_credit"),
+        ),
+    )
+
+    class Meta:
+        model = models.ProjectCredit
+        fields = []

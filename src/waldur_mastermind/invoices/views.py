@@ -604,3 +604,4 @@ class ProjectCreditViewSet(core_views.ActionsViewSet):
     ]
     queryset = models.ProjectCredit.objects.all().order_by("created")
     serializer_class = serializers.ProjectCreditSerializer
+    filterset_class = filters.ProjectCreditFilter
