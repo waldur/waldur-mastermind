@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
+from django.core.exceptions import ObjectDoesNotExist
 from django.urls import reverse
 from django.utils import timezone
 from freezegun import freeze_time
@@ -14,7 +15,8 @@ class TokenAuthenticationTest(test.APITransactionTestCase):
     def setUp(self):
         self.username = "test"
         self.password = "secret"
-        self.auth_url = "http://testserver" + reverse("auth-password")
+        self.auth_url = reverse("auth-password")
+        self.logout_url = reverse("auth-logout")
         self.test_url = "http://testserver/api/"
         get_user_model().objects.create_user(
             self.username, "admin@example.com", self.password
@@ -33,6 +35,19 @@ class TokenAuthenticationTest(test.APITransactionTestCase):
         self.client.credentials(HTTP_AUTHORIZATION="Token " + token)
         response = self.client.get(self.test_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_user_can_logout(self):
+        response = self.client.post(
+            self.auth_url, data={"username": self.username, "password": self.password}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        key = response.data["token"]
+        self.client.credentials(HTTP_AUTHORIZATION="Token " + key)
+        token = Token.objects.get(key=key)
+        response = self.client.post(self.logout_url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertRaises(ObjectDoesNotExist, token.refresh_from_db)
 
     def test_token_expires_based_on_user_token_lifetime(self):
         user = get_user_model().objects.get(username=self.username)
