@@ -1,6 +1,5 @@
 from collections import OrderedDict
 
-import prettytable
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 
@@ -29,7 +28,7 @@ USER_COLUMNS = OrderedDict(
 )
 
 # in chars
-COLUMN_MAX_WIDTH = 25
+COLUMN_MAX_WIDTH = 50
 
 
 def format_string_to_column_size(string):
@@ -80,7 +79,12 @@ class Command(BaseCommand):
 
         # build table
         columns = list(USER_COLUMNS.keys()) + ["Organizations", "Projects"]
-        table = prettytable.PrettyTable(columns, hrules=prettytable.ALL)
+        c = columns
+        dashes = "{:^25}+{:^30}+{:^30}+{:^5}+{:^25}+{:^25} \n".format(
+            "-" * 25, "-" * 30, "-" * 30, "-" * 5, "-" * 25, "-" * 25
+        )
+        table = f"{c[0]:^25}|{c[1]:^30}|{c[2]:^30}|{c[3]:^5}|{c[4]:^25}|{c[5]:^25} \n"
+        table += dashes
         for user in users:
             customers = models.Customer.objects.filter(
                 id__in=get_connected_customers(user)
@@ -98,12 +102,18 @@ class Command(BaseCommand):
                 )
                 for fields in USER_COLUMNS.values()
             ] + [to_string(list(customers)), to_string(list(projects))]
-            table.add_row(row)
+
+            # row values split before and after comma into seperate rows
+            split = [(s.split(",", 1)[0]) for s in row]
+            addrow = [(s.split(",", 1)[-1]) for s in row]
+            table += f"{split[0]:^25}|{split[1]:^30}|{split[2]:^30}|{split[3]:^5}|{split[4]:^25}|{split[5]:<25} \n"
+            table += "{:^25}|{:^30}|{:^30}|{:^5}|{:^25}|{:<25} \n".format(*addrow)
+
+            table += dashes
 
         # output
         if options["output"] is None:
-            self.stdout.write(table.get_string())
-            return
-
-        with open(options["output"], "w") as output_file:
-            output_file.write(table.get_string())
+            self.stdout.write(table)
+        else:
+            with open(options["output"], "w") as output_file:
+                output_file.write(table)
