@@ -29,7 +29,7 @@ from waldur_core.core.fields import COUNTRIES_DICT, JSONField
 from waldur_core.core.models import AbstractFieldTracker
 from waldur_core.core.validators import validate_cidr_list, validate_name
 from waldur_core.logging.loggers import LoggableMixin
-from waldur_core.media.models import ImageModelMixin
+from waldur_core.media.mixins import ImageModelMixin
 from waldur_core.media.validators import CertificateValidator
 from waldur_core.permissions.enums import SYSTEM_PROJECT_ROLES, RoleEnum
 from waldur_core.permissions.models import Role

@@ -6,7 +6,6 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from waldur_core.core.serializers import TranslatedModelSerializerMixin
 from waldur_core.core.utils import is_uuid_like
-from waldur_core.media.serializers import ProtectedImageField
 from waldur_core.permissions.enums import TYPE_MAP, PermissionEnum
 from waldur_core.permissions.utils import (
     get_create_permission,
@@ -129,7 +128,7 @@ class UserRoleDetailsSerializer(serializers.ModelSerializer):
     user_email = serializers.ReadOnlyField(source="user.email")
     user_full_name = serializers.ReadOnlyField(source="user.full_name")
     user_username = serializers.ReadOnlyField(source="user.username")
-    user_image = ProtectedImageField(source="user.image")
+    user_image = serializers.ImageField(source="user.image", read_only=True)
     created_by_full_name = serializers.ReadOnlyField(source="created_by.full_name")
     created_by_uuid = serializers.ReadOnlyField(source="created_by.uuid")
 

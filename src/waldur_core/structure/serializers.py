@@ -20,7 +20,6 @@ from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core.clean_html import clean_html
 from waldur_core.core.fields import MappedChoiceField
-from waldur_core.media.serializers import ProtectedMediaSerializerMixin
 from waldur_core.permissions.enums import SYSTEM_CUSTOMER_ROLES, PermissionEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.serializers import PermissionSerializer
@@ -158,9 +157,7 @@ class PermissionListSerializer(serializers.ListSerializer):
         return super().to_representation(data)
 
 
-class BasicUserSerializer(
-    ProtectedMediaSerializerMixin, serializers.HyperlinkedModelSerializer
-):
+class BasicUserSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = User
         fields = (
@@ -218,7 +215,6 @@ class ProjectSerializer(
     core_serializers.SlugSerializerMixin,
     core_serializers.RestrictedSerializerMixin,
     PermissionFieldFilteringMixin,
-    ProtectedMediaSerializerMixin,
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
@@ -370,7 +366,6 @@ class CountrySerializerMixin(serializers.Serializer):
 
 class CustomerSerializer(
     core_serializers.SlugSerializerMixin,
-    ProtectedMediaSerializerMixin,
     CountrySerializerMixin,
     core_serializers.RestrictedSerializerMixin,
     core_serializers.AugmentedSerializerMixin,
@@ -619,7 +614,6 @@ class NestedProjectPermissionSerializer(serializers.ModelSerializer):
 
 
 class CustomerUserSerializer(
-    ProtectedMediaSerializerMixin,
     serializers.ModelSerializer,
 ):
     role = serializers.ReadOnlyField()
@@ -784,7 +778,6 @@ class UserSerializer(
     core_serializers.SlugSerializerMixin,
     core_serializers.RestrictedSerializerMixin,
     core_serializers.AugmentedSerializerMixin,
-    ProtectedMediaSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
     email = serializers.EmailField()

@@ -10,6 +10,7 @@ from django.utils.translation import gettext_lazy as _
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
 
+import waldur_core.media.mixins
 from waldur_core.core import models as core_models
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.models import Role
@@ -39,7 +40,7 @@ class CallDocument(
 class CallManagingOrganisation(
     core_models.UuidMixin,
     core_models.DescribableMixin,
-    structure_models.ImageModelMixin,
+    waldur_core.media.mixins.ImageModelMixin,
     TimeStampedModel,
 ):
     customer = models.OneToOneField(structure_models.Customer, on_delete=models.CASCADE)

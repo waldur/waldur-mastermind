@@ -26,11 +26,6 @@ from waldur_core.core.fields import NaturalChoiceField
 from waldur_core.core.models import User, get_ssh_key_fingerprints
 from waldur_core.core.serializers import GenericRelatedField
 from waldur_core.core.validators import validate_ssh_public_key
-from waldur_core.media.serializers import (
-    ProtectedFileField,
-    ProtectedImageField,
-    ProtectedMediaSerializerMixin,
-)
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import count_users, get_permissions, has_permission
@@ -65,19 +60,8 @@ logger = logging.getLogger(__name__)
 BillingTypes = models.OfferingComponent.BillingTypes
 
 
-class MarketplaceProtectedMediaSerializerMixin(serializers.ModelSerializer):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        if not settings.WALDUR_MARKETPLACE["ANONYMOUS_USER_CAN_VIEW_OFFERINGS"]:
-            self.serializer_field_mapping = (
-                ProtectedMediaSerializerMixin.serializer_field_mapping
-            )
-
-
 class ServiceProviderSerializer(
-    MarketplaceProtectedMediaSerializerMixin,
-    core_serializers.AugmentedSerializerMixin,
-    serializers.HyperlinkedModelSerializer,
+    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
     class Meta:
         model = models.ServiceProvider
@@ -109,7 +93,7 @@ class ServiceProviderSerializer(
             "customer": {"lookup_field": "uuid"},
         }
 
-    customer_image = ProtectedImageField(source="customer.image", read_only=True)
+    customer_image = serializers.ImageField(source="customer.image", read_only=True)
     customer_country = serializers.CharField(source="customer.country", read_only=True)
     organization_group = serializers.CharField(
         source="customer.organization_group", read_only=True
@@ -119,10 +103,6 @@ class ServiceProviderSerializer(
         fields = super().get_fields()
         if self.context["request"].user.is_anonymous:
             del fields["enable_notifications"]
-        if settings.WALDUR_MARKETPLACE["ANONYMOUS_USER_CAN_VIEW_OFFERINGS"]:
-            fields["customer_image"] = serializers.ImageField(
-                source="customer.image", read_only=True
-            )
         return fields
 
     def validate(self, attrs):
@@ -247,7 +227,6 @@ class CategoryComponentsSerializer(serializers.ModelSerializer):
 
 
 class CategoryGroupSerializer(
-    MarketplaceProtectedMediaSerializerMixin,
     core_serializers.AugmentedSerializerMixin,
     core_serializers.RestrictedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
@@ -270,7 +249,6 @@ class CategoryGroupSerializer(
 
 
 class CategorySerializer(
-    MarketplaceProtectedMediaSerializerMixin,
     core_serializers.AugmentedSerializerMixin,
     core_serializers.RestrictedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
@@ -639,17 +617,13 @@ class PlanUsageResponseSerializer(serializers.Serializer):
     customer_provider_name = serializers.ReadOnlyField(source="offering.customer.name")
 
 
-class NestedScreenshotSerializer(
-    MarketplaceProtectedMediaSerializerMixin, serializers.ModelSerializer
-):
+class NestedScreenshotSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Screenshot
         fields = ("name", "uuid", "description", "image", "thumbnail", "created")
 
 
-class NestedOfferingFileSerializer(
-    MarketplaceProtectedMediaSerializerMixin, serializers.ModelSerializer
-):
+class NestedOfferingFileSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.OfferingFile
         fields = (
@@ -660,9 +634,7 @@ class NestedOfferingFileSerializer(
 
 
 class ScreenshotSerializer(
-    MarketplaceProtectedMediaSerializerMixin,
-    core_serializers.AugmentedSerializerMixin,
-    serializers.HyperlinkedModelSerializer,
+    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
     class Meta:
         model = models.Screenshot
@@ -1055,7 +1027,6 @@ class ProviderOfferingDetailsSerializer(
     core_serializers.SlugSerializerMixin,
     core_serializers.RestrictedSerializerMixin,
     structure_serializers.CountrySerializerMixin,
-    MarketplaceProtectedMediaSerializerMixin,
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
@@ -1546,7 +1517,6 @@ class OfferingDescriptionUpdateSerializer(
 
 class OfferingOverviewUpdateSerializer(
     core_serializers.SlugSerializerMixin,
-    MarketplaceProtectedMediaSerializerMixin,
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
@@ -1705,7 +1675,6 @@ class ComponentQuotaSerializer(serializers.ModelSerializer):
 
 
 class BaseItemSerializer(
-    MarketplaceProtectedMediaSerializerMixin,
     core_serializers.RestrictedSerializerMixin,
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
@@ -1773,10 +1742,14 @@ class BaseItemSerializer(
     provider_name = serializers.ReadOnlyField(source="offering.customer.name")
     provider_uuid = serializers.ReadOnlyField(source="offering.customer.uuid")
     category_title = serializers.ReadOnlyField(source="offering.category.title")
-    category_icon = ProtectedImageField(source="offering.category.icon", read_only=True)
+    category_icon = serializers.ImageField(
+        source="offering.category.icon", read_only=True
+    )
     category_uuid = serializers.ReadOnlyField(source="offering.category.uuid")
-    offering_thumbnail = ProtectedFileField(source="offering.thumbnail", read_only=True)
-    offering_image = ProtectedFileField(source="offering.image", read_only=True)
+    offering_thumbnail = serializers.ImageField(
+        source="offering.thumbnail", read_only=True
+    )
+    offering_image = serializers.ImageField(source="offering.image", read_only=True)
 
     def validate_offering(self, offering):
         if not offering.state == models.Offering.States.ACTIVE:
@@ -2923,7 +2896,6 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
 
 
 class OfferingFileSerializer(
-    MarketplaceProtectedMediaSerializerMixin,
     core_serializers.RestrictedSerializerMixin,
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
@@ -3260,10 +3232,7 @@ core_signals.pre_serializer_fields.connect(
 )
 
 
-class OfferingThumbnailSerializer(
-    MarketplaceProtectedMediaSerializerMixin,
-    serializers.HyperlinkedModelSerializer,
-):
+class OfferingThumbnailSerializer(serializers.HyperlinkedModelSerializer):
     thumbnail = serializers.ImageField(required=True)
 
     class Meta:
@@ -3456,9 +3425,7 @@ class ProviderCustomerProjectSerializer(serializers.ModelSerializer):
         return get_billing_price_estimate_for_resources(resources)
 
 
-class ProviderProjectSerializer(
-    MarketplaceProtectedMediaSerializerMixin, serializers.ModelSerializer
-):
+class ProviderProjectSerializer(serializers.ModelSerializer):
     class Meta:
         model = structure_models.Project
         fields = (
@@ -3468,9 +3435,7 @@ class ProviderProjectSerializer(
         )
 
 
-class ProviderUserSerializer(
-    ProtectedMediaSerializerMixin, serializers.ModelSerializer
-):
+class ProviderUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = (
