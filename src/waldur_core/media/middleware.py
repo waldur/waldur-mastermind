@@ -12,7 +12,9 @@ def attachment_middleware(get_response):
 
         content_type = response.get("Content-Type", "").lower()
 
-        if content_type and content_type not in excluded_content_types:
+        if content_type and not (
+            content_type.startswith(ctype) for ctype in excluded_content_types
+        ):
             response["Content-Disposition"] = "attachment"
 
         return response
