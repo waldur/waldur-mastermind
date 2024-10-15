@@ -221,7 +221,17 @@ class ObtainAuthToken(RefreshTokenMixin, APIView):
         return Response({"token": token.key})
 
 
-obtain_auth_token = ObtainAuthToken.as_view()
+class LogoutView(APIView):
+    permission_classes = (rf_permissions.IsAuthenticated,)
+
+    def post(self, request, format=None):
+        request.user.auth_token.delete()
+        event_logger.auth.info(
+            "User {user_username} with full name {user_full_name} logged out.",
+            event_type="auth_logged_out",
+            event_context={"user": request.user, "request": request},
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 # noinspection PyProtectedMember
