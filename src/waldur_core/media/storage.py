@@ -5,7 +5,18 @@ from django.core import files
 from django.core.files.storage.base import Storage
 from rest_framework.reverse import reverse
 
+from bs4 import BeautifulSoup
+
 from . import models
+
+
+def remove_scripts(svg_string: str):
+    soup = BeautifulSoup(svg_string, "xml")
+
+    for script in soup.find_all("script"):
+        script.decompose()
+
+    return str(soup)
 
 
 class DatabaseFile(files.File):
@@ -37,6 +48,9 @@ class DatabaseStorage(Storage):
         except UnsupportedOperation:
             pass
         content = content.read()
+        mime_type = magic.from_buffer(content[:1024], mime=True)
+        if mime_type == "image/svg+xml":
+            content = remove_scripts(content)
         if isinstance(content, str):
             content = content.encode("utf-8")
         size = len(content)
@@ -44,7 +58,7 @@ class DatabaseStorage(Storage):
             content=content,
             size=size,
             name=name,
-            mime_type=magic.from_buffer(content[:1024], mime=True),
+            mime_type=mime_type,
         )
         return name
 
