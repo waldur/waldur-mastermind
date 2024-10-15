@@ -3,7 +3,7 @@ from django.utils.translation import gettext_lazy as _
 from model_utils.models import TimeStampedModel
 
 from waldur_core.core import models as core_models
-from waldur_core.media.models import ImageModelMixin
+from waldur_core.media.mixins import ImageModelMixin
 from waldur_core.media.validators import ImageValidator
 from waldur_core.structure.models import Customer, CustomerRole, ProjectRole
 from waldur_mastermind.marketplace import models as marketplace_models

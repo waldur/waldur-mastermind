@@ -15,13 +15,14 @@ from model_utils.models import TimeFramedModel, TimeStampedModel
 from rest_framework import exceptions as rf_exceptions
 from reversion import revisions as reversion
 
+import waldur_core.media.mixins
 from waldur_core.core import fields as core_fields
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
 from waldur_core.logging.loggers import LoggableMixin
-from waldur_core.media.models import get_upload_path
+from waldur_core.media.mixins import get_upload_path
 from waldur_core.media.validators import ImageValidator
 from waldur_core.permissions.utils import get_users
 from waldur_core.quotas import fields as quotas_fields
@@ -41,7 +42,7 @@ User = get_user_model()
 class ServiceProvider(
     core_models.UuidMixin,
     core_models.DescribableMixin,
-    structure_models.ImageModelMixin,
+    waldur_core.media.mixins.ImageModelMixin,
     TimeStampedModel,
 ):
     customer = models.OneToOneField(structure_models.Customer, on_delete=models.CASCADE)
@@ -368,7 +369,7 @@ class Offering(
     LoggableMixin,
     pid_mixins.DataciteMixin,
     CoordinatesMixin,
-    structure_models.ImageModelMixin,
+    waldur_core.media.mixins.ImageModelMixin,
     common_mixins.BackendMetadataMixin,
 ):
     class States:

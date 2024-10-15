@@ -8,7 +8,6 @@ from rest_framework import serializers
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
 from waldur_core.core.validators import BackendURLValidator
-from waldur_core.media.serializers import ProtectedMediaSerializerMixin
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.models import VirtualMachine
@@ -595,10 +594,7 @@ class NamespaceSerializer(structure_serializers.BasePropertySerializer):
         }
 
 
-class TemplateSerializer(
-    ProtectedMediaSerializerMixin,
-    structure_serializers.BasePropertySerializer,
-):
+class TemplateSerializer(structure_serializers.BasePropertySerializer):
     catalog_name = serializers.ReadOnlyField(source="catalog.name")
 
     class Meta:

@@ -72,7 +72,6 @@ INSTALLED_APPS = (
     "health_check.contrib.migrations",
     "health_check.contrib.celery_ping",
     "dbtemplates",
-    "binary_database_files",
     "netfields",
     "constance",
     "constance.backends.database",
@@ -80,7 +79,6 @@ INSTALLED_APPS = (
 INSTALLED_APPS += ADMIN_INSTALLED_APPS  # noqa: F405
 
 MIDDLEWARE = (
-    "waldur_core.media.middleware.attachment_middleware",
     "waldur_core.server.middleware.cors_middleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.locale.LocaleMiddleware",
@@ -747,10 +745,7 @@ AXES_ONLY_USER_FAILURES = True
 AXES_COOLOFF_TIME = timedelta(minutes=10)
 AXES_FAILURE_LIMIT = 5
 
-# Django File Storage API
-DEFAULT_FILE_STORAGE = "binary_database_files.storage.DatabaseStorage"
-DB_FILES_AUTO_EXPORT_DB_TO_FS = False
-DATABASE_FILES_URL_METHOD = "URL_METHOD_2"
+DEFAULT_FILE_STORAGE = "waldur_core.media.storage.DatabaseStorage"
 
 # Disable excessive xmlschema and django-axes logging
 import logging

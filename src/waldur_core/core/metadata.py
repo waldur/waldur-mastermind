@@ -792,9 +792,6 @@ class WaldurConfiguration(BaseModel):
     WALDUR_MARKETPLACE_SCRIPT = WaldurMarketplaceScript()
     WALDUR_MARKETPLACE_REMOTE_SLURM = WaldurMarketplaceRemoteSlurm()
     WALDUR_AUTH_SAML2 = WaldurAuthSAML2()
-    USE_PROTECTED_URL = Field(
-        False, description="Protect media URLs using signed token."
-    )
     VERIFY_WEBHOOK_REQUESTS = Field(
         True,
         description="When webook is processed, requests verifies SSL certificates for HTTPS requests, just like a web browser.",

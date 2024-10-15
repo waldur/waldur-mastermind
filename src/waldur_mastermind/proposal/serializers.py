@@ -1,7 +1,6 @@
 import logging
 
 from constance import config
-from django.conf import settings
 from django.db.models import Q
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -10,10 +9,6 @@ from rest_framework.reverse import reverse
 
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core.clean_html import clean_html
-from waldur_core.media.serializers import (
-    ProtectedImageField,
-    ProtectedMediaSerializerMixin,
-)
 from waldur_core.permissions import enums as permissions_enums
 from waldur_core.permissions import utils as permissions_utils
 from waldur_core.permissions.models import Role
@@ -22,7 +17,6 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import permissions as marketplace_permissions
 from waldur_mastermind.marketplace.serializers import (
     BasePublicPlanSerializer,
-    MarketplaceProtectedMediaSerializerMixin,
     OfferingComponentSerializer,
 )
 
@@ -32,7 +26,6 @@ logger = logging.getLogger(__name__)
 
 
 class CallManagingOrganisationSerializer(
-    MarketplaceProtectedMediaSerializerMixin,
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
@@ -61,16 +54,8 @@ class CallManagingOrganisationSerializer(
             "customer": {"lookup_field": "uuid"},
         }
 
-    customer_image = ProtectedImageField(source="customer.image", read_only=True)
+    customer_image = serializers.ImageField(source="customer.image", read_only=True)
     customer_country = serializers.CharField(source="customer.country", read_only=True)
-
-    def get_fields(self):
-        fields = super().get_fields()
-        if settings.WALDUR_MARKETPLACE["ANONYMOUS_USER_CAN_VIEW_OFFERINGS"]:
-            fields["customer_image"] = serializers.ImageField(
-                source="customer.image", read_only=True
-            )
-        return fields
 
     def validate(self, attrs):
         if not self.instance:
@@ -734,7 +719,7 @@ class ProtectedRoundSerializer(
         return attrs
 
 
-class ProposalDocumentationSerializer(ProtectedMediaSerializerMixin):
+class ProposalDocumentationSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.ProposalDocumentation
         fields = ["file"]

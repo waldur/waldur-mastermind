@@ -387,7 +387,7 @@ class Migration(migrations.Migration):
                     models.ImageField(
                         blank=True,
                         null=True,
-                        upload_to=waldur_core.media.models.get_upload_path,
+                        upload_to=waldur_core.media.mixins.get_upload_path,
                     ),
                 ),
                 (
@@ -1301,7 +1301,7 @@ class Migration(migrations.Migration):
                 (
                     "image",
                     models.ImageField(
-                        upload_to=waldur_core.media.models.get_upload_path
+                        upload_to=waldur_core.media.mixins.get_upload_path
                     ),
                 ),
                 (
@@ -1309,7 +1309,7 @@ class Migration(migrations.Migration):
                     models.ImageField(
                         editable=False,
                         null=True,
-                        upload_to=waldur_core.media.models.get_upload_path,
+                        upload_to=waldur_core.media.mixins.get_upload_path,
                     ),
                 ),
                 (
@@ -1481,7 +1481,7 @@ class Migration(migrations.Migration):
                     models.ImageField(
                         blank=True,
                         null=True,
-                        upload_to=waldur_core.media.models.get_upload_path,
+                        upload_to=waldur_core.media.mixins.get_upload_path,
                     ),
                 ),
             ],

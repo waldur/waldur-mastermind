@@ -16,7 +16,6 @@ from rest_framework import exceptions, serializers
 import textile
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core.utils import is_uuid_like
-from waldur_core.media.serializers import ProtectedMediaSerializerMixin
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.registry import get_resource_type
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -620,7 +619,6 @@ class WebHookReceiverSerializer(serializers.Serializer):
 
 
 class AttachmentSerializer(
-    ProtectedMediaSerializerMixin,
     core_serializers.RestrictedSerializerMixin,
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
@@ -697,9 +695,7 @@ class AttachmentSerializer(
         raise exceptions.PermissionDenied()
 
 
-class TemplateAttachmentSerializer(
-    ProtectedMediaSerializerMixin, serializers.ModelSerializer
-):
+class TemplateAttachmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.TemplateAttachment
         fields = ("name", "file")

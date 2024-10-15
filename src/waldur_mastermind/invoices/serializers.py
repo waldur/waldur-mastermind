@@ -663,7 +663,6 @@ class PaymentProfileSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class PaymentSerializer(
-    structure_serializers.ProtectedMediaSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
     profile = serializers.HyperlinkedRelatedField(

@@ -6,7 +6,6 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
-from waldur_core.media.serializers import ProtectedFileField
 from waldur_core.structure.models import VATException
 
 from . import models
@@ -94,7 +93,7 @@ class InvoiceItemSerializer(serializers.ModelSerializer):
 class InvoiceSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
-    pdf = ProtectedFileField(read_only=True)
+    pdf = serializers.ImageField(read_only=True)
     items = InvoiceItemSerializer(many=True, read_only=True)
     payment_url = serializers.SerializerMethodField()
     issuer_details = serializers.JSONField()

@@ -1,13 +1,9 @@
 from rest_framework import serializers
 
-from waldur_core.media.serializers import ProtectedMediaSerializerMixin
-
 from . import models
 
 
-class CategorySerializer(
-    ProtectedMediaSerializerMixin, serializers.HyperlinkedModelSerializer
-):
+class CategorySerializer(serializers.HyperlinkedModelSerializer):
     checklists_count = serializers.ReadOnlyField(source="checklists.count")
 
     class Meta:
@@ -48,7 +44,7 @@ class ChecklistSerializer(serializers.ModelSerializer):
         )
 
 
-class QuestionSerializer(ProtectedMediaSerializerMixin, serializers.ModelSerializer):
+class QuestionSerializer(serializers.ModelSerializer):
     category_uuid = serializers.ReadOnlyField(source="category.uuid")
 
     class Meta:

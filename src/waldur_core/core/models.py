@@ -28,7 +28,7 @@ from waldur_core.core.validators import (
     validate_ssh_public_key,
 )
 from waldur_core.logging.loggers import LoggableMixin
-from waldur_core.media.models import ImageModelMixin
+from waldur_core.media.mixins import ImageModelMixin
 
 from .shims import AbstractBaseUser
 
