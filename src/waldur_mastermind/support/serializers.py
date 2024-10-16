@@ -15,6 +15,7 @@ from rest_framework import exceptions, serializers
 
 import textile
 from waldur_core.core import serializers as core_serializers
+from waldur_core.core.clean_html import clean_html
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.registry import get_resource_type
@@ -445,7 +446,9 @@ class CommentSerializer(
 
     def validate_description(self, description):
         if backend.get_active_backend().message_format == backend.SupportedFormat.HTML:
-            return textile.textile(description)
+            description = textile.textile(description)
+
+        description = clean_html(description)
 
         return description
 
