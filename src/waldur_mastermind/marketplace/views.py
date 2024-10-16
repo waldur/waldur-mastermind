@@ -1026,7 +1026,7 @@ class ProviderOfferingViewSet(
     @action(detail=True, methods=["post"])
     def delete_thumbnail(self, request, uuid=None):
         offering = self.get_object()
-        offering.thumbnail = None
+        offering.thumbnail.delete()
         offering.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
