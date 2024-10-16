@@ -2415,6 +2415,23 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
 
         return Response(response_text)
 
+    @action(detail=True, methods=["get"])
+    def offering_for_subresources(self, request, uuid=None):
+        resource = self.get_object()
+
+        try:
+            scope = structure_models.ServiceSettings.objects.get(
+                scope=resource.scope,
+            )
+        except structure_models.ServiceSettings.DoesNotExist:
+            scope = resource.scope
+
+        offerings = models.Offering.objects.filter(scope=scope)
+        result = [
+            {"uuid": offering.uuid.hex, "type": offering.type} for offering in offerings
+        ]
+        return Response(result)
+
 
 class ResourceViewSet(BaseResourceViewSet):
     def get_queryset(self):
