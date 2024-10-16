@@ -193,8 +193,6 @@ class SmaxServiceBackend(SupportBackend):
                 issue=issue,
                 backend_id=backend_attachment.id,
                 backend_name=self.backend_name,
-                mime_type=backend_attachment.content_type or "",
-                file_size=backend_attachment.size,
                 state=models.Attachment.States.OK,
                 author=support_user,
             )

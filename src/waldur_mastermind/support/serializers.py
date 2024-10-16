@@ -638,7 +638,6 @@ class AttachmentSerializer(
             "mime_type",
             "file_size",
             "file_name",
-            "thumbnail",
             "backend_id",
             "destroy_is_available",
         )
@@ -646,7 +645,6 @@ class AttachmentSerializer(
             "mime_type",
             "file_size",
             "file_name",
-            "thumbnail",
             "backend_id",
         )
         extra_kwargs = dict(

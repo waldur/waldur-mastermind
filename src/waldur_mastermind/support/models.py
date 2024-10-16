@@ -12,6 +12,7 @@ from model_utils.models import TimeStampedModel
 
 from waldur_core.core import models as core_models
 from waldur_core.core.validators import validate_name, validate_template_syntax
+from waldur_core.media import models as media_models
 from waldur_core.structure import models as structure_models
 
 from . import managers
@@ -336,11 +337,6 @@ class Attachment(
     )
     file = models.FileField(upload_to="support_attachments")
     backend_id = models.CharField(max_length=255)
-    mime_type = models.CharField(_("MIME type"), max_length=100, blank=True)
-    file_size = models.PositiveIntegerField(_("Filesize, B"), blank=True, null=True)
-    thumbnail = models.FileField(
-        upload_to="support_attachments_thumbnails", blank=True, null=True
-    )
     author = models.ForeignKey(
         on_delete=models.CASCADE,
         to=SupportUser,
@@ -359,6 +355,26 @@ class Attachment(
 
     def get_log_fields(self):
         return ("uuid", "issue", "author", "backend_id")
+
+    @property
+    def file_size(self):
+        if self.file:
+            return (
+                media_models.File.objects.filter(name=self.file.name)
+                .only("size")
+                .get()
+                .size
+            )
+
+    @property
+    def mime_type(self):
+        if self.file:
+            return (
+                media_models.File.objects.filter(name=self.file.name)
+                .only("mime_type")
+                .get()
+                .mime_type
+            )
 
 
 class Template(core_models.UuidMixin, core_models.NameMixin, TimeStampedModel):
