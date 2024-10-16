@@ -1,4 +1,5 @@
-from io import BytesIO, UnsupportedOperation
+import hashlib
+from io import BytesIO
 
 import magic
 from django.core import files
@@ -40,25 +41,24 @@ class DatabaseStorage(Storage):
         o = DatabaseFile(fh)
         return o
 
-    def _save(self, name, content):
-        """Save file with filename `name` and given content to the database."""
-        # ZipExtFile advertises seek() but can raise UnsupportedOperation
-        try:
-            content.seek(0)
-        except UnsupportedOperation:
-            pass
-        content = content.read()
-        mime_type = magic.from_buffer(content[:1024], mime=True)
+    def _save(self, name: str, content: files.File):
+        content_data = content.read()
+
+        mime_type = magic.from_buffer(content_data[:1024], mime=True)
         if mime_type == "image/svg+xml":
-            content = remove_scripts(content)
-        if isinstance(content, str):
-            content = content.encode("utf-8")
-        size = len(content)
+            content_data = remove_scripts(content_data)
+
+        if isinstance(content_data, str):
+            content_data = content_data.encode("utf-8")
+
+        content_hash = hashlib.sha256(content_data).hexdigest()
+
         models.File.objects.create(
-            content=content,
-            size=size,
+            content=content_data,
+            size=len(content_data),
             name=name,
             mime_type=mime_type,
+            hash=content_hash,
         )
         return name
 

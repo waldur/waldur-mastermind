@@ -11,4 +11,4 @@ class File(TimeStampedModel, UuidMixin):
     content = models.BinaryField(blank=False, null=False)
     size = models.PositiveIntegerField(blank=False, null=False)
     mime_type = models.CharField(max_length=100, blank=True)
-    is_public = models.BooleanField(default=False)
+    hash = models.CharField(max_length=64, blank=False, null=False, db_index=True)
