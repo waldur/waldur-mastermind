@@ -39,14 +39,14 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.AlterField(
-            model_name="media_file",
+            model_name="file",
             name="uuid",
             field=waldur_core.core.fields.UUIDField(null=True, blank=True),
         ),
         migrations.RunSQL(SQL_QUERY),
         migrations.RunPython(gen_uuid, elidable=True),
         migrations.AlterField(
-            model_name="media_file",
+            model_name="file",
             name="uuid",
             field=waldur_core.core.fields.UUIDField(),
         ),
