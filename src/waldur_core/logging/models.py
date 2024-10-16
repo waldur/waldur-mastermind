@@ -231,26 +231,6 @@ class SystemNotification(EventTypesMixin, models.Model):
         return f"{self.hook_content_type} | {self.name}"
 
 
-class Report(UuidMixin, TimeStampedModel):
-    class States:
-        PENDING = "pending"
-        DONE = "done"
-        ERRED = "erred"
-
-        CHOICES = (
-            (PENDING, "Pending"),
-            (DONE, "Done"),
-            (ERRED, "Erred"),
-        )
-
-    file = models.FileField(upload_to="logging_reports")
-    file_size = models.PositiveIntegerField(null=True)
-    state = models.CharField(
-        choices=States.CHOICES, default=States.PENDING, max_length=10
-    )
-    error_message = models.TextField(blank=True)
-
-
 class Event(UuidMixin):
     created = AutoCreatedField()
     event_type = models.CharField(max_length=100, db_index=True)

@@ -3,20 +3,13 @@ import json
 from django import forms
 from django.contrib import admin
 from django.contrib.auth.models import Group
-from django.db import transaction
-from django.shortcuts import redirect
-from django.template.defaultfilters import filesizeformat
-from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
 from waldur_core.core.admin import (
-    ExtraActionsMixin,
     ReadOnlyAdminMixin,
-    UpdateOnlyModelAdmin,
     format_json_field,
 )
-from waldur_core.core.utils import serialize_instance
-from waldur_core.logging import models, tasks
+from waldur_core.logging import models
 from waldur_core.logging.loggers import get_event_groups, get_valid_events
 
 
@@ -92,34 +85,6 @@ class EmailHookAdmin(BaseHookAdmin):
     list_display = BaseHookAdmin.list_display + ("email",)
 
 
-class ReportAdmin(UpdateOnlyModelAdmin, ExtraActionsMixin, admin.ModelAdmin):
-    list_display = ("created", "state", "get_filesize")
-    readonly_fields = ("state", "file", "get_filesize", "error_message")
-    exclude = ("file_size",)
-
-    def get_filesize(self, obj):
-        if obj.file_size:
-            return filesizeformat(obj.file_size)
-        else:
-            return "N/A"
-
-    get_filesize.short_description = "File size"
-
-    def get_extra_actions(self):
-        return [self.create_report]
-
-    def create_report(self, request):
-        with transaction.atomic():
-            report = models.Report.objects.create()
-            serialized_report = serialize_instance(report)
-            transaction.on_commit(lambda: tasks.create_report.delay(serialized_report))
-        message = _("Report creation has been scheduled")
-        self.message_user(request, message)
-        return redirect(reverse("admin:logging_report_changelist"))
-
-    create_report.short_description = _("Create report")
-
-
 # This hack is needed because core admin is imported several times.
 if admin.site.is_registered(Group):
     admin.site.unregister(Group)
@@ -127,5 +92,4 @@ if admin.site.is_registered(Group):
 admin.site.register(models.SystemNotification, SystemNotificationAdmin)
 admin.site.register(models.WebHook, WebHookAdmin)
 admin.site.register(models.EmailHook, EmailHookAdmin)
-admin.site.register(models.Report, ReportAdmin)
 admin.site.register(models.Event, EventAdmin)
