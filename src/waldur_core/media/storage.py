@@ -38,7 +38,6 @@ class DatabaseStorage(Storage):
         fh.name = name
         fh.mode = mode
         fh.size = size
-        fh.hash = f.hash
         o = DatabaseFile(fh)
         return o
 

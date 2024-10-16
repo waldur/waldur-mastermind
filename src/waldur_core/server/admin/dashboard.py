@@ -8,7 +8,6 @@ from fluent_dashboard.dashboard import (
 )
 
 from waldur_core.core import models as core_models
-from waldur_core.logging import models as logging_models
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.models import BaseResource
 
@@ -38,7 +37,6 @@ class CustomIndexDashboard(FluentIndexDashboard):
             structure_models.Customer,
             core_models.User,
             structure_models.SharedServiceSettings,
-            logging_models.Report,
         ):
             link = self._get_link_to_model(model)
             if "url" in link:
