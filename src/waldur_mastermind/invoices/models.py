@@ -158,111 +158,31 @@ class Invoice(core_models.UuidMixin, core_models.BackendMixin, models.Model):
         return 100000 + self.id
 
     def _process_credits(self):
-        credit = CustomerCredit.objects.filter(customer=self.customer).first()
+        with transaction.atomic():
+            monthly_compensation = utils.MonthlyCompensation(self.customer)
+            monthly_compensation.save()
 
-        if not credit or not credit.value:
-            return
-
-        items = sorted(
-            [i for i in self.items.all() if i.resource], key=InvoiceItem._price
-        )
-        compensations = []
-
-        for item in items:
-            if (
-                credit.offerings.all()
-                and item.resource.offering not in credit.offerings.all()
-            ):
-                continue
-
-            with transaction.atomic():
-                projects_credit = ProjectCredit.objects.filter(
-                    project=item.resource.project
-                ).first()
-                cost = item.total
-
-                if projects_credit:
-                    if cost >= projects_credit.value:
-                        cost -= projects_credit.value
-                        credit_compensation = projects_credit.value
-                        projects_credit.value = 0
-                        projects_credit.save()
-                        credit.value -= projects_credit.value
-                        credit.save()
-
-                        if projects_credit.use_organisation_credit:
-                            if cost >= credit.value:
-                                credit_compensation += credit.value
-                                credit.value = 0
-                                credit.save()
-                                break
-                            else:
-                                credit_compensation += cost
-                                credit.value -= cost
-                                credit.save()
-                    else:
-                        credit_compensation = cost
-                        projects_credit.value -= cost
-                        projects_credit.save()
-                        credit.value -= cost
-                        credit.save()
-                else:
-                    if cost >= credit.value:
-                        credit_compensation = credit.value
-                        credit.value = 0
-                        credit.save()
-                    else:
-                        credit_compensation = cost
-                        credit.value -= cost
-                        credit.save()
-
-                if credit_compensation:
-                    compensations.append(
-                        InvoiceItem(
-                            invoice=self,
-                            unit_price=credit_compensation * -1,
-                            quantity=1,
-                            unit=InvoiceItem.Units.QUANTITY,
-                            credit=credit,
-                            name=f"Credit compensation. {item}",
-                        )
-                    )
-                    log.event_logger.credit.info(
-                        "Reduction of credit by {consumption} due to compensation of invoice item {invoice_item}.",
-                        event_type="reduction_of_credit",
-                        event_context={
-                            "consumption": credit_compensation,
-                            "customer": self.customer,
-                            "invoice_item": str(item),
-                        },
-                    )
-                if not credit.value:
-                    break
-
-        InvoiceItem.objects.bulk_create(compensations)
-        total_compensation = sum(credit.unit_price * -1 for credit in compensations)
-
-        if credit.minimal_consumption:
-            if total_compensation < credit.minimal_consumption:
-                tail = credit.minimal_consumption - total_compensation
-
-                if credit.value - tail < 0:
-                    tail = credit.value
-                    credit.value = 0
-                else:
-                    credit.value -= tail
-
+            if monthly_compensation.tail:
                 log.event_logger.credit.info(
                     "Reduction of credit by {consumption} due to minimal consumption of {minimal_consumption}",
                     event_type="reduction_of_credit_due_to_minimal_consumption",
                     event_context={
-                        "consumption": tail,
-                        "minimal_consumption": credit.minimal_consumption,
+                        "consumption": monthly_compensation.tail,
+                        "minimal_consumption": monthly_compensation.credit.minimal_consumption,
                         "customer": self.customer,
                     },
                 )
 
-                credit.save()
+            for compensation_item in monthly_compensation.compensations:
+                log.event_logger.credit.info(
+                    "Reduction of credit by {consumption} due to compensation of invoice item {invoice_item}.",
+                    event_type="reduction_of_credit",
+                    event_context={
+                        "consumption": compensation_item.unit_price,
+                        "customer": self.customer,
+                        "invoice_item": str(compensation_item),
+                    },
+                )
 
     def set_created(self):
         """
@@ -628,23 +548,6 @@ class CustomerCredit(core_models.UuidMixin, core_models.TimeStampedModel):
 
     class Permissions:
         customer_path = "customer"
-
-    def save(self, *args, **kwargs):
-        project_total_value = (
-            ProjectCredit.objects.filter(project__customer=self.customer).aggregate(
-                sum=Sum("value")
-            )["sum"]
-            or 0
-        )
-
-        if project_total_value > self.value:
-            raise rf_exceptions.ValidationError(
-                _(
-                    "The sum of project credits cannot exceed the credit for organization."
-                )
-            )
-
-        return super().save(*args, **kwargs)
 
 
 class ProjectCredit(core_models.UuidMixin, core_models.TimeStampedModel):

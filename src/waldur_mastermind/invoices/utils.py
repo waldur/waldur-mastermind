@@ -234,3 +234,152 @@ def get_billing_price_estimate_for_resources(resources):
         result["tax_current"] += item.tax_current
         result["total"] += item.total
     return result
+
+
+class MonthlyCompensation:
+    def __init__(self, customer):
+        self.customer = customer
+        self.invoice = (
+            models.Invoice.objects.filter(state=models.Invoice.States.PENDING)
+            .order_by("-year", "-month")
+            .first()
+        )
+        self.compensations = []
+        self.projects_credits = []
+        self.total_compensation = 0
+        self.tail = 0
+        self.credit = None
+
+        if not self.invoice:
+            return
+
+        credit = models.CustomerCredit.objects.filter(
+            customer=self.invoice.customer
+        ).first()
+
+        if not credit or not credit.value:
+            return
+
+        items_projects_ids = self.invoice.items.all().values_list(
+            "project_id", flat=True
+        )
+
+        if not items_projects_ids:
+            return
+
+        projects_credits = {
+            p.project: p
+            for p in models.ProjectCredit.objects.filter(
+                project_id__in=items_projects_ids
+            )
+        }
+
+        items = sorted(
+            [i for i in self.invoice.items.all() if i.resource],
+            key=models.InvoiceItem._price,
+        )
+
+        for item in items:
+            if (
+                credit.offerings.all()
+                and item.resource.offering not in credit.offerings.all()
+            ):
+                continue
+
+            project_credit = projects_credits.get(item.project, None)
+            cost = item.total
+
+            if project_credit:
+                if cost >= project_credit.value:
+                    cost -= project_credit.value
+                    credit_compensation = project_credit.value  # item compensation
+                    project_credit.value = 0
+                    credit.value -= credit_compensation
+
+                    if project_credit.use_organisation_credit and cost:
+                        if cost >= credit.value:
+                            credit_compensation += credit.value
+                            credit.value = 0
+                        else:
+                            credit_compensation += cost
+                            credit.value -= cost
+                else:
+                    credit_compensation = cost
+                    project_credit.value -= cost
+                    credit.value -= cost
+
+            else:
+                if cost >= credit.value:
+                    credit_compensation = credit.value
+                    credit.value = 0
+                else:
+                    credit_compensation = cost
+                    credit.value -= cost
+
+            if credit_compensation:
+                self.compensations.append(
+                    models.InvoiceItem(
+                        invoice=self.invoice,
+                        unit_price=credit_compensation * -1,
+                        quantity=1,
+                        unit=models.InvoiceItem.Units.QUANTITY,
+                        credit=credit,
+                        name=f"Credit compensation. {item}",
+                        resource=item.resource,
+                    )
+                )
+
+            if not credit.value:
+                break
+
+        self.total_compensation = sum(
+            credit.unit_price * -1 for credit in self.compensations
+        )
+        self.tail = 0
+
+        if credit.minimal_consumption:
+            if self.total_compensation < credit.minimal_consumption:
+                self.tail = credit.minimal_consumption - self.total_compensation
+
+                if credit.value - self.tail < 0:
+                    self.tail = credit.value
+                    credit.value = 0
+                else:
+                    credit.value -= self.tail
+
+                self.total_compensation += self.tail
+
+        self.projects_credits = projects_credits.values()
+        self.credit = credit
+
+    def save(self):
+        if not self.credit:
+            return
+
+        models.InvoiceItem.objects.bulk_create(self.compensations)
+
+        for pc in self.projects_credits:
+            pc.save()
+
+        self.credit.save()
+
+    def get_project_credit_consumption(self, project):
+        if [p for p in self.projects_credits if p.project == project]:
+            projects_credit = [
+                p for p in self.projects_credits if p.project == project
+            ][0]
+            new_project_value = projects_credit.value
+            projects_credit.refresh_from_db()
+            old_project_value = projects_credit.value
+            return old_project_value - new_project_value
+
+        return 0
+
+    def get_project_compensation(self, project):
+        return sum(
+            [
+                c.unit_price * -1
+                for c in self.compensations
+                if c.resource.project == project
+            ]
+        )

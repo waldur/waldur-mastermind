@@ -14,7 +14,12 @@ from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
-from waldur_mastermind.invoices import models as invoices_models
+from waldur_mastermind.invoices import (
+    models as invoices_models,
+)
+from waldur_mastermind.invoices import (
+    utils as invoices_utils,
+)
 from waldur_mastermind.marketplace import models as marketplace_models
 
 from . import policy_actions
@@ -101,7 +106,7 @@ class EstimatedCostPolicyMixin(PeriodMixin):
 
     limit_cost = models.IntegerField()
 
-    def _is_triggered(self, invoice_items):
+    def _is_triggered(self, invoice_items, compensation=0):
         customers = structure_models.Customer.objects.filter(
             blocked=False,
             archived=False,
@@ -131,7 +136,7 @@ class EstimatedCostPolicyMixin(PeriodMixin):
         invoice_items = invoice_items.filter(query)
 
         total = sum([i.total for i in invoice_items])
-        return total > self.limit_cost
+        return total - compensation > self.limit_cost
 
     class Meta:
         abstract = True
@@ -173,8 +178,10 @@ class ProjectEstimatedCostPolicy(EstimatedCostPolicyMixin, ProjectPolicy):
     def is_triggered(self):
         project = self.scope
         invoice_items = invoices_models.InvoiceItem.objects.filter(project=project)
-
-        return self._is_triggered(invoice_items)
+        compensation = invoices_utils.MonthlyCompensation(project.customer)
+        return self._is_triggered(
+            invoice_items, compensation.get_project_compensation(project)
+        )
 
     class Meta:
         verbose_name_plural = "Project estimated cost policies"
@@ -216,8 +223,9 @@ class CustomerEstimatedCostPolicy(EstimatedCostPolicyMixin, CustomerPolicy):
         invoice_items = invoices_models.InvoiceItem.objects.filter(
             invoice__customer=customer
         )
+        compensation = invoices_utils.MonthlyCompensation(customer)
 
-        return self._is_triggered(invoice_items)
+        return self._is_triggered(invoice_items, compensation.total_compensation)
 
     class Meta:
         verbose_name_plural = "Customer estimated cost policies"
