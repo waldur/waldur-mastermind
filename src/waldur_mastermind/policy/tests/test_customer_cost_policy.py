@@ -124,6 +124,25 @@ class ActionsFunctionsTest(test.APITransactionTestCase):
         self.assertEqual(self.policy.has_fired, False)
         self.assertTrue(self.policy.fired_datetime)
 
+    def test_compensation(self):
+        self.create_or_update_invoice_item(self.policy.limit_cost - 1)
+        self.policy.refresh_from_db()
+        self.assertEqual(self.policy.has_fired, False)
+
+        invoice_item = self.invoice.items.first()
+        invoice_item.resource = self.fixture.resource
+        invoice_item.save()
+
+        invoices_factories.CustomerCreditFactory(
+            value=invoice_item.total * 3, customer=self.invoice.customer
+        )
+        invoices_factories.ProjectCreditFactory(
+            value=invoice_item.total * 2, project=self.project
+        )
+        self.create_or_update_invoice_item(self.policy.limit_cost + 1)
+        self.policy.refresh_from_db()
+        self.assertEqual(self.policy.has_fired, False)
+
     def test_several_policies(self):
         with mock.patch.object(
             CustomerEstimatedCostPolicy,

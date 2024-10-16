@@ -310,7 +310,10 @@ class ProjectCreditTest(test.APITransactionTestCase):
         old_customer_credit_value = self.customer_credit.value
         self.invoice.set_created()
         self.customer_credit.refresh_from_db()
-        self.assertEqual(self.customer_credit.value, old_customer_credit_value)
+        self.assertEqual(
+            self.customer_credit.value,
+            old_customer_credit_value - self.project_credit.value,
+        )
 
     def test_use_organisation_credit_disable(self):
         self.project_credit.use_organisation_credit = True
