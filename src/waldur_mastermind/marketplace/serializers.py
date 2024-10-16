@@ -1602,6 +1602,12 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
         instance.scope.domain = options_serializer.validated_data.get("domain")
         instance.scope.token = options_serializer.validated_data.get("token")
         instance.scope.options = options_serializer.validated_data.get("options")
+        instance.scope.console_type = options_serializer.validated_data.get(
+            "console_type"
+        )
+        instance.scope.console_domain_override = options_serializer.validated_data.get(
+            "console_domain_override"
+        )
         instance.scope.save()
 
         if (

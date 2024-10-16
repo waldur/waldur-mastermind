@@ -169,6 +169,13 @@ class OpenStackServiceSerializer(structure_serializers.ServiceOptionsSerializer)
         required=False,
     )
 
+    console_domain_override = serializers.CharField(
+        source="options.console_domain_override",
+        label=_("Console domain override"),
+        help_text=_("Override of the console URL domain"),
+        required=False,
+    )
+
     dns_nameservers = serializers.ListField(
         child=serializers.CharField(),
         source="options.dns_nameservers",

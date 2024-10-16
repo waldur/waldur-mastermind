@@ -4656,9 +4656,7 @@ class OpenStackBackend(ServiceBackend):
         elif "remote_console" in url:
             result_url = url["remote_console"]["url"]
 
-        console_domain_override = service_settings.get_option(
-            "openstack_console_domain_override"
-        )
+        console_domain_override = service_settings.get_option("console_domain_override")
         if console_domain_override:
             parsed_url = urlparse(result_url)
             if parsed_url.port:
