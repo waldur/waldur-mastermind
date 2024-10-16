@@ -240,7 +240,9 @@ class MonthlyCompensation:
     def __init__(self, customer):
         self.customer = customer
         self.invoice = (
-            models.Invoice.objects.filter(state=models.Invoice.States.PENDING)
+            models.Invoice.objects.filter(
+                state=models.Invoice.States.PENDING, customer=customer
+            )
             .order_by("-year", "-month")
             .first()
         )
@@ -253,9 +255,7 @@ class MonthlyCompensation:
         if not self.invoice:
             return
 
-        credit = models.CustomerCredit.objects.filter(
-            customer=self.invoice.customer
-        ).first()
+        credit = models.CustomerCredit.objects.filter(customer=customer).first()
 
         if not credit or not credit.value:
             return
@@ -273,20 +273,23 @@ class MonthlyCompensation:
                 project_id__in=items_projects_ids
             )
         }
+        credit_offerings = list(credit.offerings.all())
+        if not credit_offerings:
+            return
 
         items = sorted(
-            [i for i in self.invoice.items.all() if i.resource],
+            [
+                i
+                for i in self.invoice.items.all()
+                if i.resource and i.resource.offering in credit_offerings
+            ],
             key=models.InvoiceItem._price,
         )
 
         for item in items:
-            if (
-                credit.offerings.all()
-                and item.resource.offering not in credit.offerings.all()
-            ):
-                continue
-
-            project_credit = projects_credits.get(item.project, None)
+            project_credit: models.ProjectCredit = projects_credits.get(
+                item.project, None
+            )
             cost = item.total
 
             if project_credit:

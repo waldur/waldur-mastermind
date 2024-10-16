@@ -549,6 +549,9 @@ class CustomerCredit(core_models.UuidMixin, core_models.TimeStampedModel):
     class Permissions:
         customer_path = "customer"
 
+    def __str__(self):
+        return f"Customer credit for {self.customer.name}, value {self.value}"
+
 
 class ProjectCredit(core_models.UuidMixin, core_models.TimeStampedModel):
     project = models.OneToOneField(structure_models.Project, on_delete=models.CASCADE)
@@ -562,6 +565,9 @@ class ProjectCredit(core_models.UuidMixin, core_models.TimeStampedModel):
 
     class Permissions:
         customer_path = "project__customer"
+
+    def __str__(self):
+        return f"Project credit for {self.project.name}, value {self.value}, organisation credit usage: {self.use_organisation_credit}"
 
     def save(self, *args, **kwargs):
         customer_credit = CustomerCredit.objects.filter(
