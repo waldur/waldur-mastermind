@@ -274,14 +274,13 @@ class MonthlyCompensation:
             )
         }
         credit_offerings = list(credit.offerings.all())
-        if not credit_offerings:
-            return
 
         items = sorted(
             [
                 i
-                for i in self.invoice.items.all()
-                if i.resource and i.resource.offering in credit_offerings
+                for i in self.invoice.items.exclude(resource__isnull=True)
+                # if credit offerings are limited, check if item belongs to the limited offering
+                if credit_offerings and i.resource.offering in credit_offerings
             ],
             key=models.InvoiceItem._price,
         )
