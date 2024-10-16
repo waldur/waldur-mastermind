@@ -255,7 +255,7 @@ class MonthlyCompensation:
         if not self.invoice:
             return
 
-        credit = models.CustomerCredit.objects.filter(customer=customer).first()
+        credit = models.CustomerCredit.objects.filter(customer=self.customer).first()
 
         if not credit or not credit.value:
             return
@@ -280,7 +280,7 @@ class MonthlyCompensation:
                 i
                 for i in self.invoice.items.exclude(resource__isnull=True)
                 # if credit offerings are limited, check if item belongs to the limited offering
-                if credit_offerings and i.resource.offering in credit_offerings
+                if not credit_offerings or i.resource.offering in credit_offerings
             ],
             key=models.InvoiceItem._price,
         )
