@@ -67,20 +67,13 @@ class AttachmentSynchronizer:
 
     def perform_update(self):
         if self.stale_attachment_ids:
-            self.backend.model_attachment.objects.filter(
+            models.Attachment.objects.filter(
                 backend_id__in=self.stale_attachment_ids
             ).delete()
 
         for attachment_id in self.new_attachment_ids:
             self._add_attachment(
                 self.current_issue, self.get_backend_attachment(attachment_id)
-            )
-
-        for attachment_id in self.updated_attachments_ids:
-            self._update_attachment(
-                self.current_issue,
-                self.get_backend_attachment(attachment_id),
-                self.get_current_attachment(attachment_id),
             )
 
     def get_current_attachment(self, attachment_id):
@@ -124,17 +117,7 @@ class AttachmentSynchronizer:
         return filter(self._is_attachment_updated, self.backend_attachments_ids)
 
     def _is_attachment_updated(self, attachment_id):
-        """
-        Attachment is considered updated if its thumbnail just has been created.
-        """
-
-        if not getattr(self.get_backend_attachment(attachment_id), "thumbnail", False):
-            return False
-
         if attachment_id not in self.current_attachments_ids:
-            return False
-
-        if self.get_current_attachment(attachment_id).thumbnail:
             return False
 
         return True
@@ -151,18 +134,11 @@ class AttachmentSynchronizer:
         return BytesIO(response.content)
 
     def _add_attachment(self, issue, backend_attachment):
-        attachment = self.backend.model_attachment(
+        attachment = models.Attachment(
             issue=issue, backend_id=backend_attachment.id, state=StateMixin.States.OK
         )
-        thumbnail = getattr(backend_attachment, "thumbnail", False) and getattr(
-            attachment, "thumbnail", False
-        )
-
         try:
             content = self._download_file(backend_attachment.content)
-            if thumbnail:
-                thumbnail_content = self._download_file(backend_attachment.thumbnail)
-
         except JIRAError as error:
             logger.error(
                 f"Unable to load attachment for issue with backend id {issue.backend_id}. Error: {error})."
@@ -183,24 +159,6 @@ class AttachmentSynchronizer:
 
         attachment.file.save(backend_attachment.filename, content, save=True)
 
-        if thumbnail:
-            attachment.thumbnail.save(
-                backend_attachment.filename, thumbnail_content, save=True
-            )
-
-    def _update_attachment(self, issue, backend_attachment, current_attachment):
-        try:
-            content = self._download_file(backend_attachment.thumbnail)
-        except JIRAError as error:
-            logger.error(
-                f"Unable to load attachment thumbnail for issue with backend id {issue.backend_id}. Error: {error})."
-            )
-            return
-
-        current_attachment.thumbnail.save(
-            backend_attachment.filename, content, save=True
-        )
-
 
 class CommentSynchronizer:
     def __init__(self, backend, current_issue, backend_issue):
@@ -210,7 +168,7 @@ class CommentSynchronizer:
 
     def perform_update(self):
         if self.stale_comments_ids:
-            self.backend.model_comment.objects.filter(
+            models.Comment.objects.filter(
                 backend_id__in=self.stale_comments_ids
             ).delete()
 
@@ -248,10 +206,6 @@ class CommentSynchronizer:
 
 
 class ServiceDeskBackend(SupportBackend):
-    servicedeskapi_path = "servicedeskapi"
-    model_comment = models.Comment
-    model_issue = models.Issue
-    model_attachment = models.Attachment
     backend_name = SupportBackendType.ATLASSIAN
 
     def __init__(self):
@@ -347,7 +301,7 @@ class ServiceDeskBackend(SupportBackend):
             )
             return
 
-        issue = self.model_issue(backend_id=key, state=StateMixin.States.OK)
+        issue = models.Issue(backend_id=key, state=StateMixin.States.OK)
         self._backend_issue_to_issue(backend_issue, issue)
         try:
             issue.save()
@@ -427,7 +381,7 @@ class ServiceDeskBackend(SupportBackend):
             )
             return
 
-        comment = self.model_comment(
+        comment = models.Comment(
             issue=issue, backend_id=comment_backend_id, state=StateMixin.States.OK
         )
         self._backend_comment_to_comment(backend_comment, comment)
@@ -514,9 +468,7 @@ class ServiceDeskBackend(SupportBackend):
             backend_issue, attachment.file
         )
         attachment.backend_id = backend_attachment.id
-        attachment.mime_type = getattr(backend_attachment, "mimeType", "")
-        attachment.file_size = backend_attachment.size
-        attachment.save(update_fields=["backend_id", "mime_type", "file_size"])
+        attachment.save(update_fields=["backend_id"])
 
     @reraise_exceptions
     def delete_attachment(self, attachment):
@@ -868,8 +820,6 @@ class ServiceDeskBackend(SupportBackend):
                 comment.is_public = False
 
     def _backend_attachment_to_attachment(self, backend_attachment, attachment):
-        attachment.mime_type = getattr(backend_attachment, "mimeType", "")
-        attachment.file_size = backend_attachment.size
         attachment.created = dateutil.parser.parse(backend_attachment.created)
         attachment.author = self.get_or_create_support_user(backend_attachment.author)
 
