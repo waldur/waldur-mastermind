@@ -208,7 +208,7 @@ def log_credit(sender, instance, created=False, **kwargs):
 
     if created:
         log.event_logger.credit.info(
-            "Credit has been created. Value: {new_value}",
+            "{customer_name} credit has been created. Value: {new_value}",
             event_type="create_of_credit_by_staff",
             event_context={
                 "new_value": int(credit.value),
@@ -217,7 +217,7 @@ def log_credit(sender, instance, created=False, **kwargs):
         )
     elif credit.tracker.has_changed("value"):
         log.event_logger.credit.info(
-            "Credit has been updated from {old_value} to {new_value}. ",
+            "{customer_name} credit has been updated from {old_value} to {new_value}. ",
             event_type="update_of_credit_by_staff",
             event_context={
                 "new_value": int(credit.value),

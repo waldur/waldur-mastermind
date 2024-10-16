@@ -164,7 +164,7 @@ class Invoice(core_models.UuidMixin, core_models.BackendMixin, models.Model):
 
             if monthly_compensation.tail:
                 log.event_logger.credit.info(
-                    "Reduction of credit by {consumption} due to minimal consumption of {minimal_consumption}",
+                    "Reduction of {customer_name} credit by {consumption} due to minimal consumption of {minimal_consumption}",
                     event_type="reduction_of_credit_due_to_minimal_consumption",
                     event_context={
                         "consumption": monthly_compensation.tail,
@@ -175,7 +175,7 @@ class Invoice(core_models.UuidMixin, core_models.BackendMixin, models.Model):
 
             for compensation_item in monthly_compensation.compensations:
                 log.event_logger.credit.info(
-                    "Reduction of credit by {consumption} due to compensation of invoice item {invoice_item}.",
+                    "Reduction of {customer_name} credit by {consumption} due to compensation of invoice item {invoice_item}.",
                     event_type="reduction_of_credit",
                     event_context={
                         "consumption": compensation_item.unit_price,
