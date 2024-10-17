@@ -793,6 +793,7 @@ def resource_has_been_changed(sender, instance, created=False, **kwargs):
             "content_type_id",
             "options",
             "error_message",
+            'current_usages',
         ):
             continue
 
