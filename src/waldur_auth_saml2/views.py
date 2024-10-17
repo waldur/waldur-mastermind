@@ -22,6 +22,10 @@ from saml2.response import StatusRequestDenied
 from saml2.xmldsig import DIGEST_SHA1, SIG_RSA_SHA1
 from six import text_type
 
+from waldur_core.core.authentication import (
+    AuthenticationMethod,
+    set_authentication_method,
+)
 from waldur_core.core.views import (
     RefreshTokenMixin,
     login_completed,
@@ -263,6 +267,7 @@ class Saml2LoginCompleteView(RefreshTokenMixin, BaseSaml2View):
             event_type="auth_logged_in_with_saml2",
             event_context={"user": user, "request": request},
         )
+        set_authentication_method(request, AuthenticationMethod.SAML2)
         return login_completed(token.key, "saml2")
 
 

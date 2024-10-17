@@ -17,6 +17,7 @@ from waldur_auth_social.utils import (
     pull_remote_eduteams_user,
 )
 from waldur_core.core import permissions as core_permissions
+from waldur_core.core.authentication import set_authentication_method
 from waldur_core.core.views import RefreshTokenMixin
 
 from . import models
@@ -66,6 +67,7 @@ class OAuthView(RefreshTokenMixin, views.APIView):
         token = self.refresh_token(user)
         user.last_login = timezone.now()
         user.save(update_fields=["last_login"])
+        set_authentication_method(request, provider)
 
         event_logger.auth_social.info(
             "User {user_username} with full name {user_full_name} authenticated successfully with {provider}.",
