@@ -1,7 +1,6 @@
-import bleach
-from bleach.css_sanitizer import CSSSanitizer
+import nh3
 
-ALLOWED_TAGS = [
+ALLOWED_TAGS = {
     "a",
     "b",
     "blockquote",
@@ -26,27 +25,21 @@ ALLOWED_TAGS = [
     "sup",
     "pre",
     "br",
-]
+}
 
 
 ALLOWED_ATTRIBUTES = {
-    "a": ["href"],
-    "p": ["style"],
-    "span": ["style"],
+    "a": {"href"},
+    "p": {"style"},
+    "span": {"style"},
 }
-
-css_sanitizer = CSSSanitizer(
-    allowed_css_properties=["font-size", "font-weight", "text-align"]
-)
 
 
 def clean_html(value):
-    return bleach.clean(
+    return nh3.clean(
         value,
         tags=ALLOWED_TAGS,
         attributes=ALLOWED_ATTRIBUTES,
-        css_sanitizer=css_sanitizer,
-        strip=True,
     )
 
 
