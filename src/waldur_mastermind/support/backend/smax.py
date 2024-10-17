@@ -10,7 +10,12 @@ import textile
 from waldur_core.core.models import User as WaldurUser
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.support import models
-from waldur_smax.backend import Comment, Issue, SmaxBackend, User
+from waldur_mastermind.support.backend.smax_utils import (
+    Comment,
+    Issue,
+    SmaxBackend,
+    User,
+)
 
 from . import SupportBackend, SupportBackendType, SupportedFormat
 
