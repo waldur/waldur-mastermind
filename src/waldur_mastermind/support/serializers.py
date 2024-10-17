@@ -459,7 +459,7 @@ class CommentSerializer(
                 description += f"<br/><br/>Impersonator: {impersonator}"
         else:
             if impersonator:
-                description += f"/n/n/n/nImpersonator: {impersonator}"
+                description += f" /n/n/n/nImpersonator: {impersonator}"
 
         description = clean_html(description)
 
