@@ -1,6 +1,9 @@
 import uuid
+from base64 import b64decode
+from pickle import loads
 
 from django.db import migrations
+from django.utils import timezone
 
 import waldur_core.core.fields
 
@@ -81,6 +84,44 @@ END $$;
 """
 
 
+ICONS = (
+    "SITE_LOGO",
+    "SIDEBAR_LOGO",
+    "SIDEBAR_LOGO_MOBILE",
+    "SIDEBAR_LOGO_DARK",
+    "POWERED_BY_LOGO",
+    "HERO_IMAGE",
+    "LOGIN_LOGO",
+    "FAVICON",
+    "OFFERING_LOGO_PLACEHOLDER",
+)
+
+
+def copy_whitelabeling(apps, schema_editor):
+    File = apps.get_model("media", "File")
+
+    with schema_editor.connection.cursor() as cursor:
+        for param in ICONS:
+            cursor.execute("SELECT value FROM constance_config WHERE key=%s", [param])
+            row = cursor.fetchone()
+            filename = loads(b64decode(row[0].encode()))
+            cursor.execute(
+                "SELECT content FROM binary_database_files_file WHERE name=%s",
+                [filename],
+            )
+            row = cursor.fetchone()
+            content = row[0]
+            File.objects.create(
+                name=filename,
+                content=content,
+                size=len(content),
+                created=timezone.now(),
+                modified=timezone.now(),
+                mime_type="application/octet-stream",
+                is_public=False,
+            )
+
+
 def gen_uuid(apps, schema_editor):
     File = apps.get_model("media", "File")
     for row in File.objects.all():
@@ -94,6 +135,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        migrations.RunPython(copy_whitelabeling),
         migrations.AlterField(
             model_name="file",
             name="uuid",
