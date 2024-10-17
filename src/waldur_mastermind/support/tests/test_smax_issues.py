@@ -7,8 +7,8 @@ from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.support import models, tasks
 from waldur_mastermind.support.backend.smax import SmaxServiceBackend
+from waldur_mastermind.support.backend.smax_utils import Issue
 from waldur_mastermind.support.tests import factories, fixtures, smax_base
-from waldur_smax.backend import Issue
 
 
 class IssueCreateTest(smax_base.BaseTest):

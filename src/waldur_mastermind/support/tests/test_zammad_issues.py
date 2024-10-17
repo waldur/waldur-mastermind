@@ -2,8 +2,8 @@ from rest_framework import status
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.support import models, utils
+from waldur_mastermind.support.backend.zammad_utils import Issue
 from waldur_mastermind.support.tests import factories, zammad_base
-from waldur_zammad.backend import Issue
 
 
 class IssueCreateTest(zammad_base.BaseTest):

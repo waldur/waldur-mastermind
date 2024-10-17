@@ -3,8 +3,8 @@ from rest_framework import status
 from waldur_core.media.utils import dummy_image
 from waldur_mastermind.support import models
 from waldur_mastermind.support.backend.smax import SmaxServiceBackend
+from waldur_mastermind.support.backend.smax_utils import Attachment, Issue, User
 from waldur_mastermind.support.tests import factories, fixtures, smax_base
-from waldur_smax.backend import Attachment, Issue, User
 
 
 class AttachmentCreateTest(smax_base.BaseTest):

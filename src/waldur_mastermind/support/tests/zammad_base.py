@@ -4,7 +4,7 @@ import pytest
 from rest_framework import test
 
 from waldur_mastermind.support.backend import SupportBackendType
-from waldur_zammad.backend import User
+from waldur_mastermind.support.backend.zammad_utils import User
 
 from . import fixtures
 

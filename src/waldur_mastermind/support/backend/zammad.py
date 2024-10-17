@@ -12,8 +12,13 @@ from rest_framework.exceptions import ValidationError
 
 from waldur_core.core.models import User as WaldurUser
 from waldur_mastermind.support import models
-from waldur_zammad.backend import User as ZammadUser
-from waldur_zammad.backend import ZammadBackend, ZammadBackendError
+from waldur_mastermind.support.backend.zammad_utils import (
+    User as ZammadUser,
+)
+from waldur_mastermind.support.backend.zammad_utils import (
+    ZammadBackend,
+    ZammadBackendError,
+)
 
 from . import SupportBackend, SupportBackendType
 
