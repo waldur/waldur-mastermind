@@ -93,7 +93,8 @@ django-redis = "5.4.0"
 beautifulsoup4 = "^4.12.3"
 nh3 = "^0.2.18"
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev.dependencies]
+djangorestframework-stubs = {extras = ["compatible-mypy"], version = "^3.14.5"}
 pytest = "7.2.0"
 pytest-cov = "3.0.0"
 pytest-django = "^4.5.2"
@@ -153,15 +154,10 @@ waldur_firecrest = "waldur_firecrest.extension:FirecrestExtension"
 waldur_lexis = "waldur_lexis.extension:LexisExtension"
 waldur_marketplace_reppu = "waldur_mastermind.marketplace_reppu.extension:MarketplaceReppuExtension"
 
-
 [tool.poetry.group.docs.dependencies]
 pyparsing = "^3.1.1"
 pydot = "^1.4.2"
 django-extensions = "^3.2.3"
-
-
-[tool.poetry.group.dev.dependencies]
-djangorestframework-stubs = {extras = ["compatible-mypy"], version = "^3.14.5"}
 
 [build-system]
 requires = ["poetry-core"]
