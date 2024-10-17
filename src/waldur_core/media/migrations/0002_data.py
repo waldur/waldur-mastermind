@@ -104,6 +104,8 @@ def copy_whitelabeling(apps, schema_editor):
         for param in ICONS:
             cursor.execute("SELECT value FROM constance_config WHERE key=%s", [param])
             row = cursor.fetchone()
+            if not row:
+                continue
             encoded_name = row[0]
             if not encoded_name:
                 print(f"In constance_config value for name {param} is empty")
