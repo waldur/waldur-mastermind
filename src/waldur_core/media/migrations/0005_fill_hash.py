@@ -9,6 +9,8 @@ def calculate_file_hashes(apps, schema_editor):
         if file.content:
             file.hash = hashlib.sha256(file.content).hexdigest()
             file.save(update_fields=["hash"])
+        else:
+            file.delete()
 
 
 class Migration(migrations.Migration):
