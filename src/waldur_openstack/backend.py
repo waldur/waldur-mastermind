@@ -1,7 +1,7 @@
 import functools
 import logging
 import re
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 from cinderclient import exceptions as cinder_exceptions
 from cinderclient.v2.contrib import list_extensions
@@ -4660,13 +4660,12 @@ class OpenStackBackend(ServiceBackend):
         if console_domain_override:
             parsed_url = urlparse(result_url)
             if parsed_url.port:
-                parsed_url._replace(
+                parsed_url = parsed_url._replace(
                     netloc=f"{console_domain_override}:{parsed_url.port}"
                 )
             else:
-                parsed_url._replace(netloc=console_domain_override)
-            result_url = parsed_url.geturl()
-
+                parsed_url = parsed_url._replace(netloc=console_domain_override)
+            result_url = urlunparse(parsed_url)
         return result_url
 
     @log_backend_action()
