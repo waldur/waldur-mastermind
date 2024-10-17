@@ -90,7 +90,7 @@ def gen_uuid(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("logging", "0012_delete_report"),
+        ("media", "0001_initial"),
     ]
 
     operations = [
