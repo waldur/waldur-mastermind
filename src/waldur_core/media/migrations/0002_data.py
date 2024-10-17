@@ -104,12 +104,21 @@ def copy_whitelabeling(apps, schema_editor):
         for param in ICONS:
             cursor.execute("SELECT value FROM constance_config WHERE key=%s", [param])
             row = cursor.fetchone()
+            encoded_name = row[0]
+            if not encoded_name:
+                print(f"In constance_config value for name {param} is empty")
+                continue
             filename = loads(b64decode(row[0].encode()))
             cursor.execute(
                 "SELECT content FROM binary_database_files_file WHERE name=%s",
                 [filename],
             )
             row = cursor.fetchone()
+            if not row:
+                print(
+                    f"In binary_database_files_file content for name {filename} is empty"
+                )
+                continue
             content = row[0]
             File.objects.create(
                 name=filename,
