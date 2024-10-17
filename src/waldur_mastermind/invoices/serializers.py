@@ -829,13 +829,16 @@ class CreateCustomerCreditSerializer(CustomerCreditSerializer):
 
         return end_date
 
-    def validate_minimal_consumption(self, minimal_consumption):
-        if minimal_consumption and minimal_consumption >= self.value:
+    def validate(self, attrs):
+        minimal_consumption = attrs.get("minimal_consumption")
+        value = attrs.get("value")
+
+        if minimal_consumption and minimal_consumption >= value:
             raise exceptions.ValidationError(
                 _("Minimum consumption must be smaller than the credit.")
             )
 
-        return minimal_consumption
+        return attrs
 
     offerings = serializers.HyperlinkedRelatedField(
         view_name="marketplace-provider-offering-detail",
