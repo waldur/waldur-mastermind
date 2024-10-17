@@ -366,7 +366,7 @@ class IssueSerializer(
         impersonator = getattr(self.context["request"].user, "impersonator", None)
 
         if impersonator:
-            rendered_description += f"\n\n\n\nImpersonator: {impersonator}"
+            rendered_description += f" \n\n\n\nImpersonator: {impersonator}"
 
         if backend.get_active_backend().message_format == backend.SupportedFormat.HTML:
             rendered_description = textile.textile(rendered_description)
