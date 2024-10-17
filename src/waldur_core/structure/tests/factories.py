@@ -4,7 +4,7 @@ from rest_framework.authtoken import models as authtoken_models
 from rest_framework.reverse import reverse
 
 from waldur_core.core import models as core_models
-from waldur_core.core.types import BaseMetaFactory
+from waldur_core.core.tests.types import BaseMetaFactory
 from waldur_core.core.utils import normalize_unicode
 from waldur_core.structure import models
 

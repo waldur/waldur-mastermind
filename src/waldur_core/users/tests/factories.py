@@ -1,7 +1,7 @@
 import factory.fuzzy
 from rest_framework.reverse import reverse
 
-from waldur_core.core.types import BaseMetaFactory
+from waldur_core.core.tests.types import BaseMetaFactory
 from waldur_core.permissions import fixtures as permission_fixtures
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.users import models

@@ -8,7 +8,7 @@ from django.utils import timezone
 from factory import fuzzy
 
 from waldur_core.core import utils as core_utils
-from waldur_core.core.types import BaseMetaFactory
+from waldur_core.core.tests.types import BaseMetaFactory
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_openstack import models
 
