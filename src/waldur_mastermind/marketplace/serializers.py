@@ -2664,6 +2664,8 @@ class ComponentUserUsageSerializer(serializers.HyperlinkedModelSerializer):
     measured_unit = serializers.ReadOnlyField(
         source="component_usage.component.measured_unit"
     )
+    component_type = serializers.ReadOnlyField(source="component_usage.component.type")
+    date = serializers.ReadOnlyField(source="component_usage.date")
 
     resource_name = serializers.ReadOnlyField(source="component_usage.resource.name")
     resource_uuid = serializers.ReadOnlyField(source="component_usage.resource.uuid")
@@ -2709,6 +2711,8 @@ class ComponentUserUsageSerializer(serializers.HyperlinkedModelSerializer):
             "project_uuid",
             "customer_name",
             "customer_uuid",
+            "component_type",
+            "date",
         )
         model = models.ComponentUserUsage
 
