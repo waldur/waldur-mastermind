@@ -1,4 +1,3 @@
-import hashlib
 import io
 import logging
 from collections import defaultdict
@@ -13,6 +12,7 @@ from waldur_client import WaldurClient, WaldurClientException
 from waldur_auth_social.models import ProviderChoices
 from waldur_core.core.utils import get_system_robot
 from waldur_core.media import models as media_models
+from waldur_core.media import utils as media_utils
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import get_permissions
@@ -489,7 +489,7 @@ def import_offering_thumbnail(
                 name=local_offering.thumbnail.name
             )
             local_file_hash = file_object.hash
-            remote_file_hash = hashlib.sha256(content).hexdigest()
+            remote_file_hash = media_utils.get_image_hash(thumbnail_resp.content)
             if local_file_hash != remote_file_hash:
                 local_offering.thumbnail.delete()
                 local_offering.thumbnail.save(file_name, content)
