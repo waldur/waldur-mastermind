@@ -1861,6 +1861,9 @@ class ScreenshotViewSet(
 
 
 class PluginViewSet(views.APIView):
+    permission_classes = ()
+    authentication_classes = ()
+
     def get(self, request):
         offering_types = plugins.manager.get_offering_types()
         payload = []
