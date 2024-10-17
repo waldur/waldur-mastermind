@@ -3,10 +3,12 @@ from unittest import mock
 
 from constance.test.pytest import override_config
 from ddt import data, ddt
+from django.conf import settings
 from jira import Issue, User
 from jira.resources import IssueType, RequestType
 from rest_framework import status, test
 
+from waldur_core.core.authentication import TokenAuthentication
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.support import models, utils
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
@@ -16,6 +18,11 @@ from waldur_openstack.tests import (
     fixtures as openstack_fixtures,
 )
 from waldur_openstack.tests.factories import FloatingIPFactory, PortFactory
+
+IMPERSONATED_USER_HEADER = settings.WALDUR_CORE.get(
+    "REQUEST_HEADER_IMPERSONATED_USER_UUID"
+)
+IMPERSONATOR_HEADER = settings.WALDUR_CORE.get("RESPONSE_HEADER_IMPERSONATOR_UUID")
 
 
 @ddt
@@ -512,6 +519,25 @@ class IssueCreateTest(IssueCreateBaseTest):
                     )
                 else:
                     _add_comment.assert_not_called()
+
+    def test_add_impersonator_name_to_description(self):
+        staff = self.fixture.staff
+        impersonated_user = self.fixture.global_support
+
+        token = TokenAuthentication().get_model().objects.get(user=staff)
+        self.client.credentials(
+            **{
+                "HTTP_AUTHORIZATION": "Token " + token.key,
+                IMPERSONATED_USER_HEADER: impersonated_user.uuid.hex,
+            }
+        )
+        factories.SupportUserFactory(user=staff)
+        priority = factories.PriorityFactory()
+        response = self.client.post(
+            self.url, data=self._get_valid_payload(priority=priority.name)
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(staff.username in response.data["description"])
 
 
 @override_config(ATLASSIAN_USE_OLD_API=True)

@@ -363,6 +363,11 @@ class IssueSerializer(
             "ATLASSIAN_DESCRIPTION_TEMPLATE", "description", validated_data
         )
 
+        impersonator = getattr(self.context["request"].user, "impersonator", None)
+
+        if impersonator:
+            rendered_description += f"\n\n\n\nImpersonator: {impersonator}"
+
         if backend.get_active_backend().message_format == backend.SupportedFormat.HTML:
             rendered_description = textile.textile(rendered_description)
 
@@ -445,8 +450,16 @@ class CommentSerializer(
         return backend.get_active_backend().comment_destroy_is_available(obj)
 
     def validate_description(self, description):
+        impersonator = getattr(self.context["request"].user, "impersonator", None)
+
         if backend.get_active_backend().message_format == backend.SupportedFormat.HTML:
             description = textile.textile(description)
+
+            if impersonator:
+                description += f"<br/><br/>Impersonator: {impersonator}"
+        else:
+            if impersonator:
+                description += f"/n/n/n/nImpersonator: {impersonator}"
 
         description = clean_html(description)
 
