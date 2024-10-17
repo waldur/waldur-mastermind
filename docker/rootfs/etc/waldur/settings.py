@@ -7,7 +7,6 @@ BASE_DIR = os.path.abspath(
     os.path.join(os.path.dirname(os.path.dirname(__file__)), "..")
 )
 TEMPLATES[0]["DIRS"] = [os.path.join(BASE_DIR, "waldur_core", "templates")]
-LOCALE_PATHS = (os.path.join(BASE_DIR, "waldur_core", "locale"),)
 
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
