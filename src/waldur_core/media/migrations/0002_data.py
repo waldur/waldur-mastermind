@@ -10,8 +10,6 @@ BEGIN
     IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'binary_database_files_file') THEN
         WITH temp_file_list AS (
             SELECT DISTINCT ON (name) name FROM (
-                SELECT file AS name FROM logging_report WHERE file != ''
-                UNION ALL
                 SELECT image AS name FROM core_user WHERE image != ''
                 UNION ALL
                 SELECT image AS name FROM structure_customer WHERE image != ''
