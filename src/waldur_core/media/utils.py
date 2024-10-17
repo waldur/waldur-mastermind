@@ -1,4 +1,5 @@
 import base64
+import hashlib
 import tempfile
 
 import magic
@@ -22,3 +23,7 @@ def guess_image_extension(content: bytes) -> str:
         "image/jpeg": "jpeg",
         "image/webp": "webp",
     }.get(mime_type)
+
+
+def get_image_hash(content: str):
+    return hashlib.sha256(content).hexdigest()

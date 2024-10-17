@@ -1,4 +1,3 @@
-import hashlib
 from io import BytesIO
 
 import magic
@@ -8,7 +7,7 @@ from rest_framework.reverse import reverse
 
 from bs4 import BeautifulSoup
 
-from . import models
+from . import models, utils
 
 
 def remove_scripts(svg_string: str):
@@ -51,7 +50,7 @@ class DatabaseStorage(Storage):
         if isinstance(content_data, str):
             content_data = content_data.encode("utf-8")
 
-        content_hash = hashlib.sha256(content_data).hexdigest()
+        content_hash = utils.get_image_hash(content_data)
 
         models.File.objects.create(
             content=content_data,
