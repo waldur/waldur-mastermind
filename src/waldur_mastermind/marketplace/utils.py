@@ -146,7 +146,7 @@ def create_screenshot_thumbnail(screenshot):
     pic = screenshot.image
     fh = storage.open(pic.name, "rb")
     image = Image.open(fh)
-    image.thumbnail(settings.WALDUR_MARKETPLACE["THUMBNAIL_SIZE"], Image.ANTIALIAS)
+    image.thumbnail(settings.WALDUR_MARKETPLACE["THUMBNAIL_SIZE"])
     fh.close()
 
     thumb_extension = os.path.splitext(pic.name)[1]
