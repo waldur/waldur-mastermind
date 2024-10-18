@@ -8,6 +8,7 @@ from rest_framework import serializers
 from waldur_core.core import serializers as core_serializers
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.permissions import _get_customer
+from waldur_mastermind.invoices.models import CustomerCredit, ProjectCredit
 
 from . import models
 
@@ -100,6 +101,26 @@ class EstimatedCostPolicySerializer(PolicySerializer):
 class ProjectEstimatedCostPolicySerializer(
     core_serializers.AugmentedSerializerMixin, EstimatedCostPolicySerializer
 ):
+    class Meta(EstimatedCostPolicySerializer.Meta):
+        model = models.ProjectEstimatedCostPolicy
+        view_name = "marketplace-project-estimated-cost-policy-detail"
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+            },
+            "scope": {"lookup_field": "uuid", "view_name": "project-detail"},
+        }
+        fields = EstimatedCostPolicySerializer.Meta.fields + ("project_credit",)
+
+    project_credit = serializers.SerializerMethodField()
+
+    def get_project_credit(self, instance):
+        project: structure_models.Project = instance.scope
+        try:
+            return ProjectCredit.objects.get(project=project).value
+        except ProjectCredit.DoesNotExist:
+            return None
+
     def validate_scope(self, scope):
         if not scope:
             return
@@ -116,20 +137,29 @@ class ProjectEstimatedCostPolicySerializer(
             _("User is not allowed to configure policies.")
         )
 
+
+class CustomerEstimatedCostPolicySerializer(EstimatedCostPolicySerializer):
     class Meta(EstimatedCostPolicySerializer.Meta):
-        model = models.ProjectEstimatedCostPolicy
-        view_name = "marketplace-project-estimated-cost-policy-detail"
+        model = models.CustomerEstimatedCostPolicy
+        view_name = "marketplace-customer-estimated-cost-policy-detail"
         extra_kwargs = {
             "url": {
                 "lookup_field": "uuid",
+                "view_name": "marketplace-customer-estimated-cost-policy-detail",
             },
-            "scope": {"lookup_field": "uuid", "view_name": "project-detail"},
+            "scope": {"lookup_field": "uuid", "view_name": "customer-detail"},
         }
+        fields = EstimatedCostPolicySerializer.Meta.fields + ("customer_credit",)
 
+    customer_credit = serializers.SerializerMethodField()
 
-class CustomerEstimatedCostPolicySerializer(
-    core_serializers.AugmentedSerializerMixin, EstimatedCostPolicySerializer
-):
+    def get_customer_credit(self, instance):
+        customer: structure_models.Customer = instance.scope
+        try:
+            return CustomerCredit.objects.get(customer=customer).value
+        except CustomerCredit.DoesNotExist:
+            return None
+
     def validate_scope(self, scope):
         if not scope:
             return
@@ -142,16 +172,6 @@ class CustomerEstimatedCostPolicySerializer(
         raise serializers.ValidationError(
             _("User is not allowed to configure policies.")
         )
-
-    class Meta(EstimatedCostPolicySerializer.Meta):
-        model = models.CustomerEstimatedCostPolicy
-        view_name = "marketplace-customer-estimated-cost-policy-detail"
-        extra_kwargs = {
-            "url": {
-                "lookup_field": "uuid",
-            },
-            "scope": {"lookup_field": "uuid", "view_name": "customer-detail"},
-        }
 
 
 class OfferingPolicySerializerMixin(core_serializers.AugmentedSerializerMixin):
