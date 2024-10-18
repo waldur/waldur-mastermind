@@ -88,8 +88,8 @@ MIDDLEWARE = (
     "waldur_core.logging.middleware.CaptureEventContextMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "axes.middleware.AxesMiddleware",
     "waldur_core.server.middleware.ImpersonationMiddleware",
+    "axes.middleware.AxesMiddleware",
 )
 
 REST_FRAMEWORK = {
@@ -122,7 +122,7 @@ REST_FRAMEWORK = {
 }
 
 AUTHENTICATION_BACKENDS = (
-    "axes.backends.AxesBackend",
+    "axes.backends.AxesStandaloneBackend",
     "django.contrib.auth.backends.ModelBackend",
     "waldur_core.core.authentication.AuthenticationBackend",
 )
@@ -739,7 +739,7 @@ SWAGGER_SETTINGS = {
     },
 }
 
-AXES_ONLY_USER_FAILURES = True
+AXES_LOCKOUT_PARAMETERS = ["username"]
 AXES_COOLOFF_TIME = timedelta(minutes=10)
 AXES_FAILURE_LIMIT = 5
 
