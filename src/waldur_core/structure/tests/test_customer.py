@@ -17,6 +17,7 @@ from waldur_core.structure.tests.utils import (
     client_delete_user,
     client_update_user,
 )
+from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 
 class CustomerBaseTest(test.APITransactionTestCase):
@@ -961,3 +962,59 @@ class CustomerInetFilterTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.get(self.url)
         self.assertEqual(len(response.data), 1)
+
+
+class CustomerResourceQuotasTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.CustomerFixture()
+        self.customer = self.fixture.customer
+        self.empty_customer = factories.CustomerFactory()
+        self.project1 = factories.ProjectFactory(customer=self.customer)
+        self.project2 = factories.ProjectFactory(customer=self.customer)
+        self.offering = marketplace_factories.OfferingFactory()
+        self.component1 = marketplace_factories.OfferingComponentFactory(
+            offering=self.offering, type="cpu", name="CPU", measured_unit="vCPU"
+        )
+        self.component2 = marketplace_factories.OfferingComponentFactory(
+            offering=self.offering, type="ram", name="RAM", measured_unit="GB"
+        )
+        self.resource1 = marketplace_factories.ResourceFactory(
+            project=self.project1,
+            offering=self.offering,
+            current_usages={"cpu": 2, "ram": 4},
+            limits={"cpu": 8, "ram": 16},
+        )
+        self.resource2 = marketplace_factories.ResourceFactory(
+            project=self.project2,
+            offering=self.offering,
+            current_usages={"cpu": 1, "ram": 2},
+            limits={"cpu": 4, "ram": 8},
+        )
+        self.url = factories.CustomerFactory.get_url(self.customer, "stats")
+
+    def test_customer_with_no_resources(self):
+        self.client.force_authenticate(self.fixture.staff)
+        url = reverse("customer-stats", kwargs={"uuid": self.empty_customer.uuid})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["components"], [])
+
+    def test_customer_with_resources(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        components = response.data["components"]
+        # Check component stats for CPU
+        cpu_component = next(
+            component for component in components if component["type"] == "cpu"
+        )
+        self.assertEqual(cpu_component["usage"], 3)
+        self.assertEqual(cpu_component["limit"], 12)
+        self.assertEqual(cpu_component["measured_unit"], "vCPU")
+        # Check component stats for RAM
+        ram_component = next(
+            component for component in components if component["type"] == "ram"
+        )
+        self.assertEqual(ram_component["usage"], 6)
+        self.assertEqual(ram_component["limit"], 24)
+        self.assertEqual(ram_component["measured_unit"], "GB")

@@ -43,6 +43,8 @@ from waldur_core.structure.managers import (
     get_connected_projects,
 )
 from waldur_core.structure.permissions import _has_owner_access
+from waldur_core.structure.utils import get_components_usage_data_from_resources
+from waldur_mastermind.marketplace import models as marketplace_models
 
 logger = logging.getLogger(__name__)
 
@@ -230,6 +232,23 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
             ]
         )
 
+    @action(detail=True)
+    def stats(self, request, *args, **kwargs):
+        customer = self.get_object()
+
+        resources = marketplace_models.Resource.objects.filter(
+            project__customer=customer
+        ).exclude(state=marketplace_models.Resource.States.TERMINATED)
+
+        components_data_list = get_components_usage_data_from_resources(resources)
+
+        return Response(
+            {
+                "components": components_data_list,
+            },
+            status=status.HTTP_200_OK,
+        )
+
 
 class AccessSubnetViewSet(core_views.ActionsViewSet):
     queryset = models.AccessSubnet.objects.all()
@@ -408,6 +427,23 @@ class ProjectViewSet(
 
     move_project_serializer_class = serializers.MoveProjectSerializer
     move_project_permissions = [permissions.is_staff]
+
+    @action(detail=True)
+    def stats(self, request, *args, **kwargs):
+        project = self.get_object()
+
+        resources = marketplace_models.Resource.objects.filter(project=project).exclude(
+            state=marketplace_models.Resource.States.TERMINATED
+        )
+
+        components_data_list = get_components_usage_data_from_resources(resources)
+
+        return Response(
+            {
+                "components": components_data_list,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class UserViewSet(viewsets.ModelViewSet):

@@ -1,13 +1,17 @@
 import logging
+from collections import defaultdict
+from typing import Any
 
 from django.conf import settings
 from django.db import transaction
+from django.db.models import QuerySet
 from django.utils.translation import gettext_lazy as _
 from rest_framework.exceptions import ValidationError
 
 from waldur_auth_social.models import IdentityProvider, ProviderChoices
 from waldur_core.permissions.utils import get_permissions
 from waldur_core.structure.signals import project_moved
+from waldur_mastermind.marketplace import models as marketplace_models
 
 logger = logging.getLogger(__name__)
 
@@ -222,3 +226,39 @@ def move_project(project, customer, current_user=None):
         old_customer=old_customer,
         new_customer=customer,
     )
+
+
+def get_components_usage_data_from_resources(
+    resources: QuerySet[marketplace_models.Resource],
+) -> list[dict[str, Any]]:
+    component_usage = defaultdict(float)
+    component_limit = defaultdict(float)
+
+    for resource in resources:
+        for component_type, usage in resource.current_usages.items():
+            component_usage[component_type] += float(usage)
+
+        for component_type, limit in resource.limits.items():
+            if limit is not None:
+                component_limit[component_type] += float(limit)
+
+    offerings = marketplace_models.Offering.objects.filter(
+        id__in=resources.values_list("offering_id", flat=True)
+    ).distinct()
+
+    components = marketplace_models.OfferingComponent.objects.filter(
+        offering__in=offerings
+    ).distinct()
+    components_data = {}
+    for component in components:
+        if component.type not in components_data:
+            components_data[component.type] = {
+                "type": component.type,
+                "name": component.name,
+                "description": component.description,
+                "measured_unit": component.measured_unit,
+                "usage": component_usage.get(component.type, 0),
+                "limit": component_limit.get(component.type, None),
+            }
+
+    return list(components_data.values())
