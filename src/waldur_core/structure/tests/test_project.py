@@ -687,3 +687,57 @@ class ProjectListFilterTest(test.APITransactionTestCase):
         response = self.client.get(self.url, {"query": "project_1"})
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["name"], self.project1.name)
+
+
+class ProjectResourceQuotasTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.project = self.fixture.project
+        self.empty_project = factories.ProjectFactory()
+        self.offering = marketplace_factories.OfferingFactory()
+        self.component1 = marketplace_factories.OfferingComponentFactory(
+            offering=self.offering, type="cpu", name="CPU", measured_unit="vCPU"
+        )
+        self.component2 = marketplace_factories.OfferingComponentFactory(
+            offering=self.offering, type="ram", name="RAM", measured_unit="GB"
+        )
+        self.resource1 = marketplace_factories.ResourceFactory(
+            project=self.project,
+            offering=self.offering,
+            current_usages={"cpu": 2, "ram": 4},
+            limits={"cpu": 8, "ram": 16},
+        )
+        self.resource2 = marketplace_factories.ResourceFactory(
+            project=self.project,
+            offering=self.offering,
+            current_usages={"cpu": 1, "ram": 2},
+            limits={"cpu": 4, "ram": 8},
+        )
+        self.url = factories.ProjectFactory.get_url(self.project, "stats")
+
+    def test_project_with_no_resources(self):
+        self.client.force_authenticate(self.fixture.staff)
+        url = reverse("project-stats", kwargs={"uuid": self.empty_project.uuid})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["components"], [])
+
+    def test_project_with_resources(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        components = response.data["components"]
+        # Check component stats for CPU
+        cpu_component = next(
+            component for component in components if component["type"] == "cpu"
+        )
+        self.assertEqual(cpu_component["usage"], 3)
+        self.assertEqual(cpu_component["limit"], 12)
+        self.assertEqual(cpu_component["measured_unit"], "vCPU")
+        # Check component stats for RAM
+        ram_component = next(
+            component for component in components if component["type"] == "ram"
+        )
+        self.assertEqual(ram_component["usage"], 6)
+        self.assertEqual(ram_component["limit"], 24)
+        self.assertEqual(ram_component["measured_unit"], "GB")
