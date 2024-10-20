@@ -74,11 +74,11 @@ def check_polices():
                         policy.uuid.hex,
                     )
 
-                    for action in policy.get_one_time_actions():
-                        action(policy)
+                    for action in policy.get_immediate_actions():
+                        action.method(policy)
                         logger.info(
                             "%s action of policy %s has been triggered.",
-                            action.__name__,
+                            action.method.__name__,
                             policy.uuid.hex,
                         )
             else:
@@ -93,9 +93,13 @@ def check_polices():
                         policy.uuid.hex,
                     )
 
-                    for action in policy.get_not_one_time_actions():
-                        reset_action = getattr(action, "reset", None)
-                        if reset_action:
-                            action.reset(policy)
+                    for action in policy.get_threshold_actions():
+                        reset_method = action.reset_method
+                        if reset_method:
+                            logger.info(
+                                "Running reset method %s.",
+                                reset_method.__name__,
+                            )
+                            reset_method(policy)
 
             return policy

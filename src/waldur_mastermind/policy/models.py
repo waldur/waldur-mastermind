@@ -22,7 +22,7 @@ from waldur_mastermind.invoices import (
 )
 from waldur_mastermind.marketplace import models as marketplace_models
 
-from . import policy_actions
+from . import enums, policy_actions, structures
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ class Policy(
 ):
     trigger_class = NotImplemented
     observable_classes = [marketplace_models.Resource]
-    available_actions = NotImplemented
+    available_actions: set[str] = NotImplemented
 
     has_fired = models.BooleanField(default=False)
     fired_datetime = models.DateTimeField(null=True, blank=True, editable=False)
@@ -58,24 +58,30 @@ class Policy(
         """Checking if the policy needs to be applied."""
         raise NotImplementedError()
 
-    def get_all_actions(self):
-        actions = []
+    def get_all_actions(self) -> list[structures.PolicyAction]:
+        actions: list[structures.PolicyAction] = []
 
         for action_name in self.actions.split(","):
-            if action_name in [a.__name__ for a in self.available_actions]:
-                actions.append(
-                    [a for a in self.available_actions if a.__name__ == action_name][0]
-                )
+            if action_name in self.available_actions:
+                actions.append(policy_actions.POLICY_ACTIONS[action_name])
 
         return actions
 
-    def get_not_one_time_actions(self):
+    def get_threshold_actions(self) -> list[structures.PolicyAction]:
         actions = self.get_all_actions()
-        return [a for a in actions if not getattr(a, "one_time_action", False)]
+        return [
+            action
+            for action in actions
+            if action.action_type == enums.PolicyActionTypes.THRESHOLD
+        ]
 
-    def get_one_time_actions(self):
+    def get_immediate_actions(self) -> list[structures.PolicyAction]:
         actions = self.get_all_actions()
-        return [a for a in actions if getattr(a, "one_time_action", False)]
+        return [
+            action
+            for action in actions
+            if action.action_type == enums.PolicyActionTypes.IMMEDIATE
+        ]
 
     class Meta:
         abstract = True
@@ -147,15 +153,15 @@ class ProjectPolicy(Policy):
         customer_path = "scope__customer"
         project_path = "scope"
 
-    available_actions = {
-        policy_actions.notify_project_team,
-        policy_actions.notify_organization_owners,
-        policy_actions.block_creation_of_new_resources,
-        policy_actions.block_modification_of_existing_resources,
-        policy_actions.terminate_resources,
-        policy_actions.request_downscaling,
-        policy_actions.restrict_members,
-        policy_actions.request_pausing,
+    available_actions: set[str] = {
+        "notify_project_team",
+        "notify_organization_owners",
+        "block_creation_of_new_resources",
+        "block_modification_of_existing_resources",
+        "terminate_resources",
+        "request_downscaling",
+        "restrict_members",
+        "request_pausing",
     }
 
     scope = models.ForeignKey(structure_models.Project, on_delete=models.CASCADE)
@@ -191,14 +197,14 @@ class CustomerPolicy(Policy):
     class Permissions:
         customer_path = "scope"
 
-    available_actions = {
-        policy_actions.notify_organization_owners,
-        policy_actions.block_creation_of_new_resources,
-        policy_actions.block_modification_of_existing_resources,
-        policy_actions.terminate_resources,
-        policy_actions.request_downscaling,
-        policy_actions.restrict_members,
-        policy_actions.request_pausing,
+    available_actions: set[str] = {
+        "notify_organization_owners",
+        "block_creation_of_new_resources",
+        "block_modification_of_existing_resources",
+        "terminate_resources",
+        "request_downscaling",
+        "restrict_members",
+        "request_pausing",
     }
 
     scope = models.ForeignKey(structure_models.Customer, on_delete=models.CASCADE)
@@ -235,9 +241,9 @@ class OfferingPolicy(Policy):
     class Permissions:
         customer_path = "scope__customer"
 
-    available_actions = {
-        policy_actions.notify_organization_owners,
-        policy_actions.block_creation_of_new_resources,
+    available_actions: set[str] = {
+        "notify_organization_owners",
+        "block_creation_of_new_resources",
     }
     observable_classes = []
 

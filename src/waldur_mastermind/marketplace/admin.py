@@ -616,9 +616,9 @@ class ResourceAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
     fields = readonly_fields + (
         "plan",
         "state",
-        "requested_downscaling",
+        "downscaled",
         "restrict_member_access",
-        "requested_pausing",
+        "paused",
     )
     date_hierarchy = "created"
     search_fields = ("name", "uuid")

@@ -25,10 +25,7 @@ class ProjectEstimatedCostPolicyViewSet(ActionsViewSet):
 
     @action(detail=False, methods=["get"])
     def actions(self, request, *args, **kwargs):
-        data = [
-            action.__name__
-            for action in models.ProjectEstimatedCostPolicy.available_actions
-        ]
+        data = list(models.ProjectEstimatedCostPolicy.available_actions)
         return Response(data, status=status.HTTP_200_OK)
 
 
@@ -47,10 +44,7 @@ class CustomerEstimatedCostPolicyViewSet(ActionsViewSet):
 
     @action(detail=False, methods=["get"])
     def actions(self, request, *args, **kwargs):
-        data = [
-            action.__name__
-            for action in models.CustomerEstimatedCostPolicy.available_actions
-        ]
+        data = list(models.CustomerEstimatedCostPolicy.available_actions)
         return Response(data, status=status.HTTP_200_OK)
 
 
@@ -69,10 +63,7 @@ class OfferingEstimatedCostPolicyViewSet(ActionsViewSet):
 
     @action(detail=False, methods=["get"])
     def actions(self, request, *args, **kwargs):
-        data = [
-            action.__name__
-            for action in models.OfferingEstimatedCostPolicy.available_actions
-        ]
+        data = list(action in models.OfferingEstimatedCostPolicy.available_actions)
         return Response(data, status=status.HTTP_200_OK)
 
 
@@ -91,7 +82,5 @@ class OfferingUsagePolicyViewSet(ActionsViewSet):
 
     @action(detail=False, methods=["get"])
     def actions(self, request, *args, **kwargs):
-        data = [
-            action.__name__ for action in models.OfferingUsagePolicy.available_actions
-        ]
+        data = list(models.OfferingUsagePolicy.available_actions)
         return Response(data, status=status.HTTP_200_OK)

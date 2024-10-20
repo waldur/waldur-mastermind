@@ -28,7 +28,7 @@ class PolicySerializer(serializers.HyperlinkedModelSerializer):
             return
 
         actions = set(value.split(","))
-        if actions - {a.__name__ for a in self.Meta.model.available_actions}:
+        if actions - self.Meta.model.available_actions:
             raise ValidationError(
                 _("%(value)s includes unavailable actions."),
                 params={"value": value},
@@ -52,11 +52,11 @@ class PolicySerializer(serializers.HyperlinkedModelSerializer):
                 policy.uuid.hex,
             )
 
-            for action in policy.get_one_time_actions():
-                action(policy)
+            for action in policy.get_immediate_actions():
+                action.method(policy)
                 logger.info(
-                    "%s action of policy %s has been triggerd.",
-                    action.__name__,
+                    "%s action of policy %s has been triggered.",
+                    action.method.__name__,
                     policy.uuid.hex,
                 )
 

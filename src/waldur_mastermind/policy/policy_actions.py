@@ -10,6 +10,8 @@ from waldur_mastermind.marketplace.exceptions import PolicyException
 from waldur_mastermind.marketplace_openstack import INSTANCE_TYPE
 from waldur_mastermind.policy import log, tasks
 
+from . import enums, structures
+
 logger = logging.getLogger(__name__)
 
 
@@ -29,9 +31,6 @@ def notify_project_team(policy):
     )
 
 
-notify_project_team.one_time_action = True
-
-
 def notify_organization_owners(policy):
     serialized_policy = core_utils.serialize_instance(policy)
     tasks.notify_customer_owners.delay(serialized_policy)
@@ -46,9 +45,6 @@ def notify_organization_owners(policy):
         event_type="notify_organization_owners",
         event_context={"policy_uuid": policy.uuid.hex},
     )
-
-
-notify_organization_owners.one_time_action = True
 
 
 def terminate_resources(policy):
@@ -104,9 +100,6 @@ def terminate_resources(policy):
             marketplace_tasks.process_order_on_commit(order, user)
 
 
-terminate_resources.one_time_action = True
-
-
 def block_creation_of_new_resources(policy, created):
     if created:
         logger.info(
@@ -121,9 +114,6 @@ def block_creation_of_new_resources(policy, created):
         raise PolicyException(
             "Creation of new resources in this project is not available due to a policy."
         )
-
-
-block_creation_of_new_resources.one_time_action = False
 
 
 def block_modification_of_existing_resources(policy, created):
@@ -142,9 +132,6 @@ def block_modification_of_existing_resources(policy, created):
         )
 
 
-block_modification_of_existing_resources.one_time_action = False
-
-
 def request_downscaling(policy):
     project = structure_permissions._get_project(policy.scope)
 
@@ -161,7 +148,7 @@ def request_downscaling(policy):
         customer = structure_permissions._get_customer(policy.scope)
         resources = resources.filter(project__customer=customer)
 
-    resources.update(requested_downscaling=True)
+    resources.update(downscaled=True)
     logger.info(
         "Policy action request_downscaling has been triggered. Policy UUID: %s. Resources: %s",
         policy.uuid.hex,
@@ -175,7 +162,28 @@ def request_downscaling(policy):
     )
 
 
-request_downscaling.one_time_action = True
+def reset_downscaling(policy):
+    project = structure_permissions._get_project(policy.scope)
+
+    resources = marketplace_models.Resource.objects.exclude(
+        state__in=(
+            marketplace_models.Resource.States.TERMINATED,
+            marketplace_models.Resource.States.TERMINATING,
+        )
+    )
+
+    if project:
+        resources = resources.filter(project=project)
+    else:
+        customer = structure_permissions._get_customer(policy.scope)
+        resources = resources.filter(project__customer=customer)
+
+    resources.update(downscaled=False)
+    logger.info(
+        "Policy action reset_downscaling has been triggered. Policy UUID: %s. Resources: %s",
+        policy.uuid.hex,
+        ", ".join([r.name for r in resources]),
+    )
 
 
 def restrict_members(policy, _):
@@ -228,10 +236,6 @@ def reset_member_restriction(policy):
     )
 
 
-restrict_members.one_time_action = False
-restrict_members.reset = reset_member_restriction
-
-
 def request_pausing(policy):
     project = structure_permissions._get_project(policy.scope)
 
@@ -245,7 +249,7 @@ def request_pausing(policy):
         customer = structure_permissions._get_customer(policy.scope)
         resources = resources.filter(project__customer=customer)
 
-    resources.update(requested_pausing=True)
+    resources.update(paused=True)
     logger.info(
         "Policy action request_pausing has been triggered. Policy UUID: %s. Resources: %s",
         policy.uuid.hex,
@@ -259,4 +263,66 @@ def request_pausing(policy):
     )
 
 
-request_pausing.one_time_action = True
+def reset_pausing(policy):
+    project = structure_permissions._get_project(policy.scope)
+
+    resources = marketplace_models.Resource.objects.exclude(
+        state__in=(marketplace_models.Resource.States.TERMINATED,)
+    )
+
+    if project:
+        resources = resources.filter(project=project)
+    else:
+        customer = structure_permissions._get_customer(policy.scope)
+        resources = resources.filter(project__customer=customer)
+
+    resources.update(paused=False)
+    logger.info(
+        "Policy action reset_pausing has been triggered. Policy UUID: %s. Resources: %s",
+        policy.uuid.hex,
+        ", ".join([r.name for r in resources]),
+    )
+
+
+POLICY_ACTIONS = {
+    "notify_project_team": structures.PolicyAction(
+        action_type=enums.PolicyActionTypes.IMMEDIATE,
+        method=notify_project_team,
+        reset_method=None,
+    ),
+    "notify_organization_owners": structures.PolicyAction(
+        action_type=enums.PolicyActionTypes.IMMEDIATE,
+        method=notify_organization_owners,
+        reset_method=None,
+    ),
+    "terminate_resources": structures.PolicyAction(
+        action_type=enums.PolicyActionTypes.IMMEDIATE,
+        method=terminate_resources,
+        reset_method=None,
+    ),
+    "block_creation_of_new_resources": structures.PolicyAction(
+        action_type=enums.PolicyActionTypes.THRESHOLD,
+        method=block_creation_of_new_resources,
+        reset_method=None,
+    ),
+    "block_modification_of_existing_resources": structures.PolicyAction(
+        action_type=enums.PolicyActionTypes.THRESHOLD,
+        method=block_modification_of_existing_resources,
+        reset_method=None,
+    ),
+    "request_downscaling": structures.PolicyAction(
+        action_type=enums.PolicyActionTypes.IMMEDIATE,
+        method=request_downscaling,
+        reset_method=reset_downscaling,
+    ),
+    "restrict_members": structures.PolicyAction(
+        action_type=enums.PolicyActionTypes.THRESHOLD,
+        method=restrict_members,
+        reset_method=reset_member_restriction,
+    ),
+    "request_pausing": structures.PolicyAction(
+        action_type=enums.PolicyActionTypes.IMMEDIATE,
+        method=request_pausing,
+        reset_method=reset_pausing,
+    ),
+}
