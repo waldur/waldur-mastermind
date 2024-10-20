@@ -170,7 +170,7 @@ class ActionsTest(test.APITransactionTestCase):
         resource.refresh_from_db()
         self.policy.refresh_from_db()
         self.assertTrue(self.policy.has_fired)
-        self.assertTrue(resource.requested_downscaling)
+        self.assertTrue(resource.downscaled)
 
     def test_request_pausing(self):
         self.policy.actions = "request_pausing"
@@ -184,4 +184,4 @@ class ActionsTest(test.APITransactionTestCase):
         resource.refresh_from_db()
         self.policy.refresh_from_db()
         self.assertTrue(self.policy.has_fired)
-        self.assertTrue(resource.requested_pausing)
+        self.assertTrue(resource.paused)

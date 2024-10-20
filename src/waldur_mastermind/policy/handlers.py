@@ -7,18 +7,18 @@ from . import models
 logger = logging.getLogger(__name__)
 
 
-def run_one_time_actions(policies):
+def run_immediate_actions(policies):
     for policy in policies:
         if not policy.has_fired and policy.is_triggered():
             policy.has_fired = True
             policy.fired_datetime = timezone.now()
             policy.save()
 
-            for action in policy.get_one_time_actions():
-                action(policy)
+            for action in policy.get_immediate_actions():
+                action.method(policy)
                 logger.info(
                     "%s action has been triggered for %s. Policy UUID: %s",
-                    action.__name__,
+                    action.method.__name__,
                     policy.scope.name,
                     policy.uuid.hex,
                 )
@@ -26,6 +26,15 @@ def run_one_time_actions(policies):
         elif policy.has_fired and not policy.is_triggered():
             policy.has_fired = False
             policy.save()
+
+            for action in policy.get_immediate_actions():
+                reset_method = action.reset_method
+                if reset_method:
+                    logger.info(
+                        "Running reset method %s.",
+                        reset_method.__name__,
+                    )
+                    reset_method(policy)
 
 
 def customer_estimated_cost_policy_trigger_handler(
@@ -35,7 +44,7 @@ def customer_estimated_cost_policy_trigger_handler(
     policies = models.CustomerEstimatedCostPolicy.objects.filter(
         scope=invoice_item.invoice.customer
     )
-    run_one_time_actions(policies)
+    run_immediate_actions(policies)
 
 
 def project_estimated_cost_policy_trigger_handler(
@@ -45,7 +54,7 @@ def project_estimated_cost_policy_trigger_handler(
     policies = models.ProjectEstimatedCostPolicy.objects.filter(
         scope=invoice_item.project
     )
-    run_one_time_actions(policies)
+    run_immediate_actions(policies)
 
 
 def get_offering_trigger_handler(klass):
@@ -58,7 +67,7 @@ def get_offering_trigger_handler(klass):
                 organization_groups=resource.project.customer.organization_group,
             )
 
-            run_one_time_actions(policies)
+            run_immediate_actions(policies)
 
     return handler
 
@@ -83,11 +92,11 @@ def get_estimated_cost_policy_handler_for_observable_class(klass, observable_cla
 
         for policy in policies:
             if policy.is_triggered():
-                for action in policy.get_not_one_time_actions():
-                    action(policy, created)
+                for action in policy.get_threshold_actions():
+                    action.method(policy, created)
                     logger.info(
                         "%s action has been triggered for %s. Policy UUID: %s",
-                        action.__name__,
+                        action.method.__name__,
                         policy.scope.name,
                         policy.uuid.hex,
                     )

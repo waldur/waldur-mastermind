@@ -10,6 +10,7 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
+from waldur_mastermind.policy import enums, structures
 from waldur_mastermind.policy.models import CustomerEstimatedCostPolicy
 from waldur_mastermind.policy.tests import factories
 
@@ -18,11 +19,9 @@ from waldur_mastermind.policy.tests import factories
 class ActionsFunctionsTest(test.APITransactionTestCase):
     def setUp(self):
         self.notify_organization_owners_mock = mock.MagicMock()
-        self.notify_organization_owners_mock.one_time_action = True
         self.notify_organization_owners_mock.__name__ = "notify_organization_owners"
 
         self.block_creation_of_new_resources_mock = mock.MagicMock()
-        self.block_creation_of_new_resources_mock.one_time_action = False
         self.block_creation_of_new_resources_mock.__name__ = (
             "block_creation_of_new_resources"
         )
@@ -55,13 +54,19 @@ class ActionsFunctionsTest(test.APITransactionTestCase):
             )
         return invoice_item
 
-    def test_calling_of_one_time_actions(self):
+    def test_calling_of_immediate_actions(self):
         with mock.patch.object(
             CustomerEstimatedCostPolicy,
             "get_all_actions",
             return_value=[
-                self.notify_organization_owners_mock,
-                self.block_creation_of_new_resources_mock,
+                structures.PolicyAction(
+                    action_type=enums.PolicyActionTypes.IMMEDIATE,
+                    method=self.notify_organization_owners_mock,
+                ),
+                structures.PolicyAction(
+                    action_type=enums.PolicyActionTypes.THRESHOLD,
+                    method=self.block_creation_of_new_resources_mock,
+                ),
             ],
         ):
             self.create_or_update_invoice_item(self.policy.limit_cost + 1)
@@ -88,13 +93,19 @@ class ActionsFunctionsTest(test.APITransactionTestCase):
             self.notify_organization_owners_mock.reset_mock()
             self.block_creation_of_new_resources_mock.reset_mock()
 
-    def test_calling_of_not_one_time_actions(self):
+    def test_calling_of_threshold_actions(self):
         with mock.patch.object(
             CustomerEstimatedCostPolicy,
             "get_all_actions",
             return_value=[
-                self.notify_organization_owners_mock,
-                self.block_creation_of_new_resources_mock,
+                structures.PolicyAction(
+                    action_type=enums.PolicyActionTypes.IMMEDIATE,
+                    method=self.notify_organization_owners_mock,
+                ),
+                structures.PolicyAction(
+                    action_type=enums.PolicyActionTypes.THRESHOLD,
+                    method=self.block_creation_of_new_resources_mock,
+                ),
             ],
         ):
             self.create_or_update_invoice_item(self.policy.limit_cost + 1)
@@ -148,8 +159,14 @@ class ActionsFunctionsTest(test.APITransactionTestCase):
             CustomerEstimatedCostPolicy,
             "get_all_actions",
             return_value=[
-                self.notify_organization_owners_mock,
-                self.block_creation_of_new_resources_mock,
+                structures.PolicyAction(
+                    action_type=enums.PolicyActionTypes.IMMEDIATE,
+                    method=self.notify_organization_owners_mock,
+                ),
+                structures.PolicyAction(
+                    action_type=enums.PolicyActionTypes.THRESHOLD,
+                    method=self.block_creation_of_new_resources_mock,
+                ),
             ],
         ):
             policy_2 = factories.CustomerEstimatedCostPolicyFactory(scope=self.customer)
@@ -240,11 +257,9 @@ class CreatePolicyTest(test.APITransactionTestCase):
         self,
     ):
         notify_organization_owners_mock = mock.MagicMock()
-        notify_organization_owners_mock.one_time_action = True
         notify_organization_owners_mock.__name__ = "notify_organization_owners"
 
         block_creation_of_new_resources_mock = mock.MagicMock()
-        block_creation_of_new_resources_mock.one_time_action = False
         block_creation_of_new_resources_mock.__name__ = (
             "block_creation_of_new_resources"
         )
@@ -253,8 +268,14 @@ class CreatePolicyTest(test.APITransactionTestCase):
             CustomerEstimatedCostPolicy,
             "get_all_actions",
             return_value=[
-                notify_organization_owners_mock,
-                block_creation_of_new_resources_mock,
+                structures.PolicyAction(
+                    action_type=enums.PolicyActionTypes.IMMEDIATE,
+                    method=notify_organization_owners_mock,
+                ),
+                structures.PolicyAction(
+                    action_type=enums.PolicyActionTypes.THRESHOLD,
+                    method=block_creation_of_new_resources_mock,
+                ),
             ],
         ):
             invoices_factories.InvoiceItemFactory(

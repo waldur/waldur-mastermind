@@ -357,13 +357,11 @@ class ResourceFilter(
     runtime_state = django_filters.CharFilter(
         field_name="backend_metadata__runtime_state", label="Runtime state"
     )
-    requested_downscaling = django_filters.BooleanFilter(
-        field_name="requested_downscaling"
-    )
+    downscaled = django_filters.BooleanFilter(field_name="downscaled")
     restrict_member_access = django_filters.BooleanFilter(
         field_name="restrict_member_access"
     )
-    requested_pausing = django_filters.BooleanFilter(field_name="requested_pausing")
+    paused = django_filters.BooleanFilter(field_name="paused")
     lexis_links_supported = django_filters.BooleanFilter(
         method="filter_lexis_links_supported", label="LEXIS links supported"
     )
