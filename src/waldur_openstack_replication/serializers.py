@@ -7,7 +7,10 @@ from waldur_core.core.utils import pwgen
 from waldur_core.core.validators import validate_name
 from waldur_core.structure.models import Project, ServiceSettings
 from waldur_core.structure.serializers import PermissionFieldFilteringMixin
-from waldur_mastermind.marketplace.models import Offering, Plan, Resource
+from waldur_mastermind.marketplace.models import Offering, Order, Plan, Resource
+from waldur_mastermind.marketplace.permissions import (
+    order_should_not_be_reviewed_by_consumer,
+)
 from waldur_mastermind.marketplace_openstack import AVAILABLE_LIMITS
 from waldur_mastermind.marketplace_openstack.utils import (
     _apply_quotas,
@@ -130,6 +133,16 @@ class MigrationCreateSerializer(
 
         user = self.context["request"].user
         can_create_tenant(user, dst_settings, dst_project)
+        order = Order(
+            project=dst_project,
+            offering=dst_offering,
+            created_by=user,
+            type=Order.Types.CREATE,
+        )
+        if not order_should_not_be_reviewed_by_consumer(order):
+            raise serializers.ValidationError(
+                "User does not have enough permissions to migrate resource.",
+            )
 
         mappings = attrs.get("mappings", {})
         for volume_type_mapping in mappings.get("volume_types", []):
