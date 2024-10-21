@@ -549,6 +549,15 @@ class CustomerCredit(core_models.UuidMixin, core_models.TimeStampedModel):
     class Permissions:
         customer_path = "customer"
 
+    @property
+    def allocated_to_projects(self):
+        return (
+            ProjectCredit.objects.filter(project__customer=self.customer).aggregate(
+                sum=Sum("value")
+            )["sum"]
+            or 0
+        )
+
     def __str__(self):
         return f"Customer credit for {self.customer.name}, value {self.value}"
 

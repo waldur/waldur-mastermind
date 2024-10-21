@@ -806,6 +806,7 @@ class CustomerCreditSerializer(serializers.HyperlinkedModelSerializer):
             "offerings",
             "end_date",
             "minimal_consumption",
+            "allocated_to_projects",
         )
 
         extra_kwargs = {
