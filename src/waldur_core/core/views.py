@@ -10,6 +10,7 @@ from django.contrib import auth
 from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.files.storage import default_storage
+from django.db import connection
 from django.db.models import ForeignKey, ProtectedError
 from django.http import FileResponse, HttpResponse, HttpResponseRedirect, JsonResponse
 from django.utils import timezone
@@ -650,7 +651,7 @@ class CeleryStatsViewSet(APIView):
     permission_classes = [rf_permissions.IsAuthenticated, permissions.IsSupport]
 
     def get(self, request, *args, **kwargs):
-        from waldur_core.server.celery_app import app
+        from waldur_core.server.celery import app
 
         inspect = app.control.inspect()
         data = {
@@ -665,6 +666,42 @@ class CeleryStatsViewSet(APIView):
             data,
             status=status.HTTP_200_OK,
         )
+
+
+SQL_QUERY = """
+SELECT
+    relname AS table_name,
+    pg_total_relation_size(relid) AS total_size,
+    pg_relation_size(relid) AS data_size,
+    (pg_total_relation_size(relid) - pg_relation_size(relid)) AS external_size
+FROM
+    pg_catalog.pg_statio_user_tables
+ORDER BY
+    pg_total_relation_size(relid) DESC,
+    pg_relation_size(relid) DESC
+LIMIT 10;
+"""
+
+
+def dictfetchall(cursor):
+    """
+    Return all rows from a cursor as a dict.
+    Assume the column names are unique.
+    """
+    columns = [col[0] for col in cursor.description]
+    return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+
+class DatabaseStatsViewSet(APIView):
+    permission_classes = [rf_permissions.IsAuthenticated, permissions.IsSupport]
+
+    def get(self, request, *args, **kwargs):
+        data = []
+        with connection.cursor() as cursor:
+            cursor.execute(SQL_QUERY)
+            data = dictfetchall(cursor)
+
+        return Response(data, status=status.HTTP_200_OK)
 
 
 @api_view(["GET"])
