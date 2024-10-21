@@ -1343,7 +1343,7 @@ def order_should_not_be_reviewed_by_provider(order: models.Order):
         user_is_service_provider_owner = structure_permissions._has_owner_access(
             user, offering.customer
         )
-        user_is_service_provider_offering_manger = (
+        user_is_service_provider_offering_manager = (
             structure_permissions._has_service_manager_access(user, offering.customer)
             and offering.has_user(user)
         )
@@ -1351,7 +1351,7 @@ def order_should_not_be_reviewed_by_provider(order: models.Order):
         return (
             auto_approve_remote_orders
             or user_is_service_provider_owner
-            or user_is_service_provider_offering_manger
+            or user_is_service_provider_offering_manager
         )
 
     return True
