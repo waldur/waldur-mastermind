@@ -152,6 +152,9 @@ class UserRoleDetailsSerializer(serializers.ModelSerializer):
 
 
 class PermissionSerializer(serializers.Serializer):
+    user_uuid = serializers.ReadOnlyField(source="user.uuid")
+    user_name = serializers.ReadOnlyField(source="user.full_name")
+    user_slug = serializers.ReadOnlyField(source="user.slug")
     created = serializers.ReadOnlyField()
     expiration_time = serializers.ReadOnlyField()
     created_by_full_name = serializers.ReadOnlyField(source="created_by.full_name")

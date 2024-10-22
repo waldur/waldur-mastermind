@@ -12,6 +12,7 @@ def register_in(router):
     )
     router.register(r"service-settings", views.ServiceSettingsViewSet)
     router.register(r"users", views.UserViewSet)
+    router.register(r"user-permissions", views.UserPermissionViewSet)
     router.register(r"keys", views.SshKeyViewSet)
     router.register(
         r"organization-groups",

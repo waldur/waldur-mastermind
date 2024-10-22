@@ -121,7 +121,6 @@ token_lifetime = env.get("AUTH_TOKEN_LIFETIME", 3600)
 WALDUR_CORE.update(
     {
         "TOKEN_LIFETIME": timedelta(seconds=token_lifetime),
-        "SHOW_ALL_USERS": env.get("GLOBAL_SHOW_ALL_USERS", "false").lower() == "true",
     }
 )
 

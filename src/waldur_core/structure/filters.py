@@ -284,10 +284,19 @@ class ProjectUserFilter(BaseFilterBackend):
 def filter_visible_users(queryset, user, extra=None):
     if user.is_staff or user.is_support:
         return queryset
-
     return (
         queryset.filter(is_staff=False)
         .filter(Q(id__in=get_visible_users(user)) | Q(id=user.id) | (extra or Q()))
+        .distinct()
+    )
+
+
+def filter_visible_user_permissions(queryset, user):
+    if user.is_staff or user.is_support:
+        return queryset
+    return (
+        queryset.filter(user__is_staff=False)
+        .filter(Q(user__id__in=get_visible_users(user)) | Q(user__id=user.id))
         .distinct()
     )
 
@@ -296,11 +305,7 @@ class UserFilterBackend(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
         user = request.user
 
-        if not django_settings.WALDUR_CORE.get("SHOW_ALL_USERS", False) and not (
-            user.is_staff or user.is_support
-        ):
-            queryset = filter_visible_users(queryset, user, self.get_extra_q(user))
-
+        queryset = filter_visible_users(queryset, user, self.get_extra_q(user))
         return queryset.order_by("username")
 
     _extra_query = []
@@ -320,6 +325,14 @@ class UserFilterBackend(BaseFilterBackend):
         for q in cls._extra_query:
             result = result | q(user)
         return result
+
+
+class UserRoleFilterBackend(BaseFilterBackend):
+    def filter_queryset(self, request, queryset, view):
+        user = request.user
+        queryset = filter_visible_user_permissions(queryset, user)
+
+        return queryset
 
 
 class BaseUserFilter(django_filters.FilterSet):
@@ -433,6 +446,11 @@ class UserPermissionFilter(django_filters.FilterSet):
     native_name = django_filters.CharFilter(
         field_name="user__native_name",
         lookup_expr="icontains",
+    )
+    user_slug = django_filters.CharFilter(
+        field_name="user__slug",
+        lookup_expr="icontains",
+        label="User slug contains",
     )
 
     def filter_by_full_name(self, queryset, name, value):
