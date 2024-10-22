@@ -500,9 +500,6 @@ def get_ssh_key_fingerprints(ssh_key):
     return md5_fp, sha256_fp, sha512_fp
 
 
-_SSH_PUBKEY_RC = re.compile(rb"\A(\S+)[ \t]+(\S+)")
-
-
 @reversion.register()
 class SshPublicKey(LoggableMixin, UuidMixin, models.Model):
     """
