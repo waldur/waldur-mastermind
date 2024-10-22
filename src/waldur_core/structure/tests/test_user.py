@@ -878,3 +878,40 @@ class UserCreateTest(test.APITransactionTestCase):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.post(url, payload)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class UserPermissionTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.user1 = factories.UserFactory()
+        self.user2 = factories.UserFactory()
+        self.user3 = factories.UserFactory()
+        self.user4 = factories.UserFactory()
+
+        self.customer1 = factories.CustomerFactory()
+        self.customer1.add_user(self.user1, CustomerRole.OWNER)
+        self.customer1.add_user(self.user2, CustomerRole.SUPPORT)
+
+        self.customer2 = factories.CustomerFactory()
+        self.customer2.add_user(self.user3, CustomerRole.OWNER)
+
+        self.url = "http://testserver/api/user-permissions/"
+
+    def test_user_can_get_self_and_connected_users_permissions(self):
+        self.client.force_authenticate(self.user1)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+        self.assertEqual(response.data[0]["user_uuid"], self.user1.uuid)
+        self.assertEqual(response.data[1]["user_uuid"], self.user2.uuid)
+
+        self.client.force_authenticate(self.user3)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["user_uuid"], self.user3.uuid)
+
+    def test_user_can_not_get_not_connected_users_permissions(self):
+        self.client.force_authenticate(self.user4)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)

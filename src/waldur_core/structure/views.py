@@ -32,6 +32,7 @@ from waldur_core.core.log import event_logger
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.core.views import ActionsViewSet
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
+from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import (
     has_permission,
     permission_factory,
@@ -647,6 +648,23 @@ class UserViewSet(viewsets.ModelViewSet):
             event_context={"affected_user": user},
         )
         logger.info(f"User {user} has been created by {self.request.user}.")
+
+
+class UserPermissionViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = UserRole.objects.all()
+    serializer_class = serializers.PermissionSerializer
+    lookup_field = "uuid"
+    filter_backends = (
+        filters.UserRoleFilterBackend,
+        DjangoFilterBackend,
+    )
+    filterset_class = filters.UserPermissionFilter
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if self.request.user.is_staff or self.request.user.is_support:
+            return qs
+        return qs.filter(user__is_active=True).distinct()
 
 
 class CustomerPermissionReviewViewSet(
