@@ -807,6 +807,7 @@ class CustomerCreditSerializer(serializers.HyperlinkedModelSerializer):
             "end_date",
             "minimal_consumption",
             "allocated_to_projects",
+            "consumption_last_month",
         )
 
         extra_kwargs = {
@@ -888,6 +889,7 @@ class ProjectCreditSerializer(serializers.HyperlinkedModelSerializer):
             "use_organisation_credit",
             "customer_credit",
             "allocated_customer_credit",
+            "consumption_last_month",
         )
 
         extra_kwargs = {

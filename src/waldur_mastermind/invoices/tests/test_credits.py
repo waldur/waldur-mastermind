@@ -1,6 +1,8 @@
 import datetime
 
 from ddt import data, ddt
+from django.db.models.aggregates import Sum
+from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.logging import models as logging_models
@@ -233,7 +235,8 @@ class ProjectCreditDeleteTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
-class CreditTest(test.APITransactionTestCase):
+@freeze_time("2024-01-01")
+class CustomerCreditTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()
         self.invoice = self.fixture.invoice
@@ -257,6 +260,9 @@ class CreditTest(test.APITransactionTestCase):
                 event_type="reduction_of_credit"
             ).exists()
         )
+
+        with freeze_time("2024-02-01"):
+            self.assertEqual(credit.consumption_last_month, credit_value)
 
     def test_compensate_cost_if_credit_greater_than_item_cost(self):
         credit_value = self.invoice.total * 2
@@ -311,7 +317,11 @@ class CreditTest(test.APITransactionTestCase):
             ).exists()
         )
 
+    def test_consumption_last_month(self):
+        pass
 
+
+@freeze_time("2024-01-01")
 class ProjectCreditTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.CreditFixture()
@@ -325,6 +335,17 @@ class ProjectCreditTest(test.APITransactionTestCase):
         self.invoice.set_created()
         self.project_credit.refresh_from_db()
         self.assertTrue(self.project_credit.value < old_project_credit_value)
+
+        with freeze_time("2024-02-01"):
+            consumption_last_month = (
+                self.invoice.items.filter(credit=self.customer_credit).aggregate(
+                    sum=Sum("unit_price")
+                )["sum"]
+                * -1
+            )
+            self.assertEqual(
+                self.project_credit.consumption_last_month, consumption_last_month
+            )
 
     def test_use_organisation_credit_enabled(self):
         self.project_credit.use_organisation_credit = False
