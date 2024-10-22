@@ -5,11 +5,14 @@ from . import models, serializers
 
 
 class TestNewInstanceFilter(structure_filters.BaseResourceFilter):
+    __test__ = False
+
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.TestNewInstance
 
 
 class TestNewInstanceViewSet(structure_views.ResourceViewSet):
+    __test__ = False
     queryset = models.TestNewInstance.objects.all()
     serializer_class = serializers.NewInstanceSerializer
     filterset_class = TestNewInstanceFilter

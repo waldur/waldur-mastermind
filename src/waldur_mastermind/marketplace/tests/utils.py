@@ -3,6 +3,7 @@ from waldur_mastermind.marketplace import processors
 
 
 class TestCreateProcessor(processors.BaseCreateResourceProcessor):
+    __test__ = False
     viewset = TestNewInstanceViewSet
     fields = ["name"]
 
@@ -11,6 +12,8 @@ class TestCreateProcessor(processors.BaseCreateResourceProcessor):
 
 
 class TestUpdateScopedProcessor(processors.UpdateScopedResourceProcessor):
+    __test__ = False
+
     def validate_order(self, request):
         pass
 
