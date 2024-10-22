@@ -1345,26 +1345,32 @@ class ResourceGetTeamTest(test.APITransactionTestCase):
             project=self.project, offering=self.offering
         )
 
-        self.url = factories.ResourceFactory.get_provider_resource_url(
+        self.provider_url = factories.ResourceFactory.get_provider_resource_url(
             self.resource, action="team"
         )
-        CustomerRole.OWNER.add_permission(PermissionEnum.LIST_RESOURCE_USERS)
+        self.customer_url = factories.ResourceFactory.get_url(
+            self.resource, action="team"
+        )
 
     def test_service_owner_can_get_resource_team(self):
         self.client.force_authenticate(self.service_owner)
 
-        response = self.client.get(self.url)
+        response = self.client.get(self.provider_url)
         users = response.data
         self.assertEqual(200, response.status_code)
         self.assertEqual(1, len(users))
         user = users[0]
         self.assertEqual(self.admin.full_name, user["full_name"])
 
-    def test_user_can_not_get_resource_team(self):
+    def test_user_can_get_resource_team_username(self):
         self.client.force_authenticate(self.admin)
 
-        response = self.client.get(self.url)
-        self.assertEqual(404, response.status_code)
+        response = self.client.get(self.customer_url)
+        users = response.data
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(1, len(users))
+        user = users[0]
+        self.assertEqual(self.admin.username, user["username"])
 
 
 class ResourceUsageLimitsTest(test.APITransactionTestCase):

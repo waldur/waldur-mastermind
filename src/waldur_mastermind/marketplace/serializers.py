@@ -1,5 +1,6 @@
 import datetime
 import logging
+from decimal import Decimal
 
 import jwt
 from dateutil.parser import parse as parse_datetime
@@ -355,7 +356,7 @@ class CategorySerializer(
 
 
 PriceSerializer = serializers.DecimalField(
-    min_value=0,
+    min_value=Decimal(0),
     max_digits=common_mixins.PRICE_MAX_DIGITS,
     decimal_places=common_mixins.PRICE_DECIMAL_PLACES,
 )

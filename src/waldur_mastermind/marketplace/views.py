@@ -2435,6 +2435,24 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         ]
         return Response(result)
 
+    @action(detail=True, methods=["get"])
+    def team(self, request, uuid=None):
+        resource = self.get_object()
+        project = resource.project
+
+        return Response(
+            serializers.ProjectUserSerializer(
+                instance=project.get_users(),
+                many=True,
+                context={
+                    "project": project,
+                    "offering": resource.offering,
+                    "request": request,
+                },
+            ).data,
+            status=status.HTTP_200_OK,
+        )
+
 
 class ResourceViewSet(BaseResourceViewSet):
     def get_queryset(self):
@@ -2604,28 +2622,6 @@ class ProviderResourceViewSet(BaseResourceViewSet):
         )
     ]
     submit_report_serializer_class = serializers.ResourceReportSerializer
-
-    @action(detail=True, methods=["get"])
-    def team(self, request, uuid=None):
-        resource = self.get_object()
-        project = resource.project
-
-        return Response(
-            serializers.ProjectUserSerializer(
-                instance=project.get_users(),
-                many=True,
-                context={
-                    "project": project,
-                    "offering": resource.offering,
-                    "request": request,
-                },
-            ).data,
-            status=status.HTTP_200_OK,
-        )
-
-    team_permissions = [
-        permission_factory(PermissionEnum.LIST_RESOURCE_USERS, ["offering.customer"])
-    ]
 
 
 class ResourceOfferingsViewSet(ListAPIView):
