@@ -9,7 +9,11 @@ logger = logging.getLogger(__name__)
 
 def run_immediate_actions(policies):
     for policy in policies:
-        if not policy.has_fired and policy.is_triggered():
+        if not policy.get_immediate_actions():
+            continue
+
+        policy_triggered = policy.is_triggered()
+        if not policy.has_fired and policy_triggered:
             policy.has_fired = True
             policy.fired_datetime = timezone.now()
             policy.save()
@@ -23,7 +27,7 @@ def run_immediate_actions(policies):
                     policy.uuid.hex,
                 )
 
-        elif policy.has_fired and not policy.is_triggered():
+        elif policy.has_fired and not policy_triggered:
             policy.has_fired = False
             policy.save()
 
@@ -91,7 +95,7 @@ def get_estimated_cost_policy_handler_for_observable_class(klass, observable_cla
         )
 
         for policy in policies:
-            if policy.is_triggered():
+            if policy.get_threshold_actions() and policy.is_triggered():
                 for action in policy.get_threshold_actions():
                     action.method(policy, created)
                     logger.info(
