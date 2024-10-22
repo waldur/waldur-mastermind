@@ -15,6 +15,7 @@ from rest_framework import exceptions as rf_exceptions
 from reversion import revisions as reversion
 
 from waldur_core.core import models as core_models
+from waldur_core.core import utils as core_utils
 from waldur_core.core.exceptions import IncorrectStateException
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.common import mixins as common_mixins
@@ -558,6 +559,27 @@ class CustomerCredit(core_models.UuidMixin, core_models.TimeStampedModel):
             or 0
         )
 
+    @property
+    def consumption_last_month(self):
+        last_month = core_utils.get_last_month()
+        invoice = Invoice.objects.filter(
+            year=last_month.year,
+            month=last_month.month,
+            customer=self.customer,
+        ).first()
+
+        if not invoice:
+            return
+
+        consumption = (
+            InvoiceItem.objects.filter(invoice=invoice, credit=self).aggregate(
+                sum=Sum("unit_price")
+            )["sum"]
+            or 0
+        )
+
+        return consumption * -1
+
     def __str__(self):
         return f"Customer credit for {self.customer.name}, value {self.value}"
 
@@ -571,6 +593,29 @@ class ProjectCredit(core_models.UuidMixin, core_models.TimeStampedModel):
         decimal_places=5,
     )
     use_organisation_credit = models.BooleanField(default=True)
+
+    @property
+    def consumption_last_month(self):
+        last_month = core_utils.get_last_month()
+        invoice = Invoice.objects.filter(
+            year=last_month.year,
+            month=last_month.month,
+            customer=self.project.customer,
+        ).first()
+
+        if not invoice:
+            return
+
+        credit = CustomerCredit.objects.filter(customer=self.project.customer).get()
+        consumption = (
+            InvoiceItem.objects.filter(
+                invoice=invoice,
+                credit=credit,
+                project=self.project,
+            ).aggregate(sum=Sum("unit_price"))["sum"]
+            or 0
+        )
+        return consumption * -1
 
     class Permissions:
         customer_path = "project__customer"
