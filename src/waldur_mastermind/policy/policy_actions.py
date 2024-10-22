@@ -186,7 +186,7 @@ def reset_downscaling(policy):
     )
 
 
-def restrict_members(policy, _):
+def restrict_members(policy):
     project = structure_permissions._get_project(policy.scope)
 
     resources = marketplace_models.Resource.objects.filter(
@@ -316,7 +316,7 @@ POLICY_ACTIONS = {
         reset_method=reset_downscaling,
     ),
     "restrict_members": structures.PolicyAction(
-        action_type=enums.PolicyActionTypes.THRESHOLD,
+        action_type=enums.PolicyActionTypes.IMMEDIATE,
         method=restrict_members,
         reset_method=reset_member_restriction,
     ),

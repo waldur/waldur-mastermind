@@ -110,7 +110,7 @@ class ActionsFunctionsTest(test.APITransactionTestCase):
                     method=self.block_creation_of_new_resources_mock,
                 ),
                 structures.PolicyAction(
-                    action_type=enums.PolicyActionTypes.THRESHOLD,
+                    action_type=enums.PolicyActionTypes.IMMEDIATE,
                     method=self.restrict_members_mock,
                     reset_method=policy_actions.reset_member_restriction,
                 ),
@@ -133,29 +133,7 @@ class ActionsFunctionsTest(test.APITransactionTestCase):
 
             self.notify_project_team_mock.assert_not_called()
             self.block_creation_of_new_resources_mock.assert_called()
-            self.restrict_members_mock.assert_called()
-
-    def test_policy_reset_actions(self):
-        self.policy.actions = "restrict_members"
-        self.policy.save()
-        self.create_or_update_invoice_item(self.policy.limit_cost + 1)
-
-        resource = self.fixture.resource
-
-        offering = resource.offering
-        offering.secret_options["service_provider_can_create_offering_user"] = True
-        offering.save()
-
-        resource.project = self.project
-        resource.save()
-
-        resource.refresh_from_db()
-        self.assertTrue(resource.restrict_member_access)
-
-        with freeze_time("2024-10-01"):
-            check_polices()
-            resource.refresh_from_db()
-            self.assertFalse(resource.restrict_member_access)
+            self.restrict_members_mock.assert_not_called()
 
     def test_has_fired(self):
         self.create_or_update_invoice_item(self.policy.limit_cost + 1)

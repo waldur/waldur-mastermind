@@ -185,3 +185,20 @@ class ActionsTest(test.APITransactionTestCase):
         self.policy.refresh_from_db()
         self.assertTrue(self.policy.has_fired)
         self.assertTrue(resource.paused)
+
+    def test_restrict_members(self):
+        self.policy.actions = "restrict_members"
+        self.policy.created_by = self.fixture.user
+        self.policy.save()
+
+        resource = self.fixture.resource
+        offering = resource.offering
+        offering.secret_options["service_provider_can_create_offering_user"] = True
+        offering.save()
+
+        self.create_invoice_item(self.policy.limit_cost + 1)
+
+        resource.refresh_from_db()
+        self.policy.refresh_from_db()
+        self.assertTrue(self.policy.has_fired)
+        self.assertTrue(resource.restrict_member_access)
