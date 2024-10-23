@@ -3797,8 +3797,9 @@ class OpenStackBackend(ServiceBackend):
                 .values_list("backend_id", flat=True)
             )
             stale_ids = frontend_ids - backend_ids
-            logger.info("About to detach floating IPs from ports: %s", stale_ids)
-            instance.floating_ips.filter(backend_id__in=stale_ids).update(port=None)
+            if stale_ids:
+                logger.info("About to detach floating IPs from ports: %s", stale_ids)
+                instance.floating_ips.filter(backend_id__in=stale_ids).update(port=None)
 
     @log_backend_action()
     def push_instance_floating_ips(self, instance: models.Instance):
