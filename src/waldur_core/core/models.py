@@ -25,6 +25,7 @@ from waldur_core.core.validators import (
     MinCronValueValidator,
     validate_cron_schedule,
     validate_name,
+    validate_phone_number,
     validate_ssh_public_key,
 )
 from waldur_core.logging.loggers import LoggableMixin
@@ -200,7 +201,12 @@ class UserDetailsMixin(models.Model):
         abstract = True
 
     native_name = models.CharField(_("native name"), max_length=100, blank=True)
-    phone_number = models.CharField(_("phone number"), max_length=255, blank=True)
+    phone_number = models.CharField(
+        _("phone number"),
+        max_length=255,
+        blank=True,
+        validators=[validate_phone_number],
+    )
     organization = models.CharField(_("organization"), max_length=255, blank=True)
     job_title = models.CharField(_("job title"), max_length=120, blank=True)
     affiliations = models.JSONField(

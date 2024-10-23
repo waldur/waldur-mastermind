@@ -27,7 +27,11 @@ from waldur_core.core import fields as core_fields
 from waldur_core.core import models as core_models
 from waldur_core.core.fields import COUNTRIES_DICT, JSONField
 from waldur_core.core.models import AbstractFieldTracker
-from waldur_core.core.validators import validate_cidr_list, validate_name
+from waldur_core.core.validators import (
+    validate_cidr_list,
+    validate_name,
+    validate_phone_number,
+)
 from waldur_core.logging.loggers import LoggableMixin
 from waldur_core.media.mixins import ImageModelMixin
 from waldur_core.media.validators import CertificateValidator
@@ -325,7 +329,12 @@ class CustomerDetailsMixin(core_models.NameMixin, VATMixin, CoordinatesMixin):
     )
 
     email = models.EmailField(_("email address"), max_length=75, blank=True)
-    phone_number = models.CharField(_("phone number"), max_length=255, blank=True)
+    phone_number = models.CharField(
+        _("phone number"),
+        max_length=255,
+        blank=True,
+        validators=[validate_phone_number],
+    )
     access_subnets = models.TextField(
         validators=[validate_cidr_list],
         blank=True,
