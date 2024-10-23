@@ -806,6 +806,7 @@ class CustomerCreditSerializer(serializers.HyperlinkedModelSerializer):
             "offerings",
             "end_date",
             "minimal_consumption",
+            "minimal_consumption_logic",
             "allocated_to_projects",
             "consumption_last_month",
         )
@@ -833,12 +834,33 @@ class CreateCustomerCreditSerializer(CustomerCreditSerializer):
 
     def validate(self, attrs):
         minimal_consumption = attrs.get("minimal_consumption")
+        minimal_consumption_logic = attrs.get("minimal_consumption_logic")
+        end_date = attrs.get("end_date")
         value = attrs.get("value")
+        customer = attrs.get("customer")
 
         if minimal_consumption and minimal_consumption >= value:
             raise exceptions.ValidationError(
                 _("Minimum consumption must be smaller than the credit.")
             )
+
+        if (
+            minimal_consumption_logic
+            == models.CustomerCredit.MinimalConsumptionLogic.LINEAR
+        ):
+            if not end_date:
+                raise exceptions.ValidationError(
+                    _("End date is required if minimal consumption logic is linear.")
+                )
+            else:
+                minimal_consumption = (
+                    utils.MonthlyCompensation.calculate_linear_minimal_consumption(
+                        customer,
+                        value,
+                        end_date,
+                    )
+                )
+                attrs["minimal_consumption"] = minimal_consumption
 
         return attrs
 

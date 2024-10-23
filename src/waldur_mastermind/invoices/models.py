@@ -529,6 +529,15 @@ class Payment(core_models.UuidMixin, core_models.TimeStampedModel):
 
 
 class CustomerCredit(core_models.UuidMixin, core_models.TimeStampedModel):
+    class MinimalConsumptionLogic:
+        FIXED = "fixed"
+        LINEAR = "linear"
+
+        CHOICES = (
+            (FIXED, "Fixed"),
+            (LINEAR, "Linear"),
+        )
+
     customer = models.OneToOneField(structure_models.Customer, on_delete=models.CASCADE)
     value = models.DecimalField(
         default=0,
@@ -543,6 +552,11 @@ class CustomerCredit(core_models.UuidMixin, core_models.TimeStampedModel):
         validators=[MinValueValidator(decimal.Decimal("0"))],
         max_digits=11,
         decimal_places=5,
+    )
+    minimal_consumption_logic = models.CharField(
+        max_length=10,
+        choices=MinimalConsumptionLogic.CHOICES,
+        default=MinimalConsumptionLogic.FIXED,
     )
 
     tracker = FieldTracker()
