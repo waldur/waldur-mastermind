@@ -1261,6 +1261,39 @@ class ResourceBackendIDTest(test.APITransactionTestCase):
 
 
 @ddt
+class ResourceBackendMetadataTest(test.APITransactionTestCase):
+    def setUp(self) -> None:
+        self.fixture = MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.url = factories.ResourceFactory.get_provider_resource_url(
+            self.resource, action="set_backend_metadata"
+        )
+        CustomerRole.OWNER.add_permission(PermissionEnum.SET_RESOURCE_BACKEND_METADATA)
+        CustomerRole.MANAGER.add_permission(
+            PermissionEnum.SET_RESOURCE_BACKEND_METADATA
+        )
+
+    def make_request(self, role):
+        self.client.force_authenticate(role)
+        payload = {"backend_metadata": {"new_backend_field": "new_value"}}
+        return self.client.post(self.url, payload)
+
+    @data("staff", "offering_owner", "service_owner", "service_manager")
+    def test_user_can_set_backend_metadata_of_resource(self, user):
+        response = self.make_request(getattr(self.fixture, user))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(
+            self.resource.backend_metadata["new_backend_field"], "new_value"
+        )
+
+    @data("owner", "admin", "manager")
+    def test_user_can_not_set_backend_id_of_resource(self, user):
+        response = self.make_request(getattr(self.fixture, user))
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+@ddt
 class ResourceReportTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()

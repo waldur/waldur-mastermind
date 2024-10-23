@@ -2623,6 +2623,30 @@ class ProviderResourceViewSet(BaseResourceViewSet):
     ]
     submit_report_serializer_class = serializers.ResourceReportSerializer
 
+    @action(detail=True, methods=["post"])
+    def set_backend_metadata(self, request, uuid=None):
+        resource = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        resource.backend_metadata = serializer.validated_data["backend_metadata"]
+        resource.save()
+
+        return Response(
+            {"status": _("The backend metadata is updated")}, status=status.HTTP_200_OK
+        )
+
+    set_backend_metadata_permissions = [
+        permission_factory(
+            PermissionEnum.SET_RESOURCE_BACKEND_METADATA,
+            ["offering.customer"],
+        )
+    ]
+
+    set_backend_metadata_serializer_class = (
+        serializers.ResourceBackendMetadataSerializer
+    )
+
 
 class ResourceOfferingsViewSet(ListAPIView):
     serializer_class = serializers.ResourceOfferingSerializer
