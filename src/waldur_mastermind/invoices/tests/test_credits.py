@@ -83,6 +83,24 @@ class CustomerCreditCreateTest(test.APITransactionTestCase):
         response = self.client.post(url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    @freeze_time("2024-10-10")
+    def test_minimal_consumption_logic(self):
+        payload = {
+            "customer": structure_factories.CustomerFactory.get_url(
+                self.fixture.customer
+            ),
+            "value": 1200,
+            "end_date": datetime.date(year=2025, month=10, day=15),
+            "minimal_consumption_logic": models.CustomerCredit.MinimalConsumptionLogic.LINEAR,
+            "minimal_consumption": 500,
+        }
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.CustomerCreditFactory.get_list_url()
+        response = self.client.post(url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        credit = models.CustomerCredit.objects.filter(uuid=response.data["uuid"]).get()
+        self.assertEqual(credit.minimal_consumption, 1200 / 12)
+
 
 @ddt
 class CustomerCreditUpdateTest(test.APITransactionTestCase):

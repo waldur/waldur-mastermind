@@ -12,6 +12,7 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
+from waldur_core.structure import models as structure_models
 from waldur_mastermind.common.mixins import UnitPriceMixin
 
 from . import models
@@ -355,6 +356,26 @@ class MonthlyCompensation:
         self.projects_credits = projects_credits.values()
         self.credit = credit
 
+    @staticmethod
+    def calculate_linear_minimal_consumption(
+        customer: structure_models.Customer,
+        credit_value: int | Decimal,
+        end_date: datetime.date,
+    ):
+        today = datetime.date.today()
+        months = (end_date.year * 12 + end_date.month) - (today.year * 12 + today.month)
+        last_month = core_utils.get_last_month()
+
+        if models.Invoice.objects.filter(
+            customer=customer,
+            year=last_month.year,
+            month=last_month.month,
+            state=models.Invoice.States.PENDING,
+        ).exists():
+            months += 1
+
+        return credit_value / months
+
     def save(self):
         if not self.credit:
             return
@@ -364,9 +385,25 @@ class MonthlyCompensation:
         for pc in self.projects_credits:
             pc.save()
 
+        if (
+            self.credit.minimal_consumption_logic
+            == models.CustomerCredit.MinimalConsumptionLogic.LINEAR
+            and self.credit.end_date
+        ):
+            new_minimal_consumption = (
+                MonthlyCompensation.calculate_linear_minimal_consumption(
+                    self.customer,
+                    self.credit.value,
+                    self.credit.end_date,
+                )
+            )
+            self.credit.minimal_consumption = new_minimal_consumption
+
         self.credit.save()
 
     def get_project_credit_consumption(self, project):
+        """Returns the value by which the project credit will be reduced next month."""
+
         if [p for p in self.projects_credits if p.project == project]:
             projects_credit = [
                 p for p in self.projects_credits if p.project == project
@@ -379,6 +416,8 @@ class MonthlyCompensation:
         return 0
 
     def get_project_compensation(self, project):
+        """Returns the sum of compensation in the next month for the project."""
+
         return sum(
             [
                 c.unit_price * -1
