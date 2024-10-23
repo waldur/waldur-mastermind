@@ -2476,6 +2476,14 @@ class ResourceEndDateByProviderSerializer(serializers.ModelSerializer):
         resource.save(update_fields=["end_date_requested_by"])
 
 
+class ResourceBackendMetadataSerializer(serializers.ModelSerializer):
+    backend_metadata = serializers.JSONField(required=True)
+
+    class Meta:
+        model = models.Resource
+        fields = ("backend_metadata",)
+
+
 class ResourceUpdateLimitsSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Resource
