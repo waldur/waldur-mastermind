@@ -1,4 +1,5 @@
 import logging
+import re
 
 from croniter import croniter
 from cryptography import x509
@@ -17,6 +18,14 @@ from iptools.ipv6 import validate_cidr as is_valid_ipv6_cidr
 from waldur_core.core import exceptions
 
 logger = logging.getLogger(__name__)
+
+
+PHONE_REGEX = re.compile(r"^\+?[\d \-\(\)]+$")
+
+
+def validate_phone_number(value):
+    if not PHONE_REGEX.search(value):
+        raise ValidationError("Invalid phone number format.")
 
 
 def validate_cron_schedule(value):
