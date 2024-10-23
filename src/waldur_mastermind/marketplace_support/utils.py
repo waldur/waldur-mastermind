@@ -6,8 +6,7 @@ from django.template.loader import get_template
 from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
 
-import textile
-from waldur_core.core.utils import format_homeport_link
+from waldur_core.core.utils import format_homeport_link, text2html
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.utils import format_limits_list, get_order_url
@@ -115,7 +114,7 @@ def create_issue(order, description, summary, confirmation_comment=None):
         support_backend.get_active_backend().message_format
         == support_backend.SupportedFormat.HTML
     ):
-        issue_details["description"] = textile.textile(issue_details["description"])
+        issue_details["description"] = text2html(issue_details["description"])
 
     issue = support_models.Issue.objects.create(**issue_details)
     try:

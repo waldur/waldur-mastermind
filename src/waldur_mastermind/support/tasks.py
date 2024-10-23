@@ -9,9 +9,9 @@ from django.template import Context, Template
 from django.template.loader import get_template
 
 import html2text
-import textile
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
+from waldur_core.core.utils import text2html
 
 from . import backend, models
 from .utils import get_feedback_link
@@ -184,9 +184,7 @@ def _send_email(
     for k in list(html_context):
         if k.startswith("format_"):
             if not html_format:
-                html_context[k.replace("format_", "")] = textile.textile(
-                    html_context[k]
-                )
+                html_context[k.replace("format_", "")] = text2html(html_context[k])
             else:
                 html_context[k.replace("format_", "")] = html_context[k]
 

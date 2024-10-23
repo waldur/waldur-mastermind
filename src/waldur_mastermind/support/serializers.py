@@ -13,10 +13,9 @@ from django.template.loader import get_template
 from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions, serializers
 
-import textile
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core.clean_html import clean_html
-from waldur_core.core.utils import is_uuid_like
+from waldur_core.core.utils import is_uuid_like, text2html
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.registry import get_resource_type
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -369,7 +368,7 @@ class IssueSerializer(
             rendered_description += f" \n\n\n\nImpersonator: {impersonator}"
 
         if backend.get_active_backend().message_format == backend.SupportedFormat.HTML:
-            rendered_description = textile.textile(rendered_description)
+            rendered_description = text2html(rendered_description)
 
         validated_data["description"] = rendered_description
         validated_data["summary"] = render_issue_template(
@@ -453,7 +452,7 @@ class CommentSerializer(
         impersonator = getattr(self.context["request"].user, "impersonator", None)
 
         if backend.get_active_backend().message_format == backend.SupportedFormat.HTML:
-            description = textile.textile(description)
+            description = text2html(description)
 
             if impersonator:
                 description += f"<br/><br/>Impersonator: {impersonator}"

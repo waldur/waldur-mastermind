@@ -6,8 +6,8 @@ from constance import config
 from django.core.files.base import ContentFile
 from django.template import Context, Template
 
-import textile
 from waldur_core.core.models import User as WaldurUser
+from waldur_core.core.utils import text2html
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.support import models
 from waldur_mastermind.support.backend.smax_utils import (
@@ -387,7 +387,7 @@ class SmaxServiceBackend(SupportBackend):
         )
 
         # SMAX doesn't support new lines
-        body = textile.textile(body)
+        body = text2html(body)
 
         integration_user_upn = self.manager.get_user_by_upn(config.SMAX_LOGIN)
         comment = Comment(

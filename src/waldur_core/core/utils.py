@@ -35,6 +35,7 @@ from geopy.geocoders import Nominatim
 from requests.packages.urllib3 import exceptions
 from rest_framework.settings import api_settings
 
+import textile
 from ua_parser import user_agent_parser
 from waldur_core.structure.notifications import NOTIFICATIONS
 
@@ -598,3 +599,7 @@ class SubqueryAggregate(Subquery):
 
 class SubquerySum(SubqueryAggregate):
     function = "SUM"
+
+
+def text2html(value: str):
+    return textile.textile(value.strip())
