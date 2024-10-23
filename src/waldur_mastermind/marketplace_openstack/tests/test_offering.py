@@ -14,7 +14,9 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.management.commands.load_categories import (
     load_category,
 )
-from waldur_mastermind.marketplace.tests import factories as marketplace_factories
+from waldur_mastermind.marketplace.tests import (
+    factories as marketplace_factories,
+)
 from waldur_mastermind.marketplace_openstack import (
     STORAGE_MODE_DYNAMIC,
     STORAGE_MODE_FIXED,
@@ -544,3 +546,31 @@ class InstanceExternalIPTest(test.APITransactionTestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["offering_external_ips"], [])
+
+
+class UpdateSecretOptionsTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.UserFixture()
+        self.secret_options = {
+            "ipv4_external_ip_mapping": [
+                {
+                    "floating_ip": "100.100.100.0/24",
+                    "external_ip": "200.200.200.0/24",
+                }
+            ]
+        }
+        self.offering = marketplace_factories.OfferingFactory(
+            type=TENANT_TYPE,
+        )
+        self.url = marketplace_factories.OfferingFactory.get_url(
+            self.offering, "update_integration"
+        )
+        self.client.force_authenticate(self.fixture.staff)
+
+    def test_update_ipv4_external_ip_mapping(self):
+        response = self.client.post(
+            self.url, data={"secret_options": self.secret_options}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.secret_options, self.secret_options)
