@@ -258,14 +258,6 @@ class EmptyFilter(django_filters.CharFilter):
             return qs.none()
 
 
-class BaseSummaryFilterSet(django_filters.FilterSet):
-    def filter_queryset(self, queryset):
-        # Skip queryset class validation
-        for name, value in self.form.cleaned_data.items():
-            queryset = self.filters[name].filter(queryset, value)
-        return queryset
-
-
 class ExtendedOrderingFilter(django_filters.OrderingFilter):
     """This filter allows to use list or tuple of model fields in defining of ordering fields in filter.
 
