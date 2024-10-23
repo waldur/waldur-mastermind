@@ -232,7 +232,7 @@ class SystemNotification(EventTypesMixin, models.Model):
 
 
 class Event(UuidMixin):
-    created = AutoCreatedField()
+    created = AutoCreatedField(db_index=True)
     event_type = models.CharField(max_length=100, db_index=True)
     message = models.TextField()
     context = models.JSONField(blank=True)
