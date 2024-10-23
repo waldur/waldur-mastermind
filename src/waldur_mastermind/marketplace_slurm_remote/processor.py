@@ -36,10 +36,6 @@ class DeleteAllocationProcessor(processors.BasicDeleteResourceProcessor):
             marketplace_resource.set_state_terminating()
             marketplace_resource.save(update_fields=["state"])
 
-            allocation: slurm_models.Allocation = marketplace_resource.scope
-            allocation.schedule_deleting()
-            allocation.save(update_fields=["state"])
-
 
 class UpdateAllocationLimitsProcessor(processors.BasicUpdateResourceProcessor):
     def update_limits_process(self, user):
