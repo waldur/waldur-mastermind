@@ -7,6 +7,7 @@ from django.http import HttpRequest
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions
+from rest_framework.authtoken.models import Token
 
 import waldur_core.core.middleware
 import waldur_core.logging.middleware
@@ -159,7 +160,12 @@ def user_capturing_auth(auth):
                 user, _ = result
                 waldur_core.logging.middleware.set_current_user(user)
                 waldur_core.core.middleware.set_current_user(user)
-                token = user.auth_token
+                try:
+                    token = Token.objects.get(user=user)
+                except Token.DoesNotExist:
+                    raise exceptions.PermissionDenied(
+                        "Unable to impersonate user which does not have an active session."
+                    )
                 if token:
                     token.created = timezone.now()
                     token.save()
