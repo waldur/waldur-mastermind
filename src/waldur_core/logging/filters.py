@@ -3,6 +3,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django_filters.widgets import BooleanWidget
 from rest_framework import filters
+from rest_framework.filters import BaseFilterBackend
 
 from waldur_core.core import filters as core_filters
 from waldur_core.core import serializers as core_serializers
@@ -46,16 +47,25 @@ class EmailHookFilter(BaseHookFilter):
         fields = ("email",)
 
 
-class HookSummaryFilterBackend(core_filters.SummaryFilter):
+class HookSummaryFilterBackend(BaseFilterBackend):
+    def filter_queryset(self, request, queryset, view):
+        """Filter each resource separately using its own filter"""
+        summary_queryset = queryset
+        filtered_querysets = []
+        for queryset in summary_queryset.querysets:
+            filter_class = self.get_queryset_filter(queryset)
+            queryset = filter_class(request.query_params, queryset=queryset).qs
+            filtered_querysets.append(queryset)
+
+        summary_queryset.querysets = filtered_querysets
+        return summary_queryset
+
     def get_queryset_filter(self, queryset):
         if queryset.model == models.WebHook:
             return WebHookFilter
         elif queryset.model == models.EmailHook:
             return EmailHookFilter
 
-        return BaseHookFilter
-
-    def get_base_filter(self):
         return BaseHookFilter
 
 
