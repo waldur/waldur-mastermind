@@ -26,6 +26,9 @@ class PriceEstimate(core_models.UuidMixin, models.Model):
         default=0, help_text=_("Predicted price for scope for current month.")
     )
 
+    def __str__(self):
+        return f"{self.scope} estimate: {self.total}"
+
     @classmethod
     def get_estimated_models(cls):
         return structure_models.Project, structure_models.Customer

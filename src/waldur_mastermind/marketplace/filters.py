@@ -536,6 +536,7 @@ class ComponentUserUsageFilter(django_filters.FilterSet):
     resource = core_filters.URLFilter(
         view_name="marketplace-resource-detail",
         field_name="component_usage__resource__uuid",
+        label="Resource URL",
     )
     resource_uuid = django_filters.UUIDFilter(
         field_name="component_usage__resource__uuid"
