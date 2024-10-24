@@ -374,6 +374,9 @@ class MonthlyCompensation:
         ).exists():
             months += 1
 
+        if not months:
+            return credit_value
+
         return credit_value / months
 
     def save(self):
