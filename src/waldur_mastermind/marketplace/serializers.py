@@ -3848,6 +3848,31 @@ class IntegrationStatusSerializer(serializers.ModelSerializer):
         )
 
 
+class IntegrationStatusDetailsSerializer(
+    serializers.HyperlinkedModelSerializer, IntegrationStatusSerializer
+):
+    class Meta:
+        model = models.IntegrationStatus
+        fields = (
+            "agent_type",
+            "status",
+            "last_request_timestamp",
+            "offering",
+            "url",
+        )
+        protected_fields = ("offering",)
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "marketplace-integration-status-detail",
+            },
+            "offering": {
+                "lookup_field": "uuid",
+                "view_name": "marketplace-provider-offering-detail",
+            },
+        }
+
+
 def get_integration_status(serializer, offering):
     if not has_permission(
         serializer.context["request"], PermissionEnum.UPDATE_OFFERING, offering.customer
