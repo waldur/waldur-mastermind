@@ -447,11 +447,18 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         if offering_component.billing_type != BillingTypes.USAGE:
             return
 
+        logger.info(
+            "Processing component usage %s, amount: %s",
+            component_usage,
+            component_usage.usage,
+        )
+
         plan_period = component_usage.plan_period
         if not plan_period:
             logger.warning(
-                "Skipping processing of component usage with ID %s because "
+                "Skipping processing of component usage %s (ID %s) because "
                 "plan period is not defined.",
+                component_usage,
                 component_usage.id,
             )
             return
@@ -459,22 +466,30 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
 
         item = utils.get_invoice_item_for_component_usage(component_usage)
         if item:
+            logger.info(
+                "Invoice item %s already exists, updating quantity from %s",
+                item,
+                item.quantity,
+            )
             item.quantity = cls.convert_quantity(
                 component_usage.usage, offering_component.type
             )
             item.save()
+            logger.info("The %s quantity is set to %s", item, item.quantity)
         else:
+            logger.info("No invoice item for the %s, creating one", component_usage)
             try:
                 plan_component = plan.components.get(component=offering_component)
             except ObjectDoesNotExist:
                 logger.warning(
-                    "Skipping processing of component usage with ID %s because "
+                    "Skipping processing of component usage %s (ID %s) because "
                     "plan component is not defined.",
+                    component_usage,
                     component_usage.id,
                 )
                 return
             customer = resource.project.customer
-            invoice, created = registrators.RegistrationManager.get_or_create_invoice(
+            invoice, _ = registrators.RegistrationManager.get_or_create_invoice(
                 customer, component_usage.date
             )
 
@@ -494,7 +509,9 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
                 else min(component_usage.plan_period.end, month_end)
             )
 
-            invoice_models.InvoiceItem.objects.create(
+            logger.info("About to create an invoice item for the %s", component_usage)
+
+            invoice_item = invoice_models.InvoiceItem.objects.create(
                 resource=resource,
                 project=resource.project,
                 invoice=invoice,
@@ -509,6 +526,12 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
                 measured_unit=offering_component.measured_unit,
                 article_code=offering_component.article_code or plan.article_code,
                 name=resource.name + " / " + offering_component.name,
+            )
+
+            logger.info(
+                "Invoice item has been successfully created for the %s, quantity %s",
+                component_usage,
+                invoice_item.quantity,
             )
 
     @classmethod
