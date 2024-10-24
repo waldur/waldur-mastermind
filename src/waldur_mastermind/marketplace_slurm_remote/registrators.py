@@ -1,4 +1,5 @@
 import math
+from decimal import Decimal
 
 from waldur_mastermind.marketplace import registrators as marketplace_registrators
 
@@ -13,7 +14,7 @@ class RemoteSlurmRegistrator(marketplace_registrators.MarketplaceRegistrator):
         minutes_in_hour = 60
         if component_type == "ram":
             mb_in_gb = 1024
-            quantity = int(math.ceil(1.0 * usage / mb_in_gb / minutes_in_hour))
+            quantity = int(math.ceil(Decimal(1.0) * usage / mb_in_gb / minutes_in_hour))
         else:
-            quantity = int(math.ceil(1.0 * usage / minutes_in_hour))
+            quantity = int(math.ceil(Decimal(1.0) * usage / minutes_in_hour))
         return quantity
