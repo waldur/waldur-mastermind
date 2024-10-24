@@ -769,3 +769,6 @@ LANGUAGES = (
     ("ar", "العربية"),
     ("cs", "Čeština"),
 )
+
+# Disable SAML2 CSP warnings
+SAML_CSP_HANDLER = ""
