@@ -3,11 +3,10 @@ from unittest.mock import patch
 
 from ddt import data, ddt
 from django.conf import settings
-from django.contrib.auth import get_user_model
 from freezegun import freeze_time
 from rest_framework import status, test
 
-from waldur_core.core.utils import is_uuid_like
+from waldur_core.core.utils import is_uuid_like, make_random_password
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
@@ -622,7 +621,7 @@ class TenantChangePasswordTest(BaseTenantActionsTest):
         self.url = factories.TenantFactory.get_url(
             self.tenant, action="change_password"
         )
-        self.new_password = get_user_model().objects.make_random_password()[:50]
+        self.new_password = make_random_password()[:50]
 
     @data("owner", "staff", "admin", "manager")
     def test_user_can_change_tenant_user_password(self, user):
@@ -649,9 +648,7 @@ class TenantChangePasswordTest(BaseTenantActionsTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_user_cannot_set_password_with_length_less_than_8_characters(self):
-        request_data = {
-            "user_password": get_user_model().objects.make_random_password()[:7]
-        }
+        request_data = {"user_password": make_random_password()[:7]}
 
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.post(self.url, request_data)
