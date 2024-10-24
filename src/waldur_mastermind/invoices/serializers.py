@@ -772,7 +772,7 @@ class FinancialReportEmailSerializer(serializers.Serializer):
         return value
 
 
-class NestedOfferingSerializer(serializers.ModelSerializer):
+class NestedProviderOfferingSerializer(serializers.ModelSerializer):
     class Meta:
         model = marketplace_models.Offering
         fields = ("uuid", "url", "type", "name")
@@ -784,8 +784,20 @@ class NestedOfferingSerializer(serializers.ModelSerializer):
         }
 
 
+class NestedPublicOfferingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = marketplace_models.Offering
+        fields = ("uuid", "url", "type", "name")
+        extra_kwargs = {
+            "url": {
+                "view_name": "marketplace-public-offering-detail",
+                "lookup_field": "uuid",
+            },
+        }
+
+
 class CustomerCreditSerializer(serializers.HyperlinkedModelSerializer):
-    offerings = NestedOfferingSerializer(
+    offerings = NestedProviderOfferingSerializer(
         read_only=True,
         many=True,
     )
@@ -893,6 +905,9 @@ class ProjectCreditSerializer(serializers.HyperlinkedModelSerializer):
     allocated_customer_credit = serializers.SerializerMethodField(
         method_name="get_allocated_customer_credit"
     )
+    offerings = NestedPublicOfferingSerializer(
+        read_only=True, many=True, source="project.customer.customercredit.offerings"
+    )
 
     def get_allocated_customer_credit(self, project_credit):
         return models.ProjectCredit.objects.filter(
@@ -921,6 +936,7 @@ class ProjectCreditSerializer(serializers.HyperlinkedModelSerializer):
             "customer_credit",
             "allocated_customer_credit",
             "consumption_last_month",
+            "offerings",
         )
 
         extra_kwargs = {
