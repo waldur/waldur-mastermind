@@ -852,6 +852,15 @@ class CreateCustomerCreditSerializer(CustomerCreditSerializer):
                 raise exceptions.ValidationError(
                     _("End date is required if minimal consumption logic is linear.")
                 )
+            elif (
+                end_date.year == datetime.date.today().year
+                and end_date.month == datetime.date.today().month
+            ):
+                raise exceptions.ValidationError(
+                    _(
+                        "End date must be greater if minimal consumption logic is linear."
+                    )
+                )
             else:
                 minimal_consumption = (
                     utils.MonthlyCompensation.calculate_linear_minimal_consumption(
