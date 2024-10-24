@@ -20,7 +20,7 @@ class MarketplaceSlurmConfig(AppConfig):
         )
         from waldur_slurm import models as slurm_models
 
-        slurm_registrators.SlurmRegistrator.connect()
+        slurm_registrators.RemoteSlurmRegistrator.connect()
 
         signals.post_save.connect(
             handlers.update_component_quota,

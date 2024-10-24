@@ -5,7 +5,7 @@ from waldur_mastermind.marketplace import registrators as marketplace_registrato
 from . import PLUGIN_NAME
 
 
-class SlurmRegistrator(marketplace_registrators.MarketplaceRegistrator):
+class RemoteSlurmRegistrator(marketplace_registrators.MarketplaceRegistrator):
     plugin_name = PLUGIN_NAME
 
     @classmethod
