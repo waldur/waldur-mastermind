@@ -145,6 +145,11 @@ def register_in(router):
         views.CategoryComponentViewSet,
         basename="marketplace-category-component",
     )
+    router.register(
+        r"marketplace-integration-statuses",
+        views.IntegrationStatusViewSet,
+        basename="marketplace-integration-status",
+    )
 
 
 urlpatterns = [

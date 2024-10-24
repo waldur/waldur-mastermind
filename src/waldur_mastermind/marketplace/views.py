@@ -3681,3 +3681,28 @@ class GlobalCategoriesViewSet(views.APIView):
         return Response(
             {row["offering__category__uuid"].hex: row["count"] for row in resources}
         )
+
+
+class IntegrationStatusViewSet(core_views.ReadOnlyActionsViewSet):
+    lookup_field = "uuid"
+    queryset = models.IntegrationStatus.objects.all()
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.IntegrationStatusFilter
+    serializer_class = serializers.IntegrationStatusDetailsSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if user.is_staff or user.is_support:
+            return qs
+
+        offerings = [
+            offering
+            for offering in models.Offering.objects.all().filter_for_user(user)
+            if offering.customer.has_user(user, structure_models.CustomerRole.OWNER)
+            or offering.customer.has_user(
+                user,
+                structure_models.CustomerRole.SERVICE_MANAGER,
+            )
+        ]
+        return qs.filter(offering__in=offerings)
