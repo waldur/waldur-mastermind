@@ -31,7 +31,7 @@ class IntegrationStatusCreationTest(test.APITransactionTestCase):
             ).count(),
         )
         response = self.client.get(
-            url, headers={"USER_AGENT": "waldur-slurm-agent/1.0.0"}
+            url, headers={"USER_AGENT": "waldur-site-agent/1.0.0"}
         )
         self.assertEqual(200, response.status_code)
 
@@ -68,7 +68,7 @@ class IntegrationStatusCreationTest(test.APITransactionTestCase):
             ).count(),
         )
         response = self.client.get(
-            url, headers={"USER_AGENT": "waldur-slurm-agent/1.0.0"}
+            url, headers={"USER_AGENT": "waldur-site-agent/1.0.0"}
         )
         self.assertEqual(200, response.status_code)
 
@@ -105,7 +105,7 @@ class IntegrationStatusCreationTest(test.APITransactionTestCase):
             ).count(),
         )
         response = self.client.get(
-            url, headers={"USER_AGENT": "waldur-slurm-agent/1.0.0"}
+            url, headers={"USER_AGENT": "waldur-site-agent/1.0.0"}
         )
         self.assertEqual(200, response.status_code)
 
