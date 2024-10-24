@@ -361,7 +361,7 @@ class RancherBackend(ServiceBackend):
         if user.backend_id:
             return
 
-        password = models.RancherUser.make_random_password()
+        password = core_utils.make_random_password
         response = self.client.create_user(
             name=user.user.username, username=user.user.username, password=password
         )

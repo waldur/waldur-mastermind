@@ -6,6 +6,7 @@ from reversion.models import Version
 from waldur_core.core.admin import UserAdmin
 from waldur_core.core.models import User
 from waldur_core.core.tests.helpers import override_waldur_core_settings
+from waldur_core.core.utils import make_random_password
 from waldur_core.structure.admin import CustomerAdmin
 from waldur_core.structure.models import Customer
 from waldur_core.structure.tests.factories import CustomerFactory, UserFactory
@@ -99,7 +100,7 @@ class UserReversionTest(TestCase):
     )
     def test_new_revisions_are_not_created_on_each_authentication(self):
         staff = UserFactory(is_staff=True, is_superuser=True)
-        staff_password = User.objects.make_random_password()
+        staff_password = make_random_password()
         staff.set_password(staff_password)
         staff.save()
         self.assertTrue(
@@ -107,7 +108,7 @@ class UserReversionTest(TestCase):
         )
 
         url = "/admin/core/user/add/"
-        user_password = User.objects.make_random_password()
+        user_password = make_random_password()
         self.client.post(
             url,
             {

@@ -12,6 +12,8 @@ import warnings
 from collections import OrderedDict
 from itertools import chain
 from operator import itemgetter
+from secrets import choice
+from string import ascii_letters, digits
 
 import jwt
 import requests
@@ -435,6 +437,11 @@ def decode_jwt_token(encoded_data, api_secret_code=None):
 
 def normalize_unicode(data):
     return unicodedata.normalize("NFKD", data).encode("ascii", "ignore").decode("utf8")
+
+
+def make_random_password(length=10):
+    alphabet = ascii_letters + digits
+    return "".join(choice(alphabet) for i in range(length))
 
 
 UNIT_PATTERN = re.compile(r"(\d+)([KMGTP]?)")

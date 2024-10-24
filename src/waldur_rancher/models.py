@@ -169,10 +169,6 @@ class RancherUser(
     settings = models.ForeignKey("structure.ServiceSettings", on_delete=models.PROTECT)
     is_active = models.BooleanField(default=True)
 
-    @staticmethod
-    def make_random_password():
-        return core_models.User.objects.make_random_password()
-
     class Meta:
         unique_together = (("user", "settings"),)
         ordering = ("user__username",)
