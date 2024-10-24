@@ -1403,7 +1403,7 @@ def get_provider_approvers(order):
 
 def refresh_integration_agent_status(request, agent_type):
     user_agent = core_utils.get_user_agent(request)
-    if "waldur-slurm-agent" not in user_agent:
+    if "waldur-site-agent" not in user_agent:
         return
 
     offering_uuid = request.query_params.get("offering_uuid")
