@@ -259,6 +259,7 @@ def get_components_usage_data_from_resources(
                 "measured_unit": component.measured_unit,
                 "usage": component_usage.get(component.type, 0),
                 "limit": component_limit.get(component.type, None),
+                "offering_name": component.offering.name,
             }
 
     return list(components_data.values())
