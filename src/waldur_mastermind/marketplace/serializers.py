@@ -78,6 +78,7 @@ class ServiceProviderSerializer(
             "customer_uuid",
             "customer_image",
             "customer_abbreviation",
+            "customer_slug",
             "customer_native_name",
             "customer_country",
             "image",
@@ -85,7 +86,9 @@ class ServiceProviderSerializer(
             "description",
             "offering_count",
         )
-        related_paths = {"customer": ("uuid", "name", "native_name", "abbreviation")}
+        related_paths = {
+            "customer": ("uuid", "name", "native_name", "abbreviation", "slug")
+        }
         protected_fields = ("customer",)
         extra_kwargs = {
             "url": {
