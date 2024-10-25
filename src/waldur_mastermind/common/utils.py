@@ -7,6 +7,7 @@ from django.utils.timezone import get_current_timezone
 from rest_framework.test import APIRequestFactory
 
 from waldur_core.core.views import RefreshTokenMixin
+from waldur_mastermind.common import mixins as common_mixins
 
 
 def quantize_price(value):
@@ -63,3 +64,8 @@ def parse_date(timestr):
 def mb_to_gb(value):
     # In marketplace RAM and storage is stored in GB, but in plugin it is stored in MB.
     return quantize_price(Decimal(value / 1024.0))
+
+
+def prices_are_equal(x, y):
+    exp = Decimal(".1") ** common_mixins.PRICE_DECIMAL_PLACES
+    return Decimal(x).quantize(exp) == Decimal(y).quantize(exp)
