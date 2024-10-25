@@ -41,6 +41,7 @@ from waldur_mastermind.billing.serializers import get_payment_profiles
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.common.exceptions import TransactionRollback
 from waldur_mastermind.common.serializers import validate_options
+from waldur_mastermind.common.utils import prices_are_equal
 from waldur_mastermind.invoices.models import InvoiceItem
 from waldur_mastermind.invoices.utils import get_billing_price_estimate_for_resources
 from waldur_mastermind.marketplace.fields import PublicPlanField
@@ -394,7 +395,8 @@ class PricesUpdateSerializer(serializers.Serializer):
             price_field = "price"
         for key, old_component in component_map.items():
             new_price = future_prices.get(key, 0)
-            if getattr(old_component, price_field) != new_price:
+            old_price = getattr(old_component, price_field) or 0
+            if not prices_are_equal(old_price, new_price):
                 setattr(old_component, price_field, new_price)
                 old_component.save(update_fields=[price_field])
 
