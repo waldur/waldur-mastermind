@@ -242,8 +242,9 @@ class MigrationCreateSerializer(
             dst_type = VolumeType.objects.get(uuid=dst_type_uuid)
             volume_type_mappings[src_type.name] = dst_type.name
 
+        limits = {name: src_resource.limits.get(name) for name in AVAILABLE_LIMITS}
+
         if volume_type_mappings:
-            limits = {name: src_resource.limits.get(name) for name in AVAILABLE_LIMITS}
             volume_type_quotas = defaultdict(int)
             for key, value in src_resource.limits.items():
                 if not is_valid_volume_type_name(key):
@@ -255,9 +256,8 @@ class MigrationCreateSerializer(
                     key = volume_type_name_to_quota_name(volume_type_mappings.get(name))
                 volume_type_quotas[key] += value
             limits.update(volume_type_quotas)
-            limits = {k: v for k, v in limits.items() if v is not None}
-        else:
-            limits = src_resource.limits
+
+        limits = {k: v for k, v in limits.items() if v is not None}
         return limits
 
     def create(self, validated_data):
