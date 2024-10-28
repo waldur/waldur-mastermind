@@ -100,6 +100,7 @@ class UserRoleMixin:
                 Q(user__first_name__icontains=search_string)
                 | Q(user__last_name__icontains=search_string)
                 | Q(user__email__icontains=search_string)
+                | Q(user__username__icontains=search_string)
             ).distinct()
         if role:
             if is_uuid_like(role):
