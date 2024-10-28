@@ -251,7 +251,9 @@ def get_components_usage_data_from_resources(
     ).distinct()
     components_data = {}
     for component in components:
-        if component.type not in components_data:
+        if component.type not in components_data and (
+            component_usage.get(component.type) or component_limit.get(component.type)
+        ):
             components_data[component.type] = {
                 "type": component.type,
                 "name": component.name,
