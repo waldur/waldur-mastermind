@@ -10,9 +10,7 @@ poetry config virtualenvs.create false
 # Install Python dependencies for Waldur MasterMind from PyPI
 poetry install --no-dev
 
-# Compile i18n messages
 cp /etc/waldur/settings.py src/waldur_core/server/settings.py
-django-admin compilemessages
 
 # Build static assets
 mkdir -p /usr/share/waldur/static

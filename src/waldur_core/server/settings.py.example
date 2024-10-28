@@ -162,9 +162,3 @@ WALDUR_CORE['SELLER_COUNTRY_CODE'] = 'EE'
 
 DEFAULT_FROM_EMAIL='noreply@example.com'
 DEFAULT_REPLY_TO_EMAIL = 'support@example.com'
-
-WALDUR_CORE['USER_COMPETENCE_LIST'] = (
-    'System administration',
-    'Project management',
-    'Software development',
-)
