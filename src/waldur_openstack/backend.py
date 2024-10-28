@@ -857,6 +857,10 @@ class OpenStackBackend(ServiceBackend):
                         ].startswith("fe80::"):
                             continue
                         fixed_ips.append(fixed_ip["ip_address"])
+                for fixed_ip in backend_router["external_gateway_info"][
+                    "external_fixed_ips"
+                ]:
+                    fixed_ips.append(fixed_ip["ip_address"])
             except neutron_exceptions.NeutronClientException as e:
                 raise OpenStackBackendError(e)
 
