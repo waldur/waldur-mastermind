@@ -12,7 +12,9 @@ def clean_price_logs(apps, schema_editor):
         ]
     )
     for event in events:
-        old_value = event.context["old_value"]
+        old_value = event.context.get("old_value")
+        if old_value is None:
+            continue
         new_value = event.context["new_value"]
         if prices_are_equal(old_value, new_value):
             event.delete()
