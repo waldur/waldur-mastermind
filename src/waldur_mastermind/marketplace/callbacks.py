@@ -58,7 +58,8 @@ def resource_creation_failed(resource: models.Resource, validate=False):
     resource.set_state_erred()
     resource.save(update_fields=["state"])
 
-    copy_error_from_resource_to_order(resource, order)
+    if order:
+        copy_error_from_resource_to_order(resource, order)
 
     log.log_resource_creation_failed(resource)
     return order
