@@ -1294,6 +1294,52 @@ class ResourceBackendMetadataTest(test.APITransactionTestCase):
 
 
 @ddt
+class ResourceSetStateErredTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.url = factories.ResourceFactory.get_provider_resource_url(
+            self.resource, action="set_as_erred"
+        )
+        CustomerRole.OWNER.add_permission(PermissionEnum.SET_RESOURCE_STATE_ERRED)
+        CustomerRole.MANAGER.add_permission(PermissionEnum.SET_RESOURCE_STATE_ERRED)
+
+    def make_request(self, role, payload=None):
+        self.client.force_authenticate(role)
+        if payload is not None:
+            return self.client.post(self.url, payload)
+        else:
+            return self.client.post(self.url)
+
+    @data("staff", "offering_owner", "service_owner", "service_manager")
+    def test_user_can_set_resource_state_erred_without_body(self, user):
+        response = self.make_request(getattr(self.fixture, user))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(models.Resource.States.ERRED, self.resource.state)
+        self.assertEqual("", self.resource.error_message)
+        self.assertEqual("", self.resource.error_traceback)
+
+    @data("staff", "offering_owner", "service_owner", "service_manager")
+    def test_user_can_set_resource_state_erred_with_body(self, user):
+        payload = {
+            "error_message": "Error occurred",
+            "error_traceback": "Error traceback",
+        }
+        response = self.make_request(getattr(self.fixture, user), payload)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(models.Resource.States.ERRED, self.resource.state)
+        self.assertEqual(payload["error_message"], self.resource.error_message)
+        self.assertEqual(payload["error_traceback"], self.resource.error_traceback)
+
+    @data("owner", "admin", "manager")
+    def test_user_can_not_set_resource_state_erred(self, user):
+        response = self.make_request(getattr(self.fixture, user))
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+@ddt
 class ResourceReportTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
@@ -1578,30 +1624,6 @@ class ResourceUpdateOptionsTest(test.APITransactionTestCase):
     @data("admin")
     def test_user_can_not_update_resource_options(self, user):
         response = self.make_request(getattr(self.fixture, user))
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-
-
-@ddt
-class ResourceSetAsErredTest(test.APITransactionTestCase):
-    def setUp(self):
-        self.fixture = MarketplaceFixture()
-        self.resource = self.fixture.resource
-        self.url = factories.ResourceFactory.get_url(self.resource, "set_as_erred")
-
-    @data(
-        "staff",
-    )
-    def test_user_can_set_resource_as_erred(self, user):
-        self.client.force_authenticate(getattr(self.fixture, user))
-        response = self.client.post(self.url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.resource.refresh_from_db()
-        self.assertEqual(self.resource.state, models.Resource.States.ERRED)
-
-    @data("admin", "owner")
-    def test_user_can_not_set_resource_as_erred(self, user):
-        self.client.force_authenticate(getattr(self.fixture, user))
-        response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 

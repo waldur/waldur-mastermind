@@ -2196,20 +2196,6 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=["post"])
-    def set_as_erred(self, request, uuid=None):
-        resource = self.get_object()
-        resource.set_state_erred()
-        resource.save()
-
-        if resource.scope and hasattr(resource.scope, "set_erred"):
-            resource.scope.set_erred()
-            resource.scope.save()
-
-        return Response(status=status.HTTP_200_OK)
-
-    set_as_erred_permissions = [structure_permissions.is_staff]
-
-    @action(detail=True, methods=["post"])
     def unlink(self, request, uuid=None):
         """
         Delete marketplace resource and related plugin resource from the database without scheduling operations on backend
@@ -2646,6 +2632,36 @@ class ProviderResourceViewSet(BaseResourceViewSet):
     set_backend_metadata_serializer_class = (
         serializers.ResourceBackendMetadataSerializer
     )
+
+    @action(detail=True, methods=["post"])
+    def set_as_erred(self, request, uuid=None):
+        resource = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        if serializer.validated_data.get("error_message"):
+            resource.error_message = serializer.validated_data["error_message"]
+
+        if serializer.validated_data.get("error_traceback"):
+            resource.error_traceback = serializer.validated_data["error_traceback"]
+
+        resource.set_state_erred()
+        resource.save()
+
+        if resource.scope and hasattr(resource.scope, "set_erred"):
+            resource.scope.set_erred()
+            resource.scope.save()
+
+        return Response(status=status.HTTP_200_OK)
+
+    set_as_erred_permissions = [
+        permission_factory(
+            PermissionEnum.SET_RESOURCE_STATE_ERRED,
+            ["offering.customer"],
+        )
+    ]
+
+    set_as_erred_serializer_class = serializers.ResourceSetStateErredSerializer
 
 
 class ResourceOfferingsViewSet(ListAPIView):

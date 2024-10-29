@@ -3212,6 +3212,16 @@ class ResourceTerminateSerializer(serializers.Serializer):
     )
 
 
+class ResourceSetStateErredSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Resource
+        fields = ("error_message", "error_traceback")
+        extra_kwargs = dict(
+            error_message={"required": False},
+            error_traceback={"required": False},
+        )
+
+
 class MoveResourceSerializer(serializers.Serializer):
     project = structure_serializers.NestedProjectSerializer(
         queryset=structure_models.Project.available_objects.all(),
