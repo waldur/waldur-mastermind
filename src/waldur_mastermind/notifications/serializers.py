@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from waldur_core.core.serializers import RestrictedSerializerMixin
 from waldur_core.structure.models import Customer
 from waldur_mastermind.marketplace.models import Offering
 
@@ -36,7 +37,9 @@ def serialize_query(query):
     return serialized_query
 
 
-class BroadcastMessageSerializer(serializers.ModelSerializer):
+class BroadcastMessageSerializer(
+    RestrictedSerializerMixin, serializers.ModelSerializer
+):
     author_full_name = serializers.ReadOnlyField(source="author.full_name")
     state = serializers.ReadOnlyField()
     emails = serializers.ReadOnlyField()
