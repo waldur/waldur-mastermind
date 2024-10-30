@@ -161,7 +161,7 @@ class Invoice(core_models.UuidMixin, core_models.BackendMixin, models.Model):
     def _process_credits(self):
         with transaction.atomic():
             monthly_compensation = utils.MonthlyCompensation(self.customer)
-            monthly_compensation.save()
+            monthly_compensation.apply_compensations()
 
             if monthly_compensation.tail:
                 log.event_logger.credit.info(
@@ -606,7 +606,6 @@ class ProjectCredit(core_models.UuidMixin, core_models.TimeStampedModel):
         max_digits=11,
         decimal_places=5,
     )
-    use_organisation_credit = models.BooleanField(default=True)
 
     @property
     def consumption_last_month(self):
@@ -635,7 +634,7 @@ class ProjectCredit(core_models.UuidMixin, core_models.TimeStampedModel):
         customer_path = "project__customer"
 
     def __str__(self):
-        return f"Project credit for {self.project.name}, value {self.value}, organisation credit usage: {self.use_organisation_credit}"
+        return f"Project credit for {self.project.name}, value {self.value}."
 
     def save(self, *args, **kwargs):
         customer_credit = CustomerCredit.objects.filter(

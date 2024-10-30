@@ -592,6 +592,22 @@ class CustomerCreditViewSet(core_views.ActionsViewSet):
         partial_update_serializer_class
     ) = serializers.CreateCustomerCreditSerializer
 
+    @transaction.atomic
+    @action(detail=True, methods=["post"])
+    def apply_compensations(self, request, uuid=None):
+        customer_credit = self.get_object()
+        utils.MonthlyCompensation(customer_credit.customer).apply_compensations()
+
+    @transaction.atomic
+    @action(detail=True, methods=["post"])
+    def clear_compensations(self, request, uuid=None):
+        customer_credit = self.get_object()
+        utils.MonthlyCompensation(customer_credit.customer).clear_compensations()
+
+    apply_compensations_permissions = clear_compensations_permissions = [
+        structure_permissions.is_staff
+    ]
+
 
 class ProjectCreditViewSet(core_views.ActionsViewSet):
     lookup_field = "uuid"
