@@ -7,7 +7,7 @@ from rest_framework import status, test
 
 from waldur_core.logging import models as logging_models
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.invoices import models, tasks
+from waldur_mastermind.invoices import models, tasks, utils
 from waldur_mastermind.invoices.tests import factories, fixtures
 
 
@@ -365,9 +365,7 @@ class ProjectCreditTest(test.APITransactionTestCase):
                 self.project_credit.consumption_last_month, consumption_last_month
             )
 
-    def test_use_organisation_credit_enabled(self):
-        self.project_credit.use_organisation_credit = False
-        self.project_credit.save()
+    def test_use_organisation_credit(self):
         old_customer_credit_value = self.customer_credit.value
         self.invoice.set_created()
         self.customer_credit.refresh_from_db()
@@ -376,9 +374,61 @@ class ProjectCreditTest(test.APITransactionTestCase):
             old_customer_credit_value - self.project_credit.value,
         )
 
-    def test_use_organisation_credit_disable(self):
-        self.project_credit.use_organisation_credit = True
-        self.project_credit.save()
-        self.invoice.set_created()
+
+class ProcessingCreditTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.CreditFixture()
+        self.customer_credit = self.fixture.customer_credit
+        self.project_credit = self.fixture.project_credit
+        self.invoice = self.fixture.invoice
+        self.invoice_item = self.fixture.invoice_item
+
+    def _processing_compensations(self, minimal_consumption=0):
+        self.customer_credit.minimal_consumption = minimal_consumption
+        self.customer_credit.save()
+        old_project_credit_value = self.project_credit.value
+        old_customer_credit_value = self.customer_credit.value
+        monthly_compensation = utils.MonthlyCompensation(self.customer_credit.customer)
+        monthly_compensation.apply_compensations()
+        self.project_credit.refresh_from_db()
         self.customer_credit.refresh_from_db()
-        self.assertEqual(self.customer_credit.value, 0)
+        consumption = (
+            self.invoice.items.filter(credit=self.customer_credit).aggregate(
+                sum=Sum("unit_price")
+            )["sum"]
+            * -1
+        )
+
+        self.assertEqual(
+            self.project_credit.value, old_project_credit_value - consumption
+        )
+        self.assertEqual(
+            self.customer_credit.value,
+            old_customer_credit_value - max(consumption, minimal_consumption),
+        )
+
+        monthly_compensation.clear_compensations()
+        self.assertEqual(
+            self.invoice.items.filter(credit=self.customer_credit).count(), 0
+        )
+        self.project_credit.refresh_from_db()
+        self.customer_credit.refresh_from_db()
+        self.assertEqual(self.project_credit.value, old_project_credit_value)
+        self.assertEqual(self.customer_credit.value, old_customer_credit_value)
+
+    def test_clear_compensations(self):
+        self._processing_compensations()
+        self.assertTrue(
+            logging_models.Event.objects.filter(
+                event_type="roll_back_customer_credit"
+            ).exists()
+        )
+
+        self.assertTrue(
+            logging_models.Event.objects.filter(
+                event_type="roll_back_project_credit"
+            ).exists()
+        )
+
+    def test_if_minimal_consumption_exists(self):
+        self._processing_compensations(90)

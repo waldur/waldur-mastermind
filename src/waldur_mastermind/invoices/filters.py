@@ -107,7 +107,6 @@ class ProjectCreditFilter(django_filters.FilterSet):
         fields=(
             ("project__name", "project_name"),
             ("value", "value"),
-            ("use_organisation_credit", "use_organisation_credit"),
         ),
     )
 

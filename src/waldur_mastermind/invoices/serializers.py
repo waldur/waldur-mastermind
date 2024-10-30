@@ -932,7 +932,6 @@ class ProjectCreditSerializer(serializers.HyperlinkedModelSerializer):
             "project_name",
             "project_uuid",
             "project_slug",
-            "use_organisation_credit",
             "customer_credit",
             "allocated_customer_credit",
             "consumption_last_month",

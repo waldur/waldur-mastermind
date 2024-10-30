@@ -15,7 +15,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.common.mixins import UnitPriceMixin
 
-from . import models
+from . import log, models
 
 logger = logging.getLogger(__name__)
 
@@ -247,18 +247,26 @@ class MonthlyCompensation:
             .order_by("-year", "-month")
             .first()
         )
-        self.compensations = []
-        self.projects_credits = []
-        self.total_compensation = 0
-        self.tail = 0
         self.credit = None
+
+        self._calculated = False
+        self._compensations = []
+        self._projects_credits = []
+        self._total_compensation = 0
+        self._tail = 0
 
         if not self.invoice:
             return
 
-        credit = models.CustomerCredit.objects.filter(customer=self.customer).first()
+        self.credit = models.CustomerCredit.objects.filter(
+            customer=self.customer
+        ).first()
 
-        if not credit or not credit.value:
+    def calculate_current_compensations(self):
+        if self._calculated:
+            return
+
+        if not self.credit or not self.credit.value:
             return
 
         items_projects_ids = self.invoice.items.all().values_list(
@@ -274,7 +282,7 @@ class MonthlyCompensation:
                 project_id__in=items_projects_ids
             )
         }
-        credit_offerings = list(credit.offerings.all())
+        credit_offerings = list(self.credit.offerings.all())
 
         items = sorted(
             [
@@ -297,64 +305,85 @@ class MonthlyCompensation:
                     cost -= project_credit.value
                     credit_compensation = project_credit.value  # item compensation
                     project_credit.value = 0
-                    credit.value -= credit_compensation
-
-                    if project_credit.use_organisation_credit and cost:
-                        if cost >= credit.value:
-                            credit_compensation += credit.value
-                            credit.value = 0
-                        else:
-                            credit_compensation += cost
-                            credit.value -= cost
+                    self.credit.value -= credit_compensation
                 else:
                     credit_compensation = cost
                     project_credit.value -= cost
-                    credit.value -= cost
+                    self.credit.value -= cost
 
             else:
-                if cost >= credit.value:
-                    credit_compensation = credit.value
-                    credit.value = 0
+                if cost >= self.credit.value:
+                    credit_compensation = self.credit.value
+                    self.credit.value = 0
                 else:
                     credit_compensation = cost
-                    credit.value -= cost
+                    self.credit.value -= cost
 
             if credit_compensation:
-                self.compensations.append(
+                self._compensations.append(
                     models.InvoiceItem(
                         invoice=self.invoice,
                         unit_price=credit_compensation * -1,
                         quantity=1,
                         unit=models.InvoiceItem.Units.QUANTITY,
-                        credit=credit,
+                        credit=self.credit,
                         name=f"Credit compensation. {item}",
                         resource=item.resource,
                         project=item.resource.project,
                     )
                 )
 
-            if not credit.value:
+            if not self.credit.value:
                 break
 
-        self.total_compensation = sum(
-            credit.unit_price * -1 for credit in self.compensations
+        self._total_compensation = sum(
+            credit.unit_price * -1 for credit in self._compensations
         )
-        self.tail = 0
+        self._tail = 0
 
-        if credit.minimal_consumption:
-            if self.total_compensation < credit.minimal_consumption:
-                self.tail = credit.minimal_consumption - self.total_compensation
+        if self.credit.minimal_consumption:
+            if self._total_compensation < self.credit.minimal_consumption:
+                self._tail = self.credit.minimal_consumption - self._total_compensation
 
-                if credit.value - self.tail < 0:
-                    self.tail = credit.value
-                    credit.value = 0
+                if self.credit.value - self._tail < 0:
+                    self._tail = self.credit.value
+                    self.credit.value = 0
                 else:
-                    credit.value -= self.tail
+                    self.credit.value -= self._tail
 
-                self.total_compensation += self.tail
+                self._total_compensation += self._tail
 
-        self.projects_credits = projects_credits.values()
-        self.credit = credit
+        self._projects_credits = projects_credits.values()
+        self._calculated = True
+        return
+
+    @property
+    def compensations(self):
+        if not self._calculated:
+            self.calculate_current_compensations()
+
+        return self._compensations
+
+    @property
+    def projects_credits(self):
+        if not self._calculated:
+            self.calculate_current_compensations()
+
+        return self._projects_credits
+
+    @property
+    def total_compensation(self):
+        if not self._calculated:
+            self.calculate_current_compensations()
+
+        return self._total_compensation
+
+    @property
+    def tail(self):
+        if not self._calculated:
+            self.calculate_current_compensations()
+
+        return self._tail
 
     @staticmethod
     def calculate_linear_minimal_consumption(
@@ -428,3 +457,73 @@ class MonthlyCompensation:
                 if c.resource.project == project
             ]
         )
+
+    def clear_compensations(self):
+        """
+        This method removes compensations in pended invoice.
+
+        Attention!
+        This method works correctly only if the minimal consumption has not changed since the moment
+        compensation was applied for the current month and until now.
+        Also this method does not work correctly if compensations have been applied
+        but compensation items have not created and was consumption only due to minimal consumption.
+        """
+
+        if self._calculated:
+            # If compensations have been calculated then we have dirty values of credits,
+            # and we needed initiate the object again.
+            self.__init__(self.customer)
+
+        if not self.credit:
+            return
+
+        compensation_items = self.invoice.items.filter(credit=self.credit)
+
+        if not compensation_items:
+            return
+
+        applied_compensations_sum = (
+            compensation_items.aggregate(sum=Sum("unit_price"))["sum"] or 0
+        ) * -1
+
+        old_credit_value = self.credit.value
+        self.credit.value += max(
+            applied_compensations_sum, self.credit.minimal_consumption
+        )
+        self.credit.save()
+        log.log_roll_back_customer_credit(
+            self.credit.customer,
+            old_credit_value,
+            self.credit.value,
+        )
+
+        project_consumptions = list(
+            compensation_items.values("project_id").annotate(value=Sum("unit_price"))
+        )
+
+        for project_credit in models.ProjectCredit.objects.filter(
+            project__customer=self.customer
+        ):
+            value = [
+                consumption["value"]
+                for consumption in project_consumptions
+                if consumption["project_id"] == project_credit.project.id
+            ]
+
+            if value:
+                value = value[0] * -1
+                old_project_credit_value = project_credit.value
+                project_credit.value += value
+                project_credit.save()
+                log.log_roll_back_project_credit(
+                    self.credit.customer,
+                    project_credit.project,
+                    old_project_credit_value,
+                    project_credit.value,
+                )
+
+        compensation_items.delete()
+
+    def apply_compensations(self):
+        self.clear_compensations()
+        self.save()

@@ -79,6 +79,7 @@ class CreditLogger(EventLogger):
     old_value = int
     new_value = int
     customer = "structure.Customer"
+    project = "structure.Project"
     invoice_item = str
     credit_end_date = datetime.date
 
@@ -89,6 +90,8 @@ class CreditLogger(EventLogger):
             "set_to_zero_overdue_credit",
             "update_of_credit_by_staff",
             "create_of_credit_by_staff",
+            "roll_back_customer_credit",
+            "roll_back_project_credit",
         )
         event_groups = {
             "customers": event_types,
@@ -101,6 +104,7 @@ class CreditLogger(EventLogger):
             "credit_end_date",
             "old_value",
             "new_value",
+            "project",
         ]
 
     @staticmethod
@@ -109,3 +113,28 @@ class CreditLogger(EventLogger):
 
 
 event_logger.register("credit", CreditLogger)
+
+
+def log_roll_back_customer_credit(customer, old_value, new_value):
+    event_logger.credit.info(
+        "Customer credit for {{ customer }} has been rolled back from {{ old_value }} to {{ new_value }}.",
+        event_type="roll_back_customer_credit",
+        event_context={
+            "old_value": int(old_value),
+            "new_value": int(new_value),
+            "customer": customer,
+        },
+    )
+
+
+def log_roll_back_project_credit(customer, project, old_value, new_value):
+    event_logger.credit.info(
+        "Project credit for {{ project }} has been rolled back from {{ old_value }} to {{ new_value }}.",
+        event_type="roll_back_project_credit",
+        event_context={
+            "old_value": int(old_value),
+            "new_value": int(new_value),
+            "customer": customer,
+            "project": project,
+        },
+    )
