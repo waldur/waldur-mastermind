@@ -33,6 +33,7 @@ class IdentityProvider(models.Model):
         help_text="Application secret key.", max_length=200
     )
     verify_ssl = models.BooleanField(default=True)
+    enable_post_logout_redirect = models.BooleanField(default=True)
 
     # The following fields are cache of URL discovered.
     # They are stored locally in the database in order to avoid extra HTTP request.
