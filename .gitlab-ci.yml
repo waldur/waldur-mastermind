@@ -250,7 +250,7 @@ Upload HomePort enums:
     - waldur print_settings_description > /tmp/settings_description.ts
     - waldur print_permissions_description > /tmp/permission_options.ts
     - cd /tmp/
-    - git clone "https://UpdateEnums:$HOMEPORT_ACCESS_TOKEN@$CI_SERVER_HOST/waldur/waldur-homeport.git"
+    - git clone "https://homeport-updates:$HOMEPORT_ACCESS_TOKEN@$CI_SERVER_HOST/waldur/waldur-homeport.git"
     - git config --global user.name "$GITLAB_USER_NAME"
     - git config --global user.email "$GITLAB_USER_EMAIL"
     - cd waldur-homeport
