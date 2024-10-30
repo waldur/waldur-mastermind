@@ -248,7 +248,12 @@ class LogoutView(APIView):
             except IdentityProvider.DoesNotExist:
                 pass
             else:
-                logout_url = idp.logout_url
+                if idp.logout_url and idp.enable_post_logout_redirect:
+                    params = {
+                        "post_logout_redirect_uri": format_homeport_link("login/"),
+                        "client_id": idp.client_id,
+                    }
+                    logout_url = f"{idp.logout_url}?{urlencode(params)}"
         elif (
             authentication_method == AuthenticationMethod.SAML2
             and settings.WALDUR_AUTH_SAML2.get("ENABLE_SINGLE_LOGOUT")
