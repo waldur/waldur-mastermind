@@ -5,12 +5,13 @@ from rest_framework import serializers
 
 from waldur_core.core.utils import pwgen
 from waldur_core.core.validators import validate_name
+from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.models import Project, ServiceSettings
-from waldur_core.structure.serializers import PermissionFieldFilteringMixin
 from waldur_mastermind.marketplace.models import Offering, Order, Plan, Resource
 from waldur_mastermind.marketplace.permissions import (
     order_should_not_be_reviewed_by_consumer,
 )
+from waldur_mastermind.marketplace.serializers import validate_plan
 from waldur_mastermind.marketplace_openstack import AVAILABLE_LIMITS
 from waldur_mastermind.marketplace_openstack.utils import (
     _apply_quotas,
@@ -91,9 +92,7 @@ class MigrationDetailsSerializer(serializers.ModelSerializer):
     dst_resource_name = serializers.ReadOnlyField(source="dst_resource.name")
 
 
-class MigrationCreateSerializer(
-    PermissionFieldFilteringMixin, serializers.ModelSerializer
-):
+class MigrationCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Migration
         fields = (
@@ -120,8 +119,18 @@ class MigrationCreateSerializer(
     )
     mappings = MappingSerializer(required=False)
 
-    def get_filtered_field_names(self):
-        return ("src_resource", "dst_offering", "dst_plan")
+    def get_fields(self):
+        fields = super().get_fields()
+
+        request = self.context["request"]
+        user = request.user
+        fields["src_resource"].queryset = filter_queryset_for_user(
+            fields["src_resource"].queryset, user
+        )
+        fields["dst_offering"].queryset = fields[
+            "dst_offering"
+        ].queryset.filter_by_ordering_availability_for_user(user)
+        return fields
 
     def validate(self, attrs):
         src_resource: Resource = attrs["src_resource"]
@@ -130,6 +139,15 @@ class MigrationCreateSerializer(
         dst_offering: Resource = attrs["dst_offering"]
         dst_settings: ServiceSettings = dst_offering.scope
         dst_project = src_resource.project
+
+        dst_plan: Plan = attrs.get("dst_plan")
+        if dst_plan:
+            if dst_plan.offering != dst_offering:
+                raise serializers.ValidationError(
+                    {"dst_plan": "This plan is not available for selected offering."}
+                )
+
+            validate_plan(dst_plan)
 
         user = self.context["request"].user
         can_create_tenant(user, dst_settings, dst_project)
