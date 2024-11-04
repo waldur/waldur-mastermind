@@ -940,7 +940,7 @@ class UserSerializer(
                     and "is_active" in attrs.keys()
                     and not attrs["is_active"]
                     and len(attrs) == 1
-                ):
+                ) or self.instance.is_staff:
                     # Deactivation of user.
                     pass
                 else:

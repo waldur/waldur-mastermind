@@ -501,6 +501,15 @@ class UserUpdateTest(test.APITransactionTestCase):
             response.data["agree_with_policy"], ["User must agree with the policy."]
         )
 
+    def test_if_user_is_staff_he_can_update_his_profile_without_accepting_policy(self):
+        self.user.is_staff = True
+        self.user.save()
+        response = self.client.patch(self.url, self.invalid_payload)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data["phone_number"], self.invalid_payload["phone_number"]
+        )
+
     def test_if_user_already_accepted_policy_he_can_update_his_profile(self):
         self.user.agreement_date = timezone.now()
         self.user.save()
