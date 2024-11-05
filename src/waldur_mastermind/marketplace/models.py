@@ -657,6 +657,11 @@ class OfferingComponent(
         choices=LimitPeriods.CHOICES, blank=True, null=True, max_length=6
     )
     limit_amount = models.IntegerField(blank=True, null=True)
+    # unit_factor is for metadata only and is not involved in any computations in Mastermind
+    unit_factor = models.IntegerField(
+        default=1,
+        help_text=_("The conversion factor from backend units to measured_unit"),
+    )
     # max_value and min_value fields are used if billing_type is LIMIT
     max_value = models.IntegerField(blank=True, null=True)
     min_value = models.IntegerField(blank=True, null=True)

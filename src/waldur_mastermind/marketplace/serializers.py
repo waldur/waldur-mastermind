@@ -734,6 +734,7 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
             "name",
             "description",
             "measured_unit",
+            "unit_factor",
             "limit_period",
             "limit_amount",
             "article_code",
