@@ -100,7 +100,7 @@ class RequestCreateTest(BaseTest):
         )
         issue = get_order_issue(order)
         order_url = core_utils.format_homeport_link(
-            "projects/{project_uuid}/marketplace-order-details/{order_uuid}/",
+            "marketplace-order-details/{order_uuid}/",
             order_uuid=order.uuid.hex,
             project_uuid=order.project.uuid,
         )
