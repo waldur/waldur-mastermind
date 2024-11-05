@@ -227,7 +227,7 @@ def format_list(resources):
 
 def get_order_url(order):
     return core_utils.format_homeport_link(
-        "projects/{project_uuid}/marketplace-order-details/{order_uuid}/",
+        "marketplace-order-details/{order_uuid}/",
         order_uuid=order.uuid.hex,
         project_uuid=order.project.uuid,
     )
