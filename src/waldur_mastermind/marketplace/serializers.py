@@ -3570,6 +3570,7 @@ class ProviderCustomerSerializer(serializers.ModelSerializer):
         fields = (
             "uuid",
             "name",
+            "slug",
             "abbreviation",
             "phone_number",
             "email",
