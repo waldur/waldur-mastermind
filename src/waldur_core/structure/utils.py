@@ -251,9 +251,7 @@ def get_components_usage_data_from_resources(
     ).distinct()
     components_data = {}
     for component in components:
-        if component.type not in components_data and (
-            component_usage.get(component.type) or component_limit.get(component.type)
-        ):
+        if component.type not in components_data:
             components_data[component.type] = {
                 "type": component.type,
                 "name": component.name,
@@ -262,6 +260,7 @@ def get_components_usage_data_from_resources(
                 "usage": component_usage.get(component.type, 0),
                 "limit": component_limit.get(component.type, None),
                 "offering_name": component.offering.name,
+                "offering_uuid": component.offering.uuid.hex,
             }
 
     return list(components_data.values())
