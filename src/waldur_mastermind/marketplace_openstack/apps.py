@@ -288,17 +288,3 @@ class MarketplaceOpenStackConfig(AppConfig):
             dispatch_uid="waldur_mastermind.marketplace_openstack."
             "set_mtu_when_network_has_been_created",
         )
-
-        signals.post_save.connect(
-            handlers.update_floating_ip_external_addresses,
-            sender=openstack_models.FloatingIP,
-            dispatch_uid="waldur_mastermind.marketplace_openstack."
-            "update_floating_ip_external_addresses",
-        )
-
-        signals.post_save.connect(
-            handlers.update_instances_ip_external_addresses,
-            sender=marketplace_models.Offering,
-            dispatch_uid="waldur_mastermind.marketplace_openstack."
-            "update_instances_ip_external_addresses",
-        )

@@ -532,37 +532,3 @@ def set_mtu_when_network_has_been_created(sender, instance, created=False, **kwa
     if mtu:
         network.mtu = mtu
         network.save()
-
-
-def update_floating_ip_external_addresses(sender, instance, created=False, **kwargs):
-    floating_ip = instance
-
-    if not created:
-        return
-
-    utils.update_external_addresses_of_floating_ip(floating_ip)
-
-
-def update_instances_ip_external_addresses(sender, instance, created=False, **kwargs):
-    offering = instance
-
-    if offering.type != TENANT_TYPE:
-        return
-
-    if not created and not offering.tracker.has_changed("secret_options"):
-        return
-
-    previous_secret_options = offering.tracker.previous("secret_options") or {}
-
-    if "ipv4_external_ip_mapping" not in offering.secret_options.keys() and (
-        not previous_secret_options
-        or "ipv4_external_ip_mapping" not in previous_secret_options.keys()
-    ):
-        return
-
-    if previous_secret_options.get(
-        "ipv4_external_ip_mapping", []
-    ) == offering.secret_options.get("ipv4_external_ip_mapping", []):
-        return
-
-    utils.update_external_addresses_of_offering_floating_ips(offering)

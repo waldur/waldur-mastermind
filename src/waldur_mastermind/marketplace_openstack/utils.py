@@ -1,8 +1,6 @@
-import ipaddress
 import logging
 
 from django.conf import settings
-from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from django.db import transaction
 from rest_framework import exceptions
@@ -462,82 +460,3 @@ def create_marketplace_resource_for_imported_resources(
         resource.save()
         import_resource_metadata(resource)
         create_offerings_for_volume_and_instance(instance)
-
-
-def get_external_ips(offering, ips):
-    external_ips = []
-    ipv4_external_ip_mapping = offering.secret_options.get(
-        "ipv4_external_ip_mapping", []
-    )
-    if not (ipv4_external_ip_mapping or ips or offering):
-        return external_ips
-
-    for ip in ips:
-        ip_address = ipaddress.ip_address(ip)
-
-        for offering_external_ip in ipv4_external_ip_mapping:
-            ip_network = ipaddress.ip_network(offering_external_ip["floating_ip"])
-
-            if ip_address in ip_network:
-                external_ips.append(
-                    ".".join(offering_external_ip["external_ip"].split(".")[:-1])
-                    + "."
-                    + ip.split(".")[-1]
-                )
-
-    return external_ips
-
-
-def update_external_addresses_of_resource(resource):
-    instance = resource.scope
-    floating_ips = instance.floating_ips.exclude(address__isnull=True).order_by(
-        "address"
-    )
-    resource.backend_metadata["external_address"] = []
-
-    for floating_ip in floating_ips:
-        external_ips = get_external_ips(
-            resource.offering.parent,
-            [floating_ip.address],
-        )
-
-        floating_ip.external_address = external_ips
-        resource.backend_metadata["external_address"].extend(external_ips)
-
-        floating_ip.save()
-        resource.save()
-
-
-def update_external_addresses_of_floating_ip(floating_ip):
-    if not floating_ip.address:
-        if floating_ip.external_address:
-            floating_ip.external_address = []
-            floating_ip.save()
-        return
-
-    if not floating_ip.port or not floating_ip.port.instance:
-        return
-
-    try:
-        instance = floating_ip.port.instance
-        resource = marketplace_models.Resource.objects.filter(scope=instance).get()
-        update_external_addresses_of_resource(resource)
-    except marketplace_models.Resource.DoesNotExist:
-        return
-
-
-def update_external_addresses_of_offering_floating_ips(parent_offering):
-    offerings = marketplace_models.Offering.objects.filter(
-        parent=parent_offering, type=INSTANCE_TYPE
-    )
-
-    if not offerings:
-        return
-
-    resources = marketplace_models.Resource.objects.filter(
-        offering__in=offerings,
-        content_type=ContentType.objects.get_for_model(openstack_models.Instance),
-    ).exclude(object_id__isnull=True)
-
-    for resource in resources:
-        update_external_addresses_of_resource(resource)
