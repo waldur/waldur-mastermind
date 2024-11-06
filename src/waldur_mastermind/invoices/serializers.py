@@ -899,6 +899,9 @@ class ProjectCreditSerializer(serializers.HyperlinkedModelSerializer):
     project_name = serializers.ReadOnlyField(source="project.name")
     project_uuid = serializers.ReadOnlyField(source="project.uuid")
     project_slug = serializers.ReadOnlyField(source="project.slug")
+    customer_name = serializers.ReadOnlyField(source="project.customer.name")
+    customer_uuid = serializers.ReadOnlyField(source="project.customer.uuid")
+    customer_slug = serializers.ReadOnlyField(source="project.customer.slug")
     customer_credit = serializers.ReadOnlyField(
         source="project.customer.customercredit.value"
     )
@@ -932,6 +935,9 @@ class ProjectCreditSerializer(serializers.HyperlinkedModelSerializer):
             "project_name",
             "project_uuid",
             "project_slug",
+            "customer_name",
+            "customer_slug",
+            "customer_uuid",
             "customer_credit",
             "allocated_customer_credit",
             "consumption_last_month",

@@ -103,6 +103,14 @@ class ProjectCreditFilter(django_filters.FilterSet):
     project_name = django_filters.CharFilter(
         field_name="project__name", lookup_expr="icontains"
     )
+    customer_uuid = django_filters.UUIDFilter(field_name="project__customer__uuid")
+    customer_name = django_filters.CharFilter(
+        field_name="project__customer__name", lookup_expr="icontains"
+    )
+    customer_slug = django_filters.CharFilter(
+        field_name="project__customer__slug", lookup_expr="exact"
+    )
+
     o = django_filters.OrderingFilter(
         fields=(
             ("project__name", "project_name"),
