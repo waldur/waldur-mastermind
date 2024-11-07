@@ -1807,7 +1807,7 @@ class ProviderPlanViewSet(core_views.UpdateReversionMixin, core_views.ActionsVie
         serializer.save()
         return Response(status=status.HTTP_200_OK)
 
-    update_organization_groups_permissions = [structure_permissions.is_owner]
+    update_organization_groups_permissions = update_permissions
 
     @action(detail=True, methods=["post"])
     def delete_organization_groups(self, request, uuid=None):
