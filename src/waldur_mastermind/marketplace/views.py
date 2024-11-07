@@ -3691,11 +3691,20 @@ class GlobalCategoriesViewSet(views.APIView):
             .order_by()
             .filter_for_user(request.user)
             .exclude(state=models.Resource.States.TERMINATED)
-            .values("offering__category__uuid")
-            .annotate(count=Count("*"))
         )
+
+        project_uuid = request.query_params.get("project_uuid")
+        customer_uuid = request.query_params.get("customer_uuid")
+
+        if project_uuid:
+            resources = resources.filter(project__uuid=project_uuid)
+
+        if customer_uuid:
+            resources = resources.filter(project__customer__uuid=customer_uuid)
+
+        qs = resources.values("offering__category__uuid").annotate(count=Count("*"))
         return Response(
-            {row["offering__category__uuid"].hex: row["count"] for row in resources}
+            {row["offering__category__uuid"].hex: row["count"] for row in qs}
         )
 
 
