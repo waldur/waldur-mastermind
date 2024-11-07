@@ -1136,6 +1136,35 @@ class OfferingComponentCreateTest(BaseOfferingUpdateTest):
         self.client.force_authenticate(getattr(self.fixture, role))
         return self.client.post(url, payload)
 
+    def test_validation_of_offering_and_type(self):
+        # Act
+        response = self.create_offering_component(
+            "owner",
+            {
+                "type": "cores",
+                "name": "Cores",
+                "measured_unit": "hours",
+                "billing_type": "fixed",
+            },
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Act
+        response = self.create_offering_component(
+            "owner",
+            {
+                "type": "cores",
+                "name": "Cores",
+                "measured_unit": "hours",
+                "billing_type": "fixed",
+            },
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_it_should_be_possible_to_create_new_components(self):
         # Act
         response = self.create_offering_component(

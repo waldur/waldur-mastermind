@@ -774,6 +774,11 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
                     _("Cannot create a component of built-in type: %s" % component_type)
                 )
 
+            if offering.components.filter(type=component_type).exists():
+                raise serializers.ValidationError(
+                    _("Component %s already exists." % component_type)
+                )
+
         return super().create(validated_data)
 
     def get_factor(self, offering_component):
