@@ -320,6 +320,12 @@ class FloatingIP(core_models.RuntimeStateMixin, structure_models.BaseResource):
     address = models.GenericIPAddressField(
         null=True, blank=True, protocol="IPv4", default=None
     )
+    external_address = models.JSONField(
+        editable=False,
+        default=list,
+        help_text="An optional address that maps to floating IP's address",
+    )
+
     backend_network_id = models.CharField(max_length=255, editable=False)
     port = models.ForeignKey(
         on_delete=models.SET_NULL,
@@ -843,6 +849,15 @@ class Instance(
                 set(self.directly_connected_ips.split(","))
             )
         return list(floating_ips - set(self.internal_ips))
+
+    @property
+    def external_address(self):
+        external_address = set()
+
+        for a in self.floating_ips.values_list("external_address", flat=True):
+            external_address.update(set(a))
+
+        return list(external_address)
 
     @property
     def internal_ips(self):
