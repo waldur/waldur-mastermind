@@ -222,6 +222,7 @@ class PlanOrganizationGroupsTest(test.APITransactionTestCase):
                 self.organization_group
             )
         )
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_PLAN)
 
     @data("staff", "owner")
     def test_user_can_update_organization_groups(self, user):
