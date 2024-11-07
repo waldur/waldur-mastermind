@@ -293,6 +293,7 @@ class FloatingIPSerializer(structure_serializers.BaseResourceActionSerializer):
             "tenant_name",
             "tenant_uuid",
             "port",
+            "external_address",
         )
         related_paths = ("tenant",)
         read_only_fields = (
@@ -2360,6 +2361,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
             "tenant_uuid",
             "hypervisor_hostname",
             "tenant",
+            "external_address",
         )
         protected_fields = (
             structure_serializers.VirtualMachineSerializer.Meta.protected_fields
