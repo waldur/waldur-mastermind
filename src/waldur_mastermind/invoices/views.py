@@ -618,6 +618,8 @@ class ProjectCreditViewSet(core_views.ActionsViewSet):
     update_permissions = partial_update_permissions = destroy_permissions = [
         structure_permissions.is_owner
     ]
-    queryset = models.ProjectCredit.objects.all().order_by("created")
+    queryset = models.ProjectCredit.objects.exclude(
+        project__customer__customercredit__isnull=True
+    ).order_by("created")
     serializer_class = serializers.ProjectCreditSerializer
     filterset_class = filters.ProjectCreditFilter

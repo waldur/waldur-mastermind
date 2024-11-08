@@ -110,15 +110,26 @@ class ProjectEstimatedCostPolicySerializer(
             },
             "scope": {"lookup_field": "uuid", "view_name": "project-detail"},
         }
-        fields = EstimatedCostPolicySerializer.Meta.fields + ("project_credit",)
+        fields = EstimatedCostPolicySerializer.Meta.fields + (
+            "project_credit",
+            "customer_credit",
+        )
 
     project_credit = serializers.SerializerMethodField()
+    customer_credit = serializers.SerializerMethodField()
 
     def get_project_credit(self, instance):
         project: structure_models.Project = instance.scope
         try:
             return ProjectCredit.objects.get(project=project).value
         except ProjectCredit.DoesNotExist:
+            return None
+
+    def get_customer_credit(self, instance):
+        customer: structure_models.Customer = instance.scope.customer
+        try:
+            return CustomerCredit.objects.get(customer=customer).value
+        except CustomerCredit.DoesNotExist:
             return None
 
     def validate_scope(self, scope):
