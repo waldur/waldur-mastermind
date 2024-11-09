@@ -490,7 +490,7 @@ class PlanUsageTest(test.APITransactionTestCase):
 
     def get_stats(self, data=None):
         self.client.force_authenticate(self.fixture.owner)
-        url = factories.PlanFactory.get_list_url("usage_stats")
+        url = factories.PlanFactory.get_provider_list_url("usage_stats")
         response = self.client.get(url, data)
         return response
 

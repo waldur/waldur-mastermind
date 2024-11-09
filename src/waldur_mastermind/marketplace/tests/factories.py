@@ -339,7 +339,7 @@ class PlanFactory(
         return url
 
     @classmethod
-    def get_list_url(cls, action=None):
+    def get_provider_list_url(cls, action=None):
         url = "http://testserver" + reverse("marketplace-plan-list")
         return url if action is None else url + action + "/"
 

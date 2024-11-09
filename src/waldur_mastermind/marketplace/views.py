@@ -1734,7 +1734,7 @@ class ProviderPlanViewSet(core_views.UpdateReversionMixin, core_views.ActionsVie
     queryset = models.Plan.objects.all()
     serializer_class = serializers.ProviderPlanDetailsSerializer
     filterset_class = filters.PlanFilter
-    filter_backends = (DjangoFilterBackend, filters.PlanFilterBackend)
+    filter_backends = (DjangoFilterBackend, filters.ProviderPlanFilterBackend)
 
     disabled_actions = ["destroy"]
     update_validators = partial_update_validators = [validate_plan_update]

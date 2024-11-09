@@ -836,26 +836,15 @@ class IntegrationStatusFilter(OfferingFilterMixin, django_filters.FilterSet):
         fields = []
 
 
-class PlanFilterBackend(BaseFilterBackend):
+class ProviderPlanFilterBackend(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
         user = request.user
 
         if user.is_staff:
             return queryset
 
-        customer_ids = get_connected_customers(user, RoleEnum.CUSTOMER_OWNER)
-
-        organization_group_ids = structure_models.Customer.objects.filter(
-            id__in=customer_ids
-        ).values_list("organization_group_id", flat=True)
-        organization_groups = structure_models.OrganizationGroup.objects.filter(
-            id__in=organization_group_ids
-        )
-
-        return queryset.filter(
-            Q(organization_groups__isnull=True)
-            | Q(organization_groups__in=organization_groups)
-        )
+        customer_ids = get_connected_customers(user)
+        return queryset.filter(offering__customer_id__in=customer_ids)
 
 
 def user_extra_query(user):

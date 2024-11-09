@@ -19,23 +19,41 @@ from waldur_mastermind.marketplace.tests.test_offerings import BaseOfferingUpdat
 class PlanGetTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
+        self.customer_fixture = fixtures.CustomerFixture()
         self.customer = self.fixture.customer
         self.offering = factories.OfferingFactory(customer=self.customer)
         self.plan = factories.PlanFactory(offering=self.offering)
 
-    @data("staff", "owner", "user", "customer_support", "admin", "manager")
-    def test_plans_should_be_visible_to_all_authenticated_users(self, user):
+    @data("staff", "owner", "customer_support")
+    def test_plans_should_be_visible_to_connected_users(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
-        url = factories.PlanFactory.get_list_url()
+        url = factories.PlanFactory.get_provider_list_url()
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 1)
 
+    @data("admin", "manager")
+    def test_plans_are_not_visible_to_provider_project_users(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        url = factories.PlanFactory.get_provider_list_url()
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.json()), 0)
+
     def test_plans_should_be_invisible_to_unauthenticated_users(self):
-        url = factories.PlanFactory.get_list_url()
+        url = factories.PlanFactory.get_provider_list_url()
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    @data("owner", "user")
+    def test_owner_can_not_list_other_sp_plans(self, user):
+        self.client.force_authenticate(getattr(self.customer_fixture, user))
+        url = factories.PlanFactory.get_provider_list_url()
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
 
 
 @ddt
@@ -60,7 +78,7 @@ class PlanCreateTest(test.APITransactionTestCase):
     def create_plan(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
-        url = factories.PlanFactory.get_list_url()
+        url = factories.PlanFactory.get_provider_list_url()
         payload = {
             "name": "plan",
             "offering": factories.OfferingFactory.get_url(self.offering),
@@ -87,7 +105,7 @@ class PlanUpdateTest(test.APITransactionTestCase):
         self.plan.refresh_from_db()
         self.assertEqual(self.plan.name, "New plan")
 
-    @data("user", "customer_support", "admin", "manager")
+    @data("customer_support")
     def test_unauthorized_user_can_not_update_plan(self, user):
         response = self.update_plan(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -119,7 +137,7 @@ class PlanArchiveTest(test.APITransactionTestCase):
         self.plan.refresh_from_db()
         self.assertTrue(self.plan.archived)
 
-    @data("user", "customer_support", "admin", "manager")
+    @data("customer_support")
     def test_unauthorized_user_can_not_archive_plan(self, user):
         response = self.archive_plan(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -235,7 +253,7 @@ class PlanOrganizationGroupsTest(test.APITransactionTestCase):
         self.offering.refresh_from_db()
         self.assertEqual(self.plan.organization_groups.count(), 1)
 
-    @data("user", "customer_support", "admin", "manager")
+    @data("customer_support")
     def test_user_cannot_update_organization_groups(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.post(
@@ -257,7 +275,7 @@ class PlanOrganizationGroupsTest(test.APITransactionTestCase):
         self.plan.refresh_from_db()
         self.assertEqual(self.offering.organization_groups.count(), 0)
 
-    @data("user", "customer_support", "admin", "manager")
+    @data("customer_support")
     def test_user_cannot_delete_organization_groups(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.post(self.delete_url)
@@ -265,7 +283,7 @@ class PlanOrganizationGroupsTest(test.APITransactionTestCase):
 
     def test_staff_can_get_all_plans(self):
         self.client.force_authenticate(getattr(self.fixture, "staff"))
-        url = factories.PlanFactory.get_list_url()
+        url = factories.PlanFactory.get_provider_list_url()
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(len(response.data), 1)
@@ -276,36 +294,15 @@ class PlanOrganizationGroupsTest(test.APITransactionTestCase):
 
     def test_owner_can_get_his_plans(self):
         self.client.force_authenticate(getattr(self.fixture, "owner"))
-        url = factories.PlanFactory.get_list_url()
+        url = factories.PlanFactory.get_provider_list_url()
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(len(response.data), 1)
-
-        self.plan.organization_groups.add(self.organization_group)
-        response = self.client.get(url)
-        self.assertEqual(len(response.data), 0)
 
         self.customer.organization_group = self.organization_group
         self.customer.save()
         response = self.client.get(url)
         self.assertEqual(len(response.data), 1)
-
-    @data("user", "customer_support", "admin", "manager")
-    def test_user_cannot_get_not_his_plans(self, user):
-        self.client.force_authenticate(getattr(self.fixture, user))
-        url = factories.PlanFactory.get_list_url()
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-        self.assertEqual(len(response.data), 1)
-
-        self.plan.organization_groups.add(self.organization_group)
-        response = self.client.get(url)
-        self.assertEqual(len(response.data), 0)
-
-        self.customer.organization_group = self.organization_group
-        self.customer.save()
-        response = self.client.get(url)
-        self.assertEqual(len(response.data), 0)
 
     def test_filter_offerings_plans_by_organization_groups(self):
         new_customer = structure_factories.CustomerFactory()
@@ -372,7 +369,7 @@ class OfferingUpdatePlansTest(BaseOfferingUpdateTest):
 
     def create_plan(self, role, payload):
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_OFFERING_PLAN)
-        url = factories.PlanFactory.get_list_url()
+        url = factories.PlanFactory.get_provider_list_url()
         self.client.force_authenticate(getattr(self.fixture, role))
         return self.client.post(url, payload)
 
