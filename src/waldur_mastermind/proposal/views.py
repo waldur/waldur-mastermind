@@ -254,10 +254,11 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
                     serializer.data,
                     status=status.HTTP_201_CREATED,
                 )
+        queryset = call.round_set.all().order_by("-start_time")
 
         return response.Response(
             self.get_serializer(
-                call.round_set,
+                queryset,
                 context=self.get_serializer_context(),
                 many=True,
             ).data,
