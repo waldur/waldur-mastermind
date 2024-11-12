@@ -397,13 +397,19 @@ class UserFilter(BaseUserFilter):
     )
 
     def filter_query(self, queryset, name, value):
-        query = queryset.filter(
+        q = (
             Q(first_name__icontains=value)
             | Q(last_name__icontains=value)
             | Q(civil_number__icontains=value)
             | Q(username__icontains=value)
             | Q(email__icontains=value)
         )
+
+        if len(value.split()) > 1:
+            q |= Q(first_name__icontains=value.split()[0])
+            q |= Q(last_name__icontains=value.split()[1])
+
+        query = queryset.filter(q)
         return query
 
 

@@ -399,6 +399,14 @@ class UserFilterTest(test.APITransactionTestCase):
             response = self.client.get(url, data={field: getattr(user, field)[:-1]})
             self.assertContains(response, user_url)
 
+    def test_use_query_parameter_to_filtering_by_full_name(self):
+        user = factories.UserFactory(is_staff=True)
+        self.client.force_authenticate(user)
+        url = factories.UserFactory.get_list_url()
+        user_url = factories.UserFactory.get_url(user)
+        response = self.client.get(url, data={"query": user.full_name})
+        self.assertContains(response, user_url)
+
     def test_user_list_can_be_filtered_with_accents(self):
         user = factories.UserFactory(is_staff=True, full_name="François Jürimäe")
         self.client.force_authenticate(user)
