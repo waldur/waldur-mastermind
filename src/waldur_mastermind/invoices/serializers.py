@@ -17,7 +17,7 @@ from waldur_mastermind.common.mixins import PRICE_DECIMAL_PLACES, PRICE_MAX_DIGI
 from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.marketplace import models as marketplace_models
 
-from . import models, utils
+from . import log, models, utils
 
 
 class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
@@ -893,6 +893,20 @@ class CreateCustomerCreditSerializer(CustomerCreditSerializer):
         allow_null=True,
         many=True,
     )
+
+    def update(self, instance, validated_data):
+        old_offerings = set(instance.offerings.all())
+        new_offerings = set(validated_data.get("offerings", []))
+        instance = super().update(instance, validated_data)
+
+        if old_offerings != new_offerings:
+            log.log_changing_of_offerings(
+                instance.customer,
+                old_offerings,
+                new_offerings,
+            )
+
+        return instance
 
 
 class ProjectCreditSerializer(serializers.HyperlinkedModelSerializer):

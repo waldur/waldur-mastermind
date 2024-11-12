@@ -78,6 +78,8 @@ class CreditLogger(EventLogger):
     minimal_consumption = decimal.Decimal
     old_value = int
     new_value = int
+    old_offerings = set
+    new_offerings = set
     customer = "structure.Customer"
     project = "structure.Project"
     invoice_item = str
@@ -92,6 +94,7 @@ class CreditLogger(EventLogger):
             "create_of_credit_by_staff",
             "roll_back_customer_credit",
             "roll_back_project_credit",
+            "allowed_offerings_have_been_updated",
         )
         event_groups = {
             "customers": event_types,
@@ -105,6 +108,8 @@ class CreditLogger(EventLogger):
             "old_value",
             "new_value",
             "project",
+            "old_offerings",
+            "new_offerings",
         ]
 
     @staticmethod
@@ -136,5 +141,17 @@ def log_roll_back_project_credit(customer, project, old_value, new_value):
             "new_value": int(new_value),
             "customer": customer,
             "project": project,
+        },
+    )
+
+
+def log_changing_of_offerings(customer, old_offerings, new_offerings):
+    event_logger.credit.info(
+        "Allowed offerings of {{ customer }} have been updated from {{ old_offerings }} to {{ new_offerings }}.",
+        event_type="allowed_offerings_have_been_updated",
+        event_context={
+            "old_offerings": old_offerings,
+            "new_offerings": new_offerings,
+            "customer": customer,
         },
     )
