@@ -9,6 +9,7 @@ from waldur_core.logging import models as logging_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.invoices import models, tasks, utils
 from waldur_mastermind.invoices.tests import factories, fixtures
+from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 
 @ddt
@@ -128,6 +129,18 @@ class CustomerCreditUpdateTest(test.APITransactionTestCase):
     def test_user_cannot_update_credit(self, user):
         response = self.update_credit(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_logging_of_offering_changing(self):
+        payload = {"offerings": [marketplace_factories.OfferingFactory.get_url()]}
+        self.client.force_authenticate(getattr(self.fixture, "staff"))
+        url = factories.CustomerCreditFactory.get_url(self.fixture.customer_credit)
+        response = self.client.patch(url, payload)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(
+            logging_models.Event.objects.filter(
+                event_type="allowed_offerings_have_been_updated"
+            ).exists()
+        )
 
 
 @ddt
