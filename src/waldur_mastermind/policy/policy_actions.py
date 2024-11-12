@@ -11,7 +11,6 @@ from waldur_mastermind.marketplace_openstack import INSTANCE_TYPE
 from waldur_mastermind.policy import log, tasks
 
 from . import enums, structures
-from .models import Policy
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +100,7 @@ def terminate_resources(policy):
             marketplace_tasks.process_order_on_commit(order, user)
 
 
-def block_creation_of_new_resources(policy: Policy, created):
+def block_creation_of_new_resources(policy, created):
     if created:
         logger.info(
             "Policy action block_creation_of_new_resources has been triggered. Policy UUID: %s.",
