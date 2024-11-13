@@ -1301,8 +1301,8 @@ class ResourceSetStateErredTest(test.APITransactionTestCase):
         self.url = factories.ResourceFactory.get_provider_resource_url(
             self.resource, action="set_as_erred"
         )
-        CustomerRole.OWNER.add_permission(PermissionEnum.SET_RESOURCE_STATE_ERRED)
-        CustomerRole.MANAGER.add_permission(PermissionEnum.SET_RESOURCE_STATE_ERRED)
+        CustomerRole.OWNER.add_permission(PermissionEnum.SET_RESOURCE_STATE)
+        CustomerRole.MANAGER.add_permission(PermissionEnum.SET_RESOURCE_STATE)
 
     def make_request(self, role, payload=None):
         self.client.force_authenticate(role)
