@@ -2656,12 +2656,34 @@ class ProviderResourceViewSet(BaseResourceViewSet):
 
     set_as_erred_permissions = [
         permission_factory(
-            PermissionEnum.SET_RESOURCE_STATE_ERRED,
+            PermissionEnum.SET_RESOURCE_STATE,
             ["offering.customer"],
         )
     ]
 
     set_as_erred_serializer_class = serializers.ResourceSetStateErredSerializer
+
+    @action(detail=True, methods=["post"])
+    def set_as_ok(self, request, uuid=None):
+        resource = self.get_object()
+
+        resource.set_state_ok()
+        resource.error_message = ""
+        resource.error_traceback = ""
+        resource.save()
+
+        if resource.scope and hasattr(resource.scope, "set_ok"):
+            resource.scope.set_ok()
+            resource.scope.save()
+
+        return Response(status=status.HTTP_200_OK)
+
+    set_as_erred_permissions = [
+        permission_factory(
+            PermissionEnum.SET_RESOURCE_STATE,
+            ["offering.customer"],
+        )
+    ]
 
 
 class ResourceOfferingsViewSet(ListAPIView):
