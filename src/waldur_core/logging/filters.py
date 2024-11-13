@@ -73,11 +73,27 @@ class EventFilter(django_filters.FilterSet):
     created_from = core_filters.TimestampFilter(field_name="created", lookup_expr="gte")
     created_to = core_filters.TimestampFilter(field_name="created", lookup_expr="lt")
     message = django_filters.CharFilter(lookup_expr="icontains")
+    customer_uuid = django_filters.UUIDFilter(
+        method="filter_customer_uuid", label="Customer UUID"
+    )
+    project_uuid = django_filters.UUIDFilter(
+        method="filter_project_uuid", label="Project UUID"
+    )
+    user_uuid = django_filters.UUIDFilter(method="filter_user_uuid", label="User UUID")
     o = django_filters.OrderingFilter(fields=("created",))
 
     class Meta:
         model = models.Event
         fields = []
+
+    def filter_customer_uuid(self, queryset, name, value):
+        return queryset.filter(context__contains={"customer_uuid": value.hex})
+
+    def filter_project_uuid(self, queryset, name, value):
+        return queryset.filter(context__contains={"project_uuid": value.hex})
+
+    def filter_user_uuid(self, queryset, name, value):
+        return queryset.filter(context__contains={"user_uuid": value.hex})
 
 
 class EventFilterBackend(filters.BaseFilterBackend):
