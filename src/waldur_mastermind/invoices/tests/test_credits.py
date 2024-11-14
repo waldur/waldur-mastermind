@@ -90,7 +90,7 @@ class CustomerCreditCreateTest(test.APITransactionTestCase):
             "customer": structure_factories.CustomerFactory.get_url(
                 self.fixture.customer
             ),
-            "value": 1200,
+            "value": 1600,
             "end_date": datetime.date(year=2025, month=10, day=15),
             "minimal_consumption_logic": models.CustomerCredit.MinimalConsumptionLogic.LINEAR,
             "minimal_consumption": 500,
@@ -100,7 +100,16 @@ class CustomerCreditCreateTest(test.APITransactionTestCase):
         response = self.client.post(url, payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         credit = models.CustomerCredit.objects.filter(uuid=response.data["uuid"]).get()
-        self.assertEqual(credit.minimal_consumption, 1200 / 12)
+        self.assertEqual(credit.minimal_consumption, payload["minimal_consumption"])
+        self.assertEqual(credit.end_date, datetime.date(year=2025, month=10, day=31))
+
+        with freeze_time("2024-11-01"):
+            self.fixture.invoice.set_created()
+            credit.refresh_from_db()
+            self.assertEqual(
+                (payload["value"] - payload["minimal_consumption"]) / 11,
+                credit.minimal_consumption,
+            )
 
 
 @ddt
