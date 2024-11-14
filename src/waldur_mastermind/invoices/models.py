@@ -162,6 +162,7 @@ class Invoice(core_models.UuidMixin, core_models.BackendMixin, models.Model):
         with transaction.atomic():
             monthly_compensation = utils.MonthlyCompensation(self.customer)
             monthly_compensation.apply_compensations()
+            monthly_compensation.update_linear_minimal_consumption()
 
             if monthly_compensation.tail:
                 log.event_logger.credit.info(

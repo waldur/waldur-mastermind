@@ -247,16 +247,11 @@ class MonthlyCompensation:
             .order_by("-year", "-month")
             .first()
         )
-        self.credit = None
-
         self._calculated = False
         self._compensations = []
         self._projects_credits = []
         self._total_compensation = 0
         self._tail = 0
-
-        if not self.invoice:
-            return
 
         self.credit = models.CustomerCredit.objects.filter(
             customer=self.customer
@@ -270,11 +265,8 @@ class MonthlyCompensation:
             return
 
         items_projects_ids = self.invoice.items.all().values_list(
-            "project_id", flat=True
+            "resource__project_id", flat=True
         )
-
-        if not items_projects_ids:
-            return
 
         projects_credits = {
             p.project: p
@@ -359,30 +351,22 @@ class MonthlyCompensation:
 
     @property
     def compensations(self):
-        if not self._calculated:
-            self.calculate_current_compensations()
-
+        self.calculate_current_compensations()
         return self._compensations
 
     @property
     def projects_credits(self):
-        if not self._calculated:
-            self.calculate_current_compensations()
-
+        self.calculate_current_compensations()
         return self._projects_credits
 
     @property
     def total_compensation(self):
-        if not self._calculated:
-            self.calculate_current_compensations()
-
+        self.calculate_current_compensations()
         return self._total_compensation
 
     @property
     def tail(self):
-        if not self._calculated:
-            self.calculate_current_compensations()
-
+        self.calculate_current_compensations()
         return self._tail
 
     @staticmethod
@@ -408,6 +392,22 @@ class MonthlyCompensation:
 
         return credit_value / months
 
+    def update_linear_minimal_consumption(self):
+        if (
+            self.credit
+            and self.credit.minimal_consumption_logic
+            == models.CustomerCredit.MinimalConsumptionLogic.LINEAR
+            and self.credit.end_date
+        ):
+            self.credit.minimal_consumption = (
+                MonthlyCompensation.calculate_linear_minimal_consumption(
+                    self.customer,
+                    self.credit.value,
+                    self.credit.end_date,
+                )
+            )
+            self.credit.save(update_fields=["minimal_consumption"])
+
     def save(self):
         if not self.credit:
             return
@@ -417,21 +417,7 @@ class MonthlyCompensation:
         for pc in self.projects_credits:
             pc.save()
 
-        if (
-            self.credit.minimal_consumption_logic
-            == models.CustomerCredit.MinimalConsumptionLogic.LINEAR
-            and self.credit.end_date
-        ):
-            new_minimal_consumption = (
-                MonthlyCompensation.calculate_linear_minimal_consumption(
-                    self.customer,
-                    self.credit.value,
-                    self.credit.end_date,
-                )
-            )
-            self.credit.minimal_consumption = new_minimal_consumption
-
-        self.credit.save()
+        self.credit.save(update_fields=["value"])
 
     def get_project_credit_consumption(self, project):
         """Returns the value by which the project credit will be reduced next month."""

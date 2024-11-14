@@ -822,6 +822,7 @@ class CustomerCreditSerializer(serializers.HyperlinkedModelSerializer):
             "allocated_to_projects",
             "consumption_last_month",
         )
+        protected_fields = ("customer",)
 
         extra_kwargs = {
             "url": {
@@ -842,14 +843,21 @@ class CreateCustomerCreditSerializer(CustomerCreditSerializer):
                 _("The end date must be greater than today's date.")
             )
 
-        return end_date
+        month_end = core_utils.month_end(end_date)
+        return month_end.date()
+
+    def get_from_attrs_or_instance(self, attrs, field_name, default=None):
+        return attrs.get(field_name, getattr(self.instance, field_name, default))
 
     def validate(self, attrs):
-        minimal_consumption = attrs.get("minimal_consumption")
-        minimal_consumption_logic = attrs.get("minimal_consumption_logic")
-        end_date = attrs.get("end_date")
-        value = attrs.get("value")
-        customer = attrs.get("customer")
+        minimal_consumption = self.get_from_attrs_or_instance(
+            attrs, "minimal_consumption"
+        )
+        minimal_consumption_logic = self.get_from_attrs_or_instance(
+            attrs, "minimal_consumption_logic"
+        )
+        end_date = self.get_from_attrs_or_instance(attrs, "end_date")
+        value = self.get_from_attrs_or_instance(attrs, "value")
 
         if minimal_consumption and minimal_consumption >= value:
             raise exceptions.ValidationError(
@@ -873,16 +881,6 @@ class CreateCustomerCreditSerializer(CustomerCreditSerializer):
                         "End date must be greater if minimal consumption logic is linear."
                     )
                 )
-            else:
-                minimal_consumption = (
-                    utils.MonthlyCompensation.calculate_linear_minimal_consumption(
-                        customer,
-                        value,
-                        end_date,
-                    )
-                )
-                attrs["minimal_consumption"] = minimal_consumption
-
         return attrs
 
     offerings = serializers.HyperlinkedRelatedField(
