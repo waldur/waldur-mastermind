@@ -1,4 +1,5 @@
-import pytz
+import zoneinfo
+
 from django import forms
 from django.contrib import admin
 from django.core.exceptions import ValidationError
@@ -319,7 +320,7 @@ class BackupAdmin(MetadataMixin, admin.ModelAdmin):
 class BaseScheduleForm(forms.ModelForm):
     def clean_timezone(self):
         tz = self.cleaned_data["timezone"]
-        if tz not in pytz.all_timezones:
+        if tz not in zoneinfo.available_timezones():
             raise ValidationError(_("Invalid timezone"), code="invalid")
 
         return self.cleaned_data["timezone"]

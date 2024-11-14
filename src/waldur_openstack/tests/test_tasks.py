@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from unittest import mock
+from zoneinfo import ZoneInfo
 
-import pytz
 from croniter import croniter
 from django.test import TestCase
 from django.utils import timezone
@@ -259,7 +259,7 @@ class BackupScheduleTaskTest(TestCase):
         self.assertEqual(0, mocked_executor.call_count)
 
     def _trigger_next_backup(self, base_dt: datetime):
-        tz = pytz.timezone(self.overdue_schedule.timezone)
+        tz = ZoneInfo(self.overdue_schedule.timezone)
         dt = base_dt.astimezone(tz)
         next_trigger_at = croniter(self.overdue_schedule.schedule, dt).get_next(
             datetime

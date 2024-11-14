@@ -2,9 +2,9 @@ import collections
 import copy
 import logging
 import re
+import zoneinfo
 from ipaddress import AddressValueError, IPv4Network, NetmaskValueError
 
-import pytz
 from django.conf import settings
 from django.contrib.auth import password_validation
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
@@ -3132,7 +3132,7 @@ class BackupSerializer(structure_serializers.BaseResourceActionSerializer):
 
 class BaseScheduleSerializer(structure_serializers.BaseResourceActionSerializer):
     timezone = serializers.ChoiceField(
-        choices=[(t, t) for t in pytz.all_timezones],
+        choices=[(t, t) for t in zoneinfo.available_timezones()],
         initial=timezone.get_current_timezone_name(),
         default=timezone.get_current_timezone_name(),
     )

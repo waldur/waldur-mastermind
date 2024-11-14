@@ -1,7 +1,7 @@
 import datetime
 import functools
+from zoneinfo import ZoneInfo
 
-import pytz
 from django.conf import settings
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
@@ -223,4 +223,4 @@ class GoogleCalendar:
     @reraise_exceptions
     def get_calendar_time_zone(self, calendar_id):
         calendar = self.get_calendar(calendar_id)
-        return pytz.timezone(calendar["timeZone"])
+        return ZoneInfo(calendar["timeZone"])
