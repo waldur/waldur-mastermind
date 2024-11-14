@@ -35,9 +35,11 @@ class DailyQuotaHistoryViewSet(viewsets.GenericViewSet):
         quota_names = query["quota_names"]
         start = query["start"]
         end = query["end"]
+        content_type = ContentType.objects.get_for_model(scope)
 
         quotas = models.DailyQuotaHistory.objects.filter(
-            scope=scope,
+            object_id=scope.id,
+            content_type=content_type,
             name__in=quota_names,
             date__gte=start,
             date__lte=end,
