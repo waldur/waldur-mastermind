@@ -230,7 +230,6 @@ known-first-party = [
   "pycountry",
   "pydantic",
   "python_freeipa",
-  "pytz",
   "pytest",
   "pyvat",
   "pyVim",

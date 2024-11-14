@@ -2,8 +2,8 @@ import logging
 import re
 from datetime import datetime
 from functools import lru_cache
+from zoneinfo import ZoneInfo
 
-import pytz
 from croniter.croniter import croniter
 from django.apps import apps
 from django.conf import settings
@@ -162,7 +162,7 @@ class ScheduleMixin(models.Model):
     is_active = models.BooleanField(default=False)
 
     def update_next_trigger_at(self):
-        tz = pytz.timezone(self.timezone)
+        tz = ZoneInfo(self.timezone)
         dt = datetime.now(tz)
         self.next_trigger_at = croniter(self.schedule, dt).get_next(datetime)
 

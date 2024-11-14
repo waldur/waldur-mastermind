@@ -1,8 +1,8 @@
 import decimal
 from calendar import monthrange
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 
-import pytz
 from django.test import TransactionTestCase
 from django.utils import timezone
 from freezegun.api import freeze_time
@@ -67,7 +67,7 @@ class ResourceCreationInvoiceTest(BaseSupportInvoiceTest):
         self.assertFalse(invoice.items.filter(resource=pending_resource).exists())
 
     def test_existing_invoice_is_updated_on_resource_creation(self):
-        start_date = timezone.datetime(2014, 2, 27, tzinfo=pytz.UTC)
+        start_date = timezone.datetime(2014, 2, 27, tzinfo=ZoneInfo("UTC"))
         end_date = core_utils.month_end(start_date)
         usage_days = utils.get_full_days(start_date, end_date)
         month_days = monthrange(start_date.year, start_date.month)[1]
@@ -86,7 +86,7 @@ class ResourceCreationInvoiceTest(BaseSupportInvoiceTest):
 
 class ResourceDeletionInvoiceTest(BaseSupportInvoiceTest):
     def test_invoice_price_is_not_changed_after_a_while_if_resource_is_deleted(self):
-        start_date = timezone.datetime(2014, 2, 27, tzinfo=pytz.UTC)
+        start_date = timezone.datetime(2014, 2, 27, tzinfo=ZoneInfo("UTC"))
         end_date = core_utils.month_end(start_date)
         usage_days = utils.get_full_days(start_date, end_date)
         month_days = monthrange(start_date.year, start_date.month)[1]
@@ -108,8 +108,8 @@ class ResourceDeletionInvoiceTest(BaseSupportInvoiceTest):
         self.assertEqual(invoice.price, Decimal(expected_price))
 
     def test_invoice_is_created_in_new_month_when_single_item_is_terminated(self):
-        start_date = timezone.datetime(2014, 2, 27, tzinfo=pytz.UTC)
-        next_month = timezone.datetime(2014, 3, 2, tzinfo=pytz.UTC)
+        start_date = timezone.datetime(2014, 2, 27, tzinfo=ZoneInfo("UTC"))
+        next_month = timezone.datetime(2014, 3, 2, tzinfo=ZoneInfo("UTC"))
 
         with freeze_time(start_date):
             self.resource.set_state_ok()
@@ -145,7 +145,7 @@ class ResourceDeletionInvoiceTest(BaseSupportInvoiceTest):
 class ResourceStateChangeInvoiceTest(BaseSupportInvoiceTest):
     def setUp(self):
         super().setUp()
-        self.start_date = timezone.datetime(2014, 2, 7, tzinfo=pytz.UTC)
+        self.start_date = timezone.datetime(2014, 2, 7, tzinfo=ZoneInfo("UTC"))
 
     def test_invoice_item_is_terminated_when_resource_state_is_changed(self):
         with freeze_time(self.start_date):
