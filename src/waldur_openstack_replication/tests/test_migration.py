@@ -1,7 +1,7 @@
 from django.urls import reverse
 from rest_framework import status, test
 
-from waldur_mastermind.marketplace.models import Resource
+from waldur_mastermind.marketplace.models import Order, Resource
 from waldur_mastermind.marketplace.tests.factories import (
     OfferingFactory,
     PlanFactory,
@@ -12,6 +12,7 @@ from waldur_openstack.models import Tenant
 from waldur_openstack.tests.factories import VolumeTypeFactory
 from waldur_openstack.tests.fixtures import OpenStackFixture
 from waldur_openstack.utils import volume_type_name_to_quota_name
+from waldur_openstack_replication.models import Migration
 
 
 class MigrationTest(test.APITransactionTestCase):
@@ -111,3 +112,39 @@ class MigrationTest(test.APITransactionTestCase):
         dst_resource = Resource.objects.get(uuid=dst_resource_uuid)
         tenant: Tenant = dst_resource.scope
         self.assertEqual(tenant.security_groups.get().rules.count(), 1)
+
+    def test_order_is_created_on_migration_success(self):
+        offering = OfferingFactory(scope=self.fixture.settings)
+        src_resource = ResourceFactory(offering=offering)
+        dst_resource = ResourceFactory(offering=offering)
+        migration = Migration.objects.create(
+            created_by=self.fixture.staff,
+            src_resource=src_resource,
+            dst_resource=dst_resource,
+        )
+        self.client.force_login(self.fixture.staff)
+
+        # Change state to OK and check order creation
+        migration.state = Migration.States.OK
+        migration.save()
+        self.assertTrue(Order.objects.filter(resource=dst_resource).exists())
+
+    def test_order_is_created_on_migration_failure(self):
+        offering = OfferingFactory(scope=self.fixture.settings)
+        src_resource = ResourceFactory(offering=offering)
+        dst_resource = ResourceFactory(offering=offering)
+        migration = Migration.objects.create(
+            created_by=self.fixture.staff,
+            src_resource=src_resource,
+            dst_resource=dst_resource,
+        )
+        self.client.force_login(self.fixture.staff)
+
+        # Change state to ERRED and check order creation
+        migration.state = Migration.States.ERRED
+        migration.save()
+        self.assertTrue(
+            Order.objects.filter(
+                resource=dst_resource, state=Order.States.ERRED
+            ).exists()
+        )
