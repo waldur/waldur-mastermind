@@ -72,6 +72,7 @@ class MigrationDetailsSerializer(serializers.ModelSerializer):
             "src_resource_name",
             "dst_resource_uuid",
             "dst_resource_name",
+            "dst_resource_state",
             "state",
         )
 
@@ -90,6 +91,9 @@ class MigrationDetailsSerializer(serializers.ModelSerializer):
     src_resource_name = serializers.ReadOnlyField(source="src_resource.name")
     dst_resource_uuid = serializers.ReadOnlyField(source="dst_resource.uuid")
     dst_resource_name = serializers.ReadOnlyField(source="dst_resource.name")
+    dst_resource_state = serializers.ReadOnlyField(
+        source="dst_resource.get_state_display"
+    )
 
 
 class MigrationCreateSerializer(serializers.ModelSerializer):
