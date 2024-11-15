@@ -9,7 +9,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.structure import executors as structure_executors
 from waldur_openstack import executors as openstack_executors
 
-from . import models, tasks
+from . import models, tasks, utils
 
 logger = logging.getLogger(__name__)
 
@@ -177,18 +177,7 @@ class TenantCreateExecutor(core_executors.CreateExecutor):
             )
 
         # initialize external network if it defined in service settings
-        service_settings = tenant.service_settings
-        customer = tenant.project.customer
-        external_network_id = service_settings.get_option("external_network_id")
-
-        try:
-            customer_openstack = models.CustomerOpenStack.objects.get(
-                settings=service_settings, customer=customer
-            )
-            external_network_id = customer_openstack.external_network_id
-        except models.CustomerOpenStack.DoesNotExist:
-            pass
-
+        external_network_id = utils.get_external_network_id(tenant)
         if external_network_id and not kwargs.get("skip_connection_extnet"):
             creation_tasks.append(
                 core_tasks.BackendMethodTask().si(

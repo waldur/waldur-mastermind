@@ -1,4 +1,4 @@
-from waldur_openstack.models import Flavor, Image, Tenant, VolumeType
+from waldur_openstack.models import CustomerOpenStack, Flavor, Image, Tenant, VolumeType
 
 
 def is_flavor_valid_for_tenant(flavor: Flavor, tenant: Tenant):
@@ -28,3 +28,21 @@ def get_valid_availability_zones(instance):
     return (
         instance.tenant.service_settings.options.get("valid_availability_zones") or {}
     )
+
+
+def get_external_network_id(tenant: Tenant):
+    """
+    Fetch external network ID from tenant service settings or customer settings.
+    """
+    service_settings = tenant.service_settings
+    customer = tenant.project.customer
+    external_network_id = service_settings.get_option("external_network_id")
+
+    try:
+        customer_openstack = CustomerOpenStack.objects.get(
+            settings=service_settings, customer=customer
+        )
+        external_network_id = customer_openstack.external_network_id
+    except CustomerOpenStack.DoesNotExist:
+        pass
+    return external_network_id
