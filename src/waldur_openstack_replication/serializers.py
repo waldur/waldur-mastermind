@@ -52,6 +52,7 @@ class SubNetMappingSerializer(serializers.Serializer):
 class MappingSerializer(serializers.Serializer):
     volume_types = VolumeTypeMappingSerializer(many=True, required=False)
     subnets = SubNetMappingSerializer(many=True, required=False)
+    skip_connection_extnet = serializers.BooleanField(required=False, default=False)
 
 
 class MigrationDetailsSerializer(serializers.ModelSerializer):

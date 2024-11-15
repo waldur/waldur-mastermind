@@ -11,6 +11,7 @@ from waldur_openstack.executors import (
     SubNetCreateExecutor,
 )
 from waldur_openstack.models import Tenant
+from waldur_openstack.utils import get_external_network_id
 
 from . import models
 
@@ -56,6 +57,18 @@ class MigrationExecutor(CreateExecutor):
                 creation_tasks.append(
                     SecurityGroupCreateExecutor.as_signature(security_group)
                 )
+
+        external_network_id = get_external_network_id(dst_tenant)
+        if external_network_id and not migration.mappings.get(
+            "skip_connection_extnet", False
+        ):
+            creation_tasks.append(
+                BackendMethodTask().si(
+                    serialized_tenant,
+                    "connect_tenant_to_external_network",
+                    external_network_id=external_network_id,
+                )
+            )
         creation_tasks += [
             BackendMethodTask().si(
                 serialized_tenant,
