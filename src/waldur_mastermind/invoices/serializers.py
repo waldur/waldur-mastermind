@@ -838,6 +838,9 @@ class CustomerCreditSerializer(serializers.HyperlinkedModelSerializer):
 
 class CreateCustomerCreditSerializer(CustomerCreditSerializer):
     def validate_end_date(self, end_date):
+        if not end_date:
+            return
+
         if end_date and end_date < datetime.date.today():
             raise exceptions.ValidationError(
                 _("The end date must be greater than today's date.")
