@@ -966,3 +966,39 @@ class ProjectCreditSerializer(serializers.HyperlinkedModelSerializer):
                 "lookup_field": "uuid",
             },
         }
+
+
+def get_project_credit(serializer, project):
+    try:
+        return models.ProjectCredit.objects.get(project=project).value
+    except models.ProjectCredit.DoesNotExist:
+        return None
+
+
+def add_project_credit(sender, fields, **kwargs):
+    fields["project_credit"] = serializers.SerializerMethodField()
+    setattr(sender, "get_project_credit", get_project_credit)
+
+
+core_signals.pre_serializer_fields.connect(
+    sender=structure_serializers.ProjectSerializer,
+    receiver=add_project_credit,
+)
+
+
+def get_customer_credit(serializer, customer):
+    try:
+        return models.CustomerCredit.objects.get(customer=customer).value
+    except models.CustomerCredit.DoesNotExist:
+        return None
+
+
+def add_customer_credit(sender, fields, **kwargs):
+    fields["customer_credit"] = serializers.SerializerMethodField()
+    setattr(sender, "get_customer_credit", get_customer_credit)
+
+
+core_signals.pre_serializer_fields.connect(
+    sender=structure_serializers.CustomerSerializer,
+    receiver=add_customer_credit,
+)
