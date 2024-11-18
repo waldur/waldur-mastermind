@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+echo "INFO: Creating db-cache table"
+gosu waldur sh -c "waldur createcachetable"
+
 echo "INFO: Initializing database..."
 gosu waldur sh -c "waldur migrate --noinput"
 
