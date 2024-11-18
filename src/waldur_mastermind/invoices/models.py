@@ -543,7 +543,7 @@ class CustomerCredit(core_models.UuidMixin, core_models.TimeStampedModel):
     value = models.DecimalField(
         default=0,
         validators=[MinValueValidator(decimal.Decimal("0"))],
-        max_digits=11,
+        max_digits=16,
         decimal_places=5,
     )
     offerings = models.ManyToManyField(marketplace_models.Offering)
@@ -551,7 +551,7 @@ class CustomerCredit(core_models.UuidMixin, core_models.TimeStampedModel):
     minimal_consumption = models.DecimalField(
         default=0,
         validators=[MinValueValidator(decimal.Decimal("0"))],
-        max_digits=11,
+        max_digits=16,
         decimal_places=5,
     )
     minimal_consumption_logic = models.CharField(
@@ -604,7 +604,7 @@ class ProjectCredit(core_models.UuidMixin, core_models.TimeStampedModel):
     value = models.DecimalField(
         default=0,
         validators=[MinValueValidator(decimal.Decimal("0"))],
-        max_digits=11,
+        max_digits=16,
         decimal_places=5,
     )
 
