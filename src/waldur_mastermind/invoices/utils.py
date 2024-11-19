@@ -261,7 +261,7 @@ class MonthlyCompensation:
         if self._calculated:
             return
 
-        if not self.credit or not self.credit.value:
+        if not self.credit or not self.credit.value or not self.invoice:
             return
 
         items_projects_ids = self.invoice.items.all().values_list(

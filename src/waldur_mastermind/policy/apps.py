@@ -9,6 +9,7 @@ class PolicyConfig(AppConfig):
         from django.db.models import signals
 
         from waldur_core.core.utils import camel_case_to_underscore
+        from waldur_mastermind.invoices import models as invoices_models
         from waldur_mastermind.policy import handlers
 
         from . import models
@@ -36,3 +37,21 @@ class PolicyConfig(AppConfig):
                     sender=observable_klass,
                     dispatch_uid=f"{klass_name}_handler_for_observable_class",
                 )
+
+        signals.post_save.connect(
+            handlers.customer_credit_changed_handler,
+            sender=invoices_models.CustomerCredit,
+            dispatch_uid="customer_credit_changed_handler",
+        )
+
+        signals.post_save.connect(
+            handlers.project_credit_changed_handler,
+            sender=invoices_models.ProjectCredit,
+            dispatch_uid="project_credit_changed_handler",
+        )
+
+        signals.m2m_changed.connect(
+            handlers.project_credit_offerings_list_changed_handler,
+            sender=invoices_models.CustomerCredit.offerings.through,
+            dispatch_uid="project_credit_offerings_list_changed_handler",
+        )

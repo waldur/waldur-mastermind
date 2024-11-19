@@ -631,6 +631,8 @@ class ProjectCredit(core_models.UuidMixin, core_models.TimeStampedModel):
         )
         return consumption * -1
 
+    tracker = FieldTracker()
+
     class Permissions:
         customer_path = "project__customer"
 
