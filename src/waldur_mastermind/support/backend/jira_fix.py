@@ -228,6 +228,28 @@ def create_customer_request(
         return Issue(self._options, self._session, raw=raw_issue_json)
 
 
+# create_customer leads to permission errors when using basic authn on cloud sd. Yet works via UI that uses a different
+# API endpoint
+def create_customer_cloud(self, email, jira_project_id):
+    url = (
+        self._options["server"]
+        + f"/rest/servicedesk/1/pages/people/customers/pagination/{jira_project_id}/invite"
+    )
+    r = self._session.post(
+        url,
+        data=json.dumps(
+            {
+                "emails": [email],
+            }
+        ),
+    )
+    raw_customer_json = json_loads(r)
+
+    if r.status_code != 200:
+        raise JIRAError(r.status_code, request=r)
+    return Customer(self._options, self._session, raw=raw_customer_json["success"][0])
+
+
 def create_customer(self, email, displayName):
     """Create a new customer and return an issue Resource for it."""
     url = self._options["server"] + "/rest/servicedeskapi/customer"
@@ -257,3 +279,4 @@ JIRA.waldur_request_type_fields = request_type_fields
 JIRA.waldur_search_users = search_users
 JIRA.waldur_create_customer_request = create_customer_request
 JIRA.waldur_create_customer = create_customer
+JIRA.waldur_create_customer_cloud = create_customer_cloud
