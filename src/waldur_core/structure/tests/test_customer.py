@@ -17,6 +17,7 @@ from waldur_core.structure.tests.utils import (
     client_delete_user,
     client_update_user,
 )
+from waldur_mastermind.marketplace.models import OfferingComponent
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 
@@ -978,6 +979,14 @@ class CustomerResourceQuotasTest(test.APITransactionTestCase):
         self.component2 = marketplace_factories.OfferingComponentFactory(
             offering=self.offering, type="ram", name="RAM", measured_unit="GB"
         )
+        self.limit_based_component = marketplace_factories.OfferingComponentFactory(
+            offering=self.offering,
+            type="disk",
+            name="Disk",
+            measured_unit="GB",
+            billing_type=OfferingComponent.BillingTypes.LIMIT,
+            limit_period=OfferingComponent.LimitPeriods.ANNUAL,
+        )
         self.resource1 = marketplace_factories.ResourceFactory(
             project=self.project1,
             offering=self.offering,
@@ -989,6 +998,17 @@ class CustomerResourceQuotasTest(test.APITransactionTestCase):
             offering=self.offering,
             current_usages={"cpu": 1, "ram": 2},
             limits={"cpu": 4, "ram": 8},
+        )
+        self.limit_based_resource = marketplace_factories.ResourceFactory(
+            project=self.project1,
+            offering=self.offering,
+            limits={"disk": 100},
+        )
+        self.limit_usage = marketplace_factories.ComponentUsageFactory(
+            resource=self.limit_based_resource,
+            component=self.limit_based_component,
+            usage=10,
+            date=timezone.now(),
         )
         self.url = factories.CustomerFactory.get_url(self.customer, "stats")
 
@@ -1018,3 +1038,15 @@ class CustomerResourceQuotasTest(test.APITransactionTestCase):
         self.assertEqual(ram_component["usage"], 6)
         self.assertEqual(ram_component["limit"], 24)
         self.assertEqual(ram_component["measured_unit"], "GB")
+
+    def test_customer_with_limit_based_resources(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        components = response.data["components"]
+        disk_component = next(
+            component for component in components if component["type"] == "disk"
+        )
+        self.assertEqual(disk_component["usage"], 0)
+        self.assertEqual(disk_component["limit_usage"], 10)
+        self.assertEqual(disk_component["measured_unit"], "GB")

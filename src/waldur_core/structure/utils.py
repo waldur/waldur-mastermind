@@ -1,10 +1,11 @@
+import datetime
 import logging
 from collections import defaultdict
 from typing import Any
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import QuerySet
+from django.db.models import QuerySet, Sum
 from django.utils.translation import gettext_lazy as _
 from rest_framework.exceptions import ValidationError
 
@@ -231,8 +232,17 @@ def move_project(project, customer, current_user=None):
 def get_components_usage_data_from_resources(
     resources: QuerySet[marketplace_models.Resource],
 ) -> list[dict[str, Any]]:
+    offerings = marketplace_models.Offering.objects.filter(
+        id__in=resources.values_list("offering_id", flat=True)
+    ).distinct()
+
+    components = marketplace_models.OfferingComponent.objects.filter(
+        offering__in=offerings
+    ).distinct()
+
     component_usage = defaultdict(float)
     component_limit = defaultdict(float)
+    component_limit_usage = defaultdict(float)
 
     for resource in resources:
         for component_type, usage in resource.current_usages.items():
@@ -242,13 +252,32 @@ def get_components_usage_data_from_resources(
             if limit is not None:
                 component_limit[component_type] += float(limit)
 
-    offerings = marketplace_models.Offering.objects.filter(
-        id__in=resources.values_list("offering_id", flat=True)
-    ).distinct()
+        limit_components = resource.offering.components.filter(
+            billing_type=marketplace_models.OfferingComponent.BillingTypes.LIMIT
+        )
 
-    components = marketplace_models.OfferingComponent.objects.filter(
-        offering__in=offerings
-    ).distinct()
+        for component in limit_components:
+            if component.limit_period in (
+                None,
+                marketplace_models.OfferingComponent.LimitPeriods.MONTH,
+            ):
+                component_limit_usage[component.type] += float(
+                    resource.current_usages.get(component.type, 0)
+                )
+            else:
+                usages = marketplace_models.ComponentUsage.objects.filter(
+                    resource=resource, component=component
+                ).exclude(plan_period=None)
+
+                if (
+                    component.limit_period
+                    == marketplace_models.OfferingComponent.LimitPeriods.ANNUAL
+                ):
+                    usages = usages.filter(date__year__gte=datetime.date.today().year)
+
+                total_usage = usages.aggregate(total=Sum("usage"))["total"] or 0
+                component_limit_usage[component.type] += float(total_usage)
+
     components_data = {}
     for component in components:
         if component.type not in components_data:
@@ -257,7 +286,9 @@ def get_components_usage_data_from_resources(
                 "name": component.name,
                 "description": component.description,
                 "measured_unit": component.measured_unit,
+                "billing_type": component.billing_type,
                 "usage": component_usage.get(component.type, 0),
+                "limit_usage": component_limit_usage.get(component.type, 0),
                 "limit": component_limit.get(component.type, None),
                 "offering_name": component.offering.name,
                 "offering_uuid": component.offering.uuid.hex,
