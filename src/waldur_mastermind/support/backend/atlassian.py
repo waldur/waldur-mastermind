@@ -664,8 +664,8 @@ class ServiceDeskBackend(SupportBackend):
                     user.email, user.full_name
                 )
             else:
-                backend_customer = self.manager.create_customer(
-                    user.email, user.full_name
+                backend_customer = self.manager.waldur_create_customer_cloud(
+                    user.email, config.ATLASSIAN_PROJECT_ID
                 )
         backend_id = self.get_user_id(backend_customer)
         try:
