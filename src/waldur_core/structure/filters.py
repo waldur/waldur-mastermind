@@ -377,6 +377,12 @@ class UserFilter(BaseUserFilter):
     is_staff = django_filters.BooleanFilter(widget=BooleanWidget)
     is_support = django_filters.BooleanFilter(widget=BooleanWidget)
     username = django_filters.CharFilter(field_name="username", lookup_expr="exact")
+    organization_roles = django_filters.CharFilter(
+        method="filter_organization_roles", label="Organization roles"
+    )
+    project_roles = django_filters.CharFilter(
+        method="filter_project_roles", label="Project roles"
+    )
     query = django_filters.CharFilter(method="filter_query")
 
     o = core_filters.ExtendedOrderingFilter(
@@ -395,6 +401,14 @@ class UserFilter(BaseUserFilter):
             "is_support",
         )
     )
+
+    def filter_organization_roles(self, queryset, name, value):
+        roles = self.request.GET.getlist("organization_roles")
+        return queryset.filter(userrole__role__name__in=roles)
+
+    def filter_project_roles(self, queryset, name, value):
+        roles = self.request.GET.getlist("project_roles")
+        return queryset.filter(userrole__role__name__in=roles)
 
     def filter_query(self, queryset, name, value):
         q = (
