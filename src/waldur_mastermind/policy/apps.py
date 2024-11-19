@@ -51,7 +51,7 @@ class PolicyConfig(AppConfig):
         )
 
         signals.m2m_changed.connect(
-            handlers.project_credit_offerings_list_changed_handler,
+            handlers.customer_credit_offerings_list_changed_handler,
             sender=invoices_models.CustomerCredit.offerings.through,
-            dispatch_uid="project_credit_offerings_list_changed_handler",
+            dispatch_uid="customer_credit_offerings_list_changed_handler",
         )

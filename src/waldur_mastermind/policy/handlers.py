@@ -1,6 +1,5 @@
 import logging
 
-from waldur_core.core import utils as core_utils
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import models as marketplace_models
 
@@ -76,21 +75,6 @@ def get_estimated_cost_policy_handler_for_observable_class(klass, observable_cla
     return handler
 
 
-def run_policies_if_credit_has_been_changed(customer_credit):
-    for klass in core_utils.get_all_subclasses(models.Policy):
-        if klass.trigger_class != invoices_models.InvoiceItem:
-            continue
-
-        try:
-            customer_path = klass.scope.field.related_model.Permissions.customer_path
-            policies = klass.objects.filter(
-                **{"scope__" + customer_path: customer_credit.customer}
-            )
-            utils.evaluate_policies(policies)
-        except AttributeError:
-            continue
-
-
 def customer_credit_changed_handler(sender, instance, created=False, **kwargs):
     customer_credit = instance
 
@@ -120,7 +104,7 @@ def project_credit_changed_handler(sender, instance, created=False, **kwargs):
     policies and utils.evaluate_policies(policies)
 
 
-def project_credit_offerings_list_changed_handler(
+def customer_credit_offerings_list_changed_handler(
     sender, instance, action, reverse, model, pk_set, **kwargs
 ):
     if action in ("post_add", "post_remove", "post_clear"):
