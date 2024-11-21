@@ -95,6 +95,7 @@ class PermissionEnum(str, Enum):
     ACCEPT_BOOKING_REQUEST = "RESOURCE.ACCEPT_BOOKING_REQUEST"
     REJECT_BOOKING_REQUEST = "RESOURCE.REJECT_BOOKING_REQUEST"
     MANAGE_RESOURCE_USERS = "RESOURCE.MANAGE_USERS"
+    RESOURCE_CONSUMPTION_LIMITATION = "RESOURCE.CONSUMPTION_LIMITATION"
 
     CREATE_PROJECT_PERMISSION = "PROJECT.CREATE_PERMISSION"
     CREATE_CUSTOMER_PERMISSION = "CUSTOMER.CREATE_PERMISSION"
@@ -134,7 +135,6 @@ class PermissionEnum(str, Enum):
     DELETE_ACCESS_SUBNET = "ACCESS_SUBNET.DELETE"
 
     UPDATE_OFFERING_USER_RESTRICTION = "OFFERINGUSER.UPDATE_RESTRICTION"
-    RESOURCE_CONSUMPTION_LIMITATION = "RESOURCE.CONSUMPTION_LIMITATION"
 
 
 CREATE_PERMISSIONS = {
@@ -286,23 +286,9 @@ PERMISSION_DESCRIPTION = [
         ],
     },
     {
-        "label": "Resource",
+        "label": "Provider actions for resources",
         "options": [
-            {"label": "Terminate resource", "value": "RESOURCE.TERMINATE"},
-            {
-                "label": "List importable resources",
-                "value": "RESOURCE.LIST_IMPORTABLE",
-            },
-            {
-                "label": "Set resource end date",
-                "value": "RESOURCE.SET_END_DATE",
-            },
             {"label": "Set resource usage", "value": "RESOURCE.SET_USAGE"},
-            {"label": "Switch resource plan", "value": "RESOURCE.SET_PLAN"},
-            {
-                "label": "Update resource limits",
-                "value": "RESOURCE.SET_LIMITS",
-            },
             {
                 "label": "Set resource backend id",
                 "value": "RESOURCE.SET_BACKEND_ID",
@@ -311,18 +297,17 @@ PERMISSION_DESCRIPTION = [
                 "label": "Submit resource report",
                 "value": "RESOURCE.SUBMIT_REPORT",
             },
-            {"label": "List resource users", "value": "RESOURCE.LIST_USERS"},
             {
-                "label": "Complete resource downscaling",
-                "value": "RESOURCE.COMPLETE_DOWNSCALING",
+                "label": "Set resource end date",
+                "value": "RESOURCE.SET_END_DATE",
             },
             {
-                "label": "Accept booking request",
-                "value": "RESOURCE.ACCEPT_BOOKING_REQUEST",
+                "label": "Set resource state",
+                "value": "RESOURCE.SET_STATE",
             },
             {
-                "label": "Reject booking request",
-                "value": "RESOURCE.REJECT_BOOKING_REQUEST",
+                "label": "Set resource backend metadata",
+                "value": "RESOURCE.SET_BACKEND_METADATA",
             },
             {
                 "label": "Create robot account",
@@ -335,6 +320,45 @@ PERMISSION_DESCRIPTION = [
             {
                 "label": "Delete robot account",
                 "value": "RESOURCE.DELETE_ROBOT_ACCOUNT",
+            },
+            {
+                "label": "Manage resource users",
+                "value": "RESOURCE.MANAGE_USERS",
+            },
+        ],
+    },
+    {
+        "label": "Customer actions for resources",
+        "options": [
+            {
+                "label": "Set resource end date",
+                "value": "RESOURCE.SET_END_DATE",
+            },
+            {"label": "Terminate resource", "value": "RESOURCE.TERMINATE"},
+            {
+                "label": "List importable resources",
+                "value": "RESOURCE.LIST_IMPORTABLE",
+            },
+            {"label": "Switch resource plan", "value": "RESOURCE.SET_PLAN"},
+            {
+                "label": "Update resource limits",
+                "value": "RESOURCE.SET_LIMITS",
+            },
+            {
+                "label": "Accept booking request",
+                "value": "RESOURCE.ACCEPT_BOOKING_REQUEST",
+            },
+            {
+                "label": "Reject booking request",
+                "value": "RESOURCE.REJECT_BOOKING_REQUEST",
+            },
+            {
+                "label": "Update resource options",
+                "value": "RESOURCE.UPDATE_OPTIONS",
+            },
+            {
+                "label": "Set resource consumption limitation",
+                "value": "RESOURCE.CONSUMPTION_LIMITATION",
             },
         ],
     },
