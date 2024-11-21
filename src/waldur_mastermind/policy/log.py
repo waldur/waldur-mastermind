@@ -14,6 +14,7 @@ class PolicyActionOrderLogger(EventLogger):
             "request_downscaling",
             "restrict_members",
             "request_pausing",
+            "notify_external_user",
         )
 
 

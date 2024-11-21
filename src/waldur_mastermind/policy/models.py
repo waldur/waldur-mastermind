@@ -44,6 +44,11 @@ class Policy(
         blank=True,
         null=True,
     )
+    options = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=_("Fields for saving actions extra data. Keys are name of actions."),
+    )
     actions = NotImplemented
     scope = NotImplemented
 
@@ -156,6 +161,7 @@ class ProjectPolicy(Policy):
     available_actions: set[str] = {
         "notify_project_team",
         "notify_organization_owners",
+        "notify_external_user",
         "block_creation_of_new_resources",
         "block_modification_of_existing_resources",
         "terminate_resources",
@@ -199,6 +205,7 @@ class CustomerPolicy(Policy):
 
     available_actions: set[str] = {
         "notify_organization_owners",
+        "notify_external_user",
         "block_creation_of_new_resources",
         "block_modification_of_existing_resources",
         "terminate_resources",
@@ -243,6 +250,7 @@ class OfferingPolicy(Policy):
 
     available_actions: set[str] = {
         "notify_organization_owners",
+        "notify_external_user",
         "block_creation_of_new_resources",
     }
     observable_classes = []

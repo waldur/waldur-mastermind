@@ -1,3 +1,3 @@
 class PolicyActionTypes:
-    IMMEDIATE = "immediate"
+    IMMEDIATE = "immediate"  # one time action
     THRESHOLD = "threshold"

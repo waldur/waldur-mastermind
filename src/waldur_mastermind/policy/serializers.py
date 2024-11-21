@@ -9,6 +9,7 @@ from waldur_core.core import serializers as core_serializers
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.permissions import _get_customer
 from waldur_mastermind.invoices.models import CustomerCredit, ProjectCredit
+from waldur_mastermind.policy.policy_actions import POLICY_ACTIONS
 
 from . import models
 
@@ -35,6 +36,15 @@ class PolicySerializer(serializers.HyperlinkedModelSerializer):
             )
 
         return value
+
+    def validate_options(self, options):
+        for key, value in options.items():
+            validator = getattr(POLICY_ACTIONS[key], "options_validator", None)
+            if validator:
+                if not validator(options[key]):
+                    raise ValidationError(f"Options for {key} are invalid.")
+
+        return options
 
     def create(self, validated_data):
         validated_data["created_by"] = self.context["request"].user
@@ -75,6 +85,7 @@ class PolicySerializer(serializers.HyperlinkedModelSerializer):
             "created_by_username",
             "has_fired",
             "fired_datetime",
+            "options",
         )
         extra_kwargs = {
             "url": {

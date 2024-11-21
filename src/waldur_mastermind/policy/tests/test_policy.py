@@ -351,6 +351,25 @@ class CreatePolicyTest(test.APITransactionTestCase):
             block_creation_of_new_resources_mock.assert_not_called()
             self.assertEqual(policy.has_fired, True)
 
+    def test_validate_options(self):
+        self.client.force_authenticate(self.fixture.staff)
+        payload = {
+            "limit_cost": 100,
+            "actions": "notify_organization_owners,block_modification_of_existing_resources",
+            "scope": structure_factories.ProjectFactory.get_url(self.project),
+            "options": {"notify_external_user": "test@example.com, user@domain.org"},
+        }
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        policy = ProjectEstimatedCostPolicy.objects.get(uuid=response.data["uuid"])
+
+        payload = {
+            "options": {"notify_external_user": "invalid-email, user@domain.org"}
+        }
+        url = factories.ProjectEstimatedCostPolicyFactory.get_url(policy)
+        response = self.client.patch(url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
 
 @ddt
 class DeletePolicyTest(test.APITransactionTestCase):
