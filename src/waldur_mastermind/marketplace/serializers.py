@@ -24,6 +24,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
 from waldur_core.core.clean_html import clean_html
 from waldur_core.core.fields import NaturalChoiceField
+from waldur_core.core.mixins import GetValueMixin
 from waldur_core.core.models import User, get_ssh_key_fingerprints
 from waldur_core.core.serializers import GenericRelatedField
 from waldur_core.core.validators import validate_ssh_public_key
@@ -2745,6 +2746,33 @@ class ComponentUserUsageCreateSerializer(serializers.ModelSerializer):
         required=False,
     )
 
+    def validate(self, attrs):
+        user = attrs.get("user")
+        component_usage = self.context["view"].get_object()
+        new_usage = attrs.get("usage", 0)
+
+        usage_limit = models.ComponentUserUsageLimit.objects.filter(
+            resource=component_usage.resource,
+            component=component_usage.component,
+            user=user,
+        ).first()
+
+        if usage_limit:
+            total_usage = (
+                models.ComponentUserUsage.objects.filter(
+                    user=user, component_usage=component_usage
+                ).aggregate(total=Sum("usage"))["total"]
+                or 0
+            )
+
+            if total_usage + new_usage > usage_limit.limit:
+                raise serializers.ValidationError(
+                    f"Usage limit exceeded. Maximum allowed: {usage_limit.limit}, "
+                    f"current usage: {total_usage}, additional: {new_usage}."
+                )
+
+        return attrs
+
     class Meta:
         model = models.ComponentUserUsage
         fields = (
@@ -3893,6 +3921,71 @@ class IntegrationStatusDetailsSerializer(
                 "view_name": "marketplace-provider-offering-detail",
             },
         }
+
+
+class ComponentUserUsageLimitSerializer(
+    serializers.HyperlinkedModelSerializer, GetValueMixin
+):
+    component = serializers.SlugRelatedField(
+        queryset=models.OfferingComponent.objects.all(),
+        slug_field="uuid",
+    )
+    component_type = serializers.ReadOnlyField(source="component.type")
+
+    class Meta:
+        model = models.ComponentUserUsageLimit
+        fields = (
+            "url",
+            "uuid",
+            "resource",
+            "component",
+            "component_type",
+            "user",
+            "limit",
+        )
+
+        protected_fields = ("resource",)
+
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "component-user-usage-limit-detail",
+            },
+            "resource": {
+                "lookup_field": "uuid",
+                "view_name": "marketplace-resource-detail",
+            },
+            "user": {
+                "lookup_field": "uuid",
+                "view_name": "marketplace-offering-user-detail",
+            },
+        }
+
+    def validate_limit(self, limit):
+        if limit < 0:
+            raise serializers.ValidationError("Limit must be a positive number.")
+        return limit
+
+    def validate(self, attrs):
+        component = self.get_from_attrs_or_instance(attrs, "component")
+        resource = self.get_from_attrs_or_instance(attrs, "resource")
+
+        if not self.instance:
+            if not has_permission(
+                self.context["request"],
+                PermissionEnum.RESOURCE_CONSUMPTION_LIMITATION,
+                resource.project,
+            ) and not has_permission(
+                self.context["request"],
+                PermissionEnum.RESOURCE_CONSUMPTION_LIMITATION,
+                resource.project.customer,
+            ):
+                raise PermissionDenied()
+
+        if not resource.offering.components.filter(uuid=component.uuid).exists():
+            serializers.ValidationError("Component is wrong.")
+
+        return attrs
 
 
 def get_integration_status(serializer, offering):

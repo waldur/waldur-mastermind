@@ -367,6 +367,47 @@ class SubmitUsageTest(test.APITransactionTestCase):
         self.assertIsNone(component_user_usage.user)
         self.assertEqual(usage_amount, float(component_user_usage.usage))
 
+    def test_user_usage_limit(self):
+        self.client.force_authenticate(self.fixture.staff)
+        component_usage = models.ComponentUsage.objects.create(
+            resource=self.resource,
+            plan_period=self.plan_period,
+            component=self.offering_component,
+            usage=200,
+            date=parse_datetime("2019-06-21"),
+            billing_period=parse_datetime("2019-06-01"),
+        )
+        offering_user = models.OfferingUser.objects.create(
+            offering=self.offering, user=self.fixture.user, username="user_00"
+        )
+        models.ComponentUserUsage.objects.create(
+            user=offering_user,
+            username=offering_user.user.username,
+            component_usage=component_usage,
+            usage=100,
+        )
+        models.ComponentUserUsageLimit.objects.create(
+            resource=self.resource,
+            component=self.offering_component,
+            user=offering_user,
+            limit=150,
+        )
+        offering_user_url = "http://testserver" + reverse(
+            "marketplace-offering-user-detail",
+            kwargs={"uuid": offering_user.uuid.hex},
+        )
+        payload = {
+            "usage": 90,
+            "username": "test_username_00",
+            "user": offering_user_url,
+        }
+        response = self.client.post(
+            f"/api/marketplace-component-usages/{component_usage.uuid.hex}/set_user_usage/",
+            payload,
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Usage limit exceeded", response.data["non_field_errors"][0])
+
     @data("admin", "manager", "user")
     def test_other_user_can_not_submit_user_usage_via_api(self, role):
         self.client.force_authenticate(getattr(self.fixture, role))

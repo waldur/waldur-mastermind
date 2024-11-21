@@ -478,6 +478,9 @@ class Offering(
     billable = models.BooleanField(
         default=True, help_text=_("Purchase and usage is invoiced.")
     )
+    support_per_user_consumption_limitation = models.BooleanField(
+        default=False, help_text=_("Set per user limits for resource components.")
+    )
 
     objects = managers.OfferingManager()
     tracker = FieldTracker()
@@ -1421,6 +1424,27 @@ class ComponentUserUsage(
 
     class Meta:
         unique_together = ("username", "component_usage")
+
+
+class ComponentUserUsageLimit(
+    TimeStampedModel,
+    core_models.UuidMixin,
+    LoggableMixin,
+):
+    resource = models.ForeignKey(on_delete=models.CASCADE, to=Resource)
+    component = models.ForeignKey(
+        on_delete=models.CASCADE,
+        to=OfferingComponent,
+    )
+    user = models.ForeignKey(to="OfferingUser", on_delete=models.CASCADE, null=False)
+    limit = models.DecimalField(default=0, decimal_places=2, max_digits=20)
+
+    class Meta:
+        unique_together = ("resource", "component", "user")
+
+    class Permissions:
+        customer_path = "resource__project__customer"
+        project_path = "resource__project"
 
 
 class OfferingFile(
