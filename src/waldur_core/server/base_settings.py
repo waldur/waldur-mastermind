@@ -194,6 +194,17 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/2.2/howto/static-files/
 STATIC_URL = "/static/"
 
+# RabbitMQ requirements:
+# rabbitmq-plugins enable rabbitmq_mqtt
+# rabbitmq-plugins enable rabbitmq_web_mqtt (for websockets)
+RABBITMQ_MQTT = {
+    "ENABLED": False,
+    "HOST": "localhost",
+    "PORT": 1883,
+    "USER": "test",
+    "PASSWORD": "test",
+}
+
 # Celery
 CELERY_BROKER_URL = "redis://localhost"
 CELERY_RESULT_BACKEND = "redis://localhost"

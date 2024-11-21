@@ -1,9 +1,12 @@
+import json
 import logging
 
+from django.conf import settings
 from django.core import exceptions as django_exceptions
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from django.utils import timezone
 
+import paho.mqtt.publish as mqtt_publish
 from waldur_core.core.utils import month_start
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
@@ -83,3 +86,48 @@ def sync_component_user_usage_when_allocation_user_usage_is_submitted(
     sender, instance, **kwargs
 ):
     marketplace_utils.sync_component_user_usage(instance, PLUGIN_NAME)
+
+
+def send_order_created_to_mqtt(sender, instance, created=False, **kwargs):
+    if not settings.RABBITMQ_MQTT["ENABLED"]:
+        return
+
+    order: marketplace_models.Order = instance
+    if not created:
+        return
+
+    if order.offering.type != PLUGIN_NAME:
+        return
+
+    topic_name = f"offering/{order.offering.uuid}/orders"
+
+    mqtt_payload = json.dumps({"order_uuid": order.uuid.hex})
+    mqtt_auth = {
+        "username": settings.RABBITMQ_MQTT["USER"],
+        "password": settings.RABBITMQ_MQTT["PASSWORD"],
+    }
+
+    try:
+        logger.info(
+            "Sending new order info %s to mqtt://%s:%s, topic: %s",
+            order,
+            settings.RABBITMQ_MQTT["HOST"],
+            settings.RABBITMQ_MQTT["PORT"],
+            topic_name,
+        )
+        mqtt_publish.single(
+            topic_name,
+            mqtt_payload,
+            hostname=settings.RABBITMQ_MQTT["HOST"],
+            port=settings.RABBITMQ_MQTT["PORT"],
+            auth=mqtt_auth,
+            retain=True,
+        )
+    except Exception as exc:
+        logger.warning(
+            "Unable to send order info %s to mqtt://%s:%s, reason: %s",
+            order,
+            settings.RABBITMQ_MQTT["HOST"],
+            settings.RABBITMQ_MQTT["PORT"],
+            exc,
+        )

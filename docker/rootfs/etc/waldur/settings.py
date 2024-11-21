@@ -161,5 +161,14 @@ for extension_name in extensions:
     if os.path.isfile(extension_conf_file_path):
         exec(open(extension_conf_file_path, encoding="utf-8").read())  # nosec
 
+# MQTT settings
+RABBITMQ_MQTT = {
+    "ENABLED": False,
+    "HOST": "",
+    "PORT": 1883,
+    "USER": "",
+    "PASSWORD": "",
+}
+
 if not SECRET_KEY:
     raise Exception("GLOBAL_SECRET_KEY is not set")
