@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 class CallDocument(
     TimeStampedModel,
     core_models.UuidMixin,
+    core_models.DescribableMixin,
 ):
     call = models.ForeignKey("Call", on_delete=models.CASCADE)
     file = models.FileField(

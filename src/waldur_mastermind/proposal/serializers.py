@@ -319,7 +319,7 @@ class CallDocumentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = models.CallDocument
-        fields = ["uuid", "file", "file_name"]
+        fields = ["uuid", "file", "file_name", "description", "created"]
 
 
 class PublicCallSerializer(
