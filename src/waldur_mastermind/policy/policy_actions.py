@@ -1,4 +1,5 @@
 import logging
+import re
 
 from django.db import transaction
 
@@ -284,6 +285,37 @@ def reset_pausing(policy):
     )
 
 
+def notify_external_user(policy):
+    serialized_policy = core_utils.serialize_instance(policy)
+    tasks.notify_external_user.delay(serialized_policy)
+
+    logger.info(
+        "Policy action notify_external_user has been triggered. Policy UUID: %s.",
+        policy.uuid.hex,
+    )
+
+    log.event_logger.policy_action.info(
+        "Cost policy has been triggered and notification to external user has been scheduled.",
+        event_type="notify_external_user",
+        event_context={"policy_uuid": policy.uuid.hex},
+    )
+
+
+def notify_external_user_validator(input_value):
+    if not isinstance(input_value, str):
+        return False
+
+    email_regex = re.compile(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$")
+    emails = input_value.split(",")
+
+    for email in emails:
+        email = email.strip()
+        if email and not email_regex.match(email):
+            return False
+
+    return True
+
+
 POLICY_ACTIONS = {
     "notify_project_team": structures.PolicyAction(
         action_type=enums.PolicyActionTypes.IMMEDIATE,
@@ -324,5 +356,11 @@ POLICY_ACTIONS = {
         action_type=enums.PolicyActionTypes.IMMEDIATE,
         method=request_pausing,
         reset_method=reset_pausing,
+    ),
+    "notify_external_user": structures.PolicyAction(
+        action_type=enums.PolicyActionTypes.IMMEDIATE,
+        method=notify_external_user,
+        reset_method=None,
+        options_validator=notify_external_user_validator,
     ),
 }

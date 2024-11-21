@@ -9,3 +9,4 @@ class PolicyAction:
     action_type: enums.PolicyActionTypes
     method: Callable
     reset_method: Callable | None = None
+    options_validator: Callable | None = None

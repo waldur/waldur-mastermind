@@ -63,3 +63,10 @@ def check_polices():
             continue
 
         utils.evaluate_policies(klass.objects.all())
+
+
+@shared_task(name="waldur_mastermind.policy.notify_external_user")
+def notify_external_user(serialized_policy):
+    policy = core_utils.deserialize_instance(serialized_policy)
+    emails = policy.options.get("notify_external_user", "").split(",")
+    send_emails(emails, policy)
