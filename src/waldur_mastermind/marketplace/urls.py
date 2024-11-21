@@ -150,6 +150,11 @@ def register_in(router):
         views.IntegrationStatusViewSet,
         basename="marketplace-integration-status",
     )
+    router.register(
+        r"component-user-usage-limits",
+        views.ComponentUserUsageLimitViewSet,
+        basename="component-user-usage-limit",
+    )
 
 
 urlpatterns = [

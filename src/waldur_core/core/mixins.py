@@ -199,3 +199,8 @@ class ReviewMixin(ReviewStateMixin, TimeStampedModel):
     @property
     def is_rejected(self):
         return self.state == self.States.REJECTED
+
+
+class GetValueMixin:
+    def get_from_attrs_or_instance(self, attrs, field_name, default=None):
+        return attrs.get(field_name, getattr(self.instance, field_name, default))

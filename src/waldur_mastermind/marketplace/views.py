@@ -3753,3 +3753,17 @@ class IntegrationStatusViewSet(core_views.ReadOnlyActionsViewSet):
             )
         ]
         return qs.filter(offering__in=offerings)
+
+
+class ComponentUserUsageLimitViewSet(core_views.ActionsViewSet):
+    lookup_field = "uuid"
+    queryset = models.ComponentUserUsageLimit.objects.all().order_by("-created")
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    serializer_class = serializers.ComponentUserUsageLimitSerializer
+
+    destroy_permissions = update_permissions = partial_update_permissions = [
+        permission_factory(
+            PermissionEnum.RESOURCE_CONSUMPTION_LIMITATION,
+            ["resource.project.customer", "resource.project"],
+        )
+    ]

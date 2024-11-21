@@ -556,3 +556,52 @@ class IntegrationStatusFactory(
     def get_list_url(cls, action=None):
         url = "http://testserver" + reverse("marketplace-integration-status-list")
         return url if action is None else url + action + "/"
+
+
+class OfferingUserFactory(factory.django.DjangoModelFactory):
+    offering = factory.SubFactory(OfferingFactory)
+    user = factory.SubFactory(structure_factories.UserFactory)
+    username = factory.Sequence(lambda n: "username-%s" % n)
+
+    class Meta:
+        model = models.OfferingUser
+
+    @classmethod
+    def get_url(cls, offering_user=None, action=None):
+        if offering_user is None:
+            offering_user = OfferingUserFactory()
+        url = "http://testserver" + reverse(
+            "marketplace-offering-user-detail",
+            kwargs={"uuid": offering_user.uuid.hex},
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = "http://testserver" + reverse("marketplace-offering-user-list")
+        return url if action is None else url + action + "/"
+
+
+class ComponentUserUsageLimitFactory(factory.django.DjangoModelFactory):
+    resource = factory.SubFactory(ResourceFactory)
+    component = factory.SubFactory(OfferingComponentFactory)
+    user = factory.SubFactory(OfferingUserFactory)
+    limit = 100
+
+    class Meta:
+        model = models.ComponentUserUsageLimit
+
+    @classmethod
+    def get_url(cls, integration_status=None, action=None):
+        if integration_status is None:
+            integration_status = IntegrationStatusFactory()
+        url = "http://testserver" + reverse(
+            "component-user-usage-limit-detail",
+            kwargs={"uuid": integration_status.uuid.hex},
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = "http://testserver" + reverse("component-user-usage-limit-list")
+        return url if action is None else url + action + "/"
