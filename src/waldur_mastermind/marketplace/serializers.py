@@ -1648,6 +1648,7 @@ class OfferingPermissionSerializer(
         lookup_field="uuid",
     )
     offering_name = serializers.ReadOnlyField(source="scope.name")
+    offering_slug = serializers.ReadOnlyField(source="scope.slug")
     offering_uuid = serializers.ReadOnlyField(source="scope.uuid")
     role_name = serializers.ReadOnlyField(source="role.name")
 
@@ -1661,6 +1662,7 @@ class OfferingPermissionSerializer(
             "created_by",
             "offering",
             "offering_uuid",
+            "offering_slug",
             "offering_name",
             "role_name",
         ) + structure_serializers.BasePermissionSerializer.Meta.fields
