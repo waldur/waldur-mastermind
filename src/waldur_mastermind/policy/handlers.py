@@ -15,7 +15,12 @@ def customer_estimated_cost_policy_trigger_handler(
     policies = models.CustomerEstimatedCostPolicy.objects.filter(
         scope=invoice_item.invoice.customer
     )
-    utils.evaluate_policies(policies)
+    if policies.count() > 0:
+        logger.info(
+            "Evaluating %s customer policies after invoice item update",
+            policies.count(),
+        )
+        utils.evaluate_policies(policies)
 
 
 def project_estimated_cost_policy_trigger_handler(
@@ -25,7 +30,11 @@ def project_estimated_cost_policy_trigger_handler(
     policies = models.ProjectEstimatedCostPolicy.objects.filter(
         scope=invoice_item.project
     )
-    utils.evaluate_policies(policies)
+    if policies.count() > 0:
+        logger.info(
+            "Evaluating %s project policies after invoice item update", policies.count()
+        )
+        utils.evaluate_policies(policies)
 
 
 def get_offering_trigger_handler(klass):
@@ -81,15 +90,28 @@ def customer_credit_changed_handler(sender, instance, created=False, **kwargs):
     if not customer_credit.tracker.has_changed("value"):
         return
 
-    policies = models.CustomerEstimatedCostPolicy.objects.filter(
+    logger.info(
+        "%s has changed, looking up customer and project policies", customer_credit
+    )
+    customer_policies = models.CustomerEstimatedCostPolicy.objects.filter(
         scope=customer_credit.customer
     )
-    policies and utils.evaluate_policies(policies)
+    if customer_policies.count() > 0:
+        logger.info(
+            "%s customer policies are found, evaluating them", customer_policies.count()
+        )
+        utils.evaluate_policies(customer_policies)
+    else:
+        logger.info("Customer policies are not found, skipping evaluation")
 
-    policies = models.ProjectEstimatedCostPolicy.objects.filter(
+    project_policies = models.ProjectEstimatedCostPolicy.objects.filter(
         scope__customer=customer_credit.customer
     )
-    policies and utils.evaluate_policies(policies)
+    if project_policies.count() > 0:
+        logger.info("%s project policies are found, evaluating them")
+        utils.evaluate_policies(project_policies)
+    else:
+        logger.info("Project policies are not found, skipping evaluation")
 
 
 def project_credit_changed_handler(sender, instance, created=False, **kwargs):
@@ -98,10 +120,15 @@ def project_credit_changed_handler(sender, instance, created=False, **kwargs):
     if not project_credit.tracker.has_changed("value"):
         return
 
-    policies = models.ProjectEstimatedCostPolicy.objects.filter(
-        scope__customer=project_credit.project.customer
+    logger.info("%s has changed, looking up project policies", project_credit)
+    project_policies = models.ProjectEstimatedCostPolicy.objects.filter(
+        scope=project_credit.project
     )
-    policies and utils.evaluate_policies(policies)
+    if project_policies.count() > 0:
+        logger.info("%s project policies are found, evaluating them")
+        utils.evaluate_policies(project_policies)
+    else:
+        logger.info("Project policies are not found, skipping evaluation")
 
 
 def customer_credit_offerings_list_changed_handler(
@@ -116,4 +143,5 @@ def customer_credit_offerings_list_changed_handler(
         policies = models.CustomerEstimatedCostPolicy.objects.filter(
             scope_id__in=customer_ids
         )
-        policies and utils.evaluate_policies(policies)
+        if policies.count() > 0:
+            utils.evaluate_policies(policies)
