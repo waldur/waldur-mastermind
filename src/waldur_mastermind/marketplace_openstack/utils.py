@@ -500,6 +500,9 @@ def update_external_addresses_of_resource(resource):
     resource.backend_metadata["external_address"] = []
 
     for floating_ip in floating_ips:
+        if not resource.offering.parent:
+            continue
+
         external_ips = get_external_ips(
             resource.offering.parent,
             [floating_ip.address],

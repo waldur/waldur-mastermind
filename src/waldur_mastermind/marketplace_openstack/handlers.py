@@ -535,12 +535,10 @@ def set_mtu_when_network_has_been_created(sender, instance, created=False, **kwa
 
 
 def update_floating_ip_external_addresses(sender, instance, created=False, **kwargs):
-    floating_ip = instance
-
-    if not created:
+    if not instance.tracker.has_changed("address"):
         return
 
-    utils.update_external_addresses_of_floating_ip(floating_ip)
+    utils.update_external_addresses_of_floating_ip(instance)
 
 
 def update_instances_ip_external_addresses(sender, instance, created=False, **kwargs):
