@@ -38,11 +38,22 @@ def evaluate_policies(policies):
                     policy.uuid.hex,
                 )
 
+                logger.info("Resetting immediate actions")
+                for action in policy.get_immediate_actions():
+                    reset_method = action.reset_method
+                    if reset_method:
+                        logger.info(
+                            "Running immediate action reset method %s.",
+                            reset_method.__name__,
+                        )
+                        reset_method(policy)
+
+                logger.info("Resetting threshold actions")
                 for action in policy.get_threshold_actions():
                     reset_method = action.reset_method
                     if reset_method:
                         logger.info(
-                            "Running reset method %s.",
+                            "Running threshold action reset method %s.",
                             reset_method.__name__,
                         )
                         reset_method(policy)
