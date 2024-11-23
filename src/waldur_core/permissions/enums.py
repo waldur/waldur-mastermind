@@ -97,6 +97,29 @@ class PermissionEnum(str, Enum):
     MANAGE_RESOURCE_USERS = "RESOURCE.MANAGE_USERS"
     RESOURCE_CONSUMPTION_LIMITATION = "RESOURCE.CONSUMPTION_LIMITATION"
 
+    GET_SERVICE_PROVIDER_API_SECRET_CODE = "SERVICE_PROVIDER.GET_API_SECRET_CODE"
+    GENERATE_SERVICE_PROVIDER_API_SECRET_CODE = (
+        "SERVICE_PROVIDER.GENERATE_API_SECRET_CODE"
+    )
+    LIST_SERVICE_PROVIDER_CUSTOMERS = "SERVICE_PROVIDER.LIST_CUSTOMERS"
+    LIST_SERVICE_PROVIDER_CUSTOMER_PROJECTS = "SERVICE_PROVIDER.LIST_CUSTOMER_PROJECTS"
+    LIST_SERVICE_PROVIDER_PROJECTS = "SERVICE_PROVIDER.LIST_PROJECTS"
+    LIST_SERVICE_PROVIDER_PROJECT_PERMISSIONS = (
+        "SERVICE_PROVIDER.LIST_PROJECT_PERMISSIONS"
+    )
+    LIST_SERVICE_PROVIDER_KEYS = "SERVICE_PROVIDER.LIST_KEYS"
+    LIST_SERVICE_PROVIDER_USERS = "SERVICE_PROVIDER.LIST_USERS"
+    LIST_SERVICE_PROVIDER_USER_CUSTOMERS = "SERVICE_PROVIDER.LIST_USER_CUSTOMERS"
+    SET_SERVICE_PROVIDER_OFFERINGS_USERNAME = "SERVICE_PROVIDER.SET_OFFERINGS_USERNAME"
+    GET_SERVICE_PROVIDER_STATISTICS = "SERVICE_PROVIDER.GET_STATISTICS"
+    GET_SERVICE_PROVIDER_REVENUE = "SERVICE_PROVIDER.GET_REVENUE"
+    GET_SERVICE_PROVIDER_ROBOT_ACCOUNT_CUSTOMERS = (
+        "SERVICE_PROVIDER.GET_ROBOT_ACCOUNT_CUSTOMERS"
+    )
+    GET_SERVICE_PROVIDER_ROBOT_ACCOUNT_PROJECTS = (
+        "SERVICE_PROVIDER.GET_ROBOT_ACCOUNT_PROJECTS"
+    )
+
     CREATE_PROJECT_PERMISSION = "PROJECT.CREATE_PERMISSION"
     CREATE_CUSTOMER_PERMISSION = "CUSTOMER.CREATE_PERMISSION"
     CREATE_OFFERING_PERMISSION = "OFFERING.CREATE_PERMISSION"
@@ -286,7 +309,7 @@ PERMISSION_DESCRIPTION = [
         ],
     },
     {
-        "label": "Provider actions for resources",
+        "label": "Provider actions",
         "options": [
             {"label": "Set resource usage", "value": "RESOURCE.SET_USAGE"},
             {
@@ -324,6 +347,62 @@ PERMISSION_DESCRIPTION = [
             {
                 "label": "Manage resource users",
                 "value": "RESOURCE.MANAGE_USERS",
+            },
+            {
+                "value": "SERVICE_PROVIDER.GET_API_SECRET_CODE",
+                "label": "Get API secret code",
+            },
+            {
+                "value": "SERVICE_PROVIDER.GENERATE_API_SECRET_CODE",
+                "label": "Generate API secret code",
+            },
+            {
+                "value": "SERVICE_PROVIDER.LIST_CUSTOMERS",
+                "label": "List service provider customers",
+            },
+            {
+                "value": "SERVICE_PROVIDER.LIST_CUSTOMER_PROJECTS",
+                "label": "List service provider customer projects",
+            },
+            {
+                "value": "SERVICE_PROVIDER.LIST_PROJECTS",
+                "label": "List service provider projects",
+            },
+            {
+                "value": "SERVICE_PROVIDER.LIST_PROJECT_PERMISSIONS",
+                "label": "List service provider project permissions",
+            },
+            {
+                "value": "SERVICE_PROVIDER.LIST_KEYS",
+                "label": "List service provider keys",
+            },
+            {
+                "value": "SERVICE_PROVIDER.LIST_USERS",
+                "label": "List service provider users",
+            },
+            {
+                "value": "SERVICE_PROVIDER.LIST_USER_CUSTOMERS",
+                "label": "List service provider user customers",
+            },
+            {
+                "value": "SERVICE_PROVIDER.SET_OFFERINGS_USERNAME",
+                "label": "Set offerings username",
+            },
+            {
+                "value": "SERVICE_PROVIDER.GET_STATISTICS",
+                "label": "Get service provider statistics",
+            },
+            {
+                "value": "SERVICE_PROVIDER.GET_REVENUE",
+                "label": "Get service provider revenue",
+            },
+            {
+                "value": "SERVICE_PROVIDER.GET_ROBOT_ACCOUNT_CUSTOMERS",
+                "label": "Get service provider robot account customers",
+            },
+            {
+                "value": "SERVICE_PROVIDER.GET_ROBOT_ACCOUNT_PROJECTS",
+                "label": "Get service provider robot account projects",
             },
         ],
     },
