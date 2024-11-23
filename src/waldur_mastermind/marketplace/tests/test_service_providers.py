@@ -49,6 +49,9 @@ class ServiceProviderGetTest(test.APITransactionTestCase):
     def test_service_provider_api_secret_code_is_visible(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
+        CustomerRole.OWNER.add_permission(
+            PermissionEnum.GET_SERVICE_PROVIDER_API_SECRET_CODE
+        )
         url = factories.ServiceProviderFactory.get_url(
             self.service_provider, "api_secret_code"
         )
@@ -67,6 +70,7 @@ class ServiceProviderGetTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_user_projects_are_visible(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.LIST_SERVICE_PROVIDER_USERS)
         self.fixture.resource
         self.fixture.manager
         self.client.force_authenticate(self.fixture.service_owner)
@@ -163,6 +167,9 @@ class ServiceProviderUpdateTest(test.APITransactionTestCase):
     def test_generate_api_secret_code(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
+        CustomerRole.OWNER.add_permission(
+            PermissionEnum.GENERATE_SERVICE_PROVIDER_API_SECRET_CODE
+        )
 
         service_provider = factories.ServiceProviderFactory(customer=self.customer)
         url = factories.ServiceProviderFactory.get_url(
@@ -317,6 +324,7 @@ class ConsumerProjectListTest(test.APITransactionTestCase):
         self.url = factories.ServiceProviderFactory.get_url(
             self.mp_fixture.service_provider, action="projects"
         )
+        CustomerRole.OWNER.add_permission(PermissionEnum.LIST_SERVICE_PROVIDER_PROJECTS)
 
     def test_service_provider_can_view_project_with_purchased_resource(self):
         self.client.force_login(self.mp_fixture.offering_owner)
@@ -342,6 +350,7 @@ class ConsumerSshKeyListTest(test.APITransactionTestCase):
         self.url = factories.ServiceProviderFactory.get_url(
             self.mp_fixture.service_provider, action="keys"
         )
+        CustomerRole.OWNER.add_permission(PermissionEnum.LIST_SERVICE_PROVIDER_KEYS)
 
     def test_service_provider_can_view_ssh_keys_from_project_with_purchased_resource(
         self,
@@ -364,6 +373,9 @@ class ConsumerProjectPermissionListTest(test.APITransactionTestCase):
         self.url = factories.ServiceProviderFactory.get_url(
             self.mp_fixture.service_provider, action="project_permissions"
         )
+        CustomerRole.OWNER.add_permission(
+            PermissionEnum.LIST_SERVICE_PROVIDER_PROJECT_PERMISSIONS
+        )
 
     def test_service_provider_can_view_project_permissions_in_project_with_purchased_resource(
         self,
@@ -385,6 +397,7 @@ class ConsumerUserListTest(test.APITransactionTestCase):
         self.url = factories.ServiceProviderFactory.get_url(
             self.mp_fixture.service_provider, action="users"
         )
+        CustomerRole.OWNER.add_permission(PermissionEnum.LIST_SERVICE_PROVIDER_USERS)
 
     def test_service_provider_can_view_users_in_project_with_purchased_resource(self):
         self.client.force_login(self.mp_fixture.offering_owner)
@@ -418,6 +431,9 @@ class SetOfferingUsersTest(test.APITransactionTestCase):
         self.url = factories.ServiceProviderFactory.get_url(
             self.fixture.service_provider,
             action="set_offerings_username",
+        )
+        CustomerRole.OWNER.add_permission(
+            PermissionEnum.SET_SERVICE_PROVIDER_OFFERINGS_USERNAME
         )
 
     def test_offering_user_creation(self):
@@ -484,6 +500,9 @@ class ServiceProviderUserCustomersTest(test.APITransactionTestCase):
         )
         self.url = factories.ServiceProviderFactory.get_url(
             self.service_provider, "user_customers"
+        )
+        CustomerRole.OWNER.add_permission(
+            PermissionEnum.LIST_SERVICE_PROVIDER_USER_CUSTOMERS
         )
 
     def test_get_user_customers_list(self):

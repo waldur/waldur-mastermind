@@ -142,11 +142,6 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
     queryset = models.ServiceProvider.objects.all().order_by("customer__name")
     serializer_class = serializers.ServiceProviderSerializer
     filterset_class = filters.ServiceProviderFilter
-    api_secret_code_permissions = projects_permissions = (
-        project_permissions_permissions
-    ) = keys_permissions = users_permissions = set_offerings_username_permissions = [
-        structure_permissions.is_owner
-    ]
 
     @action(detail=True, methods=["GET", "POST"])
     def api_secret_code(self, request, uuid=None):
@@ -155,11 +150,23 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
         """
         service_provider = self.get_object()
         if request.method == "GET":
+            if not has_permission(
+                request,
+                PermissionEnum.GET_SERVICE_PROVIDER_API_SECRET_CODE,
+                service_provider.customer,
+            ):
+                raise PermissionDenied()
             return Response(
                 {"api_secret_code": service_provider.api_secret_code},
                 status=status.HTTP_200_OK,
             )
         else:
+            if not has_permission(
+                request,
+                PermissionEnum.GENERATE_SERVICE_PROVIDER_API_SECRET_CODE,
+                service_provider.customer,
+            ):
+                raise PermissionDenied()
             service_provider.generate_api_secret_code()
             service_provider.save()
             return Response(
@@ -178,6 +185,13 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
         service_provider = self.get_object()
         return utils.get_service_provider_user_ids(self.request.user, service_provider)
 
+    customers_permissions = [
+        permission_factory(
+            PermissionEnum.LIST_SERVICE_PROVIDER_CUSTOMERS,
+            ["customer"],
+        )
+    ]
+
     @action(detail=True, methods=["GET"])
     def customers(self, request, uuid=None):
         service_provider = self.get_object()
@@ -193,6 +207,13 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
             },
         )
         return self.get_paginated_response(serializer.data)
+
+    customer_projects_permissions = [
+        permission_factory(
+            PermissionEnum.LIST_SERVICE_PROVIDER_CUSTOMER_PROJECTS,
+            ["customer"],
+        )
+    ]
 
     @action(detail=True, methods=["GET"])
     def customer_projects(self, request, uuid=None):
@@ -214,6 +235,13 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
         )
         return self.get_paginated_response(serializer.data)
 
+    projects_permissions = [
+        permission_factory(
+            PermissionEnum.LIST_SERVICE_PROVIDER_PROJECTS,
+            ["customer"],
+        )
+    ]
+
     @action(detail=True, methods=["GET"])
     def projects(self, request, uuid=None):
         project_ids = self.get_customer_project_ids()
@@ -223,6 +251,13 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
             page, many=True, context=self.get_serializer_context()
         )
         return self.get_paginated_response(serializer.data)
+
+    project_permissions_permissions = [
+        permission_factory(
+            PermissionEnum.LIST_SERVICE_PROVIDER_PROJECT_PERMISSIONS,
+            ["customer"],
+        )
+    ]
 
     @action(detail=True, methods=["GET"])
     def project_permissions(self, request, uuid=None):
@@ -240,6 +275,13 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
         )
         return self.get_paginated_response(serializer.data)
 
+    keys_permissions = [
+        permission_factory(
+            PermissionEnum.LIST_SERVICE_PROVIDER_KEYS,
+            ["customer"],
+        )
+    ]
+
     @action(detail=True, methods=["GET"])
     def keys(self, request, uuid=None):
         user_ids = self.get_customer_user_ids()
@@ -249,6 +291,13 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
             page, many=True, context=self.get_serializer_context()
         )
         return self.get_paginated_response(serializer.data)
+
+    users_permissions = [
+        permission_factory(
+            PermissionEnum.LIST_SERVICE_PROVIDER_USERS,
+            ["customer"],
+        )
+    ]
 
     @action(detail=True, methods=["GET"])
     def users(self, request, uuid=None):
@@ -263,6 +312,13 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
             page, many=True, context=context
         )
         return self.get_paginated_response(serializer.data)
+
+    user_customers_permissions = [
+        permission_factory(
+            PermissionEnum.LIST_SERVICE_PROVIDER_USER_CUSTOMERS,
+            ["customer"],
+        )
+    ]
 
     @action(detail=True, methods=["GET"])
     def user_customers(self, request, uuid=None):
@@ -310,6 +366,13 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
             )
 
     destroy_permissions = [structure_permissions.is_owner, check_related_resources]
+
+    set_offerings_username_permissions = [
+        permission_factory(
+            PermissionEnum.SET_SERVICE_PROVIDER_OFFERINGS_USERNAME,
+            ["customer"],
+        )
+    ]
 
     @action(detail=True, methods=["POST"])
     def set_offerings_username(self, request, uuid=None):
@@ -364,6 +427,13 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
             page, many=True, context=self.get_serializer_context()
         )
         return self.get_paginated_response(serializer.data)
+
+    stat_permissions = [
+        permission_factory(
+            PermissionEnum.GET_SERVICE_PROVIDER_STATISTICS,
+            ["customer"],
+        )
+    ]
 
     @action(detail=True, methods=["GET"])
     def stat(self, request, uuid=None):
@@ -442,6 +512,13 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
             status=status.HTTP_200_OK,
         )
 
+    revenue_permissions = [
+        permission_factory(
+            PermissionEnum.GET_SERVICE_PROVIDER_REVENUE,
+            ["customer"],
+        )
+    ]
+
     @action(detail=True, methods=["GET"])
     def revenue(self, request, uuid=None):
         start = month_start(timezone.datetime.today()) - relativedelta(years=1)
@@ -463,6 +540,13 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
             status=status.HTTP_200_OK,
         )
 
+    robot_account_customers_permissions = [
+        permission_factory(
+            PermissionEnum.GET_SERVICE_PROVIDER_ROBOT_ACCOUNT_CUSTOMERS,
+            ["customer"],
+        )
+    ]
+
     @action(detail=True, methods=["GET"])
     def robot_account_customers(self, request, uuid=None):
         service_provider = self.get_object()
@@ -479,6 +563,13 @@ class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
         page = self.paginate_queryset(customers)
         data = [{"name": row.name, "uuid": row.uuid} for row in page]
         return self.get_paginated_response(data)
+
+    robot_account_projects_permissions = [
+        permission_factory(
+            PermissionEnum.GET_SERVICE_PROVIDER_ROBOT_ACCOUNT_PROJECTS,
+            ["customer"],
+        )
+    ]
 
     @action(detail=True, methods=["GET"])
     def robot_account_projects(self, request, uuid=None):
