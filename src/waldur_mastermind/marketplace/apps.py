@@ -73,6 +73,12 @@ class MarketplaceConfig(AppConfig):
             dispatch_uid="waldur_mastermind.marketplace.update_category_quota_when_offering_is_deleted",
         )
 
+        signals.post_delete.connect(
+            handlers.delete_service_setting_when_offering_is_deleted,
+            sender=models.Offering,
+            dispatch_uid="waldur_mastermind.marketplace.delete_service_setting_when_offering_is_deleted",
+        )
+
         quota_signals.recalculate_quotas.connect(
             handlers.update_category_offerings_count,
             dispatch_uid="waldur_mastermind.marketplace.update_category_offerings_count",
