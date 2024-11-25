@@ -433,7 +433,18 @@ class OpenStackBackend(ServiceBackend):
                 },
             )
 
+    def remove_stale_volume_types(self):
+        cinder = get_cinder_client(self.admin_session)
+        try:
+            remote_volume_types = cinder.volume_types.list()
+        except cinder_exceptions.ClientException as e:
+            raise OpenStackBackendError(e)
+        models.VolumeType.objects.filter(settings=self.settings).exclude(
+            backend_id__in=[volume_type.id for volume_type in remote_volume_types]
+        ).delete()
+
     def pull_tenant_volume_types(self, tenant: models.Tenant):
+        self.remove_stale_volume_types()
         session = get_tenant_session(tenant)
         cinder = get_cinder_client(session)
         try:
