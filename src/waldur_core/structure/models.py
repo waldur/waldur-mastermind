@@ -35,7 +35,7 @@ from waldur_core.core.validators import (
 from waldur_core.logging.loggers import LoggableMixin
 from waldur_core.media.mixins import ImageModelMixin
 from waldur_core.media.validators import CertificateValidator
-from waldur_core.permissions.enums import SYSTEM_PROJECT_ROLES, RoleEnum
+from waldur_core.permissions.enums import SYSTEM_PROJECT_ROLES, PermissionEnum, RoleEnum
 from waldur_core.permissions.models import Role
 from waldur_core.permissions.utils import (
     add_user,
@@ -591,6 +591,7 @@ class Project(
     class Permissions:
         customer_path = "customer"
         project_path = "self"
+        list_permission = PermissionEnum.LIST_PROJECTS
 
     class Quotas(quotas_models.QuotaModelMixin.Quotas):
         enable_fields_caching = False

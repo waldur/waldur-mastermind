@@ -1,5 +1,6 @@
 from django.utils.functional import cached_property
 
+from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 
 from . import factories
@@ -28,12 +29,14 @@ class CustomerFixture(UserFixture):
     def owner(self):
         user = factories.UserFactory()
         self.customer.add_user(user, CustomerRole.OWNER)
+        CustomerRole.OWNER.add_permission(PermissionEnum.LIST_PROJECTS)
         return user
 
     @cached_property
     def customer_support(self):
         user = factories.UserFactory()
         self.customer.add_user(user, CustomerRole.SUPPORT)
+        CustomerRole.SUPPORT.add_permission(PermissionEnum.LIST_PROJECTS)
         return user
 
     @cached_property
@@ -52,18 +55,21 @@ class ProjectFixture(CustomerFixture):
     def admin(self):
         admin = factories.UserFactory()
         self.project.add_user(admin, ProjectRole.ADMIN)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.LIST_PROJECTS)
         return admin
 
     @cached_property
     def manager(self):
         manager = factories.UserFactory()
         self.project.add_user(manager, ProjectRole.MANAGER)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.LIST_PROJECTS)
         return manager
 
     @cached_property
     def member(self):
         member = factories.UserFactory()
         self.project.add_user(member, ProjectRole.MEMBER)
+        ProjectRole.MEMBER.add_permission(PermissionEnum.LIST_PROJECTS)
         return member
 
 

@@ -29,16 +29,26 @@ def filter_queryset_for_user(queryset: QuerySet[T], user) -> QuerySet[T]:
     except AttributeError:
         return queryset
 
+    list_permission = getattr(permissions, "list_permission", None)
+
     subquery = models.Q()
 
     customer_path = getattr(permissions, "customer_path", None)
     project_path = getattr(permissions, "project_path", None)
 
     if customer_path:
-        subquery |= build_filter(customer_path, get_connected_customers(user))
+        if list_permission:
+            customers = get_connected_customers_by_permission(user, list_permission)
+        else:
+            customers = get_connected_customers(user)
+        subquery |= build_filter(customer_path, customers)
 
     if project_path:
-        subquery |= build_filter(project_path, get_connected_projects(user))
+        if list_permission:
+            projects = get_connected_projects_by_permission(user, list_permission)
+        else:
+            projects = get_connected_projects(user)
+        subquery |= build_filter(project_path, projects)
 
     build_query = getattr(permissions, "build_query", None)
     if build_query:

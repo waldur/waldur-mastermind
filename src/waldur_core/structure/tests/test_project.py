@@ -278,6 +278,10 @@ class ProjectApiPermissionTest(test.APITransactionTestCase):
             "inaccessible": factories.ProjectFactory(),
         }
 
+        ProjectRole.ADMIN.add_permission(PermissionEnum.LIST_PROJECTS)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.LIST_PROJECTS)
+        CustomerRole.OWNER.add_permission(PermissionEnum.LIST_PROJECTS)
+
         self.projects["admin"].add_user(self.users["admin"], ProjectRole.ADMIN)
         self.projects["manager"].add_user(self.users["manager"], ProjectRole.MANAGER)
 
