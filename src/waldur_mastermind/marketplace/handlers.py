@@ -269,6 +269,19 @@ def update_category_offerings_count(sender, **kwargs):
         category.set_quota_usage("offering_count", value)
 
 
+def delete_service_setting_when_offering_is_deleted(sender, instance, **kwargs):
+    offering: models.Offering = instance
+    try:
+        service_settings = offering.scope
+    except AttributeError:
+        return
+
+    if not isinstance(service_settings, structure_models.ServiceSettings):
+        return
+
+    service_settings.delete()
+
+
 def create_resource_plan_period_when_resource_is_created(
     sender, instance, created=False, **kwargs
 ):

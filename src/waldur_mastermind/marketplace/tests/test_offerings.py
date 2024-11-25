@@ -6,6 +6,7 @@ from itertools import product
 
 import pkg_resources
 from ddt import data, ddt, idata
+from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import exceptions as rest_exceptions
 from rest_framework import status, test
 
@@ -1435,6 +1436,20 @@ class OfferingDeleteTest(test.APITransactionTestCase):
         url = factories.OfferingFactory.get_url(self.offering)
         response = self.client.delete(url)
         return response
+
+    def test_when_offering_is_deleted_related_service_setting_is_deleted(self):
+        # Arrange
+        self.service_settings = structure_factories.ServiceSettingsFactory(
+            customer=self.customer
+        )
+        self.offering.scope = self.service_settings
+        self.offering.save()
+
+        # Act
+        self.delete_offering("owner")
+
+        # Assert
+        self.assertRaises(ObjectDoesNotExist, self.service_settings.refresh_from_db)
 
 
 @ddt
