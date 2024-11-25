@@ -25,6 +25,9 @@ class BaseInvitationTest(test.APITransactionTestCase):
     def setUp(self):
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT_PERMISSION)
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.LIST_PROJECTS)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.LIST_PROJECTS)
+        CustomerRole.OWNER.add_permission(PermissionEnum.LIST_PROJECTS)
 
         self.staff = structure_factories.UserFactory(is_staff=True)
         self.customer_owner = structure_factories.UserFactory()

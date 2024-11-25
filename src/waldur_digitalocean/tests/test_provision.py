@@ -3,6 +3,7 @@ from unittest import mock, skip
 import digitalocean
 from rest_framework import test
 
+from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests.factories import ProjectFactory, ServiceSettingsFactory
@@ -54,6 +55,7 @@ class BaseDropletProvisionTest(DigitalOceanBackendTest):
 
         self.customer_owner = structure_factories.UserFactory()
         self.customer.add_user(self.customer_owner, CustomerRole.OWNER)
+        CustomerRole.OWNER.add_permission(PermissionEnum.LIST_PROJECTS)
 
         self.client.force_authenticate(user=self.customer_owner)
         self.url = factories.DropletFactory.get_list_url()

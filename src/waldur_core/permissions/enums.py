@@ -75,12 +75,14 @@ class PermissionEnum(str, Enum):
     UPDATE_RESOURCE_ROBOT_ACCOUNT = "RESOURCE.UPDATE_ROBOT_ACCOUNT"
     DELETE_RESOURCE_ROBOT_ACCOUNT = "RESOURCE.DELETE_ROBOT_ACCOUNT"
 
+    LIST_ORDERS = "ORDER.LIST"
     APPROVE_PRIVATE_ORDER = "ORDER.APPROVE_PRIVATE"
     APPROVE_ORDER = "ORDER.APPROVE"
     REJECT_ORDER = "ORDER.REJECT"
     DESTROY_ORDER = "ORDER.DESTROY"
     CANCEL_ORDER = "ORDER.CANCEL"
 
+    LIST_RESOURCES = "RESOURCE.LIST"
     TERMINATE_RESOURCE = "RESOURCE.TERMINATE"
     LIST_IMPORTABLE_RESOURCES = "RESOURCE.LIST_IMPORTABLE"
     SET_RESOURCE_END_DATE = "RESOURCE.SET_END_DATE"
@@ -141,6 +143,7 @@ class PermissionEnum(str, Enum):
     CREATE_LEXIS_LINK = "LEXIS_LINK.CREATE"
     DELETE_LEXIS_LINK = "LEXIS_LINK.DELETE"
 
+    LIST_PROJECTS = "PROJECT.LIST"
     CREATE_PROJECT = "PROJECT.CREATE"
     DELETE_PROJECT = "PROJECT.DELETE"
     UPDATE_PROJECT = "PROJECT.UPDATE"
@@ -295,6 +298,7 @@ PERMISSION_DESCRIPTION = [
     {
         "label": "Order",
         "options": [
+            {"label": "List orders", "value": "ORDER.LIST"},
             {"label": "Approve order", "value": "ORDER.APPROVE"},
             {
                 "label": "Approve private order",
@@ -409,6 +413,7 @@ PERMISSION_DESCRIPTION = [
     {
         "label": "Customer actions for resources",
         "options": [
+            {"label": "List resources", "value": "RESOURCE.LIST"},
             {
                 "label": "Set resource end date",
                 "value": "RESOURCE.SET_END_DATE",
@@ -485,6 +490,7 @@ PERMISSION_DESCRIPTION = [
     {
         "label": "Project",
         "options": [
+            {"label": "List projects", "value": "PROJECT.LIST"},
             {
                 "label": "Create project",
                 "value": "PROJECT.CREATE",

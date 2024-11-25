@@ -22,6 +22,9 @@ from waldur_mastermind.marketplace.tests import factories as marketplace_factori
 
 
 class CustomerBaseTest(test.APITransactionTestCase):
+    def setUp(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.LIST_PROJECTS)
+
     def _get_customer_url(self, customer):
         return "http://testserver" + reverse(
             "customer-detail", kwargs={"uuid": customer.uuid.hex}
@@ -41,6 +44,7 @@ class CustomerBaseTest(test.APITransactionTestCase):
 @freeze_time("2017-11-01")
 class CustomerUserTest(CustomerBaseTest):
     def setUp(self):
+        super().setUp()
         self.customer = factories.CustomerFactory()
         self.user = factories.UserFactory()
         self.created_by = factories.UserFactory()
@@ -58,6 +62,7 @@ class CustomerUserTest(CustomerBaseTest):
 @ddt
 class CustomerListTest(CustomerBaseTest):
     def setUp(self):
+        super().setUp()
         self.fixture = fixtures.ProjectFixture()
 
     # List filtration tests
@@ -170,6 +175,7 @@ class CustomerListTest(CustomerBaseTest):
 @ddt
 class CustomerDeleteTest(CustomerBaseTest):
     def setUp(self):
+        super().setUp()
         self.fixture = fixtures.ProjectFixture()
 
     # Deletion tests
@@ -212,6 +218,7 @@ class CustomerDeleteTest(CustomerBaseTest):
 
 class BaseCustomerMutationTest(CustomerBaseTest):
     def setUp(self):
+        super().setUp()
         self.fixture = fixtures.ProjectFixture()
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER)
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_CUSTOMER)
@@ -755,6 +762,7 @@ class AccountingIsRunningFilterTest(test.APITransactionTestCase):
 
 class CustomerBlockedTest(CustomerBaseTest):
     def setUp(self):
+        super().setUp()
         self.user = factories.UserFactory()
         self.customer = factories.CustomerFactory(blocked=True)
         self.customer.add_user(self.user, CustomerRole.OWNER)

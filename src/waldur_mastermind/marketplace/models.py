@@ -24,6 +24,7 @@ from waldur_core.core import validators as core_validators
 from waldur_core.logging.loggers import LoggableMixin
 from waldur_core.media.mixins import get_upload_path
 from waldur_core.media.validators import ImageValidator
+from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import get_users
 from waldur_core.quotas import fields as quotas_fields
 from waldur_core.quotas import models as quotas_models
@@ -1042,6 +1043,7 @@ class Resource(
     class Permissions:
         customer_path = "project__customer"
         project_path = "project"
+        list_permission = PermissionEnum.LIST_RESOURCES
 
     class Meta:
         ordering = ["created"]
@@ -1254,6 +1256,7 @@ class Order(
     class Permissions:
         customer_path = "project__customer"
         project_path = "project"
+        list_permission = PermissionEnum.LIST_ORDERS
 
     class Meta:
         verbose_name = _("Order")

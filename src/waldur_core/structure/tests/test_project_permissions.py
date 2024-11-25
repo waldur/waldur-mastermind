@@ -25,9 +25,12 @@ class ProjectPermissionBaseTest(test.APITransactionTestCase):
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT_PERMISSION)
         CustomerRole.OWNER.add_permission(PermissionEnum.DELETE_PROJECT_PERMISSION)
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_PROJECT_PERMISSION)
+        CustomerRole.OWNER.add_permission(PermissionEnum.LIST_PROJECTS)
 
         ProjectRole.MANAGER.add_permission(PermissionEnum.DELETE_PROJECT_PERMISSION)
         ProjectRole.MANAGER.add_permission(PermissionEnum.UPDATE_PROJECT_PERMISSION)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.LIST_PROJECTS)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.LIST_PROJECTS)
 
 
 class ProjectPermissionListTest(ProjectPermissionBaseTest):
