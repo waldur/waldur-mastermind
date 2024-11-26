@@ -40,6 +40,9 @@ class CustomerSection(FeatureSection):
     payments_for_staff_only = Feature(
         "Make payments menu visible for staff users only."
     )
+    show_permission_reviews = Feature(
+        "Allows to show permission reviews tab and popups."
+    )
 
 
 class ProjectSection(FeatureSection):
