@@ -271,7 +271,9 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
 
     @classmethod
     @transaction.atomic
-    def create_or_update_component_item(cls, source, invoice, component_type, quantity):
+    def create_or_update_component_item(
+        cls, source: marketplace_models.Resource, invoice, component_type, quantity
+    ):
         if invoice_models.InvoiceItem.objects.filter(
             resource=source,
             details__offering_component_type=component_type,
@@ -281,8 +283,19 @@ class MarketplaceRegistrator(registrators.BaseRegistrator):
         else:
             start = timezone.now()
             end = get_current_month_end()
-            plan_component = source.plan.components.get(component__type=component_type)
-            cls.create_component_item(source, plan_component, invoice, start, end)
+            try:
+                plan_component: marketplace_models.PlanComponent = (
+                    source.plan.components.get(component__type=component_type)
+                )
+            except ObjectDoesNotExist:
+                logger.warning(
+                    "Skipping processing of invoice item %s because "
+                    "plan component is not defined.",
+                    component_type,
+                )
+                return
+            else:
+                cls.create_component_item(source, plan_component, invoice, start, end)
 
     @classmethod
     def create_discounted_resource(cls, sender, instance, created=False, **kwargs):
