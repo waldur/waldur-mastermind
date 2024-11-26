@@ -6,13 +6,15 @@ from django.db.models import Q
 
 from waldur_core.core import managers as core_managers
 from waldur_core.core.utils import is_uuid_like
-from waldur_core.permissions.enums import RoleEnum
+from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import get_scope_ids
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.managers import (
     get_connected_customers,
+    get_connected_customers_by_permission,
     get_connected_projects,
+    get_connected_projects_by_permission,
     get_organization_groups,
 )
 
@@ -141,26 +143,23 @@ class OfferingManager(MixinManager):
         return OfferingQuerySet(self.model, using=self._db)
 
 
-class ResourceQuerySet(django_models.QuerySet):
-    def filter_for_user(self, user):
-        """
-        Resources are available to both service provider and service consumer.
-        """
+class ResourceQuerySet(django_models.QuerySet["models.Resource"]):
+    def filter_for_service_consumer(self, user):
         if user.is_anonymous or user.is_staff or user.is_support:
             return self
 
-        connected_projects = get_connected_projects(user)
-        connected_customers = get_connected_customers(user)
-
+        connected_projects = get_connected_projects_by_permission(
+            user, PermissionEnum.LIST_RESOURCES
+        )
+        connected_customers = get_connected_customers_by_permission(
+            user, PermissionEnum.LIST_RESOURCES
+        )
         return self.filter(
             Q(project__in=connected_projects)
             | Q(project__customer__in=connected_customers)
         ).distinct()
 
-    def filter_for_offering_customer(self, user):
-        """
-        Resources are available to service provider.
-        """
+    def filter_for_service_provider(self, user):
         if user.is_staff or user.is_support:
             return self
 

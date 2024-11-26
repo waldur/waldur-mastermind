@@ -6,7 +6,7 @@ from rest_framework.filters import BaseFilterBackend
 
 from waldur_core.core import filters as core_filters
 from waldur_core.core.models import User
-from waldur_core.permissions.enums import TYPE_MAP
+from waldur_core.permissions.enums import TYPE_MAP, PermissionEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import (
     get_create_permission,
@@ -14,7 +14,9 @@ from waldur_core.permissions.utils import (
     get_valid_content_types,
     get_valid_models,
 )
-from waldur_core.structure.managers import get_connected_customers
+from waldur_core.structure.managers import (
+    get_connected_customers_by_permission,
+)
 
 from . import models
 
@@ -34,7 +36,11 @@ class InvitationFilterBackend(BaseFilterBackend):
         if user.is_staff or user.is_support:
             return queryset
 
-        subquery = Q(customer__in=get_connected_customers(user))
+        subquery = Q(
+            customer__in=get_connected_customers_by_permission(
+                user, PermissionEnum.LIST_INVITATIONS
+            )
+        )
         for content_type in get_valid_content_types():
             permission = get_create_permission(content_type.model_class())
             if not permission:
@@ -75,7 +81,11 @@ class GroupInvitationFilterBackend(BaseFilterBackend):
         if view.detail:
             return queryset
 
-        return queryset.filter(customer_id__in=get_connected_customers(user))
+        return queryset.filter(
+            customer_id__in=get_connected_customers_by_permission(
+                user, PermissionEnum.LIST_INVITATIONS
+            )
+        )
 
 
 class GroupInvitationFilter(BaseInvitationFilter):

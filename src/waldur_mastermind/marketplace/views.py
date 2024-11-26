@@ -73,7 +73,9 @@ from waldur_core.structure.executors import ServiceSettingsPullExecutor
 from waldur_core.structure.managers import (
     filter_queryset_for_user,
     get_connected_customers,
+    get_connected_customers_by_permission,
     get_connected_projects,
+    get_connected_projects_by_permission,
     get_organization_groups,
     get_project_users,
     get_visible_users,
@@ -87,7 +89,10 @@ from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import serializers as invoice_serializers
 from waldur_mastermind.marketplace import PLUGIN_NAME as BASIC_PLUGIN_NAME
 from waldur_mastermind.marketplace import callbacks
-from waldur_mastermind.marketplace.managers import filter_offering_permissions
+from waldur_mastermind.marketplace.managers import (
+    ResourceQuerySet,
+    filter_offering_permissions,
+)
 from waldur_mastermind.marketplace.utils import (
     validate_attributes,
 )
@@ -2010,8 +2015,12 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
         if user.is_staff or user.is_support:
             return self.queryset
 
-        connected_projects = get_connected_projects(user)
-        connected_customers = get_connected_customers(user)
+        connected_projects = get_connected_projects_by_permission(
+            user, PermissionEnum.LIST_ORDERS
+        )
+        connected_customers = get_connected_customers_by_permission(
+            user, PermissionEnum.LIST_ORDERS
+        )
 
         return self.queryset.filter(
             Q(project__in=connected_projects)
@@ -2256,7 +2265,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
 
 
 class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
-    queryset = models.Resource.objects.all()
+    queryset: ResourceQuerySet = models.Resource.objects.all()
     filter_backends = (DjangoFilterBackend, filters.ResourceScopeFilterBackend)
     filterset_class = filters.ResourceFilter
     lookup_field = "uuid"
@@ -2531,9 +2540,9 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         )
 
 
-class ResourceViewSet(BaseResourceViewSet):
+class ConsumerResourceViewSet(BaseResourceViewSet):
     def get_queryset(self):
-        return self.queryset.filter_for_user(self.request.user)
+        return self.queryset.filter_for_service_consumer(self.request.user)
 
     @action(detail=False, methods=["post"])
     def suggest_name(self, request, *args, **kwargs):
@@ -2637,7 +2646,7 @@ class ResourceViewSet(BaseResourceViewSet):
 
 class ProviderResourceViewSet(BaseResourceViewSet):
     def get_queryset(self):
-        return self.queryset.filter_for_offering_customer(self.request.user)
+        return self.queryset.filter_for_service_provider(self.request.user)
 
     @action(detail=True, methods=["post"])
     def set_end_date_by_provider(self, request, uuid=None):
@@ -2848,9 +2857,9 @@ class RelatedCustomersViewSet(ListAPIView):
 
     def get_queryset(self):
         customer = self.get_customer()
+        qs: ResourceQuerySet = models.Resource.objects.all()
         customer_ids = (
-            models.Resource.objects.all()
-            .filter_for_offering_customer(self.request.user)
+            qs.filter_for_service_provider(self.request.user)
             .filter(offering__customer=customer)
             .values_list("project__customer_id", flat=True)
             .distinct()
@@ -3799,10 +3808,10 @@ class GlobalCategoriesViewSet(views.APIView):
 
     def get(self, request):
         # We need to reset ordering to avoid extra GROUP BY created field.
+        qs: ResourceQuerySet = models.Resource.objects.all()
         resources = (
-            models.Resource.objects.all()
-            .order_by()
-            .filter_for_user(request.user)
+            qs.order_by()
+            .filter_for_service_consumer(request.user)
             .exclude(state=models.Resource.States.TERMINATED)
         )
 

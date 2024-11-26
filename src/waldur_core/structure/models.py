@@ -693,6 +693,7 @@ class Project(
 class CustomerPermissionReview(core_models.UuidMixin):
     class Permissions:
         customer_path = "customer"
+        list_permission = PermissionEnum.LIST_CUSTOMER_PERMISSION_REVIEWS
 
     customer = models.ForeignKey(
         Customer,

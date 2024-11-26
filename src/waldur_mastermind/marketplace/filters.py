@@ -26,7 +26,10 @@ from waldur_core.structure.managers import (
 )
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import plugins
-from waldur_mastermind.marketplace.managers import get_connected_offerings
+from waldur_mastermind.marketplace.managers import (
+    ResourceQuerySet,
+    get_connected_offerings,
+)
 from waldur_mastermind.proposal import models as proposal_models
 from waldur_pid import models as pid_models
 
@@ -385,7 +388,7 @@ class ResourceFilter(
         model = models.Resource
         fields = []
 
-    def filter_query(self, queryset, name, value):
+    def filter_query(self, queryset: ResourceQuerySet, name, value):
         if is_uuid_like(value):
             if queryset.filter(uuid=value).exists():
                 return queryset.filter(uuid=value)
@@ -411,7 +414,7 @@ class ResourceFilter(
         else:
             return query
 
-    def filter_scope_uuid(self, queryset, name, value):
+    def filter_scope_uuid(self, queryset: ResourceQuerySet, name, value):
         for offering_type in plugins.manager.get_offering_types():
             resource_model = plugins.manager.get_resource_model(offering_type)
 
@@ -430,20 +433,20 @@ class ResourceFilter(
 
         return queryset.none()
 
-    def filter_lexis_links_supported(self, queryset, name, value):
+    def filter_lexis_links_supported(self, queryset: ResourceQuerySet, name, value):
         if value:
             return queryset.filter(offering__plugin_options__has_key="heappe_url")
         else:
             return queryset.exclude(offering__plugin_options__has_key="heappe_url")
 
-    def filter_visible_to_username(self, queryset, name, value):
+    def filter_visible_to_username(self, queryset: ResourceQuerySet, name, value):
         if value:
             user = User.objects.filter(username=value).first()
 
             if not user:
                 return queryset.none()
 
-            return queryset.filter_for_user(user)
+            return queryset.filter_for_service_consumer(user)
         else:
             return queryset
 

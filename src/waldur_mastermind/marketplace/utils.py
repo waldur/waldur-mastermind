@@ -785,7 +785,7 @@ def serialize_resource_limit_period(period):
 def terminate_resource(resource, user, termination_comment=None, scheduled=False):
     from waldur_mastermind.marketplace import views
 
-    view = views.ResourceViewSet.as_view({"post": "terminate"})
+    view = views.ConsumerResourceViewSet.as_view({"post": "terminate"})
 
     # Terminate pending orders if they exist
     for order in models.Order.objects.filter(

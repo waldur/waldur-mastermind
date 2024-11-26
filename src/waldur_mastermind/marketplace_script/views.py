@@ -12,6 +12,7 @@ from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
+from waldur_mastermind.marketplace.managers import ResourceQuerySet
 from waldur_mastermind.marketplace_script import (
     executors as marketplace_script_executors,
 )
@@ -156,11 +157,13 @@ class PullMarketplaceScriptResourceView(APIView):
         resource_uuid = serializer.validated_data["resource_uuid"]
 
         try:
-            queryset = marketplace_models.Resource.objects.filter(uuid=resource_uuid)
+            queryset: ResourceQuerySet = marketplace_models.Resource.objects.filter(
+                uuid=resource_uuid
+            )
         except ObjectDoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
-        allowed_resource = queryset.filter_for_user(request.user)
+        allowed_resource = queryset.filter_for_service_consumer(request.user)
         if not allowed_resource:
             return Response(status=status.HTTP_404_NOT_FOUND)
 

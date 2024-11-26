@@ -1,6 +1,9 @@
+# Use to avoid pull rate limit for Docker Hub images
+ARG DOCKER_REGISTRY=docker.io/
+
 # Disable weak crypto algorithms in xmldsig used by PySAML2
 # See also: https://github.com/IdentityPython/pysaml2/issues/421#issuecomment-306133822
-FROM buildpack-deps:buster as xmlsec1
+FROM ${DOCKER_REGISTRY}buildpack-deps:buster as xmlsec1
 WORKDIR /xmlsec1
 RUN echo "deb-src http://deb.debian.org/debian buster main" >> /etc/apt/sources.list && \
     apt-get update              && \
@@ -12,7 +15,7 @@ RUN echo "deb-src http://deb.debian.org/debian buster main" >> /etc/apt/sources.
     dpkg-buildpackage -us -uc && \
     cd .. && rm ./*-dbgsym*.deb ./*-dev*.deb ./*-doc*.deb
 
-FROM python:3.11-bullseye
+FROM ${DOCKER_REGISTRY}python:3.11-bullseye
 
 ENV LANG C.UTF-8
 

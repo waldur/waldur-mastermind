@@ -704,6 +704,7 @@ class OrderFilterTest(test.APITransactionTestCase):
         # Arrange
         user = structure_factories.UserFactory()
         self.order.offering.customer.add_user(user, CustomerRole.OWNER)
+        CustomerRole.OWNER.add_permission(PermissionEnum.LIST_ORDERS)
 
         # Act
         self.client.force_authenticate(user)

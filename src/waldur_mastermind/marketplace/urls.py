@@ -58,7 +58,9 @@ def register_in(router):
         basename="marketplace-order",
     )
     router.register(
-        r"marketplace-resources", views.ResourceViewSet, basename="marketplace-resource"
+        r"marketplace-resources",
+        views.ConsumerResourceViewSet,
+        basename="marketplace-resource",
     )
     router.register(
         r"marketplace-provider-resources",
