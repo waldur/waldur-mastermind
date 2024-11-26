@@ -30,6 +30,9 @@ class CustomerFixture(UserFixture):
         user = factories.UserFactory()
         self.customer.add_user(user, CustomerRole.OWNER)
         CustomerRole.OWNER.add_permission(PermissionEnum.LIST_PROJECTS)
+        CustomerRole.OWNER.add_permission(PermissionEnum.LIST_ORDERS)
+        CustomerRole.OWNER.add_permission(PermissionEnum.LIST_RESOURCES)
+        CustomerRole.OWNER.add_permission(PermissionEnum.LIST_INVITATIONS)
         return user
 
     @cached_property
@@ -37,6 +40,8 @@ class CustomerFixture(UserFixture):
         user = factories.UserFactory()
         self.customer.add_user(user, CustomerRole.SUPPORT)
         CustomerRole.SUPPORT.add_permission(PermissionEnum.LIST_PROJECTS)
+        CustomerRole.SUPPORT.add_permission(PermissionEnum.LIST_ORDERS)
+        CustomerRole.SUPPORT.add_permission(PermissionEnum.LIST_RESOURCES)
         return user
 
     @cached_property
@@ -56,6 +61,8 @@ class ProjectFixture(CustomerFixture):
         admin = factories.UserFactory()
         self.project.add_user(admin, ProjectRole.ADMIN)
         ProjectRole.ADMIN.add_permission(PermissionEnum.LIST_PROJECTS)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.LIST_ORDERS)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.LIST_RESOURCES)
         return admin
 
     @cached_property
@@ -63,6 +70,8 @@ class ProjectFixture(CustomerFixture):
         manager = factories.UserFactory()
         self.project.add_user(manager, ProjectRole.MANAGER)
         ProjectRole.MANAGER.add_permission(PermissionEnum.LIST_PROJECTS)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.LIST_ORDERS)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.LIST_RESOURCES)
         return manager
 
     @cached_property
@@ -70,6 +79,8 @@ class ProjectFixture(CustomerFixture):
         member = factories.UserFactory()
         self.project.add_user(member, ProjectRole.MEMBER)
         ProjectRole.MEMBER.add_permission(PermissionEnum.LIST_PROJECTS)
+        ProjectRole.MEMBER.add_permission(PermissionEnum.LIST_ORDERS)
+        ProjectRole.MEMBER.add_permission(PermissionEnum.LIST_RESOURCES)
         return member
 
 

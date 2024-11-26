@@ -76,6 +76,7 @@ class LimitsUpdateTest(test.APITransactionTestCase):
         limits = {"cpu": 10}
         customer = self.fixture.customer
         customer.add_user(user, CustomerRole.OWNER)
+        CustomerRole.OWNER.add_permission(PermissionEnum.LIST_RESOURCES)
 
         self.client.force_authenticate(user)
         url = marketplace_factories.ResourceFactory.get_url(resource, "update_limits")

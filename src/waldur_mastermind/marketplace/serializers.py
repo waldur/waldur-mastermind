@@ -46,6 +46,7 @@ from waldur_mastermind.common.utils import prices_are_equal
 from waldur_mastermind.invoices.models import InvoiceItem
 from waldur_mastermind.invoices.utils import get_billing_price_estimate_for_resources
 from waldur_mastermind.marketplace.fields import PublicPlanField
+from waldur_mastermind.marketplace.managers import ResourceQuerySet
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.processors import CreateResourceProcessor
 from waldur_mastermind.marketplace.utils import (
@@ -3127,7 +3128,7 @@ class OfferingUserRoleSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class ResourceUserSerializer(serializers.HyperlinkedModelSerializer):
-    resource = FilterForUserField(
+    resource = serializers.HyperlinkedRelatedField(
         lookup_field="uuid",
         view_name="marketplace-resource-detail",
         queryset=models.Resource.objects.all(),
@@ -3162,6 +3163,13 @@ class ResourceUserSerializer(serializers.HyperlinkedModelSerializer):
                 "view_name": "marketplace-offering-user-role-detail",
             },
         )
+
+    def get_fields(self):
+        fields = super().get_fields()
+        user = self.context["request"].user
+        queryset: ResourceQuerySet = fields["resource"].queryset
+        fields["resource"].queryset = queryset.filter_for_service_consumer(user)
+        return fields
 
     def validate(self, attrs):
         if attrs["role"].offering != attrs["resource"].offering:

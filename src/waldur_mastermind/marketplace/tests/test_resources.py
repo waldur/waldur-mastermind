@@ -1397,7 +1397,9 @@ class ResourceDetailsTest(test.APITransactionTestCase):
         )
 
     def make_request(self):
-        url = factories.ResourceFactory.get_url(self.resource, action="details")
+        url = factories.ResourceFactory.get_provider_resource_url(
+            self.resource, action="details"
+        )
         self.client.force_authenticate(self.fixture.user)
         return self.client.get(url)
 

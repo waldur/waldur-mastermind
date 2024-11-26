@@ -162,6 +162,9 @@ class PermissionEnum(str, Enum):
 
     UPDATE_OFFERING_USER_RESTRICTION = "OFFERINGUSER.UPDATE_RESTRICTION"
 
+    LIST_INVITATIONS = "INVITATION.LIST"
+    LIST_CUSTOMER_PERMISSION_REVIEWS = "CUSTOMER.LIST_PERMISSION_REVIEWS"
+
 
 CREATE_PERMISSIONS = {
     "customer": PermissionEnum.CREATE_CUSTOMER_PERMISSION,
@@ -449,6 +452,10 @@ PERMISSION_DESCRIPTION = [
     {
         "label": "Team members",
         "options": [
+            {
+                "value": "INVITATION.LIST",
+                "label": "List invitations",
+            },
             {
                 "label": "Create project permission",
                 "value": "PROJECT.CREATE_PERMISSION",
