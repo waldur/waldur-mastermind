@@ -109,17 +109,21 @@ class Invoice(core_models.UuidMixin, core_models.BackendMixin, models.Model):
     tracker = FieldTracker()
 
     def update_cache(self):
-        current_total = self.total
+        """Update cached total_cost and total_price fields if they have changed."""
+        updates = {}
 
+        current_total = self.total
         if self.total_cost != current_total:
-            self.total_cost = current_total
-            self.save(update_fields=["total_cost"])
+            updates["total_cost"] = current_total
 
         current_price = self.price
-
         if self.total_price != current_price:
-            self.total_price = current_price
-            self.save(update_fields=["total_price"])
+            updates["total_price"] = current_price
+
+        if updates:
+            for field, value in updates.items():
+                setattr(self, field, value)
+            self.save(update_fields=list(updates.keys()))
 
     @property
     def tax(self):
