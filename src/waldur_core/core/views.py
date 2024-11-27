@@ -656,7 +656,7 @@ class CeleryStatsViewSet(APIView):
     permission_classes = [rf_permissions.IsAuthenticated, permissions.IsSupport]
 
     def get(self, request, *args, **kwargs):
-        from waldur_core.server.celery import app
+        from waldur_core.server.celery_app import app
 
         inspect = app.control.inspect()
         data = {

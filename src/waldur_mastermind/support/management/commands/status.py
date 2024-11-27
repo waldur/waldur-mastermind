@@ -10,7 +10,7 @@ from rest_framework import status
 from rest_framework.authtoken.models import Token
 
 from waldur_core.core.schemas import WaldurEndpointInspector
-from waldur_core.server.celery import app as celery_app
+from waldur_core.server.celery_app import app as celery_app
 
 User = get_user_model()
 

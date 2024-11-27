@@ -13,10 +13,18 @@ urlpatterns = [
 for provider in models.ProviderChoices.CHOICES:
     urlpatterns.append(
         path(
-            f"api-auth/{provider}/",
-            views.OAuthView.as_view(),
+            f"api-auth/{provider}/init/",
+            views.OAuthViewInit.as_view(),
             kwargs={"provider": provider},
-            name=f"auth_{provider}",
+            name=f"auth_{provider}_init",
+        )
+    )
+    urlpatterns.append(
+        path(
+            f"api-auth/{provider}/complete/",
+            views.OAuthViewComplete.as_view(),
+            kwargs={"provider": provider},
+            name=f"auth_{provider}_complete",
         )
     )
 
