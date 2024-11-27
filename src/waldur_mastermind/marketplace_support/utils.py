@@ -189,3 +189,43 @@ def format_delete_description(order):
         "terminate_resource_template",
         {"order": order, "request_url": request_url},
     )
+
+
+def create_issue_about_project_team_changes(project, created_by, summary, description):
+    active_backend = support_backend.get_active_backend()
+    issue_details = active_backend.get_issue_details()
+
+    issue_details.update(
+        dict(
+            caller=created_by,
+            project=project,
+            customer=project.customer,
+            description=description,
+            summary=summary,
+            resource=project,
+        )
+    )
+
+    if (
+        support_backend.get_active_backend().message_format
+        == support_backend.SupportedFormat.HTML
+    ):
+        issue_details["description"] = text2html(issue_details["description"])
+
+    issue = support_models.Issue.objects.create(**issue_details)
+    try:
+        active_backend.create_issue(issue)
+        issue.refresh_from_db()
+    except support_exceptions.SupportUserInactive:
+        issue.delete()
+        raise rf_exceptions.ValidationError(
+            _(
+                "Delete resource process is cancelled and issue not created "
+                "because a caller is inactive."
+            )
+        )
+    except ServiceBackendError as e:
+        issue.delete()
+        raise rf_exceptions.ValidationError(e)
+
+    return issue

@@ -2,10 +2,14 @@ import logging
 
 from django.db import transaction
 from django.template import Context, Template
+from django.template.loader import get_template
 
+from waldur_core.core import utils as core_utils
+from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
+from waldur_mastermind.marketplace_support import utils as marketplace_support_utils
 
 from . import tasks
 
@@ -98,3 +102,71 @@ def notify_about_request_based_item_creation(sender, instance, created=False, **
             subject, message, service_provider.lead_email
         )
     )
+
+
+def _create_issue_if_membership_changed(instance, summary):
+    user_role = instance
+
+    if not (user_role.scope and isinstance(user_role.scope, structure_models.Project)):
+        return
+
+    project = user_role.scope
+    resources = marketplace_models.Resource.objects.filter(
+        project=project,
+        offering__type=PLUGIN_NAME,
+        offering__options__enable_issues_for_membership_changes=True,
+    )
+
+    if resources.exists():
+        offering_ids = resources.values_list("offering_id", flat=True).distinct()
+        offerings = marketplace_models.Offering.objects.filter(id__in=offering_ids)
+
+        for offering in offerings:
+            resources = marketplace_models.Resource.objects.filter(
+                offering=offering, project=project
+            )
+            setattr(offering, "resources", resources)
+            offering_user = offering.offeringuser_set.filter(
+                user=user_role.user
+            ).first()
+            setattr(offering, "offering_user", offering_user)
+
+        template = get_template(
+            "marketplace_support/create_project_membership_update_issue.txt"
+        ).template
+        description = template.render(
+            Context(
+                {
+                    "offerings": offerings,
+                    "project": project,
+                    "user": user_role.user,
+                    "project_url": core_utils.format_homeport_link(
+                        "projects/{project_uuid}/", project_uuid=project.uuid.hex
+                    ),
+                },
+                autoescape=False,
+            )
+        )
+        marketplace_support_utils.create_issue_about_project_team_changes(
+            project,
+            created_by=core_utils.get_system_robot(),
+            summary=summary.format(user=user_role.user, project=project),
+            description=description,
+        )
+
+
+def create_issue_if_membership_changed(sender, instance, created=False, **kwargs):
+    if created and not instance.is_active:
+        return
+
+    if not instance.tracker.has_changed("is_active"):
+        return
+
+    if instance.is_active:
+        _create_issue_if_membership_changed(
+            instance, "User {user} has been added to project {project}."
+        )
+    else:
+        _create_issue_if_membership_changed(
+            instance, "User {user} has been removed from project {project}."
+        )
