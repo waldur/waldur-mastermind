@@ -65,7 +65,7 @@ class UserRole(ScopeMixin, UuidMixin):
     created = AutoCreatedField()
     expiration_time = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(null=True, default=True, db_index=True)
-    tracker = FieldTracker(fields=["expiration_time"])
+    tracker = FieldTracker(fields=["expiration_time", "is_active"])
     objects = UserRoleManager()
 
     def set_expiration_time(self, expiration_time, current_user=None):
