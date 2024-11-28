@@ -16,6 +16,7 @@ from waldur_core.core import views as core_views
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
+from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.permissions import IsStaffOrSupportUser
 from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.invoices.models import InvoiceItem
@@ -154,10 +155,8 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
 
     @action(detail=False)
     def growth(self, request):
-        if not self.request.user.is_staff and not request.user.is_support:
-            raise exceptions.PermissionDenied()
-
-        customers = structure_models.Customer.objects.all()
+        queryset = structure_models.Customer.objects.all()
+        customers = filter_queryset_for_user(queryset, request.user)
         customers = structure_filters.AccountingStartDateFilter().filter_queryset(
             request, customers, self
         )
@@ -197,9 +196,9 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
         field = is_accounting_mode and "total_price" or "total_cost"
         total_values = {
             f"{row['year']}-{row['month']}": row["total_value"]
-            for row in models.Invoice.objects.values("year", "month").annotate(
-                total_value=Sum(field)
-            )
+            for row in models.Invoice.objects.filter(customer__in=customers)
+            .values("year", "month")
+            .annotate(total_value=Sum(field))
         }
         other_values = {
             f"{row['year']}-{row['month']}": row["total_value"]
