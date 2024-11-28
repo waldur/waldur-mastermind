@@ -226,3 +226,10 @@
   description: Proposal manager
   permissions:
     - PROPOSAL.MANAGE
+
+- role: PROJECT.MEMBER
+  description: Project member
+  is_active: false
+  permissions:
+    - RESOURCE.LIST
+    - PROJECT.LIST
