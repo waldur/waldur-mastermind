@@ -1,4 +1,6 @@
 import datetime
+from dataclasses import dataclass
+from decimal import Decimal
 
 from ddt import data, ddt
 from django.db.models.aggregates import Sum
@@ -7,7 +9,7 @@ from rest_framework import status, test
 
 from waldur_core.logging import models as logging_models
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.invoices import models, tasks, utils
+from waldur_mastermind.invoices import compensations, models, tasks
 from waldur_mastermind.invoices.tests import factories, fixtures
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
@@ -99,12 +101,14 @@ class CustomerCreditCreateTest(test.APITransactionTestCase):
         url = factories.CustomerCreditFactory.get_list_url()
         response = self.client.post(url, payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        credit = models.CustomerCredit.objects.filter(uuid=response.data["uuid"]).get()
+        credit: models.CustomerCredit = models.CustomerCredit.objects.get(
+            uuid=response.data["uuid"]
+        )
         self.assertEqual(credit.minimal_consumption, payload["minimal_consumption"])
         self.assertEqual(credit.end_date, datetime.date(year=2025, month=10, day=31))
 
         with freeze_time("2024-11-01"):
-            self.fixture.invoice.set_created()
+            tasks.process_invoice_credits(self.fixture.invoice)
             credit.refresh_from_db()
             self.assertEqual(
                 (payload["value"] - payload["minimal_consumption"]) / 11,
@@ -288,7 +292,7 @@ class CustomerCreditTest(test.APITransactionTestCase):
             customer=self.invoice.customer, value=credit_value
         )
         old_total = self.invoice.total
-        self.invoice.set_created()
+        tasks.process_invoice_credits(self.invoice)
         self.assertTrue(models.InvoiceItem.objects.filter(credit=credit).exists())
         credit_item = models.InvoiceItem.objects.filter(credit=credit).get()
         self.assertEqual(credit_value * -1, credit_item.total)
@@ -310,7 +314,7 @@ class CustomerCreditTest(test.APITransactionTestCase):
             customer=self.invoice.customer, value=credit_value
         )
         old_total = self.invoice.total
-        self.invoice.set_created()
+        tasks.process_invoice_credits(self.invoice)
         self.assertTrue(models.InvoiceItem.objects.filter(credit=credit).exists())
         credit_item = models.InvoiceItem.objects.filter(credit=credit).get()
         self.assertEqual(old_total * -1, credit_item.total)
@@ -327,7 +331,7 @@ class CustomerCreditTest(test.APITransactionTestCase):
             value=credit_value,
             minimal_consumption=minimal_consumption,
         )
-        self.invoice.set_created()
+        tasks.process_invoice_credits(self.invoice)
         self.assertTrue(models.InvoiceItem.objects.filter(credit=credit).exists())
         self.assertEqual(old_total * -1, old_total - minimal_consumption)
         self.assertTrue(
@@ -372,7 +376,7 @@ class ProjectCreditTest(test.APITransactionTestCase):
 
     def test_project_credits_reduced(self):
         old_project_credit_value = self.project_credit.value
-        self.invoice.set_created()
+        tasks.process_invoice_credits(self.invoice)
         self.project_credit.refresh_from_db()
         self.assertTrue(self.project_credit.value < old_project_credit_value)
 
@@ -389,12 +393,28 @@ class ProjectCreditTest(test.APITransactionTestCase):
 
     def test_use_organisation_credit(self):
         old_customer_credit_value = self.customer_credit.value
-        self.invoice.set_created()
+        tasks.process_invoice_credits(self.invoice)
         self.customer_credit.refresh_from_db()
         self.assertEqual(
             self.customer_credit.value,
             old_customer_credit_value - self.project_credit.value,
         )
+
+
+@dataclass
+class CompensationTestResult:
+    """Holds the state of credits before and after compensation"""
+
+    initial_project_credit: Decimal
+    initial_customer_credit: Decimal
+    consumption: Decimal
+    minimal_consumption: Decimal
+
+    def expected_project_deduction(self) -> Decimal:
+        return self.consumption
+
+    def expected_customer_deduction(self) -> Decimal:
+        return max(self.consumption, self.minimal_consumption)
 
 
 class ProcessingCreditTest(test.APITransactionTestCase):
@@ -405,52 +425,110 @@ class ProcessingCreditTest(test.APITransactionTestCase):
         self.invoice = self.fixture.invoice
         self.invoice_item = self.fixture.invoice_item
 
-    def _processing_compensations(self, minimal_consumption=0):
+    def _get_compensation_items_sum(self) -> Decimal:
+        """Get the total sum of compensation items"""
+        result = self.invoice.items.filter(credit=self.customer_credit).aggregate(
+            sum=Sum("unit_price")
+        )["sum"] or Decimal("0")
+        return result * -1
+
+    def _verify_credit_values(
+        self, test_result: CompensationTestResult, after_compensation: bool = True
+    ):
+        """Verify credit values match expected state"""
+        self.project_credit.refresh_from_db()
+        self.customer_credit.refresh_from_db()
+
+        if after_compensation:
+            self.assertEqual(
+                self.project_credit.value,
+                test_result.initial_project_credit
+                - test_result.expected_project_deduction(),
+                "Project credit value incorrect after compensation",
+            )
+            self.assertEqual(
+                self.customer_credit.value,
+                test_result.initial_customer_credit
+                - test_result.expected_customer_deduction(),
+                "Customer credit value incorrect after compensation",
+            )
+        else:
+            self.assertEqual(
+                self.project_credit.value,
+                test_result.initial_project_credit,
+                "Project credit not restored to initial value",
+            )
+            self.assertEqual(
+                self.customer_credit.value,
+                test_result.initial_customer_credit,
+                "Customer credit was not restored to initial value",
+            )
+
+    def _verify_compensation_items(self, should_exist: bool = True):
+        """Verify presence or absence of compensation items"""
+        items_count = self.invoice.items.filter(credit=self.customer_credit).count()
+        expected_count = 1 if should_exist else 0
+        self.assertEqual(
+            items_count,
+            expected_count,
+            f"Expected {expected_count} compensation items, found {items_count}",
+        )
+
+    def _processing_compensations(self, minimal_consumption: Decimal = Decimal("0")):
+        """Test credit compensation application and rollback"""
+        # Setup
         self.customer_credit.minimal_consumption = minimal_consumption
         self.customer_credit.save()
-        old_project_credit_value = self.project_credit.value
-        old_customer_credit_value = self.customer_credit.value
-        monthly_compensation = utils.MonthlyCompensation(self.customer_credit.customer)
+
+        test_result = CompensationTestResult(
+            initial_project_credit=self.project_credit.value,
+            initial_customer_credit=self.customer_credit.value,
+            minimal_consumption=minimal_consumption,
+            consumption=Decimal("0"),  # Will be updated after compensation
+        )
+
+        # Apply compensations
+        monthly_compensation = compensations.MonthlyCompensation(
+            self.customer_credit.customer
+        )
         monthly_compensation.apply_compensations()
-        self.project_credit.refresh_from_db()
-        self.customer_credit.refresh_from_db()
-        consumption = (
-            self.invoice.items.filter(credit=self.customer_credit).aggregate(
-                sum=Sum("unit_price")
-            )["sum"]
-            * -1
-        )
 
-        self.assertEqual(
-            self.project_credit.value, old_project_credit_value - consumption
-        )
-        self.assertEqual(
-            self.customer_credit.value,
-            old_customer_credit_value - max(consumption, minimal_consumption),
-        )
+        # Get actual consumption after compensation
+        test_result.consumption = self._get_compensation_items_sum()
 
+        # Verify compensation was applied correctly
+        self._verify_compensation_items(should_exist=True)
+        self._verify_credit_values(test_result, after_compensation=True)
+
+        # Clear compensations
         monthly_compensation.clear_compensations()
-        self.assertEqual(
-            self.invoice.items.filter(credit=self.customer_credit).count(), 0
-        )
-        self.project_credit.refresh_from_db()
-        self.customer_credit.refresh_from_db()
-        self.assertEqual(self.project_credit.value, old_project_credit_value)
-        self.assertEqual(self.customer_credit.value, old_customer_credit_value)
+
+        # Verify compensation was cleared correctly
+        self._verify_compensation_items(should_exist=False)
+        self._verify_credit_values(test_result, after_compensation=False)
+
+        return test_result
 
     def test_clear_compensations(self):
+        """Test basic compensation clearing without minimal consumption"""
         self._processing_compensations()
         self.assertTrue(
             logging_models.Event.objects.filter(
                 event_type="roll_back_customer_credit"
             ).exists()
         )
-
         self.assertTrue(
             logging_models.Event.objects.filter(
                 event_type="roll_back_project_credit"
             ).exists()
         )
 
-    def test_if_minimal_consumption_exists(self):
-        self._processing_compensations(90)
+    def test_minimal_consumption_compensation(self):
+        """Test compensation with minimal consumption requirement"""
+        minimal_consumption = Decimal("90")
+        result = self._processing_compensations(minimal_consumption)
+        self.assertGreater(
+            result.minimal_consumption,
+            result.consumption,
+            "Minimal consumption should be greater than actual consumption",
+        )

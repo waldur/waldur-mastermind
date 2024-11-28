@@ -6,7 +6,7 @@ from calendar import monthrange
 from dateutil.parser import parse as parse_datetime
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
-from django.db import models, transaction
+from django.db import models
 from django.db.models.aggregates import Sum
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -22,7 +22,7 @@ from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.marketplace import models as marketplace_models
 
-from . import log, utils
+from . import utils
 
 logger = logging.getLogger(__name__)
 
@@ -162,42 +162,12 @@ class Invoice(core_models.UuidMixin, core_models.BackendMixin, models.Model):
     def number(self):
         return 100000 + self.id
 
-    def _process_credits(self):
-        with transaction.atomic():
-            monthly_compensation = utils.MonthlyCompensation(self.customer)
-            monthly_compensation.apply_compensations()
-            monthly_compensation.update_linear_minimal_consumption()
-
-            if monthly_compensation.tail:
-                log.event_logger.credit.info(
-                    "Reduction of {customer_name} credit by {consumption} due to minimal consumption of {minimal_consumption}",
-                    event_type="reduction_of_credit_due_to_minimal_consumption",
-                    event_context={
-                        "consumption": monthly_compensation.tail,
-                        "minimal_consumption": monthly_compensation.credit.minimal_consumption,
-                        "customer": self.customer,
-                    },
-                )
-
-            for compensation_item in monthly_compensation.compensations:
-                log.event_logger.credit.info(
-                    "Reduction of {customer_name} credit by {consumption} due to compensation of invoice item {invoice_item}.",
-                    event_type="reduction_of_credit",
-                    event_context={
-                        "consumption": compensation_item.unit_price,
-                        "customer": self.customer,
-                        "invoice_item": str(compensation_item),
-                    },
-                )
-
     def set_created(self):
         """
-        Change state from pending to billed
+        Change state from pending to created or paid
         """
         if self.state != self.States.PENDING:
             raise IncorrectStateException(_("Invoice must be in pending state."))
-
-        self._process_credits()
 
         if self.customer.paymentprofile_set.filter(
             is_active=True, payment_type=PaymentType.FIXED_PRICE

@@ -19,6 +19,7 @@ from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.permissions import IsStaffOrSupportUser
 from waldur_mastermind.common.utils import quantize_price
+from waldur_mastermind.invoices import compensations
 from waldur_mastermind.invoices.models import InvoiceItem
 
 from . import filters, log, models, serializers, tasks, utils
@@ -595,13 +596,17 @@ class CustomerCreditViewSet(core_views.ActionsViewSet):
     @action(detail=True, methods=["post"])
     def apply_compensations(self, request, uuid=None):
         customer_credit = self.get_object()
-        utils.MonthlyCompensation(customer_credit.customer).apply_compensations()
+        compensations.MonthlyCompensation(
+            customer_credit.customer
+        ).apply_compensations()
 
     @transaction.atomic
     @action(detail=True, methods=["post"])
     def clear_compensations(self, request, uuid=None):
         customer_credit = self.get_object()
-        utils.MonthlyCompensation(customer_credit.customer).clear_compensations()
+        compensations.MonthlyCompensation(
+            customer_credit.customer
+        ).clear_compensations()
 
     apply_compensations_permissions = clear_compensations_permissions = [
         structure_permissions.is_staff
