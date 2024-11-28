@@ -39,6 +39,7 @@ logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
+@shared_task
 def process_order_on_commit(order: models.Order, user):
     serialized_order = core_utils.serialize_instance(order)
     serialized_user = core_utils.serialize_instance(user)
