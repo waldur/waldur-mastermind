@@ -6,6 +6,7 @@ from io import StringIO
 from celery import shared_task
 from constance import config
 from django.conf import settings
+from django.db import transaction
 from django.db.models import Q
 from django.template.loader import render_to_string
 from django.utils import timezone
@@ -15,7 +16,7 @@ from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices.utils import get_previous_month
 from waldur_mastermind.marketplace.tasks import copy_future_price_to_current_price
 
-from . import log, models, registrators, serializers, utils
+from . import compensations, log, models, registrators, serializers, utils
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,13 @@ def create_monthly_invoices():
         | Q(state=models.Invoice.States.PENDING, year=date.year, month__lt=date.month)
     )
     for invoice in old_invoices:
-        invoice.set_created()
+        try:
+            with transaction.atomic():
+                process_invoice_credits(invoice)
+                invoice.set_created()
+        except Exception:
+            logger.exception("Unable to process invoice %s", invoice)
+            continue
 
     customers = structure_models.Customer.objects.exclude(archived=True)
     if settings.WALDUR_CORE["ENABLE_ACCOUNTING_START_DATE"]:
@@ -281,3 +288,33 @@ def set_to_zero_overdue_credits():
                 "credit_end_date": credit.end_date,
             },
         )
+
+
+def process_invoice_credits(invoice):
+    """Process credits for a given invoice"""
+    with transaction.atomic():
+        monthly_compensation = compensations.MonthlyCompensation(invoice.customer)
+        monthly_compensation.apply_compensations()
+        monthly_compensation.update_linear_minimal_consumption()
+
+        if monthly_compensation.tail:
+            log.event_logger.credit.info(
+                "Reduction of {customer_name} credit by {consumption} due to minimal consumption of {minimal_consumption}",
+                event_type="reduction_of_credit_due_to_minimal_consumption",
+                event_context={
+                    "consumption": monthly_compensation.tail,
+                    "minimal_consumption": monthly_compensation.credit.minimal_consumption,
+                    "customer": invoice.customer,
+                },
+            )
+
+        for compensation_item in monthly_compensation.compensations:
+            log.event_logger.credit.info(
+                "Reduction of {customer_name} credit by {consumption} due to compensation of invoice item {invoice_item}.",
+                event_type="reduction_of_credit",
+                event_context={
+                    "consumption": compensation_item.unit_price,
+                    "customer": invoice.customer,
+                    "invoice_item": str(compensation_item),
+                },
+            )

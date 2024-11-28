@@ -15,10 +15,10 @@ from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_mastermind.invoices import (
-    models as invoices_models,
+    compensations as invoices_compensation,
 )
 from waldur_mastermind.invoices import (
-    utils as invoices_utils,
+    models as invoices_models,
 )
 from waldur_mastermind.marketplace import models as marketplace_models
 
@@ -190,7 +190,7 @@ class ProjectEstimatedCostPolicy(EstimatedCostPolicyMixin, ProjectPolicy):
     def is_triggered(self):
         project = self.scope
         invoice_items = invoices_models.InvoiceItem.objects.filter(project=project)
-        compensation = invoices_utils.MonthlyCompensation(project.customer)
+        compensation = invoices_compensation.MonthlyCompensation(project.customer)
         return self._is_triggered(
             invoice_items, compensation.get_project_compensation(project)
         )
@@ -236,7 +236,7 @@ class CustomerEstimatedCostPolicy(EstimatedCostPolicyMixin, CustomerPolicy):
         invoice_items = invoices_models.InvoiceItem.objects.filter(
             invoice__customer=customer
         )
-        compensation = invoices_utils.MonthlyCompensation(customer)
+        compensation = invoices_compensation.MonthlyCompensation(customer)
 
         return self._is_triggered(invoice_items, compensation.total_compensation)
 
