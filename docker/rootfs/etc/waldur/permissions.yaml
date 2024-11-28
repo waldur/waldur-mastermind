@@ -154,6 +154,7 @@
 - role: PROJECT.ADMIN
   description: Project administrator
   permissions:
+    - PROJECT.LIST
     - INVITATION.LIST
     - ORDER.APPROVE_PRIVATE
     - ORDER.DESTROY
@@ -168,6 +169,7 @@
 - role: PROJECT.MANAGER
   description: Project manager
   permissions:
+    - PROJECT.LIST
     - INVITATION.LIST
     - ORDER.APPROVE_PRIVATE
     - ORDER.DESTROY
