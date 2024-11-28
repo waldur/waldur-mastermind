@@ -1,5 +1,4 @@
 from decimal import Decimal
-from functools import lru_cache
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
@@ -1151,7 +1150,6 @@ class Resource(
         return f"{self.uuid} ({self.offering.name})"
 
     @property
-    @lru_cache(maxsize=1)
     def creation_order(self):
         return Order.objects.filter(resource=self, type=Order.Types.CREATE).first()
 
