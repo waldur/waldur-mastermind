@@ -40,6 +40,7 @@ from waldur_core.permissions.utils import (
 from waldur_core.permissions.views import UserRoleMixin
 from waldur_core.structure import filters, models, permissions, serializers, utils
 from waldur_core.structure.managers import (
+    filter_queryset_for_user,
     get_connected_customers,
     get_connected_projects,
 )
@@ -240,6 +241,7 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
         resources = marketplace_models.Resource.objects.filter(
             project__customer=customer
         ).exclude(state=marketplace_models.Resource.States.TERMINATED)
+        resources = filter_queryset_for_user(resources, request.user)
 
         components_data_list = get_components_usage_data_from_resources(resources)
 
@@ -436,6 +438,7 @@ class ProjectViewSet(
         resources = marketplace_models.Resource.objects.filter(project=project).exclude(
             state=marketplace_models.Resource.States.TERMINATED
         )
+        resources = filter_queryset_for_user(resources, request.user)
 
         components_data_list = get_components_usage_data_from_resources(resources)
 
