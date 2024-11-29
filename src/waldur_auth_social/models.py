@@ -34,6 +34,7 @@ class IdentityProvider(models.Model):
     )
     verify_ssl = models.BooleanField(default=True)
     enable_post_logout_redirect = models.BooleanField(default=True)
+    enable_pkce = models.BooleanField(default=False)
 
     # The following fields are cache of URL discovered.
     # They are stored locally in the database in order to avoid extra HTTP request.
