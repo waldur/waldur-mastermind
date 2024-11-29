@@ -10,8 +10,8 @@ from rest_framework.response import Response
 
 from waldur_core.core.utils import SubquerySum, get_ordering
 from waldur_core.quotas.models import QuotaUsage
+from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.models import Customer, Project
-from waldur_core.structure.permissions import IsStaffOrSupportUser
 from waldur_mastermind.billing.models import PriceEstimate
 
 from . import models, serializers
@@ -67,19 +67,16 @@ class DailyQuotaHistoryViewSet(viewsets.GenericViewSet):
 class BaseQuotasViewSet(viewsets.GenericViewSet):
     # Fix for schema generation
     queryset = []
-    permission_classes = (
-        permissions.IsAuthenticated,
-        IsStaffOrSupportUser,
-    )
+    permission_classes = (permissions.IsAuthenticated,)
 
     model = None
 
     def get_queryset(self) -> QuerySet:
         qs = self.model
         if hasattr(qs, "available_objects"):
-            return getattr(qs, "available_objects")
+            return filter_queryset_for_user(qs.available_objects, self.request.user)
         else:
-            return qs.objects
+            return filter_queryset_for_user(qs.objects, self.request.user)
 
     def get_content_type(self):
         return ContentType.objects.get_for_model(self.model)
