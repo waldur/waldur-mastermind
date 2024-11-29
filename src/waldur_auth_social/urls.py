@@ -21,7 +21,7 @@ for provider in models.ProviderChoices.CHOICES:
     )
     urlpatterns.append(
         path(
-            f"api-auth/{provider}/complete/",
+            f"oauth_login_completed/{provider}/",
             views.OAuthViewComplete.as_view(),
             kwargs={"provider": provider},
             name=f"auth_{provider}_complete",
