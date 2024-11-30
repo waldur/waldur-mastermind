@@ -23,6 +23,7 @@ from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.utils import create_batch_fetcher, pwgen
 from waldur_core.structure.backend import ServiceBackend, log_backend_action
+from waldur_core.structure.models import ServiceSettings
 from waldur_core.structure.registry import get_resource_type
 from waldur_core.structure.signals import resource_pulled
 from waldur_core.structure.utils import (
@@ -93,7 +94,7 @@ class OpenStackBackend(ServiceBackend):
     }
 
     def __init__(self, settings):
-        self.settings = settings
+        self.settings: ServiceSettings = settings
 
     @property
     def admin_session(self):
@@ -235,6 +236,7 @@ class OpenStackBackend(ServiceBackend):
 
     def pull_service_properties(self):
         self.pull_service_settings_quotas()
+        self.pull_global_volume_types()
 
     def pull_resources(self):
         self.pull_tenants()
@@ -433,18 +435,30 @@ class OpenStackBackend(ServiceBackend):
                 },
             )
 
-    def remove_stale_volume_types(self):
+    def pull_global_volume_types(self):
         cinder = get_cinder_client(self.admin_session)
         try:
             remote_volume_types = cinder.volume_types.list()
         except cinder_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
+        volume_type_blacklist = parse_comma_separated_list(
+            self.settings.options.get("volume_type_blacklist", "")
+        )
         models.VolumeType.objects.filter(settings=self.settings).exclude(
             backend_id__in=[volume_type.id for volume_type in remote_volume_types]
         ).delete()
+        for volume_type in remote_volume_types:
+            models.VolumeType.objects.update_or_create(
+                settings=self.settings,
+                backend_id=volume_type.id,
+                defaults={
+                    "name": volume_type.name,
+                    "description": volume_type.description or "",
+                    "disabled": volume_type.name in volume_type_blacklist,
+                },
+            )
 
     def pull_tenant_volume_types(self, tenant: models.Tenant):
-        self.remove_stale_volume_types()
         session = get_tenant_session(tenant)
         cinder = get_cinder_client(session)
         try:
