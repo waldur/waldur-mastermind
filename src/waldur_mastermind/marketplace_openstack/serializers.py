@@ -12,11 +12,13 @@ from .utils import get_external_ips
 class MarketplaceTenantCreateSerializer(openstack_serializers.TenantSerializer):
     quotas = serializers.JSONField(required=False, default=dict)
     skip_connection_extnet = serializers.BooleanField(default=False)
+    mtu = serializers.IntegerField(min_value=68, max_value=9000, required=False)
 
     class Meta(openstack_serializers.TenantSerializer.Meta):
         fields = openstack_serializers.TenantSerializer.Meta.fields + (
             "skip_connection_extnet",
             "quotas",
+            "mtu",
         )
 
     @transaction.atomic

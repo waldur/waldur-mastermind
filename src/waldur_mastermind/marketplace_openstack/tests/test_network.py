@@ -11,7 +11,7 @@ class NetworkMtuTest(test.APITransactionTestCase):
         self.resource = marketplace_factories.ResourceFactory(scope=self.tenant)
         self.offering = self.resource.offering
 
-    def test_set_mtu(self):
+    def test_set_default_internal_network_mtu_on_network_creation(self):
         network = openstack_factories.NetworkFactory(tenant=self.tenant)
         network.refresh_from_db()
         self.assertEqual(network.mtu, None)
