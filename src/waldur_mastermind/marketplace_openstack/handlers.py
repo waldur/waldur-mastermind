@@ -482,7 +482,9 @@ def synchronize_router_backend_metadata(sender, instance, created=False, **kwarg
         return
 
     try:
-        resource = marketplace_models.Resource.objects.get(scope=router.tenant)
+        resource: marketplace_models.Resource = marketplace_models.Resource.objects.get(
+            scope=router.tenant
+        )
     except ObjectDoesNotExist:
         logger.debug(
             "Skipping resource synchronization for OpenStack router "
@@ -522,8 +524,10 @@ def set_mtu_when_network_has_been_created(sender, instance, created=False, **kwa
         return
 
     network = instance
-    resource = marketplace_models.Resource.objects.filter(scope=network.tenant).first()
-
+    # this won't catch the situation when network is created on tenant creation
+    resource: marketplace_models.Resource = marketplace_models.Resource.objects.filter(
+        scope=network.tenant
+    ).first()
     if not resource:
         return
 

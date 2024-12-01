@@ -3678,10 +3678,13 @@ class ProviderCustomerSerializer(serializers.ModelSerializer):
 class ProviderOfferingSerializer(
     core_serializers.SlugSerializerMixin, serializers.ModelSerializer
 ):
+    customer_uuid = serializers.ReadOnlyField(source="customer.uuid")
+
     class Meta:
         model = models.Offering
         fields = (
             "uuid",
+            "customer_uuid",
             "name",
             "slug",
             "category_title",

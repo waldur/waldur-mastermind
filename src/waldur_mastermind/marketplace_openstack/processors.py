@@ -1,8 +1,10 @@
+import logging
+
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 from rest_framework.reverse import reverse
 
-from waldur_mastermind.marketplace import processors, signals
+from waldur_mastermind.marketplace import models, processors, signals
 from waldur_mastermind.marketplace.processors import (
     copy_attributes,
     get_order_post_data,
@@ -12,6 +14,8 @@ from waldur_openstack import models as openstack_models
 from waldur_openstack import views as openstack_views
 
 from . import utils
+
+logger = logging.getLogger(__name__)
 
 
 class TenantCreateProcessor(processors.BaseCreateResourceProcessor):
@@ -27,8 +31,21 @@ class TenantCreateProcessor(processors.BaseCreateResourceProcessor):
     )
 
     def get_post_data(self):
-        order = self.order
+        order: models.Order = self.order
         payload = get_order_post_data(order, self.get_fields())
+        # check for default override
+        mtu = order.offering.plugin_options.get("default_internal_network_mtu")
+        if mtu:
+            # validate if MTU is a valid range and pass it as a default for the first network in a tenant
+            try:
+                value = int(mtu)
+                if value >= 68 and value <= 9000:
+                    payload["mtu"] = value
+            except ValueError:
+                logger.warning(
+                    f"Invalid MTU value: {mtu} in {order.offering}. Skipping."
+                )
+
         quotas = utils.map_limits_to_quotas(order.limits, order.offering)
 
         return dict(quotas=quotas, **payload)
