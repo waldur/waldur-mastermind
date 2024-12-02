@@ -145,3 +145,41 @@ def customer_credit_offerings_list_changed_handler(
         )
         if policies.count() > 0:
             utils.evaluate_policies(policies)
+
+
+def run_reset_actions_upon_cost_policy_deletion(sender, instance, **kwargs) -> None:
+    """
+    Execute reset actions when a cost policy is deleted.
+
+    Args:
+        sender: The model class that sent the signal
+        instance: The policy instance being deleted
+        kwargs: Additional keyword arguments
+    """
+    policy: models.ProjectEstimatedCostPolicy = instance
+
+    try:
+        actions = policy.get_immediate_actions()
+        for action in actions:
+            reset_method = action.reset_method
+            if reset_method:
+                logger.info(
+                    "Running immediate action reset method %s for policy %s (UUID: %s)",
+                    reset_method.__name__,
+                    policy.scope.name if policy.scope else "unknown",
+                    policy.uuid.hex,
+                )
+                try:
+                    reset_method(policy)
+                except Exception as e:
+                    logger.exception(
+                        "Failed to execute reset method %s: %s",
+                        reset_method.__name__,
+                        str(e),
+                    )
+    except Exception as e:
+        logger.exception(
+            "Failed to run reset actions for policy %s: %s",
+            getattr(policy, "uuid", "unknown"),
+            str(e),
+        )
