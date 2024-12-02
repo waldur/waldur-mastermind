@@ -55,3 +55,9 @@ class PolicyConfig(AppConfig):
             sender=invoices_models.CustomerCredit.offerings.through,
             dispatch_uid="customer_credit_offerings_list_changed_handler",
         )
+
+        signals.pre_delete.connect(
+            handlers.run_reset_actions_upon_cost_policy_deletion,
+            sender=models.ProjectEstimatedCostPolicy,
+            dispatch_uid="waldur_mastermind.policy.run_reset_actions_upon_cost_policy_deletion",
+        )
