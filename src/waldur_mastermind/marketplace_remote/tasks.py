@@ -253,7 +253,9 @@ class OfferingListPullTask(BackgroundListPullTask):
     pull_task = OfferingPullTask
 
     def get_pulled_objects(self):
-        return models.Offering.objects.filter(type=PLUGIN_NAME)
+        return models.Offering.objects.filter(
+            type=PLUGIN_NAME, secret_options__has_keys=["api_url", "token"]
+        )
 
 
 class OfferingUserPullTask(BackgroundPullTask):
@@ -319,7 +321,9 @@ class OfferingUserListPullTask(BackgroundListPullTask):
     pull_task = OfferingUserPullTask
 
     def get_pulled_objects(self):
-        return models.Offering.objects.filter(type=PLUGIN_NAME)
+        return models.Offering.objects.filter(
+            type=PLUGIN_NAME, secret_options__has_keys=["api_url", "token"]
+        )
 
 
 class ResourcePullTask(BackgroundPullTask):
