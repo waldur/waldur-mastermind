@@ -327,14 +327,6 @@ class UserFilterBackend(BaseFilterBackend):
         return result
 
 
-class UserRoleFilterBackend(BaseFilterBackend):
-    def filter_queryset(self, request, queryset, view):
-        user = request.user
-        queryset = filter_visible_user_permissions(queryset, user)
-
-        return queryset
-
-
 class BaseUserFilter(django_filters.FilterSet):
     full_name = django_filters.CharFilter(
         method="filter_by_full_name", label="Full name"
@@ -448,45 +440,6 @@ class UserConcatenatedNameOrderingBackend(BaseFilterBackend):
         return queryset.annotate(
             concatenated_name=Concat("first_name", "last_name", "username")
         ).order_by(order_by)
-
-
-class UserPermissionFilter(django_filters.FilterSet):
-    user = django_filters.UUIDFilter(field_name="user__uuid")
-    user_url = core_filters.URLFilter(
-        view_name="user-detail",
-        field_name="user__uuid",
-    )
-    username = django_filters.CharFilter(
-        field_name="user__username",
-        lookup_expr="exact",
-    )
-    full_name = django_filters.CharFilter(
-        method="filter_by_full_name", label="User full name contains"
-    )
-    native_name = django_filters.CharFilter(
-        field_name="user__native_name",
-        lookup_expr="icontains",
-    )
-    user_slug = django_filters.CharFilter(
-        field_name="user__slug",
-        lookup_expr="icontains",
-        label="User slug contains",
-    )
-
-    def filter_by_full_name(self, queryset, name, value):
-        return core_filters.filter_by_full_name(queryset, value, "user")
-
-    o = core_filters.ExtendedOrderingFilter(
-        fields=(
-            ("user__username", "username"),
-            (("user__first_name", "user__last_name"), "full_name"),
-            ("user__native_name", "native_name"),
-            ("user__email", "email"),
-            ("expiration_time", "expiration_time"),
-            ("created", "created"),
-            ("role", "role"),
-        )
-    )
 
 
 class CustomerPermissionReviewFilter(django_filters.FilterSet):

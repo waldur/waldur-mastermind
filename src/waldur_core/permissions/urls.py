@@ -7,3 +7,4 @@ def register_in(router):
         views.RoleViewSet,
         basename="role",
     )
+    router.register(r"user-permissions", views.UserPermissionViewSet)

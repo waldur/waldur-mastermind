@@ -14,6 +14,7 @@ from waldur_core.core import filters as core_filters
 from waldur_core.core.filters import LooseMultipleChoiceFilter
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
+from waldur_core.permissions.filters import UserPermissionFilter
 from waldur_core.permissions.models import UserRole
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
@@ -233,7 +234,7 @@ class OfferingFilterMixin(django_filters.FilterSet):
         )
 
 
-class OfferingPermissionFilter(structure_filters.UserPermissionFilter):
+class OfferingPermissionFilter(UserPermissionFilter):
     class Meta:
         fields = []
         model = UserRole
