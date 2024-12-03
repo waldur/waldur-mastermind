@@ -6,7 +6,6 @@ class Command(BaseCommand):
     help = """Prints all Waldur feature description as typescript code."""
 
     def handle(self, *args, **options):
-        print("/* eslint-disable prettier/prettier */")
         print(
             "// WARNING: This file is auto-generated from src/waldur_core/core/management/commands/print_settings_description.py"
         )
