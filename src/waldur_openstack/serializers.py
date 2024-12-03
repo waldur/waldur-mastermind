@@ -245,7 +245,15 @@ class FlavorSerializer(structure_serializers.BasePropertySerializer):
 class ImageSerializer(structure_serializers.BasePropertySerializer):
     class Meta:
         model = models.Image
-        fields = ("url", "uuid", "name", "min_disk", "min_ram", "settings")
+        fields = (
+            "url",
+            "uuid",
+            "name",
+            "min_disk",
+            "min_ram",
+            "settings",
+            "backend_id",
+        )
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},
             "settings": {"lookup_field": "uuid"},
