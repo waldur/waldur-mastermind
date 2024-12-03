@@ -1,55 +1,43 @@
 # Use to avoid pull rate limit for Docker Hub images
 ARG DOCKER_REGISTRY=docker.io/
 
-# Disable weak crypto algorithms in xmldsig used by PySAML2
-# See also: https://github.com/IdentityPython/pysaml2/issues/421#issuecomment-306133822
-FROM ${DOCKER_REGISTRY}buildpack-deps:buster as xmlsec1
-WORKDIR /xmlsec1
-RUN echo "deb-src http://deb.debian.org/debian buster main" >> /etc/apt/sources.list && \
-    apt-get update              && \
-    apt-get install -y --no-install-recommends build-essential && \
-    apt-get build-dep -y xmlsec1 && \
-    apt-get source xmlsec1      && \
-    cd xmlsec1-1*               && \
-    sed "s/--disable-crypto-dl/--disable-crypto-dl --enable-md5=no --enable-ripemd160=no/g" debian/rules >> debian/rules && \
-    dpkg-buildpackage -us -uc && \
-    cd .. && rm ./*-dbgsym*.deb ./*-dev*.deb ./*-doc*.deb
-
-FROM ${DOCKER_REGISTRY}python:3.11-bullseye
+FROM ${DOCKER_REGISTRY}python:3.11-alpine
 
 ENV LANG C.UTF-8
 
-# Install necessary packages
-RUN apt-get update       && \
-    apt-get install -y      \
-    git                     \
-    gosu                    \
-    libldap2-dev            \
-    libsasl2-dev            \
-    ldap-utils              \
-    locales                 \
-    gettext                 \
-    logrotate               \
-    openssl                 \
-    libnss3                 \
-    libnspr4                \
-    libffi-dev              \
-    libjpeg-dev             \
-    libxml2-dev             \
-    libxslt-dev             \
-    libyaml-dev             \
-    tini                    \
-    nginx                && \
-    rm -rf /var/lib/apt/lists
+# Install necessary system packages.
+RUN echo "@testing http://dl-cdn.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories && \
+    apk update && \
+    apk add --no-cache \
+    git~=2.45 \
+    # bash is used in multiple scripts in docker/rootfs.
+    bash~=5.2 \
+    # Commands for managing user accounts and authentication. "useradd" and "groupadd" are used in "app-entrypoint.sh".
+    shadow~=4.15 \
+    # file provides libmagic package. "import magic" in files like "storage.py" or "utils.py".
+    file~=5.45 \
+    # The ldap-related package used with django-auth-ldap. Openldap-dev is necessary
+    openldap-dev~=2.6 \
+    openssl~=3.3 \
+    libffi-dev~=3.4 \
+    libjpeg-turbo-dev~=3.0 \
+    libxml2-dev~=2.12 \
+    libxslt-dev~=1.1 \
+    # tini isused as container init in app-entrypoint.sh.
+    tini~=0.19 \
+    # nginx is used as our web server.
+    nginx~=1.26 \
+    # xmlsec is used in django saml2.
+    xmlsec~=1.3 \
+    build-base~=0.5 \
+    jpeg-dev~=9 \
+    zlib-dev~=1.3 \
+    # gosu to give privileges to a non-root user. We use it in multiple scripts such as initdb.
+    gosu@testing~=1.17
 
-RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
-    sed -i -e 's/# de_DE.UTF-8 UTF-8/de_DE.UTF-8 UTF-8/' /etc/locale.gen && \
-    dpkg-reconfigure --frontend=noninteractive locales
-
-# Install xmlsec1
-WORKDIR /tmp/xmlsec1
-COPY --from=xmlsec1 /xmlsec1/*.deb ./
-RUN dpkg -i ./*.deb && rm ./*.deb
+# Set up locales
+RUN echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen && \
+    echo "de_DE.UTF-8 UTF-8" >> /etc/locale.gen
 
 RUN mkdir -p /usr/src/waldur
 
@@ -64,8 +52,8 @@ RUN cd /usr/src/waldur && find . -name "tests" -exec rm -r {} + && bash docker_b
 RUN rm -rf /usr/local/src/ansible-waldur-module/.git \
            /usr/local/src/django-dbtemplates/.git
 
-# Delete all development libraries
-RUN apt-get purge -y lib*-dev
+# Delete build-base package
+RUN apk del build-base
 
 ENTRYPOINT ["/app-entrypoint.sh"]
 CMD ["/bin/bash"]
