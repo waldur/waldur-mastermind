@@ -1,15 +1,13 @@
 import logging
-from datetime import timedelta
 
 from celery import shared_task
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
-from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_openstack import models as openstack_models
 
-from . import INSTANCE_TYPE, TENANT_TYPE, VOLUME_TYPE, utils
+from . import INSTANCE_TYPE, VOLUME_TYPE, utils
 
 logger = logging.getLogger(__name__)
 
@@ -63,28 +61,3 @@ def refresh_instance_backend_metadata():
     for instance in instances:
         resource = marketplace_models.Resource.objects.get(scope=instance)
         utils.import_instance_metadata(resource)
-
-
-@shared_task(
-    name="waldur_mastermind.marketplace_openstack.mark_terminating_resources_as_erred_after_timeout"
-)
-def mark_terminating_resources_as_erred_after_timeout():
-    now = timezone.now()
-    two_hours_ago = now - timedelta(hours=2)
-    stale_orders = marketplace_models.Order.objects.filter(
-        offering__type__in=[TENANT_TYPE, VOLUME_TYPE, INSTANCE_TYPE],
-        state=marketplace_models.Order.States.EXECUTING,
-        modified__lt=two_hours_ago,
-        type=marketplace_models.Order.Types.TERMINATE,
-    )
-
-    for order in stale_orders:
-        order.cancel()
-        order.save()
-        resource = order.resource
-        resource.set_state_erred()
-        resource.backend_metadata.update({"state": "Erred"})
-        resource.save(update_fields=["state", "backend_metadata"])
-        tenant = resource.scope
-        tenant.set_erred()
-        tenant.save(update_fields=["state"])

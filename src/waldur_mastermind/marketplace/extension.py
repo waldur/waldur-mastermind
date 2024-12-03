@@ -69,4 +69,9 @@ class MarketplaceExtension(WaldurExtension):
                 "schedule": timedelta(days=1),
                 "args": (),
             },
+            "mark_resources_as_erred_after_timeout": {
+                "task": "waldur_mastermind.marketplace.mark_resources_as_erred_after_timeout",
+                "schedule": timedelta(hours=2),
+                "args": (),
+            },
         }

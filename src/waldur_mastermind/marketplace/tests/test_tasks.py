@@ -14,6 +14,8 @@ from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import models, tasks
 from waldur_mastermind.marketplace.tests.helpers import override_marketplace_settings
+from waldur_mastermind.marketplace_openstack import INSTANCE_TYPE
+from waldur_openstack.tests.fixtures import OpenStackFixture
 
 from . import factories, fixtures
 
@@ -367,3 +369,67 @@ class ResourceEndDate(test.APITransactionTestCase):
             subject = "Resource %s will be deleted." % self.resource.name
             self.assertEqual(mail.outbox[0].subject, subject)
             self.assertTrue(self.resource.uuid.hex in mail.outbox[0].body)
+
+
+class MarkResourcesAsErredAfterTimeoutTest(test.APITransactionTestCase):
+    def setUp(self):
+        super().setUp()
+        self.fixture = OpenStackFixture()
+        self.offering = factories.OfferingFactory(
+            scope=self.fixture.tenant, type=INSTANCE_TYPE
+        )
+        self.order = factories.OrderFactory(
+            offering=self.offering,
+            state=models.Order.States.EXECUTING,
+        )
+        self.resource = factories.ResourceFactory(
+            offering=self.offering,
+            scope=self.fixture.instance,
+            state=models.Resource.States.CREATING,
+        )
+        self.order.resource = self.resource
+        self.order.save()
+
+    def test_stale_orders_are_marked_as_failed(self):
+        # Arrange
+        now = timezone.now()
+        with freeze_time(now - datetime.timedelta(hours=3)):
+            self.order.modified = timezone.now()
+            self.order.save()
+
+        # Act
+        tasks.mark_resources_as_erred_after_timeout()
+
+        # Assert
+        self.order.refresh_from_db()
+        self.resource.refresh_from_db()
+        self.fixture.instance.refresh_from_db()
+
+        self.assertEqual(self.order.state, models.Order.States.ERRED)
+        self.assertEqual(self.order.error_message, "Execution has timed out.")
+        self.assertEqual(self.resource.state, models.Resource.States.ERRED)
+        self.assertEqual(self.resource.backend_metadata["state"], "Erred")
+        self.assertEqual(
+            self.fixture.instance.state, self.fixture.instance.States.ERRED
+        )
+
+    def test_recent_orders_are_not_marked_as_failed(self):
+        # Arrange
+        now = timezone.now()
+        with freeze_time(now - datetime.timedelta(hours=1)):
+            self.order.modified = timezone.now()
+            self.order.save()
+
+        # Act
+        tasks.mark_resources_as_erred_after_timeout()
+
+        # Assert
+        self.order.refresh_from_db()
+        self.resource.refresh_from_db()
+        self.fixture.instance.refresh_from_db()
+
+        self.assertEqual(self.order.state, models.Order.States.EXECUTING)
+        self.assertNotEqual(self.resource.state, models.Resource.States.ERRED)
+        self.assertNotEqual(
+            self.fixture.instance.state, self.fixture.instance.States.ERRED
+        )
