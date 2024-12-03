@@ -19,6 +19,7 @@ class MarketplaceScriptConfig(AppConfig):
             update_resource_processor=processors.UpdateProcessor,
             delete_resource_processor=processors.DeleteProcessor,
             can_update_limits=True,
+            is_interruptible=True,
         )
 
         script_registrators.ScriptRegistrator.connect()

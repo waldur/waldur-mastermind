@@ -42,9 +42,12 @@ class PluginManager:
     def __init__(self):
         self.backends = {}
 
-    def register(self, offering_type, **kwargs):
+    def register(
+        self,
+        offering_type: str,
+        **kwargs,
+    ):
         """
-
         :param offering_type: string which consists of application name and model name,
                               for example Support.OfferingTemplate
         :key create_resource_processor: class which receives order
@@ -72,6 +75,7 @@ class PluginManager:
         :key import_resource_executor:
         :key get_available_resource_actions: function which returns list of strings
         identifying available resource actions
+        :key is_interruptible: optional boolean indicated whether order of offering can be interrupted.
         """
         self.backends[offering_type] = kwargs
 
@@ -236,6 +240,16 @@ class PluginManager:
             if fn:
                 actions.extend(fn(resource))
         return actions
+
+    def list_interruptible_offerings(self):
+        """
+        Returns list of offering types that can be interrupted.
+        """
+        return [
+            offering_type
+            for offering_type, backend in self.backends.items()
+            if backend.get("is_interruptible", False)
+        ]
 
 
 manager = PluginManager()

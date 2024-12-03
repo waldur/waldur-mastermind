@@ -113,6 +113,7 @@ class MarketplaceOpenStackConfig(AppConfig):
             get_importable_resources_backend_method="get_importable_tenants",
             import_resource_backend_method="import_tenant",
             import_resource_executor=openstack_executors.TenantImportExecutor,
+            is_interruptible=True,
         )
 
         manager.register(
@@ -122,6 +123,7 @@ class MarketplaceOpenStackConfig(AppConfig):
             get_importable_resources_backend_method="get_importable_instances",
             import_resource_backend_method="import_instance",
             import_resource_executor=openstack_executors.InstancePullExecutor,
+            is_interruptible=True,
         )
 
         manager.register(
@@ -130,6 +132,7 @@ class MarketplaceOpenStackConfig(AppConfig):
             delete_resource_processor=processors.VolumeDeleteProcessor,
             get_importable_resources_backend_method="get_importable_volumes",
             import_resource_backend_method="import_volume",
+            is_interruptible=True,
         )
 
         signals.post_save.connect(
