@@ -2800,9 +2800,9 @@ class ResourceOfferingsViewSet(ListAPIView):
     def get_queryset(self):
         user = self.request.user
         category = self.get_category()
+        qs: ResourceQuerySet = models.Resource.objects.all()
         offerings = (
-            models.Resource.objects.all()
-            .filter_for_user(user)
+            qs.filter_for_service_consumer(user)
             .filter(offering__category=category)
             .exclude(state=models.Resource.States.TERMINATED)
             .values_list("offering_id", flat=True)

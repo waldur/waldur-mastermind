@@ -2309,3 +2309,19 @@ class ListCustomerUsersTest(test.APITransactionTestCase):
             self.fixture.offering, "list_customer_users"
         )
         return self.client.get(url)
+
+
+class ResourceOfferingsViewSetTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.category = self.fixture.offering.category
+        self.resource = self.fixture.resource
+
+    def test_filter_offerings_by_category(self):
+        url = f"/api/marketplace-resource-offerings/{self.category.uuid.hex}/"
+        self.client.force_authenticate(user=self.fixture.staff)
+
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], self.fixture.offering.uuid.hex)
