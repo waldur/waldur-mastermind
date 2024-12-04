@@ -44,8 +44,9 @@ class InvoiceItemFactory(factory.django.DjangoModelFactory):
         return url if action is None else url + action + "/"
 
     @classmethod
-    def get_list_url(cls):
-        return "http://testserver" + reverse("invoice-item-list")
+    def get_list_url(cls, action=None):
+        url = "http://testserver" + reverse("invoice-item-list")
+        return url if action is None else url + action + "/"
 
 
 class PaymentProfileFactory(factory.django.DjangoModelFactory):

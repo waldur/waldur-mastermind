@@ -10,6 +10,7 @@ from django.db import models
 from django.db.models.aggregates import Sum
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+from django_fsm import FSMIntegerField
 from model_utils import FieldTracker
 from rest_framework import exceptions as rf_exceptions
 from reversion import revisions as reversion
@@ -636,6 +637,26 @@ class ProjectCredit(core_models.UuidMixin, core_models.TimeStampedModel):
             )
 
         return super().save(*args, **kwargs)
+
+
+class PeriodMixin(models.Model):
+    class Periods:
+        TOTAL = 1
+        MONTH_1 = 2
+        MONTH_3 = 3
+        MONTH_12 = 4
+
+        CHOICES = (
+            (TOTAL, "Total"),
+            (MONTH_1, "1 month"),
+            (MONTH_3, "3 month"),
+            (MONTH_12, "12 month"),
+        )
+
+    period = FSMIntegerField(default=Periods.MONTH_1, choices=Periods.CHOICES)
+
+    class Meta:
+        abstract = True
 
 
 reversion.register(InvoiceItem)

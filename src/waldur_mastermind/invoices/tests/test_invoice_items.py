@@ -1,3 +1,4 @@
+import uuid
 from datetime import date
 from unittest import mock
 
@@ -5,7 +6,9 @@ import ddt
 from freezegun import freeze_time
 from rest_framework import status, test
 
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common.utils import parse_date
+from waldur_mastermind.invoices.models import PeriodMixin
 from waldur_mastermind.invoices.tests import factories, fixtures
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -290,3 +293,71 @@ class InvoiceItemMigrateToTest(test.APITransactionTestCase):
             url, {"invoice": factories.InvoiceFactory.get_url(self.item)}
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+@freeze_time("2019-01-01")
+class InvoiceItemCostsForPeriodTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.InvoiceFixture()
+        self.invoice1 = factories.InvoiceFactory(
+            customer=self.fixture.customer, month=12, year=2018
+        )
+        self.invoice2 = factories.InvoiceFactory(
+            customer=self.fixture.customer, month=11, year=2018
+        )
+        self.invoice3 = factories.InvoiceFactory(
+            customer=self.fixture.customer, month=5, year=2018
+        )
+        self.item1 = factories.InvoiceItemFactory(
+            invoice=self.invoice1,
+            project=self.fixture.project,
+            unit_price=10,
+            quantity=10,
+        )
+        self.item2 = factories.InvoiceItemFactory(
+            invoice=self.invoice2,
+            project=self.fixture.project,
+            unit_price=20,
+            quantity=5,
+        )
+        self.item3 = factories.InvoiceItemFactory(
+            invoice=self.invoice3,
+            project=self.fixture.project,
+            unit_price=30,
+            quantity=3,
+        )
+
+        self.url = factories.InvoiceItemFactory.get_list_url("costs_for_period")
+        self.random_uuid = uuid.uuid4().hex
+        self.user = structure_factories.UserFactory()
+
+    def test_costs_for_3_months_period(self):
+        self.client.force_authenticate(self.fixture.staff)
+        period = PeriodMixin.Periods.MONTH_3
+        response = self.client.get(
+            self.url, {"project_uuid": self.fixture.project.uuid.hex, "period": period}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["total_price"], "200.00")
+
+    def test_costs_for_total_period(self):
+        self.client.force_authenticate(self.fixture.staff)
+        period = PeriodMixin.Periods.TOTAL
+        response = self.client.get(
+            self.url, {"project_uuid": self.fixture.project.uuid.hex, "period": period}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["total_price"], "290.00")
+
+    def test_uuid_is_not_connected_to_any_project(self):
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.InvoiceItemFactory.get_list_url("costs_for_period")
+        response = self.client.get(url, {"project_uuid": self.random_uuid})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_user_can_not_get_costs_for_period(self):
+        self.client.force_authenticate(self.user)
+        response = self.client.get(
+            self.url, {"project_uuid": self.fixture.project.uuid.hex}
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
