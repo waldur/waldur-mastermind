@@ -1,8 +1,11 @@
+from datetime import timedelta
 from typing import TypeVar
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
-from django.db.models import QuerySet
+from django.db.models import F, Q, QuerySet
+from django.db.models.functions import Now
+from rest_framework.authtoken import models as authtoken_models
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.managers import GenericKeyMixin
@@ -193,3 +196,13 @@ def get_organization_groups(user):
     return structure_models.Customer.objects.filter(
         id__in=get_visible_customers(user)
     ).values("organization_group")
+
+
+def get_active_tokens():
+    # Get tokens that are either:
+    # 1. Within their lifetime (created + token_lifetime > now)
+    # 2. Have no lifetime limit (token_lifetime is NULL)
+    return authtoken_models.Token.objects.filter(
+        Q(created__gte=Now() - F("user__token_lifetime") * timedelta(seconds=1))
+        | Q(user__token_lifetime__isnull=True)
+    ).select_related("user")

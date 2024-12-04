@@ -7,7 +7,6 @@ from django.contrib import auth
 from django.core import exceptions as django_exceptions
 from django.db import transaction
 from django.db.models import Count, Q
-from django.db.utils import DataError
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -16,7 +15,6 @@ from rest_framework import filters as rf_filters
 from rest_framework import mixins, status, viewsets
 from rest_framework import permissions as rf_permissions
 from rest_framework import serializers as rf_serializers
-from rest_framework.authtoken import models as authtoken_models
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.response import Response
@@ -40,6 +38,7 @@ from waldur_core.permissions.views import UserRoleMixin
 from waldur_core.structure import filters, models, permissions, serializers, utils
 from waldur_core.structure.managers import (
     filter_queryset_for_user,
+    get_active_tokens,
     get_connected_customers,
     get_connected_projects,
 )
@@ -929,35 +928,8 @@ class NotificationTemplateViewSet(ActionsViewSet):
 class AuthTokenViewSet(ActionsViewSet):
     serializer_class = serializers.AuthTokenSerializers
     lookup_field = "user_id"
-    filter_backends = []
     disabled_actions = ["create", "update", "partial_update"]
     permission_classes = (core_permissions.IsStaff,)
 
     def get_queryset(self):
-        query = (
-            'SELECT * FROM "authtoken_token" '
-            'INNER JOIN "core_user" ON ("authtoken_token"."user_id" = "core_user"."id") '
-            'WHERE (("authtoken_token"."created" >= '
-            'NOW() - INTERVAL \'1 SECOND\' * "core_user"."token_lifetime")'
-            ' OR "core_user"."token_lifetime" IS NULL)'
-        )
-        queryset = authtoken_models.Token.objects.raw(query)
-
-        def get(user_id):
-            try:
-                users = list(
-                    authtoken_models.Token.objects.raw(
-                        query + ' AND "authtoken_token"."user_id" = %s', [user_id]
-                    )
-                )
-            except DataError:
-                raise authtoken_models.Token.DoesNotExist()
-
-            if len(users):
-                return users[0]
-            else:
-                raise authtoken_models.Token.DoesNotExist()
-
-        queryset.get = get
-
-        return queryset
+        return get_active_tokens()
