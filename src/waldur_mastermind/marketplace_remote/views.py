@@ -3,24 +3,29 @@ from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import permissions as rf_permissions
 from rest_framework import status
+from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from waldur_client import WaldurClient, WaldurClientException
 
 from waldur_core.core import permissions as core_permissions
+from waldur_core.core import views as core_views
 from waldur_core.core.utils import is_uuid_like, serialize_instance
 from waldur_core.core.views import ReviewViewSet
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import has_permission
+from waldur_core.structure import filters as structure_filters
 from waldur_core.structure.filters import GenericRoleFilter
 from waldur_core.structure.models import Customer
 from waldur_mastermind.marketplace import callbacks, models, permissions, plugins
 from waldur_mastermind.marketplace_remote import PLUGIN_NAME
-from waldur_mastermind.marketplace_remote.constants import OFFERING_FIELDS
-from waldur_mastermind.marketplace_remote.models import ProjectUpdateRequest
+from waldur_mastermind.marketplace_remote.models import (
+    ProjectUpdateRequest,
+    RemoteSynchronisation,
+)
 
-from . import filters, serializers, tasks, utils
+from . import filters, serializers, tasks, utils, utils_sync_remote_offerings
 
 
 class RemoteView(APIView):
@@ -44,6 +49,16 @@ class CustomersView(RemoteView):
         except WaldurClientException as e:
             return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
         return Response(customers)
+
+
+class СategoriesView(RemoteView):
+    def post(self, request, *args, **kwargs):
+        client = self.get_client(request)
+        try:
+            сategories = client.list_marketplace_categories()
+        except WaldurClientException as e:
+            return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
+        return Response(сategories)
 
 
 class OfferingsListView(RemoteView):
@@ -117,30 +132,11 @@ class OfferingCreateView(RemoteView):
             "token": token,
             "customer_uuid": remote_customer_uuid,
         }
-        local_offering = self.import_offering(
+        local_offering = utils.import_offering(
             remote_offering, local_customer, local_category, secret_options
         )
 
         return Response({"uuid": local_offering.uuid.hex})
-
-    def import_offering(
-        self, remote_offering, local_customer, local_category, secret_options
-    ):
-        local_offering = models.Offering.objects.create(
-            type=PLUGIN_NAME,
-            billable=True,
-            backend_id=remote_offering["uuid"],
-            customer=local_customer,
-            category=local_category,
-            secret_options=secret_options,
-            **{key: remote_offering[key] for key in OFFERING_FIELDS},
-        )
-        utils.import_offering_thumbnail(local_offering, remote_offering)
-        local_components_map = utils.import_offering_components(
-            local_offering, remote_offering
-        )
-        utils.import_plans(local_offering, remote_offering, local_components_map)
-        return local_offering
 
 
 class ProjectUpdateRequestViewSet(ReviewViewSet):
@@ -254,4 +250,21 @@ class SyncResourceProjectPermissions(APIView):
         qs = models.Resource.objects.filter(offering__type=PLUGIN_NAME)
         resource = get_object_or_404(qs, uuid=uuid)
         utils.sync_resource_team(resource)
+        return Response(status=status.HTTP_200_OK)
+
+
+class RemoteSynchronisationViewSet(core_views.ActionsViewSet):
+    queryset = RemoteSynchronisation.objects.all().order_by("-created")
+    lookup_field = "uuid"
+    serializer_class = serializers.RemoteSynchronisationDetailsSerializer
+    filter_backends = (
+        structure_filters.GenericRoleFilter,
+        DjangoFilterBackend,
+    )
+    permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
+
+    @action(detail=True, methods=["post"])
+    def run_synchronisation(self, request, **kwargs):
+        sync = self.get_object()
+        utils_sync_remote_offerings.run_synchronisation(sync)
         return Response(status=status.HTTP_200_OK)

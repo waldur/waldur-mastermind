@@ -1058,6 +1058,7 @@ class ProviderOfferingDetailsSerializer(
     plans = BaseProviderPlanSerializer(many=True, required=False)
     screenshots = NestedScreenshotSerializer(many=True, read_only=True)
     state = serializers.ReadOnlyField(source="get_state_display")
+    state_code = serializers.ReadOnlyField(source="state")
     scope = GenericRelatedField(read_only=True)
     scope_uuid = serializers.ReadOnlyField(source="scope.uuid")
     scope_state = serializers.ReadOnlyField(source="scope.get_state_display")
@@ -1105,6 +1106,7 @@ class ProviderOfferingDetailsSerializer(
             "secret_options",
             "service_attributes",
             "state",
+            "state_code",
             "native_name",
             "native_description",
             "vendor_details",

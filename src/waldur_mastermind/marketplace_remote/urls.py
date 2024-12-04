@@ -8,6 +8,10 @@ urlpatterns = [
         views.CustomersView.as_view(),
     ),
     re_path(
+        r"^api/remote-waldur-api/remote_сategories/$",
+        views.СategoriesView.as_view(),
+    ),
+    re_path(
         r"^api/remote-waldur-api/shared_offerings/$",
         views.OfferingsListView.as_view(),
     ),
@@ -68,4 +72,9 @@ def register_in(router):
         r"marketplace-project-update-requests",
         views.ProjectUpdateRequestViewSet,
         basename="marketplace-project-update-request",
+    )
+    router.register(
+        r"marketplace-remote-synchronisations",
+        views.RemoteSynchronisationViewSet,
+        basename="marketplace-remote-synchronisation",
     )

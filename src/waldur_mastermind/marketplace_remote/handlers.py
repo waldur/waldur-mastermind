@@ -11,7 +11,7 @@ from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
-from waldur_mastermind.marketplace.models import Resource
+from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace_remote.utils import INVALID_RESOURCE_STATES
 
 from . import PLUGIN_NAME, log, models, tasks, utils
@@ -86,12 +86,14 @@ def create_request_when_project_is_updated(sender, instance, created=False, **kw
         payload[f"new_{key}"] = getattr(instance, key)
         payload["created_by"] = user
     offering_ids = (
-        Resource.objects.filter(project=instance, offering__type=PLUGIN_NAME)
+        marketplace_models.Resource.objects.filter(
+            project=instance, offering__type=PLUGIN_NAME
+        )
         .exclude(state__in=INVALID_RESOURCE_STATES)
         .values_list("offering_id", flat=True)
         .distinct()
     )
-    offerings = models.Offering.objects.filter(id__in=offering_ids)
+    offerings = marketplace_models.Offering.objects.filter(id__in=offering_ids)
     for offering in offerings:
         project_request = models.ProjectUpdateRequest.objects.create(
             project=instance,
