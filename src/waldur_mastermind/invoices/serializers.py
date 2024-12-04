@@ -13,6 +13,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
+from waldur_core.structure.models import Project
 from waldur_mastermind.common.mixins import PRICE_DECIMAL_PLACES, PRICE_MAX_DIGITS
 from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -252,6 +253,33 @@ class InvoiceSerializer(
         items = utils.filter_invoice_items(qs)
         serializer = InvoiceItemSerializer(items, many=True, context=self.context)
         return serializer.data
+
+
+class InvoiceItemCostsForPeriodSerializer(serializers.Serializer):
+    period = serializers.ChoiceField(
+        choices=models.PeriodMixin.Periods.CHOICES,
+        default=models.PeriodMixin.Periods.TOTAL,
+        help_text="Period for which statistics should be calculated.",
+    )
+    project_uuid = serializers.UUIDField(
+        help_text="UUID of the project for which statistics should be calculated."
+    )
+
+    def validate_project_uuid(self, project_uuid):
+        if not Project.objects.filter(uuid=project_uuid).exists():
+            raise serializers.ValidationError(
+                "Project with UUID %s does not exist." % project_uuid
+            )
+        return project_uuid
+
+    def validate(self, attrs):
+        user = self.context["request"].user
+        project = Project.objects.get(uuid=attrs["project_uuid"])
+        if not project.has_user(user) and not user.is_staff and not user.is_support:
+            raise exceptions.PermissionDenied(
+                "User does not have access to the project."
+            )
+        return attrs
 
 
 class InvoiceItemReportSerializer(serializers.ModelSerializer):

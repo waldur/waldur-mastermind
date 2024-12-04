@@ -7,7 +7,6 @@ from django.core import exceptions
 from django.db import models
 from django.db.models import Q, Sum
 from django.utils.translation import gettext_lazy as _
-from django_fsm import FSMIntegerField
 from model_utils.models import TimeStampedModel
 
 from waldur_core.core import models as core_models
@@ -92,27 +91,7 @@ class Policy(
         abstract = True
 
 
-class PeriodMixin(models.Model):
-    class Periods:
-        TOTAL = 1
-        MONTH_1 = 2
-        MONTH_3 = 3
-        MONTH_12 = 4
-
-        CHOICES = (
-            (TOTAL, "Total"),
-            (MONTH_1, "1 month"),
-            (MONTH_3, "3 month"),
-            (MONTH_12, "12 month"),
-        )
-
-    period = FSMIntegerField(default=Periods.MONTH_1, choices=Periods.CHOICES)
-
-    class Meta:
-        abstract = True
-
-
-class EstimatedCostPolicyMixin(PeriodMixin):
+class EstimatedCostPolicyMixin(invoices_models.PeriodMixin):
     trigger_class = invoices_models.InvoiceItem
 
     limit_cost = models.IntegerField()
@@ -289,7 +268,7 @@ class OfferingEstimatedCostPolicy(EstimatedCostPolicyMixin, OfferingPolicy):
         verbose_name_plural = "Offering estimated cost policies"
 
 
-class OfferingUsagePolicy(PeriodMixin, OfferingPolicy):
+class OfferingUsagePolicy(invoices_models.PeriodMixin, OfferingPolicy):
     trigger_class = marketplace_models.ComponentUsage
 
     component_limit = models.ManyToManyField(

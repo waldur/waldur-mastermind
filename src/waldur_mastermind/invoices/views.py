@@ -1,10 +1,11 @@
 import datetime
 import decimal
 import uuid
+from decimal import Decimal
 
 from dateutil.relativedelta import relativedelta
 from django.db import transaction
-from django.db.models import F, Sum
+from django.db.models import F, Q, QuerySet, Sum
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import exceptions, status
@@ -413,6 +414,78 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
             return self.get_paginated_response(data)
         data = self._get_costs_data(invoices)
         return Response(data)
+
+    def _get_costs_for_periods_data(
+        self, invoices: QuerySet, period: int, month_start: datetime.date
+    ) -> dict[str, str]:
+        PERIOD_LENGTHS = {
+            models.PeriodMixin.Periods.MONTH_1: 1,
+            models.PeriodMixin.Periods.MONTH_3: 3,
+            models.PeriodMixin.Periods.MONTH_12: 12,
+        }
+        period_length = PERIOD_LENGTHS.get(period, 0)
+
+        query = Q()
+
+        for n in range(period_length):
+            previous_month_date = month_start - relativedelta(months=n)
+            query |= Q(
+                invoice__month=previous_month_date.month,
+                invoice__year=previous_month_date.year,
+            )
+
+        total_price: Decimal | None = (
+            invoices.filter(query).aggregate(
+                total_price=Sum(F("unit_price") * F("quantity"))
+            )["total_price"]
+            or 0
+        )
+
+        start_date = month_start - relativedelta(months=period_length)
+
+        return {
+            "total_price": f"{total_price:.2f}",
+            "start_date": start_date.strftime("%Y-%m-%d"),
+            "end_date": month_start.strftime("%Y-%m-%d"),
+        }
+
+    @action(detail=False, methods=["get"], filterset_class=filters.InvoiceItemFilter)
+    def costs_for_period(self, request, *args, **kwargs):
+        serializer = serializers.InvoiceItemCostsForPeriodSerializer(
+            data=request.GET, context={"request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+        project_uuid = serializer.validated_data["project_uuid"]
+        period = serializer.validated_data["period"]
+        month_start = datetime.date.today().replace(day=1)
+
+        invoices = (
+            InvoiceItem.objects.filter(project_uuid=project_uuid.hex)
+            .values("invoice__year", "invoice__month")
+            .annotate(price=Sum(F("unit_price") * F("quantity")))
+            .values("invoice__year", "invoice__month", "price")
+            .order_by("-invoice__year", "-invoice__month")
+        )
+
+        invoices = filter_queryset_for_user(invoices, request.user)
+
+        if period == models.PeriodMixin.Periods.TOTAL:
+            total_price = (
+                invoices.aggregate(total_price=Sum(F("unit_price") * F("quantity")))[
+                    "total_price"
+                ]
+                or 0
+            )
+            return Response(
+                {
+                    "total_price": f"{total_price:.2f}",
+                    "start_date": "N/A",
+                    "end_date": "N/A",
+                }
+            )
+
+        period_data = self._get_costs_for_periods_data(invoices, period, month_start)
+        return Response(period_data)
 
     create_compensation_serializer_class = serializers.InvoiceItemCompensationSerializer
 
