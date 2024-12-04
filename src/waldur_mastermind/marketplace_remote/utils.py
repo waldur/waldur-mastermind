@@ -20,6 +20,7 @@ from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace_remote.constants import (
     OFFERING_COMPONENT_FIELDS,
+    OFFERING_FIELDS,
     PLAN_FIELDS,
 )
 
@@ -513,3 +514,26 @@ def push_resource_options(local_resource):
         )
     except WaldurClientException as exc:
         logger.error("Unable to push resource options: %s", exc)
+
+
+def get_remote_offerings(api_url, token, customer_uuid, category_uuid=None):
+    client = WaldurClient(api_url, token)
+    return client.list_marketplace_provider_offerings(
+        filters={"customer_uuid": customer_uuid, "category_uuid": category_uuid}
+    )
+
+
+def import_offering(remote_offering, local_customer, local_category, secret_options):
+    local_offering = marketplace_models.Offering.objects.create(
+        type=PLUGIN_NAME,
+        billable=True,
+        backend_id=remote_offering["uuid"],
+        customer=local_customer,
+        category=local_category,
+        secret_options=secret_options,
+        **{key: remote_offering[key] for key in OFFERING_FIELDS},
+    )
+    import_offering_thumbnail(local_offering, remote_offering)
+    local_components_map = import_offering_components(local_offering, remote_offering)
+    import_plans(local_offering, remote_offering, local_components_map)
+    return local_offering

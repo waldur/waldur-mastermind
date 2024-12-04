@@ -43,6 +43,27 @@ class RemoteCustomersTest(test.APITransactionTestCase):
         self.assertEqual(response.data, [])
 
 
+class RemoteСategoriesTest(test.APITransactionTestCase):
+    @responses.activate
+    def test_remote_сategories_are_listed_for_given_token_and_api_url(self):
+        responses.add(
+            responses.GET, "https://remote-waldur.com/marketplace-categories/", json=[]
+        )
+        self.client.force_login(UserFactory())
+        response = self.client.post(
+            "/api/remote-waldur-api/remote_сategories/",
+            {
+                "api_url": "https://remote-waldur.com/",
+                "token": "valid_token",
+            },
+        )
+        self.assertEqual(
+            responses.calls[0].request.headers["Authorization"], "token valid_token"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
+
+
 class OfferingDetailsPullTest(test.APITransactionTestCase):
     def setUp(self) -> None:
         fixture = fixtures.MarketplaceFixture()
@@ -362,10 +383,13 @@ class OfferingCreateTest(test.APITransactionTestCase):
             "waldur_mastermind.marketplace_remote.views.WaldurClient"
         )
         client_mock = self.patcher.start()
-        self.patcher_utils = mock.patch(
-            "waldur_mastermind.marketplace_remote.views.utils"
-        )
-        self.patcher_utils.start()
+        mock.patch(
+            "waldur_mastermind.marketplace_remote.utils.import_offering_thumbnail"
+        ).start()
+        mock.patch(
+            "waldur_mastermind.marketplace_remote.utils.import_offering_components"
+        ).start()
+        mock.patch("waldur_mastermind.marketplace_remote.utils.import_plans").start()
         client_mock().get_marketplace_public_offering.return_value = {
             "uuid": "456",
             "name": "Offering",

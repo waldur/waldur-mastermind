@@ -82,4 +82,9 @@ class MarketplaceRemoteExtension(WaldurExtension):
                 "schedule": timedelta(days=1),
                 "args": (),
             },
+            "waldur-remote-offerings-sync": {
+                "task": "waldur_mastermind.marketplace_remote.remote_offerings_sync",
+                "schedule": timedelta(days=1),
+                "args": (),
+            },
         }

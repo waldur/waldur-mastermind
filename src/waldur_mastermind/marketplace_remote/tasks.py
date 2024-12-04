@@ -42,7 +42,7 @@ from waldur_mastermind.marketplace_remote.utils import (
     sync_project_permission,
 )
 
-from . import PLUGIN_NAME, utils
+from . import PLUGIN_NAME, utils, utils_sync_remote_offerings
 
 logger = logging.getLogger(__name__)
 
@@ -1162,3 +1162,11 @@ class RemoteProjectDataListPushTask(BackgroundListPullTask):
 class RemoteResourcePermissionsPushTask(BackgroundPullTask):
     def pull(self, instance: models.Offering):
         pass
+
+
+@shared_task(name="waldur_mastermind.marketplace_remote.remote_offerings_sync")
+def remote_offerings_sync() -> None:
+    for sync in remote_models.RemoteSynchronisation.objects.filter(
+        is_active=True,
+    ).exclude(state=remote_models.RemoteSynchronisation.States.PROCESSING):
+        utils_sync_remote_offerings.run_synchronisation(sync)
