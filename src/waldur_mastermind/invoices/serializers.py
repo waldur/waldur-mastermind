@@ -11,9 +11,10 @@ from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
 from waldur_core.core import utils as core_utils
 from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
-from waldur_core.structure.models import Project
+from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_mastermind.common.mixins import PRICE_DECIMAL_PLACES, PRICE_MAX_DIGITS
 from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -261,23 +262,36 @@ class InvoiceItemCostsForPeriodSerializer(serializers.Serializer):
         default=models.PeriodMixin.Periods.TOTAL,
         help_text="Period for which statistics should be calculated.",
     )
+
+
+class InvoiceItemProjectCostsForPeriodSerializer(InvoiceItemCostsForPeriodSerializer):
     project_uuid = serializers.UUIDField(
         help_text="UUID of the project for which statistics should be calculated."
     )
 
-    def validate_project_uuid(self, project_uuid):
-        if not Project.objects.filter(uuid=project_uuid).exists():
-            raise serializers.ValidationError(
-                "Project with UUID %s does not exist." % project_uuid
-            )
-        return project_uuid
+    def validate(self, attrs):
+        user = self.context["request"].user
+        project_uuid = attrs["project_uuid"]
+        queryset = structure_models.Project.objects.filter(uuid=project_uuid)
+        queryset = filter_queryset_for_user(queryset, user)
+        if not queryset.exists():
+            raise exceptions.NotFound("Project with UUID %s not found." % project_uuid)
+        return attrs
+
+
+class InvoiceItemCustomerCostsForPeriodSerializer(InvoiceItemCostsForPeriodSerializer):
+    customer_uuid = serializers.UUIDField(
+        help_text="UUID of the customer for which statistics should be calculated."
+    )
 
     def validate(self, attrs):
         user = self.context["request"].user
-        project = Project.objects.get(uuid=attrs["project_uuid"])
-        if not project.has_user(user) and not user.is_staff and not user.is_support:
-            raise exceptions.PermissionDenied(
-                "User does not have access to the project."
+        customer_uuid = attrs["customer_uuid"]
+        queryset = structure_models.Customer.objects.filter(uuid=customer_uuid)
+        queryset = filter_queryset_for_user(queryset, user)
+        if not queryset.exists():
+            raise exceptions.NotFound(
+                "Customer with UUID %s not found." % customer_uuid
             )
         return attrs
 
