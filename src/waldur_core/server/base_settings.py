@@ -198,11 +198,11 @@ STATIC_URL = "/static/"
 # rabbitmq-plugins enable rabbitmq_mqtt
 # rabbitmq-plugins enable rabbitmq_web_mqtt (for websockets)
 RABBITMQ_MQTT = {
-    "ENABLED": False,
     "HOST": "localhost",
     "PORT": 1883,
     "USER": "test",
     "PASSWORD": "test",
+    "MANAGEMENT_PORT": 15672,
 }
 
 # Celery

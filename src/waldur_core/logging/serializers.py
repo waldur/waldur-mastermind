@@ -1,9 +1,15 @@
+import logging
+import uuid
+
+from django.db import transaction
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
 from waldur_core.core.fields import NaturalChoiceField
 from waldur_core.core.serializers import RestrictedSerializerMixin
-from waldur_core.logging import loggers, models
+from waldur_core.logging import backend, loggers, models
+
+logger = logging.getLogger(__name__)
 
 
 class EventSerializer(RestrictedSerializerMixin, serializers.ModelSerializer):
@@ -121,3 +127,92 @@ class EmailHookSerializer(BaseHookSerializer):
 
     def get_hook_type(self, hook):
         return "email"
+
+
+class EventSubscriptionSerializer(serializers.HyperlinkedModelSerializer):
+    observable_objects = serializers.JSONField(default=list)
+    user_uuid = serializers.ReadOnlyField(source="user.uuid")
+    user_username = serializers.ReadOnlyField(source="user.username")
+    user_full_name = serializers.ReadOnlyField(source="user.full_name")
+
+    class Meta:
+        model = models.EventSubscription
+        fields = (
+            "uuid",
+            "url",
+            "description",
+            "user",
+            "user_uuid",
+            "user_username",
+            "user_full_name",
+            "observable_objects",
+            "created",
+            "modified",
+            "source_ip",
+        )
+        read_only_fields = ("user", "source_ip")
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "event-subscription-detail",
+            },
+            "user": {
+                "lookup_field": "uuid",
+                "view_name": "user-detail",
+            },
+            "description": {"required": False},
+        }
+
+    def validate_observable_objects(self, value):
+        if not isinstance(value, list):
+            raise serializers.ValidationError(
+                "The observable_objects field must be a list of JSON objects."
+            )
+
+        required_keys = {"object_type", "object_id"}
+        for item in value:
+            request_keys = set(item.keys())
+            if not request_keys.issubset(required_keys):
+                raise serializers.ValidationError(
+                    f"The observable_objects field must contain keys only: {', '.join(required_keys)}"
+                )
+
+            if not isinstance(item.get("object_type"), str):
+                raise serializers.ValidationError("object_type value must be a string.")
+
+            if item.get("object_id") and not isinstance(item.get("object_id"), int):
+                raise serializers.ValidationError("object_id value must be an integer.")
+
+        return value
+
+    @transaction.atomic
+    def create(self, validated_data):
+        user = validated_data["user"]
+        object_uuid = uuid.uuid4().hex
+        validated_data["uuid"] = object_uuid
+        vhost_name = f"{user.uuid.hex}"
+        rmq_backend = backend.RabbitMQManagementBackend()
+
+        # Create virtual host
+        if not rmq_backend.create_rabbitmq_virtual_host(vhost_name):
+            logger.error("Failed to create RabbitMQ virtual host: %s", vhost_name)
+            raise serializers.ValidationError("Failed to create RabbitMQ virtual host")
+
+        # Create RabbitMQ user
+        if not rmq_backend.create_rabbitmq_user(object_uuid, user.auth_token.key):
+            logger.error("Failed to create RabbitMQ user: %s", object_uuid)
+            raise serializers.ValidationError("Failed to create RabbitMQ user")
+
+        # Assign permissions: consumer needs `configure` perm to create a queue in RMQ
+        permissions = {"configure": ".*", "write": ".*", "read": ".*"}
+        if not rmq_backend.assign_rabbitmq_vhost_permissions(
+            object_uuid, vhost_name, permissions
+        ):
+            logger.error(
+                "Failed to assign RabbitMQ permissions for user: %s", object_uuid
+            )
+            # Cleanup user if permission assignment fails
+            rmq_backend.delete_rabbitmq_user(object_uuid)
+            raise serializers.ValidationError("Failed to assign RabbitMQ permissions")
+
+        return super().create(validated_data)

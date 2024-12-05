@@ -4,6 +4,7 @@ from django.urls import reverse
 
 from waldur_core.logging import models
 from waldur_core.logging.loggers import get_valid_events
+from waldur_core.structure.tests import factories as structure_factories
 
 
 class EventFactory(factory.django.DjangoModelFactory):
@@ -77,3 +78,10 @@ class SystemNotificationFactory(factory.django.DjangoModelFactory):
             "logging", "emailhook"
         )
     )
+
+
+class EventSubscriptionFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = models.EventSubscription
+
+    user = factory.SubFactory(structure_factories.UserFactory)

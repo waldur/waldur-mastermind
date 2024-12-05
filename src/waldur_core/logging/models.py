@@ -13,6 +13,7 @@ from django.utils.translation import gettext_lazy as _
 from model_utils.fields import AutoCreatedField
 from model_utils.models import TimeStampedModel
 
+from waldur_core.core import models as core_models
 from waldur_core.core.fields import JSONField, UUIDField
 from waldur_core.core.managers import GenericKeyMixin
 from waldur_core.core.utils import send_mail
@@ -259,3 +260,15 @@ class Feed(models.Model):
 
     def __str__(self):
         return f"{self.event} for {self.scope}"
+
+
+class EventSubscription(UuidMixin, TimeStampedModel, core_models.DescribableMixin):
+    user = models.ForeignKey(to=core_models.User, on_delete=models.CASCADE)
+    source_ip = models.GenericIPAddressField(protocol="IPv4", null=True, blank=True)
+    # observable_objects is a list of dicts, where each dict contains:
+    # object_type - string with model name of an observable object
+    # object_uuid - UUID of an object; if None, the subscriber observes all the existing objects of object_type
+    observable_objects = models.JSONField(
+        default=list,
+        help_text=_("List of observable objects"),
+    )

@@ -138,3 +138,13 @@ class EventFilterBackend(filters.BaseFilterBackend):
             queryset = queryset.none()
 
         return queryset
+
+
+class EventSubscriptionFilter(django_filters.FilterSet):
+    o = django_filters.OrderingFilter(fields=("created"))
+    user_uuid = django_filters.CharFilter(field_name="user__uuid")
+    user_username = django_filters.CharFilter(field_name="user__username")
+
+    class Meta:
+        model = models.EventSubscription
+        fields = []

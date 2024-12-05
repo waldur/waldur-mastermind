@@ -197,9 +197,9 @@ def get_service_provider_info(source):
 
         return {
             "service_provider_name": customer.name,
-            "service_provider_uuid": ""
-            if not service_provider
-            else service_provider.uuid.hex,
+            "service_provider_uuid": (
+                "" if not service_provider else service_provider.uuid.hex
+            ),
         }
     except models.Resource.DoesNotExist:
         return {}
@@ -790,12 +790,14 @@ def terminate_resource(resource, user, termination_comment=None, scheduled=False
     # Terminate pending orders if they exist
     for order in models.Order.objects.filter(
         resource=resource,
-        state__in=[models.Order.States.PENDING_CONSUMER]
-        if scheduled
-        else [
-            models.Order.States.PENDING_CONSUMER,
-            models.Order.States.PENDING_PROVIDER,
-        ],
+        state__in=(
+            [models.Order.States.PENDING_CONSUMER]
+            if scheduled
+            else [
+                models.Order.States.PENDING_CONSUMER,
+                models.Order.States.PENDING_PROVIDER,
+            ]
+        ),
     ):
         order.cancel(termination_comment)
         order.save()
