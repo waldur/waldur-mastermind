@@ -8,6 +8,7 @@ from django.utils import timezone
 
 import paho.mqtt.publish as mqtt_publish
 from waldur_core.core.utils import month_start
+from waldur_core.logging import models as logging_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.plugins import manager
@@ -88,46 +89,84 @@ def sync_component_user_usage_when_allocation_user_usage_is_submitted(
     marketplace_utils.sync_component_user_usage(instance, PLUGIN_NAME)
 
 
-def send_order_created_to_mqtt(sender, instance, created=False, **kwargs):
-    if not settings.RABBITMQ_MQTT["ENABLED"]:
-        return
+def _prepare_mqtt_messages(order, offering):
+    """Helper function to prepare MQTT messages for order subscriptions"""
+    event_subscriptions = logging_models.EventSubscription.objects.filter(
+        observable_objects__contains=[{"object_type": "order"}]
+    )
 
+    if not event_subscriptions.exists():
+        logger.debug(
+            "No event subscriptions exist for orders, skipping message sending"
+        )
+        return []
+
+    messages_to_send = []
+    for event_subscription in event_subscriptions:
+        user = event_subscription.user
+        logger.info("Processing subscription for user %s", user)
+
+        # Check if user has access to offering
+        linked_offerings = marketplace_models.Offering.objects.all().filter_for_user(
+            user
+        )
+        if offering not in linked_offerings:
+            logger.debug(
+                "The user %s does not have access to the offering %s", user, offering
+            )
+            continue
+
+        topic_name = f"subscription/{event_subscription.uuid.hex}/offering/{offering.uuid.hex}/orders"
+        mqtt_payload = json.dumps(
+            {"order_uuid": order.uuid.hex, "offering_uuid": offering.uuid.hex}
+        )
+        vhost_name = user.uuid.hex
+        messages_to_send.append((vhost_name, topic_name, mqtt_payload))
+
+    return messages_to_send
+
+
+def _publish_mqtt_messages(messages_to_send: list[tuple[str, str]]) -> None:
+    """Helper function to publish prepared MQTT messages"""
+    mqtt_settings: dict = settings.RABBITMQ_MQTT
+
+    for vhost_name, topic_name, mqtt_payload in messages_to_send:
+        try:
+            logger.info(
+                "Sending new SLURM order info to mqtt://%s:%s, topic: %s",
+                mqtt_settings["HOST"],
+                mqtt_settings["PORT"],
+                topic_name,
+            )
+            mqtt_auth = {
+                "username": f"{vhost_name}:{mqtt_settings['USER']}",
+                "password": mqtt_settings["PASSWORD"],
+            }
+            mqtt_publish.single(
+                topic_name,
+                mqtt_payload,
+                hostname=mqtt_settings["HOST"],
+                port=mqtt_settings["PORT"],
+                auth=mqtt_auth,
+            )
+        except Exception as exc:
+            logger.exception(
+                "Unable to send order info to mqtt://%s:%s, reason: %s",
+                mqtt_settings["HOST"],
+                mqtt_settings["PORT"],
+                exc,
+            )
+
+
+def send_order_created_to_mqtt(sender, instance, created=False, **kwargs):
     order: marketplace_models.Order = instance
     if not created:
         return
 
-    if order.offering.type != PLUGIN_NAME:
+    offering = order.offering
+    if offering.type != PLUGIN_NAME:
         return
 
-    topic_name = f"offering/{order.offering.uuid}/orders"
-
-    mqtt_payload = json.dumps({"order_uuid": order.uuid.hex})
-    mqtt_auth = {
-        "username": settings.RABBITMQ_MQTT["USER"],
-        "password": settings.RABBITMQ_MQTT["PASSWORD"],
-    }
-
-    try:
-        logger.info(
-            "Sending new order info %s to mqtt://%s:%s, topic: %s",
-            order,
-            settings.RABBITMQ_MQTT["HOST"],
-            settings.RABBITMQ_MQTT["PORT"],
-            topic_name,
-        )
-        mqtt_publish.single(
-            topic_name,
-            mqtt_payload,
-            hostname=settings.RABBITMQ_MQTT["HOST"],
-            port=settings.RABBITMQ_MQTT["PORT"],
-            auth=mqtt_auth,
-            retain=True,
-        )
-    except Exception as exc:
-        logger.warning(
-            "Unable to send order info %s to mqtt://%s:%s, reason: %s",
-            order,
-            settings.RABBITMQ_MQTT["HOST"],
-            settings.RABBITMQ_MQTT["PORT"],
-            exc,
-        )
+    messages = _prepare_mqtt_messages(order, offering)
+    if messages:
+        _publish_mqtt_messages(messages)

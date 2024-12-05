@@ -1,12 +1,18 @@
+import logging
+
+import rest_framework
 from django.db.models import Count
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import decorators, mixins, permissions, response, status, viewsets
 
 from waldur_core.core import filters as core_filters
 from waldur_core.core import permissions as core_permissions
+from waldur_core.core import views as core_views
 from waldur_core.core.managers import SummaryQuerySet
-from waldur_core.logging import filters, models, serializers, utils
+from waldur_core.logging import backend, filters, models, serializers, utils
 from waldur_core.logging.loggers import get_event_groups
+
+logger = logging.getLogger(__name__)
 
 
 class EventViewSet(viewsets.ReadOnlyModelViewSet):
@@ -188,3 +194,39 @@ class EventsStatsViewSet(viewsets.ReadOnlyModelViewSet):
 
     def retrieve(self, request, *args, **kwargs):
         return response.Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+
+class EventSubscriptionViewSet(core_views.ActionsViewSet):
+    lookup_field = "uuid"
+    queryset = models.EventSubscription.objects.all().order_by("-created")
+    serializer_class = serializers.EventSubscriptionSerializer
+    filterset_class = filters.EventSubscriptionFilter
+    disabled_actions = ["update", "partial_update"]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if self.request.user.is_staff or self.request.user.is_support:
+            return queryset
+
+        return queryset.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        source_ip = self.request.META.get("REMOTE_ADDR")
+        serializer.save(user=user, source_ip=source_ip)
+
+    def perform_destroy(self, instance):
+        rmq_backend = backend.RabbitMQManagementBackend()
+        if not rmq_backend.delete_rabbitmq_user(instance.uuid):
+            logger.error("Failed to delete RabbitMQ user: %s", instance.uuid)
+            raise rest_framework.exceptions.APIException(
+                detail=f"Failed to delete RabbitMQ user: {instance.uuid}"
+            )
+        if not rmq_backend.delete_rabbitmq_virtual_host(instance.user.uuid.hex):
+            logger.error(
+                "Failed to delete RabbitMQ virtual host: %s", instance.user.uuid.hex
+            )
+            raise rest_framework.exceptions.APIException(
+                detail=f"Failed to delete RabbitMQ virtual host: {instance.user.uuid.hex}"
+            )
+        super().perform_destroy(instance)

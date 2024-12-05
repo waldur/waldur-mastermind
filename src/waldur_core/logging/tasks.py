@@ -3,8 +3,10 @@ import logging
 from celery import shared_task
 from django.contrib.contenttypes.models import ContentType
 
+from waldur_core.logging import models, utils
 from waldur_core.logging.models import BaseHook, Event, Feed, SystemNotification
 from waldur_core.structure import models as structure_models
+from waldur_core.structure.managers import get_active_tokens
 
 logger = logging.getLogger(__name__)
 
@@ -47,3 +49,18 @@ def check_event(event, hook):
             return True
 
     return False
+
+
+@shared_task(name="waldur_core.logging.delete_stale_event_subscriptions")
+def delete_stale_event_subscriptions():
+    active_tokens_list = get_active_tokens()
+    stale_event_subscriptions = models.EventSubscription.objects.exclude(
+        user__auth_token__in=active_tokens_list
+    )
+
+    logger.info(
+        "Deleting %s event subscriptions for inactive sessions",
+        stale_event_subscriptions.count(),
+    )
+    removed_subscriptions = utils.delete_stale_subscriptions(stale_event_subscriptions)
+    removed_subscriptions.delete()
