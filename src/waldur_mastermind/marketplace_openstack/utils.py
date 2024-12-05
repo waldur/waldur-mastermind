@@ -191,11 +191,13 @@ def tenant_limits_validator(limits):
         raise exceptions.ValidationError("Storage limit is mandatory.")
 
 
-def map_limits_to_quotas(limits, offering):
+def map_limits_to_quotas(limits, offering: marketplace_models.Offering):
     quotas = {
         TenantQuotas.vcpu.name: limits.get(CORES_TYPE),
         TenantQuotas.ram.name: limits.get(RAM_TYPE),
         TenantQuotas.storage.name: limits.get(STORAGE_TYPE),
+        TenantQuotas.instances.name: offering.plugin_options.get("max_instances") or 10,
+        TenantQuotas.volumes.name: offering.plugin_options.get("max_volumes") or 10,
     }
 
     quotas = {k: v for k, v in quotas.items() if v is not None}
