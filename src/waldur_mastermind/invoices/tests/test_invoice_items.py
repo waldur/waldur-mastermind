@@ -308,6 +308,9 @@ class InvoiceItemCostsForPeriodTest(test.APITransactionTestCase):
         self.invoice3 = factories.InvoiceFactory(
             customer=self.fixture.customer, month=5, year=2018
         )
+        self.project2 = structure_factories.ProjectFactory(
+            customer=self.fixture.customer
+        )
         self.item1 = factories.InvoiceItemFactory(
             invoice=self.invoice1,
             project=self.fixture.project,
@@ -326,38 +329,74 @@ class InvoiceItemCostsForPeriodTest(test.APITransactionTestCase):
             unit_price=30,
             quantity=3,
         )
+        self.item4 = factories.InvoiceItemFactory(
+            invoice=self.invoice1,
+            project=self.project2,
+            unit_price=40,
+            quantity=2,
+        )
 
-        self.url = factories.InvoiceItemFactory.get_list_url("costs_for_period")
+        self.project_costs_url = factories.InvoiceItemFactory.get_list_url(
+            "project_costs_for_period"
+        )
+        self.customer_costs_url = factories.InvoiceItemFactory.get_list_url(
+            "customer_costs_for_period"
+        )
         self.random_uuid = uuid.uuid4().hex
         self.user = structure_factories.UserFactory()
 
-    def test_costs_for_3_months_period(self):
+    def test_project_costs_for_3_months_period(self):
         self.client.force_authenticate(self.fixture.staff)
         period = PeriodMixin.Periods.MONTH_3
         response = self.client.get(
-            self.url, {"project_uuid": self.fixture.project.uuid.hex, "period": period}
+            self.project_costs_url,
+            {"project_uuid": self.fixture.project.uuid.hex, "period": period},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["total_price"], "200.00")
 
-    def test_costs_for_total_period(self):
+    def test_project_costs_for_total_period(self):
         self.client.force_authenticate(self.fixture.staff)
         period = PeriodMixin.Periods.TOTAL
         response = self.client.get(
-            self.url, {"project_uuid": self.fixture.project.uuid.hex, "period": period}
+            self.project_costs_url,
+            {"project_uuid": self.fixture.project.uuid.hex, "period": period},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["total_price"], "290.00")
 
     def test_uuid_is_not_connected_to_any_project(self):
         self.client.force_authenticate(self.fixture.staff)
-        url = factories.InvoiceItemFactory.get_list_url("costs_for_period")
+        url = factories.InvoiceItemFactory.get_list_url("project_costs_for_period")
         response = self.client.get(url, {"project_uuid": self.random_uuid})
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_user_can_not_get_costs_for_period(self):
+    def test_user_can_not_get_project_costs_for_period_if_not_connected(self):
         self.client.force_authenticate(self.user)
         response = self.client.get(
-            self.url, {"project_uuid": self.fixture.project.uuid.hex}
+            self.project_costs_url, {"project_uuid": self.fixture.project.uuid.hex}
         )
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_customer_costs_for_3_months_period(self):
+        self.client.force_authenticate(self.fixture.staff)
+        period = PeriodMixin.Periods.MONTH_3
+        response = self.client.get(
+            self.customer_costs_url,
+            {"customer_uuid": self.fixture.customer.uuid.hex, "period": period},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["total_price"], "280.00")
+
+    def test_uuid_is_not_connected_to_any_customer(self):
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.InvoiceItemFactory.get_list_url("customer_costs_for_period")
+        response = self.client.get(url, {"customer_uuid": self.random_uuid})
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_user_can_not_get_customer_costs_for_period_if_not_connected(self):
+        self.client.force_authenticate(self.user)
+        response = self.client.get(
+            self.customer_costs_url, {"customer_uuid": self.fixture.customer.uuid.hex}
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

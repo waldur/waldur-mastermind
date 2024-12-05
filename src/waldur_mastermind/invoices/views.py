@@ -449,11 +449,25 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
             "end_date": month_start.strftime("%Y-%m-%d"),
         }
 
+    def _get_costs_for_entity(self, invoices, period, month_start):
+        if period == models.PeriodMixin.Periods.TOTAL:
+            total_price = (
+                invoices.aggregate(total_price=Sum(F("unit_price") * F("quantity")))[
+                    "total_price"
+                ]
+                or 0
+            )
+            return {
+                "total_price": f"{total_price:.2f}",
+                "start_date": "N/A",
+                "end_date": "N/A",
+            }
+
+        return self._get_costs_for_periods_data(invoices, period, month_start)
+
     @action(detail=False, methods=["get"], filterset_class=filters.InvoiceItemFilter)
-    def costs_for_period(self, request, *args, **kwargs):
-        serializer = serializers.InvoiceItemCostsForPeriodSerializer(
-            data=request.GET, context={"request": request}
-        )
+    def project_costs_for_period(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.GET, context={"request": request})
         serializer.is_valid(raise_exception=True)
         project_uuid = serializer.validated_data["project_uuid"]
         period = serializer.validated_data["period"]
@@ -463,29 +477,34 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
             InvoiceItem.objects.filter(project_uuid=project_uuid.hex)
             .values("invoice__year", "invoice__month")
             .annotate(price=Sum(F("unit_price") * F("quantity")))
-            .values("invoice__year", "invoice__month", "price")
+            .distinct()
             .order_by("-invoice__year", "-invoice__month")
         )
 
         invoices = filter_queryset_for_user(invoices, request.user)
 
-        if period == models.PeriodMixin.Periods.TOTAL:
-            total_price = (
-                invoices.aggregate(total_price=Sum(F("unit_price") * F("quantity")))[
-                    "total_price"
-                ]
-                or 0
-            )
-            return Response(
-                {
-                    "total_price": f"{total_price:.2f}",
-                    "start_date": "N/A",
-                    "end_date": "N/A",
-                }
-            )
+        data = self._get_costs_for_entity(invoices, period, month_start)
+        return Response(data)
 
-        period_data = self._get_costs_for_periods_data(invoices, period, month_start)
-        return Response(period_data)
+    @action(detail=False, methods=["get"], filterset_class=filters.InvoiceItemFilter)
+    def customer_costs_for_period(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.GET, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        customer_uuid = serializer.validated_data["customer_uuid"]
+        period = serializer.validated_data["period"]
+        month_start = datetime.date.today().replace(day=1)
+
+        invoices = (
+            InvoiceItem.objects.filter(invoice__customer__uuid=customer_uuid.hex)
+            .values("invoice__year", "invoice__month")
+            .annotate(price=Sum(F("unit_price") * F("quantity")))
+            .values("invoice__year", "invoice__month", "price")
+            .order_by("-invoice__year", "-invoice__month")
+        )
+
+        invoices = filter_queryset_for_user(invoices, request.user)
+        data = self._get_costs_for_entity(invoices, period, month_start)
+        return Response(data)
 
     create_compensation_serializer_class = serializers.InvoiceItemCompensationSerializer
 
@@ -494,6 +513,14 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
     partial_update_serializer_class = serializers.InvoiceItemUpdateSerializer
 
     migrate_to_serializer_class = serializers.InvoiceItemMigrateToSerializer
+
+    project_costs_for_period_serializer_class = (
+        serializers.InvoiceItemProjectCostsForPeriodSerializer
+    )
+
+    customer_costs_for_period_serializer_class = (
+        serializers.InvoiceItemCustomerCostsForPeriodSerializer
+    )
 
     create_compensation_permissions = update_permissions = (
         partial_update_permissions
