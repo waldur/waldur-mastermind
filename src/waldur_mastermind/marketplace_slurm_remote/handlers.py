@@ -160,11 +160,17 @@ def _publish_mqtt_messages(messages_to_send: list[tuple[str, str]]) -> None:
 
 def send_order_created_to_mqtt(sender, instance, created=False, **kwargs):
     order: marketplace_models.Order = instance
-    if not created:
+    if created:
         return
 
     offering = order.offering
     if offering.type != PLUGIN_NAME:
+        return
+
+    if (
+        not order.tracker.has_changed("state")
+        or order.state != marketplace_models.Order.States.PENDING_PROVIDER
+    ):
         return
 
     messages = _prepare_mqtt_messages(order, offering)
