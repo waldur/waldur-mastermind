@@ -58,3 +58,8 @@ class BillingConfig(AppConfig):
             sender=structure_serializers.CustomerSerializer,
             receiver=add_price_estimate,
         )
+
+        core_signals.pre_serializer_fields.connect(
+            sender=policy_serializers.CustomerEstimatedCostPolicySerializer,
+            receiver=add_price_estimate,
+        )

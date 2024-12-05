@@ -160,7 +160,9 @@ class ProjectEstimatedCostPolicySerializer(
         )
 
 
-class CustomerEstimatedCostPolicySerializer(EstimatedCostPolicySerializer):
+class CustomerEstimatedCostPolicySerializer(
+    core_serializers.AugmentedSerializerMixin, EstimatedCostPolicySerializer
+):
     class Meta(EstimatedCostPolicySerializer.Meta):
         model = models.CustomerEstimatedCostPolicy
         view_name = "marketplace-customer-estimated-cost-policy-detail"
