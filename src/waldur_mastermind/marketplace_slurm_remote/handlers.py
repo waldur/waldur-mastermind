@@ -1,14 +1,13 @@
 import json
 import logging
 
-from django.conf import settings
 from django.core import exceptions as django_exceptions
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from django.utils import timezone
 
-import paho.mqtt.publish as mqtt_publish
 from waldur_core.core.utils import month_start
 from waldur_core.logging import models as logging_models
+from waldur_core.logging import tasks as logging_tasks
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.plugins import manager
@@ -89,7 +88,9 @@ def sync_component_user_usage_when_allocation_user_usage_is_submitted(
     marketplace_utils.sync_component_user_usage(instance, PLUGIN_NAME)
 
 
-def _prepare_mqtt_messages(order, offering):
+def prepare_mqtt_messages(
+    order: marketplace_models.Order, offering: marketplace_models.Offering
+) -> list[dict[str, str]]:
     """Helper function to prepare MQTT messages for order subscriptions"""
     event_subscriptions = logging_models.EventSubscription.objects.filter(
         observable_objects__contains=[{"object_type": "order"}]
@@ -121,41 +122,11 @@ def _prepare_mqtt_messages(order, offering):
             {"order_uuid": order.uuid.hex, "offering_uuid": offering.uuid.hex}
         )
         vhost_name = user.uuid.hex
-        messages_to_send.append((vhost_name, topic_name, mqtt_payload))
+        messages_to_send.append(
+            {"vhost": vhost_name, "topic": topic_name, "payload": mqtt_payload}
+        )
 
     return messages_to_send
-
-
-def _publish_mqtt_messages(messages_to_send: list[tuple[str, str]]) -> None:
-    """Helper function to publish prepared MQTT messages"""
-    mqtt_settings: dict = settings.RABBITMQ_MQTT
-
-    for vhost_name, topic_name, mqtt_payload in messages_to_send:
-        try:
-            logger.info(
-                "Sending new SLURM order info to mqtt://%s:%s, topic: %s",
-                mqtt_settings["HOST"],
-                mqtt_settings["PORT"],
-                topic_name,
-            )
-            mqtt_auth = {
-                "username": f"{vhost_name}:{mqtt_settings['USER']}",
-                "password": mqtt_settings["PASSWORD"],
-            }
-            mqtt_publish.single(
-                topic_name,
-                mqtt_payload,
-                hostname=mqtt_settings["HOST"],
-                port=mqtt_settings["PORT"],
-                auth=mqtt_auth,
-            )
-        except Exception as exc:
-            logger.exception(
-                "Unable to send order info to mqtt://%s:%s, reason: %s",
-                mqtt_settings["HOST"],
-                mqtt_settings["PORT"],
-                exc,
-            )
 
 
 def send_order_created_to_mqtt(sender, instance, created=False, **kwargs):
@@ -173,6 +144,6 @@ def send_order_created_to_mqtt(sender, instance, created=False, **kwargs):
     ):
         return
 
-    messages = _prepare_mqtt_messages(order, offering)
+    messages = prepare_mqtt_messages(order, offering)
     if messages:
-        _publish_mqtt_messages(messages)
+        logging_tasks.publish_mqtt_messages.delay(messages)
