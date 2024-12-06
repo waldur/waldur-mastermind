@@ -1,8 +1,10 @@
 import logging
 
 from django.apps import apps
+from django.conf import settings
 from django.db.models import QuerySet
 
+from paho.mqtt import publish as mqtt_publish
 from waldur_core.logging import backend, models
 from waldur_core.logging.loggers import LoggableMixin
 
@@ -38,3 +40,35 @@ def delete_stale_subscriptions(
                 e,
             )
     return models.EventSubscription.objects.filter(id__in=removed_subscription_ids)
+
+
+def publish_mqtt_messages(messages_to_send: list[dict[str, str]]) -> None:
+    """Helper function to publish prepared MQTT messages"""
+    mqtt_settings: dict = settings.RABBITMQ_MQTT
+
+    for message_info in messages_to_send:
+        try:
+            logger.info(
+                "Sending new SLURM order info to mqtt://%s:%s, topic: %s",
+                mqtt_settings["HOST"],
+                mqtt_settings["PORT"],
+                message_info["topic"],
+            )
+            mqtt_auth = {
+                "username": f"{message_info['vhost']}:{mqtt_settings['USER']}",
+                "password": mqtt_settings["PASSWORD"],
+            }
+            mqtt_publish.single(
+                message_info["topic"],
+                message_info["payload"],
+                hostname=mqtt_settings["HOST"],
+                port=mqtt_settings["PORT"],
+                auth=mqtt_auth,
+            )
+        except Exception as exc:
+            logger.exception(
+                "Unable to send order info to mqtt://%s:%s, reason: %s",
+                mqtt_settings["HOST"],
+                mqtt_settings["PORT"],
+                exc,
+            )

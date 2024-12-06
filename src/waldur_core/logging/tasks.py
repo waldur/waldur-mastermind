@@ -64,3 +64,8 @@ def delete_stale_event_subscriptions():
     )
     removed_subscriptions = utils.delete_stale_subscriptions(stale_event_subscriptions)
     removed_subscriptions.delete()
+
+
+@shared_task
+def publish_mqtt_messages(messages: list[dict[str, str]]) -> None:
+    utils.publish_mqtt_messages(messages)
