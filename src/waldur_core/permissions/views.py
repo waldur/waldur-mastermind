@@ -56,6 +56,14 @@ class RoleViewSet(ActionsViewSet):
         serializer = serializers.RoleDetailsSerializer(instance=role)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    @action(detail=True, methods=["PUT"])
+    def update_descriptions(self, request, uuid=None):
+        instance = self.get_object()
+        serializer = serializers.RoleDescriptionSerializer(instance, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
     @action(detail=True, methods=["post"])
     def enable(self, request, uuid=None):
         role: models.Role = self.get_object()
