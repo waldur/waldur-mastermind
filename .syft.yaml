@@ -1,0 +1,16 @@
+# Format the output
+format:
+  cyclonedx-json:
+    pretty: true
+
+# Avoid duplicate packages
+package:
+  exclude-binary-overlap-by-ownership: true
+
+# Exclude unnecessary files
+exclude:
+  - "**/__pycache__/**"
+  - "**/*.pyc"
+  - "./**/.git/**"
+  - "./**/.pytest_cache/**"
+  - "./**/.ruff_cache/**"
