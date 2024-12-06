@@ -795,9 +795,9 @@ class ServiceDeskBackend(SupportBackend):
             if self.use_old_api:
                 return user.name  # alias for username
             else:
-                return user.key
+                return user.accountId  # on-demand
         except AttributeError:
-            return user.accountId
+            return user.key
         except TypeError:
             return
 
