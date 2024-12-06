@@ -18,7 +18,7 @@ class TestMembershipChangeIssues(test.APITransactionTestCase):
         super().setUp()
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
-        self.offering.options["enable_issues_for_membership_changes"] = True
+        self.offering.plugin_options["enable_issues_for_membership_changes"] = True
         self.offering.type = PLUGIN_NAME
         self.offering.save()
         self.project = self.fixture.project

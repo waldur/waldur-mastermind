@@ -28,7 +28,7 @@ class BaseBackendTest(TestCase):
         )
 
         mock_backend_users = [
-            User({"server": ""}, None, raw={"key": "user_1", "active": True})
+            User({"server": ""}, None, raw={"accountId": "user_1", "active": True})
         ]
         self.mocked_jira.waldur_search_users.return_value = mock_backend_users
 
@@ -51,6 +51,7 @@ class IssueCreateTest(BaseBackendTest):
             **{
                 "key": "TST-101",
                 "fields.assignee.key": "",
+                "fields.assignee.accountId": "",
                 "fields.assignee.name": "",
                 "fields.assignee.emailAddress": "",
                 "fields.assignee.displayName": "",
@@ -59,6 +60,7 @@ class IssueCreateTest(BaseBackendTest):
                 "fields.creator.emailAddress": "",
                 "fields.creator.displayName": "",
                 "fields.reporter.key": "",
+                "fields.reporter.accountId": "",
                 "fields.reporter.name": "",
                 "fields.reporter.emailAddress": "",
                 "fields.reporter.displayName": "",
@@ -109,13 +111,16 @@ class IssueUpdateTest(BaseBackendTest):
                 "key": "TST-101",
                 "fields.assignee.key": "",
                 "fields.assignee.name": "",
+                "fields.assignee.accountId": "",
                 "fields.assignee.emailAddress": "",
                 "fields.assignee.displayName": "",
                 "fields.creator.key": "",
                 "fields.creator.name": "",
+                "fields.creator.accountId": "",
                 "fields.creator.emailAddress": "",
                 "fields.creator.displayName": "",
                 "fields.reporter.key": "",
+                "fields.reporter.accountId": "",
                 "fields.reporter.name": "",
                 "fields.reporter.emailAddress": "",
                 "fields.reporter.displayName": "",
@@ -150,14 +155,18 @@ class IssueUpdateTest(BaseBackendTest):
 
     def test_assignee_is_populated(self):
         issue = self.fixture.issue
-        self.mocked_jira.issue.return_value.fields.assignee.key = "alice@lebowski.com"
+        self.mocked_jira.issue.return_value.fields.assignee.accountId = (
+            "alice@lebowski.com"
+        )
         self.backend.update_issue_from_jira(issue)
         issue.refresh_from_db()
         self.assertEqual(issue.assignee.backend_id, "alice@lebowski.com")
 
     def test_reporter_is_populated(self):
         issue = self.fixture.issue
-        self.mocked_jira.issue.return_value.fields.reporter.key = "bob@lebowski.com"
+        self.mocked_jira.issue.return_value.fields.reporter.accountId = (
+            "bob@lebowski.com"
+        )
         self.backend.update_issue_from_jira(issue)
         issue.refresh_from_db()
         self.assertEqual(issue.reporter.backend_id, "bob@lebowski.com")
@@ -226,7 +235,7 @@ class CommentCreateTest(BaseBackendTest):
         self.mocked_jira.comment.return_value = self.backend_comment
         self.backend.create_comment_from_jira(issue, self.backend_comment.id)
         comment = models.Comment.objects.get(issue=issue)
-        self.assertEqual(comment.author.backend_id, "user")
+        self.assertEqual(comment.author.backend_id, "aaa-bbb-ccc")
 
 
 class CommentUpdateTest(BaseBackendTest):
@@ -235,7 +244,7 @@ class CommentUpdateTest(BaseBackendTest):
         self.mocked_jira.comment.return_value = mock.Mock(
             **{
                 "body": "[Alice Lebowski]: New comment description",
-                "author": mock.Mock(**{"key": "alice@lebowski.com"}),
+                "author": mock.Mock(**{"accountId": "alice@lebowski.com"}),
             }
         )
         self.mocked_jira._session.get.return_value.json.return_value = {

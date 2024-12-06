@@ -111,10 +111,12 @@ def _create_issue_if_membership_changed(instance, summary):
         return
 
     project = user_role.scope
-    resources = marketplace_models.Resource.objects.filter(
+    resources = marketplace_models.Resource.objects.exclude(
+        state=marketplace_models.Resource.States.TERMINATED
+    ).filter(
         project=project,
         offering__type=PLUGIN_NAME,
-        offering__options__enable_issues_for_membership_changes=True,
+        offering__plugin_options__enable_issues_for_membership_changes=True,
     )
 
     if resources.exists():
@@ -149,8 +151,12 @@ def _create_issue_if_membership_changed(instance, summary):
         )
         marketplace_support_utils.create_issue_about_project_team_changes(
             project,
-            created_by=core_utils.get_system_robot(),
-            summary=summary.format(user=user_role.user, project=project),
+            created_by=user_role.user,
+            summary=summary.format(
+                user=user_role.user.full_name,
+                project=project.name,
+                organization=project.customer.get_display_name(),
+            ),
             description=description,
         )
 
@@ -159,14 +165,18 @@ def create_issue_if_membership_changed(sender, instance, created=False, **kwargs
     if created and not instance.is_active:
         return
 
+    if not isinstance(instance.scope, structure_models.Project):
+        return
+
     if not instance.tracker.has_changed("is_active"):
         return
 
     if instance.is_active:
         _create_issue_if_membership_changed(
-            instance, "User {user} has been added to project {project}."
+            instance, "{organization}: User {user} has been added to project {project}."
         )
     else:
         _create_issue_if_membership_changed(
-            instance, "User {user} has been removed from project {project}."
+            instance,
+            "{organization}: User {user} has been removed from project {project}.",
         )
