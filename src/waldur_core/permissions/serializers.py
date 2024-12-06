@@ -121,6 +121,12 @@ class RoleModifySerializer(RoleDetailsSerializer):
         return role
 
 
+class RoleDescriptionSerializer(TranslatedModelSerializerMixin):
+    class Meta:
+        model = models.Role
+        fields = ("description",)
+
+
 class UserRoleDetailsSerializer(serializers.ModelSerializer):
     role_name = serializers.ReadOnlyField(source="role.name")
     role_uuid = serializers.ReadOnlyField(source="role.uuid")

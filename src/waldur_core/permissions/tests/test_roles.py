@@ -1,7 +1,11 @@
+from django.contrib.contenttypes.models import ContentType
 from rest_framework import status, test
 
+from waldur_core.permissions import models
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.permissions.tests import factories
+from waldur_core.structure.models import Project
 from waldur_core.structure.tests.factories import UserFactory
 from waldur_mastermind.marketplace.tests import fixtures
 
@@ -167,3 +171,43 @@ class RoleTest(test.APITransactionTestCase):
             f"{ROLE_ENDPOINT}{role['uuid']}/enable/",
         )
         self.assertEqual(action_response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class RoleUpdateDescriptionsTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.staff = UserFactory(is_staff=True)
+        self.role = models.Role.objects.create(
+            name="test_role",
+            description_en="Old description in English",
+            description_et="Old description in Estonian",
+            content_type=ContentType.objects.get_for_model(Project),
+        )
+        self.url = factories.RoleFactory.get_url(
+            self.role,
+            action="update_descriptions",
+        )
+
+    def test_staff_can_update_role_descriptions(self):
+        self.client.force_authenticate(self.staff)
+        new_descriptions = {
+            "description_en": "New description in English",
+            "description_et": "New description in Estonian",
+        }
+
+        response = self.client.put(self.url, new_descriptions)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.role.refresh_from_db()
+        self.assertEqual(self.role.description_en, new_descriptions["description_en"])
+        self.assertEqual(self.role.description_et, new_descriptions["description_et"])
+
+    def test_partial_update_of_descriptions(self):
+        self.client.force_authenticate(self.staff)
+        partial_update = {"description_en": "Only English updated"}
+
+        response = self.client.put(self.url, partial_update)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.role.refresh_from_db()
+        self.assertEqual(self.role.description_en, "Only English updated")
+        self.assertEqual(self.role.description_et, "Old description in Estonian")
