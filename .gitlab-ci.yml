@@ -262,12 +262,12 @@ Upload SBOMs to Docs:
     - echo "Checking for SBOM archives files..."
     - ls -la $CI_PROJECT_DIR/waldur-mastermind-${CI_COMMIT_TAG}-image.cyclonedx.tar.gz || { echo "Image SBOM not found!"; exit 1; }
     - ls -la $CI_PROJECT_DIR/waldur-mastermind-${CI_COMMIT_TAG}-source.cyclonedx.tar.gz || { echo "Codebase SBOM not found!"; exit 1; }
-    - mkdir -p assets/sboms/images assets/sboms/source
-    - cp $CI_PROJECT_DIR/waldur-mastermind-${CI_COMMIT_TAG}-image.cyclonedx.tar.gz assets/sboms/images/
-    - cp $CI_PROJECT_DIR/waldur-mastermind-${CI_COMMIT_TAG}-source.cyclonedx.tar.gz assets/sboms/source/
-    - ls -la assets/sboms/images/
-    - ls -la assets/sboms/source/
-    - git add assets/sboms/images assets/sboms/source
+    - mkdir -p docs/assets/sboms/images docs/assets/sboms/source
+    - cp $CI_PROJECT_DIR/waldur-mastermind-${CI_COMMIT_TAG}-image.cyclonedx.tar.gz docs/assets/sboms/images/
+    - cp $CI_PROJECT_DIR/waldur-mastermind-${CI_COMMIT_TAG}-source.cyclonedx.tar.gz docs/assets/sboms/source/
+    - ls -la docs/assets/sboms/images/
+    - ls -la docs/assets/sboms/source/
+    - git add docs/assets/sboms/images docs/assets/sboms/source
     - git commit -m "Add SBOM for mastermind ${CI_COMMIT_TAG}" || exit 0
     - git branch new-sbom
     - git push --set-upstream origin new-sbom:master
