@@ -15,6 +15,12 @@ include:
     file: "/templates/test/lint-md-files.yml"
   - project: "waldur/waldur-pipelines"
     file: "/templates/deploy/dev-env-update.yml"
+  - project: "waldur/waldur-pipelines"
+    file: "/templates/sbom/generate-python-codebase-sbom.yml"
+  - project: "waldur/waldur-pipelines"
+    file: "/templates/sbom/upload-sboms-to-docs.yml"
+  - project: "waldur/waldur-pipelines"
+    file: "/templates/sbom/generate-image-sbom.yml"
 
 before_script:
   - export
@@ -132,60 +138,17 @@ Try building docker image:
       --no-push
 
 Generate Image SBOM:
-  stage: build
-  interruptible: true
-  image: registry.hpc.ut.ee/iljatest/docker:24.0.6
-  services:
-    - name: "docker:20.10.16-dind"
-      command: ["--mtu=1400"]
-  rules:
-    - if: '$CI_PIPELINE_SOURCE == "schedule"'
-      when: never
-    - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
+  extends: .Generate Image SBOM template
   variables:
-    DOCKER_DRIVER: overlay2
-    DOCKER_REGISTRY: registry.hpc.ut.ee/mirror/
-  script:
-    # Build image locally and generate SBOM
-    - docker build --build-arg DOCKER_REGISTRY=$DOCKER_REGISTRY -t waldur-mastermind-sbom:local .
-    - docker images
-    - apk add --no-cache curl
-    - curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
-    - syft waldur-mastermind-sbom:local -v -o cyclonedx-json >> waldur-mastermind-${CI_COMMIT_TAG}-image.cyclonedx.json
-    - echo "Image SBOM generated. Size:"
-    - du -h waldur-mastermind-${CI_COMMIT_TAG}-image.cyclonedx.json
-    - tar -czf waldur-mastermind-${CI_COMMIT_TAG}-image.cyclonedx.tar.gz waldur-mastermind-${CI_COMMIT_TAG}-image.cyclonedx.json
-    - echo "Image SBOM archived. Size:"
-    - du -h waldur-mastermind-${CI_COMMIT_TAG}-image.cyclonedx.tar.gz
-  artifacts:
-    paths:
-      - waldur-mastermind-${CI_COMMIT_TAG}-image.cyclonedx.tar.gz
-    expire_in: 1 day
+    PROJECT_NAME: "waldur-mastermind"
 
 Generate Codebase SBOM:
-  image:
-    name: "registry.hpc.ut.ee/mirror/library/python:3.11-bullseye"
-  stage: build
-  rules:
-    - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
-  script:
+  extends: .Generate Codebase SBOM template
+  variables:
+    PROJECT_NAME: "waldur-mastermind"
+  before_script:
     - apt-get update
-    - apt-get install -y curl git gcc libldap2-dev libsasl2-dev libssl-dev libdb-dev
-    # Install poetry and then install dependencies
-    - pip install poetry cyclonedx-bom
-    - poetry install
-    # Scan dependencies
-    - cyclonedx-py environment "$(poetry env info --executable)" -o waldur-mastermind-${CI_COMMIT_TAG}-source.cyclonedx.json
-    - echo "SBOM generated. Size:"
-    - du -h waldur-mastermind-${CI_COMMIT_TAG}-source.cyclonedx.json
-    - tar -czf waldur-mastermind-${CI_COMMIT_TAG}-source.cyclonedx.tar.gz waldur-mastermind-${CI_COMMIT_TAG}-source.cyclonedx.json
-    - echo "SBOM archived. Size:"
-    - du -h waldur-mastermind-${CI_COMMIT_TAG}-source.cyclonedx.tar.gz
-  artifacts:
-    paths:
-      - waldur-mastermind-${CI_COMMIT_TAG}-source.cyclonedx.tar.gz
-    expire_in: 1 day
-
+    - apt-get install -y gcc libldap2-dev libsasl2-dev libssl-dev libdb-dev
 
 Build docker image for tests:
   stage: build
@@ -245,33 +208,23 @@ Lint dockerfile:
         - DL3015 # "--no-install-recommends" info
         - SC2094 # "read and write the same file in the same pipeline" info
 
-Upload SBOMs to Docs:
-  stage: deploy
+Upload Image SBOM:
+  extends: .Upload SBOM template
   needs:
-    - "Generate Image SBOM"
-    - "Generate Codebase SBOM"
-  rules:
-    - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
-  image: registry.hpc.ut.ee/mirror/$WALDUR_MASTERMIND_TEST_IMAGE
-  script:
-    - cd /tmp/
-    - git clone "https://gitlab-ci-token:$GITLAB_TOKEN@$CI_SERVER_HOST/waldur/waldur-docs.git"
-    - git config --global user.name "$GITLAB_USER_NAME"
-    - git config --global user.email "$GITLAB_USER_EMAIL"
-    - cd waldur-docs
-    - echo "Checking for SBOM archives files..."
-    - ls -la $CI_PROJECT_DIR/waldur-mastermind-${CI_COMMIT_TAG}-image.cyclonedx.tar.gz || { echo "Image SBOM not found!"; exit 1; }
-    - ls -la $CI_PROJECT_DIR/waldur-mastermind-${CI_COMMIT_TAG}-source.cyclonedx.tar.gz || { echo "Codebase SBOM not found!"; exit 1; }
-    - mkdir -p docs/assets/sboms/images docs/assets/sboms/source
-    - cp $CI_PROJECT_DIR/waldur-mastermind-${CI_COMMIT_TAG}-image.cyclonedx.tar.gz docs/assets/sboms/images/
-    - cp $CI_PROJECT_DIR/waldur-mastermind-${CI_COMMIT_TAG}-source.cyclonedx.tar.gz docs/assets/sboms/source/
-    - ls -la docs/assets/sboms/images/
-    - ls -la docs/assets/sboms/source/
-    - git add docs/assets/sboms/images docs/assets/sboms/source
-    - git commit -m "Add SBOM for mastermind ${CI_COMMIT_TAG}" || exit 0
-    - git branch new-sbom
-    - git push --set-upstream origin new-sbom:master
-  before_script: []
+    - Generate Image SBOM
+  variables:
+    PROJECT_NAME: "waldur-mastermind"
+    SBOM_TYPE: "image"
+    SBOM_DIR: "images"
+
+Upload Source SBOM:
+  extends: .Upload SBOM template
+  needs:
+    - Generate Codebase SBOM
+  variables:
+    PROJECT_NAME: "waldur-mastermind"
+    SBOM_TYPE: "source"
+    SBOM_DIR: "source"
 
 Upload configuration guide:
   stage: deploy
