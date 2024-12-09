@@ -256,7 +256,7 @@ class SyncResourceProjectPermissions(APIView):
 class RemoteSynchronisationViewSet(core_views.ActionsViewSet):
     queryset = RemoteSynchronisation.objects.all().order_by("-created")
     lookup_field = "uuid"
-    serializer_class = serializers.RemoteSynchronisationDetailsSerializer
+    serializer_class = serializers.RemoteSynchronisationSerializer
     filter_backends = (
         structure_filters.GenericRoleFilter,
         DjangoFilterBackend,
@@ -266,5 +266,11 @@ class RemoteSynchronisationViewSet(core_views.ActionsViewSet):
     @action(detail=True, methods=["post"])
     def run_synchronisation(self, request, **kwargs):
         sync = self.get_object()
-        utils_sync_remote_offerings.run_synchronisation(sync)
-        return Response(status=status.HTTP_200_OK)
+        utils_sync_remote_offerings.RemoteSynchronisationRunner(sync).run()
+        sync.refresh_from_db()
+        return Response(
+            serializers.RemoteSynchronisationSerializer(
+                instance=sync, context=self.get_serializer_context()
+            ).data,
+            status=status.HTTP_200_OK,
+        )
