@@ -13,7 +13,7 @@ class RemoteSynchronisationFactory(factory.django.DjangoModelFactory):
         model = models.RemoteSynchronisation
 
     api_url = factory.Sequence(lambda n: "url-%s" % n)
-    token = factory.LazyFunction(uuid4)
+    token = factory.LazyFunction(lambda: uuid4().hex)
     remote_organization_uuid = factory.LazyFunction(uuid4)
     remote_organization_name = factory.Sequence(
         lambda n: "remote_organization_name-%s" % n

@@ -78,7 +78,7 @@ class RemoteSynchronisation(
     )
     is_active = models.BooleanField(default=True)
     last_execution = models.DateTimeField(null=True, editable=False)
-    last_output = models.CharField(max_length=255, editable=False)
+    last_output = models.TextField(editable=False)
 
     class Meta:
         unique_together = ("local_service_provider", "remote_organization_uuid")

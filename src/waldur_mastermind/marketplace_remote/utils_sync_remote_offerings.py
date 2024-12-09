@@ -14,134 +14,127 @@ from . import PLUGIN_NAME, utils
 logger = logging.getLogger(__name__)
 
 
-def run_synchronisation(sync: remote_models.RemoteSynchronisation) -> None:
-    try:
-        initialize_sync(sync)
-        process_sync(sync)
-        sync.state = remote_models.RemoteSynchronisation.States.OK
+class RemoteSynchronisationRunner:
+    def __init__(self, sync):
+        self.sync: remote_models.RemoteSynchronisation = sync
 
-    except Exception as e:
-        handle_sync_error(sync, e)
-        sync.state = remote_models.RemoteSynchronisation.States.ERRED
+    def run(self) -> None:
+        try:
+            self._initialize_sync()
+            self._process_sync()
+            self.sync.state = remote_models.RemoteSynchronisation.States.OK
 
-    finally:
-        sync.last_execution = datetime.now()
-        sync.save()
+        except Exception as e:
+            self._handle_sync_error(e)
+            self.sync.state = remote_models.RemoteSynchronisation.States.ERRED
 
+        finally:
+            self.sync.last_execution = datetime.now()
+            self.sync.save()
 
-def initialize_sync(sync: remote_models.RemoteSynchronisation) -> None:
-    sync.error_message = ""
-    sync.last_output = ""
-    sync.state = remote_models.RemoteSynchronisation.States.PROCESSING
-    sync.save()
+    def _initialize_sync(self) -> None:
+        self.sync.error_message = ""
+        self.sync.last_output = ""
+        self.sync.state = remote_models.RemoteSynchronisation.States.PROCESSING
+        self.sync.save()
 
+    def _process_sync(self) -> None:
+        existing_offerings = models.Offering.objects.filter(
+            type=PLUGIN_NAME,
+            customer=self.sync.local_service_provider.customer,
+            secret_options__customer_uuid=self.sync.remote_organization_uuid.hex,
+        )
+        processed_offering_ids: set[int] = set()
 
-def process_sync(sync: remote_models.RemoteSynchronisation) -> None:
-    existing_offerings = models.Offering.objects.filter(
-        type=PLUGIN_NAME, customer=sync.local_service_provider.customer
-    )
-    processed_offering_ids: set[int] = set()
+        for category_mapping in self.sync.remotelocalcategory_set.all():
+            remote_offerings = utils.get_remote_offerings(
+                self.sync.api_url,
+                self.sync.token,
+                self.sync.remote_organization_uuid.hex,
+                category_mapping.remote_category.hex,
+            )
 
-    for category_mapping in sync.remotelocalcategory_set.all():
-        remote_offerings = utils.get_remote_offerings(
-            sync.api_url,
-            sync.token,
-            sync.local_service_provider.customer.uuid.hex,
-            category_mapping.remote_category,
+            for remote_offering in remote_offerings:
+                local_offering = existing_offerings.filter(
+                    backend_id=remote_offering["uuid"],
+                ).first()
+
+                if local_offering:
+                    self._update_existing_offering(
+                        local_offering, remote_offering, category_mapping.local_category
+                    )
+                else:
+                    local_offering = self._create_new_offering(
+                        remote_offering, category_mapping.local_category
+                    )
+
+                processed_offering_ids.add(local_offering.id)
+
+        self._archive_stale_offerings(existing_offerings, processed_offering_ids)
+
+    def _update_existing_offering(
+        self,
+        local_offering: models.Offering,
+        remote_offering: dict,
+        local_category: models.Category,
+    ) -> None:
+        models.Offering.objects.filter(id=local_offering.id).update(
+            state=remote_offering["state_code"],
+            category=local_category,
+            **{key: remote_offering[key] for key in OFFERING_FIELDS},
+        )
+        self.sync.last_output += (
+            f"The offering {local_offering} has been updated successfully. \n"
+        )
+        logger.info(
+            "The offering %s has been updated successfully.",
+            local_offering,
         )
 
-        for remote_offering in remote_offerings:
-            offering_id = process_remote_offering(
-                remote_offering, sync, category_mapping
-            )
-            processed_offering_ids.add(offering_id)
+    def _create_new_offering(
+        self,
+        remote_offering: dict,
+        local_category: models.Category,
+    ) -> models.Offering:
+        secret_options = {
+            "api_url": self.sync.api_url,
+            "token": self.sync.token,
+            "customer_uuid": self.sync.remote_organization_uuid.hex,
+        }
+        local_offering = utils.import_offering(
+            remote_offering,
+            self.sync.local_service_provider.customer,
+            local_category,
+            secret_options,
+        )
+        self.sync.last_output += (
+            f"Creation of offering {local_offering} completed successfully. \n"
+        )
+        logger.info(
+            "Creation of offering %s completed successfully.",
+            local_offering,
+        )
+        return local_offering
 
-    archive_stale_offerings(existing_offerings, processed_offering_ids, sync)
+    def _handle_sync_error(self, error: Exception) -> None:
+        self.sync.error_message = str(error)
+        logger.error(
+            "Sync %s failed.",
+            self.sync,
+        )
 
+    def _archive_stale_offerings(
+        self,
+        existing_offerings: QuerySet,
+        processed_ids: set[int],
+    ) -> None:
+        stale_offerings = existing_offerings.exclude(id__in=processed_ids)
 
-def process_remote_offering(
-    remote_offering: dict,
-    sync: remote_models.RemoteSynchronisation,
-    category_mapping: remote_models.RemoteLocalCategory,
-) -> int:
-    local_offering = models.Offering.objects.filter(
-        backend_id=remote_offering["uuid"],
-        type=PLUGIN_NAME,
-    ).first()
-
-    if local_offering:
-        update_existing_offering(local_offering, remote_offering, sync)
-    else:
-        local_offering = create_new_offering(remote_offering, sync, category_mapping)
-
-    return local_offering.id
-
-
-def update_existing_offering(
-    local_offering: models.Offering,
-    remote_offering: dict,
-    sync: remote_models.RemoteSynchronisation,
-) -> None:
-    models.Offering.objects.filter(id=local_offering.id).update(
-        state=remote_offering["state_code"],
-        **{key: remote_offering[key] for key in OFFERING_FIELDS},
-    )
-    sync.last_output += (
-        f"The offering {local_offering} has been updated successfully. \n"
-    )
-    logger.info(
-        "The offering %s has been updated successfully.",
-        local_offering,
-    )
-
-
-def create_new_offering(
-    remote_offering: dict,
-    sync: remote_models.RemoteSynchronisation,
-    category_mapping: remote_models.RemoteLocalCategory,
-) -> models.Offering:
-    secret_options = {
-        "api_url": sync.api_url,
-        "token": sync.token,
-        "customer_uuid": sync.remote_organization_uuid.hex,
-    }
-    local_offering = utils.import_offering(
-        remote_offering,
-        sync.local_service_provider.customer,
-        category_mapping.local_category,
-        secret_options,
-    )
-    sync.last_output += (
-        f"Creation of offering {local_offering} completed successfully. \n"
-    )
-    logger.info(
-        "Creation of offering %s completed successfully.",
-        local_offering,
-    )
-    return local_offering
-
-
-def archive_stale_offerings(
-    existing_offerings: QuerySet,
-    processed_ids: set[int],
-    sync: remote_models.RemoteSynchronisation,
-) -> None:
-    stale_offerings = existing_offerings.exclude(id__in=processed_ids)
-    if stale_offerings.exists():
-        stale_offerings.update(state=models.Offering.States.ARCHIVED)
-        for offering in stale_offerings:
-            sync.last_output += f"The offering {offering} has been archived as it no longer exists in remote. \n"
-            logger.info(
-                "The offering %s has been archived as it no longer exists in remote.",
-                offering,
-            )
-
-
-def handle_sync_error(
-    sync: remote_models.RemoteSynchronisation, error: Exception
-) -> None:
-    sync.error_message = str(error)
-    logger.error(
-        "Sync %s failed.",
-        sync,
-    )
+        if stale_offerings.exists():
+            stale_offerings.update(state=models.Offering.States.ARCHIVED)
+            for offering in stale_offerings:
+                self.sync.last_output += f"The offering {offering} has been archived as it no longer exists in remote. \n"
+                logger.info(
+                    "The offering %s has been archived as it no longer exists in remote.",
+                    offering,
+                )

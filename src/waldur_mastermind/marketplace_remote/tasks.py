@@ -1169,4 +1169,4 @@ def remote_offerings_sync() -> None:
     for sync in remote_models.RemoteSynchronisation.objects.filter(
         is_active=True,
     ).exclude(state=remote_models.RemoteSynchronisation.States.PROCESSING):
-        utils_sync_remote_offerings.run_synchronisation(sync)
+        utils_sync_remote_offerings.RemoteSynchronisationRunner(sync).run()
