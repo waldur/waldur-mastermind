@@ -268,3 +268,97 @@ class RabbitMQManagementBackend:
                 "An unexpected error occurred while deleting user %s: %s", username, exc
             )
             return False
+
+    def get_user(self, username: str) -> dict | None:
+        """Get RabbitMQ user information.
+
+        Args:
+            username (str): The username of the RabbitMQ user to retrieve
+
+        Returns:
+            dict | None: Dictionary containing user information if found and request successful,
+                        None if user doesn't exist or request failed
+        """
+        url = f"{self.rmq_management_url}/users/{username}"
+        try:
+            response = requests.get(url, auth=self.rmq_auth, timeout=10)
+
+            if response.status_code == 200:
+                return response.json()
+            elif response.status_code == 404:
+                logger.debug("User %s not found in RabbitMQ", username)
+                return None
+            else:
+                logger.error(
+                    "Failed to get user %s info, status code: %s, response: %s",
+                    username,
+                    response.status_code,
+                    response.text,
+                )
+                raise Exception(f"Failed to get user {username} info")
+        except requests.ConnectionError as exc:
+            logger.error(
+                "Unable to get user %s info from RabbitMQ, error: %s", username, exc
+            )
+            raise
+        except requests.Timeout as exc:
+            logger.error(
+                "Timeout occurred while getting user %s info from RabbitMQ: %s",
+                username,
+                exc,
+            )
+            raise
+        except Exception as exc:
+            logger.error(
+                "An unexpected error occurred while getting user %s info: %s",
+                username,
+                exc,
+            )
+            raise
+
+    def get_user_connections(self, username: str) -> list[dict]:
+        url = f"{self.rmq_management_url}/connections/username/{username}/"
+        try:
+            response = requests.get(url, auth=self.rmq_auth, timeout=10)
+            if response.status_code == 200:
+                return response.json()
+            elif response.status_code == 404:
+                logger.debug("User %s connections not found in RabbitMQ", username)
+                return []
+            else:
+                logger.error(
+                    "Failed to get user %s connections, status code: %s, response: %s",
+                    username,
+                    response.status_code,
+                    response.text,
+                )
+                raise Exception(f"Failed to get user {username} connections")
+        except requests.ConnectionError as exc:
+            logger.error(
+                "Unable to get user %s connections from RabbitMQ, error: %s",
+                username,
+                exc,
+            )
+            raise
+
+    def delete_user(self, username: str) -> bool:
+        url = f"{self.rmq_management_url}/users/{username}/"
+        try:
+            response = requests.delete(url, auth=self.rmq_auth, timeout=10)
+            if response.status_code == 204:
+                logger.info("User %s deleted successfully", username)
+                return True
+            else:
+                logger.error(
+                    "Failed to delete user %s, status code: %s",
+                    username,
+                    response.status_code,
+                )
+                return False
+        except Exception as exc:
+            logger.error(
+                "An unexpected error occurred while deleting user %s: %s",
+                username,
+                exc,
+            )
+            return False

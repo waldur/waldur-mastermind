@@ -3,7 +3,7 @@ import logging
 from celery import shared_task
 from django.contrib.contenttypes.models import ContentType
 
-from waldur_core.logging import models, utils
+from waldur_core.logging import backend, models, utils
 from waldur_core.logging.models import BaseHook, Event, Feed, SystemNotification
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.managers import get_active_tokens
@@ -69,3 +69,32 @@ def delete_stale_event_subscriptions():
 @shared_task
 def publish_mqtt_messages(messages: list[dict[str, str]]) -> None:
     utils.publish_mqtt_messages(messages)
+
+
+@shared_task(name="waldur_core.logging.delete_dangling_event_subscriptions")
+def delete_dangling_event_subscriptions() -> None:
+    event_subscriptions = models.EventSubscription.objects.all()
+    rmq_backend = backend.RabbitMQManagementBackend()
+    for event_subscription in event_subscriptions:
+        try:
+            rmq_username = event_subscription.uuid
+            rmq_user_info = rmq_backend.get_user(rmq_username)
+        except Exception as exc:
+            logger.exception("Unable to get user info from RabbitMQ, reason: %s", exc)
+            continue
+        if rmq_user_info is None:
+            logger.info("Deleting event subscription %s", event_subscription.uuid)
+            event_subscription.delete()
+            continue
+
+        try:
+            rmq_user_connections = rmq_backend.get_user_connections(rmq_username)
+        except Exception as exc:
+            logger.exception(
+                "Unable to get user connections from RabbitMQ, reason: %s", exc
+            )
+            continue
+        if not rmq_user_connections:
+            logger.info("Deleting event subscription %s", event_subscription.uuid)
+            rmq_backend.delete_user(rmq_username)
+            event_subscription.delete()
