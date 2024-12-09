@@ -8,12 +8,17 @@ class LoggingExtension(WaldurExtension):
 
     @staticmethod
     def celery_tasks():
-        from celery.schedules import crontab
+        from datetime import timedelta
 
         return {
             "delete-stale-event-subscriptions": {
                 "task": "waldur_core.logging.delete_stale_event_subscriptions",
-                "schedule": crontab(hours=24),
+                "schedule": timedelta(hours=24),
+                "args": (),
+            },
+            "delete-dangling-event-subscriptions": {
+                "task": "waldur_core.logging.delete_dangling_event_subscriptions",
+                "schedule": timedelta(hours=1),
                 "args": (),
             },
         }
