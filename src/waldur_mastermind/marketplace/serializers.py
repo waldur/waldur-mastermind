@@ -50,6 +50,7 @@ from waldur_mastermind.marketplace.managers import ResourceQuerySet
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.processors import CreateResourceProcessor
 from waldur_mastermind.marketplace.utils import (
+    UsernameGenerationPolicy,
     get_service_provider_resources,
     get_service_provider_user_ids,
     validate_attributes,
@@ -1576,8 +1577,200 @@ class OfferingResourceOptionsUpdateSerializer(serializers.ModelSerializer):
         fields = ("resource_options",)
 
 
+class LifecyclePluginOptionsSerializer(serializers.Serializer):
+    auto_approve_remote_orders = serializers.BooleanField(
+        required=False,
+        help_text="If set to True, an order can be processed without approval",
+    )
+    max_resource_termination_offset_in_days = serializers.IntegerField(
+        required=False,
+        min_value=0,
+        help_text="Maximum resource termination offset in days",
+    )
+    default_resource_termination_offset_in_days = serializers.IntegerField(
+        required=False,
+        min_value=0,
+        help_text="If set, it will be used as a default resource termination offset in days",
+    )
+    is_resource_termination_date_required = serializers.BooleanField(
+        required=False,
+        help_text="If set to True, resource termination date is required",
+    )
+    latest_date_for_resource_termination = serializers.DateField(
+        required=False,
+        help_text="If set, it will be used as a latest date for resource termination",
+    )
+    auto_approve_in_service_provider_projects = serializers.BooleanField(
+        required=False,
+        help_text="Skip approval of public offering belonging to the same organization under which the request is done",
+    )
+
+
+class SupportPluginOptionsSerializer(serializers.Serializer):
+    enable_issues_for_membership_changes = serializers.BooleanField(
+        required=False,
+        help_text="Enable issues for membership changes",
+    )
+
+
+class OpenStackPluginOptionsSerializer(serializers.Serializer):
+    default_internal_network_mtu = serializers.IntegerField(
+        required=False,
+        min_value=68,
+        max_value=9000,
+        help_text="If set, it will be used as a default MTU for the first network in a tenant",
+    )
+    max_instances = serializers.IntegerField(
+        required=False,
+        min_value=1,
+        help_text="Default limit for number of instances in OpenStack tenant",
+    )
+    max_volumes = serializers.IntegerField(
+        required=False,
+        min_value=1,
+        help_text="Default limit for number of volumes in OpenStack tenant",
+    )
+    storage_mode = serializers.ChoiceField(
+        required=False,
+        choices=["fixed", "dynamic"],
+        help_text="Storage mode for OpenStack offering",
+    )
+    snapshot_size_limit_gb = serializers.IntegerField(
+        required=False,
+        min_value=1,
+        help_text="Default limit for snapshot size in GB",
+    )
+
+
+class HeappePluginOptionsSerializer(serializers.Serializer):
+    heappe_cluster_id = serializers.CharField(
+        required=False, help_text="HEAppE cluster id"
+    )
+    heappe_local_base_path = serializers.CharField(
+        required=False, help_text="HEAppE local base path"
+    )
+    heappe_url = serializers.CharField(required=False, help_text="HEAppE url")
+    heappe_username = serializers.CharField(required=False, help_text="HEAppE username")
+    homedir_prefix = serializers.CharField(
+        required=False, help_text="GLAuth homedir prefix", default="/home/"
+    )
+
+
+class GLAuthPluginOptionsSerializer(serializers.Serializer):
+    initial_primarygroup_number = serializers.IntegerField(
+        required=False,
+        default=5000,
+        help_text="GLAuth initial primary group number",
+        min_value=0,
+    )
+    initial_uidnumber = serializers.IntegerField(
+        required=False, default=5000, help_text="GLAuth initial uidnumber", min_value=0
+    )
+    initial_usergroup_number = serializers.IntegerField(
+        required=False,
+        default=6000,
+        help_text="GLAuth initial usergroup number",
+        min_value=0,
+    )
+    username_anonymized_prefix = serializers.CharField(
+        required=False,
+        default="waldur_",
+        help_text="GLAuth prefix for anonymized usernames",
+    )
+    username_generation_policy = serializers.ChoiceField(
+        required=False,
+        choices=[option.value for option in UsernameGenerationPolicy],
+        help_text="GLAuth username generation policy",
+        default=UsernameGenerationPolicy.SERVICE_PROVIDER.value,
+    )
+
+
+class RancherPluginOptionsSerializer(serializers.Serializer):
+    flavors_regex = serializers.CharField(
+        required=False, help_text="Regular expression to limit flavors list"
+    )
+
+
+class MergedPluginOptionsSerializer(
+    LifecyclePluginOptionsSerializer,
+    OpenStackPluginOptionsSerializer,
+    HeappePluginOptionsSerializer,
+    GLAuthPluginOptionsSerializer,
+    SupportPluginOptionsSerializer,
+    RancherPluginOptionsSerializer,
+):
+    pass
+
+
+class HeappeSecretOptionsSerializer(serializers.Serializer):
+    heappe_cluster_password = serializers.CharField(
+        required=False, help_text="HEAppE cluster password"
+    )
+    heappe_password = serializers.CharField(required=False, help_text="HEAppE password")
+
+
+class IPMappingSerializer(serializers.Serializer):
+    floating_ip = serializers.CharField(help_text="Floating IP")
+    external_ip = serializers.CharField(help_text="External IP")
+
+
+class OpenstackSecretOptionsSerializer(serializers.Serializer):
+    ipv4_external_ip_mapping = IPMappingSerializer(
+        required=False,
+        help_text="OpenStack IPv4 external IP mapping",
+        many=True,
+    )
+
+
+class GLAuthSecretOptionsSerializer(serializers.Serializer):
+    shared_user_password = serializers.CharField(
+        required=False, help_text="GLAuth shared user password"
+    )
+
+
+class SupportSecretOptionsSerializer(serializers.Serializer):
+    template_confirmation_comment = serializers.CharField(
+        required=False, help_text="Template confirmation comment"
+    )
+
+
+class ScriptSecretOptionsSerializer(serializers.Serializer):
+    language = serializers.CharField(
+        required=False, help_text="Script language: Python or Bash"
+    )
+    environ = serializers.JSONField(
+        required=False, help_text="Script environment variables"
+    )
+
+
+class RemoteServiceSecretOptionsSerializer(serializers.Serializer):
+    api_url = serializers.CharField(required=False, help_text="API URL")
+    token = serializers.CharField(required=False, help_text="Waldur access token")
+    customer_uuid = serializers.CharField(required=False, help_text="Organization UUID")
+
+
+class GenericSecretOptionsSerializer(serializers.Serializer):
+    service_provider_can_create_offering_user = serializers.BooleanField(
+        required=False, help_text="Service provider can create offering user"
+    )
+
+
+class MergedSecretOptionsSerializer(
+    HeappeSecretOptionsSerializer,
+    OpenstackSecretOptionsSerializer,
+    GLAuthSecretOptionsSerializer,
+    SupportSecretOptionsSerializer,
+    ScriptSecretOptionsSerializer,
+    GenericSecretOptionsSerializer,
+    RemoteServiceSecretOptionsSerializer,
+):
+    pass
+
+
 class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
     service_attributes = serializers.JSONField(required=False)
+    secret_options = MergedSecretOptionsSerializer(required=False)
+    plugin_options = MergedPluginOptionsSerializer(required=False)
 
     class Meta:
         model = models.Offering
@@ -1609,6 +1802,8 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
         options_serializer = options_serializer_class(
             instance=instance.scope, data=service_attributes, context=self.context
         )
+        for field in options_serializer.fields.values():
+            field.required = False
         options_serializer.is_valid(raise_exception=True)
         instance.scope.backend_url = options_serializer.validated_data.get(
             "backend_url"

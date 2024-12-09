@@ -1254,6 +1254,19 @@ class OfferingPartialUpdateTest(test.APITransactionTestCase):
         self.offering.refresh_from_db()
         self.assertEqual(self.offering.backend_id, "new_backend_id")
 
+    def test_update_openstack_tenant_password(self):
+        self.offering.type = "OpenStack.Tenant"
+        self.offering.save()
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.OfferingFactory.get_url(self.offering, "update_integration")
+        response = self.client.post(
+            url, {"service_attributes": {"password": "new_password"}}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.scope.password, "new_password")
+
     @data("staff", "owner")
     def test_update_location(self, user):
         url = factories.OfferingFactory.get_url(self.offering, "update_location")
