@@ -1,9 +1,9 @@
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
-from rest_framework.authtoken.models import Token
 
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
+from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
 
 from . import PLUGIN_NAME, constants, models
@@ -121,12 +121,14 @@ class RemoteSynchronisationSerializer(
         read_only_fields = ["error_message"]
         protected_fields = ("remote_organization_uuid",)
 
-    def validate_token(self, value):
-        if Token.objects.filter(key=value).exists():
+    def validate(self, attrs):
+        if structure_models.Customer.objects.filter(
+            uuid=attrs.get("remote_organization_uuid")
+        ).exists():
             raise serializers.ValidationError(
                 _("Synchronization cannot reference the same Waldur instance.")
             )
-        return value
+        return attrs
 
     def _create_or_update(self, remote_synchronisation, categories):
         if not categories:
