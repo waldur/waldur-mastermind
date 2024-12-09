@@ -1,6 +1,5 @@
 from ddt import data, ddt
 from rest_framework import status
-from rest_framework.authtoken.models import Token
 from rest_framework.test import APITransactionTestCase
 
 from waldur_mastermind.marketplace.tests import (
@@ -63,16 +62,15 @@ class RemoteSynchronisationCreateTest(BaseRemoteSynchronisationTest):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_synchronization_cannot_reference_the_same_waldur(self):
-        token = Token.objects.filter(user=self.fixture.user).get().key
         payload = self._get_payload()
-        payload["token"] = token
+        payload["remote_organization_uuid"] = self.fixture.customer.uuid.hex
 
         self.client.force_authenticate(user=self.fixture.staff)
         response = self.client.post(self.list_url, payload)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(
-            response.data["token"][0],
+            response.data["non_field_errors"][0],
             "Synchronization cannot reference the same Waldur instance.",
         )
 
