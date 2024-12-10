@@ -1,7 +1,7 @@
 # Use to avoid pull rate limit for Docker Hub images
 ARG DOCKER_REGISTRY=docker.io/
 
-FROM ${DOCKER_REGISTRY}python:3.11-alpine
+FROM ${DOCKER_REGISTRY}python:3.11-alpine3.20
 
 ENV LANG C.UTF-8
 
