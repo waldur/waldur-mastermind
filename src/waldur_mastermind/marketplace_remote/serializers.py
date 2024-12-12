@@ -76,6 +76,7 @@ class NestedRemoteLocalCategorySerializer(serializers.HyperlinkedModelSerializer
             "local_category",
             "remote_category",
             "local_category_name",
+            "local_category_uuid",
             "remote_category_name",
         )
         model = models.RemoteLocalCategory
