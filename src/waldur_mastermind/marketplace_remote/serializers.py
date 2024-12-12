@@ -69,6 +69,7 @@ class ProjectUpdateRequestSerializer(serializers.ModelSerializer):
 
 class NestedRemoteLocalCategorySerializer(serializers.HyperlinkedModelSerializer):
     local_category_name = serializers.ReadOnlyField(source="local_category.title")
+    local_category_uuid = serializers.ReadOnlyField(source="local_category.uuid")
 
     class Meta:
         fields = (
