@@ -26,3 +26,4 @@ docs/_build/
 docs/drfapi/
 
 /static
+__pycache__/
