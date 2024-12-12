@@ -8,7 +8,7 @@ urlpatterns = [
         views.CustomersView.as_view(),
     ),
     re_path(
-        r"^api/remote-waldur-api/remote_сategories/$",
+        r"^api/remote-waldur-api/remote_categories/$",
         views.СategoriesView.as_view(),
     ),
     re_path(
