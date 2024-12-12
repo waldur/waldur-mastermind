@@ -92,6 +92,7 @@ class RemoteLocalCategory(core_models.UuidMixin):
         marketplace_models.Category, on_delete=models.CASCADE
     )
     remote_category = models.UUIDField()
+    remote_category_name = models.CharField(max_length=255, default="Unknown")
     remote_synchronisation = models.ForeignKey(
         RemoteSynchronisation, on_delete=models.CASCADE, editable=False
     )
