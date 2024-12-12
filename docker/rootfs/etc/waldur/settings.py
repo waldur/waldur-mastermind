@@ -49,32 +49,7 @@ MEDIA_ROOT = media_root
 
 ALLOWED_HOSTS = ["*"]
 
-#
-# Application definition
-#
-
-# Database
-#
-# Requirements:
-#  - PostgreSQL server is running and accessible on 'HOST':'PORT'
-#  - PostgreSQL user 'USER' created and can access PostgreSQL server using password 'PASSWORD'
-#  - PostgreSQL database 'NAME' created with all privileges granted to user 'USER'
-#  - psycopg2 package is installed: https://pypi.python.org/pypi/psycopg2
-#
-# Note: if PostgreSQL server is running on local host and is accessible via UNIX socket,
-# leave 'HOST' and 'PORT' empty. For password usage details in this setup see
-# https://www.postgresql.org/docs/9.5/static/auth-methods.html
-#
-# Example: create database, user and grant privileges:
-#
-#   CREATE DATABASE waldur ENCODING 'UTF8'
-#   CREATE USER waldur WITH PASSWORD 'waldur'
-#
-# Example: install psycopg2 in CentOS:
-#
-#   yum install python-psycopg2
-#
-# See also: https://docs.djangoproject.com/en/2.2/ref/settings/#databases
+# See also: https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
@@ -87,15 +62,15 @@ DATABASES = {
 }
 
 # Static files
-# See also: https://docs.djangoproject.com/en/2.2/ref/settings/#static-files
+# See also: https://docs.djangoproject.com/en/4.2/ref/settings/#static-files
 STATIC_ROOT = env.get("GLOBAL_STATIC_ROOT", os.path.join(data_dir, "static"))
 
 # Django cache
-# https://docs.djangoproject.com/en/2.2/topics/cache/
+# https://docs.djangoproject.com/en/4.2/topics/cache/
 CACHES["default"]["LOCATION"] = redis_url
 
 # Email
-# See also: https://docs.djangoproject.com/en/2.2/ref/settings/#default-from-email
+# See also: https://docs.djangoproject.com/en/4.2/ref/settings/#default-from-email
 default_from_email = env.get("GLOBAL_DEFAULT_FROM_EMAIL")
 if default_from_email:
     DEFAULT_FROM_EMAIL = default_from_email
@@ -104,7 +79,7 @@ DEFAULT_REPLY_TO_EMAIL = env.get("GLOBAL_DEFAULT_REPLY_TO_EMAIL", "")
 EMAIL_HOOK_FROM_EMAIL = env.get("GLOBAL_EMAIL_HOOK_FROM_EMAIL", "")
 
 # Session
-# https://docs.djangoproject.com/en/2.2/ref/settings/#sessions
+# https://docs.djangoproject.com/en/4.2/ref/settings/#sessions
 SESSION_COOKIE_AGE = env.get("AUTH_COOKIE_AGE", 3600)
 
 # Celery

@@ -4,7 +4,7 @@
 
 Please use transaction.on_commit wrapper if you need to schedule Celery task from signal handler.
 Otherwise, Celery task is scheduled too early and executed even if object is not yet saved to the database.
-See also [django docs](https://docs.djangoproject.com/en/2.2/topics/db/transactions/#performing-actions-after-commit)
+See also [django docs](https://docs.djangoproject.com/en/4.2/topics/db/transactions/#performing-actions-after-commit)
 
 ## Executors
 

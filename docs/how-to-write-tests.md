@@ -31,7 +31,7 @@ Application tests should follow next structure:
 ## How to override settings in unit tests
 
 Don't manipulate django.conf.settings directly as Django won't restore the original values after such manipulations.
-Instead you should use standard [context managers and decorators](https://docs.djangoproject.com/en/2.2/topics/testing/tools/#overriding-settings).
+Instead you should use standard [context managers and decorators](https://docs.djangoproject.com/en/4.2/topics/testing/tools/#overriding-settings).
 They change a setting temporarily and revert to the original value after running the testing code.
 If you modify settings directly, you break test isolation by modifying global variable.
 
