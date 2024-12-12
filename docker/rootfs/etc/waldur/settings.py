@@ -91,7 +91,7 @@ CELERY_BROKER_URL = redis_url
 CELERY_RESULT_BACKEND = redis_url
 
 # Waldur Core internal configuration
-# See also: http://docs.waldur.com/
+# See also: http://docs.waldur.com/latest/
 token_lifetime = env.get("AUTH_TOKEN_LIFETIME", 3600)
 WALDUR_CORE.update(
     {

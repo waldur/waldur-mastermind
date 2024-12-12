@@ -4,7 +4,7 @@
 
 Documentation for sysadmins should contain a description of settings
 that allows to setup and customize Waldur MasterMind. It should be
-located in [wiki](https://docs.waldur.com/admin-guide/mastermind-configuration/configuration-guide/).
+located in [wiki](https://docs.waldur.com/latest/admin-guide/mastermind-configuration/configuration-guide/).
 
 ## Documentation for developers
 

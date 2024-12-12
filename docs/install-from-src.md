@@ -100,4 +100,4 @@ poetry run waldur runserver
 
 ## Configuration
 
-Instructions are here: <https://docs.waldur.com/admin-guide/mastermind-configuration/general/>
+Instructions are here: <https://docs.waldur.com/latest/admin-guide/mastermind-configuration/general/>
