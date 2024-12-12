@@ -68,8 +68,15 @@ class ProjectUpdateRequestSerializer(serializers.ModelSerializer):
 
 
 class NestedRemoteLocalCategorySerializer(serializers.HyperlinkedModelSerializer):
+    local_category_name = serializers.ReadOnlyField(source="local_category.title")
+
     class Meta:
-        fields = ("local_category", "remote_category")
+        fields = (
+            "local_category",
+            "remote_category",
+            "local_category_name",
+            "remote_category_name",
+        )
         model = models.RemoteLocalCategory
         extra_kwargs = {
             "local_category": {
@@ -84,7 +91,7 @@ class RemoteSynchronisationSerializer(
     serializers.HyperlinkedModelSerializer,
 ):
     local_service_provider_name = serializers.ReadOnlyField(
-        source="local_service_provider.name"
+        source="local_service_provider.customer.name"
     )
     remotelocalcategory_set = NestedRemoteLocalCategorySerializer(many=True)
 
