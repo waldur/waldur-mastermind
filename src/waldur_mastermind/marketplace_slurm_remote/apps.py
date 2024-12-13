@@ -8,6 +8,7 @@ class MarketplaceSlurmConfig(AppConfig):
     service_name = "SLURM remote"
 
     def ready(self):
+        from waldur_core.permissions import signals as permission_signals
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
         from waldur_mastermind.marketplace import models as marketplace_models
         from waldur_mastermind.marketplace.plugins import manager
@@ -50,4 +51,14 @@ class MarketplaceSlurmConfig(AppConfig):
             handlers.send_order_created_to_mqtt,
             sender=marketplace_models.Order,
             dispatch_uid="waldur_mastermind.marketplace_slurm_remote.send_order_created_to_mqtt",
+        )
+
+        permission_signals.role_granted.connect(
+            handlers.send_role_granted_message_to_mqtt,
+            dispatch_uid="waldur_mastermind.marketplace_slurm_remote.send_role_granted_message_to_mqtt",
+        )
+
+        permission_signals.role_revoked.connect(
+            handlers.send_role_revoked_message_to_mqtt,
+            dispatch_uid="waldur_mastermind.marketplace_slurm_remote.send_role_revoked_message_to_mqtt",
         )

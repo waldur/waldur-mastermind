@@ -1,4 +1,5 @@
 import logging
+from enum import Enum
 
 from django.apps import apps
 from django.conf import settings
@@ -9,6 +10,11 @@ from waldur_core.logging import backend, models
 from waldur_core.logging.loggers import LoggableMixin
 
 logger = logging.getLogger(__name__)
+
+
+class ObservableObjectType(Enum):
+    ORDER = "order"
+    USER_ROLE = "user_role"
 
 
 def get_loggable_models():
@@ -49,7 +55,7 @@ def publish_mqtt_messages(messages_to_send: list[dict[str, str]]) -> None:
     for message_info in messages_to_send:
         try:
             logger.info(
-                "Sending new SLURM order info to mqtt://%s:%s, topic: %s",
+                "Sending new message to mqtt://%s:%s, topic: %s",
                 mqtt_settings["HOST"],
                 mqtt_settings["PORT"],
                 message_info["topic"],
