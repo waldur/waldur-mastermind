@@ -46,7 +46,25 @@ class RemoteSynchronisationRunner:
         )
         processed_offering_ids: set[int] = set()
 
+        remote_categories = utils.get_remote_categories_names(
+            self.sync.api_url,
+            self.sync.token,
+        )
+        remote_categories_mapping = {
+            item["uuid"]: item["title"] for item in remote_categories
+        }
+        mappings_to_update = []
+
         for category_mapping in self.sync.remotelocalcategory_set.all():
+            # check if category name needs an update
+            remote_category_name = remote_categories_mapping[
+                category_mapping.remote_category.hex
+            ]
+            if remote_category_name != category_mapping.remote_category_name:
+                category_mapping.remote_category_name = remote_category_name
+                mappings_to_update.append(category_mapping)
+
+            # retrieve remote offerings
             remote_offerings = utils.get_remote_offerings(
                 self.sync.api_url,
                 self.sync.token,
@@ -70,6 +88,12 @@ class RemoteSynchronisationRunner:
 
                 processed_offering_ids.add(local_offering.id)
 
+        # bulk update remote category names
+        if mappings_to_update:
+            self.sync.remotelocalcategory_set.bulk_update(
+                mappings_to_update, ["remote_category_name"]
+            )
+
         self._archive_stale_offerings(existing_offerings, processed_offering_ids)
 
     def _update_existing_offering(
@@ -83,9 +107,7 @@ class RemoteSynchronisationRunner:
             category=local_category,
             **{key: remote_offering[key] for key in OFFERING_FIELDS},
         )
-        self.sync.last_output += (
-            f"The offering {local_offering} has been updated successfully. \n"
-        )
+        self.sync.last_output += f"The offering {local_offering} / {local_category.title} has been updated successfully. \n"
         logger.info(
             "The offering %s has been updated successfully.",
             local_offering,
@@ -107,9 +129,7 @@ class RemoteSynchronisationRunner:
             local_category,
             secret_options,
         )
-        self.sync.last_output += (
-            f"Creation of offering {local_offering} completed successfully. \n"
-        )
+        self.sync.last_output += f"Creation of offering {local_offering} / {local_category.title} completed successfully. \n"
         logger.info(
             "Creation of offering %s completed successfully.",
             local_offering,

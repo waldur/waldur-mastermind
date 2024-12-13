@@ -523,6 +523,11 @@ def get_remote_offerings(api_url, token, customer_uuid, category_uuid=None):
     )
 
 
+def get_remote_categories_names(api_url, token):
+    client = WaldurClient(api_url, token)
+    return client.list_marketplace_categories(filters={"field": ["uuid", "title"]})
+
+
 def import_offering(remote_offering, local_customer, local_category, secret_options):
     local_offering = marketplace_models.Offering.objects.create(
         type=PLUGIN_NAME,

@@ -86,6 +86,9 @@ class RemoteSynchronisation(
     class Permissions:
         customer_path = "local_service_provider__customer"
 
+    def __str__(self):
+        return f"Remote sync from {self.api_url} / {self.remote_organization_uuid}"
+
 
 class RemoteLocalCategory(core_models.UuidMixin):
     local_category = models.ForeignKey(

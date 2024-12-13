@@ -139,7 +139,7 @@ class RemoteSynchronisationSerializer(
             )
         return attrs
 
-    def _create_or_update(self, remote_synchronisation, categories):
+    def _create_or_update_category_mapping(self, remote_synchronisation, categories):
         if not categories:
             raise serializers.ValidationError(
                 _("At least one category must be specified.")
@@ -171,12 +171,13 @@ class RemoteSynchronisationSerializer(
     def create(self, validated_data):
         categories = validated_data.pop("remotelocalcategory_set", [])
         remote_synchronisation = super().create(validated_data)
-        self._create_or_update(remote_synchronisation, categories)
+        self._create_or_update_category_mapping(remote_synchronisation, categories)
         return remote_synchronisation
 
     def update(self, remote_synchronisation, validated_data):
-        categories = validated_data.pop("remotelocalcategory_set", [])
-        self._create_or_update(remote_synchronisation, categories)
+        if "remotelocalcategory_set" in validated_data:
+            categories = validated_data.pop("remotelocalcategory_set", [])
+            self._create_or_update_category_mapping(remote_synchronisation, categories)
         return super().update(remote_synchronisation, validated_data)
 
 
