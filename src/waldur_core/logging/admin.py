@@ -85,6 +85,10 @@ class EmailHookAdmin(BaseHookAdmin):
     list_display = BaseHookAdmin.list_display + ("email",)
 
 
+class EventSubscriptionAdmin(admin.ModelAdmin):
+    list_display = ("uuid", "user", "source_ip", "observable_objects")
+
+
 # This hack is needed because core admin is imported several times.
 if admin.site.is_registered(Group):
     admin.site.unregister(Group)
@@ -93,3 +97,4 @@ admin.site.register(models.SystemNotification, SystemNotificationAdmin)
 admin.site.register(models.WebHook, WebHookAdmin)
 admin.site.register(models.EmailHook, EmailHookAdmin)
 admin.site.register(models.Event, EventAdmin)
+admin.site.register(models.EventSubscription, EventSubscriptionAdmin)

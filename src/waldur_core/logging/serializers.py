@@ -7,7 +7,7 @@ from rest_framework import serializers
 
 from waldur_core.core.fields import NaturalChoiceField
 from waldur_core.core.serializers import RestrictedSerializerMixin
-from waldur_core.logging import backend, loggers, models
+from waldur_core.logging import backend, loggers, models, utils
 
 logger = logging.getLogger(__name__)
 
@@ -179,6 +179,13 @@ class EventSubscriptionSerializer(serializers.HyperlinkedModelSerializer):
 
             if not isinstance(item.get("object_type"), str):
                 raise serializers.ValidationError("object_type value must be a string.")
+
+            object_types = [member.value for member in utils.ObservableObjectType]
+
+            if item.get("object_type") not in object_types:
+                raise serializers.ValidationError(
+                    f"Invalid object_type. Must be one of: {', '.join(object_types)}"
+                )
 
             if item.get("object_id") and not isinstance(item.get("object_id"), int):
                 raise serializers.ValidationError("object_id value must be an integer.")
