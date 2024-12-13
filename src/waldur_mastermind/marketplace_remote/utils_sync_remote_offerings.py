@@ -25,9 +25,6 @@ class RemoteSynchronisationRunner:
             self.sync.state = remote_models.RemoteSynchronisation.States.OK
 
         except Exception as e:
-            import traceback
-
-            print(traceback.format_exc())
             self._handle_sync_error(e)
             self.sync.state = remote_models.RemoteSynchronisation.States.ERRED
 
