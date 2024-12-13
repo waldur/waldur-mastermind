@@ -1,7 +1,7 @@
-import datetime
 from uuid import uuid4
 
 import factory
+from django.utils import timezone
 from rest_framework.reverse import reverse
 
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -21,7 +21,7 @@ class RemoteSynchronisationFactory(factory.django.DjangoModelFactory):
     local_service_provider = factory.SubFactory(
         marketplace_factories.ServiceProviderFactory
     )
-    last_execution = factory.LazyFunction(datetime.datetime.now)
+    last_execution = factory.LazyFunction(timezone.now)
 
     @classmethod
     def get_url(cls, synchronisation=None, action=None):

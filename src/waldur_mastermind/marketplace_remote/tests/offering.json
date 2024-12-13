@@ -1,1 +1,90 @@
-{"uuid": "f75b4cb08ebf48e3ba89f1224f868260", "name": "offering_name", "description": "", "full_description": "", "terms_of_service": "", "rating": null, "attributes": {"support_email": "user@example.com"}, "options": {"support_email": "user@example.com"}, "components": [{"billing_type": "usage", "type": "node", "name": "K8S node", "description": "", "measured_unit": "", "limit_period": null, "limit_amount": null, "disable_quotas": false, "use_limit_for_billing": false, "article_code": "", "max_value": null, "min_value": null, "factor": 1}], "geolocations": "[{'latitude': 64.231203, 'longitude': 27.704096}]", "plugin_options": {"support_email": "user@example.com"}, "secret_options": {"support_email": "user@example.com"}, "state": "Active", "state_code": 2, "native_name": "", "native_description": "", "vendor_details": "", "type": "Marketplace.Rancher", "shared": true, "billable": true, "plans": [{"name": "Start", "description": "", "article_code": "", "max_amount": null, "archived": false, "is_active": true, "unit_price": "0.0000000", "unit": "month", "init_price": 0, "switch_price": 0, "components": [{"amount": 0, "price": "1.0000000000", "component": {"billing_type": "usage", "type": "node", "name": "K8S node", "description": "", "measured_unit": "", "limit_period": null, "limit_amount": null, "disable_quotas": false, "use_limit_for_billing": false, "article_code": "", "max_value": null, "min_value": null, "factor": 1}}]}], "thumbnail": "thumbnail.gif", "terms_of_service_link": "", "privacy_policy_link": "", "getting_started":  "", "integration_guide":  "", "country":  "EE", "resource_options": {}}
+{
+  "uuid": "f75b4cb08ebf48e3ba89f1224f868260",
+  "name": "offering_name",
+  "description": "",
+  "full_description": "",
+  "terms_of_service": "",
+  "rating": null,
+  "attributes": {
+    "support_email": "user@example.com"
+  },
+  "options": {
+    "support_email": "user@example.com"
+  },
+  "components": [
+    {
+      "billing_type": "usage",
+      "type": "node",
+      "name": "K8S node",
+      "description": "",
+      "article_code": "",
+      "measured_unit": "",
+      "min_value": null,
+      "max_value": null,
+      "is_boolean": false,
+      "limit_amount": null,
+      "default_limit": null,
+      "limit_period": null,
+      "use_limit_for_billing": false,
+      "is_builtin": false
+    }
+  ],
+  "geolocations": "[{'latitude': 64.231203, 'longitude': 27.704096}]",
+  "plugin_options": {
+    "support_email": "user@example.com"
+  },
+  "secret_options": {
+    "support_email": "user@example.com"
+  },
+  "state": "Active",
+  "state_code": 2,
+  "native_name": "",
+  "native_description": "",
+  "vendor_details": "",
+  "type": "Marketplace.Rancher",
+  "shared": true,
+  "billable": true,
+  "plans": [
+    {
+      "name": "Start",
+      "description": "",
+      "article_code": "",
+      "max_amount": null,
+      "archived": false,
+      "is_active": true,
+      "unit_price": "0.0000000",
+      "unit": "month",
+      "init_price": 0,
+      "switch_price": 0,
+      "components": [
+        {
+          "amount": 0,
+          "price": "1.0000000000",
+          "component": {
+            "billing_type": "usage",
+            "type": "node",
+            "name": "K8S node",
+            "description": "",
+            "measured_unit": "",
+            "limit_period": null,
+            "limit_amount": null,
+            "disable_quotas": false,
+            "use_limit_for_billing": false,
+            "article_code": "",
+            "is_boolean": false,
+            "max_value": null,
+            "min_value": null,
+            "factor": 1
+          }
+        }
+      ]
+    }
+  ],
+  "thumbnail": "thumbnail.gif",
+  "terms_of_service_link": "",
+  "privacy_policy_link": "",
+  "getting_started": "",
+  "integration_guide": "",
+  "country": "EE",
+  "resource_options": {}
+}
