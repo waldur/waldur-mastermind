@@ -99,3 +99,6 @@ class RemoteLocalCategory(core_models.UuidMixin):
     remote_synchronisation = models.ForeignKey(
         RemoteSynchronisation, on_delete=models.CASCADE, editable=False
     )
+
+    def __str__(self):
+        return f"{self.remote_category} / {self.remote_category_name} -> {self.local_category.title}"

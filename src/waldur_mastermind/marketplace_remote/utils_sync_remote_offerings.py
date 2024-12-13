@@ -1,7 +1,7 @@
 import logging
-from datetime import datetime
 
 from django.db.models.query import QuerySet
+from django.utils import timezone
 
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace_remote import models as remote_models
@@ -25,11 +25,14 @@ class RemoteSynchronisationRunner:
             self.sync.state = remote_models.RemoteSynchronisation.States.OK
 
         except Exception as e:
+            import traceback
+
+            print(traceback.format_exc())
             self._handle_sync_error(e)
             self.sync.state = remote_models.RemoteSynchronisation.States.ERRED
 
         finally:
-            self.sync.last_execution = datetime.now()
+            self.sync.last_execution = timezone.now()
             self.sync.save()
 
     def _initialize_sync(self) -> None:
@@ -57,9 +60,14 @@ class RemoteSynchronisationRunner:
 
         for category_mapping in self.sync.remotelocalcategory_set.all():
             # check if category name needs an update
-            remote_category_name = remote_categories_mapping[
+            remote_category_name = remote_categories_mapping.get(
                 category_mapping.remote_category.hex
-            ]
+            )
+            if not remote_category_name:
+                logger.warning(
+                    f"Category {category_mapping.remote_category.hex} not found in the remote Waldur"
+                )
+                continue
             if remote_category_name != category_mapping.remote_category_name:
                 category_mapping.remote_category_name = remote_category_name
                 mappings_to_update.append(category_mapping)

@@ -20,18 +20,31 @@ class RemoteOfferingsSyncTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceRemoteFixture()
 
+        self.fixture.remote_local_category.remote_category
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        file_path = os.path.join(current_dir, "offering.json")
+        offering_file_path = os.path.join(current_dir, "offering.json")
 
-        with open(file_path, encoding="utf-8") as file:
+        with open(offering_file_path, encoding="utf-8") as file:
             self.remote_offering = json.load(file)
+
+        self.remote_categories = [
+            {
+                "title": "Hosting",
+                "uuid": self.fixture.remote_local_category.remote_category.hex,
+            },
+        ]
 
         mock.patch(
             "waldur_mastermind.marketplace_remote.utils.import_offering_thumbnail"
         ).start()
         mock.patch(
-            "waldur_mastermind.marketplace_remote.utils.import_offering_components"
+            "waldur_mastermind.marketplace_remote.utils.import_offering_thumbnail"
         ).start()
+        self.remote_category_mock = mock.patch(
+            "waldur_mastermind.marketplace_remote.utils.get_remote_categories_names"
+        ).start()
+        self.remote_category_mock.return_value = self.remote_categories
+
         mock.patch("waldur_mastermind.marketplace_remote.utils.import_plans").start()
 
     def tearDown(self):
