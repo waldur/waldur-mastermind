@@ -466,13 +466,22 @@ class ProcessingCreditTest(test.APITransactionTestCase):
 
     def _verify_compensation_items(self, should_exist: bool = True):
         """Verify presence or absence of compensation items"""
-        items_count = self.invoice.items.filter(credit=self.customer_credit).count()
+        invoice_items = self.invoice.items.filter(credit=self.customer_credit)
+        items_count = invoice_items.count()
         expected_count = 1 if should_exist else 0
         self.assertEqual(
             items_count,
             expected_count,
             f"Expected {expected_count} compensation items, found {items_count}",
         )
+        # check if measured_unit is empty for compenstation items
+        if expected_count:
+            measured_unit = invoice_items.get().measured_unit
+            self.assertEqual(
+                measured_unit,
+                "",
+                f"Expected empty measured_unit, found {measured_unit}",
+            )
 
     def _processing_compensations(self, minimal_consumption: Decimal = Decimal("0")):
         """Test credit compensation application and rollback"""

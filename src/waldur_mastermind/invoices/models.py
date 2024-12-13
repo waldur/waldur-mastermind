@@ -325,6 +325,9 @@ class InvoiceItem(
         if self.measured_unit:
             return self.measured_unit
 
+        if self.credit:
+            return ""
+
         plural = self.quantity > 1
 
         if self.unit == self.Units.QUANTITY:
