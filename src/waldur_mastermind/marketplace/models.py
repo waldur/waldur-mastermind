@@ -28,7 +28,7 @@ from waldur_core.permissions.utils import get_users
 from waldur_core.quotas import fields as quotas_fields
 from waldur_core.quotas import models as quotas_models
 from waldur_core.structure import models as structure_models
-from waldur_geo_ip.mixins import CoordinatesMixin
+from waldur_core.structure.mixins import CoordinatesMixin
 from waldur_mastermind.marketplace.exceptions import PolicyException
 from waldur_pid import mixins as pid_mixins
 

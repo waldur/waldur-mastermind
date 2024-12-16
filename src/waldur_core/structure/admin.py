@@ -40,7 +40,6 @@ from waldur_core.structure.serializers import (
     ServiceOptionsSerializer,
     get_options_serializer_class,
 )
-from waldur_geo_ip import tasks as geo_ip_tasks
 
 from .widgets import ScrolledSelectMultiple
 
@@ -754,23 +753,7 @@ class PublishableResourceAdmin(ResourceAdmin):
 class VirtualMachineAdmin(ResourceAdmin):
     readonly_fields = ResourceAdmin.readonly_fields + ("image_name",)
 
-    actions = ["detect_coordinates"]
-
-    def detect_coordinates(self, request, queryset):
-        geo_ip_tasks.detect_vm_coordinates_batch.delay(
-            [core_utils.serialize_instance(vm) for vm in queryset]
-        )
-        tasks_scheduled = queryset.count()
-        message = ngettext(
-            "Coordinates detection has been scheduled for one virtual machine.",
-            "Coordinates detection has been scheduled for %(tasks_scheduled)d virtual machines.",
-            tasks_scheduled,
-        )
-        message = message % {"tasks_scheduled": tasks_scheduled}
-
-        self.message_user(request, message)
-
-    detect_coordinates.short_description = _("Detect coordinates of virtual machines")
+    actions = []
 
 
 class OrganizationGroupTypeAdmin(admin.ModelAdmin):

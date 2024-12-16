@@ -33,7 +33,6 @@ from django.template.loader import get_template, render_to_string
 from django.urls import resolve
 from django.utils import timezone
 from django.utils.crypto import get_random_string
-from geopy.geocoders import Nominatim
 from requests.packages.urllib3 import exceptions
 from rest_framework.settings import api_settings
 
@@ -486,14 +485,6 @@ class QuietSession(requests.Session):
                 return super().request(*args, **kwargs)
         else:
             return super().request(*args, **kwargs)
-
-
-def get_lat_lon_from_address(address):
-    geo_locator = Nominatim(user_agent="waldur")
-    location = geo_locator.geocode(address)
-
-    if location:
-        return location.latitude, location.longitude
 
 
 def format_homeport_link(format_str="", **kwargs):

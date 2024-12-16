@@ -4,7 +4,7 @@ from model_utils import FieldTracker
 from waldur_azure import validators
 from waldur_core.core import models as core_models
 from waldur_core.structure import models as structure_models
-from waldur_geo_ip.mixins import CoordinatesMixin
+from waldur_core.structure.mixins import CoordinatesMixin
 
 
 class Location(CoordinatesMixin, structure_models.ServiceProperty):

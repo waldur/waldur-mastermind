@@ -17,9 +17,7 @@ from waldur_core.quotas import models as quotas_models
 from waldur_core.quotas.fields import QuotaField
 from waldur_core.quotas.models import QuotaModelMixin
 from waldur_core.structure import models as structure_models
-from waldur_core.structure import utils as structure_utils
 from waldur_core.structure.managers import filter_queryset_for_user
-from waldur_geo_ip.utils import get_coordinates_by_ip
 
 logger = logging.getLogger(__name__)
 
@@ -885,18 +883,6 @@ class Instance(
             "ram",
             "cores",
         )
-
-    def detect_coordinates(self):
-        settings = self.service_settings
-        options = settings.options or {}
-        if "latitude" in options and "longitude" in options:
-            return structure_utils.Coordinates(
-                latitude=settings["latitude"], longitude=settings["longitude"]
-            )
-        else:
-            hostname = urlparse(settings.backend_url).hostname
-            if hostname:
-                return get_coordinates_by_ip(hostname)
 
     def get_quota_deltas(self):
         return {
