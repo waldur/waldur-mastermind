@@ -219,7 +219,9 @@ def process_role_changed(permission: permission_models.UserRole, granted: bool):
         )
         payload = {
             "user_uuid": user.uuid.hex,
+            "user_username": user.username,
             "project_uuid": project.uuid.hex,
+            "project_name": project.name,
             "role_name": permission.role.name,
             "granted": granted,
         }
