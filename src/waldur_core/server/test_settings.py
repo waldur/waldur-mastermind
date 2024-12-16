@@ -26,7 +26,7 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
         "NAME": "waldur",
-    }
+    },
 }
 
 ALLOWED_HOSTS = ["localhost"]

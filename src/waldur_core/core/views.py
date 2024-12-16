@@ -10,7 +10,7 @@ from django.contrib import auth
 from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.files.storage import default_storage
-from django.db import connection
+from django.db import connection, connections
 from django.db.models import ForeignKey, ProtectedError
 from django.http import FileResponse, HttpResponse, HttpResponseRedirect, JsonResponse
 from django.utils import timezone
@@ -705,6 +705,36 @@ class DatabaseStatsViewSet(APIView):
         with connection.cursor() as cursor:
             cursor.execute(SQL_QUERY)
             data = dictfetchall(cursor)
+
+        return Response(data, status=status.HTTP_200_OK)
+
+
+class QueryViewSet(APIView):
+    permission_classes = [rf_permissions.IsAuthenticated, permissions.IsSupport]
+
+    def post(self, request, *args, **kwargs):
+        data = []
+        query = request.data.get("query")
+        if not query:
+            return Response(
+                {"error": "Query parameter is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if "readonly" not in settings.DATABASES:
+            return Response(
+                {"error": "Unable to establish database connection"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user = request.user
+        logger.info(
+            f"User {user.full_name} / {user.uuid} executing query '{query}'",
+        )
+
+        with connections["readonly"].cursor() as cursor:
+            cursor.execute(query)
+            data = cursor.fetchall()
 
         return Response(data, status=status.HTTP_200_OK)
 

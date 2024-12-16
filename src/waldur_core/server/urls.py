@@ -27,6 +27,7 @@ urlpatterns = [
     re_path(r"^health-check/", include("health_check.urls")),
     re_path(r"^api/celery-stats/", core_views.CeleryStatsViewSet.as_view()),
     re_path(r"^api/database-stats/", core_views.DatabaseStatsViewSet.as_view()),
+    re_path(r"^api/query/", core_views.QueryViewSet.as_view()),
 ]
 
 if settings.WALDUR_CORE.get("EXTENSIONS_AUTOREGISTER"):

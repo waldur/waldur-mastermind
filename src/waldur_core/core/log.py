@@ -93,6 +93,13 @@ class TokenEventLogger(EventLogger):
         return {event_context["affected_user"]}
 
 
+class QueryEventLogger(EventLogger):
+    query = str
+
+    class Meta:
+        event_types = ("query_executed",)
+
+
 class SshPublicKeyEventLogger(EventLogger):
     ssh_key = SshPublicKey
     user = User
@@ -113,3 +120,4 @@ event_logger.register("auth", AuthEventLogger)
 event_logger.register("user", UserEventLogger)
 event_logger.register("sshkey", SshPublicKeyEventLogger)
 event_logger.register("token", TokenEventLogger)
+event_logger.register("query", QueryEventLogger)
