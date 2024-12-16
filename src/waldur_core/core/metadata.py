@@ -190,9 +190,6 @@ class WaldurCore(BaseModel):
         "",
         description="It is used for rendering callback URL in MasterMind.",
     )
-    ENABLE_GEOIP = Field(
-        True, description="Enable detection of coordinates of virtual machines."
-    )
     SELLER_COUNTRY_CODE: str | None = Field(
         description="Specifies seller legal or effective country of registration or residence as an "
         "ISO 3166-1 alpha-2 country code. It is used for computing VAT charge rate."

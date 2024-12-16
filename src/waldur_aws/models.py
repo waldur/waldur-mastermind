@@ -1,11 +1,9 @@
 from django.db import models
 from django.utils.translation import gettext_lazy as _
-from libcloud.compute.drivers.ec2 import REGION_DETAILS
 
 from waldur_core.core.fields import JSONField
 from waldur_core.core.models import RuntimeStateMixin
 from waldur_core.structure import models as structure_models
-from waldur_geo_ip.utils import get_coordinates_by_ip
 
 
 class Region(structure_models.GeneralServiceProperty):
@@ -79,13 +77,6 @@ class Instance(structure_models.VirtualMachine):
     @property
     def internal_ips(self):
         return self.private_ips
-
-    def detect_coordinates(self):
-        if self.external_ips:
-            return get_coordinates_by_ip(self.external_ips[0])
-        region = self.region.backend_id
-        endpoint = REGION_DETAILS[region]["endpoint"]
-        return get_coordinates_by_ip(endpoint)
 
     @classmethod
     def get_url_name(cls):

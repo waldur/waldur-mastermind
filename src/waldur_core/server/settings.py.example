@@ -153,10 +153,6 @@ WALDUR_CORE.update({
     'EXTENSIONS_AUTOREGISTER': True,
 })
 
-# Enable detection of coordinates of virtual machines
-# Set to True in order to enable this feature
-WALDUR_CORE['ENABLE_GEOIP'] = False
-
 # Seller country code is used for computing VAT charge rate
 WALDUR_CORE['SELLER_COUNTRY_CODE'] = 'EE'
 

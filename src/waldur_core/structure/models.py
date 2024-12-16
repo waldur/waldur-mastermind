@@ -56,9 +56,8 @@ from waldur_core.structure.managers import (
     get_project_users,
     get_visible_customers,
 )
+from waldur_core.structure.mixins import CoordinatesMixin, IPCoordinatesMixin
 from waldur_core.structure.registry import SupportedServices, get_resource_type
-from waldur_geo_ip.mixins import CoordinatesMixin, IPCoordinatesMixin
-from waldur_geo_ip.utils import get_coordinates_by_ip
 
 
 def validate_service_type(service_type):
@@ -289,9 +288,9 @@ CUSTOMER_DETAILS_FIELDS = (
     "postal",
     "address",
     "bank_name",
-    "bank_account",
     "latitude",
     "longitude",
+    "bank_account",
     "country",
 )
 
@@ -1011,10 +1010,6 @@ class VirtualMachine(IPCoordinatesMixin, core_models.RuntimeStateMixin, BaseReso
 
     class Meta:
         abstract = True
-
-    def detect_coordinates(self):
-        if self.external_ips:
-            return get_coordinates_by_ip(self.external_ips)
 
     def get_access_url(self):
         if self.external_ips:
