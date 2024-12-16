@@ -59,6 +59,17 @@ DATABASES = {
         "USER": env.get("POSTGRESQL_USER", "waldur"),
         "PASSWORD": env.get("POSTGRESQL_PASSWORD", "waldur"),
     },
+    "readonly": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": env.get("POSTGRESQL_NAME", "waldur"),
+        "HOST": env.get("POSTGRESQL_HOST", "localhost"),
+        "PORT": env.get("POSTGRESQL_PORT", "5432"),
+        "USER": env.get("POSTGRESQL_READONLY_USER"),
+        "PASSWORD": env.get("POSTGRESQL_READONLY_PASSWORD"),
+        "OPTIONS": {
+            "target_session_attrs": "read-only",
+        },
+    },
 }
 
 # Static files
