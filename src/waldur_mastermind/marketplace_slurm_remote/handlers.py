@@ -137,7 +137,8 @@ def prepare_mqtt_messages(
 
     if not event_subscriptions.exists():
         logger.debug(
-            "No event subscriptions exist for orders, skipping message sending"
+            "No event subscriptions exist for %s, skipping message sending",
+            affected_object.value,
         )
         return []
 
