@@ -10,8 +10,10 @@ from rest_framework import status, test
 
 from waldur_core.core.authentication import TokenAuthentication
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.marketplace.tests.factories import ResourceFactory
 from waldur_mastermind.support import models, utils
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
+from waldur_mastermind.support.log import get_issue_scopes
 from waldur_mastermind.support.tests import base, factories
 from waldur_mastermind.support.tests.base import load_resource
 from waldur_openstack.tests import (
@@ -717,3 +719,47 @@ class IssueFilterTest(base.BaseTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["uuid"], self.issue.uuid.hex)
+
+
+class GetIssueScopesTest(base.BaseTest):
+    def setUp(self):
+        self.customer = structure_factories.CustomerFactory()
+        self.project = structure_factories.ProjectFactory(customer=self.customer)
+        self.issue = factories.IssueFactory(
+            customer=self.customer, project=self.project
+        )
+
+    def test_get_issue_scopes_with_active_project(self):
+        # Act
+        scopes = get_issue_scopes(self.issue)
+
+        # Assert
+        self.assertEqual(len(scopes), 2)
+        self.assertIn(self.project, scopes)
+        self.assertIn(self.customer, scopes)
+
+    def test_get_issue_scopes_with_deleted_project(self):
+        # Arrange
+        self.project.delete()
+
+        # Act
+        scopes = get_issue_scopes(self.issue)
+
+        # Assert
+        self.assertEqual(len(scopes), 2)
+        self.assertIn(self.customer, scopes)
+
+    def test_get_issue_scopes_with_resource(self):
+        # Arrange
+        resource = ResourceFactory(project=self.project)
+        self.issue.resource = resource
+        self.issue.save()
+
+        # Act
+        scopes = get_issue_scopes(self.issue)
+
+        # Assert
+        self.assertEqual(len(scopes), 3)
+        self.assertIn(resource, scopes)
+        self.assertIn(self.project, scopes)
+        self.assertIn(self.customer, scopes)
