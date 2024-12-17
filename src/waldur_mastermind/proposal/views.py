@@ -170,6 +170,10 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             raise exceptions.ValidationError(
                 _("Call must have a round to be activated.")
             )
+        if call.reviewers.count() == 0:
+            raise exceptions.ValidationError(
+                _("Call must have reviewers to be activated.")
+            )
         call.state = models.Call.States.ACTIVE
         call.save()
         return response.Response(

@@ -4,6 +4,7 @@ from rest_framework import status, test
 from waldur_core.media.utils import dummy_image
 from waldur_core.permissions import utils as permissions_utils
 from waldur_core.permissions.fixtures import CallRole
+from waldur_core.permissions.utils import add_user
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.proposal import models
 from waldur_mastermind.proposal.tests import fixtures
@@ -261,16 +262,28 @@ class CallActivateTest(test.APITransactionTestCase):
         "staff",
         "call_manager",
     )
-    def test_user_can_activate_call_with_round(self, user):
+    def test_user_can_activate_call_with_round_and_reviewer(self, user):
         factories.RoundFactory(
             call=self.draft_call,
         )
+        add_user(self.draft_call, self.fixture.user, CallRole.REVIEWER)
         response = self.activate_call(user, self.draft_call)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(self.draft_call.state, models.Call.States.ACTIVE)
 
     @data("staff")
     def test_user_can_not_activate_call_without_round(self, user):
+        response = self.activate_call(user, self.draft_call)
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+        self.assertEqual(self.draft_call.state, models.Call.States.DRAFT)
+
+    @data("staff")
+    def test_user_can_not_activate_call_without_reviewer(self, user):
+        factories.RoundFactory(
+            call=self.draft_call,
+        )
         response = self.activate_call(user, self.draft_call)
         self.assertEqual(
             response.status_code, status.HTTP_400_BAD_REQUEST, response.data
