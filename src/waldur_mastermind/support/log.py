@@ -1,25 +1,25 @@
 from waldur_core.logging.loggers import EventLogger, event_logger
-from waldur_core.structure.models import Project
-from waldur_core.structure.permissions import _get_project
 
 from . import models
 
 
 def get_issue_scopes(issue):
+    from waldur_core.structure.models import Project
+
     result = set()
     if issue.resource:
-        try:
-            project = _get_project(issue.resource)
-            if project:
-                result.add(project)
-                result.add(project.customer)
-        except Project.DoesNotExist:
-            # Project was deleted, soft-deleted projects will be handled below
-            pass
+        project_id = issue.resource.project_id
         result.add(issue.resource)
-    if issue.project_id:
-        result.add(issue.project)
-        result.add(issue.customer)
+    else:
+        project_id = issue.project_id
+    project = None
+    try:
+        project = Project.all_objects.get(id=project_id)
+    except Project.DoesNotExist:
+        pass
+    if project:
+        result.add(project)
+        result.add(project.customer)
     if issue.customer:
         result.add(issue.customer)
     return result
