@@ -224,7 +224,6 @@ known-first-party = [
   "paypalrestsdk",
   "PIL",
   "pkg_resources",
-  "prettytable",
   "pycountry",
   "pydantic",
   "python_freeipa",
