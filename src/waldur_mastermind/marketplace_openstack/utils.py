@@ -191,14 +191,22 @@ def tenant_limits_validator(limits):
         raise exceptions.ValidationError("Storage limit is mandatory.")
 
 
-def map_limits_to_quotas(limits, offering: marketplace_models.Offering):
+def map_limits_to_quotas(limits, offering: marketplace_models.Offering, is_create=True):
     quotas = {
         TenantQuotas.vcpu.name: limits.get(CORES_TYPE),
         TenantQuotas.ram.name: limits.get(RAM_TYPE),
         TenantQuotas.storage.name: limits.get(STORAGE_TYPE),
-        TenantQuotas.instances.name: offering.plugin_options.get("max_instances") or 10,
-        TenantQuotas.volumes.name: offering.plugin_options.get("max_volumes") or 10,
     }
+
+    if is_create:
+        quotas.update(
+            {
+                TenantQuotas.instances.name: offering.plugin_options.get(
+                    "max_instances"
+                ),
+                TenantQuotas.volumes.name: offering.plugin_options.get("max_volumes"),
+            }
+        )
 
     quotas = {k: v for k, v in quotas.items() if v is not None}
 
@@ -237,7 +245,7 @@ def map_limits_to_quotas(limits, offering: marketplace_models.Offering):
 def update_limits(order):
     tenant = order.resource.scope
     backend = tenant.get_backend()
-    quotas = map_limits_to_quotas(order.limits, order.offering)
+    quotas = map_limits_to_quotas(order.limits, order.offering, is_create=False)
     backend.push_tenant_quotas(tenant, quotas)
     with transaction.atomic():
         _apply_quotas(tenant, quotas)
@@ -276,7 +284,7 @@ def import_limits_when_storage_mode_is_switched(resource: marketplace_models.Res
 def push_tenant_limits(resource):
     tenant = resource.scope
     backend = tenant.get_backend()
-    quotas = map_limits_to_quotas(resource.limits, resource.offering)
+    quotas = map_limits_to_quotas(resource.limits, resource.offering, is_create=False)
     backend.push_tenant_quotas(tenant, quotas)
     with transaction.atomic():
         _apply_quotas(tenant, quotas)
