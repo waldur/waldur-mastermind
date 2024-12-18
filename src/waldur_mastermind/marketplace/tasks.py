@@ -39,7 +39,6 @@ logger = logging.getLogger(__name__)
 User = get_user_model()
 
 
-@shared_task
 def process_order_on_commit(order: models.Order, user):
     serialized_order = core_utils.serialize_instance(order)
     serialized_user = core_utils.serialize_instance(user)
@@ -527,7 +526,7 @@ def process_pending_project_orders():
             order.set_state_executing()
             order.save(update_fields=["state"])
             transaction.on_commit(
-                lambda: process_order_on_commit.delay(order, order.created_by)
+                lambda: process_order_on_commit(order, order.created_by)
             )
         else:
             transaction.on_commit(

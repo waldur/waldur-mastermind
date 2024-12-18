@@ -185,7 +185,7 @@ def process_invitations_and_orders_when_project_start_date_is_unset(
             order.set_state_executing()
             order.save(update_fields=["state"])
             transaction.on_commit(
-                lambda: tasks.process_order_on_commit.delay(order, order.created_by)
+                lambda: tasks.process_order_on_commit(order, order.created_by)
             )
         else:
             transaction.on_commit(
