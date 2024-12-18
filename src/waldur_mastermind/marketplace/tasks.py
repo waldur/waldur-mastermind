@@ -101,8 +101,8 @@ def notify_provider_about_pending_order(order_uuid):
         return
 
     link = core_utils.format_homeport_link(
-        "providers/{organization_uuid}/orders/",
-        organization_uuid=order.offering.customer.uuid,
+        "marketplace-order-details/{order_uuid}/",
+        order_uuid=order.uuid,
     )
 
     context = {
