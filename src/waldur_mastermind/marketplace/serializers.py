@@ -56,6 +56,7 @@ from waldur_mastermind.marketplace.utils import (
     validate_attributes,
     validate_end_date,
 )
+from waldur_mastermind.marketplace_openstack import TENANT_TYPE
 from waldur_mastermind.proposal import models as proposal_models
 from waldur_pid import models as pid_models
 
@@ -759,6 +760,17 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
             attrs["max_value"] = 1
             attrs["limit_period"] = models.OfferingComponent.LimitPeriods.MONTH
             attrs["limit_amount"] = None
+        if self.instance and self.instance.offering.type == TENANT_TYPE:
+            protected_fields = set(attrs.keys()) & {
+                "type",
+                "name",
+                "measured_unit",
+                "billing_type",
+            }
+            if protected_fields:
+                raise serializers.ValidationError(
+                    "OpenStack offering components are not editable."
+                )
         return attrs
 
     def create(self, validated_data):
