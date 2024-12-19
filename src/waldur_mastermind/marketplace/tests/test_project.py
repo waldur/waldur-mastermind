@@ -1,12 +1,14 @@
 import datetime
+from unittest import mock
 
+from django.test import override_settings
 from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.utils import move_project
-from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace import models, tasks
 from waldur_mastermind.marketplace.tests import factories, fixtures
 
 
@@ -125,3 +127,16 @@ class ProjectStartDateTest(test.APITransactionTestCase):
 
         self.order.refresh_from_db()
         self.assertEqual(models.Order.States.PENDING_PROVIDER, self.order.state)
+
+    @override_settings(task_always_eager=True)
+    def test_order_process_when_project_started(self):
+        with mock.patch(
+            "waldur_mastermind.marketplace.utils.order_should_not_be_reviewed_by_provider"
+        ) as order_should_not_be_reviewed_by_provider_mock:
+            order_should_not_be_reviewed_by_provider_mock.return_value = True
+            tasks.process_pending_project_orders()
+
+        self.order.refresh_from_db()
+
+        self.assertEqual(models.Order.States.DONE, self.order.state)
+        self.assertEqual(models.Resource.States.OK, self.order.resource.state)
