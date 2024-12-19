@@ -33,11 +33,12 @@ RUN echo "@testing http://dl-cdn.alpinelinux.org/alpine/edge/testing" >> /etc/ap
     jpeg-dev~=9 \
     zlib-dev~=1.3 \
     # gosu to give privileges to a non-root user. We use it in multiple scripts such as initdb.
-    gosu@testing~=1.17
+    gosu@testing~=1.17 \
+    # Needed for old style slurm support which requires SSH command.
+    openssh~=9.7
 
 # Set up locales
-RUN echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen && \
-    echo "de_DE.UTF-8 UTF-8" >> /etc/locale.gen
+RUN echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
 
 RUN mkdir -p /usr/src/waldur
 
