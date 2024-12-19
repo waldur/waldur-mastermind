@@ -1123,6 +1123,13 @@ def generate_glauth_records_for_offering_users(offering, offering_users):
     for offering_user in offering_users:
         user = offering_user.user
         username = offering_user.username
+        if "uidnumber" not in offering_user.backend_metadata:
+            logger.warning(
+                "OfferingUser %s does not have uidnumber in backend_metadata, skipping generation of glauth record",
+                offering_user,
+            )
+            continue
+
         uidnumber = offering_user.backend_metadata["uidnumber"]
         primarygroup = offering_user.backend_metadata["primarygroup"]
         login_shell = offering_user.backend_metadata["loginShell"]
