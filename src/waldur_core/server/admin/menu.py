@@ -58,10 +58,7 @@ class CustomMenu(Menu):
         "waldur_freeipa.models.*",
     )
 
-    ACCOUNTING = (
-        "waldur_mastermind.invoices.*",
-        "waldur_paypal.*",
-    )
+    ACCOUNTING = ("waldur_mastermind.invoices.*",)
 
     SUPPORT_MODULES = ("waldur_mastermind.support.*",)
 
