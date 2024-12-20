@@ -9,6 +9,7 @@ class MockInstance:
     key_name: str
     created: str
     flavor: dict
+    image: dict
     networks: dict
 
     def to_dict(self):
@@ -42,6 +43,12 @@ class MockVolume:
     metadata = {}
 
 
+@dataclass
+class MockImage:
+    name: str
+    id: str
+
+
 MOCK_INSTANCE = MockInstance(
     name="VM-1",
     id="1",
@@ -49,6 +56,7 @@ MOCK_INSTANCE = MockInstance(
     key_name="ssh-public",
     created="2020-02-02T02:02",
     flavor={"id": "std"},
+    image={"id": "image_id"},
     networks={
         "test-int-net": ["192.168.42.60"],
         "public": ["172.29.249.185"],
@@ -61,3 +69,8 @@ MOCK_FLAVOR = MockFlavor(name="Standard", vcpus=4, disk=100, ram=4096)
 MOCK_VOLUME = MockVolume(name="ssd-volume", id="1", size=100)
 
 MOCK_TENANT = MockTenant(name="admin", id="1", description="admin")
+
+MOCK_IMAGE = MockImage(
+    name="ubuntu",
+    id="1",
+)

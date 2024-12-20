@@ -95,6 +95,7 @@ def create_or_update_keycloak_user(backend_user):
     last_name = backend_user.get("family_name", "")
     organization = backend_user.get("affiliation") or backend_user.get("org") or ""
     identity_source = backend_user.get("identity_source", "")
+    site_username = backend_user.get("site_username", "")
     try:
         user = User.objects.get(username=username)
     except User.DoesNotExist:
@@ -108,6 +109,7 @@ def create_or_update_keycloak_user(backend_user):
             organization=organization,
             identity_source=identity_source,
         )
+        user.details = {"site_username": site_username}
         user.set_unusable_password()
         user.save()
     else:
@@ -128,6 +130,9 @@ def create_or_update_keycloak_user(backend_user):
         if user.identity_source != identity_source:
             user.identity_source = identity_source
             update_fields.add("identity_source")
+        if user.details.get("site_username") != site_username:
+            user.details["site_username"] = site_username
+            update_fields.add("details")
         if update_fields:
             user.save(update_fields=update_fields)
     return user, created

@@ -384,10 +384,6 @@ class OfferingUpdateTest(test.APITransactionTestCase):
             self.url,
             {
                 "uuid": self.component.uuid.hex,
-                "type": "cores",
-                "name": "Cores",
-                "measured_unit": "hours",
-                "billing_type": "fixed",
                 "article_code": "new_article_code",
             },
         )

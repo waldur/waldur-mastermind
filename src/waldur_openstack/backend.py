@@ -3959,11 +3959,16 @@ class OpenStackBackend(ServiceBackend):
                 v.volumeId for v in nova.volumes.get_server_volumes(backend_id)
             ]
             flavor_id = backend_instance.flavor["id"]
+            image_id = backend_instance.image and backend_instance.image.get("id")
         except nova_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
 
         instance: models.Instance = self._backend_instance_to_instance(
-            tenant, backend_instance, flavor_id, connected_internal_network_names
+            tenant,
+            backend_instance,
+            flavor_id,
+            connected_internal_network_names,
+            image_id,
         )
         with transaction.atomic():
             instance.tenant = tenant
@@ -4004,6 +4009,7 @@ class OpenStackBackend(ServiceBackend):
         backend_instance,
         backend_flavor_id=None,
         connected_internal_network_names=None,
+        backend_image_id=None,
     ):
         # parse launch time
         try:
@@ -4080,6 +4086,18 @@ class OpenStackBackend(ServiceBackend):
                     instance.cores = backend_flavor.vcpus
                     instance.ram = backend_flavor.ram
 
+        if backend_image_id:
+            try:
+                image = models.Image.objects.get(
+                    settings=tenant.service_settings, backend_id=backend_image_id
+                )
+                instance.image_name = image.name
+            except models.Image.DoesNotExist:
+                backend_image = self._get_image(tenant, backend_image_id)
+                # If image has been removed in OpenStack cloud, we should skip update
+                if backend_image:
+                    instance.image_name = backend_image.name
+
         attached_volumes = backend_instance.to_dict().get(
             "os-extended-volumes:volumes_attached", []
         )
@@ -4102,6 +4120,18 @@ class OpenStackBackend(ServiceBackend):
         except nova_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
 
+    def _get_image(self, tenant: models.Tenant, image_id):
+        session = get_tenant_session(tenant)
+        glance = get_glance_client(session)
+
+        try:
+            return glance.images.get(image_id)
+        except glance_exceptions.NotFound:
+            logger.info("OpenStack image %s is gone.", image_id)
+            return None
+        except glance_exceptions.ClientException as e:
+            raise OpenStackBackendError(e)
+
     def get_instances(self, tenant: models.Tenant) -> list[models.Instance]:
         nova = get_nova_client(self.admin_session)
 
@@ -4117,8 +4147,11 @@ class OpenStackBackend(ServiceBackend):
         instances = []
         for backend_instance in backend_instances:
             flavor_id = backend_instance.flavor["id"]
+            image_id = backend_instance.image and backend_instance.image.get("id")
             instances.append(
-                self._backend_instance_to_instance(tenant, backend_instance, flavor_id)
+                self._backend_instance_to_instance(
+                    tenant, backend_instance, flavor_id, backend_image_id=image_id
+                )
             )
         return instances
 

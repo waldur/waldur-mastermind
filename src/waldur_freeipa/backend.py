@@ -35,7 +35,7 @@ class GroupSynchronizer:
     group name prefix should be specified. Similarly, there's also user name prefix setting available.
     """
 
-    def __init__(self, client):
+    def __init__(self, client: python_freeipa.Client):
         self.client = client
         self.group_prefix = settings.WALDUR_FREEIPA["GROUPNAME_PREFIX"]
         self.user_prefix = settings.WALDUR_FREEIPA["USERNAME_PREFIX"]
@@ -210,6 +210,7 @@ class GroupSynchronizer:
     def delete_stale_groups(self):
         for group in self.freeipa_groups - self.groups:
             utils.renew_task_status()
+            self.client._request("group_detach", group)
             self.client.group_del(group)
 
     def sync_user_status(self):
