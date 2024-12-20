@@ -1332,7 +1332,7 @@ class Order(
         )
 
     def __str__(self):
-        return f"type: {self.get_type_display()}, offering: {self.offering}, created_by: {self.created_by}"
+        return f"UUID: {self.uuid}, type: {self.get_type_display()}, offering: {self.offering}, created_by: {self.created_by}"
 
 
 class ComponentQuota(TimeStampedModel):
