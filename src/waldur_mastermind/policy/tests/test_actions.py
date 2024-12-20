@@ -164,6 +164,9 @@ class ActionsTest(test.APITransactionTestCase):
         self.policy.save()
 
         resource = self.fixture.resource
+        offering = resource.offering
+        offering.plugin_options.update({"supports_downscaling": True})
+        offering.save()
 
         self.create_invoice_item(self.policy.limit_cost + 1)
 
@@ -178,6 +181,9 @@ class ActionsTest(test.APITransactionTestCase):
         self.policy.save()
 
         resource = self.fixture.resource
+        offering = resource.offering
+        offering.plugin_options.update({"supports_pausing": True})
+        offering.save()
 
         self.create_invoice_item(self.policy.limit_cost + 1)
 
