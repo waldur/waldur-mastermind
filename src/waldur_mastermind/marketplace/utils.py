@@ -70,6 +70,7 @@ class UsernameGenerationPolicy(Enum):
     FULL_NAME = "full_name"  # Usernames are constructed using first and last name of users with numerical suffix, e.g. "john_doe_01"
     WALDUR_USERNAME = "waldur_username"  # Using username field of User model
     FREEIPA = "freeipa"  # Using username field of waldur_freeipa.Profile model
+    IDENTITY_CLAIM = "identity_claim"  # Using username from external IDP system
 
 
 def get_order_processor(order):
@@ -1294,6 +1295,9 @@ def generate_username(user, offering):
 
     if username_generation_policy == UsernameGenerationPolicy.FREEIPA.value:
         return create_username_from_freeipa_profile(user)
+
+    if username_generation_policy == UsernameGenerationPolicy.IDENTITY_CLAIM.value:
+        return user.details.get("site_username", "")
 
     return ""
 

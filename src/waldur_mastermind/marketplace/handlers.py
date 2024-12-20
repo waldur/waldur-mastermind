@@ -1037,6 +1037,30 @@ def update_offering_user_username_after_offering_settings_change(
         offering_user.save(update_fields=["username", "backend_metadata"])
 
 
+def update_offering_user_username_after_user_change(sender, instance, **kwargs):
+    """Set new username for offering users after site_username in user details has been changed."""
+    user = instance
+
+    # Update username for offering users only if site_username has been changed
+    if not user.tracker.has_changed("details") or not user.details.get("site_username"):
+        return
+
+    offering_users = models.OfferingUser.objects.filter(
+        user=user,
+        offering__type__in=OFFERING_USER_ALLOWED_OFFERING_TYPES,
+        offering__plugin_options__username_generation_policy=utils.UsernameGenerationPolicy.IDENTITY_CLAIM.name,
+    )
+
+    for offering_user in offering_users:
+        offering = offering_user.offering
+        new_username = utils.generate_username(user, offering)
+        logger.info("Setting username for %s to %s", offering_user, new_username)
+        offering_user.username = new_username
+
+        utils.setup_linux_related_data(offering_user, offering)
+        offering_user.save(update_fields=["username", "backend_metadata"])
+
+
 def log_offering_role_created_or_updated(sender, instance, created=False, **kwargs):
     if created:
         event_logger.marketplace_offering_role.info(
