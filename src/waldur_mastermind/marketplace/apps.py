@@ -7,6 +7,7 @@ class MarketplaceConfig(AppConfig):
     verbose_name = "Marketplace"
 
     def ready(self):
+        from waldur_core.core import models as core_models
         from waldur_core.core import signals as core_signals
         from waldur_core.permissions import signals as permission_signals
         from waldur_core.quotas import signals as quota_signals
@@ -300,4 +301,10 @@ class MarketplaceConfig(AppConfig):
             handlers.log_resource_user_deleted,
             sender=models.ResourceUser,
             dispatch_uid="waldur_mastermind.marketplace.log_resource_user_deleted",
+        )
+
+        signals.post_save.connect(
+            handlers.update_offering_user_username_after_user_change,
+            sender=core_models.User,
+            dispatch_uid="waldur_mastermind.marketplace.update_offering_user_username_after_user_change",
         )
