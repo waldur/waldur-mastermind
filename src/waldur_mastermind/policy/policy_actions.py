@@ -136,7 +136,9 @@ def block_modification_of_existing_resources(policy, created):
 def request_downscaling(policy):
     project = structure_permissions._get_project(policy.scope)
 
-    resources = marketplace_models.Resource.objects.exclude(
+    resources = marketplace_models.Resource.objects.filter(
+        offering__plugin_options__supports_downscaling=True
+    ).exclude(
         state__in=(
             marketplace_models.Resource.States.TERMINATED,
             marketplace_models.Resource.States.TERMINATING,
@@ -166,7 +168,9 @@ def request_downscaling(policy):
 def reset_downscaling(policy):
     project = structure_permissions._get_project(policy.scope)
 
-    resources = marketplace_models.Resource.objects.exclude(
+    resources = marketplace_models.Resource.filter(
+        offering__plugin_options__supports_downscaling=True
+    ).objects.exclude(
         state__in=(
             marketplace_models.Resource.States.TERMINATED,
             marketplace_models.Resource.States.TERMINATING,
@@ -240,9 +244,9 @@ def reset_member_restriction(policy):
 def request_pausing(policy):
     project = structure_permissions._get_project(policy.scope)
 
-    resources = marketplace_models.Resource.objects.exclude(
-        state__in=(marketplace_models.Resource.States.TERMINATED,)
-    )
+    resources = marketplace_models.Resource.objects.filter(
+        offering__plugin_options__supports_pausing=True
+    ).exclude(state__in=(marketplace_models.Resource.States.TERMINATED,))
 
     if project:
         resources = resources.filter(project=project)
@@ -267,9 +271,9 @@ def request_pausing(policy):
 def reset_pausing(policy):
     project = structure_permissions._get_project(policy.scope)
 
-    resources = marketplace_models.Resource.objects.exclude(
-        state__in=(marketplace_models.Resource.States.TERMINATED,)
-    )
+    resources = marketplace_models.Resource.objects.filter(
+        offering__plugin_options__supports_pausing=True
+    ).exclude(state__in=(marketplace_models.Resource.States.TERMINATED,))
 
     if project:
         resources = resources.filter(project=project)
