@@ -15,6 +15,7 @@ from waldur_mastermind.marketplace_openstack import (
 )
 from waldur_mastermind.marketplace_openstack.tests.mocks import (
     MOCK_FLAVOR,
+    MOCK_IMAGE,
     MOCK_INSTANCE,
     MOCK_TENANT,
     MOCK_VOLUME,
@@ -112,6 +113,7 @@ class BaseInstanceImportTest(BaseBackendTestCase, BaseOpenStackTest):
         self.mocked_nova.servers.get.return_value = MOCK_INSTANCE
         self.mocked_nova.flavors.get.return_value = MOCK_FLAVOR
         self.mocked_nova.volumes.get_server_volumes.return_value = []
+        self.mocked_glance.images.get.return_value = MOCK_IMAGE
 
 
 class InstanceImportableResourcesTest(BaseInstanceImportTest):

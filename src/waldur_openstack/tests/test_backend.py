@@ -29,6 +29,7 @@ class BaseBackendTest(TestCase):
         self.mocked_neutron = mock.patch("neutronclient.v2_0.client.Client").start()()
         self.mocked_cinder = mock.patch("cinderclient.v3.client.Client").start()()
         self.mocked_nova = mock.patch("novaclient.v2.client.Client").start()()
+        self.mocked_glance = mock.patch("glanceclient.v2.client.Client").start()()
         self.backend = OpenStackBackend(self.tenant.service_settings)
         mock_session()
 
@@ -62,6 +63,7 @@ class BaseBackendTest(TestCase):
                 "created": "2012-04-23T08:10:00Z",
                 "OS-SRV-USG:launched_at": "2012-04-23T09:15",
                 "flavor": {"id": backend_id},
+                "image": {"id": backend_id},
                 "networks": {
                     "test-int-net": ["192.168.42.60"],
                     "public": ["172.29.249.185"],
@@ -79,6 +81,12 @@ class BaseBackendTest(TestCase):
                 ram=4096,
                 id=backend_id,
             ),
+        )
+
+    def _get_valid_image(self, backend_id):
+        return dict(
+            name="Ubuntu",
+            id=backend_id,
         )
 
 
@@ -369,6 +377,7 @@ class PullInstanceTest(BaseBackendTest):
             created = "2017-08-10"
             key_name = "key_name"
             flavor = {"id": "flavor_id"}
+            image = {"id": "image_id"}
             status = "ERRED"
             fault = {"message": "OpenStack Nova error."}
             networks = {
@@ -800,6 +809,10 @@ class ImportInstanceTest(BaseBackendTest):
         backend_flavor = self._get_valid_flavor(self.backend_id)
         self.backend_instance.flavor = backend_flavor._info
         self.mocked_nova.flavors.get.return_value = backend_flavor
+
+        backend_image = self._get_valid_image(self.backend_id)
+        self.backend_instance.image = backend_image
+        self.mocked_glance.images.get.return_value = backend_flavor
 
     def test_backend_instance_without_volumes_is_imported(self):
         self.mocked_nova.volumes.get_server_volumes.return_value = []
