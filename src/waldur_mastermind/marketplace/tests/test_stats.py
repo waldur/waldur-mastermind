@@ -794,3 +794,175 @@ class OfferingStatsTest(test.APITransactionTestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.data["resources_count"], 2)
         self.assertEqual(response.data["customers_count"], 1)
+
+
+class OfferingStatsCounterTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.provider1 = factories.structure_factories.CustomerFactory()
+        self.category1 = factories.CategoryFactory()
+
+        self.provider2 = factories.structure_factories.CustomerFactory()
+        self.category2 = factories.CategoryFactory()
+
+        self.offering1 = factories.OfferingFactory(
+            customer=self.provider1,
+            category=self.category1,
+            state=models.Offering.States.ACTIVE,
+        )
+
+        self.offering2 = factories.OfferingFactory(
+            customer=self.provider1,
+            category=self.category1,
+            state=models.Offering.States.ACTIVE,
+        )
+        self.offering3 = factories.OfferingFactory(
+            customer=self.provider2,
+            category=self.category2,
+            state=models.Offering.States.ACTIVE,
+        )
+
+        self.url = "/api/marketplace-stats/offerings_counter_stats/"
+
+        self.client.force_authenticate(
+            factories.structure_factories.UserFactory(is_staff=True)
+        )
+
+    def get_provider_category_stats(self, data, provider_name, category_title):
+        """Helper method to retreive the offerings data."""
+        return next(
+            (
+                item
+                for item in data
+                if item["service_provider_name"] == provider_name
+                and item["category_title"] == category_title
+            ),
+            None,
+        )
+
+    def delete_offerings(self, offerings):
+        """Helper method to delete the offerings created during tests."""
+        for offering in offerings:
+            url = factories.OfferingFactory.get_url(offering)
+            self.client.delete(url)
+
+    def test_offer_counter_stats(self):
+        """Test that offerings are properly grouped by service provider and category."""
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            f"Unexpected status code, expected 200 got: {response.status_code}",
+        )
+
+        data = response.data
+
+        # Assert provider1 with category1 has 2 offerings
+        provider1_category1_stats = self.get_provider_category_stats(
+            data, self.provider1.name, self.category1.title
+        )
+
+        # Check that there are 2 offerings with the first provider and category
+        self.assertIsNotNone(
+            provider1_category1_stats,
+            f"Provider {self.provider1.name} and category {self.category1.title} should have stats, got None",
+        )
+        self.assertEqual(
+            provider1_category1_stats["count"],
+            2,
+            f"Expected 2 offerings for {self.provider1.name} in category {self.category1.title}, but got {provider1_category1_stats['count']}",
+        )
+
+        # Check that there is 1 offering for second provider and category
+        provider2_category2_stats = self.get_provider_category_stats(
+            data, self.provider2.name, self.category2.title
+        )
+        self.assertIsNotNone(
+            provider2_category2_stats,
+            f"Provider {self.provider2.name} and category {self.category2.title} should have stats, got None",
+        )
+        self.assertEqual(
+            provider2_category2_stats["count"],
+            1,
+            f"Expected 1 offering for {self.provider2.name} in category {self.category2.title}, but got {provider2_category2_stats['count']}",
+        )
+
+    def test_no_offerings_in_system(self):
+        """Test the case when there are no offerings in the system."""
+
+        # Clear any offerings created during setup
+        self.delete_offerings([self.offering1, self.offering2, self.offering3])
+
+        response = self.client.get(self.url)
+
+        # Assert that response is retreived and that data is empty
+        self.assertEqual(
+            response.status_code, status.HTTP_200_OK, "API did not return HTTP 200 OK"
+        )
+        self.assertEqual(
+            response.data,
+            [],
+            f"Expected empty list when there are no offerings, but got: {response.data}",
+        )
+
+    def test_offerings_counter_excludes_non_active_states(self):
+        """Test that DRAFT and ARCHIVED state offerings are not included."""
+
+        # Create offerings with state DRAFT and ARCHIVED
+        self.offering4 = factories.OfferingFactory(
+            customer=self.provider1,
+            category=self.category1,
+            state=models.Offering.States.DRAFT,
+        )
+
+        self.offering5 = factories.OfferingFactory(
+            customer=self.provider1,
+            category=self.category1,
+            state=models.Offering.States.ARCHIVED,
+        )
+
+        response = self.client.get(self.url)
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            f"Unexpected status code, expected 200 got: {response.status_code}",
+        )
+
+        data = response.data
+
+        # Assert that there are still 2 offerings for provider 1 with category 1 (DRAFT is excluded)
+        provider1_category1_stats = self.get_provider_category_stats(
+            data, self.provider1.name, self.category1.title
+        )
+        self.assertIsNotNone(
+            provider1_category1_stats,
+            f"Provider {self.provider1.name} and category {self.category1.title} should have stats, got None",
+        )
+        self.assertEqual(
+            provider1_category1_stats["count"],
+            2,
+            f"Expected 2 offerings for {self.provider1.name} in category {self.category1.title}, but got {provider1_category1_stats['count']}",
+        )
+
+    def test_no_offerins_returned_for_non_existing_provider(self):
+        """Test the case where no offerings exist for a new provider/category."""
+        provider3 = factories.structure_factories.CustomerFactory()
+        category3 = factories.CategoryFactory()
+
+        # Check that no offerings stats are returned for provider3 with category3
+        response = self.client.get(self.url)
+        self.assertEqual(
+            response.status_code, status.HTTP_200_OK, "API did not return HTTP 200 OK"
+        )
+
+        data = response.data
+        provider3_category3_stats = self.get_provider_category_stats(
+            data, provider3.name, category3.title
+        )
+
+        # Assert that the provider without offerings is not returned
+        self.assertIsNone(
+            provider3_category3_stats,
+            f"Expected no stats for provider {provider3.name} and category {category3.title}, but found some",
+        )

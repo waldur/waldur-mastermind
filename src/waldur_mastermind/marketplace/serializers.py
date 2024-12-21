@@ -3640,6 +3640,14 @@ class CountStatsSerializer(serializers.Serializer):
         return self._get_value(record, "count")
 
 
+class OfferingStatsCounterSerializer(serializers.Serializer):
+    category_uuid = serializers.UUIDField()
+    category_title = serializers.CharField()
+    service_provider_name = serializers.CharField()
+    service_provider_uuid = serializers.UUIDField()
+    count = serializers.IntegerField()
+
+
 class CustomerStatsSerializer(CountStatsSerializer):
     abbreviation = serializers.SerializerMethodField()
 
