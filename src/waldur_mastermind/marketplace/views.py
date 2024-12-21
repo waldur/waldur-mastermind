@@ -3156,6 +3156,45 @@ class StatsViewSet(rf_viewsets.ViewSet):
         return Response(status=status.HTTP_200_OK, data=serializer.data)
 
     @action(detail=False, methods=["get"])
+    def offerings_counter_stats(self, request):
+        excluded_states = (
+            models.Offering.States.ARCHIVED,
+            models.Offering.States.DRAFT,
+        )
+        try:
+            offerings_stats = (
+                models.Offering.objects.select_related("category", "customer")
+                .exclude(state__in=excluded_states)
+                .values(
+                    category_uuid=F("category__uuid"),
+                    category_title=F("category__title"),
+                    service_provider_name=F("customer__name"),
+                    service_provider_uuid=F("customer__uuid"),
+                )
+                .annotate(count=Count("uuid", distinct=True))
+            )
+
+            serialized_data = serializers.OfferingStatsCounterSerializer(
+                offerings_stats, many=True
+            ).data
+
+            return Response(
+                serialized_data,
+                status=status.HTTP_200_OK,
+            )
+        except models.Offering.DoesNotExist as e:
+            logger.error(f"Offerings not found: {str(e)}")
+            return Response(
+                {"error": "Offerings not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.error(f"Unexpected error fetching offering stats: {str(e)}")
+            return Response(
+                {"error": "An unexpected error occurred"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    @action(detail=False, methods=["get"])
     def organization_resource_count(self, request, *args, **kwargs):
         data = (
             models.Resource.objects.filter(state=models.Resource.States.OK)
