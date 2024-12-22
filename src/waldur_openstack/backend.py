@@ -948,7 +948,7 @@ class OpenStackBackend(ServiceBackend):
 
             try:
                 subnet_backend_id = backend_port["fixed_ips"][0]["subnet_id"]
-            except (AttributeError, KeyError):
+            except (AttributeError, KeyError, IndexError):
                 pass
 
             device_id = backend_port.get("device_id")
