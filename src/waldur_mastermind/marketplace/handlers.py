@@ -826,6 +826,9 @@ def resource_has_been_changed(sender, instance, created=False, **kwargs):
         else:
             new_value = getattr(instance, field)
 
+        if not old_value and not new_value:
+            continue
+
         changed.append({"name": field, "from": old_value, "to": new_value})
 
     log.log_marketplace_resource_has_been_changed(instance, changed)
