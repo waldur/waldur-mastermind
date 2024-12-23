@@ -704,14 +704,14 @@ class ResourceUpdateTest(test.APITransactionTestCase):
 
     def make_request(self, user, payload=None):
         self.client.force_authenticate(user)
-        payload = payload or {"name": "new name", "description": "new description"}
+        payload = payload or {"name": "new_name", "description": "new description"}
         return self.client.patch(self.url, payload)
 
     def test_authorized_user_can_update_resource(self):
         response = self.make_request(self.fixture.staff)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.resource.refresh_from_db()
-        self.assertEqual(self.resource.name, "new name")
+        self.assertEqual(self.resource.name, "new_name")
         self.assertEqual(self.resource.description, "new description")
 
     def test_unauthorized_user_can_not_update_resource(self):
@@ -839,7 +839,7 @@ class ResourceUpdateTest(test.APITransactionTestCase):
                 event_type="marketplace_resource_has_been_changed",
                 message__contains=self.resource.name,
             )
-            .filter(message__contains="name")
+            .filter(message__contains="new_name")
             .count(),
             1,
         )
