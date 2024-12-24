@@ -221,10 +221,7 @@ class SupportUser(
 ):
     class Meta:
         ordering = ["name"]
-        unique_together = (
-            ("backend_name", "backend_id"),
-            ("backend_name", "user"),
-        )
+        unique_together = ("backend_name", "backend_id", "is_active")
 
     user = models.ForeignKey(
         on_delete=models.CASCADE,
