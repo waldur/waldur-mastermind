@@ -202,7 +202,6 @@ def create_issue_about_project_team_changes(project, created_by, summary, descri
             customer=project.customer,
             description=description,
             summary=summary,
-            resource=project,
         )
     )
 

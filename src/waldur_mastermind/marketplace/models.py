@@ -1137,6 +1137,12 @@ class Resource(
     def get_url_name(cls):
         return "marketplace-resource"
 
+    def get_homeport_link(self):
+        return core_utils.format_homeport_link(
+            "resource-details/{resource_uuid}/",
+            resource_uuid=self.uuid.hex,
+        )
+
     @property
     def is_expired(self):
         return self.end_date and self.end_date <= timezone.datetime.today().date()

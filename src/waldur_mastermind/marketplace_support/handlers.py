@@ -107,7 +107,7 @@ def notify_about_request_based_item_creation(sender, instance, created=False, **
 def _create_issue_if_membership_changed(instance, summary):
     user_role = instance
 
-    if not (user_role.scope and isinstance(user_role.scope, structure_models.Project)):
+    if not isinstance(user_role.scope, structure_models.Project):
         return
 
     project = user_role.scope
