@@ -8,7 +8,7 @@ Service offerings:
     Username not available.
     {% endif %}
     {% if offering.resources %}Resources:
-        {% for resource in offering.resources %}- name: {{resource.name}}, backend ID: {{resource.backend_id}}
+        {% for resource in offering.resources %}- name: {{resource.name}}, backend ID: {{resource.backend_id}}, link: {{resource.get_homeport_link}}
         {% endfor %}
     {% endif %}
 {% endfor %}
