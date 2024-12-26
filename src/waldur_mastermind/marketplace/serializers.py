@@ -26,7 +26,6 @@ from waldur_core.core.clean_html import clean_html
 from waldur_core.core.fields import NaturalChoiceField
 from waldur_core.core.mixins import GetValueMixin
 from waldur_core.core.models import User, get_ssh_key_fingerprints
-from waldur_core.core.serializers import GenericRelatedField
 from waldur_core.core.validators import validate_ssh_public_key
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.models import UserRole
@@ -1072,7 +1071,7 @@ class ProviderOfferingDetailsSerializer(
     screenshots = NestedScreenshotSerializer(many=True, read_only=True)
     state = serializers.ReadOnlyField(source="get_state_display")
     state_code = serializers.ReadOnlyField(source="state")
-    scope = GenericRelatedField(read_only=True)
+    scope = core_serializers.GenericRelatedField(read_only=True)
     scope_uuid = serializers.ReadOnlyField(source="scope.uuid")
     scope_state = serializers.ReadOnlyField(source="scope.get_state_display")
     files = NestedOfferingFileSerializer(many=True, read_only=True)
@@ -2789,7 +2788,7 @@ class CategoryComponentUsageSerializer(
 ):
     category_title = serializers.ReadOnlyField(source="component.category.title")
     category_uuid = serializers.ReadOnlyField(source="component.category.uuid")
-    scope = GenericRelatedField(
+    scope = core_serializers.GenericRelatedField(
         related_models=(structure_models.Project, structure_models.Customer)
     )
 
@@ -3193,7 +3192,7 @@ class OfferingReferralSerializer(
     serializers.HyperlinkedModelSerializer,
     core_serializers.AugmentedSerializerMixin,
 ):
-    scope = GenericRelatedField(read_only=True)
+    scope = core_serializers.GenericRelatedField(read_only=True)
     scope_uuid = serializers.ReadOnlyField(source="scope.uuid")
 
     class Meta:
@@ -3686,7 +3685,9 @@ class OfferingStatsSerializer(serializers.Serializer):
     country = serializers.CharField(source="offering__country")
 
 
-class ProviderCustomerProjectSerializer(serializers.ModelSerializer):
+class ProviderCustomerProjectSerializer(
+    core_serializers.RestrictedSerializerMixin, serializers.ModelSerializer
+):
     class Meta:
         model = structure_models.Project
         fields = (
@@ -3781,7 +3782,9 @@ class ProjectUserSerializer(serializers.ModelSerializer):
         return super().to_representation(user)
 
 
-class DetailedProviderUserSerializer(serializers.ModelSerializer):
+class DetailedProviderUserSerializer(
+    core_serializers.RestrictedSerializerMixin, serializers.ModelSerializer
+):
     class Meta:
         model = User
         fields = (
@@ -3824,10 +3827,25 @@ class DetailedProviderUserSerializer(serializers.ModelSerializer):
         return fields
 
 
-class ProviderCustomerSerializer(serializers.ModelSerializer):
+class ProviderOfferingCustomerSerializer(
+    core_serializers.RestrictedSerializerMixin, serializers.ModelSerializer
+):
     class Meta:
         model = structure_models.Customer
         fields = (
+            "uuid",
+            "name",
+            "slug",
+            "abbreviation",
+            "phone_number",
+            "email",
+        )
+
+
+class ProviderCustomerSerializer(ProviderOfferingCustomerSerializer):
+    class Meta:
+        model = structure_models.Customer
+        fields = ProviderOfferingCustomerSerializer.Meta.fields + (
             "uuid",
             "name",
             "slug",
@@ -3893,7 +3911,9 @@ class ProviderCustomerSerializer(serializers.ModelSerializer):
 
 
 class ProviderOfferingSerializer(
-    core_serializers.SlugSerializerMixin, serializers.ModelSerializer
+    core_serializers.SlugSerializerMixin,
+    core_serializers.RestrictedSerializerMixin,
+    serializers.ModelSerializer,
 ):
     customer_uuid = serializers.ReadOnlyField(source="customer.uuid")
 
