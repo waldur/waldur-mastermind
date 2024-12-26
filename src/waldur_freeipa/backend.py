@@ -3,6 +3,7 @@ import csv
 from io import StringIO
 
 import python_freeipa
+import python_freeipa.exceptions
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 
@@ -210,7 +211,10 @@ class GroupSynchronizer:
     def delete_stale_groups(self):
         for group in self.freeipa_groups - self.groups:
             utils.renew_task_status()
-            self.client._request("group_detach", group)
+            try:
+                self.client._request("group_detach", group)
+            except python_freeipa.exceptions.NotFound:
+                return
             self.client.group_del(group)
 
     def sync_user_status(self):
