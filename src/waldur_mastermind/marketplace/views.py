@@ -1133,7 +1133,7 @@ class ProviderOfferingViewSet(
         offering = self.get_object()
         active_customers = utils.get_active_customers(request, self)
         customer_queryset = utils.get_offering_customers(offering, active_customers)
-        serializer_class = structure_serializers.CustomerSerializer
+        serializer_class = serializers.ProviderOfferingCustomerSerializer
         serializer = serializer_class(
             instance=customer_queryset, many=True, context=self.get_serializer_context()
         )
