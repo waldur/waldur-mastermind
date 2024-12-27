@@ -1400,6 +1400,7 @@ class OfferingDeleteTest(test.APITransactionTestCase):
             shared=True,
             state=models.Offering.States.DRAFT,
         )
+        factories.PlanFactory(offering=self.offering)
         CustomerRole.OWNER.add_permission(PermissionEnum.DELETE_OFFERING)
 
     @data("staff", "owner")
@@ -1607,6 +1608,14 @@ class OfferingStateTest(test.APITransactionTestCase):
         response, offering = self.update_offering_state(user, "activate")
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(offering.state, models.Offering.States.ACTIVE)
+
+    def test_validate_offering_has_plans(self):
+        self.offering.plans.all().delete()
+        response, offering = self.update_offering_state("staff", "activate")
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+        self.assertTrue("Offering does not have any billing plans." in response.data)
 
     @data("owner", "user", "customer_support", "admin", "manager", "service_manager")
     def test_unauthorized_user_can_not_activate_offering(self, user):

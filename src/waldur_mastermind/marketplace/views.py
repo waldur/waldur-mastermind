@@ -654,6 +654,13 @@ def validate_offering_update(offering):
         )
 
 
+def validate_offering_has_plans(offering):
+    if not models.offering_has_plans(offering):
+        raise rf_exceptions.ValidationError(
+            _("Offering does not have any billing plans.")
+        )
+
+
 class ProviderOfferingViewSet(
     UserRoleMixin,
     core_views.CreateReversionMixin,
@@ -887,6 +894,9 @@ class ProviderOfferingViewSet(
     activate_validators = pause_validators = archive_validators = destroy_validators = [
         structure_utils.check_customer_blocked_or_archived
     ]
+
+    activate_validators += [validate_offering_has_plans]
+    unpause_validators = [validate_offering_has_plans]
 
     update_permissions = [can_update_offering]
 

@@ -809,17 +809,21 @@ class OfferingStatsCounterTest(test.APITransactionTestCase):
             category=self.category1,
             state=models.Offering.States.ACTIVE,
         )
+        factories.PlanFactory(offering=self.offering1)
 
         self.offering2 = factories.OfferingFactory(
             customer=self.provider1,
             category=self.category1,
             state=models.Offering.States.ACTIVE,
         )
+        factories.PlanFactory(offering=self.offering2)
+
         self.offering3 = factories.OfferingFactory(
             customer=self.provider2,
             category=self.category2,
             state=models.Offering.States.ACTIVE,
         )
+        factories.PlanFactory(offering=self.offering3)
 
         self.url = "/api/marketplace-stats/offerings_counter_stats/"
 
