@@ -1,9 +1,10 @@
 import datetime
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 from ddt import data, ddt
 from django.db.models.aggregates import Sum
+from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
 
@@ -70,7 +71,7 @@ class CustomerCreditCreateTest(test.APITransactionTestCase):
                 self.fixture.customer
             ),
             "value": 1000,
-            "minimal_consumption": 100,
+            "expected_consumption": 100,
         }
         self.client.force_authenticate(self.fixture.staff)
         url = factories.CustomerCreditFactory.get_list_url()
@@ -80,13 +81,13 @@ class CustomerCreditCreateTest(test.APITransactionTestCase):
         payload = {
             "customer": structure_factories.CustomerFactory.get_url(),
             "value": 1000,
-            "minimal_consumption": 2000,
+            "expected_consumption": 2000,
         }
         url = factories.CustomerCreditFactory.get_list_url()
         response = self.client.post(url, payload)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @freeze_time("2024-10-10")
+    @freeze_time("2025-08-10")
     def test_minimal_consumption_logic(self):
         payload = {
             "customer": structure_factories.CustomerFactory.get_url(
@@ -95,7 +96,7 @@ class CustomerCreditCreateTest(test.APITransactionTestCase):
             "value": 1600,
             "end_date": datetime.date(year=2025, month=10, day=15),
             "minimal_consumption_logic": models.CustomerCredit.MinimalConsumptionLogic.LINEAR,
-            "minimal_consumption": 500,
+            "expected_consumption": 500,
         }
         self.client.force_authenticate(self.fixture.staff)
         url = factories.CustomerCreditFactory.get_list_url()
@@ -104,14 +105,22 @@ class CustomerCreditCreateTest(test.APITransactionTestCase):
         credit: models.CustomerCredit = models.CustomerCredit.objects.get(
             uuid=response.data["uuid"]
         )
-        self.assertEqual(credit.minimal_consumption, payload["minimal_consumption"])
+        self.assertEqual(credit.expected_consumption, payload["expected_consumption"])
         self.assertEqual(credit.end_date, datetime.date(year=2025, month=10, day=31))
 
         with freeze_time("2024-11-01"):
             tasks.process_invoice_credits(self.fixture.invoice)
             credit.refresh_from_db()
+
+            days_in_current_month = Decimal(30)
+            days_until_credit_end = Decimal(
+                (credit.end_date.replace(day=1) - datetime.date.today()).days
+            )
+            time_left_factor = days_in_current_month / days_until_credit_end
             self.assertEqual(
-                (payload["value"] - payload["minimal_consumption"]) / 11,
+                (credit.value * time_left_factor).quantize(
+                    Decimal("1.00000"), rounding=ROUND_HALF_UP
+                ),
                 credit.minimal_consumption,
             )
 
@@ -279,6 +288,7 @@ class ProjectCreditDeleteTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
+@ddt
 @freeze_time("2024-01-01")
 class CustomerCreditTest(test.APITransactionTestCase):
     def setUp(self):
@@ -325,15 +335,15 @@ class CustomerCreditTest(test.APITransactionTestCase):
     def test_minimal_consumption(self):
         old_total = self.invoice.total
         credit_value = self.invoice.total * 3
-        minimal_consumption = self.invoice.total * 2
+        expected_consumption = self.invoice.total * 2
         credit = factories.CustomerCreditFactory(
             customer=self.invoice.customer,
             value=credit_value,
-            minimal_consumption=minimal_consumption,
+            expected_consumption=expected_consumption,
         )
         tasks.process_invoice_credits(self.invoice)
         self.assertTrue(models.InvoiceItem.objects.filter(credit=credit).exists())
-        self.assertEqual(old_total * -1, old_total - minimal_consumption)
+        self.assertEqual(old_total * -1, old_total - expected_consumption)
         self.assertTrue(
             logging_models.Event.objects.filter(
                 event_type="reduction_of_credit_due_to_minimal_consumption"
@@ -361,8 +371,84 @@ class CustomerCreditTest(test.APITransactionTestCase):
             ).exists()
         )
 
-    def test_consumption_last_month(self):
-        pass
+    def test_calculate_linear_expected_consumption(self):
+        @dataclass
+        class TestResult:
+            date: str
+            consumption: Decimal
+            credit_left: Decimal
+
+        def create_invoice(customer, price):
+            date = timezone.now()
+            new_invoice = models.Invoice.objects.create(
+                customer=customer,
+                month=date.month,
+                year=date.year,
+            )
+            if price:
+                models.InvoiceItem.objects.create(
+                    invoice=new_invoice,
+                    unit_price=price,
+                    unit=models.InvoiceItem.Units.QUANTITY,
+                    quantity=1,
+                )
+            return new_invoice
+
+        test_data = [
+            # TestResult("2023-12-01", Decimal("0"), Decimal("1200")),
+            TestResult("2024-01-01", Decimal("0"), Decimal("0")),
+            TestResult("2024-02-01", Decimal("0"), Decimal("0")),
+            TestResult("2024-03-01", Decimal("0"), Decimal("0")),
+            TestResult("2024-04-01", Decimal("0"), Decimal("0")),
+            TestResult("2024-05-01", Decimal("0"), Decimal("0")),
+            TestResult("2024-06-01", Decimal("0"), Decimal("0")),
+            TestResult("2024-07-01", Decimal("0"), Decimal("0")),
+            TestResult("2024-08-01", Decimal("0"), Decimal("0")),
+            TestResult("2024-09-01", Decimal("0"), Decimal("0")),
+            TestResult("2024-10-01", Decimal("0"), Decimal("0")),
+            TestResult("2024-11-01", Decimal("0"), Decimal("0")),
+            TestResult("2024-12-01", Decimal("0"), Decimal("0")),
+            TestResult("2025-01-01", Decimal("0"), Decimal("0")),
+        ]
+
+        credit = factories.CustomerCreditFactory(
+            value=1200,
+            end_date=datetime.date(2025, 1, 1),
+            minimal_consumption_logic=models.MinimalConsumptionMixin.MinimalConsumptionLogic.LINEAR,
+            grace_coefficient=0,
+        )
+
+        for d in test_data:
+            with freeze_time(d.date):
+                invoice = create_invoice(credit.customer, d.consumption)
+                monthly_compensation = compensations.MonthlyCompensation(
+                    invoice.customer
+                )
+                monthly_compensation.apply_compensations()
+                expected_consumption = credit.expected_consumption
+                monthly_compensation.update_linear_expected_consumption()
+                invoice.set_created()
+                credit.refresh_from_db()
+                print(
+                    f"\ndate: {d.date}, \n"
+                    f"consumption: {d.consumption}, \n"
+                    f"total_compensation: {monthly_compensation.total_compensation}, \n"
+                    f"time_left_factor: {credit.time_left_factor}, \n"
+                    f"expected_consumption: {expected_consumption}, \n"
+                    f"expected_consumption_new: {credit.expected_consumption}, \n"
+                    f"minimal_consumption: {credit.minimal_consumption}, \n"
+                    f"credit.value: {credit.value},"
+                )
+                # self.assertEqual(
+                #     credit.value,
+                #     d.credit_left.quantize(Decimal("1.00000"), rounding=ROUND_HALF_UP),
+                #     f"date: {d.date}, \n"
+                #     f"time_left_factor: {credit.time_left_factor}, \n"
+                #     f"expected_consumption: {expected_consumption}, \n"
+                #     f"expected_consumption_new: {credit.expected_consumption}, \n"
+                #     f"minimal_consumption: {credit.minimal_consumption}, \n"
+                #     f"credit.value: {credit.value},"
+                # )
 
 
 @freeze_time("2024-01-01")
@@ -408,13 +494,13 @@ class CompensationTestResult:
     initial_project_credit: Decimal
     initial_customer_credit: Decimal
     consumption: Decimal
-    minimal_consumption: Decimal
+    expected_consumption: Decimal
 
     def expected_project_deduction(self) -> Decimal:
         return self.consumption
 
     def expected_customer_deduction(self) -> Decimal:
-        return max(self.consumption, self.minimal_consumption)
+        return max(self.consumption, self.expected_consumption)
 
 
 class ProcessingCreditTest(test.APITransactionTestCase):
@@ -483,16 +569,16 @@ class ProcessingCreditTest(test.APITransactionTestCase):
                 f"Expected empty measured_unit, found {measured_unit}",
             )
 
-    def _processing_compensations(self, minimal_consumption: Decimal = Decimal("0")):
+    def _processing_compensations(self, expected_consumption: Decimal = Decimal("0")):
         """Test credit compensation application and rollback"""
         # Setup
-        self.customer_credit.minimal_consumption = minimal_consumption
+        self.customer_credit.expected_consumption = expected_consumption
         self.customer_credit.save()
 
         test_result = CompensationTestResult(
             initial_project_credit=self.project_credit.value,
             initial_customer_credit=self.customer_credit.value,
-            minimal_consumption=minimal_consumption,
+            expected_consumption=expected_consumption,
             consumption=Decimal("0"),  # Will be updated after compensation
         )
 
@@ -534,10 +620,10 @@ class ProcessingCreditTest(test.APITransactionTestCase):
 
     def test_minimal_consumption_compensation(self):
         """Test compensation with minimal consumption requirement"""
-        minimal_consumption = Decimal("90")
-        result = self._processing_compensations(minimal_consumption)
+        expected_consumption = Decimal("90")
+        result = self._processing_compensations(expected_consumption)
         self.assertGreater(
-            result.minimal_consumption,
+            result.expected_consumption,
             result.consumption,
             "Minimal consumption should be greater than actual consumption",
         )

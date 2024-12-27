@@ -295,7 +295,7 @@ def process_invoice_credits(invoice):
     with transaction.atomic():
         monthly_compensation = compensations.MonthlyCompensation(invoice.customer)
         monthly_compensation.apply_compensations()
-        monthly_compensation.update_linear_minimal_consumption()
+        monthly_compensation.update_linear_expected_consumption()
 
         if monthly_compensation.tail:
             log.event_logger.credit.info(
