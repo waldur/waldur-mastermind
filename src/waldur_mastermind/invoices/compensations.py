@@ -1,7 +1,12 @@
+import datetime
 import logging
+from decimal import Decimal
 
 from django.db import transaction
 from django.db.models import Sum
+
+from waldur_core.core import utils as core_utils
+from waldur_core.structure import models as structure_models
 
 from . import log, models
 
@@ -148,19 +153,44 @@ class MonthlyCompensation:
         self.calculate_current_compensations()
         return self._tail
 
-    def update_linear_expected_consumption(self):
+    @staticmethod
+    def calculate_linear_minimal_consumption(
+        customer: structure_models.Customer,
+        credit_value: int | Decimal,
+        end_date: datetime.date,
+    ):
+        today = datetime.date.today()
+        months = (end_date.year * 12 + end_date.month) - (today.year * 12 + today.month)
+        last_month = core_utils.get_last_month()
+
+        if models.Invoice.objects.filter(
+            customer=customer,
+            year=last_month.year,
+            month=last_month.month,
+            state=models.Invoice.States.PENDING,
+        ).exists():
+            months += 1
+
+        if not months:
+            return credit_value
+
+        return credit_value / months
+
+    def update_linear_minimal_consumption(self):
         if (
             self.credit
             and self.credit.minimal_consumption_logic
             == models.CustomerCredit.MinimalConsumptionLogic.LINEAR
             and self.credit.end_date
         ):
-            self.credit.expected_consumption = (
-                self.credit.calculate_linear_expected_consumption(
-                    self.total_compensation
+            self.credit.minimal_consumption = (
+                MonthlyCompensation.calculate_linear_minimal_consumption(
+                    self.customer,
+                    self.credit.value,
+                    self.credit.end_date,
                 )
             )
-            self.credit.save(update_fields=["expected_consumption"])
+            self.credit.save(update_fields=["minimal_consumption"])
 
     @transaction.atomic
     def save(self):

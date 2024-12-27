@@ -1,5 +1,3 @@
-import decimal
-
 import factory
 from django.utils import timezone
 from rest_framework.reverse import reverse
@@ -99,7 +97,7 @@ class CustomerCreditFactory(factory.django.DjangoModelFactory):
         model = models.CustomerCredit
 
     customer = factory.SubFactory(structure_factories.CustomerFactory)
-    value = decimal.Decimal("100")
+    value = 100
 
     @classmethod
     def get_url(cls, credit=None, action=None):

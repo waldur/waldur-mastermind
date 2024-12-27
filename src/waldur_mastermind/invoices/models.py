@@ -507,7 +507,7 @@ class Payment(core_models.UuidMixin, core_models.TimeStampedModel):
         return "payment"
 
 
-class MinimalConsumptionMixin(models.Model):
+class CustomerCredit(core_models.UuidMixin, core_models.TimeStampedModel):
     class MinimalConsumptionLogic:
         FIXED = "fixed"
         LINEAR = "linear"
@@ -517,7 +517,16 @@ class MinimalConsumptionMixin(models.Model):
             (LINEAR, "Linear"),
         )
 
-    expected_consumption = models.DecimalField(
+    customer = models.OneToOneField(structure_models.Customer, on_delete=models.CASCADE)
+    value = models.DecimalField(
+        default=0,
+        validators=[MinValueValidator(decimal.Decimal("0"))],
+        max_digits=16,
+        decimal_places=5,
+    )
+    offerings = models.ManyToManyField(marketplace_models.Offering)
+    end_date = models.DateField(null=True)
+    minimal_consumption = models.DecimalField(
         default=0,
         validators=[MinValueValidator(decimal.Decimal("0"))],
         max_digits=16,
@@ -528,63 +537,6 @@ class MinimalConsumptionMixin(models.Model):
         choices=MinimalConsumptionLogic.CHOICES,
         default=MinimalConsumptionLogic.FIXED,
     )
-    grace_coefficient = models.DecimalField(
-        max_digits=3,
-        decimal_places=0,
-        default=decimal.Decimal("0"),
-    )
-    apply_as_minimal_consumption = models.BooleanField(default=True)
-
-    @property
-    def time_left_factor(self):
-        today = datetime.date.today()
-        days_until_credit_end = decimal.Decimal(
-            (self.end_date.replace(day=1) - today).days
-        )
-
-        if days_until_credit_end <= 0:
-            return decimal.Decimal("1")
-
-        days_in_current_month = decimal.Decimal(monthrange(today.year, today.month)[1])
-        return min(decimal.Decimal("1"), days_in_current_month / days_until_credit_end)
-
-    def calculate_linear_expected_consumption(self, total_compensation):
-        return (
-            max(decimal.Decimal("0"), self.expected_consumption - total_compensation)
-            * (decimal.Decimal("1") - self.time_left_factor)
-            + self.value * self.time_left_factor
-        )
-
-    @property
-    def minimal_consumption(self):
-        if not self.apply_as_minimal_consumption:
-            return 0
-
-        if (
-            self.end_date
-            and self.end_date.year == datetime.date.today().year
-            and self.end_date.month == datetime.date.today().month
-        ):
-            return self.expected_consumption
-
-        return (100 - self.grace_coefficient) / 100 * self.expected_consumption
-
-    class Meta:
-        abstract = True
-
-
-class CustomerCredit(
-    MinimalConsumptionMixin, core_models.UuidMixin, core_models.TimeStampedModel
-):
-    customer = models.OneToOneField(structure_models.Customer, on_delete=models.CASCADE)
-    value = models.DecimalField(
-        default=0,
-        validators=[MinValueValidator(decimal.Decimal("0"))],
-        max_digits=16,
-        decimal_places=5,
-    )
-    offerings = models.ManyToManyField(marketplace_models.Offering)
-    end_date = models.DateField(null=True)
 
     tracker = FieldTracker()
 
