@@ -211,6 +211,8 @@
 
 - role: CALL.REVIEWER
   description: Call reviewer
+  permissions:
+    - PROPOSAL.LIST
 
 - role: CUSTOMER.SUPPORT
   is_active: false
@@ -224,6 +226,7 @@
     - CALL.CREATE_PERMISSION
     - CALL.UPDATE_PERMISSION
     - CALL.DELETE_PERMISSION
+    - PROPOSAL.LIST
 
 - role: PROPOSAL.MANAGER
   description: Proposal manager

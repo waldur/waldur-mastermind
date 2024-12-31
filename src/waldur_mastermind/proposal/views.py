@@ -380,7 +380,10 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     model = models.Proposal
 
     get_queryset = permissions_utils.queryset_factory(
-        models.Proposal, RoleEnum.CALL_MANAGER, "round.call", created_by=True
+        models.Proposal,
+        RoleEnum.CALL_MANAGER,
+        "round.call",
+        created_by=True,
     )
 
     def is_creator(request, view, obj=None):
