@@ -232,15 +232,32 @@ def queryset_factory(model, role, path=None, ordering=None, created_by=False):
             return model.objects.all()
 
         related_model = model
+        try:
+            permissions = related_model.Permissions
+
+        except AttributeError:
+            permissions = None
+
+        list_permission = getattr(permissions, "list_permission", None)
 
         for p in path_list:
             related_model = getattr(related_model, p).field.related_model
 
-        related_model_ids = get_scope_ids(
-            user,
-            content_type=ContentType.objects.get_for_model(related_model),
-            role=role,
-        )
+        ctype = ContentType.objects.get_for_model(related_model)
+
+        if list_permission:
+            roles = list(
+                models.Role.objects.filter(
+                    content_type=ctype,
+                    is_active=True,
+                    permissions__permission=list_permission,
+                ).values_list("name", flat=True)
+            )
+            if not roles:
+                return model.objects.none()
+            related_model_ids = get_scope_ids(user, ctype, roles)
+        else:
+            related_model_ids = get_scope_ids(user, ctype, role)
 
         query = {path + "__in": related_model_ids}
 

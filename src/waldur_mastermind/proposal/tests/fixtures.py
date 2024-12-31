@@ -37,6 +37,14 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
             role=CallRole.MANAGER,
             permission=enums.PermissionEnum.CREATE_CALL_PERMISSION,
         )
+        permissions_models.RolePermission.objects.get_or_create(
+            role=CallRole.MANAGER,
+            permission=enums.PermissionEnum.LIST_PROPOSALS,
+        )
+        permissions_models.RolePermission.objects.get_or_create(
+            role=CallRole.REVIEWER,
+            permission=enums.PermissionEnum.LIST_PROPOSALS,
+        )
 
     @cached_property
     def manager(self):

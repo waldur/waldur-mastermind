@@ -4,8 +4,8 @@ from ddt import data, ddt
 from rest_framework import status, test
 
 from waldur_core.media.utils import dummy_image
-from waldur_core.permissions.fixtures import ProposalRole
-from waldur_core.permissions.utils import has_user
+from waldur_core.permissions.fixtures import CallRole, ProposalRole
+from waldur_core.permissions.utils import add_user, has_user
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.proposal import models, tasks
 from waldur_mastermind.proposal.tests import factories, fixtures
@@ -15,13 +15,9 @@ from waldur_mastermind.proposal.tests import factories, fixtures
 class ProposalGetTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
-        self.url = factories.ProposalFactory.get_list_url()
+        self.url = factories.ProposalFactory.get_url(self.fixture.proposal)
 
-    @data(
-        "staff",
-        "call_manager",
-        "proposal_creator",
-    )
+    @data("staff", "call_manager", "proposal_creator", "reviewer_1")
     def test_proposal_should_be_visible(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
@@ -38,8 +34,31 @@ class ProposalGetTest(test.APITransactionTestCase):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_proposal_should_not_be_visible_if_user_is_not_connected_to_call(self):
+        another_reviewer, another_proposals_url = (
+            self.create_another_call_and_proposal()
+        )
+
+        user = another_reviewer
+        self.client.force_authenticate(user)
+        response = self.client.get(another_proposals_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertFalse(len(response.json()))
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def create_another_call_and_proposal(self):
+        another_call = factories.CallFactory(
+            manager=self.fixture.manager,
+            state=models.Call.States.ACTIVE,
+        )
+        another_round = factories.RoundFactory(call=another_call)
+        another_reviewer = structure_factories.UserFactory()
+        add_user(another_call, another_reviewer, CallRole.REVIEWER)
+        another_proposal = factories.ProposalFactory(round=another_round)
+        another_proposals_url = factories.ProposalFactory.get_url(another_proposal)
+        return another_reviewer, another_proposals_url
 
 
 @ddt

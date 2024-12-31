@@ -12,7 +12,7 @@ from model_utils.models import TimeStampedModel
 
 import waldur_core.media.mixins
 from waldur_core.core import models as core_models
-from waldur_core.permissions.enums import RoleEnum
+from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.models import Role
 from waldur_core.permissions.utils import get_users
 from waldur_core.structure import models as structure_models
@@ -332,6 +332,7 @@ class Proposal(
     class Permissions:
         customer_path = "round__call__manager__customer"
         build_query = filter_proposals
+        list_permission = PermissionEnum.LIST_PROPOSALS
 
     def __str__(self):
         return f"{self.name} | {self.round.start_time} - {self.round.cutoff_time} | {self.round.call}"
