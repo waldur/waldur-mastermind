@@ -112,7 +112,7 @@ def count_users(scope):
 def has_user(scope, user, role=None, expiration_time=None):
     """
     Checks whether user has role in entity.
-    `expiration_time` can have following values:
+    `expiration_time` can have the following values:
         - False - check whether user has role in entity at the moment.
         - None - check whether user has permanent role in entity.
         - Datetime object - check whether user will have role in entity at specific timestamp.
