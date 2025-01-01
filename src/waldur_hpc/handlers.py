@@ -99,7 +99,7 @@ def get_or_create_project(customer, user, wrong_customer):
         except Project.DoesNotExist:
             pass
 
-        project = Project.objects.create(customer=customer, name=user.username)
+        project: Project = Project.objects.create(customer=customer, name=user.username)
         project.add_user(user, ProjectRole.ADMIN)
         return project
     else:
@@ -112,7 +112,7 @@ def get_or_create_order(project: Project, user, offering, plan, limits=None):
 
     order_ids = Order.objects.filter(offering=offering).values_list("id", flat=True)
 
-    order = (
+    order: Order = (
         Order.objects.filter(
             project=project,
             created_by=user,
@@ -141,7 +141,7 @@ def get_or_create_order(project: Project, user, offering, plan, limits=None):
     name = sanitize_allocation_name(user.username)
 
     with transaction.atomic():
-        resource = Resource(
+        resource: Resource = Resource(
             project=project,
             offering=offering,
             plan=plan,
@@ -153,7 +153,7 @@ def get_or_create_order(project: Project, user, offering, plan, limits=None):
         resource.init_cost()
         resource.save()
 
-        order = Order(
+        order: Order = Order(
             resource=resource,
             project=project,
             created_by=user,
@@ -228,11 +228,11 @@ def handle_new_user(sender, instance, created=False, **kwargs):
     if not external_customer:
         return
 
-    offering = get_offering()
+    offering: Offering = get_offering()
     if not offering:
         return
 
-    plan = get_plan()
+    plan: Plan = get_plan()
     if not plan:
         return
 
@@ -241,12 +241,15 @@ def handle_new_user(sender, instance, created=False, **kwargs):
         return
 
     if is_internal_user(user):
-        project = get_or_create_project(internal_customer, user, external_customer)
+        project: Project = get_or_create_project(
+            internal_customer, user, external_customer
+        )
 
         if not project:
             return
         # assure that user has permissions connected with the project
-        project.add_user(user, ProjectRole.ADMIN)
+        if not project.has_user(user, ProjectRole.ADMIN):
+            project.add_user(user, ProjectRole.ADMIN)
 
         order, order_created = get_or_create_order(
             project,
@@ -268,7 +271,8 @@ def handle_new_user(sender, instance, created=False, **kwargs):
             return
 
         # assure that user has permissions connected with the project
-        project.add_user(user, ProjectRole.ADMIN)
+        if not project.has_user(user, ProjectRole.ADMIN):
+            project.add_user(user, ProjectRole.ADMIN)
 
         order, order_created = get_or_create_order(
             project,
