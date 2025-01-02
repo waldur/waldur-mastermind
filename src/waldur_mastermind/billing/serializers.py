@@ -113,7 +113,14 @@ class FinancialReportSerializer(serializers.ModelSerializer):
     billing_price_estimate = serializers.SerializerMethodField()
 
     def get_billing_price_estimate(self, customer):
-        return get_price_estimate(self, customer)
+        request = self.context["request"]
+        provider_uuid = request.query_params.get("provider_uuid")
+        if provider_uuid:
+            return utils.get_billing_price_estimate_for_provider(
+                customer, provider_uuid
+            )
+        else:
+            return get_price_estimate(self, customer)
 
     def get_payment_profiles(self, customer):
         return get_payment_profiles(self, customer)

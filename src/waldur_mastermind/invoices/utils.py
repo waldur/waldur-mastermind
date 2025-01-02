@@ -3,15 +3,22 @@ import datetime
 import logging
 import re
 from calendar import monthrange
-from decimal import Decimal
+from decimal import ROUND_UP, Decimal
+from uuid import UUID
 
 from constance import config
 from django.conf import settings
-from django.db.models import Sum
+from django.core.exceptions import ValidationError
+from django.db.models import F, Sum
+from django.db.models.expressions import Case, When
+from django.db.models.functions.comparison import Coalesce
+from django.db.models.functions.datetime import Extract
 from django.template.loader import render_to_string
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 
 from waldur_core.core import utils as core_utils
+from waldur_core.structure.models import Customer
 from waldur_mastermind.common.mixins import UnitPriceMixin
 
 from . import models
@@ -234,3 +241,155 @@ def get_billing_price_estimate_for_resources(resources):
         result["tax_current"] += item.tax_current
         result["total"] += item.total
     return result
+
+
+def get_billing_price_estimate_for_provider(
+    customer: Customer, provider_uuid: str
+) -> dict[str, Decimal]:
+    """
+    Calculate billing price estimates for a customer and specific provider.
+
+    Aggregates invoice items for the current month and year, calculating
+    total amounts, current charges, and taxes.
+
+    Args:
+    customer (Customer): Customer instance for whom to calculate estimates.
+    provider_uuid (str): Customer UUID of the service provider.
+
+    Returns:
+        dict: Price estimates containing:
+            - total: Total amount including taxes
+            - current: Current charges without taxes
+            - tax: Total tax amount
+            - tax_current: Current tax amount
+
+    Raises:
+        ValidationError: If input parameters are invalid, such as missing or
+            incorrect UUIDs, or if the provider does not exist.
+        ValueError: If the provider UUID is not a valid UUID format.
+        Customer.DoesNotExist: If no provider exists with the given UUID.
+        Exception: For any other unforeseen errors during processing.
+
+    """
+
+    if not customer or not provider_uuid:
+        raise ValidationError(_("Customer and provider UUID are required."))
+
+    try:
+        provider_uuid = str(UUID(provider_uuid))
+        Customer.objects.get(uuid=provider_uuid)
+    except ValueError:
+        raise ValidationError(_("Invalid provider UUID format"))
+    except Customer.DoesNotExist:
+        raise ValidationError(
+            _("Provider with UUID %s does not exist." % provider_uuid)
+        )
+
+    try:
+        seconds_in_hour = 3600
+        seconds_in_day = 86400
+
+        aggregated_data = models.InvoiceItem.objects.filter(
+            resource__offering__customer__uuid=provider_uuid,
+            invoice__customer=customer,
+            invoice__year=get_current_year(),
+            invoice__month=get_current_month(),
+        ).aggregate(
+            total=Coalesce(
+                Sum(
+                    F("quantity") * F("unit_price")
+                    + (
+                        F("quantity")
+                        * F("unit_price")
+                        * F("invoice__tax_percent")
+                        / 100
+                    )
+                ),
+                Decimal("0.00"),
+            ),
+            current=Coalesce(
+                Sum(
+                    Case(
+                        When(
+                            unit=models.InvoiceItem.Units.PER_HOUR,
+                            then=F("unit_price")
+                            * (
+                                Extract(F("end"), "epoch")
+                                - Extract(F("start"), "epoch")
+                            )
+                            / seconds_in_hour,
+                        ),
+                        When(
+                            unit=models.InvoiceItem.Units.PER_DAY,
+                            then=F("unit_price")
+                            * (
+                                Extract(F("end"), "epoch")
+                                - Extract(F("start"), "epoch")
+                            )
+                            / seconds_in_day,
+                        ),
+                        default=F("quantity") * F("unit_price"),
+                    )
+                ),
+                Decimal("0.00"),
+            ),
+            tax=Coalesce(
+                Sum(F("quantity") * F("unit_price") * F("invoice__tax_percent") / 100),
+                Decimal("0.00"),
+            ),
+            tax_current=Coalesce(
+                Sum(
+                    Case(
+                        When(
+                            unit=models.InvoiceItem.Units.PER_HOUR,
+                            then=F("unit_price")
+                            * (
+                                Extract(F("end"), "epoch")
+                                - Extract(F("start"), "epoch")
+                            )
+                            / seconds_in_hour
+                            * F("invoice__tax_percent")
+                            / 100,
+                        ),
+                        When(
+                            unit=models.InvoiceItem.Units.PER_DAY,
+                            then=F("unit_price")
+                            * (
+                                Extract(F("end"), "epoch")
+                                - Extract(F("start"), "epoch")
+                            )
+                            / seconds_in_day
+                            * F("invoice__tax_percent")
+                            / 100,
+                        ),
+                        default=F("quantity")
+                        * F("unit_price")
+                        * F("invoice__tax_percent")
+                        / 100,
+                    )
+                ),
+                Decimal("0.00"),
+            ),
+        )
+
+        result = {
+            key: Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_UP)
+            for key, value in aggregated_data.items()
+        }
+
+        logger.debug(
+            "Calculated billing estimate for provider %s: %s", provider_uuid, result
+        )
+
+        return result
+
+    except Exception as e:
+        logger.error(
+            "Failed to calculate billing estimate",
+            exc_info=e,
+            extra={
+                "customer_uuid": customer.uuid,
+                "provider_uuid": provider_uuid,
+            },
+        )
+        raise ValidationError(_("Failed to calculate billing estimate."))
