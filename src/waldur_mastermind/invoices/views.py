@@ -112,14 +112,22 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
     def stats(self, request, uuid=None):
         invoice = self.get_object()
         offerings = {}
+        requested_provider_uuid = request.query_params.get("provider_uuid")
+        if requested_provider_uuid:
+            items = invoice.items.filter(
+                resource__offering__customer__uuid=requested_provider_uuid
+            )
+        else:
+            items = invoice.items.all()
 
-        for item in invoice.items.all():
+        for item in items:
             if not item.resource:
                 continue
 
             resource = item.resource
             offering = resource.offering
             customer = offering.customer
+
             service_category_title = offering.category.title
             service_provider_name = customer.name
             service_provider_uuid = customer.serviceprovider.uuid.hex
