@@ -1,10 +1,10 @@
+from constance.test.pytest import override_config
 from ddt import data, ddt
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_mastermind.marketplace import models
-from waldur_mastermind.marketplace.tests.helpers import override_marketplace_settings
 
 from . import factories
 
@@ -26,7 +26,7 @@ class CategoryGetTest(test.APITransactionTestCase):
         self.assertEqual(len(response.json()), 1)
         self.category_url = factories.CategoryFactory.get_url(self.category)
 
-    @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=False)
+    @override_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=False)
     def test_category_should_be_invisible_to_unauthenticated_users(self):
         url = factories.CategoryFactory.get_list_url()
         response = self.client.get(url)
@@ -125,7 +125,7 @@ class CategoryOfferingCountTest(test.APITransactionTestCase):
         self._match_project_with_organization_group(offering_count=1)
         self._create_offering_for_owner(offering_count=1)
 
-    @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
+    @override_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
     def test_counts_for_anonymous(self):
         self.check_counts(offering_count=1)
         self._create_plan(offering_count=1)
@@ -134,7 +134,7 @@ class CategoryOfferingCountTest(test.APITransactionTestCase):
         self._match_project_with_organization_group(offering_count=1)
         self._create_offering_for_owner(offering_count=1)
 
-    @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=False)
+    @override_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=False)
     def test_counts_for_anonymous_if_anonymous_cannot_view_offerings(self):
         response = self.client.get(self.category_url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

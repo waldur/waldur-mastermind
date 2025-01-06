@@ -1,6 +1,7 @@
 import datetime
 from unittest import mock
 
+from constance.test.pytest import override_config
 from ddt import data, ddt
 from django.core import mail
 from django.test import override_settings
@@ -16,7 +17,6 @@ from waldur_mastermind.marketplace import PLUGIN_NAME, models, tasks
 from waldur_mastermind.marketplace.tasks import process_order
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
-from waldur_mastermind.marketplace.tests.helpers import override_marketplace_settings
 
 
 class OrderApproveByConsumerTest(test.APITransactionTestCase):
@@ -415,7 +415,7 @@ class OrderApprovalByConsumerNotificationTest(test.APITransactionTestCase):
     def setUp(self) -> None:
         self.fixture = marketplace_fixtures.MarketplaceFixture()
 
-    @override_marketplace_settings(NOTIFY_STAFF_ABOUT_APPROVALS=True)
+    @override_config(NOTIFY_STAFF_ABOUT_APPROVALS=True)
     def test_staff(self):
         self.check_notification(self.fixture.staff)
 

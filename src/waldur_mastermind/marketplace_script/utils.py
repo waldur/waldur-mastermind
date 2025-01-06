@@ -6,7 +6,7 @@ from time import sleep
 
 import docker
 import kubernetes as k8s
-from django.conf import settings
+from constance import config
 from docker.errors import ContainerError, DockerException
 from kubernetes.client.rest import ApiException
 from rest_framework import serializers as rf_serializers
@@ -16,7 +16,7 @@ from .exceptions import JobFailedException
 
 logger = logging.getLogger(__name__)
 
-NAMESPACE = settings.WALDUR_MARKETPLACE_SCRIPT["K8S_NAMESPACE"]
+NAMESPACE = config.K8S_NAMESPACE
 
 
 class DeploymentOptions(Enum):
@@ -25,18 +25,16 @@ class DeploymentOptions(Enum):
 
 
 def execute_script_in_docker(image, command, src, **kwargs):
-    remove_container = settings.WALDUR_MARKETPLACE_SCRIPT["DOCKER_REMOVE_CONTAINER"]
+    remove_container = config.DOCKER_REMOVE_CONTAINER
     with tempfile.NamedTemporaryFile(
         prefix="docker",
-        dir=settings.WALDUR_MARKETPLACE_SCRIPT["DOCKER_SCRIPT_DIR"],
+        dir=config.DOCKER_SCRIPT_DIR,
         mode="w+",
     ) as docker_script:
         docker_script.write(src)
         docker_script.flush()
         logger.info(f"Wrote script to {docker_script.name}")
-        client = docker.DockerClient(
-            **settings.WALDUR_MARKETPLACE_SCRIPT["DOCKER_CLIENT"]
-        )
+        client = docker.DockerClient(**config.DOCKER_CLIENT)
         return str(
             client.containers.run(
                 image=image,
@@ -50,7 +48,7 @@ def execute_script_in_docker(image, command, src, **kwargs):
                         "mode": "ro",
                     },
                 },
-                **settings.WALDUR_MARKETPLACE_SCRIPT["DOCKER_RUN_OPTIONS"],
+                **config.DOCKER_RUN_OPTIONS,
                 **kwargs,
             ),
             "utf-8",
@@ -100,7 +98,7 @@ def construct_k8s_job(name, image, command, volume_name, config_map_name, enviro
     spec = k8s.client.V1JobSpec(
         template=template,
         backoff_limit=0,  # Do not retry the job in case of failure
-        active_deadline_seconds=settings.WALDUR_MARKETPLACE_SCRIPT["K8S_JOB_TIMEOUT"],
+        active_deadline_seconds=config.K8S_JOB_TIMEOUT,
     )
     return k8s.client.V1Job(
         api_version="batch/v1",
@@ -182,16 +180,14 @@ def get_k8s_job_result(api: k8s.client.CoreV1Api, job_name):
 def execute_script_in_k8s(image, command, src, dry_run=False, **kwargs):
     """
     This function expects that Kubernetes config file located in path
-    from settings.WALDUR_MARKETPLACE_SCRIPT['K8S_CONFIG_PATH'] value
+    from constance config 'K8S_CONFIG_PATH' value
     """
     env = kwargs["environment"]
     job_name = "job-%s" % env["ORDER_UUID"]
     config_map_name = "script-%s" % env["ORDER_UUID"]
     volume_name = "volume-%s" % env["ORDER_UUID"]
 
-    k8s.config.load_kube_config(
-        config_file=settings.WALDUR_MARKETPLACE_SCRIPT["K8S_CONFIG_PATH"]
-    )
+    k8s.config.load_kube_config(config_file=config.K8S_CONFIG_PATH)
     batch_v1_api = k8s.client.BatchV1Api()
     api_v1 = k8s.client.CoreV1Api()
 
@@ -216,15 +212,9 @@ def execute_script_in_k8s(image, command, src, dry_run=False, **kwargs):
 
 
 def execute_script(image, command, src, dry_run=False, **kwargs):
-    if (
-        settings.WALDUR_MARKETPLACE_SCRIPT["SCRIPT_RUN_MODE"]
-        == DeploymentOptions.DOCKER.value
-    ):
+    if config.SCRIPT_RUN_MODE == DeploymentOptions.DOCKER.value:
         return execute_script_in_docker(image, command, src, **kwargs)
-    if (
-        settings.WALDUR_MARKETPLACE_SCRIPT["SCRIPT_RUN_MODE"]
-        == DeploymentOptions.KUBERNETES.value
-    ):
+    if config.SCRIPT_RUN_MODE == DeploymentOptions.KUBERNETES.value:
         return execute_script_in_k8s(image, command, src, dry_run=dry_run, **kwargs)
 
 
@@ -247,12 +237,8 @@ class ContainerExecutorMixin:
                 environment.update({opt["name"]: opt["value"]})
 
         language = options["language"]
-        image = settings.WALDUR_MARKETPLACE_SCRIPT["DOCKER_IMAGES"].get(language)[
-            "image"
-        ]
-        command = settings.WALDUR_MARKETPLACE_SCRIPT["DOCKER_IMAGES"].get(language)[
-            "command"
-        ]
+        image = config.DOCKER_IMAGES.get(language)["image"]
+        command = config.DOCKER_IMAGES.get(language)["command"]
 
         logger.debug(
             "About to execute marketplace script via Docker. "
@@ -321,9 +307,7 @@ class ContainerExecutorMixin:
         if self.hook_type not in options:
             raise rf_serializers.ValidationError("Script is not defined.")
 
-        command = settings.WALDUR_MARKETPLACE_SCRIPT["DOCKER_IMAGES"].get(
-            options["language"]
-        )
+        command = config.DOCKER_IMAGES.get(options["language"])
         if not command:
             raise rf_serializers.ValidationError("Docker image is not allowed.")
 

@@ -1,6 +1,7 @@
 import datetime
 from unittest.mock import patch
 
+from constance.test.pytest import override_config
 from django.core import mail
 from django.utils import timezone
 from freezegun import freeze_time
@@ -13,7 +14,6 @@ from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import models, tasks
-from waldur_mastermind.marketplace.tests.helpers import override_marketplace_settings
 from waldur_mastermind.marketplace_openstack import INSTANCE_TYPE
 from waldur_openstack.tests.fixtures import OpenStackFixture
 
@@ -238,7 +238,7 @@ class ProjectEndDate(test.APITransactionTestCase):
         self.fixture.project.refresh_from_db()
 
 
-@override_marketplace_settings(ENABLE_STALE_RESOURCE_NOTIFICATIONS=True)
+@override_config(ENABLE_STALE_RESOURCE_NOTIFICATIONS=True)
 class NotificationAboutStaleResourceTest(test.APITransactionTestCase):
     def setUp(self):
         project_fixture = structure_fixtures.ProjectFixture()
@@ -291,7 +291,7 @@ class NotificationAboutStaleResourceTest(test.APITransactionTestCase):
         tasks.notify_about_stale_resource()
         self.assertEqual(len(mail.outbox), 0)
 
-    @override_marketplace_settings(ENABLE_STALE_RESOURCE_NOTIFICATIONS=False)
+    @override_config(ENABLE_STALE_RESOURCE_NOTIFICATIONS=False)
     def test_do_not_send_notify_if_configuration_is_false(self):
         tasks.notify_about_stale_resource()
         self.assertEqual(len(mail.outbox), 0)

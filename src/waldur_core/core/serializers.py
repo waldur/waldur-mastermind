@@ -1,9 +1,11 @@
 import base64
+import json
 import logging
 import re
 from collections import OrderedDict
 
 from constance import LazyConfig, settings
+from django import forms
 from django.conf import settings as django_settings
 from django.core.exceptions import (
     ImproperlyConfigured,
@@ -26,6 +28,52 @@ from . import fields as core_fields
 
 logger = logging.getLogger(__name__)
 config = LazyConfig()
+
+
+class DictField(forms.CharField):
+    def __init__(self, *args, **kwargs):
+        kwargs["widget"] = forms.Textarea
+        super().__init__(*args, **kwargs)
+
+    def to_python(self, value):
+        if not value:
+            return {}
+        try:
+            return json.loads(value)
+        except ValueError as e:
+            raise forms.ValidationError(f"Invalid JSON format: {str(e)}")
+
+    def prepare_value(self, value):
+        if value is None:
+            return ""
+        if isinstance(value, dict):
+            try:
+                return json.dumps(value, indent=2)
+            except (TypeError, ValueError) as e:
+                raise forms.ValidationError(f"Could not serialize dictionary: {str(e)}")
+        return value
+
+
+class DictSerializerField(serializers.CharField):
+    def to_internal_value(self, data):
+        """Convert JSON string to Python dictionary."""
+        if not data:
+            return {}
+        try:
+            return json.loads(data) if isinstance(data, str) else data
+        except ValueError as e:
+            raise serializers.ValidationError(f"Invalid JSON format: {str(e)}")
+
+    def to_representation(self, value):
+        """Convert Python dictionary to JSON string for representation."""
+        if isinstance(value, dict):
+            try:
+                return json.dumps(value, indent=2)
+            except (TypeError, ValueError) as e:
+                raise serializers.ValidationError(
+                    f"Could not serialize dictionary: {str(e)}"
+                )
+        return value
 
 
 class AuthTokenSerializer(serializers.Serializer):
@@ -454,6 +502,8 @@ class ConstanceSettingsSerializer(serializers.Serializer):
                 field_class = serializers.IntegerField
             if config_type == bool:
                 field_class = serializers.BooleanField
+            if config_type == "dict_field":
+                field_class = DictSerializerField
             if config_type in (
                 "color_field",
                 "html_field",

@@ -262,7 +262,7 @@ def terminate_resources_if_project_end_date_has_been_reached():
 
 @shared_task(name="waldur_mastermind.marketplace.notify_about_stale_resource")
 def notify_about_stale_resource():
-    if not settings.WALDUR_MARKETPLACE["ENABLE_STALE_RESOURCE_NOTIFICATIONS"]:
+    if not config.ENABLE_STALE_RESOURCE_NOTIFICATIONS:
         return
 
     today = datetime.datetime.today()
@@ -485,10 +485,7 @@ def send_metrics():
     }
     if installation_date_str:
         params["installation_date"] = installation_date_str
-    url = (
-        settings.WALDUR_MARKETPLACE["TELEMETRY_URL"]
-        + f"v{settings.WALDUR_MARKETPLACE['TELEMETRY_VERSION']}/metrics/"
-    )
+    url = config.TELEMETRY_URL + f"v{config.TELEMETRY_VERSION}/metrics/"
     response = requests.post(url, json=params)
 
     if response.status_code != 200:

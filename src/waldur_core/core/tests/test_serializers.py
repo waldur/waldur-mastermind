@@ -1,3 +1,4 @@
+import json
 import unittest
 from collections import namedtuple
 
@@ -14,6 +15,7 @@ from waldur_core.core import utils
 from waldur_core.core.fields import TimestampField
 from waldur_core.core.serializers import (
     Base64Field,
+    DictSerializerField,
     GenericRelatedField,
     RestrictedSerializerMixin,
 )
@@ -51,6 +53,69 @@ class Base64FieldTest(unittest.TestCase):
             "This field should a be valid Base64 encoded string.",
             serializer.errors["content"],
         )
+
+
+class DictFieldTestSerializer(serializers.Serializer):
+    DOCKER_IMAGES = DictSerializerField()
+
+
+class DictSerializerFieldTest(unittest.TestCase):
+    def setUp(self):
+        self.python_dict = {"python": {"image": "python:3.11-alpine"}}
+        self.python_json = """{
+    "python": {
+        "image": "python:3.11-alpine"
+    }
+    }"""
+
+        self.TestSerializer = DictFieldTestSerializer
+
+    def test_dict_field_serialization(self):
+        """Test that Python dict is properly serialized to JSON string."""
+        data = {"DOCKER_IMAGES": self.python_dict}
+        serializer = self.TestSerializer(data)
+        expected_dict = json.loads(self.python_json)
+        actual_dict = json.loads(serializer.data["DOCKER_IMAGES"])
+        self.assertEqual(
+            actual_dict,
+            expected_dict,
+            f"Serialized JSON is different from expected. Expected: {expected_dict} Got: {actual_dict}",
+        )
+
+    def test_dict_field_deserialization(self):
+        """Test that JSON string is properly deserialized to Python dict."""
+        data = {"DOCKER_IMAGES": self.python_json}
+        serializer = self.TestSerializer(data=data)
+
+        self.assertTrue(
+            serializer.is_valid(), f"Validation failed: {serializer.errors}"
+        )
+
+        self.assertEqual(
+            serializer.validated_data["DOCKER_IMAGES"],
+            self.python_dict,
+            f"Deserialization failed: Expected: {self.python_dict} Got: {serializer.validated_data['DOCKER_IMAGES']}",
+        )
+
+    def test_invalid_json_handling(self):
+        """Test that invalid JSON is rejected."""
+        data = {"DOCKER_IMAGES": '{"invalid": json}'}
+        serializer = self.TestSerializer(data=data)
+
+        self.assertFalse(serializer.is_valid(), "Serializer should reject invalid JSON")
+        self.assertIn(
+            "DOCKER_IMAGES",
+            serializer.errors,
+            f"Expected validation error for DOCKER_IMAGES field. Got errors: {serializer.errors}",
+        )
+
+    def test_none_is_rejected(self):
+        """Test that None values are rejected."""
+        data = {"DOCKER_IMAGES": None}
+        serializer = self.TestSerializer(data=data)
+
+        # Should not be valid
+        self.assertFalse(serializer.is_valid(), "Serializer should reject None values")
 
 
 class GenericRelatedFieldTest(APITransactionTestCase):

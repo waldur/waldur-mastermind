@@ -10,4 +10,10 @@ gosu waldur sh -c "waldur override_constance_settings /etc/waldur/support.yaml"
 echo "INFO: Override language configuration..."
 gosu waldur sh -c "waldur override_constance_settings /etc/waldur/languages.yaml"
 
+echo "INFO: Override marketplace script settings..."
+gosu waldur sh -c "waldur override_constance_settings /etc/waldur/marketplace-script.yaml"
+
+echo "INFO: Override marketplace settings..."
+gosu waldur sh -c "waldur override_constance_settings /etc/waldur/marketplace.yaml"
+
 exit 0

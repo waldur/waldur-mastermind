@@ -3,7 +3,7 @@ import json
 import logging
 
 from celery import shared_task
-from django.conf import settings
+from constance import config
 from django.utils import timezone
 
 from waldur_core.core.utils import get_fake_context, get_system_robot
@@ -45,10 +45,8 @@ def pull_resource(resource_id):
             environment.update({opt["name"]: opt["value"]})
 
     language = options["language"]
-    image = settings.WALDUR_MARKETPLACE_SCRIPT["DOCKER_IMAGES"].get(language)["image"]
-    command = settings.WALDUR_MARKETPLACE_SCRIPT["DOCKER_IMAGES"].get(language)[
-        "command"
-    ]
+    image = config.DOCKER_IMAGES.get(language)["image"]
+    command = config.DOCKER_IMAGES.get(language)["command"]
 
     try:
         output = utils.execute_script(
@@ -149,10 +147,8 @@ def resource_options_have_been_changed(resource_id, options_old):
     environment["RESOURCE_OPTIONS"] = resource.options
 
     language = options["language"]
-    image = settings.WALDUR_MARKETPLACE_SCRIPT["DOCKER_IMAGES"].get(language)["image"]
-    command = settings.WALDUR_MARKETPLACE_SCRIPT["DOCKER_IMAGES"].get(language)[
-        "command"
-    ]
+    image = config.DOCKER_IMAGES.get(language)["image"]
+    command = config.DOCKER_IMAGES.get(language)["command"]
 
     try:
         utils.execute_script(

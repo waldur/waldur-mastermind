@@ -466,104 +466,6 @@ class WaldurPID(BaseModel):
     )
 
 
-class WaldurMarketplace(BaseModel):
-    THUMBNAIL_SIZE = Field(
-        (120, 120),
-        description="Size of the thumbnail to generate when screenshot is uploaded for an offering.",
-    )
-    ANONYMOUS_USER_CAN_VIEW_OFFERINGS = Field(
-        True,
-        description="Allow anonymous users to see shared offerings in active, paused and archived states",
-    )
-    ANONYMOUS_USER_CAN_VIEW_PLANS = Field(
-        True,
-        description="Allow anonymous users to see plans",
-    )
-    NOTIFY_STAFF_ABOUT_APPROVALS = Field(
-        False,
-        description="If true, users with staff role are notified when request for order approval is generated",
-    )
-    NOTIFY_ABOUT_RESOURCE_CHANGE = Field(
-        True,
-        description="If true, notify users about resource changes from Marketplace perspective. Can generate duplicate events if plugins also log",
-    )
-    DISABLE_SENDING_NOTIFICATIONS_ABOUT_RESOURCE_UPDATE = Field(
-        True, description="Disable only resource update events."
-    )
-    ENABLE_STALE_RESOURCE_NOTIFICATIONS = Field(
-        False,
-        description="Enable reminders to owners about resources of shared offerings that have not generated any cost for the last 3 months.",
-    )
-    ENABLE_RESOURCE_END_DATE = Field(
-        True,
-        description="Allow to view and update resource end date.",
-    )
-    TELEMETRY_URL = Field(
-        "https://telemetry.waldur.com/",
-        description="URL for sending telemetry data.",
-    )
-
-    TELEMETRY_VERSION = Field(
-        1,
-        description="Telemetry service version.",
-    )
-
-    class Meta:
-        public_settings = [
-            "ANONYMOUS_USER_CAN_VIEW_OFFERINGS",
-            "ENABLE_RESOURCE_END_DATE",
-        ]
-
-
-class WaldurMarketplaceScript(BaseModel):
-    SCRIPT_RUN_MODE = Field(
-        "docker",
-        description='Type of jobs deployment. Valid values: "docker" for simple docker deployment, "k8s" for Kubernetes-based one',
-    )
-    DOCKER_CLIENT = Field(
-        {
-            "base_url": "unix://var/run/docker.sock",
-        },
-        description="Options for docker client. See also: <https://docker-py.readthedocs.io/en/stable/client.html#docker.client.DockerClient>",
-    )
-    DOCKER_RUN_OPTIONS = Field(
-        {
-            "mem_limit": "512m",
-        },
-        description="Options for docker runtime. See also: <https://docker-py.readthedocs.io/en/stable/containers.html#docker.models.containers.ContainerCollection.run>",
-    )
-    DOCKER_SCRIPT_DIR: "str" = Field(
-        None,
-        description="Path to folder on executor machine where to create temporary submission scripts. If None uses OS-dependent location. OS X users, see <https://github.com/docker/for-mac/issues/1532>",
-    )
-    DOCKER_REMOVE_CONTAINER: bool = Field(
-        True, description="Remove Docker container after script execution"
-    )
-    DOCKER_IMAGES = Field(
-        {
-            "python": {"image": "python:3.11-alpine", "command": "python"},
-            "shell": {"image": "alpine:3", "command": "sh"},
-        },
-        description="Key is command to execute script, value is a dictionary of image name and command.",
-    )
-    K8S_NAMESPACE = Field(
-        "default", description="Kubernetes namespace where jobs will be executed"
-    )
-    K8S_CONFIG_PATH = Field(
-        "~/.kube/config", description="Path to Kubernetes configuration file"
-    )
-    K8S_JOB_TIMEOUT = Field(
-        30 * 60, description="Timeout for execution of one Kubernetes job in seconds"
-    )
-
-
-class WaldurMarketplaceRemoteSlurm(BaseModel):
-    USE_WALDUR_USERNAMES = Field(
-        True,
-        description="Fetch usernames from Waldur rather then FreeIPA profiles.",
-    )
-
-
 class WaldurAuthSAML2(BaseModel):
     NAME = Field(
         "saml2",
@@ -781,9 +683,6 @@ class WaldurConfiguration(BaseModel):
     WALDUR_SLURM = WaldurSlurm()
     WALDUR_PID = WaldurPID()
     WALDUR_OPENSTACK = WaldurOpenstack()
-    WALDUR_MARKETPLACE = WaldurMarketplace()
-    WALDUR_MARKETPLACE_SCRIPT = WaldurMarketplaceScript()
-    WALDUR_MARKETPLACE_REMOTE_SLURM = WaldurMarketplaceRemoteSlurm()
     WALDUR_AUTH_SAML2 = WaldurAuthSAML2()
     VERIFY_WEBHOOK_REQUESTS = Field(
         True,

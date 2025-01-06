@@ -13,6 +13,7 @@ from waldur_core.core import WaldurExtension
 from waldur_core.core.metadata import WaldurConfiguration
 from waldur_core.server.admin.settings import *  # noqa: F403
 
+
 encoding = locale.getpreferredencoding()
 if encoding.lower() != "utf-8":
     raise Exception(
@@ -324,6 +325,7 @@ CONSTANCE_ADDITIONAL_FIELDS = {
     "text_field": ["django.forms.CharField", {"required": False}],
     "url_field": ["django.forms.URLField", {"required": False}],
     "secret_field": ["django.forms.CharField", {"required": False}],
+    "dict_field": ["waldur_core.core.serializers.DictField", {"required": False}],
 }
 CONSTANCE_CONFIG = {
     "SITE_NAME": ("Waldur", "Human-friendly name of the Waldur deployment."),
@@ -337,6 +339,70 @@ CONSTANCE_CONFIG = {
     "CURRENCY_NAME": (
         "EUR",
         "It is used in marketplace order details and invoices for currency formatting.",
+    ),
+    "THUMBNAIL_SIZE": (
+        "120x120",
+        "Size of the thumbnail to generate when screenshot is uploaded for an offering.",
+    ),
+    "ANONYMOUS_USER_CAN_VIEW_OFFERINGS": (
+        True,
+        "Allow anonymous users to see shared offerings in active, paused and archived states",
+    ),
+    "ANONYMOUS_USER_CAN_VIEW_PLANS": (True, "Allow anonymous users to see plans"),
+    "NOTIFY_STAFF_ABOUT_APPROVALS": (
+        False,
+        "If true, users with staff role are notified when request for order approval is generated",
+    ),
+    "NOTIFY_ABOUT_RESOURCE_CHANGE": (
+        True,
+        "If true, notify users about resource changes from Marketplace perspective. Can generate duplicate events if plugins also log",
+    ),
+    "DISABLE_SENDING_NOTIFICATIONS_ABOUT_RESOURCE_UPDATE": (
+        True,
+        "Disable only resource update events.",
+    ),
+    "ENABLE_STALE_RESOURCE_NOTIFICATIONS": (
+        False,
+        "Enable reminders to owners about resources of shared offerings that have not generated any cost for the last 3 months.",
+    ),
+    "ENABLE_RESOURCE_END_DATE": (True, "Allow to view and update resource end date."),
+    "TELEMETRY_URL": (
+        "https://telemetry.waldur.com/",
+        "URL for sending telemetry data.",
+    ),
+    "TELEMETRY_VERSION": (1, "Telemetry service version."),
+    "SCRIPT_RUN_MODE": (
+        "docker",
+        'Type of jobs deployment. Valid values: "docker" for simple docker deployment, "k8s" for Kubernetes-based one',
+    ),
+    "DOCKER_CLIENT": (
+        {"base_url": "unix://var/run/docker.sock"},
+        "Options for docker client. See also: <https://docker-py.readthedocs.io/en/stable/client.html#docker.client.DockerClient>",
+        "dict_field",
+    ),
+    "DOCKER_RUN_OPTIONS": (
+        {"mem_limit": "512m"},
+        "Options for docker runtime. See also: <https://docker-py.readthedocs.io/en/stable/containers.html#docker.models.containers.ContainerCollection.run>",
+        "dict_field",
+    ),
+    "DOCKER_SCRIPT_DIR": (
+        "",
+        "Path to folder on executor machine where to create temporary submission scripts. If None, uses OS-dependent location. OS X users, see <https://github.com/docker/for-mac/issues/1532>",
+    ),
+    "DOCKER_REMOVE_CONTAINER": (True, "Remove Docker container after script execution"),
+    "DOCKER_IMAGES": (
+        {
+            "python": {"image": "python:3.11-alpine", "command": "python"},
+            "shell": {"image": "alpine:3", "command": "sh"},
+        },
+        "Key is command to execute script, value is a dictionary of image name and command.",
+        "dict_field",
+    ),
+    "K8S_NAMESPACE": ("default", "Kubernetes namespace where jobs will be executed"),
+    "K8S_CONFIG_PATH": ("~/.kube/config", "Path to Kubernetes configuration file"),
+    "K8S_JOB_TIMEOUT": (
+        30 * 60,
+        "Timeout for execution of one Kubernetes job in seconds",
     ),
     "DOCS_URL": ("", "Renders link to docs in header", "url_field"),
     "SHORT_PAGE_TITLE": ("Waldur", "It is used as prefix for page title."),
@@ -574,11 +640,36 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "FULL_PAGE_TITLE",
         "SITE_DESCRIPTION",
     ),
-    "Marketplace": (
+    "Marketplace Branding": (
         "SITE_ADDRESS",
         "SITE_EMAIL",
         "SITE_PHONE",
         "CURRENCY_NAME",
+    ),
+    "Marketplace": (
+        "THUMBNAIL_SIZE",
+        "ANONYMOUS_USER_CAN_VIEW_OFFERINGS",
+        "ANONYMOUS_USER_CAN_VIEW_PLANS",
+        "NOTIFY_STAFF_ABOUT_APPROVALS",
+        "NOTIFY_ABOUT_RESOURCE_CHANGE",
+        "DISABLE_SENDING_NOTIFICATIONS_ABOUT_RESOURCE_UPDATE",
+        "ENABLE_STALE_RESOURCE_NOTIFICATIONS",
+        "ENABLE_RESOURCE_END_DATE",
+    ),
+    "Telemetry": (
+        "TELEMETRY_URL",
+        "TELEMETRY_VERSION",
+    ),
+    "Custom Scripts": (
+        "SCRIPT_RUN_MODE",
+        "DOCKER_CLIENT",
+        "DOCKER_RUN_OPTIONS",
+        "DOCKER_SCRIPT_DIR",
+        "DOCKER_REMOVE_CONTAINER",
+        "DOCKER_IMAGES",
+        "K8S_NAMESPACE",
+        "K8S_CONFIG_PATH",
+        "K8S_JOB_TIMEOUT",
     ),
     "Notifications": (
         "COMMON_FOOTER_TEXT",
@@ -683,6 +774,8 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "SITE_EMAIL",
     "SITE_PHONE",
     "CURRENCY_NAME",
+    "ANONYMOUS_USER_CAN_VIEW_OFFERINGS",
+    "ENABLE_RESOURCE_END_DATE",
     "DOCS_URL",
     "SHORT_PAGE_TITLE",
     "FULL_PAGE_TITLE",

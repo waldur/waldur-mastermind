@@ -1,7 +1,7 @@
 import json
 
 import django_filters
-from django.conf import settings
+from constance import config
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q, QuerySet
@@ -584,7 +584,7 @@ class OfferingReferralFilter(django_filters.FilterSet):
 
 class OfferingReferralScopeFilterBackend(core_filters.GenericKeyFilterBackend):
     def is_anonymous_allowed(self):
-        return settings.WALDUR_MARKETPLACE["ANONYMOUS_USER_CAN_VIEW_OFFERINGS"]
+        return config.ANONYMOUS_USER_CAN_VIEW_OFFERINGS
 
     def get_related_models(self):
         return [models.Offering]
