@@ -18,7 +18,7 @@ from waldur_core.permissions.utils import has_permission
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure.filters import GenericRoleFilter
 from waldur_core.structure.models import Customer
-from waldur_mastermind.marketplace import callbacks, models, permissions, plugins
+from waldur_mastermind.marketplace import callbacks, models, permissions
 from waldur_mastermind.marketplace_remote import PLUGIN_NAME
 from waldur_mastermind.marketplace_remote.models import (
     ProjectUpdateRequest,
@@ -70,20 +70,12 @@ class OfferingsListView(RemoteView):
             )
 
         remote_customer_uuid = request.query_params["customer_uuid"]
-        whitelist_types = [
-            offering_type
-            for offering_type in plugins.manager.get_offering_types()
-            if plugins.manager.enable_remote_support(offering_type)
-        ]
-
-        params = {
-            "shared": True,
-            "allowed_customer_uuid": remote_customer_uuid,
-            "type": whitelist_types,
-            "field": ["uuid", "name", "type", "state", "category_title"],
-        }
         try:
-            remote_offerings = client.list_marketplace_public_offerings(params)
+            remote_offerings = utils.get_remote_offerings(
+                client,
+                remote_customer_uuid,
+                fields=["uuid", "name", "type", "state", "category_title"],
+            )
         except WaldurClientException as e:
             return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
 

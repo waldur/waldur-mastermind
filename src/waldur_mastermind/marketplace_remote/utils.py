@@ -18,6 +18,7 @@ from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import get_permissions
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace import plugins
 from waldur_mastermind.marketplace_remote.constants import (
     OFFERING_COMPONENT_FIELDS,
     OFFERING_FIELDS,
@@ -516,16 +517,29 @@ def push_resource_options(local_resource):
         logger.error("Unable to push resource options: %s", exc)
 
 
-def get_remote_offerings(api_url, token, customer_uuid, category_uuid=None):
-    client = WaldurClient(api_url, token)
-    return client.list_marketplace_provider_offerings(
-        filters={"customer_uuid": customer_uuid, "category_uuid": category_uuid}
-    )
-
-
-def get_remote_categories_names(api_url, token):
-    client = WaldurClient(api_url, token)
+def get_remote_categories_names(client):
     return client.list_marketplace_categories(filters={"field": ["uuid", "title"]})
+
+
+def get_remote_offerings(client, remote_customer_uuid, category_uuid=None, fields=None):
+    whitelist_types = [
+        offering_type
+        for offering_type in plugins.manager.get_offering_types()
+        if plugins.manager.enable_remote_support(offering_type)
+    ]
+
+    params = {
+        "shared": True,
+        "allowed_customer_uuid": remote_customer_uuid,
+        "type": whitelist_types,
+        "field": ["uuid", "name", "type", "state", "category_title"],
+    }
+    if category_uuid:
+        params.update({"category_uuid": category_uuid})
+
+    if fields:
+        params.update({"field": fields})
+    return client.list_marketplace_public_offerings(params)
 
 
 def import_offering(remote_offering, local_customer, local_category, secret_options):

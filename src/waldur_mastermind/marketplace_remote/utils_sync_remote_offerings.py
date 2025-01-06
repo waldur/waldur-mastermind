@@ -2,6 +2,7 @@ import logging
 
 from django.db.models.query import QuerySet
 from django.utils import timezone
+from waldur_client import WaldurClient
 
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace_remote import models as remote_models
@@ -46,10 +47,10 @@ class RemoteSynchronisationRunner:
         )
         processed_offering_ids: set[int] = set()
 
-        remote_categories = utils.get_remote_categories_names(
-            self.sync.api_url,
-            self.sync.token,
-        )
+        client = WaldurClient(self.sync.api_url, self.sync.token)
+
+        remote_categories = utils.get_remote_categories_names(client)
+
         remote_categories_mapping = {
             item["uuid"]: item["title"] for item in remote_categories
         }
@@ -71,10 +72,9 @@ class RemoteSynchronisationRunner:
 
             # retrieve remote offerings
             remote_offerings = utils.get_remote_offerings(
-                self.sync.api_url,
-                self.sync.token,
-                self.sync.remote_organization_uuid.hex,
-                category_mapping.remote_category.hex,
+                client,
+                self.sync.remote_organization_uuid,
+                category_uuid=category_mapping.remote_category.hex,
             )
 
             for remote_offering in remote_offerings:
