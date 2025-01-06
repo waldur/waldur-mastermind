@@ -477,7 +477,8 @@ def get_public_settings(request=None):
             for key, val in LOGO_MAP.items():
                 if constance_settings.get(key) or key in DEFAULT_LOGOS:
                     constance_settings[key] = request.build_absolute_uri("/" + val)
-        public_settings["WALDUR_CORE"].update(constance_settings)
+        serializer = ConstanceSettingsSerializer(constance_settings)
+        public_settings["WALDUR_CORE"].update(serializer.data)
         provider_name = public_settings["WALDUR_CORE"].get("DEFAULT_IDP")
         if provider_name:
             try:
@@ -515,7 +516,8 @@ def override_db_settings(request):
     if request.method == "GET":
         from constance.admin import get_values
 
-        return Response(get_values())
+        serialized_data = ConstanceSettingsSerializer(get_values())
+        return Response(serialized_data.data)
     serializer = ConstanceSettingsSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     serializer.save()

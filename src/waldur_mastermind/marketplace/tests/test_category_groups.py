@@ -1,9 +1,9 @@
+from constance.test.pytest import override_config
 from ddt import data, ddt
 from rest_framework import status, test
 
 from waldur_core.structure.tests import fixtures
 from waldur_mastermind.marketplace import models
-from waldur_mastermind.marketplace.tests.helpers import override_marketplace_settings
 
 from . import factories
 
@@ -24,7 +24,7 @@ class CategoryGroupGetTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.json()), 1)
 
-    @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=False)
+    @override_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=False)
     def test_group_should_be_invisible_to_unauthenticated_users(self):
         response = self.client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

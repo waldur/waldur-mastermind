@@ -1,6 +1,6 @@
 from numbers import Number
 
-from django.conf import settings
+from constance import config
 from django.db import transaction
 from django.template import Context, Template
 
@@ -147,9 +147,7 @@ class MarketplaceResourceLogger(EventLogger):
         if not event_context:
             event_context = {}
 
-        if not settings.WALDUR_MARKETPLACE[
-            "NOTIFY_ABOUT_RESOURCE_CHANGE"
-        ] or event_type not in (
+        if not config.NOTIFY_ABOUT_RESOURCE_CHANGE or event_type not in (
             "marketplace_resource_create_succeeded",
             "marketplace_resource_create_failed",
             "marketplace_resource_create_canceled",
@@ -161,9 +159,7 @@ class MarketplaceResourceLogger(EventLogger):
             return
 
         if (
-            settings.WALDUR_MARKETPLACE[
-                "DISABLE_SENDING_NOTIFICATIONS_ABOUT_RESOURCE_UPDATE"
-            ]
+            config.DISABLE_SENDING_NOTIFICATIONS_ABOUT_RESOURCE_UPDATE
             and event_type == "marketplace_resource_update_succeeded"
         ):
             return

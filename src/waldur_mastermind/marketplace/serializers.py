@@ -3,9 +3,9 @@ import logging
 from decimal import Decimal
 
 import jwt
+from constance import config
 from dateutil.parser import parse as parse_datetime
 from django import forms
-from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
@@ -2644,7 +2644,7 @@ class ResourceUpdateSerializer(serializers.ModelSerializer):
     def validate_end_date(self, end_date):
         if not end_date:
             return
-        if not settings.WALDUR_MARKETPLACE["ENABLE_RESOURCE_END_DATE"]:
+        if not config.ENABLE_RESOURCE_END_DATE:
             raise serializers.ValidationError(
                 {"end_date": _("Update of this field is not allowed.")}
             )
@@ -2671,7 +2671,7 @@ class ResourceEndDateByProviderSerializer(serializers.ModelSerializer):
     def validate_end_date(self, end_date):
         if not end_date:
             return
-        if not settings.WALDUR_MARKETPLACE["ENABLE_RESOURCE_END_DATE"]:
+        if not config.ENABLE_RESOURCE_END_DATE:
             raise serializers.ValidationError(
                 {"end_date": _("Update of this field is not allowed.")}
             )

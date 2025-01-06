@@ -18,7 +18,6 @@ from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import callbacks, log, models, plugins
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.tests import factories
-from waldur_mastermind.marketplace.tests import helpers as test_helpers
 from waldur_mastermind.marketplace.tests import utils as test_utils
 from waldur_mastermind.marketplace.tests.fixtures import MarketplaceFixture
 from waldur_mastermind.marketplace_support import PLUGIN_NAME
@@ -726,7 +725,7 @@ class ResourceUpdateTest(test.APITransactionTestCase):
             self.assertTrue(self.resource.end_date)
             self.assertEqual(self.resource.end_date_requested_by, self.fixture.staff)
 
-    @test_helpers.override_marketplace_settings(ENABLE_RESOURCE_END_DATE=False)
+    @override_config(ENABLE_RESOURCE_END_DATE=False)
     def test_user_can_not_update_end_date_if_feature_is_disabled(self):
         response = self.make_request(self.fixture.staff, {"end_date": "2021-01-01"})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -874,7 +873,7 @@ class ResourceSetEndDateByProviderTest(test.APITransactionTestCase):
         self.client.force_authenticate(user)
         return self.client.post(self.url, payload)
 
-    @test_helpers.override_marketplace_settings(ENABLE_RESOURCE_END_DATE=False)
+    @override_config(ENABLE_RESOURCE_END_DATE=False)
     def test_user_can_not_update_end_date_if_feature_is_disabled(self):
         response = self.make_request(
             self.fixture.offering_owner, {"end_date": "2021-01-01"}
@@ -978,7 +977,7 @@ class ResourceSetEndDateByStaffTest(test.APITransactionTestCase):
         self.client.force_authenticate(user)
         return self.client.post(self.url, payload)
 
-    @test_helpers.override_marketplace_settings(ENABLE_RESOURCE_END_DATE=False)
+    @override_config(ENABLE_RESOURCE_END_DATE=False)
     def test_user_can_not_update_end_date_if_feature_is_disabled(self):
         response = self.make_request(self.fixture.staff, {"end_date": "2021-01-01"})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

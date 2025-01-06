@@ -1,3 +1,4 @@
+from constance.test.pytest import override_config
 from ddt import data, ddt
 from rest_framework import status, test
 
@@ -6,7 +7,6 @@ from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_mastermind.marketplace.tests.helpers import override_marketplace_settings
 from waldur_mastermind.proposal import models
 from waldur_mastermind.proposal.tests import fixtures
 
@@ -40,7 +40,7 @@ class ManagerGetTest(test.APITransactionTestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    @override_marketplace_settings(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=False)
+    @override_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=False)
     def test_manager_should_be_invisible_to_unauthenticated_users_when_offerings_are_public(
         self,
     ):

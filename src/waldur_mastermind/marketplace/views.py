@@ -4,8 +4,8 @@ import logging
 import textwrap
 
 import reversion
+from constance import config
 from dateutil.relativedelta import relativedelta
-from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db import connection, transaction
@@ -121,9 +121,10 @@ class BaseMarketplaceView(core_views.ActionsViewSet):
 
 class PublicViewsetMixin:
     def get_permissions(self):
-        if settings.WALDUR_MARKETPLACE[
-            "ANONYMOUS_USER_CAN_VIEW_OFFERINGS"
-        ] and self.action in ["list", "retrieve"]:
+        if config.ANONYMOUS_USER_CAN_VIEW_OFFERINGS and self.action in [
+            "list",
+            "retrieve",
+        ]:
             return [rf_permissions.AllowAny()]
         else:
             return super().get_permissions()
