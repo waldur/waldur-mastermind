@@ -1123,6 +1123,9 @@ class Resource(
             "backend_metadata",
             "backend_uuid",
             "backend_type",
+            "backend_id",
+            "effective_id",
+            "slug",
         )
 
     @property
