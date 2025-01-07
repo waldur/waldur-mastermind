@@ -532,7 +532,6 @@ def get_remote_offerings(client, remote_customer_uuid, category_uuid=None, field
         "shared": True,
         "allowed_customer_uuid": remote_customer_uuid,
         "type": whitelist_types,
-        "field": ["uuid", "name", "type", "state", "category_title"],
     }
     if category_uuid:
         params.update({"category_uuid": category_uuid})
