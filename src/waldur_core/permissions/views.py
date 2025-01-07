@@ -189,7 +189,7 @@ class UserRoleMixin:
 
 
 class UserPermissionViewSet(ReadOnlyModelViewSet):
-    queryset = models.UserRole.objects.all()
+    queryset = models.UserRole.objects.filter(is_active=True)
     serializer_class = serializers.PermissionSerializer
     lookup_field = "uuid"
     filter_backends = (DjangoFilterBackend,)

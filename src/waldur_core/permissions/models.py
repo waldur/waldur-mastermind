@@ -78,6 +78,9 @@ class UserRole(ScopeMixin, UuidMixin):
         )
 
     def revoke(self, current_user=None):
+        if not self.is_active:
+            # user role is already revoked
+            return
         self.is_active = False
         self.expiration_time = timezone.now()
         self.save(update_fields=["is_active", "expiration_time"])
