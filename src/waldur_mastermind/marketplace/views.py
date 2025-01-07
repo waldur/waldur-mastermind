@@ -2086,7 +2086,6 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
 
     approve_by_provider_validators = [
         structure_utils.check_customer_blocked_or_archived,
-        structure_utils.check_project_end_date,
         core_validators.StateValidator(models.Order.States.PENDING_PROVIDER),
     ]
 
