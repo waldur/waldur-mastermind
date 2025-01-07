@@ -630,7 +630,10 @@ CONSTANCE_CONFIG = {
     # Proposal settings
     "PROPOSAL_REVIEW_DURATION": (7, "Review duration in days."),
     "USER_TABLE_COLUMNS": ("", "Comma-separated list of columns for users table."),
-    "AUTO_APPROVE_USER_TOS": (False, "Configure whether a user needs to approve TOS."),
+    "AUTO_APPROVE_USER_TOS": (
+        False,
+        "Mark terms of services as approved for new users.",
+    ),
 }
 
 CONSTANCE_CONFIG_FIELDSETS = {
