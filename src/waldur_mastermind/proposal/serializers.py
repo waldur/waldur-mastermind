@@ -722,9 +722,11 @@ class ProtectedRoundSerializer(
 
 
 class ProposalDocumentationSerializer(serializers.ModelSerializer):
+    file_name = serializers.ReadOnlyField(source="file.name")
+
     class Meta:
         model = models.ProposalDocumentation
-        fields = ["file"]
+        fields = ["file", "file_name", "created"]
 
 
 class ProposalUpdateProjectDetailsSerializer(serializers.ModelSerializer):
