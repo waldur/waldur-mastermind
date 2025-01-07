@@ -477,8 +477,7 @@ def get_public_settings(request=None):
             for key, val in LOGO_MAP.items():
                 if constance_settings.get(key) or key in DEFAULT_LOGOS:
                     constance_settings[key] = request.build_absolute_uri("/" + val)
-        serializer = ConstanceSettingsSerializer(constance_settings)
-        public_settings["WALDUR_CORE"].update(serializer.data)
+        public_settings["WALDUR_CORE"].update(constance_settings)
         provider_name = public_settings["WALDUR_CORE"].get("DEFAULT_IDP")
         if provider_name:
             try:
