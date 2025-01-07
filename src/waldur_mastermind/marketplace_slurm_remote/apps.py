@@ -39,6 +39,7 @@ class MarketplaceSlurmConfig(AppConfig):
             update_resource_processor=processor.UpdateAllocationLimitsProcessor,
             delete_resource_processor=processor.DeleteAllocationProcessor,
             can_update_limits=True,
+            enable_remote_support=True,
         )
 
         signals.post_save.connect(
