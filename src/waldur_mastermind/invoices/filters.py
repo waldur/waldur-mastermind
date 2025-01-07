@@ -89,7 +89,7 @@ class CustomerCreditFilter(django_filters.FilterSet):
             ("customer__name", "customer_name"),
             ("value", "value"),
             ("end_date", "end_date"),
-            ("minimal_consumption", "minimal_consumption"),
+            ("expected_consumption", "expected_consumption"),
         ),
     )
 
