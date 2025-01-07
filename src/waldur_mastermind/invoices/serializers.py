@@ -859,8 +859,11 @@ class CustomerCreditSerializer(serializers.HyperlinkedModelSerializer):
             "customer_slug",
             "offerings",
             "end_date",
+            "expected_consumption",
             "minimal_consumption",
             "minimal_consumption_logic",
+            "grace_coefficient",
+            "apply_as_minimal_consumption",
             "allocated_to_projects",
             "consumption_last_month",
         )
@@ -895,8 +898,8 @@ class CreateCustomerCreditSerializer(CustomerCreditSerializer):
         return attrs.get(field_name, getattr(self.instance, field_name, default))
 
     def validate(self, attrs):
-        minimal_consumption = self.get_from_attrs_or_instance(
-            attrs, "minimal_consumption"
+        expected_consumption = self.get_from_attrs_or_instance(
+            attrs, "expected_consumption"
         )
         minimal_consumption_logic = self.get_from_attrs_or_instance(
             attrs, "minimal_consumption_logic"
@@ -904,9 +907,9 @@ class CreateCustomerCreditSerializer(CustomerCreditSerializer):
         end_date = self.get_from_attrs_or_instance(attrs, "end_date")
         value = self.get_from_attrs_or_instance(attrs, "value")
 
-        if minimal_consumption and minimal_consumption >= value:
+        if expected_consumption and expected_consumption >= value:
             raise exceptions.ValidationError(
-                _("Minimum consumption must be smaller than the credit.")
+                _("Expected consumption must be smaller than the credit.")
             )
 
         if (
