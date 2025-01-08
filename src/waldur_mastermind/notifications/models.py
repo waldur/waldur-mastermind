@@ -1,9 +1,10 @@
 from django.contrib.auth import get_user_model
 from django.db import models
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from model_utils.fields import AutoCreatedField
 
-from waldur_core.core.models import NameMixin
+from waldur_core.core.models import DescribableMixin, NameMixin, TimeStampedModel
 from waldur_core.core.validators import validate_name
 from waldur_core.logging.models import UuidMixin
 
@@ -37,3 +38,26 @@ class BroadcastMessage(UuidMixin):
     body = models.TextField(validators=[validate_name])
     query = models.JSONField()
     emails = models.JSONField()
+
+
+class AdminAnnouncement(UuidMixin, DescribableMixin, TimeStampedModel):
+    class Type:
+        INFORMATION = "information"
+        WARNING = "warning"
+        DANGER = "danger"
+
+        CHOICES = (
+            (INFORMATION, _("Information")),
+            (WARNING, _("Warning")),
+            (DANGER, _("Danger")),
+        )
+
+    type = models.CharField(
+        max_length=30, choices=Type.CHOICES, default=Type.INFORMATION
+    )
+    active_from = models.DateTimeField()
+    active_to = models.DateTimeField()
+
+    @property
+    def is_active(self):
+        return self.active_from <= timezone.now() <= self.active_to

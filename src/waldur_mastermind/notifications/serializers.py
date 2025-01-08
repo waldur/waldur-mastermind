@@ -93,3 +93,19 @@ class MessageTemplateSerializer(
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},
         }
+
+
+class AdminAnnouncementSerializer(
+    RestrictedSerializerMixin, serializers.ModelSerializer
+):
+    class Meta:
+        model = models.AdminAnnouncement
+        fields = (
+            "uuid",
+            "description",
+            "active_from",
+            "active_to",
+            "is_active",
+            "type",
+            "created",
+        )
