@@ -46,7 +46,18 @@ from . import PLUGIN_NAME, utils, utils_sync_remote_offerings
 
 logger = logging.getLogger(__name__)
 
-OrderInvertStates = {key: val for val, key in models.Order.States.CHOICES}
+# For logging purposes only
+ORDER_STATES_MAP = {key: val for key, val in models.Order.States.CHOICES}
+LOGICAL_LOCAL_ORDER_STATES_MAP = {
+    "pending-project": None,
+    "pending-consumer": models.Order.States.EXECUTING,
+    "pending-provider": models.Order.States.EXECUTING,
+    "executing": models.Order.States.EXECUTING,
+    "done": models.Order.States.DONE,
+    "erred": models.Order.States.ERRED,
+    "canceled": models.Order.States.CANCELED,
+    "rejected": models.Order.States.REJECTED,
+}
 
 
 class OfferingPullTask(BackgroundPullTask):
@@ -365,9 +376,21 @@ class OrderPullTask(BackgroundPullTask):
         client = get_client_for_offering(local_order.offering)
         remote_order = client.get_order(local_order.backend_id)
 
-        if remote_order["state"] != local_order.get_state_display():
-            new_state = OrderInvertStates[remote_order["state"]]
-            sync_order_state(local_order, new_state)
+        correct_local_order_state = LOGICAL_LOCAL_ORDER_STATES_MAP.get(
+            remote_order["state"]
+        )
+        if correct_local_order_state is None:
+            message = f'The order in remote Waldur has unexpected state {remote_order["state"]}.'
+            logger.error(message)
+            raise Exception(message)
+
+        if local_order.state != correct_local_order_state:
+            logger.info(
+                "Local order state %s is different from remote order state %s. Updating local order state.",
+                local_order.get_state_display(),
+                ORDER_STATES_MAP[correct_local_order_state],
+            )
+            sync_order_state(local_order, correct_local_order_state)
 
         local_resource = local_order.resource
 
@@ -420,27 +443,32 @@ class ErredOrderPullTask(OrderPullTask):
         remote_order = client.get_order(local_order.backend_id)
         local_resource: models.Resource = local_order.resource
 
-        if remote_order["state"] != local_order.get_state_display():
-            new_state = OrderInvertStates[remote_order["state"]]
-            if new_state in [
-                models.Order.States.PENDING_CONSUMER,
-                models.Order.States.PENDING_PROVIDER,
-                models.Order.States.EXECUTING,
-            ]:
-                logger.info(
-                    "Erred order %s: remote state is %s, updating local one.",
-                    local_order,
-                    remote_order["state"],
-                )
-                local_order.state = new_state
-                local_order.save(update_fields=["state"])
+        correct_local_order_state = LOGICAL_LOCAL_ORDER_STATES_MAP.get(
+            remote_order["state"]
+        )
+        if correct_local_order_state is None:
+            message = f'The order in remote Waldur has unexpected state {remote_order["state"]}.'
+            logger.error(message)
+            raise Exception(message)
 
-                if local_order.type == models.Order.Types.UPDATE:
-                    local_resource.set_state_updating()
-                if local_order.type == models.Order.Types.TERMINATE:
-                    local_resource.set_state_terminating()
+        if (
+            local_order.state != correct_local_order_state
+            and correct_local_order_state == models.Order.States.EXECUTING
+        ):
+            logger.info(
+                "Erred order %s: remote state is %s, updating local one.",
+                local_order,
+                remote_order["state"],
+            )
+            local_order.state = correct_local_order_state
+            local_order.save(update_fields=["state"])
 
-                local_resource.save(update_fields=["state"])
+            if local_order.type == models.Order.Types.UPDATE:
+                local_resource.set_state_updating()
+            if local_order.type == models.Order.Types.TERMINATE:
+                local_resource.set_state_terminating()
+
+            local_resource.save(update_fields=["state"])
 
         backend_id = remote_order.get("marketplace_resource_uuid")
         if backend_id and local_resource.backend_id != backend_id:
@@ -847,9 +875,11 @@ def sync_remote_project_permissions():
                 remote_expiration_time = remote_permission["expiration_time"]
                 remote_user_roles[remote_permission["user_username"]] = (
                     remote_permission["role_name"],
-                    dateparse.parse_datetime(remote_expiration_time)
-                    if remote_expiration_time
-                    else remote_expiration_time,
+                    (
+                        dateparse.parse_datetime(remote_expiration_time)
+                        if remote_expiration_time
+                        else remote_expiration_time
+                    ),
                     remote_permission["user_uuid"],
                 )
 
@@ -868,9 +898,11 @@ def sync_remote_project_permissions():
                             remote_project_uuid,
                             remote_user_uuid,
                             new_role,
-                            new_expiration_time.isoformat()
-                            if new_expiration_time
-                            else new_expiration_time,
+                            (
+                                new_expiration_time.isoformat()
+                                if new_expiration_time
+                                else new_expiration_time
+                            ),
                         )
                     except WaldurClientException as e:
                         logger.warning(
@@ -896,9 +928,11 @@ def sync_remote_project_permissions():
                             remote_project_uuid,
                             remote_user_uuid,
                             new_role,
-                            new_expiration_time.isoformat()
-                            if new_expiration_time
-                            else new_expiration_time,
+                            (
+                                new_expiration_time.isoformat()
+                                if new_expiration_time
+                                else new_expiration_time
+                            ),
                         )
                     except WaldurClientException as e:
                         logger.warning(
@@ -913,9 +947,11 @@ def sync_remote_project_permissions():
                             remote_project_uuid,
                             remote_user_uuid,
                             new_role,
-                            new_expiration_time.isoformat()
-                            if new_expiration_time
-                            else new_expiration_time,
+                            (
+                                new_expiration_time.isoformat()
+                                if new_expiration_time
+                                else new_expiration_time
+                            ),
                         )
                     except WaldurClientException as e:
                         logger.warning(
@@ -1040,7 +1076,7 @@ def clean_remote_projects():
                     client.delete_project(remote_project["uuid"])
                 except WaldurClientException as e:
                     logger.debug(
-                        f'Unable to delete remote project '
+                        f"Unable to delete remote project "
                         f'(backend_id: {remote_project["backend_id"]}, api_url: {api_url}): {e}'
                     )
                     continue
