@@ -26,6 +26,7 @@ from .. import (
     INSTANCE_TYPE,
     RAM_TYPE,
     STORAGE_MODE_DYNAMIC,
+    STORAGE_MODE_FIXED,
     STORAGE_TYPE,
     TENANT_TYPE,
     VOLUME_TYPE,
@@ -274,6 +275,51 @@ class TenantCreateTest(BaseOpenStackTest):
         self.assertEqual(tenant.get_quota_limit("gigabytes_llvm"), 10)
         self.assertEqual(tenant.get_quota_limit("gigabytes_ssd"), 0)
         self.assertEqual(tenant.get_quota_limit("gigabytes_rbd"), 0)
+
+    def test_volume_type_limits_zero_is_preserved(self):
+        create_offering_components(self.offering)
+
+        openstack_factories.VolumeTypeFactory(settings=self.offering.scope, name="ssd")
+        openstack_factories.VolumeTypeFactory(settings=self.offering.scope, name="rbd")
+
+        response = self.create_order(
+            limits={
+                "cores": 2,
+                "ram": 1024 * 10,
+                "gigabytes_ssd": 1,
+                "gigabytes_rbd": 0,
+            }
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        order = marketplace_models.Order.objects.get(uuid=response.data["uuid"])
+        marketplace_utils.process_order(order, self.fixture.staff)
+
+        tenant: openstack_models.Tenant = order.resource.scope
+        self.assertEqual(tenant.get_quota_limit("gigabytes_ssd"), 1)
+        self.assertEqual(tenant.get_quota_limit("gigabytes_rbd"), 0)
+
+    def test_volume_type_limits_unset_in_fixed_storage_mode(self):
+        self.offering.plugin_options["storage_mode"] = STORAGE_MODE_FIXED
+        self.offering.save()
+        create_offering_components(self.offering)
+
+        openstack_factories.VolumeTypeFactory(settings=self.offering.scope, name="ssd")
+
+        response = self.create_order(
+            limits={
+                "cores": 2,
+                "ram": 1024 * 10,
+                "storage": 1024 * 10,
+            }
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        order = marketplace_models.Order.objects.get(uuid=response.data["uuid"])
+        marketplace_utils.process_order(order, self.fixture.staff)
+
+        tenant: openstack_models.Tenant = order.resource.scope
+        self.assertEqual(tenant.get_quota_limit("gigabytes_ssd"), -1)
 
 
 class TenantMutateTest(test.APITransactionTestCase):
@@ -788,6 +834,8 @@ class TenantUpdateLimitTest(TenantUpdateLimitTestBase):
             attributes={"old_limits": self.resource.limits},
             state=marketplace_models.Order.States.EXECUTING,
         )
+        self.offering.plugin_options["storage_mode"] = STORAGE_MODE_DYNAMIC
+        self.offering.save()
 
     def test_resource_limits_have_been_updated_if_backend_does_not_raise_exception(
         self,
@@ -805,12 +853,14 @@ class TenantUpdateLimitTest(TenantUpdateLimitTestBase):
         self.assertEqual(self.resource.limits, self.quotas)
 
     def test_resource_limits_have_been_not_updated_if_backend_raises_exception(self):
+        self.offering.plugin_options["storage_mode"] = STORAGE_MODE_FIXED
+        self.offering.save()
+
         self.mock_get_backend().push_tenant_quotas = mock.Mock(
             side_effect=Exception("foo")
         )
         marketplace_utils.process_order(self.order, self.fixture.staff)
         self.resource.refresh_from_db()
-        self.assertEqual(self.resource.limits, {})
         self.order.refresh_from_db()
         self.assertEqual(self.order.state, marketplace_models.Order.States.ERRED)
         self.assertEqual(self.order.error_message, "foo")

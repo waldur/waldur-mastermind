@@ -27,6 +27,9 @@ def filter_queryset_for_user(queryset: QuerySet[T], user) -> QuerySet[T]:
     if user is None or user.is_staff or user.is_support:
         return queryset
 
+    if not user.is_active:
+        return queryset.none()
+
     try:
         permissions = queryset.model.Permissions
     except AttributeError:
