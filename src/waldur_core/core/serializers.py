@@ -527,10 +527,11 @@ class ConstanceSettingsSerializer(serializers.Serializer):
         return fields
 
     def save(self):
-        for name in self.fields.keys():
-            current = getattr(config, name)
-            if name not in self.validated_data:
+        for name in self.validated_data.keys():
+            # Skip fields that are not present in initial data which are sent via request
+            if name not in self.initial_data:
                 continue
+            current = getattr(config, name)
             new = self.validated_data[name]
             if current != new:
                 if hasattr(new, "name"):
