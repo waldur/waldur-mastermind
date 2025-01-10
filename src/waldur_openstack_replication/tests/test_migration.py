@@ -7,7 +7,11 @@ from waldur_mastermind.marketplace.tests.factories import (
     PlanFactory,
     ResourceFactory,
 )
-from waldur_mastermind.marketplace_openstack import CORES_TYPE, RAM_TYPE
+from waldur_mastermind.marketplace_openstack import (
+    CORES_TYPE,
+    RAM_TYPE,
+    STORAGE_MODE_DYNAMIC,
+)
 from waldur_openstack.models import Tenant
 from waldur_openstack.tests.factories import VolumeTypeFactory
 from waldur_openstack.tests.fixtures import OpenStackFixture
@@ -18,32 +22,33 @@ from waldur_openstack_replication.models import Migration
 class MigrationTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = OpenStackFixture()
+        self.offering = OfferingFactory(scope=self.fixture.settings)
+        self.offering.plugin_options["storage_mode"] = STORAGE_MODE_DYNAMIC
+        self.offering.save()
 
     def test_migration_is_created(self):
-        offering = OfferingFactory(scope=self.fixture.settings)
-        plan = PlanFactory(offering=offering)
-        resource = ResourceFactory(offering=offering, scope=self.fixture.tenant)
+        plan = PlanFactory(offering=self.offering)
+        resource = ResourceFactory(offering=self.offering, scope=self.fixture.tenant)
         self.client.force_login(self.fixture.staff)
         response = self.client.post(
             reverse("openstack-migrations-list"),
             {
                 "src_resource": resource.uuid.hex,
-                "dst_offering": offering.uuid.hex,
+                "dst_offering": self.offering.uuid.hex,
                 "dst_plan": plan.uuid.hex,
             },
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
     def test_tenant_has_credentials(self):
-        offering = OfferingFactory(scope=self.fixture.settings)
-        plan = PlanFactory(offering=offering)
-        resource = ResourceFactory(offering=offering, scope=self.fixture.tenant)
+        plan = PlanFactory(offering=self.offering)
+        resource = ResourceFactory(offering=self.offering, scope=self.fixture.tenant)
         self.client.force_login(self.fixture.staff)
         response = self.client.post(
             reverse("openstack-migrations-list"),
             {
                 "src_resource": resource.uuid.hex,
-                "dst_offering": offering.uuid.hex,
+                "dst_offering": self.offering.uuid.hex,
                 "dst_plan": plan.uuid.hex,
             },
         )
@@ -54,13 +59,12 @@ class MigrationTest(test.APITransactionTestCase):
         self.assertNotEqual(tenant.user_password, "")
 
     def test_volume_types_mapping(self):
-        offering = OfferingFactory(scope=self.fixture.settings)
-        plan = PlanFactory(offering=offering)
+        plan = PlanFactory(offering=self.offering)
         volume_type1 = VolumeTypeFactory(settings=self.fixture.settings)
         self.fixture.tenant.volume_types.add(volume_type1)
         volume_type2 = VolumeTypeFactory(settings=self.fixture.settings)
         resource = ResourceFactory(
-            offering=offering,
+            offering=self.offering,
             scope=self.fixture.tenant,
             limits={
                 CORES_TYPE: 1,
@@ -73,7 +77,7 @@ class MigrationTest(test.APITransactionTestCase):
             reverse("openstack-migrations-list"),
             {
                 "src_resource": resource.uuid.hex,
-                "dst_offering": offering.uuid.hex,
+                "dst_offering": self.offering.uuid.hex,
                 "dst_plan": plan.uuid.hex,
                 "mappings": {
                     "volume_types": [
@@ -95,16 +99,15 @@ class MigrationTest(test.APITransactionTestCase):
         )
 
     def test_security_group_rules_are_replicated(self):
-        offering = OfferingFactory(scope=self.fixture.settings)
-        plan = PlanFactory(offering=offering)
-        resource = ResourceFactory(offering=offering, scope=self.fixture.tenant)
+        plan = PlanFactory(offering=self.offering)
+        resource = ResourceFactory(offering=self.offering, scope=self.fixture.tenant)
         self.fixture.security_group_rule
         self.client.force_login(self.fixture.staff)
         response = self.client.post(
             reverse("openstack-migrations-list"),
             {
                 "src_resource": resource.uuid.hex,
-                "dst_offering": offering.uuid.hex,
+                "dst_offering": self.offering.uuid.hex,
                 "dst_plan": plan.uuid.hex,
             },
         )
@@ -114,9 +117,8 @@ class MigrationTest(test.APITransactionTestCase):
         self.assertEqual(tenant.security_groups.get().rules.count(), 1)
 
     def test_order_is_created_on_migration_success(self):
-        offering = OfferingFactory(scope=self.fixture.settings)
-        src_resource = ResourceFactory(offering=offering)
-        dst_resource = ResourceFactory(offering=offering)
+        src_resource = ResourceFactory(offering=self.offering)
+        dst_resource = ResourceFactory(offering=self.offering)
         migration = Migration.objects.create(
             created_by=self.fixture.staff,
             src_resource=src_resource,
@@ -130,9 +132,8 @@ class MigrationTest(test.APITransactionTestCase):
         self.assertTrue(Order.objects.filter(resource=dst_resource).exists())
 
     def test_order_is_created_on_migration_failure(self):
-        offering = OfferingFactory(scope=self.fixture.settings)
-        src_resource = ResourceFactory(offering=offering)
-        dst_resource = ResourceFactory(offering=offering)
+        src_resource = ResourceFactory(offering=self.offering)
+        dst_resource = ResourceFactory(offering=self.offering)
         migration = Migration.objects.create(
             created_by=self.fixture.staff,
             src_resource=src_resource,

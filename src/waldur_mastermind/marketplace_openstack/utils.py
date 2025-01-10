@@ -195,7 +195,6 @@ def map_limits_to_quotas(limits, offering: marketplace_models.Offering, is_creat
     quotas = {
         TenantQuotas.vcpu.name: limits.get(CORES_TYPE),
         TenantQuotas.ram.name: limits.get(RAM_TYPE),
-        TenantQuotas.storage.name: limits.get(STORAGE_TYPE),
     }
 
     if is_create:
@@ -210,20 +209,16 @@ def map_limits_to_quotas(limits, offering: marketplace_models.Offering, is_creat
 
     quotas = {k: v for k, v in quotas.items() if v is not None}
 
-    # Filter volume-type quotas.
-    volume_type_quotas = dict(
-        (key, value)
-        for (key, value) in limits.items()
-        if is_valid_volume_type_name(key) and value is not None
-    )
-
-    # Common storage quota should be equal to sum of all volume-type quotas.
-    if volume_type_quotas:
-        if "storage" in quotas:
-            raise exceptions.ValidationError(
-                "You should either specify general-purpose storage quota "
-                "or volume-type specific storage quota."
-            )
+    storage_mode = offering.plugin_options.get("storage_mode") or STORAGE_MODE_FIXED
+    if storage_mode == STORAGE_MODE_FIXED:
+        quotas[TenantQuotas.storage.name] = limits.get(STORAGE_TYPE)
+    else:
+        # Filter volume-type quotas.
+        volume_type_quotas = dict(
+            (key, value)
+            for (key, value) in limits.items()
+            if is_valid_volume_type_name(key) and value is not None
+        )
 
         # Initialize volume type quotas as zero, otherwise they are treated as unlimited
         for volume_type in openstack_models.VolumeType.objects.filter(
@@ -232,9 +227,10 @@ def map_limits_to_quotas(limits, offering: marketplace_models.Offering, is_creat
             volume_type_quotas.setdefault(
                 volume_type_name_to_quota_name(volume_type.name), 0
             )
-
-        quotas["storage"] = ServiceBackend.gb2mb(sum(list(volume_type_quotas.values())))
         quotas.update(volume_type_quotas)
+
+        # Common storage quota should be equal to sum of all volume-type quotas.
+        quotas["storage"] = ServiceBackend.gb2mb(sum(list(volume_type_quotas.values())))
 
     # Convert quota value from float to integer because OpenStack API fails otherwise
     quotas = {k: int(v) for k, v in quotas.items()}
