@@ -222,11 +222,18 @@ class EventSubscriptionViewSet(core_views.ActionsViewSet):
             raise rest_framework.exceptions.APIException(
                 detail=f"Failed to delete RabbitMQ user: {instance.uuid}"
             )
-        if not rmq_backend.delete_rabbitmq_virtual_host(instance.user.uuid.hex):
-            logger.error(
-                "Failed to delete RabbitMQ virtual host: %s", instance.user.uuid.hex
+        if models.EventSubscription.objects.filter(user=instance.user).count() > 1:
+            logger.info(
+                "Skipping deletion of RabbitMQ virtual host %s because user %s has other subscriptions",
+                instance.user.uuid.hex,
+                instance.user,
             )
-            raise rest_framework.exceptions.APIException(
-                detail=f"Failed to delete RabbitMQ virtual host: {instance.user.uuid.hex}"
-            )
+        else:
+            if not rmq_backend.delete_rabbitmq_virtual_host(instance.user.uuid.hex):
+                logger.error(
+                    "Failed to delete RabbitMQ virtual host: %s", instance.user.uuid.hex
+                )
+                raise rest_framework.exceptions.APIException(
+                    detail=f"Failed to delete RabbitMQ virtual host: {instance.user.uuid.hex}"
+                )
         super().perform_destroy(instance)
