@@ -245,3 +245,37 @@ def send_role_granted_message_to_mqtt(
     sender, instance: permission_models.UserRole, **kwargs
 ):
     process_role_changed(instance, True)
+
+
+def send_resource_status_changed_message_to_mqtt(
+    sender, instance: marketplace_models.Resource, created=False, **kwargs
+):
+    if created:
+        return
+
+    offering = instance.offering
+    if offering.type != PLUGIN_NAME:
+        return
+
+    if not any(
+        instance.tracker.has_changed(field_name)
+        for field_name in ["downscaled", "restrict_member_access", "paused"]
+    ):
+        return
+
+    payload = {
+        "resource_uuid": instance.uuid.hex,
+        "resource_backend_id": instance.backend_id,
+    }
+    payload.update(
+        {
+            field_name: getattr(instance, field_name)
+            for field_name in ["downscaled", "restrict_member_access", "paused"]
+        }
+    )
+
+    messages = prepare_mqtt_messages(
+        offering, payload, logging_utils.ObservableObjectType.RESOURCE
+    )
+    if messages:
+        logging_tasks.publish_mqtt_messages.delay(messages)
