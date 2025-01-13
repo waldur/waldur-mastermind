@@ -1386,9 +1386,6 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
         offering_type = attrs.get("type", getattr(self.instance, "type", None))
         builtin_components = plugins.manager.get_components(offering_type)
 
-        valid_types = set()
-        fixed_types = set()
-
         if builtin_components and attrs.get("components"):
             if {c.get("type") for c in attrs.get("components")} - {
                 c.type for c in builtin_components
@@ -1396,35 +1393,6 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
                 raise serializers.ValidationError(
                     {"components": _("Extra components are not allowed.")}
                 )
-            valid_types = {component.type for component in builtin_components}
-
-        elif builtin_components:
-            valid_types = {component.type for component in builtin_components}
-            if self.instance:
-                valid_types.update(
-                    set(self.instance.components.values_list("type", flat=True))
-                )
-            fixed_types = {
-                component.type
-                for component in plugins.manager.get_components(offering_type)
-                if component.billing_type == BillingTypes.FIXED
-            }
-            if self.instance:
-                fixed_types.update(
-                    set(
-                        self.instance.components.filter(
-                            billing_type=BillingTypes.FIXED
-                        ).values_list("type", flat=True)
-                    )
-                )
-
-        elif custom_components:
-            valid_types = {component["type"] for component in custom_components}
-            fixed_types = {
-                component["type"]
-                for component in custom_components
-                if component["billing_type"] == BillingTypes.FIXED
-            }
 
     def _create_plans(self, offering, plans):
         for plan_data in plans:
