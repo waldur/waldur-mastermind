@@ -1,7 +1,8 @@
 import logging
 
 from django.contrib.auth import get_user_model
-from django.db.models import Q
+from django.contrib.contenttypes.models import ContentType
+from django.db.models import Q, QuerySet
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
@@ -11,7 +12,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ReadOnlyModelViewSet
 
 from waldur_core.core.permissions import IsAdminOrReadOnly
-from waldur_core.core.utils import is_uuid_like
+from waldur_core.core.utils import get_ip_address, is_uuid_like
 from waldur_core.core.views import ActionsViewSet
 from waldur_core.permissions.utils import (
     add_user,
@@ -188,6 +189,26 @@ class UserRoleMixin:
         return Response(status=status.HTTP_200_OK)
 
 
+def filter_user_permissions_by_ip_address(qs: QuerySet[models.UserRole], user_ip: str):
+    from waldur_core.structure.managers import filter_customer_by_ip_address
+    from waldur_core.structure.models import Customer, Project
+
+    visible_customers_ids = filter_customer_by_ip_address(user_ip)
+    invisible_customers_ids = Customer.objects.exclude(
+        id__in=visible_customers_ids
+    ).values_list("id", flat=True)
+    invisible_project_ids = Project.objects.filter(
+        customer_id__in=invisible_customers_ids
+    ).values_list("id", flat=True)
+    return qs.exclude(
+        content_type=ContentType.objects.get_by_natural_key("structure", "customer"),
+        object_id__in=invisible_customers_ids,
+    ).exclude(
+        content_type=ContentType.objects.get_by_natural_key("structure", "project"),
+        object_id__in=invisible_project_ids,
+    )
+
+
 class UserPermissionViewSet(ReadOnlyModelViewSet):
     queryset = models.UserRole.objects.filter(is_active=True)
     serializer_class = serializers.PermissionSerializer
@@ -197,6 +218,11 @@ class UserPermissionViewSet(ReadOnlyModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        if self.request.user.is_staff or self.request.user.is_support:
+        user = self.request.user
+        if user.is_staff or user.is_support:
             return qs
-        return qs.filter(user=self.request.user).distinct()
+        qs = qs.filter(user=user).distinct()
+        user_ip = get_ip_address(self.request)
+        if not user_ip:
+            return qs
+        return filter_user_permissions_by_ip_address(qs, user_ip)
