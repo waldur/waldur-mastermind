@@ -87,13 +87,13 @@ class EventFilter(django_filters.FilterSet):
         fields = []
 
     def filter_customer_uuid(self, queryset, name, value):
-        return queryset.filter(context__contains={"customer_uuid": value.hex})
+        return queryset.filter(context__customer_uuid=value.hex)
 
     def filter_project_uuid(self, queryset, name, value):
-        return queryset.filter(context__contains={"project_uuid": value.hex})
+        return queryset.filter(context__project_uuid=value.hex)
 
     def filter_user_uuid(self, queryset, name, value):
-        return queryset.filter(context__contains={"user_uuid": value.hex})
+        return queryset.filter(context__user_uuid=value.hex)
 
 
 class EventFilterBackend(filters.BaseFilterBackend):
