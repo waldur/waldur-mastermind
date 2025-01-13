@@ -96,5 +96,5 @@ def delete_dangling_event_subscriptions() -> None:
             continue
         if not rmq_user_connections:
             logger.info("Deleting event subscription %s", event_subscription.uuid)
-            rmq_backend.delete_user(rmq_username)
+            rmq_backend.delete_rabbitmq_user(rmq_username)
             event_subscription.delete()
