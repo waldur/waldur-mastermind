@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 class ObservableObjectType(Enum):
     ORDER = "order"
     USER_ROLE = "user_role"
+    RESOURCE = "resource"
 
 
 def get_loggable_models():

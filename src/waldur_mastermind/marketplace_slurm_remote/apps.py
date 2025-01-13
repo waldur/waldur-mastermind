@@ -54,6 +54,12 @@ class MarketplaceSlurmConfig(AppConfig):
             dispatch_uid="waldur_mastermind.marketplace_slurm_remote.send_order_created_to_mqtt",
         )
 
+        signals.post_save.connect(
+            handlers.send_resource_status_changed_message_to_mqtt,
+            sender=marketplace_models.Resource,
+            dispatch_uid="waldur_mastermind.marketplace_slurm_remote.send_resource_status_changed_message_to_mqtt",
+        )
+
         permission_signals.role_granted.connect(
             handlers.send_role_granted_message_to_mqtt,
             dispatch_uid="waldur_mastermind.marketplace_slurm_remote.send_role_granted_message_to_mqtt",
