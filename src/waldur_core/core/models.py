@@ -538,6 +538,16 @@ class SshPublicKey(LoggableMixin, UuidMixin, models.Model):
         key_parts = self.public_key.split(" ", 1)
         return key_parts[0]
 
+    def get_log_fields(self):
+        return (
+            "uuid",
+            "name",
+            "type",
+            "fingerprint_md5",
+            "fingerprint_sha256",
+            "fingerprint_sha512",
+        )
+
     class Meta:
         unique_together = ("user", "name")
         verbose_name = _("SSH public key")
