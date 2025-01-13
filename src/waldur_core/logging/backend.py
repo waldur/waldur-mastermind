@@ -340,25 +340,3 @@ class RabbitMQManagementBackend:
                 exc,
             )
             raise
-
-    def delete_user(self, username: str) -> bool:
-        url = f"{self.rmq_management_url}/users/{username}/"
-        try:
-            response = requests.delete(url, auth=self.rmq_auth, timeout=10)
-            if response.status_code == 204:
-                logger.info("User %s deleted successfully", username)
-                return True
-            else:
-                logger.error(
-                    "Failed to delete user %s, status code: %s",
-                    username,
-                    response.status_code,
-                )
-                return False
-        except Exception as exc:
-            logger.error(
-                "An unexpected error occurred while deleting user %s: %s",
-                username,
-                exc,
-            )
-            return False
