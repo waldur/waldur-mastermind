@@ -2271,8 +2271,16 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
         if not request.user.is_staff:
             raise PermissionDenied()
         obj = self.get_object()
-        obj.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        logger.info("Starting unlink for order %s", obj.uuid)
+        log.log_order_unlink(obj)
+        try:
+            obj.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except Exception as e:
+            logger.error(
+                "Error unlinking the order. Error: %s",
+                str(e),
+            )
 
 
 class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewSet):
@@ -2314,10 +2322,20 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         for removing resource stuck in transitioning state.
         """
         obj = self.get_object()
-        if obj.scope:
-            obj.scope.delete()
-        obj.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        log.log_resource_unlink(obj)
+        logger.info("Starting unlink for resource %s", obj.uuid)
+        try:
+            if obj.scope:
+                obj.scope.delete()
+            obj.delete()
+            logger.debug("Resource %s has been unlinked", obj.uuid)
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except Exception as e:
+            logger.error(
+                "Error during resource unlink. Error %s",
+                obj,
+                str(e),
+            )
 
     unlink_permissions = [structure_permissions.is_staff]
 
