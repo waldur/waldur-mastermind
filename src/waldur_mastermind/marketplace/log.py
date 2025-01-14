@@ -126,6 +126,7 @@ class MarketplaceOrderLogger(EventLogger):
             "marketplace_order_completed",
             "marketplace_order_terminated",
             "marketplace_order_failed",
+            "marketplace_order_unlinked",
         )
         event_groups = {"resources": event_types}
 
@@ -194,6 +195,7 @@ class MarketplaceResourceLogger(EventLogger):
             "marketplace_resource_paused",
             "marketplace_resource_erred_on_backend",
             "marketplace_resource_has_been_changed",
+            "marketplace_resource_unlinked",
         )
         nullable_fields = ["old_name"]
         event_groups = {"resources": event_types}
@@ -352,6 +354,14 @@ def log_resource_creation_canceled(instance):
         "Resource {resource_name} creation has been canceled.",
         event_type="marketplace_resource_create_canceled",
         event_context={"resource": instance},
+    )
+
+
+def log_resource_unlink(resource):
+    event_logger.marketplace_resource.info(
+        "Resource {resource_name} has been unlinked.",
+        event_type="marketplace_resource_unlinked",
+        event_context={"resource": resource},
     )
 
 
@@ -548,4 +558,12 @@ def log_marketplace_resource_has_been_changed(resource, changed):
         .replace("}", "}}"),
         event_type="marketplace_resource_has_been_changed",
         event_context=event_context,
+    )
+
+
+def log_order_unlink(order):
+    event_logger.marketplace_order.info(
+        "Order {order_uuid} has been unlinked.",
+        event_type="marketplace_order_unlinked",
+        event_context={"order": order},
     )
