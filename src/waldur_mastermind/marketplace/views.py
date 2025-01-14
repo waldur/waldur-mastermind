@@ -52,6 +52,7 @@ from waldur_core.core.utils import (
     is_uuid_like,
     month_start,
     order_with_nulls,
+    remove_duplicate_hyphens,
 )
 from waldur_core.logging.loggers import event_logger
 from waldur_core.permissions.enums import PermissionEnum
@@ -2569,6 +2570,7 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
             offering.slug,
         ]
         result = "-".join(parts) + "-" + str(resource_count + 1)
+        result = remove_duplicate_hyphens(result)
         return Response({"name": result})
 
     suggest_name_serializer_class = serializers.ResourceSuggestNameSerializer

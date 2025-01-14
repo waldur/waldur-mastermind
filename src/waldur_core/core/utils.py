@@ -601,3 +601,7 @@ class SubquerySum(SubqueryAggregate):
 
 def text2html(value: str):
     return textile.textile(value.strip())
+
+
+def remove_duplicate_hyphens(text):
+    return re.sub("-+", "-", text)
