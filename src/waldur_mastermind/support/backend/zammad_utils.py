@@ -182,11 +182,18 @@ class ZammadBackend:
         return self._zammad_response_to_user(response)
 
     def get_users(self):
-        response = self.manager.user._connection.session.get(
-            self.manager.user.url, params={}
-        )
-        json_response = self.manager.user._raise_or_return_json(response)
-        return [self._zammad_response_to_user(r) for r in json_response]
+        page = 1
+        all_users = []
+        session = self.manager.user._connection.session
+        url = self.manager.user.url
+        while True:
+            response = session.get(url, params={"page": page})
+            current_users = self.manager.user._raise_or_return_json(response)
+            if not current_users:
+                break
+            all_users.extend(current_users)
+            page += 1
+        return [self._zammad_response_to_user(r) for r in all_users]
 
     @reraise_exceptions("Creating a user has failed.")
     def add_user(self, login, email, firstname, lastname):
