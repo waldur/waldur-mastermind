@@ -197,7 +197,7 @@ class EventSubscriptionSerializer(serializers.HyperlinkedModelSerializer):
         user = validated_data["user"]
         object_uuid = uuid.uuid4().hex
         validated_data["uuid"] = object_uuid
-        vhost_name = f"{user.uuid.hex}"
+        vhost_name = user.uuid.hex
         rmq_backend = backend.RabbitMQManagementBackend()
 
         # Create virtual host

@@ -24,7 +24,8 @@ class RabbitMQManagementBackend:
             bool: True if virtual host was created successfully or already exists,
                  False if creation failed or an error occurred
         """
-        vhost_url = f"{self.rmq_management_url}/vhosts/{vhost_name}"
+        vhost_name_encoded = requests.utils.quote(vhost_name, safe="")
+        vhost_url = f"{self.rmq_management_url}/vhosts/{vhost_name_encoded}"
         try:
             logger.info("Creating a virtual host '%s' in RabbitMQ", vhost_name)
             response = requests.put(vhost_url, auth=self.rmq_auth, timeout=10)
@@ -64,6 +65,133 @@ class RabbitMQManagementBackend:
                 exc,
             )
             return False
+
+    def delete_rabbitmq_virtual_host(self, vhost_name: str) -> bool:
+        """Delete a virtual host from RabbitMQ.
+
+        Args:
+            vhost_name (str): Name of the virtual host to delete
+
+        Returns:
+            bool: True if virtual host was deleted successfully, False otherwise
+        """
+        vhost_name_encoded = requests.utils.quote(vhost_name, safe="")
+        url = f"{self.rmq_management_url}/vhosts/{vhost_name_encoded}"
+
+        try:
+            response = requests.delete(url, auth=self.rmq_auth, timeout=10)
+
+            if response.status_code == 204:
+                logger.info("Virtual host %s deleted successfully.", vhost_name)
+                return True
+            else:
+                logger.error(
+                    "Failed to delete virtual host %s, status code: %s, response: %s",
+                    vhost_name,
+                    response.status_code,
+                    response.text,
+                )
+                return False
+        except requests.ConnectionError as exc:
+            logger.error(
+                "Unable to delete vhost %s from RabbitMQ, error: %s", vhost_name, exc
+            )
+            return False
+        except requests.Timeout as exc:
+            logger.error(
+                "Timeout occurred while deleting vhost %s from RabbitMQ: %s",
+                vhost_name,
+                exc,
+            )
+            return False
+        except Exception as exc:
+            logger.error(
+                "An unexpected error occurred while deleting vhost %s: %s",
+                vhost_name,
+                exc,
+            )
+            return False
+
+    def list_rabbitmq_virtual_hosts(self) -> list[str]:
+        """List all virtual hosts in RabbitMQ.
+
+        Returns:
+            List[str]: List of virtual host names
+        """
+        url = f"{self.rmq_management_url}/vhosts"
+
+        try:
+            response = requests.get(url, auth=self.rmq_auth, timeout=10)
+
+            if response.status_code == 200:
+                return [vhost["name"] for vhost in response.json()]
+            else:
+                logger.error(
+                    "Failed to list virtual hosts, status code: %s, response: %s",
+                    response.status_code,
+                    response.text,
+                )
+                return []
+        except requests.ConnectionError as exc:
+            logger.error("Unable to list virtual hosts in RabbitMQ, error: %s", exc)
+            return []
+        except requests.Timeout as exc:
+            logger.error(
+                "Timeout occurred while listing virtual hosts in RabbitMQ: %s", exc
+            )
+            return []
+        except Exception as exc:
+            logger.error(
+                "An unexpected error occurred while listing virtual hosts: %s", exc
+            )
+            return []
+
+    def list_rabbitmq_vhost_permissions(self, vhost_name: str) -> list[str]:
+        """List all permissions for a virtual host in RabbitMQ.
+
+        Args:
+            vhost_name (str): The name of the virtual host
+
+        Returns:
+            List[dict]: List of dictionaries containing permissions for each user
+        """
+        vhost_name_encoded = requests.utils.quote(vhost_name, safe="")
+        url = f"{self.rmq_management_url}/vhosts/{vhost_name_encoded}/permissions/"
+
+        try:
+            response = requests.get(url, auth=self.rmq_auth, timeout=10)
+
+            if response.status_code == 200:
+                return [permission["user"] for permission in response.json()]
+            else:
+                logger.error(
+                    "Failed to list permissions for vhost %s, status code: %s, response: %s",
+                    vhost_name,
+                    response.status_code,
+                    response.text,
+                )
+                return []
+        except requests.ConnectionError as exc:
+            logger.error(
+                "Unable to list permissions for vhost %s in RabbitMQ, error: %s",
+                vhost_name,
+                exc,
+            )
+            return []
+        except requests.Timeout as exc:
+            logger.error(
+                "Timeout occurred while listing permissions for vhost %s in RabbitMQ: %s",
+                vhost_name,
+                exc,
+            )
+            return []
+        except Exception as exc:
+            logger.error(
+                "An unexpected error occurred while listing permissions for vhost %s: %s",
+                vhost_name,
+                exc,
+            )
+            return []
 
     def create_rabbitmq_user(self, username: str, password: str) -> bool:
         """Create a new RabbitMQ user with the specified username and password.
@@ -122,25 +250,27 @@ class RabbitMQManagementBackend:
             return False
 
     def assign_rabbitmq_vhost_permissions(
-        self, username: str, vhost: str, permissions: dict
+        self, username: str, vhost_name: str, permissions: dict
     ) -> bool:
         """Assign permissions for a user on a specific virtual host.
 
         Args:
             username (str): The RabbitMQ username
-            vhost (str): The virtual host name
+            vhost_name (str): The virtual host name
             permissions (dict): Dictionary containing configure, write, and read permissions
 
         Returns:
             bool: True if permissions were set successfully, False otherwise
         """
-        url = f"{self.rmq_management_url}/permissions/{vhost}/{username}"
+
+        vhost_name_encoded = requests.utils.quote(vhost_name, safe="")
+        url = f"{self.rmq_management_url}/permissions/{vhost_name_encoded}/{username}"
 
         try:
             logger.info(
                 "Assigning user %s permissions for vhost %s in RabbitMQ",
                 username,
-                vhost,
+                vhost_name,
             )
             response = requests.put(
                 url, json=permissions, auth=self.rmq_auth, timeout=10
@@ -150,14 +280,14 @@ class RabbitMQManagementBackend:
                 logger.info(
                     "Permissions for user '%s' on vhost '%s' set successfully.",
                     username,
-                    vhost,
+                    vhost_name,
                 )
                 return True
             else:
                 logger.error(
                     "Failed to set permissions for user %s on vhost %s, status code: %s, response: %s",
                     username,
-                    vhost,
+                    vhost_name,
                     response.status_code,
                     response.text,
                 )
@@ -166,7 +296,7 @@ class RabbitMQManagementBackend:
             logger.error(
                 "Unable to assign permissions for user %s and vhost %s in RabbitMQ, error: %s",
                 username,
-                vhost,
+                vhost_name,
                 exc,
             )
             return False
@@ -174,53 +304,6 @@ class RabbitMQManagementBackend:
             logger.error(
                 "An unexpected error occurred while assigning permissions for user %s and vhost %s: %s",
                 username,
-                vhost,
-                exc,
-            )
-            return False
-
-    def delete_rabbitmq_virtual_host(self, vhost_name: str) -> bool:
-        """Delete a virtual host from RabbitMQ.
-
-        Args:
-            vhost_name (str): Name of the virtual host to delete
-
-        Returns:
-            bool: True if virtual host was deleted successfully, False otherwise
-        """
-        vhost_name_encoded = requests.utils.quote(vhost_name, safe="")
-
-        url = f"{self.rmq_management_url}/vhosts/{vhost_name_encoded}"
-
-        try:
-            response = requests.delete(url, auth=self.rmq_auth, timeout=10)
-
-            if response.status_code == 204:
-                logger.info("Virtual host %s deleted successfully.", vhost_name)
-                return True
-            else:
-                logger.error(
-                    "Failed to delete virtual host %s, status code: %s, response: %s",
-                    vhost_name,
-                    response.status_code,
-                    response.text,
-                )
-                return False
-        except requests.ConnectionError as exc:
-            logger.error(
-                "Unable to delete vhost %s from RabbitMQ, error: %s", vhost_name, exc
-            )
-            return False
-        except requests.Timeout as exc:
-            logger.error(
-                "Timeout occurred while deleting vhost %s from RabbitMQ: %s",
-                vhost_name,
-                exc,
-            )
-            return False
-        except Exception as exc:
-            logger.error(
-                "An unexpected error occurred while deleting vhost %s: %s",
                 vhost_name,
                 exc,
             )
@@ -268,6 +351,32 @@ class RabbitMQManagementBackend:
                 "An unexpected error occurred while deleting user %s: %s", username, exc
             )
             return False
+
+    def list_rabbitmq_users(self) -> list[str]:
+        """List all users in RabbitMQ."""
+        url = f"{self.rmq_management_url}/users"
+
+        try:
+            response = requests.get(url, auth=self.rmq_auth, timeout=10)
+
+            if response.status_code == 200:
+                return [user["name"] for user in response.json()]
+            else:
+                logger.error(
+                    "Failed to list users, status code: %s, response: %s",
+                    response.status_code,
+                    response.text,
+                )
+                return []
+        except requests.ConnectionError as exc:
+            logger.error("Unable to list users in RabbitMQ, error: %s", exc)
+            return []
+        except requests.Timeout as exc:
+            logger.error("Timeout occurred while listing users in RabbitMQ: %s", exc)
+            return []
+        except Exception as exc:
+            logger.error("An unexpected error occurred while listing users: %s", exc)
+            return []
 
     def get_user(self, username: str) -> dict | None:
         """Get RabbitMQ user information.
