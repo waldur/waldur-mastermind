@@ -3,9 +3,18 @@ import logging
 import rest_framework
 from django.db.models import Count
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import decorators, mixins, permissions, response, status, viewsets
+from rest_framework import (
+    decorators,
+    mixins,
+    permissions,
+    response,
+    status,
+    views,
+    viewsets,
+)
 
 from waldur_core.core import filters as core_filters
+from waldur_core.core import models as core_models
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import views as core_views
 from waldur_core.core.managers import SummaryQuerySet
@@ -237,3 +246,71 @@ class EventSubscriptionViewSet(core_views.ActionsViewSet):
                     detail=f"Failed to delete RabbitMQ virtual host: {instance.user.uuid.hex}"
                 )
         super().perform_destroy(instance)
+
+
+class RabbitMQVhostStats(views.APIView):
+    permission_classes = [permissions.IsAuthenticated, core_permissions.IsSupport]
+
+    def get(self, request, *args, **kwargs):
+        rmq_backend = backend.RabbitMQManagementBackend()
+        vhosts = rmq_backend.list_rabbitmq_virtual_hosts()
+        output = []
+
+        for vhost in vhosts:
+            vhost_record = {"name": vhost, "waldur_user": None, "subscriptions": []}
+            rmq_users = rmq_backend.list_rabbitmq_vhost_permissions(vhost)
+            for rmq_user in rmq_users:
+                event_subscription = models.EventSubscription.objects.filter(
+                    uuid=rmq_user
+                ).first()
+                if event_subscription is None:
+                    continue
+                event_subscription_data = {
+                    "created": event_subscription.created.isoformat(),
+                    "uuid": rmq_user,
+                    "source_ip": event_subscription.source_ip,
+                }
+                vhost_record["subscriptions"].append(event_subscription_data)
+
+            waldur_user = core_models.User.objects.filter(uuid=vhost).first()
+            if waldur_user is not None:
+                waldur_user_data = {
+                    "full_name": waldur_user.get_full_name(),
+                    "username": waldur_user.username,
+                    "email": waldur_user.email,
+                }
+                vhost_record["waldur_user"] = waldur_user_data
+
+            output.append(vhost_record)
+
+        return response.Response(
+            output,
+            status=status.HTTP_200_OK,
+        )
+
+
+class RabbitMQUserStats(views.APIView):
+    permission_classes = [permissions.IsAuthenticated, core_permissions.IsSupport]
+    from waldur_core.core import pagination
+
+    pagination_class = pagination.LinkHeaderPagination
+
+    def get(self, request, *args, **kwargs):
+        rmq_backend = backend.RabbitMQManagementBackend()
+        users = rmq_backend.list_rabbitmq_users()
+        output = []
+
+        for user in users:
+            connections = rmq_backend.get_user_connections(user)
+            user_record = {"username": user, "connections": []}
+            for connection in connections:
+                source_ip = connection["name"].split("->")[0]
+                vhost = connection["vhost"]
+                user_record["connections"].append(
+                    {"source_ip": source_ip, "vhost": vhost}
+                )
+            output.append(user_record)
+
+        paginator = self.pagination_class()
+        paginated_output = paginator.paginate_queryset(output, request)
+        return paginator.get_paginated_response(paginated_output)
