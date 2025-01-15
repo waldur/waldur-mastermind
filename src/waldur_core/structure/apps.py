@@ -10,7 +10,7 @@ class StructureConfig(AppConfig):
     def ready(self):
         from django.core import checks
 
-        from waldur_core.core.models import ChangeEmailRequest, User
+        from waldur_core.core.models import ChangeEmailRequest
         from waldur_core.permissions import signals as permission_signals
         from waldur_core.quotas import signals as quota_signals
         from waldur_core.structure import handlers
@@ -105,12 +105,6 @@ class StructureConfig(AppConfig):
                 sender=model,
                 dispatch_uid=f"waldur_core.structure.handlers.update_resource_start_time_{model.__name__}_{index}",
             )
-
-        signals.post_save.connect(
-            handlers.notify_about_user_profile_changes,
-            sender=User,
-            dispatch_uid="waldur_core.structure.handlers.notify_about_user_profile_changes",
-        )
 
         permission_signals.role_granted.connect(
             handlers.change_users_quota,

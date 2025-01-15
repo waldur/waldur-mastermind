@@ -762,51 +762,6 @@ class UserConfirmEmailTest(test.APITransactionTestCase):
         self.assertFalse(getattr(self.user, "changeemailrequest", False))
 
 
-@mock.patch("waldur_core.structure.handlers.event_logger")
-class NotificationsProfileChangesTest(test.APITransactionTestCase):
-    def setUp(self):
-        self.user = factories.UserFactory(full_name="John", email="john@example.org")
-
-    def test_sent_notification_if_change_owner_email(self, mock_event_logger):
-        customer = factories.CustomerFactory()
-        customer.add_user(self.user, CustomerRole.OWNER)
-        old_email = self.user.email
-        new_email = "new_email_" + old_email
-        self.user.email = new_email
-        self.user.save()
-        self.assertEqual(mock_event_logger.user.info.call_count, 1)
-
-    def test_notification_message(self, mock_event_logger):
-        customer = factories.CustomerFactory(name="Customer", abbreviation="ABC")
-        customer.add_user(self.user, CustomerRole.OWNER)
-        old_email = self.user.email
-        new_email = "new_email_" + old_email
-        self.user.email = new_email
-        self.user.save()
-        msg = mock_event_logger.user.info.call_args[0][0]
-        test_msg = (
-            f"User John (id={self.user.id}) "
-            "profile has been updated: email from john@example.org to new_email_john@example.org."
-        )
-        self.assertEqual(test_msg, msg)
-
-    def test_dont_sent_notification_if_change_owner_other_field(
-        self, mock_event_logger
-    ):
-        customer = factories.CustomerFactory()
-        customer.add_user(self.user, CustomerRole.OWNER)
-        token_lifetime = 100 + self.user.token_lifetime
-        self.user.token_lifetime = token_lifetime
-        self.user.save()
-        self.assertEqual(mock_event_logger.user.info.call_count, 0)
-
-    def test_dont_sent_notification_if_change_not_owner_email(self, mock_event_logger):
-        new_email = "new_email_" + self.user.email
-        self.user.email = new_email
-        self.user.save()
-        self.assertEqual(mock_event_logger.user.info.call_count, 0)
-
-
 @ddt
 class UserFullnameTest(test.APITransactionTestCase):
     def setUp(self):

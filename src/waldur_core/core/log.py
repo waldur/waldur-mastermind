@@ -63,7 +63,6 @@ class UserEventLogger(EventLogger):
             "user_password_updated",
             "user_activated",
             "user_deactivated",
-            "user_profile_changed",
             "user_has_been_created_by_staff",
             "user_password_updated_by_staff",
         )

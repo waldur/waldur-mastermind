@@ -4,8 +4,12 @@ from django.core.cache import cache
 from django.forms import model_to_dict
 from rest_framework.authtoken.models import Token
 
+from waldur_core.core import utils as core_utils
 from waldur_core.core.log import event_logger
 from waldur_core.core.models import StateMixin, User
+from waldur_core.permissions.enums import RoleEnum
+from waldur_core.structure.managers import get_connected_customers
+from waldur_core.structure.models import Customer
 
 
 def create_auth_token(sender, instance, created=False, **kwargs):
@@ -123,6 +127,47 @@ def log_user_save(sender, instance, created=False, **kwargs):
                 event_type="user_update_succeeded",
                 event_context={"affected_user": instance},
             )
+
+            organizations = get_connected_customers(instance, RoleEnum.CUSTOMER_OWNER)
+
+            if (
+                organizations.exists()
+                and settings.WALDUR_CORE["NOTIFICATIONS_PROFILE_CHANGES"][
+                    "ENABLE_OPERATOR_OWNER_NOTIFICATIONS"
+                ]
+                and settings.WALDUR_CORE["NOTIFICATIONS_PROFILE_CHANGES"][
+                    "OPERATOR_NOTIFICATION_EMAILS"
+                ]
+            ):
+                # We add the fields that have changed to the context for the notification email
+                fields = []
+                for field_name, old_value in old_values.items():
+                    if field_name in User.WHITELIST_FIELDS and old_value != getattr(
+                        instance, field_name
+                    ):
+                        fields.append(
+                            {
+                                "name": field_name,
+                                "old_value": old_value,
+                                "new_value": getattr(instance, field_name),
+                            }
+                        )
+
+                context = {
+                    "user": instance,
+                    "fields": fields,
+                    "organizations": Customer.objects.filter(id__in=organizations),
+                }
+
+                emails = settings.WALDUR_CORE["NOTIFICATIONS_PROFILE_CHANGES"][
+                    "OPERATOR_NOTIFICATION_EMAILS"
+                ]
+                core_utils.broadcast_mail(
+                    "structure",
+                    "notifications_profile_changes_operator",
+                    context,
+                    emails,
+                )
 
 
 def log_user_delete(sender, instance, **kwargs):
