@@ -87,8 +87,12 @@ class CreditLogger(EventLogger):
 
     class Meta:
         event_types = (
-            "reduction_of_credit_due_to_minimal_consumption",
-            "reduction_of_credit",
+            "reduction_of_customer_credit_due_to_minimal_consumption",
+            "reduction_of_customer_credit",
+            "reduction_of_customer_expected_consumption",
+            "reduction_of_project_credit_due_to_minimal_consumption",
+            "reduction_of_project_credit",
+            "reduction_of_project_expected_consumption",
             "set_to_zero_overdue_credit",
             "update_of_credit_by_staff",
             "create_of_credit_by_staff",
@@ -114,7 +118,10 @@ class CreditLogger(EventLogger):
 
     @staticmethod
     def get_scopes(event_context):
-        return {event_context["customer"]}
+        scopes = {event_context["customer"]}
+        if "project" in event_context:
+            scopes.add(event_context["project"])
+        return scopes
 
 
 event_logger.register("credit", CreditLogger)

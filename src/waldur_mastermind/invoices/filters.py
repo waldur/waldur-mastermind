@@ -115,6 +115,8 @@ class ProjectCreditFilter(django_filters.FilterSet):
         fields=(
             ("project__name", "project_name"),
             ("value", "value"),
+            ("end_date", "end_date"),
+            ("expected_consumption", "expected_consumption"),
         ),
     )
 

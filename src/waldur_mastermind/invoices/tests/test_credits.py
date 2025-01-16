@@ -311,7 +311,7 @@ class CustomerCreditTest(test.APITransactionTestCase):
         self.assertEqual(credit.value, 0)
         self.assertTrue(
             logging_models.Event.objects.filter(
-                event_type="reduction_of_credit"
+                event_type="reduction_of_customer_credit"
             ).exists()
         )
 
@@ -346,7 +346,7 @@ class CustomerCreditTest(test.APITransactionTestCase):
         self.assertEqual(old_total * -1, old_total - expected_consumption)
         self.assertTrue(
             logging_models.Event.objects.filter(
-                event_type="reduction_of_credit_due_to_minimal_consumption"
+                event_type="reduction_of_customer_credit_due_to_minimal_consumption"
             ).exists()
         )
 
@@ -414,7 +414,7 @@ class CustomerCreditTest(test.APITransactionTestCase):
         credit = factories.CustomerCreditFactory(
             value=1200,
             end_date=datetime.date(2025, 1, 1),
-            minimal_consumption_logic=models.MinimalConsumptionMixin.MinimalConsumptionLogic.LINEAR,
+            minimal_consumption_logic=models.BaseCredit.MinimalConsumptionLogic.LINEAR,
             grace_coefficient=0,
         )
 
