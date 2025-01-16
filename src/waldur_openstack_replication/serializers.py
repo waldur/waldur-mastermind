@@ -183,8 +183,7 @@ class MigrationCreateSerializer(serializers.ModelSerializer):
 
             if dst_type.settings != dst_settings:
                 raise serializers.ValidationError(
-                    "Invalid dst_type_uuid %s as it is not available in service settings.",
-                    dst_type_uuid,
+                    f"Invalid dst_type_uuid {dst_type_uuid} as it is not available in service settings.",
                 )
         return attrs
 
