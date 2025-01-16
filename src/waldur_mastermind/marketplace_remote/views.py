@@ -266,3 +266,31 @@ class RemoteSynchronisationViewSet(core_views.ActionsViewSet):
             ).data,
             status=status.HTTP_200_OK,
         )
+
+
+class SyncResourceView(APIView):
+    permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
+
+    def get_resource(self):
+        resource_uuid = self.kwargs["uuid"]
+        if not is_uuid_like(resource_uuid):
+            return Response(status=status.HTTP_400_BAD_REQUEST, data="UUID is invalid.")
+        resource = models.Resource.objects.filter(uuid=resource_uuid).first()
+        if resource is None:
+            return Response(
+                status=status.HTTP_404_NOT_FOUND, data="A resource is not found"
+            )
+        if resource.state == models.Resource.States.TERMINATED:
+            return Response(
+                status=status.HTTP_400_BAD_REQUEST, data="The resource is terminated"
+            )
+        if resource.state == models.Resource.States.UPDATING:
+            return Response(
+                status=status.HTTP_400_BAD_REQUEST, data="The resource is updating"
+            )
+        return resource
+
+    def post(self, *args, **kwargs):
+        resource = self.get_resource()
+        tasks.ResourcePullTask.apply_async(args=[serialize_instance(resource)])
+        return Response(status=status.HTTP_200_OK)
