@@ -481,6 +481,9 @@ class Offering(
     support_per_user_consumption_limitation = models.BooleanField(
         default=False, help_text=_("Set per user limits for resource components.")
     )
+    access_url = models.URLField(
+        help_text=_("Publicly accessible offering access URL"), blank=True
+    )
 
     objects = managers.OfferingManager()
     tracker = FieldTracker()
