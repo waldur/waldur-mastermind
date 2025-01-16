@@ -507,7 +507,7 @@ class Payment(core_models.UuidMixin, core_models.TimeStampedModel):
         return "payment"
 
 
-class MinimalConsumptionMixin(models.Model):
+class BaseCredit(core_models.UuidMixin, core_models.TimeStampedModel):
     class MinimalConsumptionLogic:
         FIXED = "fixed"
         LINEAR = "linear"
@@ -534,6 +534,13 @@ class MinimalConsumptionMixin(models.Model):
         default=decimal.Decimal("0"),
     )
     apply_as_minimal_consumption = models.BooleanField(default=True)
+    end_date = models.DateField(null=True)
+    value = models.DecimalField(
+        default=0,
+        validators=[MinValueValidator(decimal.Decimal("0"))],
+        max_digits=16,
+        decimal_places=5,
+    )
 
     @property
     def time_left_factor(self):
@@ -573,18 +580,9 @@ class MinimalConsumptionMixin(models.Model):
         abstract = True
 
 
-class CustomerCredit(
-    MinimalConsumptionMixin, core_models.UuidMixin, core_models.TimeStampedModel
-):
+class CustomerCredit(BaseCredit):
     customer = models.OneToOneField(structure_models.Customer, on_delete=models.CASCADE)
-    value = models.DecimalField(
-        default=0,
-        validators=[MinValueValidator(decimal.Decimal("0"))],
-        max_digits=16,
-        decimal_places=5,
-    )
     offerings = models.ManyToManyField(marketplace_models.Offering)
-    end_date = models.DateField(null=True)
 
     tracker = FieldTracker()
 
@@ -625,14 +623,8 @@ class CustomerCredit(
         return f"Customer credit for {self.customer.name}, value {self.value}"
 
 
-class ProjectCredit(core_models.UuidMixin, core_models.TimeStampedModel):
+class ProjectCredit(BaseCredit):
     project = models.OneToOneField(structure_models.Project, on_delete=models.CASCADE)
-    value = models.DecimalField(
-        default=0,
-        validators=[MinValueValidator(decimal.Decimal("0"))],
-        max_digits=16,
-        decimal_places=5,
-    )
 
     @property
     def consumption_last_month(self):

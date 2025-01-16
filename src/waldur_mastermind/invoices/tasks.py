@@ -290,31 +290,9 @@ def set_to_zero_overdue_credits():
         )
 
 
-def process_invoice_credits(invoice):
+def process_invoice_credits(invoice: models.Invoice):
     """Process credits for a given invoice"""
     with transaction.atomic():
         monthly_compensation = compensations.MonthlyCompensation(invoice.customer)
         monthly_compensation.apply_compensations()
         monthly_compensation.update_linear_expected_consumption()
-
-        if monthly_compensation.tail:
-            log.event_logger.credit.info(
-                "Reduction of {customer_name} credit by {consumption} due to minimal consumption of {minimal_consumption}",
-                event_type="reduction_of_credit_due_to_minimal_consumption",
-                event_context={
-                    "consumption": monthly_compensation.tail,
-                    "minimal_consumption": monthly_compensation.credit.minimal_consumption,
-                    "customer": invoice.customer,
-                },
-            )
-
-        for compensation_item in monthly_compensation.compensations:
-            log.event_logger.credit.info(
-                "Reduction of {customer_name} credit by {consumption} due to compensation of invoice item {invoice_item}.",
-                event_type="reduction_of_credit",
-                event_context={
-                    "consumption": compensation_item.unit_price,
-                    "customer": invoice.customer,
-                    "invoice_item": str(compensation_item),
-                },
-            )

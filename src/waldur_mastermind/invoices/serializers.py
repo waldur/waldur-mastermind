@@ -1002,6 +1002,12 @@ class ProjectCreditSerializer(serializers.HyperlinkedModelSerializer):
             "allocated_customer_credit",
             "consumption_last_month",
             "offerings",
+            "end_date",
+            "expected_consumption",
+            "minimal_consumption",
+            "minimal_consumption_logic",
+            "grace_coefficient",
+            "apply_as_minimal_consumption",
         )
 
         extra_kwargs = {

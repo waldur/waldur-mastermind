@@ -3,6 +3,8 @@ import logging
 from django.db import transaction
 from django.db.models import Sum
 
+from waldur_core.structure.models import Project
+
 from . import log, models
 
 logger = logging.getLogger(__name__)
@@ -31,6 +33,7 @@ class MonthlyCompensation:
         self._projects_credits = []
         self._total_compensation = 0
         self._tail = 0
+        self._project_tails: dict[models.ProjectCredit, float] = {}
 
         self.credit = models.CustomerCredit.objects.filter(
             customer=self.customer
@@ -48,14 +51,14 @@ class MonthlyCompensation:
         )
 
         projects_credits = {
-            p.project: p
-            for p in models.ProjectCredit.objects.filter(
+            project_credit.project: project_credit
+            for project_credit in models.ProjectCredit.objects.filter(
                 project_id__in=items_projects_ids
             ).select_related("project")  # Prefetch related project data
         }
         credit_offerings = list(self.credit.offerings.all())
 
-        items = sorted(
+        items: list[models.InvoiceItem] = sorted(
             [
                 i
                 for i in self.invoice.items.exclude(resource__isnull=True)
@@ -124,12 +127,28 @@ class MonthlyCompensation:
 
                 self._total_compensation += self._tail
 
+        for project_credit in projects_credits.values():
+            if not project_credit.minimal_consumption:
+                continue
+            total_project_compensation = self.get_total_project_compensation(
+                project_credit.project
+            )
+            if total_project_compensation < project_credit.minimal_consumption:
+                tail = project_credit.minimal_consumption - total_project_compensation
+                if project_credit.value - tail < 0:
+                    tail = project_credit.value
+                    project_credit.value = 0
+                else:
+                    project_credit.value -= tail
+
+                self._project_tails[project_credit] = tail
+
         self._projects_credits = projects_credits.values()
         self._calculated = True
         return
 
     @property
-    def compensations(self):
+    def compensations(self) -> list[models.InvoiceItem]:
         self.calculate_current_compensations()
         return self._compensations
 
@@ -155,12 +174,54 @@ class MonthlyCompensation:
             == models.CustomerCredit.MinimalConsumptionLogic.LINEAR
             and self.credit.end_date
         ):
-            self.credit.expected_consumption = (
+            new_expected_consumption = (
                 self.credit.calculate_linear_expected_consumption(
                     self.total_compensation
                 )
             )
+            diff = new_expected_consumption - self.credit.expected_consumption
+            self.credit.expected_consumption = new_expected_consumption
             self.credit.save(update_fields=["expected_consumption"])
+            log.event_logger.credit.info(
+                "Reduction of {customer_name} expected consumption by {consumption} according to linear minimal consumption logic.",
+                event_type="reduction_of_customer_expected_consumption",
+                event_context={
+                    "consumption": diff,
+                    "customer": self.customer,
+                },
+            )
+
+        for project_credit, tail in self._project_tails.items():
+            if (
+                project_credit.minimal_consumption_logic
+                == models.ProjectCredit.MinimalConsumptionLogic.LINEAR
+                and project_credit.end_date
+            ):
+                new_expected_consumption = (
+                    project_credit.calculate_linear_expected_consumption(
+                        tail
+                        + self.get_total_project_compensation(project_credit.project)
+                    )
+                )
+                diff = new_expected_consumption - project_credit.expected_consumption
+                project_credit.expected_consumption = new_expected_consumption
+                project_credit.save(update_fields=["expected_consumption"])
+                log.event_logger.credit.info(
+                    "Reduction of {project_name} expected consumption by {consumption} according to linear minimal consumption logic.",
+                    event_type="reduction_of_project_expected_consumption",
+                    event_context={
+                        "consumption": diff,
+                        "customer": self.customer,
+                        "project": project_credit.project,
+                    },
+                )
+
+    def get_total_project_compensation(self, project: Project):
+        return sum(
+            c.unit_price * -1
+            for c in self.compensations
+            if c.resource.project == project
+        )
 
     @transaction.atomic
     def save(self):
@@ -173,6 +234,50 @@ class MonthlyCompensation:
             pc.save()
 
         self.credit.save(update_fields=["value"])
+
+        if self.tail:
+            log.event_logger.credit.info(
+                "Reduction of {customer_name} credit by {consumption} due to minimal consumption of {minimal_consumption}",
+                event_type="reduction_of_customer_credit_due_to_minimal_consumption",
+                event_context={
+                    "consumption": self.tail,
+                    "minimal_consumption": self.credit.minimal_consumption,
+                    "customer": self.customer,
+                },
+            )
+
+        for compensation_item in self.compensations:
+            log.event_logger.credit.info(
+                "Reduction of {customer_name} credit by {consumption} due to compensation of invoice item {invoice_item}.",
+                event_type="reduction_of_customer_credit",
+                event_context={
+                    "consumption": compensation_item.unit_price,
+                    "customer": self.customer,
+                    "invoice_item": str(compensation_item),
+                },
+            )
+            log.event_logger.credit.info(
+                "Reduction of {project_name} credit by {consumption} due to compensation of invoice item {invoice_item}.",
+                event_type="reduction_of_project_credit",
+                event_context={
+                    "consumption": compensation_item.unit_price,
+                    "customer": self.customer,
+                    "project": compensation_item.project,
+                    "invoice_item": str(compensation_item),
+                },
+            )
+
+        for project_credit, tail in self._project_tails.items():
+            log.event_logger.credit.info(
+                "Reduction of {project_name} credit by {consumption} due to minimal consumption of {minimal_consumption}",
+                event_type="reduction_of_project_credit_due_to_minimal_consumption",
+                event_context={
+                    "consumption": tail,
+                    "minimal_consumption": project_credit.minimal_consumption,
+                    "customer": self.customer,
+                    "project": project_credit.project,
+                },
+            )
 
     def get_project_credit_consumption(self, project):
         """Returns the value by which the project credit will be reduced next month."""
