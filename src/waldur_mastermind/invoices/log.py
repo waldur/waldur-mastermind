@@ -103,6 +103,7 @@ class CreditLogger(EventLogger):
         event_groups = {
             "customers": event_types,
             "invoices": event_types,
+            "credits": event_types,
         }
         nullable_fields = [
             "consumption",
