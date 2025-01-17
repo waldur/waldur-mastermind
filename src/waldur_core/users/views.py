@@ -1,3 +1,4 @@
+from constance import config
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction
@@ -191,7 +192,7 @@ class InvitationViewSet(ProtectedViewSet):
 
         replace_email = False
         if invitation.email != request.user.email:
-            if settings.WALDUR_CORE["ENABLE_STRICT_CHECK_ACCEPTING_INVITATION"]:
+            if config.ENABLE_STRICT_CHECK_ACCEPTING_INVITATION:
                 raise ValidationError(
                     _("User’s email and email of the invitation are not equal.")
                 )
