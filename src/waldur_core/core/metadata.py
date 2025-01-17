@@ -167,11 +167,6 @@ class WaldurCore(BaseModel):
     INVITATION_WEBHOOK_TOKEN_SECRET = Field(
         "", description="Client secret to get access token from Keycloak."
     )
-    ENABLE_STRICT_CHECK_ACCEPTING_INVITATION = Field(
-        False,
-        description="If this is true and user email is pre-validated then accepting invitation to only do that if "
-        "user’s email and email of the invitation fully match.",
-    )
     PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS: list[str] = Field(
         [],
         description="List of authentication methods for which a manual update of user details is not allowed.",

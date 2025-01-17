@@ -1,6 +1,7 @@
 import datetime
 from datetime import timedelta
 
+from constance.test.pytest import override_config
 from ddt import data, ddt
 from django.conf import settings
 from django.core import mail
@@ -873,7 +874,7 @@ class InvitationAcceptTest(BaseInvitationTest):
         self.user.refresh_from_db()
         self.assertEqual(self.user.email, invitation.email)
 
-    @override_waldur_core_settings(ENABLE_STRICT_CHECK_ACCEPTING_INVITATION=True)
+    @override_config(ENABLE_STRICT_CHECK_ACCEPTING_INVITATION=True)
     def test_user_can_not_accept_invitation_if_emails_are_not_equal(self):
         self.client.force_authenticate(user=self.user)
         response = self.client.post(
