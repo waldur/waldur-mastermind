@@ -10,7 +10,7 @@ Prerequisites for Dev Containers are:
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) (for local development)
 - Git
 
-After cloning repository, when prompted "Reopen in Container", click on it. Alternatively, you can press Ctrl+Shift+P, ype "Dev Containers: Reopen in Container" and press Enter.
+After cloning repository, when prompted "Reopen in Container", click on it. Alternatively, you can press Ctrl+Shift+P, type "Dev Containers: Reopen in Container" and press Enter.
 
 VS Code will build the dev container and set up the environment automatically. This process includes:
 
