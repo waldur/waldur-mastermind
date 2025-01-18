@@ -18,7 +18,6 @@ from reversion import revisions as reversion
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.exceptions import IncorrectStateException
-from waldur_core.logging.mixins import LoggableMixin
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.common.utils import quantize_price
@@ -37,7 +36,10 @@ def get_created_date():
 
 
 class Invoice(
-    LoggableMixin, core_models.UuidMixin, core_models.BackendMixin, models.Model
+    structure_models.StructureLoggableMixin,
+    core_models.UuidMixin,
+    core_models.BackendMixin,
+    models.Model,
 ):
     """Invoice describes billing information about purchased resources for customers on a monthly basis"""
 
@@ -229,7 +231,7 @@ def get_quantity(unit, start, end):
 
 
 class InvoiceItem(
-    LoggableMixin,
+    structure_models.StructureLoggableMixin,
     core_models.UuidMixin,
     common_mixins.ProductCodeMixin,
     common_mixins.UnitPriceMixin,
