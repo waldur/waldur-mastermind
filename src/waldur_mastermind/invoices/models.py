@@ -18,6 +18,7 @@ from reversion import revisions as reversion
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.exceptions import IncorrectStateException
+from waldur_core.logging.mixins import LoggableMixin
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.common.utils import quantize_price
@@ -35,7 +36,9 @@ def get_created_date():
     return datetime.date(now.year, now.month, 1)
 
 
-class Invoice(core_models.UuidMixin, core_models.BackendMixin, models.Model):
+class Invoice(
+    LoggableMixin, core_models.UuidMixin, core_models.BackendMixin, models.Model
+):
     """Invoice describes billing information about purchased resources for customers on a monthly basis"""
 
     class Permissions:
@@ -106,6 +109,9 @@ class Invoice(core_models.UuidMixin, core_models.BackendMixin, models.Model):
         max_length=300,
         blank=True,
     )
+
+    def get_log_fields(self):
+        return ("uuid", "name", "year", "month", "customer")
 
     tracker = FieldTracker()
 
@@ -223,7 +229,10 @@ def get_quantity(unit, start, end):
 
 
 class InvoiceItem(
-    core_models.UuidMixin, common_mixins.ProductCodeMixin, common_mixins.UnitPriceMixin
+    LoggableMixin,
+    core_models.UuidMixin,
+    common_mixins.ProductCodeMixin,
+    common_mixins.UnitPriceMixin,
 ):
     """
     It is expected that get_scope_type method is defined as class method in scope class
@@ -432,6 +441,9 @@ class InvoiceItem(
     def __str__(self):
         return self.name or "<InvoiceItem %s>" % self.pk
 
+    def get_log_fields(self):
+        return ("uuid", "invoice")
+
 
 class PaymentType(models.CharField):
     FIXED_PRICE = "fixed_price"
@@ -451,7 +463,9 @@ class PaymentType(models.CharField):
 
 
 class PaymentProfile(core_models.UuidMixin, core_models.NameMixin, models.Model):
-    organization = models.ForeignKey("structure.Customer", on_delete=models.PROTECT)
+    organization = models.ForeignKey(
+        structure_models.Customer, on_delete=models.PROTECT
+    )
     payment_type = PaymentType()
     attributes = models.JSONField(default=dict, blank=True)
     is_active = models.BooleanField(null=True, default=True)

@@ -246,24 +246,33 @@ class MonthlyCompensation:
                 },
             )
 
-        for compensation_item in self.compensations:
+        for invoice_item in self.compensations:
             log.event_logger.credit.info(
                 "Reduction of {customer_name} credit by {consumption} due to compensation of invoice item {invoice_item}.",
                 event_type="reduction_of_customer_credit",
                 event_context={
-                    "consumption": compensation_item.unit_price,
+                    "consumption": invoice_item.unit_price,
                     "customer": self.customer,
-                    "invoice_item": str(compensation_item),
+                    "invoice_item": str(invoice_item),
                 },
             )
             log.event_logger.credit.info(
                 "Reduction of {project_name} credit by {consumption} due to compensation of invoice item {invoice_item}.",
                 event_type="reduction_of_project_credit",
                 event_context={
-                    "consumption": compensation_item.unit_price,
+                    "consumption": invoice_item.unit_price,
                     "customer": self.customer,
-                    "project": compensation_item.project,
-                    "invoice_item": str(compensation_item),
+                    "project": invoice_item.project,
+                    "invoice_item": str(invoice_item),
+                },
+            )
+            # Because bulk_create is used for InvoiceItem, the post_save signals
+            # will not be sent, and event would not be emitted by handler.
+            log.event_logger.invoice_item.info(
+                "Invoice item has been created",
+                event_type="invoice_item_created",
+                event_context={
+                    "invoice_item": invoice_item,
                 },
             )
 

@@ -13,6 +13,7 @@ from model_utils.models import TimeStampedModel
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.fields import JSONField
+from waldur_core.logging.mixins import LoggableMixin
 from waldur_core.quotas import models as quotas_models
 from waldur_core.quotas.fields import QuotaField
 from waldur_core.quotas.models import QuotaModelMixin
@@ -240,9 +241,7 @@ class SecurityGroup(structure_models.BaseResource):
         return super().get_backend_fields() + ("name", "description")
 
 
-class SecurityGroupRule(
-    core_models.LoggableMixin, core_models.DescribableMixin, models.Model
-):
+class SecurityGroupRule(LoggableMixin, core_models.DescribableMixin, models.Model):
     TCP = "tcp"
     UDP = "udp"
     ICMP = "icmp"

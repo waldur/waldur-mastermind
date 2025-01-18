@@ -7,7 +7,7 @@ from django.db.models import QuerySet
 
 from paho.mqtt import publish as mqtt_publish
 from waldur_core.logging import backend, models
-from waldur_core.logging.loggers import LoggableMixin
+from waldur_core.logging.mixins import LoggableMixin
 
 logger = logging.getLogger(__name__)
 

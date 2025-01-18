@@ -1,19 +1,16 @@
 """Custom loggers that allows to store logs in DB"""
 
-import datetime
-import decimal
 import importlib
 import logging
 import types
-import uuid
 from collections import defaultdict
 
 from django.apps import apps
-from django.core.exceptions import ObjectDoesNotExist
 
 from waldur_core.logging import models
 from waldur_core.logging.log import EventLoggerAdapter
 from waldur_core.logging.middleware import get_event_context
+from waldur_core.logging.mixins import LoggableMixin
 
 logger = logging.getLogger(__name__)
 
@@ -239,51 +236,6 @@ class EventLogger(BaseLogger):
             for scope in self.get_scopes(event_context) or []:
                 if scope and scope.id:
                     models.Feed.objects.create(scope=scope, event=event)
-
-
-class LoggableMixin:
-    """Mixin to serialize model in logs.
-    Extends django model or custom class with fields extraction method.
-    """
-
-    def get_log_fields(self):
-        return ("uuid", "name")
-
-    def _get_log_context(self, entity_name=None):
-        context = {}
-        for field in self.get_log_fields():
-            try:
-                if not hasattr(self, field):
-                    continue
-                value = getattr(self, field)
-            except ObjectDoesNotExist:
-                # the related object has been deleted
-                continue
-
-            if entity_name:
-                name = f"{entity_name}_{field}"
-            else:
-                name = field
-            if isinstance(value, uuid.UUID):
-                context[name] = value.hex
-            elif isinstance(value, LoggableMixin):
-                context.update(value._get_log_context(field))
-            elif isinstance(value, datetime.date):
-                context[name] = value.isoformat()
-            elif isinstance(value, decimal.Decimal):
-                context[name] = float(value)
-            elif isinstance(value, dict):
-                context[name] = value
-            elif callable(value):
-                context[name] = value()
-            else:
-                context[name] = str(value)
-
-        return context
-
-    @classmethod
-    def get_permitted_objects(cls, user):
-        return cls.objects.none()
 
 
 class BaseLoggerRegistry:

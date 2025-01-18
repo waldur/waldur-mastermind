@@ -63,7 +63,7 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
     @transaction.atomic
     @action(detail=True, methods=["post"])
     def paid(self, request, uuid=None):
-        invoice = self.get_object()
+        invoice: models.Invoice = self.get_object()
 
         if request.data:
             serializer = serializers.PaidSerializer(data=request.data)
@@ -98,6 +98,7 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
                     "month": invoice.month,
                     "year": invoice.year,
                     "customer": invoice.customer,
+                    "invoice": invoice,
                 },
             )
 
@@ -282,7 +283,7 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
     @transaction.atomic
     @action(detail=True, methods=["post"])
     def create_compensation(self, request, **kwargs):
-        invoice_item = self.get_object()
+        invoice_item: models.InvoiceItem = self.get_object()
 
         serializer = self.get_serializer_class()(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -313,55 +314,14 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
         invoice_item.unit_price *= -1
         invoice_item.save()
 
-        log.event_logger.invoice_item.info(
-            f"Invoice item {invoice_item.name} has been created.",
-            event_type="invoice_item_created",
-            event_context={
-                "customer": invoice_item.invoice.customer,
-            },
-        )
-
         return Response(
             {"invoice_item_uuid": invoice_item.uuid.hex},
             status=status.HTTP_201_CREATED,
         )
 
-    def perform_update(self, serializer):
-        instance = self.get_object()
-        old_values = {
-            field: getattr(instance, field.attname) for field in instance._meta.fields
-        }
-        invoice_item = serializer.save()
-        diff = ", ".join(
-            [
-                f"{field.name}: {old_values.get(field.name)} -> {getattr(invoice_item, field.name, None)}"
-                for field, value in old_values.items()
-                if value != getattr(invoice_item, field.attname, None)
-            ]
-        )
-        log.event_logger.invoice_item.info(
-            f"Invoice item {invoice_item.name} has been updated. Details: {diff}.",
-            event_type="invoice_item_updated",
-            event_context={
-                "customer": invoice_item.invoice.customer,
-            },
-        )
-        return invoice_item
-
-    def perform_destroy(self, instance):
-        invoice_item = instance
-        log.event_logger.invoice_item.info(
-            f"Invoice item {invoice_item.name} has been deleted.",
-            event_type="invoice_item_deleted",
-            event_context={
-                "customer": invoice_item.invoice.customer,
-            },
-        )
-        invoice_item.delete()
-
     @action(detail=True, methods=["post"])
     def migrate_to(self, request, **kwargs):
-        invoice_item = self.get_object()
+        invoice_item: models.InvoiceItem = self.get_object()
         serializer = self.get_serializer_class()(data=request.data)
         serializer.is_valid(raise_exception=True)
         invoice = serializer.validated_data["invoice"]
@@ -386,7 +346,7 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
             f"Invoice item has been migrated from {old_invoice} to {invoice}",
             event_type="invoice_item_updated",
             event_context={
-                "customer": invoice.customer,
+                "invoice_item": invoice_item,
             },
         )
 
@@ -578,10 +538,10 @@ class PaymentViewSet(core_views.ActionsViewSet):
 
     @action(detail=True, methods=["post"])
     def link_to_invoice(self, request, uuid=None):
-        payment = self.get_object()
+        payment: models.Payment = self.get_object()
         serializer = self.get_serializer_class()(data=request.data)
         serializer.is_valid(raise_exception=True)
-        invoice = serializer.validated_data["invoice"]
+        invoice: models.Invoice = serializer.validated_data["invoice"]
 
         if invoice.customer != payment.profile.organization:
             raise exceptions.ValidationError(
@@ -598,6 +558,7 @@ class PaymentViewSet(core_views.ActionsViewSet):
                 "month": invoice.month,
                 "year": invoice.year,
                 "customer": invoice.customer,
+                "invoice": invoice,
             },
         )
 
@@ -619,7 +580,7 @@ class PaymentViewSet(core_views.ActionsViewSet):
 
     @action(detail=True, methods=["post"])
     def unlink_from_invoice(self, request, uuid=None):
-        payment = self.get_object()
+        payment: models.Payment = self.get_object()
         invoice = payment.invoice
         payment.invoice = None
         payment.save(update_fields=["invoice"])
@@ -631,6 +592,7 @@ class PaymentViewSet(core_views.ActionsViewSet):
                 "month": invoice.month,
                 "year": invoice.year,
                 "customer": invoice.customer,
+                "invoice": invoice,
             },
         )
 
@@ -643,17 +605,18 @@ class PaymentViewSet(core_views.ActionsViewSet):
 
     def perform_create(self, serializer):
         super().perform_create(serializer)
-        payment = serializer.instance
+        payment: models.Payment = serializer.instance
         log.event_logger.payment.info(
             "Payment for {customer_name} in the amount of {amount} has been added.",
             event_type="payment_added",
             event_context={
                 "amount": payment.sum,
                 "customer": payment.profile.organization,
+                "invoice": payment.invoice,
             },
         )
 
-    def perform_destroy(self, instance):
+    def perform_destroy(self, instance: models.Payment):
         customer = instance.profile.organization
         amount = instance.sum
         super().perform_destroy(instance)
@@ -664,6 +627,7 @@ class PaymentViewSet(core_views.ActionsViewSet):
             event_context={
                 "amount": amount,
                 "customer": customer,
+                "invoice": instance.invoice,
             },
         )
 

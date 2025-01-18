@@ -32,15 +32,11 @@ class InvoiceItemDeleteTest(test.APITransactionTestCase):
         response = self.delete_invoice_item(self.fixture.user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @mock.patch("waldur_core.structure.handlers.event_logger")
+    @mock.patch("waldur_mastermind.invoices.log.event_logger.invoice_item.info")
     def test_event_is_emitted(self, logger_mock):
         self.delete_invoice_item(self.fixture.staff)
-        logger_mock.event_logger.invoice_item.info(
-            f"Invoice item {self.fixture.invoice_item.name} has been deleted.",
-            event_type="invoice_item_deleted",
-            event_context={
-                "customer": self.fixture.invoice_item.invoice.customer,
-            },
+        self.assertEqual(
+            logger_mock.call_args[-1]["event_type"], "invoice_item_deleted"
         )
 
 
@@ -65,15 +61,11 @@ class InvoiceItemUpdateTest(test.APITransactionTestCase):
         response = self.update_invoice_item(self.fixture.user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @mock.patch("waldur_core.structure.handlers.event_logger")
+    @mock.patch("waldur_mastermind.invoices.log.event_logger.invoice_item.info")
     def test_event_is_emitted(self, logger_mock):
         self.update_invoice_item(self.fixture.staff)
-        logger_mock.event_logger.invoice_item.info(
-            f"Invoice item {self.fixture.invoice_item.name} has been updated.",
-            event_type="invoice_item_updated",
-            event_context={
-                "customer": self.fixture.invoice_item.invoice.customer,
-            },
+        self.assertEqual(
+            logger_mock.call_args[-1]["event_type"], "invoice_item_updated"
         )
 
     def test_when_quantity_is_updated_component_usage_is_updated_too(self):
@@ -188,15 +180,11 @@ class InvoiceItemCompensationTest(test.APITransactionTestCase):
         response = self.create_compensation(self.fixture.user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @mock.patch("waldur_core.structure.handlers.event_logger")
+    @mock.patch("waldur_mastermind.invoices.log.event_logger.invoice_item.info")
     def test_event_is_emitted(self, logger_mock):
         self.create_compensation(self.fixture.staff)
-        logger_mock.event_logger.invoice_item.info(
-            f"Invoice item {self.item.name} has been created.",
-            event_type="invoice_item_created",
-            event_context={
-                "customer": self.item.invoice.customer,
-            },
+        self.assertEqual(
+            logger_mock.call_args[-1]["event_type"], "invoice_item_created"
         )
 
 

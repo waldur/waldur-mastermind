@@ -8,6 +8,7 @@ class InvoiceLogger(EventLogger):
     month = int
     year = int
     customer = "structure.Customer"
+    invoice = "invoices.Invoice"
 
     class Meta:
         event_types = (
@@ -18,20 +19,19 @@ class InvoiceLogger(EventLogger):
             "payment_removed",
         )
         event_groups = {
-            "customers": event_types,
             "invoices": event_types,
         }
 
     @staticmethod
     def get_scopes(event_context):
-        return {event_context["customer"]}
+        return {event_context["customer"], event_context["invoice"]}
 
 
 event_logger.register("invoice", InvoiceLogger)
 
 
 class InvoiceItemLogger(EventLogger):
-    customer = "structure.Customer"
+    invoice_item = "invoices.InvoiceItem"
 
     class Meta:
         event_types = (
@@ -40,13 +40,13 @@ class InvoiceItemLogger(EventLogger):
             "invoice_item_deleted",
         )
         event_groups = {
-            "customers": event_types,
             "invoices": event_types,
         }
 
     @staticmethod
     def get_scopes(event_context):
-        return {event_context["customer"]}
+        invoice_item = event_context["invoice_item"]
+        return {invoice_item.invoice.customer, invoice_item.invoice}
 
 
 event_logger.register("invoice_item", InvoiceItemLogger)
