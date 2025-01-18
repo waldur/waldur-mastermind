@@ -32,7 +32,7 @@ from waldur_core.core.validators import (
     validate_name,
     validate_phone_number,
 )
-from waldur_core.logging.loggers import LoggableMixin
+from waldur_core.logging.mixins import LoggableMixin
 from waldur_core.media.mixins import ImageModelMixin
 from waldur_core.media.validators import CertificateValidator
 from waldur_core.permissions.enums import SYSTEM_PROJECT_ROLES, PermissionEnum, RoleEnum

@@ -71,3 +71,15 @@ class InvoiceConfig(AppConfig):
             sender=models.CustomerCredit,
             dispatch_uid="waldur_mastermind.invoices.log_credit",
         )
+
+        signals.post_save.connect(
+            handlers.log_invoice_item_save,
+            sender=models.InvoiceItem,
+            dispatch_uid="waldur_mastermind.invoices.log_invoice_item_save",
+        )
+
+        signals.post_delete.connect(
+            handlers.log_invoice_item_delete,
+            sender=models.InvoiceItem,
+            dispatch_uid="waldur_mastermind.invoices.log_invoice_item_delete",
+        )

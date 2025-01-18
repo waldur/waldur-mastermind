@@ -20,7 +20,7 @@ from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
-from waldur_core.logging.loggers import LoggableMixin
+from waldur_core.logging.mixins import LoggableMixin
 from waldur_core.media.mixins import get_upload_path
 from waldur_core.media.validators import ImageValidator
 from waldur_core.permissions.enums import PermissionEnum

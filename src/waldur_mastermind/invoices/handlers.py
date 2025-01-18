@@ -18,7 +18,9 @@ from . import log, models, registrators
 logger = logging.getLogger(__name__)
 
 
-def log_invoice_state_transition(sender, instance, created=False, **kwargs):
+def log_invoice_state_transition(
+    sender, instance: models.Invoice, created=False, **kwargs
+):
     if created:
         return
 
@@ -36,6 +38,7 @@ def log_invoice_state_transition(sender, instance, created=False, **kwargs):
                 "month": instance.month,
                 "year": instance.year,
                 "customer": instance.customer,
+                "invoice": instance,
             },
         )
     elif state == models.Invoice.States.PAID:
@@ -46,6 +49,7 @@ def log_invoice_state_transition(sender, instance, created=False, **kwargs):
                 "month": instance.month,
                 "year": instance.year,
                 "customer": instance.customer,
+                "invoice": instance,
             },
         )
     elif state == models.Invoice.States.CANCELED:
@@ -56,6 +60,7 @@ def log_invoice_state_transition(sender, instance, created=False, **kwargs):
                 "month": instance.month,
                 "year": instance.year,
                 "customer": instance.customer,
+                "invoice": instance,
             },
         )
 
@@ -225,3 +230,41 @@ def log_credit(sender, instance, created=False, **kwargs):
                 "customer": credit.customer,
             },
         )
+
+
+def log_invoice_item_save(
+    sender, instance: models.InvoiceItem, created=False, **kwargs
+):
+    if created:
+        log.event_logger.invoice_item.info(
+            f"Invoice item {instance.name} has been created.",
+            event_type="invoice_item_created",
+            event_context={
+                "invoice_item": instance,
+            },
+        )
+    else:
+        diff = ", ".join(
+            [
+                f"{field}: {instance.tracker.previous(field)} -> {getattr(instance, field, None)}"
+                for field in instance.tracker.changed()
+                if field != "details"
+            ]
+        )
+        log.event_logger.invoice_item.info(
+            f"Invoice item {instance.name} has been updated. Details: {diff}.",
+            event_type="invoice_item_updated",
+            event_context={
+                "invoice_item": instance,
+            },
+        )
+
+
+def log_invoice_item_delete(sender, instance: models.InvoiceItem, **kwargs):
+    log.event_logger.invoice_item.info(
+        f"Invoice item {instance.name} has been deleted.",
+        event_type="invoice_item_deleted",
+        event_context={
+            "invoice_item": instance,
+        },
+    )
