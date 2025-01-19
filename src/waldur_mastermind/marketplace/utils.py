@@ -1538,6 +1538,9 @@ def sync_component_user_usage(allocation_user_usage, plugin_name):
     for offering_component in models.OfferingComponent.objects.filter(
         offering=resource.offering
     ):
+        if not hasattr(allocation_user_usage, offering_component.type + "_usage"):
+            continue
+
         usage = getattr(allocation_user_usage, offering_component.type + "_usage")
 
         component_usage = models.ComponentUsage.objects.filter(
