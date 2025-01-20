@@ -470,8 +470,7 @@ class OfferingFilterTest(test.APITransactionTestCase):
         organization_group = structure_factories.OrganizationGroupFactory()
         offering.organization_groups.add(organization_group)
 
-        self.fixture.customer.organization_group = organization_group
-        self.fixture.customer.save()
+        self.fixture.customer.organization_groups.add(organization_group)
 
         # Act
         self.client.force_authenticate(self.fixture.owner)
@@ -568,8 +567,7 @@ class OfferingPlansFilterTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["plans"]), 0)
 
-        self.fixture.customer.organization_group = organization_group
-        self.fixture.customer.save()
+        self.fixture.customer.organization_groups.add(organization_group)
 
         # user can get plans if they are connected with the same organization_groups
         response = self.client.get(self.url)
@@ -592,8 +590,7 @@ class OfferingPlansFilterTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["plans"]), 0)
 
-        self.fixture.project.customer.organization_group = organization_group
-        self.fixture.project.customer.save()
+        self.fixture.project.customer.organization_groups.add(organization_group)
 
         # user can get plans if they are connected with the same organization_groups
         response = self.client.get(self.url)

@@ -45,6 +45,7 @@ from waldur_core.structure.managers import (
 from waldur_core.structure.permissions import _has_owner_access
 from waldur_core.structure.utils import get_components_usage_data_from_resources
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace import serializers as marketplace_serializers
 
 logger = logging.getLogger(__name__)
 
@@ -249,6 +250,18 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
             },
             status=status.HTTP_200_OK,
         )
+
+    @action(detail=True, methods=["post"])
+    def update_organization_groups(self, request, uuid):
+        if not self.request.user.is_staff:
+            raise PermissionDenied()
+        customer = self.get_object()
+        serializer = marketplace_serializers.OrganizationGroupsSerializer(
+            instance=customer, context={"request": request}, data=request.data
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(status=status.HTTP_200_OK)
 
 
 class AccessSubnetViewSet(core_views.ActionsViewSet):
@@ -829,7 +842,7 @@ class OrganizationGroupViewSet(core_views.ActionsViewSet):
     queryset = (
         models.OrganizationGroup.objects.all()
         .order_by("name")
-        .annotate(customers_count=Count("customer"))
+        .annotate(customers_count=Count("customers"))
     )
     serializer_class = serializers.OrganizationGroupSerializer
     lookup_field = "uuid"

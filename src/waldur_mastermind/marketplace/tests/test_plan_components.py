@@ -71,8 +71,7 @@ class PlanComponentsGetTest(test.APITransactionTestCase):
     ):
         organization_group = structure_factories.OrganizationGroupFactory()
         self.shared_plan.organization_groups.add(organization_group)
-        self.customer.organization_group = organization_group
-        self.customer.save()
+        self.customer.organization_groups.add(organization_group)
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -83,8 +82,7 @@ class PlanComponentsGetTest(test.APITransactionTestCase):
     ):
         organization_group = structure_factories.OrganizationGroupFactory()
         self.shared_plan.organization_groups.add(organization_group)
-        self.customer.organization_group = organization_group
-        self.customer.save()
+        self.customer.organization_groups.add(organization_group)
         self.client.force_authenticate(self.fixture.admin)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)

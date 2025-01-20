@@ -70,9 +70,10 @@ class OrganizationGroupChangeTest(test.APITransactionTestCase):
         self.fixture = fixtures.CustomerFixture()
         self.organization_group_1 = factories.OrganizationGroupFactory()
         self.organization_group_2 = factories.OrganizationGroupFactory()
-        self.fixture.customer.organization_group = self.organization_group_1
-        self.fixture.customer.save()
-        self.url = factories.CustomerFactory.get_url(self.fixture.customer)
+        self.fixture.customer.organization_groups.add(self.organization_group_1)
+        self.url = factories.CustomerFactory.get_url(
+            self.fixture.customer, action="update_organization_groups"
+        )
 
     @data(
         "staff",
@@ -82,13 +83,13 @@ class OrganizationGroupChangeTest(test.APITransactionTestCase):
         new_organization_group_url = factories.OrganizationGroupFactory.get_url(
             self.organization_group_2
         )
-        response = self.client.patch(
-            self.url, {"organization_group": new_organization_group_url}
+        response = self.client.post(
+            self.url, {"organization_groups": [new_organization_group_url]}
         )
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.fixture.customer.refresh_from_db()
-        self.assertEqual(
-            self.fixture.customer.organization_group, self.organization_group_2
+        self.assertIn(
+            self.organization_group_2, self.fixture.customer.organization_groups.all()
         )
 
     @data(
@@ -99,8 +100,8 @@ class OrganizationGroupChangeTest(test.APITransactionTestCase):
         new_organization_group_url = factories.OrganizationGroupFactory.get_url(
             self.organization_group_2
         )
-        response = self.client.patch(
-            self.url, {"organization_group": new_organization_group_url}
+        response = self.client.post(
+            self.url, {"organization_groups": [new_organization_group_url]}
         )
         self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
 

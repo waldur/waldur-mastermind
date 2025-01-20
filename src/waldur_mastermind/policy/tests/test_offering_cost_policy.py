@@ -154,8 +154,7 @@ class OfferingEstimatedCostPolicyTriggerTest(test.APITransactionTestCase):
         self.policy.refresh_from_db()
         self.assertFalse(self.policy.has_fired)
 
-        self.customer.organization_group = self.organization_group
-        self.customer.save()
+        self.customer.organization_groups.add(self.organization_group)
 
         invoice_item.quantity = 1
         invoice_item.save()

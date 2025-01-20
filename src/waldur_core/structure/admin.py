@@ -268,7 +268,7 @@ class CustomerAdmin(
         "image",
         "native_name",
         "abbreviation",
-        "organization_group",
+        "organization_groups",
         "contact_details",
         "registration_code",
         "backend_id",
@@ -302,7 +302,7 @@ class CustomerAdmin(
         "created",
         "accounting_start_date",
     )
-    list_filter = ("blocked", "archived", "organization_group")
+    list_filter = ("blocked", "archived", "organization_groups")
     search_fields = ("name", "uuid", "abbreviation")
     date_hierarchy = "created"
     readonly_fields = ("uuid",)

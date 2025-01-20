@@ -105,7 +105,7 @@ class OfferingQuerySet(django_models.QuerySet):
             | Q(
                 shared=True,
                 organization_groups__isnull=False,
-                organization_groups=customer.organization_group,
+                organization_groups__in=customer.organization_groups.all(),
             )
             | Q(customer__uuid=value)
         )
@@ -180,7 +180,7 @@ class PlanQuerySet(django_models.QuerySet):
             Q(organization_groups__isnull=True)
             | Q(
                 organization_groups__isnull=False,
-                organization_groups=customer.organization_group,
+                organization_groups__in=customer.organization_groups.all(),
             )
         )
 

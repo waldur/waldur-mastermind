@@ -3079,7 +3079,7 @@ class OfferingUsersViewSet(
         visible_customers = managed_customers.union(nested_customers)
         visible_organization_groups = structure_models.Customer.objects.filter(
             id__in=visible_customers
-        ).values_list("organization_group_id", flat=True)
+        ).values_list("organization_groups__id", flat=True)
 
         queryset = queryset.filter(
             # Exclude offerings with disabled OfferingUsers feature
@@ -3386,37 +3386,39 @@ class StatsViewSet(rf_viewsets.ViewSet):
     def count_users_of_service_providers(self, request, *args, **kwargs):
         result = []
 
-        for sp in models.ServiceProvider.objects.all().select_related(
-            "customer", "customer__organization_group"
+        for sp in models.ServiceProvider.objects.all().prefetch_related(
+            "customer__organization_groups"
         ):
-            data = {
-                "count": utils.get_service_provider_user_ids(
-                    self.request.user, sp
-                ).count()
-            }
-            data.update(self._get_service_provider_info(sp))
-            result.append(data)
+            for group in sp.customer.organization_groups.all():
+                data = {
+                    "count": utils.get_service_provider_user_ids(
+                        self.request.user, sp
+                    ).count(),
+                    "customer_organization_group_uuid": group.uuid.hex,
+                    "customer_organization_group_name": group.name,
+                }
+                data.update(self._get_service_provider_info(sp))
+                result.append(data)
 
-        return Response(
-            result,
-            status=status.HTTP_200_OK,
-        )
+        return Response(result, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=["get"])
     def count_projects_of_service_providers(self, request, *args, **kwargs):
         result = []
 
-        for sp in models.ServiceProvider.objects.all().select_related(
-            "customer", "customer__organization_group"
+        for sp in models.ServiceProvider.objects.all().prefetch_related(
+            "customer__organization_groups"
         ):
-            data = {"count": utils.get_service_provider_project_ids(sp).count()}
-            data.update(self._get_service_provider_info(sp))
-            result.append(data)
+            for group in sp.customer.organization_groups.all():
+                data = {
+                    "count": utils.get_service_provider_project_ids(sp).count(),
+                    "customer_organization_group_uuid": group.uuid.hex,
+                    "customer_organization_group_name": group.name,
+                }
+                data.update(self._get_service_provider_info(sp))
+                result.append(data)
 
-        return Response(
-            result,
-            status=status.HTTP_200_OK,
-        )
+        return Response(result, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=["get"])
     def count_projects_of_service_providers_grouped_by_oecd(
@@ -3424,23 +3426,28 @@ class StatsViewSet(rf_viewsets.ViewSet):
     ):
         result = []
 
-        for sp in models.ServiceProvider.objects.all().select_related(
-            "customer", "customer__organization_group"
+        for sp in models.ServiceProvider.objects.all().prefetch_related(
+            "customer__organization_groups"
         ):
-            project_ids = utils.get_service_provider_project_ids(sp)
-            projects = (
-                structure_models.Project.available_objects.filter(id__in=project_ids)
-                .values("oecd_fos_2007_code")
-                .annotate(count=Count("id"))
-            )
+            for group in sp.customer.organization_groups.all():
+                project_ids = utils.get_service_provider_project_ids(sp)
+                projects = (
+                    structure_models.Project.available_objects.filter(
+                        id__in=project_ids
+                    )
+                    .values("oecd_fos_2007_code")
+                    .annotate(count=Count("id"))
+                )
 
-            for p in projects:
-                data = {
-                    "count": p["count"],
-                    "oecd_fos_2007_code": p["oecd_fos_2007_code"],
-                }
-                data.update(self._get_service_provider_info(sp))
-                result.append(data)
+                for p in projects:
+                    data = {
+                        "count": p["count"],
+                        "oecd_fos_2007_code": p["oecd_fos_2007_code"],
+                        "customer_organization_group_uuid": group.uuid.hex,
+                        "customer_organization_group_name": group.name,
+                    }
+                    data.update(self._get_service_provider_info(sp))
+                    result.append(data)
 
         return Response(
             self._expand_result_with_oecd_name(result), status=status.HTTP_200_OK
@@ -3568,20 +3575,16 @@ class StatsViewSet(rf_viewsets.ViewSet):
 
     @staticmethod
     def _get_service_provider_info(service_provider):
+        customer = service_provider.customer
+        # organization_groups = customer.organization_groups.all()
         return {
             "service_provider_uuid": service_provider.uuid.hex,
-            "customer_uuid": service_provider.customer.uuid.hex,
-            "customer_name": service_provider.customer.name,
-            "customer_organization_group_uuid": (
-                service_provider.customer.organization_group.uuid.hex
-                if service_provider.customer.organization_group
-                else ""
-            ),
-            "customer_organization_group_name": (
-                service_provider.customer.organization_group.name
-                if service_provider.customer.organization_group
-                else ""
-            ),
+            "customer_uuid": customer.uuid.hex,
+            "customer_name": customer.name,
+            # "customer_organization_groups": [
+            #     {"uuid": group.uuid.hex, "name": group.name}
+            #     for group in organization_groups
+            # ],
         }
 
     @staticmethod
@@ -3725,18 +3728,32 @@ class StatsViewSet(rf_viewsets.ViewSet):
     def count_active_resources_grouped_by_organization_group(
         self, request, *args, **kwargs
     ):
-        result = (
-            self.get_active_resources()
-            .values(
-                "offering__customer__organization_group__name",
-                "offering__customer__organization_group__uuid",
+        organization_groups = structure_models.OrganizationGroup.objects.annotate(
+            customer_count=Count("customers")
+        ).filter(customer_count__gt=0)
+
+        results = []
+
+        for group in organization_groups:
+            active_resources = self.get_active_resources().filter(
+                offering__customer__in=group.customers.all()
             )
-            .annotate(count=Count("id"))
-            .order_by()
-        )
+
+            resource_count = active_resources.count()
+
+            if resource_count > 0:
+                results.append(
+                    {
+                        "organization_group_uuid": group.uuid.hex,
+                        "organization_group_name": group.name,
+                        "count": resource_count,
+                    }
+                )
+
+        serialized_results = serializers.CountStatsSerializer(results, many=True).data
 
         return Response(
-            serializers.CountStatsSerializer(result, many=True).data,
+            serialized_results,
             status=status.HTTP_200_OK,
         )
 

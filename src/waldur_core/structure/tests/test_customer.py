@@ -887,9 +887,8 @@ class CustomerOrganizationGroupFilterTest(test.APITransactionTestCase):
     def setUp(self):
         self.organization_group = factories.OrganizationGroupFactory()
         self.customer1 = factories.CustomerFactory()
-        self.customer2 = factories.CustomerFactory(
-            organization_group=self.organization_group
-        )
+        self.customer2 = factories.CustomerFactory()
+        self.customer2.organization_groups.add(self.organization_group)
         self.user = fixtures.UserFixture().staff
         self.url = factories.CustomerFactory.get_list_url()
 

@@ -66,23 +66,25 @@ class CustomerFilter(NameFilterSet):
     abbreviation = django_filters.CharFilter(lookup_expr="icontains")
     contact_details = django_filters.CharFilter(lookup_expr="icontains")
     organization_group_uuid = django_filters.ModelMultipleChoiceFilter(
-        field_name="organization_group__uuid",
+        field_name="organization_groups__uuid",
         label="organization_group_uuid",
         to_field_name="uuid",
         queryset=models.OrganizationGroup.objects.all(),
     )
     organization_group_name = django_filters.CharFilter(
-        field_name="organization_group__name", lookup_expr="icontains"
+        field_name="organization_groups__name",
+        lookup_expr="icontains",
     )
     organization_group_type_uuid = django_filters.ModelMultipleChoiceFilter(
-        field_name="organization_group__type__uuid",
+        field_name="organization_groups__type__uuid",
         label="organization_group_type_uuid",
         to_field_name="uuid",
         queryset=models.OrganizationGroupType.objects.all(),
     )
 
     organization_group_type_name = django_filters.CharFilter(
-        field_name="organization_group__type__name", lookup_expr="icontains"
+        field_name="organization_groups__type__name",
+        lookup_expr="icontains",
     )
 
     class Meta:
