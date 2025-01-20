@@ -71,8 +71,7 @@ class CategoryOfferingCountTest(test.APITransactionTestCase):
         self.check_counts(offering_count)
 
     def _match_customer_with_organization_group(self, offering_count):
-        self.fixture.customer.organization_group = self.organization_group
-        self.fixture.customer.save()
+        self.fixture.customer.organization_groups.add(self.organization_group)
         self.check_counts(offering_count)
 
     def _match_project_with_organization_group(self, offering_count):

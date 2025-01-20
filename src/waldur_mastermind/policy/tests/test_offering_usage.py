@@ -151,8 +151,7 @@ class OfferingUsagePolicyTriggerTest(test.APITransactionTestCase):
         self.policy.refresh_from_db()
         self.assertFalse(self.policy.has_fired)
 
-        self.customer.organization_group = self.organization_group
-        self.customer.save()
+        self.customer.organization_groups.add(self.organization_group)
 
         usage.delete()
         usage = marketplace_factories.ComponentUsageFactory(
@@ -174,8 +173,7 @@ class OfferingUsagePolicyTriggerTest(test.APITransactionTestCase):
 
     @freeze_time("2024-09-01")
     def test_policy_period(self):
-        self.customer.organization_group = self.organization_group
-        self.customer.save()
+        self.customer.organization_groups.add(self.organization_group)
 
         # period = 1 month
         usage = marketplace_factories.ComponentUsageFactory(

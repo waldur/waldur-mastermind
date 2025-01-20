@@ -200,9 +200,11 @@ def get_visible_projects(user):
 
 
 def get_organization_groups(user):
-    return structure_models.Customer.objects.filter(
-        id__in=get_visible_customers(user)
-    ).values("organization_group")
+    return (
+        structure_models.Customer.objects.filter(id__in=get_visible_customers(user))
+        .values_list("organization_groups__id", flat=True)
+        .distinct()
+    )
 
 
 def get_active_tokens():

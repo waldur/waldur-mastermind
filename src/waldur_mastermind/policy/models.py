@@ -256,7 +256,7 @@ class OfferingPolicy(Policy):
 class OfferingEstimatedCostPolicy(EstimatedCostPolicyMixin, OfferingPolicy):
     def is_triggered(self):
         customers = structure_models.Customer.objects.filter(
-            organization_group__in=self.organization_groups.all()
+            organization_groups__in=self.organization_groups.all()
         )
         items = invoices_models.InvoiceItem.objects.filter(
             resource__offering=self.scope,
@@ -277,7 +277,7 @@ class OfferingUsagePolicy(invoices_models.PeriodMixin, OfferingPolicy):
 
     def is_triggered(self):
         customers = structure_models.Customer.objects.filter(
-            organization_group__in=self.organization_groups.all(),
+            organization_groups__in=self.organization_groups.all(),
             blocked=False,
             archived=False,
         )

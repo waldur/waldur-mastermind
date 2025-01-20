@@ -85,7 +85,7 @@ class ServiceProviderSerializer(
             "customer_native_name",
             "customer_country",
             "image",
-            "organization_group",
+            "organization_groups",
             "description",
             "offering_count",
         )
@@ -103,8 +103,8 @@ class ServiceProviderSerializer(
 
     customer_image = serializers.ImageField(source="customer.image", read_only=True)
     customer_country = serializers.CharField(source="customer.country", read_only=True)
-    organization_group = serializers.CharField(
-        source="customer.organization_group", read_only=True
+    organization_groups = structure_serializers.OrganizationGroupSerializer(
+        many=True, read_only=True
     )
 
     def get_fields(self):
@@ -2153,9 +2153,9 @@ def validate_public_offering(order: models.Order):
 
     # Order is ok if consumer and provider organization groups match
     if (
-        order.project.customer.organization_group_id
+        order.project.customer.organization_groups.exists()
         and order.offering.organization_groups.filter(
-            id=order.project.customer.organization_group_id
+            id__in=order.project.customer.organization_groups.all()
         ).exists()
     ):
         return
@@ -3521,6 +3521,14 @@ class OrganizationGroupsSerializer(serializers.Serializer):
 
             if organization_groups:
                 plan.organization_groups.add(*organization_groups)
+
+        elif isinstance(self.instance, structure_models.Customer):
+            customer = self.instance
+            organization_groups = self.validated_data["organization_groups"]
+            customer.organization_groups.clear()
+
+            if organization_groups:
+                customer.organization_groups.add(*organization_groups)
 
 
 class CostsSerializer(serializers.Serializer):

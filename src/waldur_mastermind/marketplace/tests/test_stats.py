@@ -523,6 +523,12 @@ class CountUsersOfServiceProviderTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.url = "/api/marketplace-stats/count_users_of_service_providers/"
+        self.service_provider = self.fixture.service_provider
+        organization_group = structure_factories.OrganizationGroupFactory()
+        self.service_provider.customer.organization_groups.add(organization_group)
+        self.organization_groups = list(
+            self.service_provider.customer.organization_groups.all()
+        )
 
     @data(
         "staff",
@@ -533,7 +539,15 @@ class CountUsersOfServiceProviderTest(test.APITransactionTestCase):
         self.client.force_authenticate(user)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
+        self.assertEqual(len(response.data), len(self.organization_groups))
+
+        for record in response.data:
+            self.assertIn("count", record)
+            self.assertIn("customer_organization_group_uuid", record)
+            self.assertIn("customer_organization_group_name", record)
+            self.assertEqual(
+                record["service_provider_uuid"], self.service_provider.uuid.hex
+            )
 
     @data("owner", "user", "customer_support", "admin", "manager")
     def test_user_cannot_get_marketplace_stats(self, user):
@@ -548,6 +562,12 @@ class CountProjectsGroupedByOecdOfServiceProviderTest(test.APITransactionTestCas
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.url = "/api/marketplace-stats/count_projects_of_service_providers_grouped_by_oecd/"
+        self.service_provider = self.fixture.service_provider
+        organization_group = structure_factories.OrganizationGroupFactory()
+        self.service_provider.customer.organization_groups.add(organization_group)
+        self.organization_groups = list(
+            self.service_provider.customer.organization_groups.all()
+        )
 
     @data(
         "staff",
@@ -558,7 +578,15 @@ class CountProjectsGroupedByOecdOfServiceProviderTest(test.APITransactionTestCas
         self.client.force_authenticate(user)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
+        self.assertEqual(len(response.data), len(self.organization_groups))
+
+        for record in response.data:
+            self.assertIn("count", record)
+            self.assertIn("customer_organization_group_uuid", record)
+            self.assertIn("customer_organization_group_name", record)
+            self.assertEqual(
+                record["service_provider_uuid"], self.service_provider.uuid.hex
+            )
 
     @data("owner", "user", "customer_support", "admin", "manager")
     def test_user_cannot_get_marketplace_stats(self, user):

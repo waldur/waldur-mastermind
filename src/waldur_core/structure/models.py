@@ -384,8 +384,8 @@ class Customer(
     )
     blocked = models.BooleanField(default=False)
     archived = models.BooleanField(default=False)
-    organization_group = models.ForeignKey(
-        "OrganizationGroup", null=True, blank=True, on_delete=models.SET_NULL
+    organization_groups = models.ManyToManyField(
+        OrganizationGroup, related_name="customers", blank=True
     )
     tracker = FieldTracker()
     objects = NetManager()

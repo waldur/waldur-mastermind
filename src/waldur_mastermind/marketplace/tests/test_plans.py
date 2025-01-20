@@ -264,8 +264,7 @@ class PlanOrganizationGroupsTest(test.APITransactionTestCase):
     @data("staff", "owner")
     def test_user_can_delete_organization_groups(self, user):
         self.plan.organization_groups.add(self.organization_group)
-        self.customer.organization_group = self.organization_group
-        self.customer.save()
+        self.customer.organization_groups.add(self.organization_group)
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.post(self.delete_url)
         self.assertEqual(
@@ -299,8 +298,7 @@ class PlanOrganizationGroupsTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(len(response.data), 1)
 
-        self.customer.organization_group = self.organization_group
-        self.customer.save()
+        self.customer.organization_groups.add(self.organization_group)
         response = self.client.get(url)
         self.assertEqual(len(response.data), 1)
 
@@ -316,8 +314,7 @@ class PlanOrganizationGroupsTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 0)
 
-        new_customer.organization_group = self.organization_group
-        new_customer.save()
+        new_customer.organization_groups.add(self.organization_group)
         response = self.client.get(
             url, {"allowed_customer_uuid": new_customer.uuid.hex}
         )

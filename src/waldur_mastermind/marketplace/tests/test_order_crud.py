@@ -180,8 +180,7 @@ class OrderCreateTest(BaseOrderCreateTest):
         offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
         organization_group = structure_factories.OrganizationGroupFactory()
         offering.organization_groups.add(organization_group)
-        self.fixture.customer.organization_group = organization_group
-        self.fixture.customer.save()
+        self.fixture.customer.organization_groups.add(organization_group)
 
         response = self.create_order(user, offering)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)

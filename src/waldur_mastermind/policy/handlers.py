@@ -44,7 +44,7 @@ def get_offering_trigger_handler(klass):
         if resource:
             policies = klass.objects.filter(
                 scope=resource.offering,
-                organization_groups=resource.project.customer.organization_group,
+                organization_groups__in=resource.project.customer.organization_groups.all(),
             )
 
             utils.evaluate_policies(policies)
