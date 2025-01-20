@@ -59,8 +59,7 @@ class AdminAnnouncementGetTest(test.APITransactionTestCase):
         self.admin_announcement = factories.AdminAnnouncementFactory()
         self.url = factories.AdminAnnouncementFactory.get_url(self.admin_announcement)
 
-    def test_staff_can_get_admin_announcement(self):
-        self.client.force_authenticate(self.fixture.staff)
+    def test_anonymous_user_can_get_admin_announcement(self):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["uuid"], self.admin_announcement.uuid.hex)
@@ -68,11 +67,6 @@ class AdminAnnouncementGetTest(test.APITransactionTestCase):
             response.data["description"], self.admin_announcement.description
         )
         self.assertEqual(response.data["type"], self.admin_announcement.type)
-
-    def test_user_cannot_get_admin_announcement(self):
-        self.client.force_authenticate(self.fixture.owner)
-        response = self.client.get(self.url)
-        self.assertEqual(response.status_code, 403)
 
 
 @freeze_time("2025-01-01")

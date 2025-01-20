@@ -52,7 +52,7 @@ class MessageTemplateViewSet(ActionsViewSet):
 class AdminAnnouncementViewSet(ActionsViewSet):
     queryset = models.AdminAnnouncement.objects.all().order_by("-created")
     serializer_class = serializers.AdminAnnouncementSerializer
-    permission_classes = [core_permissions.IsStaff]
+    permission_classes = [core_permissions.IsAdminOrReadOnly]
     filter_backends = [DjangoFilterBackend]
     filterset_class = filters.AdminAnnouncementFilterSet
     lookup_field = "uuid"
