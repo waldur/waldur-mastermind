@@ -307,31 +307,55 @@ class ZammadServiceBackend(SupportBackend):
             return self.manager.get_user_by_id(support_user.backend_id)
 
     def pull_support_users(self):
-        backend_users = self.get_users()
+        remote_users = self.get_users()
 
-        for backend_user in backend_users:
-            user, created = models.SupportUser.objects.get_or_create(
-                backend_id=backend_user.id,
-                backend_name=self.backend_name,
-                defaults={"name": backend_user.name},
+        remote_map = {remote_user.id: remote_user for remote_user in remote_users}
+        remote_ids = set(remote_map.keys())
+
+        local_map = {
+            support_user.backend_id: support_user
+            for support_user in models.SupportUser.objects.filter(
+                backend_name=self.backend_name
             )
-            if not created and user.name != backend_user.name:
-                user.name = backend_user.name
-                user.save()
-            if not user.is_active:
-                user.is_active = True
-                user.save()
+            if support_user.backend_id
+        }
+        local_ids = set(local_map.keys())
 
-            if not user.user:
-                waldur_user = self.get_waldur_user_by_zammad_user(backend_user)
+        new_ids = local_ids - remote_ids
+        stale_ids = remote_ids - local_ids
+        common_ids = local_ids & remote_ids
+
+        models.SupportUser.objects.filter(
+            backend_name=self.backend_name, backend_id__in=stale_ids
+        ).update(is_active=False)
+
+        for remote_id in new_ids:
+            remote_user = remote_map[remote_id]
+            waldur_user = self.get_waldur_user_by_zammad_user(remote_user)
+            models.SupportUser.objects.create(
+                backend_name=self.backend_name,
+                backend_id=remote_id,
+                name=remote_user.name,
+                user=waldur_user,
+            )
+
+        for remote_id in common_ids:
+            remote_user = remote_map[remote_id]
+            local_user = local_map[remote_id]
+
+            if local_user.name != remote_user.name:
+                local_user.name = remote_user.name
+                local_user.save()
+            if not local_user.is_active:
+                local_user.is_active = True
+                local_user.save()
+
+            if not local_user.user:
+                waldur_user = self.get_waldur_user_by_zammad_user(remote_user)
 
                 if waldur_user:
-                    user.user = waldur_user
-                    user.save()
-
-        models.SupportUser.objects.filter(backend_name=self.backend_name).exclude(
-            backend_id__in=[u.id for u in backend_users]
-        ).update(is_active=False)
+                    local_user.user = waldur_user
+                    local_user.save()
 
     @reraise_exceptions()
     def create_attachment(self, attachment: models.Attachment):
