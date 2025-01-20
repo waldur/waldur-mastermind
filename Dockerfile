@@ -1,41 +1,41 @@
 # Use to avoid pull rate limit for Docker Hub images
 ARG DOCKER_REGISTRY=docker.io/
 
-FROM ${DOCKER_REGISTRY}python:3.11-alpine3.20
+FROM ${DOCKER_REGISTRY}python:3.11-alpine
 
 ENV LANG C.UTF-8
 
 # Install necessary system packages.
-RUN echo "@testing http://dl-cdn.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories && \
-    apk update && \
+RUN echo "@testing http://dl-cdn.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories
+RUN apk update && \
     apk add --no-cache \
-    git~=2.45 \
+    git\>=2.45 \
     # bash is used in multiple scripts in docker/rootfs.
-    bash~=5.2 \
+    bash\>=5.2 \
     # Commands for managing user accounts and authentication. "useradd" and "groupadd" are used in "app-entrypoint.sh".
-    shadow~=4.15 \
+    shadow\>=4.15 \
     # file provides libmagic package. "import magic" in files like "storage.py" or "utils.py".
-    file~=5.45 \
+    file\>=5.45 \
     # The ldap-related package used with django-auth-ldap. Openldap-dev is necessary
-    openldap-dev~=2.6 \
-    openssl~=3.3 \
-    libffi-dev~=3.4 \
-    libjpeg-turbo-dev~=3.0 \
-    libxml2-dev~=2.12 \
-    libxslt-dev~=1.1 \
+    openldap-dev\>=2.6 \
+    openssl\>=3.3 \
+    libffi-dev\>=3.4 \
+    libjpeg-turbo-dev\>=3.0 \
+    libxml2-dev\>=2.12 \
+    libxslt-dev\>=1.1 \
     # tini isused as container init in app-entrypoint.sh.
-    tini~=0.19 \
+    tini\>=0.19 \
     # nginx is used as our web server.
-    nginx~=1.26 \
+    nginx\>=1.26 \
     # xmlsec is used in django saml2.
-    xmlsec~=1.3 \
-    build-base~=0.5 \
-    jpeg-dev~=9 \
-    zlib-dev~=1.3 \
+    xmlsec\>=1.3 \
+    build-base\>=0.5 \
+    jpeg-dev\>=9 \
+    zlib-dev\>=1.3 \
     # gosu to give privileges to a non-root user. We use it in multiple scripts such as initdb.
-    gosu@testing~=1.17 \
+    gosu@testing\>=1.17 \
     # Needed for old style slurm support which requires SSH command.
-    openssh~=9.7
+    openssh\>=9.7
 
 # Set up locales
 RUN echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
