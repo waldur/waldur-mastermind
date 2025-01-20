@@ -48,8 +48,44 @@ def log_customer_save(sender, instance, created=False, **kwargs):
             },
         )
     else:
+        changed_fields = instance.tracker.changed().copy()
+        for field in (
+            "modified",
+            "image",
+            "access_subnet_set",
+            "projects",
+            "reviews",
+            "service_settings",
+            "groupinvitation",
+            "invitation",
+            "customeropenstack",
+            "customercluster",
+            "customernetwork",
+            "customernetworkpair",
+            "customerdatastore",
+            "customerfolder",
+            "paymentprofile",
+            "customercredit",
+            "serviceprovider",
+            "checklist",
+            "customerestimatedcostpolicy",
+            "callmanagingorganisation",
+            "issues",
+            "organization_groups",
+        ):
+            changed_fields.pop(field, None)
+
+        if not changed_fields:
+            return
+        message = "Customer {customer_name} has been updated."
+
+        for name in sorted(changed_fields.keys()):
+            previous_value = changed_fields[name]
+            current_value = getattr(instance, name)
+            message = f"{message} {name.capitalize()} has been changed from '{previous_value}' to '{current_value}'."
+
         event_logger.customer.info(
-            "Customer {customer_name} has been updated.",
+            message,
             event_type="customer_update_succeeded",
             event_context={
                 "customer": instance,
