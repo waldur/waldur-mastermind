@@ -15,7 +15,7 @@ class RoleFilter(django_filters.FilterSet):
 
     class Meta:
         model = models.Role
-        fields = ["is_active"]
+        fields = ["is_active", "name", "description"]
 
 
 class UserPermissionFilter(django_filters.FilterSet):
