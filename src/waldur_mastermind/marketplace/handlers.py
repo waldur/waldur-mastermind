@@ -780,7 +780,19 @@ def resource_has_been_changed(sender, instance, created=False, **kwargs):
     if created:
         return
 
-    if not instance.tracker.changed():
+    changed_fields = instance.tracker.changed().copy()
+    for field in (
+        "modified",
+        "backend_metadata",
+        "object_id",
+        "content_type_id",
+        "options",
+        "error_message",
+        "current_usages",
+    ):
+        changed_fields.pop(field, None)
+
+    if not changed_fields:
         return
 
     changed = []
@@ -798,18 +810,7 @@ def resource_has_been_changed(sender, instance, created=False, **kwargs):
         except ObjectDoesNotExist:
             return ""
 
-    for field, old_value in instance.tracker.changed().items():
-        if field in (
-            "modified",
-            "backend_metadata",
-            "object_id",
-            "content_type_id",
-            "options",
-            "error_message",
-            "current_usages",
-        ):
-            continue
-
+    for field, old_value in sorted(changed_fields.items()):
         if field == "state":
             old_value = models.Resource.get_state_display(
                 models.Resource(state=old_value)
@@ -828,7 +829,6 @@ def resource_has_been_changed(sender, instance, created=False, **kwargs):
 
         if not old_value and not new_value:
             continue
-
         changed.append({"name": field, "from": old_value, "to": new_value})
 
     log.log_marketplace_resource_has_been_changed(instance, changed)
