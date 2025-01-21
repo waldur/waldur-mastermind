@@ -99,6 +99,7 @@ class Call(
     documents = models.ManyToManyField(CallDocument, related_name="call_documents")
     # It is used for mapping PROPOSAL.MEMBER role to one of project roles
     default_project_role = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True)
+    external_url = models.URLField(blank=True, null=True)
     objects = managers.CallManager()
 
     class Permissions:

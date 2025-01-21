@@ -353,6 +353,7 @@ class PublicCallSerializer(
             "rounds",
             "documents",
             "backend_id",
+            "external_url",
         )
         view_name = "proposal-public-call-detail"
         extra_kwargs = {
