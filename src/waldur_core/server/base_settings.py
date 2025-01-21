@@ -361,6 +361,10 @@ CONSTANCE_CONFIG = {
         True,
         "Disable only resource update events.",
     ),
+    "MARKETPLACE_LANDING_PAGE": (
+        "Marketplace",
+        "Marketplace landing page title.",
+    ),
     "ENABLE_STALE_RESOURCE_NOTIFICATIONS": (
         False,
         "Enable reminders to owners about resources of shared offerings that have not generated any cost for the last 3 months.",
@@ -652,6 +656,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "SITE_EMAIL",
         "SITE_PHONE",
         "CURRENCY_NAME",
+        "MARKETPLACE_LANDING_PAGE",
     ),
     "Marketplace": (
         "THUMBNAIL_SIZE",
@@ -808,6 +813,7 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "COMMON_FOOTER_HTML",
     "LANGUAGE_CHOICES",
     "DISABLE_DARK_THEME",
+    "MARKETPLACE_LANDING_PAGE",
     # Support plugin
     "WALDUR_SUPPORT_ENABLED",
     "WALDUR_SUPPORT_DISPLAY_REQUEST_TYPE",
