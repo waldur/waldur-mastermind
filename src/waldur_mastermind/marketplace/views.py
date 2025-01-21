@@ -2815,6 +2815,19 @@ class ProviderResourceViewSet(BaseResourceViewSet):
         )
     ]
 
+    @action(detail=True, methods=["post"])
+    def refresh_last_sync(self, request, uuid=None):
+        resource = self.get_object()
+        resource.last_sync = timezone.now()
+        resource.save(update_fields=["last_sync"])
+
+    refresh_last_sync_permissions = [
+        permission_factory(
+            PermissionEnum.SET_RESOURCE_STATE,
+            ["offering.customer"],
+        )
+    ]
+
 
 class ResourceOfferingsViewSet(ListAPIView):
     serializer_class = serializers.ResourceOfferingSerializer

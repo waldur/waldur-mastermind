@@ -2430,6 +2430,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "offering_customer_uuid",
             "options",
             "available_actions",
+            "last_sync",
         )
         read_only_fields = (
             "backend_metadata",
@@ -2445,6 +2446,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "error_traceback",
             "options",
             "restrict_member_access",
+            "last_sync",
         )
         view_name = "marketplace-resource-detail"
         extra_kwargs = dict(
