@@ -31,4 +31,9 @@ class MarketplaceSlurmRemoteExtension(WaldurExtension):
                 "schedule": timedelta(hours=1),
                 "args": (),
             },
+            "sync-resources": {
+                "task": "waldur_mastermind.marketplace_slurm_remote.sync_resources",
+                "schedule": timedelta(hours=1),
+                "args": (),
+            },
         }

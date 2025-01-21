@@ -144,6 +144,13 @@ class ErrorMessageMixin(models.Model):
     error_traceback = models.TextField(blank=True)
 
 
+class LastSyncMixin(models.Model):
+    class Meta:
+        abstract = True
+
+    last_sync = models.DateTimeField(default=django_timezone.now, editable=False)
+
+
 class ScheduleMixin(models.Model):
     """
     Mixin to add a standardized "schedule" fields.
@@ -233,6 +240,7 @@ class User(
     SlugMixin,
     LoggableMixin,
     UuidMixin,
+    LastSyncMixin,
     DescribableMixin,
     AbstractBaseUser,
     UserDetailsMixin,
@@ -296,7 +304,6 @@ class User(
         ),
     )
     date_joined = models.DateTimeField(_("date joined"), default=django_timezone.now)
-    last_sync = models.DateTimeField(default=django_timezone.now, editable=False)
     registration_method = models.CharField(
         _("registration method"),
         max_length=50,

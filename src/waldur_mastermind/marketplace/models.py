@@ -1010,6 +1010,7 @@ class Resource(
     structure_models.StructureLoggableMixin,
     common_mixins.BackendMetadataMixin,
     core_models.ErrorMessageMixin,
+    core_models.LastSyncMixin,
 ):
     """
     Core resource is abstract model, marketplace resource is not abstract,
