@@ -109,8 +109,12 @@ class MarketplaceSection(FeatureSection):
     show_call_management_functionality = Feature(
         "Enabled display of call management functionality."
     )
+
     lexis_links = Feature("Enabled LEXIS link integrations for offerings.")
+
     catalogue_only = Feature("Allow marketplace to function as a catalogue only.")
+
+    call_only = Feature("Allow marketplace to serve only as aggregator of call info.")
 
 
 class SupportSection(FeatureSection):
