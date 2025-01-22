@@ -168,7 +168,7 @@ def send_role_granted_message_to_mqtt(
     process_role_changed(instance, True)
 
 
-def send_resource_status_changed_message_to_mqtt(
+def send_resource_update_message_to_mqtt(
     sender, instance: marketplace_models.Resource, created=False, **kwargs
 ):
     if created:
@@ -180,7 +180,7 @@ def send_resource_status_changed_message_to_mqtt(
 
     if not any(
         instance.tracker.has_changed(field_name)
-        for field_name in ["downscaled", "restrict_member_access", "paused"]
+        for field_name in ["downscaled", "restrict_member_access", "paused", "limits"]
     ):
         return
 

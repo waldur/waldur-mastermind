@@ -117,7 +117,12 @@ def push_resource_update_message(resource: marketplace_models.Resource) -> None:
     payload.update(
         {
             field_name: getattr(resource, field_name)
-            for field_name in ["downscaled", "restrict_member_access", "paused"]
+            for field_name in [
+                "downscaled",
+                "restrict_member_access",
+                "paused",
+                "limits",
+            ]
         }
     )
 
