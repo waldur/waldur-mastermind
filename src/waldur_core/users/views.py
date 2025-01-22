@@ -180,33 +180,23 @@ class InvitationViewSet(ProtectedViewSet):
         detail=True, methods=["post"], filter_backends=[filters.PendingInvitationFilter]
     )
     def accept(self, request, uuid=None):
-        """Accept invitation for current user.
-
-        To replace user's email with email from invitation - add parameter
-        'replace_email' to request POST body.
-        """
+        """Accept invitation for current user."""
         invitation: models.Invitation = self.get_object()
 
         if has_user(invitation.scope, request.user, invitation.role):
             raise ValidationError(_("User has already the same role in this scope."))
 
-        replace_email = False
         if invitation.email != request.user.email:
             if config.ENABLE_STRICT_CHECK_ACCEPTING_INVITATION:
                 raise ValidationError(
                     _("User’s email and email of the invitation are not equal.")
                 )
 
-            replace_email = bool(request.data.get("replace_email"))
-
         if settings.WALDUR_CORE["INVITATION_DISABLE_MULTIPLE_ROLES"]:
             if UserRole.objects.filter(user=request.user, is_active=True).exists():
                 raise ValidationError(_("User already has role within another scope."))
 
         invitation.accept(request.user)
-        if replace_email:
-            request.user.email = invitation.email
-            request.user.save(update_fields=["email"])
 
         return Response(
             {"detail": _("Invitation has been successfully accepted.")},
