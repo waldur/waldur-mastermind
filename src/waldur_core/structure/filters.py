@@ -75,17 +75,6 @@ class CustomerFilter(NameFilterSet):
         field_name="organization_groups__name",
         lookup_expr="icontains",
     )
-    organization_group_type_uuid = django_filters.ModelMultipleChoiceFilter(
-        field_name="organization_groups__type__uuid",
-        label="organization_group_type_uuid",
-        to_field_name="uuid",
-        queryset=models.OrganizationGroupType.objects.all(),
-    )
-
-    organization_group_type_name = django_filters.CharFilter(
-        field_name="organization_groups__type__name",
-        lookup_expr="icontains",
-    )
 
     class Meta:
         model = models.Customer
@@ -618,24 +607,10 @@ class ServicePropertySettingsFilter(BaseServicePropertyFilter):
 
 
 class OrganizationGroupFilter(NameFilterSet):
-    type = django_filters.CharFilter(field_name="type__name", lookup_expr="iexact")
-    type_uuid = django_filters.UUIDFilter(field_name="type__uuid")
-    type_url = core_filters.URLFilter(
-        view_name="organization-group-type-detail",
-        field_name="type__uuid",
-    )
     parent = django_filters.UUIDFilter(field_name="parent__uuid")
 
     class Meta:
         model = models.OrganizationGroup
-        fields = [
-            "name",
-        ]
-
-
-class OrganizationGroupTypesFilter(NameFilterSet):
-    class Meta:
-        model = models.OrganizationGroupType
         fields = [
             "name",
         ]

@@ -229,30 +229,6 @@ class TestSnapshotFactory(
         model = test_models.TestSnapshot
 
 
-class OrganizationGroupTypeFactory(
-    factory.django.DjangoModelFactory,
-    metaclass=BaseMetaFactory[models.OrganizationGroupType],
-):
-    class Meta:
-        model = models.OrganizationGroupType
-
-    name = factory.Sequence(lambda n: "OrganizationGroupType_%s" % n)
-
-    @classmethod
-    def get_url(cls, organization_group_type=None, action=None):
-        if organization_group_type is None:
-            organization_group_type = OrganizationGroupTypeFactory()
-        url = "http://testserver" + reverse(
-            "organization-group-type-detail",
-            kwargs={"uuid": organization_group_type.uuid.hex},
-        )
-        return url if action is None else url + action + "/"
-
-    @classmethod
-    def get_list_url(cls):
-        return "http://testserver" + reverse("organization-group-type-list")
-
-
 class OrganizationGroupFactory(
     factory.django.DjangoModelFactory,
     metaclass=BaseMetaFactory[models.OrganizationGroup],
@@ -261,7 +237,6 @@ class OrganizationGroupFactory(
         model = models.OrganizationGroup
 
     name = factory.Sequence(lambda n: "OrganizationGroup_%s" % n)
-    type = factory.SubFactory(OrganizationGroupTypeFactory)
 
     @classmethod
     def get_url(cls, organization_group=None, action=None):

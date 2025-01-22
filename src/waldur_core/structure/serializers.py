@@ -365,8 +365,6 @@ class CountrySerializerMixin(serializers.Serializer):
 
 
 class OrganizationGroupSerializer(serializers.HyperlinkedModelSerializer):
-    type = serializers.UUIDField(source="type.uuid")
-    type_name = serializers.CharField(source="type.name", read_only=True)
     parent_uuid = serializers.ReadOnlyField(source="parent.uuid")
     parent_name = serializers.ReadOnlyField(source="parent.type.name")
     customers_count = serializers.ReadOnlyField()
@@ -377,8 +375,6 @@ class OrganizationGroupSerializer(serializers.HyperlinkedModelSerializer):
             "uuid",
             "url",
             "name",
-            "type",
-            "type_name",
             "parent_uuid",
             "parent_name",
             "parent",
@@ -392,20 +388,7 @@ class OrganizationGroupSerializer(serializers.HyperlinkedModelSerializer):
             },
         }
 
-    def create(self, validated_data):
-        type_uuid = validated_data.pop("type", None)
-        if type_uuid:
-            validated_data["type"] = models.OrganizationGroupType.objects.get(
-                uuid=type_uuid["uuid"]
-            )
-        return super().create(validated_data)
-
     def update(self, instance, validated_data):
-        type_uuid = validated_data.pop("type", None)
-        if type_uuid:
-            instance.type = models.OrganizationGroupType.objects.get(
-                uuid=type_uuid["uuid"]
-            )
         instance.name = validated_data.get("name", instance.name)
         instance.save()
         return instance
@@ -1399,22 +1382,6 @@ class BasePropertySerializer(
 ):
     class Meta:
         model = NotImplemented
-
-
-class OrganizationGroupTypesSerializer(serializers.HyperlinkedModelSerializer):
-    class Meta:
-        model = models.OrganizationGroupType
-        fields = (
-            "uuid",
-            "url",
-            "name",
-        )
-        extra_kwargs = {
-            "url": {
-                "lookup_field": "uuid",
-                "view_name": "organization-group-type-detail",
-            },
-        }
 
 
 class UserAgreementSerializer(serializers.HyperlinkedModelSerializer):

@@ -852,15 +852,6 @@ class OrganizationGroupViewSet(core_views.ActionsViewSet):
     ordering_fields = ("name", "customers_count")
 
 
-class OrganizationGroupTypesViewSet(core_views.ActionsViewSet):
-    queryset = models.OrganizationGroupType.objects.all().order_by("name")
-    serializer_class = serializers.OrganizationGroupTypesSerializer
-    lookup_field = "uuid"
-    filter_backends = (DjangoFilterBackend,)
-    filterset_class = filters.OrganizationGroupTypesFilter
-    permission_classes = (core_permissions.IsAdminOrReadOnly,)
-
-
 class UserAgreementsViewSet(ActionsViewSet):
     serializer_class = serializers.UserAgreementSerializer
     permission_classes = (core_permissions.ActionsPermission,)
