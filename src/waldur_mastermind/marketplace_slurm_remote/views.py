@@ -76,6 +76,8 @@ class SlurmViewSet(core_views.ActionsViewSet):
             status=status.HTTP_200_OK,
         )
 
+    set_limits_serializer_class = serializers.SetLimitsSerializer
+
     @action(detail=True, methods=["POST"])
     def set_usage(self, request, uuid=None):
         resource = self.get_object()
