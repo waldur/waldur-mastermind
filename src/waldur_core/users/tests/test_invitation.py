@@ -815,49 +815,6 @@ class InvitationAcceptTest(BaseInvitationTest):
         permission = get_permissions(invitation.customer, self.user).get()
         self.assertEqual(permission.created_by, self.customer_owner)
 
-    def test_user_can_rewrite_his_email_on_invitation_accept(self):
-        invitation = factories.CustomerInvitationFactory(
-            created_by=self.customer_owner, email="invitation@i.ua"
-        )
-        self.client.force_authenticate(user=self.user)
-
-        self.client.post(
-            factories.CustomerInvitationFactory.get_url(invitation, action="accept"),
-            {"replace_email": True},
-        )
-
-        self.assertEqual(self.user.email, invitation.email)
-
-    @override_waldur_core_settings(VALIDATE_INVITATION_EMAIL=True)
-    def test_user_can_not_rewrite_his_email_on_acceptance_if_validation_of_emails_is_on(
-        self,
-    ):
-        invitation = factories.CustomerInvitationFactory(
-            created_by=self.customer_owner, email="invitation@i.ua"
-        )
-        self.client.force_authenticate(user=self.user)
-        url = factories.CustomerInvitationFactory.get_url(invitation, action="accept")
-
-        response = self.client.post(url, {"replace_email": True})
-
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-        self.user.refresh_from_db()
-        self.assertNotEqual(self.user.email, invitation.email)
-
-    @override_waldur_core_settings(VALIDATE_INVITATION_EMAIL=False)
-    def test_user_can_rewrite_his_email_on_acceptance_if_validation_of_emails_is_off(
-        self,
-    ):
-        invitation = factories.CustomerInvitationFactory(created_by=self.customer_owner)
-        self.client.force_authenticate(user=self.user)
-        url = factories.CustomerInvitationFactory.get_url(invitation, action="accept")
-
-        response = self.client.post(url, {"replace_email": True})
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.user.refresh_from_db()
-        self.assertEqual(self.user.email, invitation.email)
-
     @override_waldur_core_settings(VALIDATE_INVITATION_EMAIL=True)
     def test_user_can_accept_invitation_if_emails_match_and_validation_of_emails_is_on(
         self,
@@ -868,7 +825,7 @@ class InvitationAcceptTest(BaseInvitationTest):
         self.client.force_authenticate(user=self.user)
         url = factories.CustomerInvitationFactory.get_url(invitation, action="accept")
 
-        response = self.client.post(url, {"replace_email": True})
+        response = self.client.post(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.user.refresh_from_db()
