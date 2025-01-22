@@ -756,15 +756,9 @@ class VirtualMachineAdmin(ResourceAdmin):
     actions = []
 
 
-class OrganizationGroupTypeAdmin(admin.ModelAdmin):
-    list_display = ("name", "uuid")
-    search_fields = ["name"]
-
-
 class OrganizationGroupAdmin(admin.ModelAdmin):
-    list_display = ("name", "type", "parent", "uuid")
+    list_display = ("name", "parent", "uuid")
     search_fields = ["name"]
-    list_filter = ("type",)
 
 
 class UserAgreementAdmin(admin.ModelAdmin):
@@ -806,7 +800,6 @@ admin.site.register(models.CustomerPermissionReview, CustomerPermissionReviewAdm
 admin.site.register(models.Project, ProjectAdmin)
 admin.site.register(models.PrivateServiceSettings, PrivateServiceSettingsAdmin)
 admin.site.register(models.SharedServiceSettings, SharedServiceSettingsAdmin)
-admin.site.register(models.OrganizationGroupType, OrganizationGroupTypeAdmin)
 admin.site.register(models.OrganizationGroup, OrganizationGroupAdmin)
 admin.site.register(models.UserAgreement, UserAgreementAdmin)
 admin.site.register(NotificationTemplate, NotificationTemplateAdmin)

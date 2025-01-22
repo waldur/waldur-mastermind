@@ -19,11 +19,6 @@ def register_in(router):
         basename="organization-group",
     )
     router.register(
-        r"organization-group-types",
-        views.OrganizationGroupTypesViewSet,
-        basename="organization-group-type",
-    )
-    router.register(
         r"user-agreements",
         views.UserAgreementsViewSet,
         basename="user-agreements",
