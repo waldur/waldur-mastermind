@@ -22,11 +22,6 @@ class FreeIPAExtension(WaldurExtension):
                 "schedule": timedelta(minutes=10),
                 "args": (),
             },
-            "waldur-freeipa-disable-accounts-without-allocations": {
-                "task": "waldur_freeipa.disable_accounts_without_allocations",
-                "schedule": timedelta(hours=24),
-                "args": (),
-            },
             "waldur-freeipa-sync-names": {
                 "task": "waldur_freeipa.sync_names",
                 "schedule": timedelta(hours=24),

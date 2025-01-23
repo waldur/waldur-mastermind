@@ -49,6 +49,4 @@ class ProfileSerializer(
 
         validated_data["username"] = utils.generate_username(validated_data["username"])
 
-        validated_data["is_active"] = utils.is_profile_active_for_user(user)
-
         return super().create(validated_data)

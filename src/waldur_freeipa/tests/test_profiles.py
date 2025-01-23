@@ -278,28 +278,6 @@ class ProfileAllocationTest(test.APITransactionTestCase):
         self.profile.refresh_from_db()
         self.assertTrue(self.profile.is_active)
 
-    def test_active_profile_is_disabled_if_user_does_not_have_access_to_any_allocation(
-        self,
-    ):
-        self.profile.is_active = True
-        self.profile.save()
-
-        tasks.disable_accounts_without_allocations()
-
-        self.profile.refresh_from_db()
-        self.assertFalse(self.profile.is_active)
-
-    def test_active_profile_is_not_disabled_if_user_has_access_to_any_allocation(self):
-        self.profile.is_active = True
-        self.profile.save()
-
-        self.fixture.allocation.project.add_user(self.user, ProjectRole.ADMIN)
-
-        tasks.disable_accounts_without_allocations()
-
-        self.profile.refresh_from_db()
-        self.assertTrue(self.profile.is_active)
-
 
 @override_plugin_settings(ENABLED=True)
 @mock.patch("python_freeipa.Client")

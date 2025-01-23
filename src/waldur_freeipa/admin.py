@@ -14,9 +14,6 @@ class ProfileAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
     list_filter = ("is_active",)
     search_fields = ("username",)
 
-    def has_add_permission(self, request, obj=None):
-        return False
-
     def has_delete_permission(self, request, obj=None):
         if request.user.is_staff:
             return True
