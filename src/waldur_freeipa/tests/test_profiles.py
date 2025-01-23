@@ -70,9 +70,9 @@ class ProfileCreateTest(BaseProfileTest):
         self.assertEqual(status.HTTP_201_CREATED, response.status_code)
         mock_client().user_add.assert_called_once()
 
-    def test_profile_is_not_active_initially(self, mock_client):
+    def test_profile_is_active_initially(self, mock_client):
         response = self.client.post(self.url, self.valid_data)
-        self.assertFalse(response.data["is_active"])
+        self.assertTrue(response.data["is_active"])
         self.assertIsNotNone(response.data["agreement_date"])
 
     @override_plugin_settings(ENABLED=True, USERNAME_PREFIX="ipa_")
@@ -98,7 +98,7 @@ class ProfileCreateTest(BaseProfileTest):
             ),
             user_password=None,
             organization_unit=self.user.organization,
-            disabled=True,
+            disabled=False,
         )
 
     def test_when_profile_created_ssh_keys_are_attached(self, mock_client):
