@@ -2811,6 +2811,9 @@ class ComponentUsageSerializer(BaseComponentUsageSerializer):
     customer_name = serializers.SerializerMethodField()
     customer_uuid = serializers.SerializerMethodField()
 
+    # TODO: temporary functionality, remove after full migration to the new SLURM plugin
+    usage = serializers.SerializerMethodField()
+
     class Meta(BaseComponentUsageSerializer.Meta):
         fields = BaseComponentUsageSerializer.Meta.fields + (
             "resource_name",
@@ -2837,6 +2840,21 @@ class ComponentUsageSerializer(BaseComponentUsageSerializer):
 
     def get_customer_name(self, instance):
         return instance.resource.project.customer.name
+
+    def get_usage(self, instance):
+        # TODO: temporary functionality, remove after full migration to the new SLURM plugin
+        from waldur_mastermind.marketplace_slurm import PLUGIN_NAME as SLURM_PLUGIN_NAME
+        from waldur_mastermind.marketplace_slurm import (
+            registrators as slurm_registrators,
+        )
+
+        if instance.plan_period.plan.offering != SLURM_PLUGIN_NAME:
+            return instance.usage
+
+        converted_usage = slurm_registrators.SlurmRegistrator.convert_quantity(
+            instance.usage, instance.component.type
+        )
+        return converted_usage
 
     def get_fields(self):
         fields = super().get_fields()
@@ -2895,6 +2913,8 @@ class ComponentUserUsageSerializer(serializers.HyperlinkedModelSerializer):
     customer_uuid = serializers.ReadOnlyField(
         source="component_usage.resource.project.customer.uuid"
     )
+    # TODO: temporary functionality, remove after full migration to the new SLURM plugin
+    usage = serializers.SerializerMethodField()
 
     class Meta:
         fields = (
@@ -2920,6 +2940,21 @@ class ComponentUserUsageSerializer(serializers.HyperlinkedModelSerializer):
             "date",
         )
         model = models.ComponentUserUsage
+
+    def get_usage(self, instance):
+        # TODO: temporary functionality, remove after full migration to the new SLURM plugin
+        from waldur_mastermind.marketplace_slurm import PLUGIN_NAME as SLURM_PLUGIN_NAME
+        from waldur_mastermind.marketplace_slurm import (
+            registrators as slurm_registrators,
+        )
+
+        if instance.component_usage.plan_period.plan.offering != SLURM_PLUGIN_NAME:
+            return instance.usage
+
+        converted_usage = slurm_registrators.SlurmRegistrator.convert_quantity(
+            instance.usage, instance.component_usage.component.type
+        )
+        return converted_usage
 
 
 class ComponentUserUsageCreateSerializer(serializers.ModelSerializer):

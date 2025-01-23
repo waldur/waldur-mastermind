@@ -1,19 +1,19 @@
-from django.db import transaction
-
 from waldur_mastermind.marketplace import processors
 
 
 class CreateAllocationProcessor(processors.BasicCreateResourceProcessor):
-    pass
+    def process_order(self, user):
+        # waldur-site-agent is responsible for order approval and processing
+        pass
 
 
 class DeleteAllocationProcessor(processors.BasicDeleteResourceProcessor):
-    def process_order(self, user):
-        with transaction.atomic():
-            marketplace_resource = self.order.resource
-            marketplace_resource.set_state_terminating()
-            marketplace_resource.save(update_fields=["state"])
+    def send_request(self, user, resource):
+        # waldur-site-agent is responsible for order approval and processing
+        return False
 
 
 class UpdateAllocationLimitsProcessor(processors.BasicUpdateResourceProcessor):
-    pass
+    def send_request(self, user):
+        # waldur-site-agent is responsible for order approval and processing
+        return False
