@@ -2848,7 +2848,7 @@ class ComponentUsageSerializer(BaseComponentUsageSerializer):
             registrators as slurm_registrators,
         )
 
-        if instance.plan_period.plan.offering != SLURM_PLUGIN_NAME:
+        if instance.plan_period.plan.offering.type != SLURM_PLUGIN_NAME:
             return instance.usage
 
         converted_usage = slurm_registrators.SlurmRegistrator.convert_quantity(
@@ -2948,7 +2948,7 @@ class ComponentUserUsageSerializer(serializers.HyperlinkedModelSerializer):
             registrators as slurm_registrators,
         )
 
-        if instance.component_usage.plan_period.plan.offering != SLURM_PLUGIN_NAME:
+        if instance.component_usage.plan_period.plan.offering.type != SLURM_PLUGIN_NAME:
             return instance.usage
 
         converted_usage = slurm_registrators.SlurmRegistrator.convert_quantity(
