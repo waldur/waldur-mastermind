@@ -55,7 +55,8 @@ def sync_resources():
     offering_ids = set()
     for subscription in active_subscriptions:
         user_offerings = (
-            marketplace_models.Offering.objects.filter_for_user(subscription.user)
+            marketplace_models.Offering.objects.all()
+            .filter_for_user(subscription.user)
             .filter(type=PLUGIN_NAME)
             .values_list("id", flat=True)
         )
