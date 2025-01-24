@@ -319,7 +319,7 @@ Upload MCP metadata:
     DJANGO_SETTINGS_MODULE: waldur_core.server.doc_settings
   script:
     - poetry install
-    - waldur export_model_metadata.py > /tmp/meta.yaml
+    - waldur export_model_metadata > /tmp/meta.yaml
     - cd /tmp/
     - git clone "https://mastermind:$MCP_ACCESS_TOKEN@$CI_SERVER_HOST/waldur/waldur-mcp-server.git"
     - git config --global user.name "$GITLAB_USER_NAME"
