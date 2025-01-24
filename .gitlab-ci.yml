@@ -315,6 +315,8 @@ Upload MCP metadata:
   rules:
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
   image: registry.hpc.ut.ee/mirror/$WALDUR_MASTERMIND_TEST_IMAGE
+  variables:
+    DJANGO_SETTINGS_MODULE: waldur_core.server.doc_settings
   script:
     - poetry install
     - waldur export_model_metadata.py > /tmp/meta.yaml
