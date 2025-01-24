@@ -366,7 +366,7 @@ class CountrySerializerMixin(serializers.Serializer):
 
 class OrganizationGroupSerializer(serializers.HyperlinkedModelSerializer):
     parent_uuid = serializers.ReadOnlyField(source="parent.uuid")
-    parent_name = serializers.ReadOnlyField(source="parent.type.name")
+    parent_name = serializers.ReadOnlyField(source="parent.name")
     customers_count = serializers.ReadOnlyField()
 
     class Meta:
