@@ -309,6 +309,28 @@ Upload HomePort enums:
     - git push --set-upstream origin new-enums:develop
   before_script: []
 
+Upload MCP metadata:
+  stage: deploy
+  interruptible: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
+  image: registry.hpc.ut.ee/mirror/$WALDUR_MASTERMIND_TEST_IMAGE
+  script:
+    - poetry install
+    - waldur export_model_metadata.py > /tmp/meta.yaml
+    - cd /tmp/
+    - git clone "https://mastermind:$MCP_ACCESS_TOKEN@$CI_SERVER_HOST/waldur/waldur-mcp-server.git"
+    - git config --global user.name "$GITLAB_USER_NAME"
+    - git config --global user.email "$GITLAB_USER_EMAIL"
+    - cd waldur-mcp-server
+    - git checkout main
+    - mv /tmp/meta.yaml src/waldur_mcp_server/meta.yaml
+    - git add src/waldur_mcp_server/meta.yaml
+    - git commit -m "Update metadata" || exit 0
+    - git branch new-metadata
+    - git push --set-upstream origin new-metadata:main
+  before_script: []
+
 Lint MD links:
   before_script:
     - touch docs/core_structure.png
