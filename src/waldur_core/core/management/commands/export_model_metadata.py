@@ -71,7 +71,10 @@ class Command(BaseCommand):
                         "type": "ManyToManyTable",
                     }
 
-        print(yaml.dump(model_metadata, default_flow_style=False, allow_unicode=True))
+        print(
+            yaml.dump(model_metadata, default_flow_style=False, allow_unicode=True),
+            end="",
+        )
 
     def _get_model_metadata(self, model: type[models.Model]) -> dict[str, any]:
         """
