@@ -3,7 +3,6 @@ import datetime
 from django.utils.functional import cached_property
 
 from waldur_core.permissions import enums
-from waldur_core.permissions import models as permissions_models
 from waldur_core.permissions import utils as permissions_utils
 from waldur_core.permissions.fixtures import CallRole
 from waldur_core.structure.tests import factories as structure_factories
@@ -23,28 +22,17 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
         self.review
         self.round
 
-        permissions_models.RolePermission.objects.get_or_create(
-            role=CallRole.MANAGER,
-            permission=enums.PermissionEnum.APPROVE_AND_REJECT_PROPOSALS,
-        )
+        for perm in (
+            enums.PermissionEnum.APPROVE_AND_REJECT_PROPOSALS,
+            enums.PermissionEnum.CLOSE_ROUNDS,
+            enums.PermissionEnum.CREATE_CALL_PERMISSION,
+            enums.PermissionEnum.LIST_PROPOSALS,
+            enums.PermissionEnum.LIST_CALLS,
+            enums.PermissionEnum.LIST_ROUNDS,
+        ):
+            CallRole.MANAGER.add_permission(perm)
 
-        permissions_models.RolePermission.objects.get_or_create(
-            role=CallRole.MANAGER,
-            permission=enums.PermissionEnum.CLOSE_ROUNDS,
-        )
-
-        permissions_models.RolePermission.objects.get_or_create(
-            role=CallRole.MANAGER,
-            permission=enums.PermissionEnum.CREATE_CALL_PERMISSION,
-        )
-        permissions_models.RolePermission.objects.get_or_create(
-            role=CallRole.MANAGER,
-            permission=enums.PermissionEnum.LIST_PROPOSALS,
-        )
-        permissions_models.RolePermission.objects.get_or_create(
-            role=CallRole.REVIEWER,
-            permission=enums.PermissionEnum.LIST_PROPOSALS,
-        )
+        CallRole.REVIEWER.add_permission(enums.PermissionEnum.LIST_PROPOSALS)
 
     @cached_property
     def manager(self):

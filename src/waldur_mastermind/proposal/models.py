@@ -104,6 +104,7 @@ class Call(
 
     class Permissions:
         customer_path = "manager__customer"
+        list_permission = PermissionEnum.LIST_CALLS
 
     def __str__(self):
         return f"{self.name} | {self.manager.customer}"
@@ -228,6 +229,7 @@ class Round(
 
     class Permissions:
         customer_path = "call__manager__customer"
+        list_permission = PermissionEnum.LIST_ROUNDS
 
     def __str__(self):
         return f"{self.call.name} | {self.start_time} - {self.cutoff_time}"

@@ -1,6 +1,8 @@
 import yaml
+from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
 
+from waldur_core.permissions.enums import TYPE_MAP
 from waldur_core.permissions.models import Role, RolePermission
 
 
@@ -20,7 +22,22 @@ class Command(BaseCommand):
             if data is None:
                 return
             for row in data:
-                role = Role.objects.get(name=row["role"])
+                try:
+                    role = Role.objects.get(name=row["role"])
+                except Role.DoesNotExist:
+                    if "scope" not in row or row["scope"] not in TYPE_MAP:
+                        self.stdout.write(
+                            self.style.WARNING(
+                                f"Role {row['role']} has invalid scope field, skipping"
+                            )
+                        )
+                        continue
+                    content_type = ContentType.objects.get_by_natural_key(
+                        *TYPE_MAP[row["scope"]]
+                    )
+                    role = Role.objects.create(
+                        name=row["role"], content_type=content_type
+                    )
                 current_permissions = set(
                     RolePermission.objects.filter(role=role).values_list(
                         "permission", flat=True
@@ -29,7 +46,7 @@ class Command(BaseCommand):
                 if "permissions" not in row:
                     self.stdout.write(
                         self.style.WARNING(
-                            f'Role {row["role"]} is missing permissions block, skipping'
+                            f"Role {row['role']} is missing permissions block, skipping"
                         )
                     )
                     continue
@@ -46,7 +63,7 @@ class Command(BaseCommand):
                 if description and role.description != description:
                     self.stdout.write(
                         self.style.WARNING(
-                            f'Updating description of role {row["role"]} from {role.description} to {description}.'
+                            f"Updating description of role {row['role']} from {role.description} to {description}."
                         )
                     )
                     role.description = description
@@ -56,7 +73,7 @@ class Command(BaseCommand):
                 if is_active and role.is_active != is_active:
                     self.stdout.write(
                         self.style.WARNING(
-                            f'Updating is_active status of role {row["role"]} from {role.is_active} to {is_active}.'
+                            f"Updating is_active status of role {row['role']} from {role.is_active} to {is_active}."
                         )
                     )
                     role.is_active = is_active
