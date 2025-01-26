@@ -226,6 +226,8 @@
     - CALL.CREATE_PERMISSION
     - CALL.UPDATE_PERMISSION
     - CALL.DELETE_PERMISSION
+    - CALL.LIST
+    - ROUND.LIST
     - PROPOSAL.LIST
 
 - role: PROPOSAL.MANAGER
@@ -239,3 +241,16 @@
   permissions:
     - RESOURCE.LIST
     - PROJECT.LIST
+
+- role: CUSTOMER.CALL_ORGANIZER
+  scope: customer
+  description: Organization call organizer
+  permissions:
+    - CALL.APPROVE_AND_REJECT_PROPOSALS
+    - CALL.CLOSE_ROUNDS
+    - CALL.CREATE_PERMISSION
+    - CALL.UPDATE_PERMISSION
+    - CALL.DELETE_PERMISSION
+    - CALL.LIST
+    - ROUND.LIST
+    - PROPOSAL.LIST

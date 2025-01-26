@@ -19,7 +19,7 @@ from waldur_core.core.views import (
     ReadOnlyActionsViewSet,
 )
 from waldur_core.permissions import utils as permissions_utils
-from waldur_core.permissions.enums import PermissionEnum, RoleEnum
+from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import ProposalRole
 from waldur_core.permissions.utils import add_user, permission_factory
 from waldur_core.permissions.views import UserRoleMixin
@@ -153,9 +153,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
 
     queryset = models.Call.objects.all()
 
-    get_queryset = permissions_utils.queryset_factory(
-        models.Call, RoleEnum.CALL_MANAGER, ordering=["created"]
-    )
+    get_queryset = permissions_utils.queryset_factory(models.Call, ordering=["created"])
 
     @decorators.action(detail=True, methods=["get", "post"])
     def offerings(self, request, uuid=None):
@@ -393,10 +391,7 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     model = models.Proposal
 
     get_queryset = permissions_utils.queryset_factory(
-        models.Proposal,
-        RoleEnum.CALL_MANAGER,
-        "round.call",
-        created_by=True,
+        models.Proposal, path="round.call", created_by=True
     )
 
     def is_creator(request, view, obj=None):
@@ -764,9 +759,7 @@ class RoundViewSet(ReadOnlyActionsViewSet):
     filterset_class = []
     filter_backends = (DjangoFilterBackend,)
 
-    get_queryset = permissions_utils.queryset_factory(
-        models.Round, RoleEnum.CALL_MANAGER, "call"
-    )
+    get_queryset = permissions_utils.queryset_factory(models.Round, path="call")
 
     @decorators.action(detail=True)
     def reviewers(self, request, uuid=None):

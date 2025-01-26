@@ -215,7 +215,7 @@ def get_update_permission(model_class):
     return enums.UPDATE_PERMISSIONS.get(model_class._meta.model_name)
 
 
-def queryset_factory(model, role, path=None, ordering=None, created_by=False):
+def queryset_factory(model, role=None, path=None, ordering=None, created_by=False):
     ordering = ordering or []
 
     if not path:
@@ -256,8 +256,10 @@ def queryset_factory(model, role, path=None, ordering=None, created_by=False):
             if not roles:
                 return model.objects.none()
             related_model_ids = get_scope_ids(user, ctype, roles)
-        else:
+        elif role:
             related_model_ids = get_scope_ids(user, ctype, role)
+        else:
+            return model.objects.none()
 
         query = {path + "__in": related_model_ids}
 
