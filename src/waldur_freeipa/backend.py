@@ -349,3 +349,9 @@ class FreeIPABackend:
     def synchronize_groups(self):
         synchronizer = GroupSynchronizer(self._client)
         synchronizer.sync()
+
+    def user_enable(self, profile):
+        self._client.user_enable(profile.username)
+
+    def user_disable(self, profile):
+        self._client.user_disable(profile.username)

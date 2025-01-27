@@ -109,7 +109,28 @@ def enable_profile_when_association_is_created(sender, allocation, **kwargs):
 def update_user(sender, instance, created=False, **kwargs):
     user = instance
 
-    if created or not set(user.tracker.changed()) & {
+    if created:
+        return
+
+    if set(user.tracker.changed()) & {"is_active"}:
+        try:
+            profile = models.Profile.objects.get(user=user)
+        except models.Profile.DoesNotExist:
+            logger.warning(f"No FreeIPA profile found for user {user.username}.")
+            return
+
+        if user.is_active != profile.is_active:
+            profile.is_active = user.is_active
+            profile.save()
+
+            if profile.is_active:
+                logger.info(f"Activating user {profile.username} in FreeIPA.")
+                tasks.user_enable.delay(core_utils.serialize_instance(profile))
+            else:
+                logger.info(f"Deactivating user {profile.username} in FreeIPA.")
+                tasks.user_disable.delay(core_utils.serialize_instance(profile))
+
+    elif set(user.tracker.changed()) & {
         "first_name",
         "last_name",
         "email",
@@ -118,13 +139,11 @@ def update_user(sender, instance, created=False, **kwargs):
         "preferred_language",
         "phone_number",
     }:
-        return
+        try:
+            profile = models.Profile.objects.get(is_active=True, user=user)
+        except models.Profile.DoesNotExist:
+            return
 
-    try:
-        profile = models.Profile.objects.get(is_active=True, user=user)
-    except models.Profile.DoesNotExist:
-        return
-
-    transaction.on_commit(
-        lambda: tasks.update_user.delay(core_utils.serialize_instance(profile))
-    )
+        transaction.on_commit(
+            lambda: tasks.update_user.delay(core_utils.serialize_instance(profile))
+        )
