@@ -1,10 +1,13 @@
+from django.db import transaction
 from rest_framework.test import APITransactionTestCase
 
+from waldur_core.logging.models import Event
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import models as structure_tests_models
+from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace import handlers as marketplace_handlers
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.tests import factories
+from waldur_mastermind.marketplace.tests import factories, fixtures
 
 
 class ResourceHandlerTest(APITransactionTestCase):
@@ -20,6 +23,98 @@ class ResourceHandlerTest(APITransactionTestCase):
         instance.save()
         resource.refresh_from_db()
         self.assertEqual(resource.name, "New name")
+
+    def test_resource_update_logging_happens_only_once_in_callback(self):
+        """
+        This test ensures that the resource update log is only created once in the resource_update_succeeded callback.
+        """
+        fixture = fixtures.MarketplaceFixture()
+
+        # Get the existing component and make it LIMIT type
+        offering_component = fixture.offering_component
+        offering_component.billing_type = (
+            marketplace_models.OfferingComponent.BillingTypes.LIMIT
+        )
+        offering_component.save()
+
+        # Set initial resource state
+        fixture.resource.limits = {offering_component.type: 20}
+        fixture.resource.state = marketplace_models.Resource.States.OK
+        fixture.resource.plan = fixture.plan
+        fixture.resource.save()  # Save initial state
+
+        # Create update order
+        order = fixture.update_order
+        order.limits = {offering_component.type: 16}
+        order.save()
+
+        # Clear existing events
+        Event.objects.filter(
+            event_type="marketplace_resource_update_succeeded",
+            context__resource_uuid=str(fixture.resource.uuid),
+        ).delete()
+
+        # Execute callback
+        with transaction.atomic():
+            callbacks.resource_update_succeeded(fixture.resource)
+
+        event_count = Event.objects.filter(
+            event_type="marketplace_resource_update_succeeded",
+            context__resource_uuid=str(fixture.resource.uuid),
+        ).count()
+
+        self.assertEqual(
+            event_count,
+            1,
+            f"Expected 1 event 'marketplace_resource_update_succeeded', got {event_count}",
+        )
+
+    def test_resource_update_log_skipped_for_blacklisted_fields(self):
+        """
+        This test ensures that the resource update log is not created when only blacklisted fields are updated.
+        """
+        fixture = fixtures.MarketplaceFixture()
+        Event.objects.all().delete()
+        # Update a blacklisted field ( backend_metadata )
+        fixture.resource.backend_metadata = {"some": "metadata"}
+        fixture.resource.save()
+
+        event_count = Event.objects.filter(
+            event_type="marketplace_resource_update_succeeded",
+            context__resource_uuid=str(fixture.resource.uuid),
+        ).count()
+
+        self.assertEqual(
+            event_count,
+            0,
+            f"Expected 0 events 'marketplace_resource_update_succeeded', got {event_count}",
+        )
+
+    def test_resource_update_log_happens_once_for_multiple_fields(self):
+        """
+        This test ensures that when multiple non-blacklisted fields are updated,
+        only one event is created.
+        """
+        fixture = fixtures.MarketplaceFixture()
+
+        # Clear existing events
+        Event.objects.all().delete()
+
+        # Update multiple non-blacklisted fields
+        fixture.resource.name = "New name"
+        fixture.resource.description = "New description"
+        fixture.resource.save()
+
+        event_count = Event.objects.filter(
+            event_type="marketplace_resource_update_succeeded",
+            context__resource_uuid=str(fixture.resource.uuid),
+        ).count()
+
+        self.assertEqual(
+            event_count,
+            1,
+            f"Expected 1 event for multiple field updates, got {event_count}",
+        )
 
     def test_service_settings_should_be_disabled_if_resource_is_terminated(
         self,
