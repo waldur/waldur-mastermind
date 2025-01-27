@@ -1072,6 +1072,19 @@ class Resource(
     restrict_member_access = models.BooleanField(default=False)
     paused = models.BooleanField(default=False)
 
+    NON_LOGGABLE_FIELDS = (
+        "modified",
+        "backend_metadata",
+        "action",
+        "report",
+        "action_details",
+        "plan",
+        "object_id",
+        "content_type_id",
+        "error_message",
+        "current_usages",
+    )
+
     @property
     def customer(self):
         return self.project.customer

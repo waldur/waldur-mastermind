@@ -781,15 +781,7 @@ def resource_has_been_changed(sender, instance, created=False, **kwargs):
         return
 
     changed_fields = instance.tracker.changed().copy()
-    for field in (
-        "modified",
-        "backend_metadata",
-        "object_id",
-        "content_type_id",
-        "options",
-        "error_message",
-        "current_usages",
-    ):
+    for field in models.Resource.NON_LOGGABLE_FIELDS:
         changed_fields.pop(field, None)
 
     if not changed_fields:
@@ -831,7 +823,7 @@ def resource_has_been_changed(sender, instance, created=False, **kwargs):
             continue
         changed.append({"name": field, "from": old_value, "to": new_value})
 
-    log.log_marketplace_resource_has_been_changed(instance, changed)
+    log.log_resource_update_succeeded(instance, changed)
 
 
 def resource_state_has_been_changed(sender, instance, created=False, **kwargs):

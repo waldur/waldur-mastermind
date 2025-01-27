@@ -78,6 +78,18 @@ class MarketplaceFixture(structure_fixtures.ProjectFixture):
         )
 
     @cached_property
+    def update_order(self):
+        """Order specifically for testing resource updates"""
+        return marketplace_factories.OrderFactory(
+            project=self.project,
+            offering=self.offering,
+            resource=self.resource,
+            plan=self.plan,
+            state=marketplace_models.Order.States.EXECUTING,
+            type=marketplace_models.Order.Types.UPDATE,
+        )
+
+    @cached_property
     def service_provider(self):
         return marketplace_factories.ServiceProviderFactory(
             customer=self.offering_customer,

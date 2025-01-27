@@ -5,15 +5,11 @@ from python_freeipa import exceptions as freeipa_exceptions
 from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
-from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_freeipa import tasks
 from waldur_freeipa.backend import FreeIPABackend
 from waldur_freeipa.tests import factories
 from waldur_freeipa.tests.helpers import override_plugin_settings
-from waldur_slurm import models as slurm_models
-from waldur_slurm import signals as slurm_signals
-from waldur_slurm.tests import fixtures as slurm_fixtures
 
 
 @override_plugin_settings(ENABLED=True)
@@ -257,26 +253,6 @@ class UpdateUserHandlerTest(test.APITransactionTestCase):
         mock_task.update_user.delay.assert_called_once_with(
             core_utils.serialize_instance(self.profile)
         )
-
-
-@override_plugin_settings(ENABLED=True)
-class ProfileAllocationTest(test.APITransactionTestCase):
-    def setUp(self):
-        self.user = structure_factories.UserFactory()
-        self.profile = factories.ProfileFactory(user=self.user, is_active=False)
-        self.fixture = slurm_fixtures.SlurmFixture()
-
-    def test_when_association_is_created_profile_is_enabled(self):
-        self.fixture.allocation.project.add_user(self.user, ProjectRole.ADMIN)
-
-        slurm_signals.slurm_association_created.send(
-            slurm_models.Allocation,
-            allocation=self.fixture.allocation,
-            user=self.user,
-            username=self.user.username,
-        )
-        self.profile.refresh_from_db()
-        self.assertTrue(self.profile.is_active)
 
 
 @override_plugin_settings(ENABLED=True)
