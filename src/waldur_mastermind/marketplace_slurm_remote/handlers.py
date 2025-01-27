@@ -9,15 +9,6 @@ from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME, utils
 
 logger = logging.getLogger(__name__)
 
-COMPONENT_FIELDS = {
-    "cpu_usage",
-    "gpu_usage",
-    "ram_usage",
-    "cpu_limit",
-    "gpu_limit",
-    "ram_limit",
-}
-
 
 def send_order_created_to_mqtt(sender, instance, created=False, **kwargs):
     order: marketplace_models.Order = instance
