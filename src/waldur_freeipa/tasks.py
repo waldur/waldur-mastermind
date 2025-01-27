@@ -107,3 +107,13 @@ def sync_profile_ssh_keys(profile_id):
             profile.id,
         )
         return
+
+
+@shared_task()
+def user_enable(profile_serialized):
+    FreeIPABackend().user_enable(core_utils.deserialize_instance(profile_serialized))
+
+
+@shared_task()
+def user_disable(profile_serialized):
+    FreeIPABackend().user_disable(core_utils.deserialize_instance(profile_serialized))
