@@ -181,16 +181,54 @@ Build docker image for tests:
       --build-arg DOCKER_REGISTRY=$DOCKER_REGISTRY
       --destination "$WALDUR_MASTERMIND_TEST_IMAGE"
 
-Publish latest docker image:
+Publish the latest multiarch docker image:
+  extends: .Publish multiarch latest docker image template
   before_script:
+    # Merge the before_script from the template
+    - !reference [.Publish multiarch latest docker image template, before_script]
     - echo '[+] Build and publish latest docker image'
     - echo $CI_COMMIT_SHA > docker/rootfs/COMMIT_SHA
 
-Publish docker image with specific version:
+Publish multiarch docker image with specific version:
+  extends: .Publish multiarch docker image with specific version template
   before_script:
+    # Merge the before_script from the template
+    - !reference [.Publish multiarch docker image with specific version template, before_script]
     - echo "[+] Build and publish $CI_COMMIT_TAG docker image"
     - echo $CI_COMMIT_TAG > docker/rootfs/COMMIT_TAG
     - sed -i "s/version = \"0.0.0\"/version = \"$CI_COMMIT_TAG\"/" pyproject.toml
+
+Test Multi-arch docker image build:
+  stage: test
+  interruptible: true
+  image: registry.hpc.ut.ee/mirror/docker:latest
+  services:
+    - name: "docker:dind"
+      command: ["--mtu=1400"]
+  rules:
+    # Skip tests if said so
+    - if: '$SKIP_TESTS == "true" || $SKIP_TESTS == "yes"'
+      when: never
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - Dockerfile
+        - docker/**/*
+        - .gitlab-ci.yml
+  variables:
+    DOCKER_DRIVER: overlay2
+    DOCKER_REGISTRY: registry.hpc.ut.ee/mirror/
+    DOCKER_HUB_REGISTRY: "docker.io"
+  cache: []
+  before_script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY --username "$CI_REGISTRY_USER" --password-stdin
+  script:
+    - docker context create builder
+    - docker buildx version
+    - docker buildx create builder --use
+    - docker buildx build --platform linux/amd64,linux/arm64 --build-arg DOCKER_REGISTRY=$DOCKER_REGISTRY -t ${CI_REGISTRY_IMAGE}:${CI_MERGE_REQUEST_ID}-multiarch --push .
+    - docker buildx imagetools inspect ${CI_REGISTRY_IMAGE}:${CI_MERGE_REQUEST_ID}-multiarch
+    - docker pull ${CI_REGISTRY_IMAGE}:${CI_MERGE_REQUEST_ID}-multiarch
+    - docker image inspect ${CI_REGISTRY_IMAGE}:${CI_MERGE_REQUEST_ID}-multiarch
 
 Lint docker image:
   extends: .Lint docker image template
