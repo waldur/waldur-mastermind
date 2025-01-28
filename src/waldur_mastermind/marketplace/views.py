@@ -2820,6 +2820,7 @@ class ProviderResourceViewSet(BaseResourceViewSet):
         resource = self.get_object()
         resource.last_sync = timezone.now()
         resource.save(update_fields=["last_sync"])
+        return Response(status=status.HTTP_200_OK)
 
     refresh_last_sync_permissions = [
         permission_factory(
