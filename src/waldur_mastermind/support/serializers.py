@@ -542,24 +542,40 @@ class WebHookReceiverSerializer(serializers.Serializer):
     )  # For old Jira's version
 
     def create(self, validated_data):
+        logger.debug("Processing webhook with data: %s", validated_data)
+
         event_type = dict(self.Event.CHOICES).get(validated_data["webhookEvent"])
+        logger.info("Processing webhook event type: %s", event_type)
+
         fields = validated_data["issue"]["fields"]
         key = validated_data["issue"]["key"]
+        logger.debug("Processing issue key: %s", key)
+
         backend = ServiceDeskBackend()
-        issue = self.get_issue(key)
+        issue: models.Issue = self.get_issue(key)
+        logger.info("Loaded issue %s from database", issue)
 
         if fields.get("comment", False):
             # The processing of hooks requests for the old and new Jira versions is different.
             # The main difference is that in the old version, when changing comments,
             # jira:issue_updated event is sent to the new comment_X event.
             old_jira = validated_data.get("issue_event_type_name", True)
+            logger.debug(
+                "Using old Jira format: %s, event type: %s",
+                old_jira,
+                validated_data.get("issue_event_type_name"),
+            )
         else:
             old_jira = False
 
         if event_type == self.Event.ISSUE_UPDATE:
+            logger.info("Processing issue update for key: %s", key)
             if old_jira:
                 if old_jira == "issue_commented":
                     comment_backend_id = validated_data["comment"]["id"]
+                    logger.debug(
+                        "Creating comment from Jira, comment ID: %s", comment_backend_id
+                    )
                     backend.create_comment_from_jira(issue, comment_backend_id)
 
                 if old_jira == "issue_comment_edited":
@@ -582,12 +598,15 @@ class WebHookReceiverSerializer(serializers.Serializer):
                 backend.update_attachment_from_jira(issue)
 
         elif event_type == self.Event.ISSUE_DELETE:
+            logger.info("Processing issue deletion for key: %s", key)
             backend.delete_issue_from_jira(issue)
 
         elif event_type in self.Event.COMMENT_ACTIONS:
+            logger.info("Processing comment action: %s for issue: %s", event_type, key)
             try:
                 comment_backend_id = validated_data["comment"]["id"]
             except KeyError:
+                logger.error("Missing comment ID in webhook data")
                 raise serializers.ValidationError(
                     "Request not include fields.comment.id"
                 )
@@ -607,6 +626,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
                 backend.delete_comment_from_jira(comment)
                 backend.update_attachment_from_jira(issue)
 
+        logger.debug("Webhook processing completed for issue: %s", key)
         return validated_data
 
     def get_issue(self, key):
