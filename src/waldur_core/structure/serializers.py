@@ -388,10 +388,12 @@ class OrganizationGroupSerializer(serializers.HyperlinkedModelSerializer):
             },
         }
 
-    def update(self, instance, validated_data):
-        instance.name = validated_data.get("name", instance.name)
-        instance.save()
-        return instance
+    def validate_parent(self, parent):
+        if parent and parent == self.instance:
+            raise serializers.ValidationError(
+                {"parent": _("Organization group cannot be parent of itself.")}
+            )
+        return parent
 
 
 class CustomerSerializer(
