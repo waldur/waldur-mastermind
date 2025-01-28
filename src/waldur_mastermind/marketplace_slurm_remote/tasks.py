@@ -64,13 +64,9 @@ def sync_resources():
 
     # Get resources that need updating
     one_hour_ago = timezone.now() - datetime.timedelta(hours=1)
-    resources = (
-        marketplace_models.Resource.objects.filter(
-            offering__id__in=offering_ids, last_sync__lte=one_hour_ago
-        )
-        .select_related("offering")
-        .order_by("last_sync")[:50]
-    )
+    resources = marketplace_models.Resource.objects.filter(
+        offering__id__in=offering_ids, last_sync__lte=one_hour_ago
+    ).order_by("last_sync")[:50]
 
     # Push updates in bulk
     for resource in resources:

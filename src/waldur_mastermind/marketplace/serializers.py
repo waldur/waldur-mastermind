@@ -3490,6 +3490,14 @@ class MoveResourceSerializer(serializers.Serializer):
     )
 
 
+class ResourceSetLimitsSerializer(serializers.Serializer):
+    limits = serializers.JSONField()
+
+    class Meta:
+        model = models.Resource
+        fields = ("limits",)
+
+
 core_signals.pre_serializer_fields.connect(
     sender=structure_serializers.CustomerSerializer,
     receiver=add_service_provider,
