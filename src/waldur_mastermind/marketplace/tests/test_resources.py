@@ -2,7 +2,7 @@ import datetime
 from unittest import mock
 
 from constance.test.pytest import override_config
-from ddt import data, ddt
+from ddt import data, ddt, unpack
 from freezegun import freeze_time
 from rest_framework import status, test
 
@@ -1656,3 +1656,45 @@ class ProviderResourcesTest(test.APITransactionTestCase):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+@ddt
+class ProviderResourceLimitsSetTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.component = self.fixture.offering_component
+        self.component.billing_type = models.OfferingComponent.BillingTypes.LIMIT
+        self.component.save()
+        self.resource.limits = {"cpu": 10}
+        self.resource.save()
+        self.url = factories.ResourceFactory.get_provider_resource_url(
+            self.resource, "set_limits"
+        )
+
+    def make_request(self, user, limits=None):
+        self.client.force_authenticate(user)
+        payload = {"limits": limits or {"cpu": 20}}
+        return self.client.post(self.url, payload)
+
+    @data(
+        ("staff", status.HTTP_200_OK, 20),
+        ("service_manager", status.HTTP_200_OK, 20),
+        ("admin", status.HTTP_404_NOT_FOUND, 10),
+    )
+    @unpack
+    def test_set_limits_permission(self, user_type, expected_status, expected_limit):
+        user = getattr(self.fixture, user_type)
+        response = self.make_request(user)
+        self.assertEqual(response.status_code, expected_status)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits["cpu"], expected_limit)
+
+    def test_set_limits_logs_changes(self):
+        self.make_request(self.fixture.staff)
+        self.assertTrue(
+            logging_models.Event.objects.filter(
+                event_type="marketplace_resource_update_succeeded",
+                message__contains="cpu",
+            ).exists()
+        )

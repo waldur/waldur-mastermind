@@ -2828,6 +2828,49 @@ class ProviderResourceViewSet(BaseResourceViewSet):
         )
     ]
 
+    @action(detail=True, methods=["post"])
+    def set_limits(self, request, uuid=None):
+        resource = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        new_limits = serializer.validated_data["limits"]
+
+        limit_based_components = resource.offering.components.filter(
+            billing_type=models.OfferingComponent.BillingTypes.LIMIT
+        )
+        for component in limit_based_components:
+            if (
+                component.type in resource.limits
+                and component.type in new_limits
+                and new_limits[component.type] != resource.limits[component.type]
+            ) or (
+                component.type not in resource.limits and component.type in new_limits
+            ):
+                logger.warning(
+                    "Limit of the limit based component %s has been changed for resource %s from %s to %s",
+                    component.type,
+                    resource,
+                    resource.limits[component.type],
+                    new_limits[component.type],
+                )
+
+        resource.limits = new_limits
+        resource.save(update_fields=["limits"])
+
+        return Response(
+            {"status": _("The resource limits are updated")}, status=status.HTTP_200_OK
+        )
+
+    set_limits_serializer_class = serializers.ResourceSetLimitsSerializer
+
+    refresh_last_sync_permissions = [
+        permission_factory(
+            PermissionEnum.SET_RESOURCE_STATE,
+            ["offering.customer"],
+        )
+    ]
+
 
 class ResourceOfferingsViewSet(ListAPIView):
     serializer_class = serializers.ResourceOfferingSerializer
