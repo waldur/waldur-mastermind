@@ -35,7 +35,12 @@ RUN apk update && \
     # gosu to give privileges to a non-root user. We use it in multiple scripts such as initdb.
     gosu@testing\>=1.17 \
     # Needed for old style slurm support which requires SSH command.
-    openssh\>=9.7
+    openssh\>=9.7 \
+    # Needed for psutil
+    gcc\>=14.2 \
+    python3-dev\>=3.12 \
+    musl-dev\>=1.2 \
+    linux-headers\>=6.6
 
 # Set up locales
 RUN echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
