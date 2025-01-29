@@ -412,6 +412,10 @@ CONSTANCE_CONFIG = {
         False,
         "If this is true and user email is pre-validated then accepting invitation to only do that if user’s email and email of the invitation fully match.",
     ),
+    "INVITATION_DISABLE_MULTIPLE_ROLES": (
+        False,
+        "Do not allow user to grant multiple roles in the same project or organization using invitation.",
+    ),
     "DOCS_URL": ("", "Renders link to docs in header", "url_field"),
     "SHORT_PAGE_TITLE": ("Waldur", "It is used as prefix for page title."),
     "FULL_PAGE_TITLE": (
@@ -778,6 +782,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
     "User settings": (
         "AUTO_APPROVE_USER_TOS",
         "ENABLE_STRICT_CHECK_ACCEPTING_INVITATION",
+        "INVITATION_DISABLE_MULTIPLE_ROLES",
     ),
 }
 
