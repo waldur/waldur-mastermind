@@ -1723,6 +1723,18 @@ class ScriptSecretOptionsSerializer(serializers.Serializer):
     environ = serializers.JSONField(
         required=False, help_text="Script environment variables"
     )
+    create = serializers.CharField(
+        required=False, help_text="Script for resource creation"
+    )
+    terminate = serializers.CharField(
+        required=False, help_text="Script for resource termination"
+    )
+    update = serializers.CharField(
+        required=False, help_text="Script for resource update"
+    )
+    pull = serializers.CharField(
+        required=False, help_text="Script for regular resource pull"
+    )
 
 
 class RemoteServiceSecretOptionsSerializer(serializers.Serializer):
