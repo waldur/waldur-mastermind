@@ -402,6 +402,10 @@ CONSTANCE_CONFIG = {
         "Key is command to execute script, value is a dictionary of image name and command.",
         "dict_field",
     ),
+    "DOCKER_VOLUME_NAME": (
+        "waldur-docker-compose_waldur_script_launchzone",
+        "A name of the shared volume to store scripts",
+    ),
     "K8S_NAMESPACE": ("default", "Kubernetes namespace where jobs will be executed"),
     "K8S_CONFIG_PATH": ("~/.kube/config", "Path to Kubernetes configuration file"),
     "K8S_JOB_TIMEOUT": (
@@ -683,6 +687,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "DOCKER_SCRIPT_DIR",
         "DOCKER_REMOVE_CONTAINER",
         "DOCKER_IMAGES",
+        "DOCKER_VOLUME_NAME",
         "K8S_NAMESPACE",
         "K8S_CONFIG_PATH",
         "K8S_JOB_TIMEOUT",
