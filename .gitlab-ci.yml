@@ -4,7 +4,7 @@ include:
   - project: "waldur/waldur-pipelines"
     file: "/templates/test/check-merge-compatibility.yml"
   - project: "waldur/waldur-pipelines"
-    file: "/templates/release/publish.yml"
+    file: "/templates/release/publish-multiarch.yml"
   - project: "waldur/waldur-pipelines"
     file: "/templates/validate/docker-compose-trigger.yml"
   - project: "waldur/waldur-pipelines"
@@ -220,6 +220,8 @@ Test Multi-arch docker image build:
     DOCKER_HUB_REGISTRY: "docker.io"
   cache: []
   before_script:
+    - apk update
+    - apk add --no-cache gcc python3-dev musl-dev linux-headers openldap-dev openssl libffi-dev libjpeg-turbo-dev libxml2-dev libxslt-dev
     - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY --username "$CI_REGISTRY_USER" --password-stdin
   script:
     - docker context create builder
