@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import tempfile
 from enum import Enum
 from time import sleep
@@ -35,16 +36,18 @@ def execute_script_in_docker(image, command, src, **kwargs):
         docker_script.flush()
         logger.info(f"Wrote script to {docker_script.name}")
         client = docker.DockerClient(**config.DOCKER_CLIENT)
+        docker_volume_name = config.DOCKER_VOLUME_NAME
+        script_file_path = os.path.basename(docker_script.name)
         return str(
             client.containers.run(
                 image=image,
-                command=[command, "script"],
+                command=[command, script_file_path],
                 remove=remove_container,
                 stderr=True,
                 working_dir="/work",
                 volumes={
-                    docker_script.name: {
-                        "bind": "/work/script",
+                    docker_volume_name: {
+                        "bind": "/work",
                         "mode": "ro",
                     },
                 },
