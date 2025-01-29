@@ -1586,6 +1586,14 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
         required=False,
         help_text="Skip approval of public offering belonging to the same organization under which the request is done",
     )
+    supports_downscaling = serializers.BooleanField(
+        required=False,
+        help_text="If set to True, it will be possible to downscale resources",
+    )
+    supports_pausing = serializers.BooleanField(
+        required=False,
+        help_text="If set to True, it will be possible to pause resources",
+    )
 
 
 class SupportPluginOptionsSerializer(serializers.Serializer):
