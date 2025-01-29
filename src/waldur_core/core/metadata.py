@@ -147,10 +147,6 @@ class WaldurCore(BaseModel):
         False,
         description="Allow to create FreeIPA user using details specified in invitation if user does not exist yet.",
     )
-    INVITATION_DISABLE_MULTIPLE_ROLES = Field(
-        False,
-        description="Do not allow user to grant multiple roles in the same project or organization using invitation.",
-    )
     INVITATION_USE_WEBHOOKS = Field(
         False,
         description="Allow sending of webhooks instead of sending of emails.",

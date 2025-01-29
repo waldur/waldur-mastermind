@@ -192,7 +192,7 @@ class InvitationViewSet(ProtectedViewSet):
                     _("User’s email and email of the invitation are not equal.")
                 )
 
-        if settings.WALDUR_CORE["INVITATION_DISABLE_MULTIPLE_ROLES"]:
+        if config.INVITATION_DISABLE_MULTIPLE_ROLES:
             if UserRole.objects.filter(user=request.user, is_active=True).exists():
                 raise ValidationError(_("User already has role within another scope."))
 

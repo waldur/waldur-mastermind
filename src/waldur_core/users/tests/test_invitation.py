@@ -794,7 +794,7 @@ class InvitationAcceptTest(BaseInvitationTest):
             response.data, ["User has already the same role in this scope."]
         )
 
-    @override_waldur_core_settings(INVITATION_DISABLE_MULTIPLE_ROLES=True)
+    @override_config(INVITATION_DISABLE_MULTIPLE_ROLES=True)
     def test_user_can_have_only_single_role_in_any_project_or_customer(self):
         self.client.force_authenticate(user=self.customer_owner)
         response = self.client.post(
