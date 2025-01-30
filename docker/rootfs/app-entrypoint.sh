@@ -8,6 +8,15 @@ set -eo pipefail
 : ${WALDUR_UID:=984}
 : ${WALDUR_GID:=984}
 
+# Function to validate numeric input
+validate_numeric() {
+    local value=$1
+    local name=$2
+    if ! [[ "$value" =~ ^[0-9]+$ ]]; then
+        echo "Error: $name must be a number"
+        exit 1
+    fi
+}
 
 echo "INFO: Welcome to Waldur Mastermind!"
 
@@ -17,6 +26,26 @@ if ! id waldur 2> /dev/null > /dev/null; then
   # Create user and group if it does not exist yet
   echo "INFO: Creating user waldur ${WALDUR_UID}:${WALDUR_GID} "
   useradd --home /var/lib/waldur --shell /bin/sh --system --uid $WALDUR_UID --gid $WALDUR_GID waldur
+fi
+
+# Get docker GID from socket and validate
+if [ -e /var/run/docker.sock ]; then
+    echo "INFO: Docker socket found, setting up docker group"
+    HOST_DOCKER_GID=$(stat -c '%g' /var/run/docker.sock)
+    validate_numeric "$HOST_DOCKER_GID" "Docker socket GID"
+
+    if getent group $HOST_DOCKER_GID > /dev/null; then
+        echo "INFO: Local group with GID=$HOST_DOCKER_GID already exists"
+    else
+        echo "INFO: Creating local docker group with GID=$HOST_DOCKER_GID"
+        groupadd -g "$HOST_DOCKER_GID" docker || {
+            echo "Failed to create docker group"
+            exit 1
+        }
+    fi
+
+    # Add waldur user to docker group
+    usermod -aG $HOST_DOCKER_GID waldur
 fi
 
 if [[ ! -d "/var/log/waldur" ]] ; then
