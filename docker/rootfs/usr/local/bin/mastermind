@@ -6,7 +6,7 @@ BIND=$(grep "^bind" /etc/waldur/gunicorn.conf.py)
 echo "INFO: Running Mastermind on address $BIND"
 rm -f /etc/nginx/http.d/default.conf || true
 
-gosu waldur sh -c "gunicorn --enable-stdio-inheritance --daemon -c /etc/waldur/gunicorn.conf.py --env DJANGO_SETTINGS_MODULE=waldur_core.server.settings waldur_core.server.wsgi:application"
+gunicorn --enable-stdio-inheritance --daemon -c /etc/waldur/gunicorn.conf.py --env DJANGO_SETTINGS_MODULE=waldur_core.server.settings waldur_core.server.wsgi:application
 nginx -g 'daemon off;'
 
 exit 0

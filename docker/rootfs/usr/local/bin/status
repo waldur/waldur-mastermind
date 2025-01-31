@@ -2,6 +2,6 @@
 set -e
 
 echo "INFO: Running Mastermind status check..."
-gosu waldur sh -c "waldur status"
+waldur status
 
 exit 0
