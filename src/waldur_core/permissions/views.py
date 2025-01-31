@@ -4,7 +4,8 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q, QuerySet
 from django.utils.translation import gettext_lazy as _
-from django_filters.rest_framework import DjangoFilterBackend
+from django_filters import utils as django_filters_utils
+from django_filters.rest_framework.backends import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -14,6 +15,7 @@ from rest_framework.viewsets import ReadOnlyModelViewSet
 from waldur_core.core.permissions import IsAdminOrReadOnly
 from waldur_core.core.utils import get_ip_address, is_uuid_like
 from waldur_core.core.views import ActionsViewSet
+from waldur_core.permissions.filters import UserPermissionFilter
 from waldur_core.permissions.utils import (
     add_user,
     delete_user,
@@ -97,6 +99,7 @@ class UserRoleMixin:
     def list_users(self, request, uuid=None):
         scope = self.get_object()
         user_uuid = request.query_params.get("user")
+
         user = None
         if user_uuid and is_uuid_like(user_uuid):
             try:
@@ -104,6 +107,15 @@ class UserRoleMixin:
             except User.DoesNotExist:
                 pass
         queryset = get_permissions(scope, user)
+
+        kwargs = DjangoFilterBackend().get_filterset_kwargs(request, queryset, self)
+        filterset = UserPermissionFilter(**kwargs)
+
+        if not filterset.is_valid():
+            raise django_filters_utils.translate_validation(filterset.errors)
+
+        queryset = filterset.qs
+
         role = request.query_params.get("role")
         search_string = request.query_params.get("search_string")
         if search_string:

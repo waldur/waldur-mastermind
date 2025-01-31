@@ -366,6 +366,7 @@ class ActionsViewSet(viewsets.ModelViewSet):
         if self.action == "metadata":
             return
         self.validate_object_action(self.action)
+        self.reset_filterset_class(self.action)
 
     def validate_object_action(self, action_name, obj=None):
         """Execute validation for actions that are related to particular object"""
@@ -381,6 +382,12 @@ class ActionsViewSet(viewsets.ModelViewSet):
         validators = getattr(self, action_name + "_validators", [])
         for validator in validators:
             validator(obj or self.get_object())
+
+    def reset_filterset_class(self, action_name):
+        action_method = getattr(self, action_name)
+
+        if getattr(action_method, "detail", False):
+            self.filterset_class = None
 
 
 class ReadOnlyActionsViewSet(ActionsViewSet):
