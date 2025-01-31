@@ -1,12 +1,11 @@
-import json
 import os
 
 import yaml
-from constance import config
 from django.core.files.storage import default_storage
 from django.core.management.base import BaseCommand
 
 from waldur_core.core import logos
+from waldur_core.core.serializers import ConstanceSettingsSerializer
 
 WHITELABELING_LOGOS = logos.LOGO_MAP.keys()
 
@@ -49,8 +48,11 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR("Constance settings file is empty."))
             return
 
+        constance_settings = {
+            key.upper(): value for key, value in constance_settings.items()
+        }
         for setting_key, setting_value in constance_settings.items():
-            if setting_key.upper() in WHITELABELING_LOGOS:
+            if setting_key in WHITELABELING_LOGOS:
                 if os.path.exists(setting_value):
                     setting_value = make_constance_file_value(setting_value)
                 else:
@@ -58,11 +60,13 @@ class Command(BaseCommand):
                         self.style.ERROR(f"{setting_key.upper()} file does not exist.")
                     )
                     continue
-            if isinstance(setting_value, dict):
-                setting_value = json.dumps(setting_value)
+                constance_settings[setting_key] = setting_value
 
-            setattr(config, setting_key.upper(), setting_value)
+        serializer = ConstanceSettingsSerializer(data=constance_settings)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
 
+        for setting_key, setting_value in constance_settings.items():
             if "password" in setting_key.lower() or "token" in setting_key.lower():
                 setting_value = "<redacted>"
 
