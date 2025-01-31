@@ -34,6 +34,7 @@ class OrderSerializer(CommonSerializer):
 class ResourceSerializer(CommonSerializer):
     resource_uuid = serializers.ReadOnlyField(source="uuid")
     resource_name = serializers.ReadOnlyField(source="name")
+    resource_backend_id = serializers.ReadOnlyField(source="backend_id")
     resource_backend_metadata = serializers.ReadOnlyField(source="backend_metadata")
 
 
