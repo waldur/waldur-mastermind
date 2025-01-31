@@ -182,7 +182,7 @@ class PermissionRequest(core_mixins.ReviewMixin, core_models.UuidMixin):
     invitation = models.ForeignKey(on_delete=models.PROTECT, to=GroupInvitation)
 
     created_by = models.ForeignKey(
-        on_delete=models.PROTECT,
+        on_delete=models.CASCADE,
         to=settings.AUTH_USER_MODEL,
         related_name="+",
     )
