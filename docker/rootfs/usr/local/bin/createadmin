@@ -11,6 +11,6 @@ if [ "$PASSWORD" == "$DEFAULT_PWD" ]; then
 fi
 
 echo "INFO: Creating admin user $DEFAULT_PWD_COMMENT"
-gosu waldur sh -c "waldur createstaffuser -u admin -p $PASSWORD -e $DEFAULT_EMAIL"
+waldur createstaffuser -u admin -p $PASSWORD -e $DEFAULT_EMAIL
 
 exit 0

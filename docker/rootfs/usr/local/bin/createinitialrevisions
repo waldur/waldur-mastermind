@@ -3,6 +3,6 @@
 set -e
 
 echo "INFO: Creating initial revisions..."
-gosu waldur sh -c "waldur createinitialrevisions"
+waldur createinitialrevisions
 
 exit 0
