@@ -108,6 +108,22 @@ class RoleTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
 
+    def test_ordering_of_list_users(self):
+        admin = self.fixture.admin
+        manager = self.fixture.manager
+        self.client.force_authenticate(admin)
+        url = f"http://testserver/api/projects/{self.project.uuid}/list_users/?o=full_name"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+        self.assertEqual(response.data[0]["user_full_name"], admin.full_name)
+        self.assertEqual(response.data[1]["user_full_name"], manager.full_name)
+
+        url = f"http://testserver/api/projects/{self.project.uuid}/list_users/?o=-full_name"
+        response = self.client.get(url)
+        self.assertEqual(response.data[0]["user_full_name"], manager.full_name)
+        self.assertEqual(response.data[1]["user_full_name"], admin.full_name)
+
     def test_list_users_with_no_user(self):
         self.user = self.fixture.staff
         self.client.force_authenticate(self.user)
