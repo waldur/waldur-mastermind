@@ -1,6 +1,10 @@
 from django.utils.functional import cached_property
 
-from waldur_core.permissions.fixtures import CustomerRole, OfferingRole
+from waldur_core.permissions.fixtures import (
+    CustomerRole,
+    OfferingRole,
+    ServiceProviderRole,
+)
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import PLUGIN_NAME
@@ -149,6 +153,6 @@ class MarketplaceFixture(structure_fixtures.ProjectFixture):
     @cached_property
     def provider_manager(self):
         user = structure_factories.UserFactory()
-        self.offering_customer.add_user(user, CustomerRole.MANAGER)
+        self.offering_customer.add_user(user, ServiceProviderRole.MANAGER)
         self.offering.add_user(user, OfferingRole.MANAGER)
         return user

@@ -9,7 +9,11 @@ from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
+from waldur_core.permissions.fixtures import (
+    CustomerRole,
+    ProjectRole,
+    ServiceProviderRole,
+)
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests import fixtures as structure_fixtures
@@ -456,7 +460,7 @@ class OrderApprovalByProviderNotificationTest(test.APITransactionTestCase):
         self.check_notification(self.fixture.offering_owner)
 
     def test_service_manager(self):
-        CustomerRole.MANAGER.add_permission(PermissionEnum.APPROVE_ORDER)
+        ServiceProviderRole.MANAGER.add_permission(PermissionEnum.APPROVE_ORDER)
         self.check_notification(self.fixture.service_manager)
 
     def check_notification(self, user):

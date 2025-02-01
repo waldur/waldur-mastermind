@@ -3,7 +3,7 @@ from rest_framework import status, test
 
 from waldur_core.core.models import get_ssh_key_fingerprints
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.permissions.fixtures import CustomerRole, ServiceProviderRole
 from waldur_mastermind.marketplace.tests import factories, fixtures
 
 
@@ -15,13 +15,13 @@ class RobotAccountTest(test.APITransactionTestCase):
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_RESOURCE_ROBOT_ACCOUNT)
         CustomerRole.OWNER.add_permission(PermissionEnum.DELETE_RESOURCE_ROBOT_ACCOUNT)
 
-        CustomerRole.MANAGER.add_permission(
+        ServiceProviderRole.MANAGER.add_permission(
             PermissionEnum.CREATE_RESOURCE_ROBOT_ACCOUNT
         )
-        CustomerRole.MANAGER.add_permission(
+        ServiceProviderRole.MANAGER.add_permission(
             PermissionEnum.UPDATE_RESOURCE_ROBOT_ACCOUNT
         )
-        CustomerRole.MANAGER.add_permission(
+        ServiceProviderRole.MANAGER.add_permission(
             PermissionEnum.DELETE_RESOURCE_ROBOT_ACCOUNT
         )
 

@@ -14,7 +14,12 @@ from rest_framework import status, test
 from waldur_core.core import utils as core_utils
 from waldur_core.media.utils import dummy_image
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole, OfferingRole, ProjectRole
+from waldur_core.permissions.fixtures import (
+    CustomerRole,
+    OfferingRole,
+    ProjectRole,
+    ServiceProviderRole,
+)
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests.factories import UserFactory
@@ -933,7 +938,11 @@ class BaseOfferingUpdateTest(test.APITransactionTestCase):
             shared=True,
             state=models.Offering.States.DRAFT,
         )
-        for role in (CustomerRole.OWNER, CustomerRole.MANAGER, OfferingRole.MANAGER):
+        for role in (
+            CustomerRole.OWNER,
+            ServiceProviderRole.MANAGER,
+            OfferingRole.MANAGER,
+        ):
             role.add_permission(PermissionEnum.UPDATE_OFFERING)
 
 
@@ -941,7 +950,11 @@ class BaseOfferingUpdateTest(test.APITransactionTestCase):
 class OfferingUpdateOverviewTest(BaseOfferingUpdateTest):
     def setUp(self):
         super().setUp()
-        for role in (CustomerRole.OWNER, CustomerRole.MANAGER, OfferingRole.MANAGER):
+        for role in (
+            CustomerRole.OWNER,
+            ServiceProviderRole.MANAGER,
+            OfferingRole.MANAGER,
+        ):
             role.add_permission(PermissionEnum.UPDATE_OFFERING)
 
     def update_overview(self, role):
@@ -1013,7 +1026,11 @@ class OfferingUpdateAttributesTest(BaseOfferingUpdateTest):
         super().setUp()
         self.fixture.service_manager = UserFactory()
         self.offering.add_user(self.fixture.service_manager, OfferingRole.MANAGER)
-        for role in (CustomerRole.OWNER, CustomerRole.MANAGER, OfferingRole.MANAGER):
+        for role in (
+            CustomerRole.OWNER,
+            ServiceProviderRole.MANAGER,
+            OfferingRole.MANAGER,
+        ):
             role.add_permission(PermissionEnum.UPDATE_OFFERING_ATTRIBUTES)
 
     def update_attributes(self, attributes, role):
@@ -1593,10 +1610,10 @@ class OfferingStateTest(test.APITransactionTestCase):
         self.offering.add_user(self.fixture.service_manager, OfferingRole.MANAGER)
 
         CustomerRole.OWNER.add_permission(PermissionEnum.PAUSE_OFFERING)
-        CustomerRole.MANAGER.add_permission(PermissionEnum.PAUSE_OFFERING)
+        ServiceProviderRole.MANAGER.add_permission(PermissionEnum.PAUSE_OFFERING)
 
         CustomerRole.OWNER.add_permission(PermissionEnum.UNPAUSE_OFFERING)
-        CustomerRole.MANAGER.add_permission(PermissionEnum.UNPAUSE_OFFERING)
+        ServiceProviderRole.MANAGER.add_permission(PermissionEnum.UNPAUSE_OFFERING)
 
     @data(
         "staff",
@@ -1976,7 +1993,9 @@ class OfferingThumbnailTest(test.APITransactionTestCase):
         self.offering.state = models.Offering.States.ACTIVE
         self.offering.save()
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_THUMBNAIL)
-        CustomerRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING_THUMBNAIL)
+        ServiceProviderRole.MANAGER.add_permission(
+            PermissionEnum.UPDATE_OFFERING_THUMBNAIL
+        )
 
     @data("staff")
     def test_staff_can_update_or_delete_thumbnail_of_archived_offering(self, user):
@@ -2046,7 +2065,9 @@ class OfferingCreateComponentsTest(test.APITransactionTestCase):
         resource.delete()
 
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_COMPONENTS)
-        CustomerRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING_COMPONENTS)
+        ServiceProviderRole.MANAGER.add_permission(
+            PermissionEnum.UPDATE_OFFERING_COMPONENTS
+        )
 
     @data("offering_owner", "service_manager")
     def test_offering_components_create_succeed(self, user):
@@ -2120,7 +2141,9 @@ class OfferingUpdateComponentsTest(test.APITransactionTestCase):
         resource = self.fixture.resource
         resource.delete()
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_COMPONENTS)
-        CustomerRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING_COMPONENTS)
+        ServiceProviderRole.MANAGER.add_permission(
+            PermissionEnum.UPDATE_OFFERING_COMPONENTS
+        )
 
     @data("offering_owner", "service_manager")
     def test_offering_components_update_succeed(self, user):
@@ -2209,7 +2232,9 @@ class OfferingRemoveComponentsTest(test.APITransactionTestCase):
         resource.delete()
 
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_COMPONENTS)
-        CustomerRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING_COMPONENTS)
+        ServiceProviderRole.MANAGER.add_permission(
+            PermissionEnum.UPDATE_OFFERING_COMPONENTS
+        )
 
     @data("offering_owner", "service_manager")
     def test_offering_components_remove_succeed(self, user):
@@ -2253,7 +2278,7 @@ class OfferingBackendMetadataTest(test.APITransactionTestCase):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING)
-        CustomerRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING)
+        ServiceProviderRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING)
 
     @data("offering_owner", "service_manager")
     def test_offering_backend_metadata_setting_is_allowed(self, user):

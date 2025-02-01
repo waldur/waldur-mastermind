@@ -9,7 +9,12 @@ from rest_framework import status, test
 from waldur_core.core.utils import month_start
 from waldur_core.logging import models as logging_models
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole, OfferingRole, ProjectRole
+from waldur_core.permissions.fixtures import (
+    CustomerRole,
+    OfferingRole,
+    ProjectRole,
+    ServiceProviderRole,
+)
 from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests.factories import ProjectFactory, UserFactory
 from waldur_mastermind.common.utils import parse_date
@@ -876,7 +881,7 @@ class ResourceSetEndDateByProviderTest(test.APITransactionTestCase):
             self.resource, "set_end_date_by_provider"
         )
         CustomerRole.OWNER.add_permission(PermissionEnum.SET_RESOURCE_END_DATE)
-        CustomerRole.MANAGER.add_permission(PermissionEnum.SET_RESOURCE_END_DATE)
+        ServiceProviderRole.MANAGER.add_permission(PermissionEnum.SET_RESOURCE_END_DATE)
 
     def make_request(self, user, payload):
         self.client.force_authenticate(user)
@@ -1277,7 +1282,7 @@ class ResourceBackendMetadataTest(test.APITransactionTestCase):
             self.resource, action="set_backend_metadata"
         )
         CustomerRole.OWNER.add_permission(PermissionEnum.SET_RESOURCE_BACKEND_METADATA)
-        CustomerRole.MANAGER.add_permission(
+        ServiceProviderRole.MANAGER.add_permission(
             PermissionEnum.SET_RESOURCE_BACKEND_METADATA
         )
 
@@ -1310,7 +1315,7 @@ class ResourceSetStateErredTest(test.APITransactionTestCase):
             self.resource, action="set_as_erred"
         )
         CustomerRole.OWNER.add_permission(PermissionEnum.SET_RESOURCE_STATE)
-        CustomerRole.MANAGER.add_permission(PermissionEnum.SET_RESOURCE_STATE)
+        ServiceProviderRole.MANAGER.add_permission(PermissionEnum.SET_RESOURCE_STATE)
 
     def make_request(self, role, payload=None):
         self.client.force_authenticate(role)
@@ -1360,7 +1365,7 @@ class ResourceReportTest(test.APITransactionTestCase):
 
         service_manager = UserFactory()
         self.resource.offering.customer.add_user(
-            service_manager, role=CustomerRole.MANAGER
+            service_manager, role=ServiceProviderRole.MANAGER
         )
         setattr(self.fixture, "service_manager", service_manager)
 
@@ -1368,7 +1373,9 @@ class ResourceReportTest(test.APITransactionTestCase):
         self.resource.offering.customer.add_user(service_owner, role=CustomerRole.OWNER)
         setattr(self.fixture, "service_owner", service_manager)
         CustomerRole.OWNER.add_permission(PermissionEnum.SUBMIT_RESOURCE_REPORT)
-        CustomerRole.MANAGER.add_permission(PermissionEnum.SUBMIT_RESOURCE_REPORT)
+        ServiceProviderRole.MANAGER.add_permission(
+            PermissionEnum.SUBMIT_RESOURCE_REPORT
+        )
 
     def make_request(self, role, payload):
         self.client.force_authenticate(role)

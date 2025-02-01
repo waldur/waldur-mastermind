@@ -5,7 +5,11 @@ from rest_framework import test
 
 from waldur_core.core.utils import serialize_instance
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole, OfferingRole
+from waldur_core.permissions.fixtures import (
+    CustomerRole,
+    OfferingRole,
+    ServiceProviderRole,
+)
 from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.models import Order, Resource
@@ -67,10 +71,12 @@ class LimitsUpdateTest(test.APITransactionTestCase):
         )
         self.offering_component.save()
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_RESOURCE_LIMITS)
-        CustomerRole.MANAGER.add_permission(PermissionEnum.UPDATE_RESOURCE_LIMITS)
+        ServiceProviderRole.MANAGER.add_permission(
+            PermissionEnum.UPDATE_RESOURCE_LIMITS
+        )
 
         CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_ORDER)
-        CustomerRole.MANAGER.add_permission(PermissionEnum.APPROVE_ORDER)
+        ServiceProviderRole.MANAGER.add_permission(PermissionEnum.APPROVE_ORDER)
 
     def update_limits(self, user, resource):
         limits = {"cpu": 10}

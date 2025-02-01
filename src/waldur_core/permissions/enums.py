@@ -33,6 +33,7 @@ SYSTEM_PROJECT_ROLES = (
 
 TYPE_MAP = {
     "customer": ("structure", "customer"),
+    "service_provider": ("marketplace", "serviceprovider"),
     "project": ("structure", "project"),
     "offering": ("marketplace", "offering"),
     "call": ("proposal", "call"),

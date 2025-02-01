@@ -2,7 +2,7 @@ from ddt import data, ddt
 from rest_framework import test
 
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.permissions.fixtures import CustomerRole, ServiceProviderRole
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.tests import factories, fixtures
 
@@ -14,7 +14,7 @@ class IntegrationStatusCreationTest(test.APITransactionTestCase):
         self.offering = self.fixture.offering
         self.order = self.fixture.order
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING)
-        CustomerRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING)
+        ServiceProviderRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING)
 
     def test_integration_status_created_while_orders_fetched(self):
         url = (
@@ -136,7 +136,7 @@ class IntegrationStatusGetTest(test.APITransactionTestCase):
             agent_type=models.IntegrationStatus.AgentTypes.GLAUTH_SYNC,
         )
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING)
-        CustomerRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING)
+        ServiceProviderRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING)
 
     @data("offering_owner", "service_manager")
     def test_service_provider_user_can_see_integration_statuses_in_offering(self, user):

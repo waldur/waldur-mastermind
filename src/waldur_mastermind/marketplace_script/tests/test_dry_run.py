@@ -4,7 +4,7 @@ from ddt import data, ddt
 from rest_framework import test
 
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.permissions.fixtures import CustomerRole, ServiceProviderRole
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_script import models as marketplace_script_models
@@ -28,7 +28,9 @@ class DryRunTest(test.APITransactionTestCase):
         self.async_url = self.fixture.get_async_dry_run_url(self.offering)
 
         CustomerRole.OWNER.add_permission(PermissionEnum.DRY_RUN_OFFERING_SCRIPT)
-        CustomerRole.MANAGER.add_permission(PermissionEnum.DRY_RUN_OFFERING_SCRIPT)
+        ServiceProviderRole.MANAGER.add_permission(
+            PermissionEnum.DRY_RUN_OFFERING_SCRIPT
+        )
 
     @data("staff", "offering_owner", "service_manager")
     def test_dry_run_is_allowed(self, user, execute_script):

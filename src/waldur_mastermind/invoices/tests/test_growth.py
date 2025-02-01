@@ -3,7 +3,7 @@ from freezegun import freeze_time
 from rest_framework import status, test
 from rest_framework.reverse import reverse
 
-from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.permissions.fixtures import ServiceProviderRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_mastermind.invoices import models
@@ -51,7 +51,7 @@ class GrowthTest(test.APITransactionTestCase):
         )
 
         self.user1 = structure_factories.UserFactory()
-        self.customer1.add_user(self.user1, CustomerRole.MANAGER)
+        self.customer1.add_user(self.user1, ServiceProviderRole.MANAGER)
         self.user2 = structure_factories.UserFactory()
 
     def test_user_can_see_growth_stats_of_connected_customer(self):
