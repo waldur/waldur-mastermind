@@ -9,7 +9,11 @@ from rest_framework import status, test
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
+from waldur_core.permissions.fixtures import (
+    CustomerRole,
+    ProjectRole,
+    ServiceProviderRole,
+)
 from waldur_core.structure.models import AccessSubnet, Customer, Project
 from waldur_core.structure.tests import factories, fixtures
 from waldur_core.structure.tests.utils import (
@@ -675,7 +679,7 @@ class CustomerUsersListTest(test.APITransactionTestCase):
         user = factories.UserFactory()
         self.fixture.customer.add_user(user, role=CustomerRole.OWNER)
         new_customer = factories.CustomerFactory()
-        new_customer.add_user(user, role=CustomerRole.MANAGER)
+        new_customer.add_user(user, role=ServiceProviderRole.MANAGER)
 
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.get(self.url, {"organization_role": "service_manager"})
@@ -700,14 +704,14 @@ class CustomerUsersListTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.staff)
 
         response = self.client.get(
-            self.url, {"organization_role": CustomerRole.MANAGER.name}
+            self.url, {"organization_role": ServiceProviderRole.MANAGER.name}
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 0)
 
-        self.fixture.customer.add_user(user, CustomerRole.MANAGER)
+        self.fixture.customer.add_user(user, ServiceProviderRole.MANAGER)
         response = self.client.get(
-            self.url, {"organization_role": CustomerRole.MANAGER.name}
+            self.url, {"organization_role": ServiceProviderRole.MANAGER.name}
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
@@ -716,7 +720,7 @@ class CustomerUsersListTest(test.APITransactionTestCase):
         self.fixture.project.add_user(user, ProjectRole.MEMBER)
         self.fixture.customer.remove_user(user)
         response = self.client.get(
-            self.url, {"organization_role": CustomerRole.MANAGER.name}
+            self.url, {"organization_role": ServiceProviderRole.MANAGER.name}
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 0)

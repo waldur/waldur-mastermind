@@ -4,7 +4,11 @@ from rest_framework.reverse import reverse
 
 from waldur_core.logging.models import Event
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
+from waldur_core.permissions.fixtures import (
+    CustomerRole,
+    ProjectRole,
+    ServiceProviderRole,
+)
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_core.structure.tests.factories import UserFactory
 from waldur_mastermind.marketplace.models import OfferingUser, Resource
@@ -312,7 +316,7 @@ class OferingUserRestrictedUpdateTest(test.APITransactionTestCase):
         CustomerRole.OWNER.add_permission(
             PermissionEnum.UPDATE_OFFERING_USER_RESTRICTION
         )
-        CustomerRole.MANAGER.add_permission(
+        ServiceProviderRole.MANAGER.add_permission(
             PermissionEnum.UPDATE_OFFERING_USER_RESTRICTION
         )
 

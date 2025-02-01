@@ -5,7 +5,7 @@ from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.permissions.fixtures import CustomerRole, ServiceProviderRole
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 from waldur_mastermind.promotions import models
@@ -190,7 +190,7 @@ class UpdateCampaignTest(test.APITransactionTestCase):
         self.campaign = self.fixture.campaign
         self.url = factories.CampaignFactory.get_url(self.fixture.campaign)
         CustomerRole.OWNER.add_permission(PermissionEnum.MANAGE_CAMPAIGN)
-        CustomerRole.MANAGER.add_permission(PermissionEnum.MANAGE_CAMPAIGN)
+        ServiceProviderRole.MANAGER.add_permission(PermissionEnum.MANAGE_CAMPAIGN)
 
     def _get_payload(self, **kwargs):
         payload = {
@@ -249,7 +249,7 @@ class DeleteCampaignTest(test.APITransactionTestCase):
         self.fixture = fixtures.PromotionsFixture()
         self.url = factories.CampaignFactory.get_url(self.fixture.campaign)
         CustomerRole.OWNER.add_permission(PermissionEnum.MANAGE_CAMPAIGN)
-        CustomerRole.MANAGER.add_permission(PermissionEnum.MANAGE_CAMPAIGN)
+        ServiceProviderRole.MANAGER.add_permission(PermissionEnum.MANAGE_CAMPAIGN)
 
     @data("staff", "offering_owner", "service_manager")
     def test_user_can_delete_campaign(self, user):

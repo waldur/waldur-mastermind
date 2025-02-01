@@ -7,7 +7,11 @@ from django.contrib.admin.sites import AdminSite
 from django.test import TestCase
 from rest_framework import serializers as rf_serializers
 
-from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
+from waldur_core.permissions.fixtures import (
+    CustomerRole,
+    ProjectRole,
+    ServiceProviderRole,
+)
 from waldur_core.structure import admin as structure_admin
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories, fixtures
@@ -226,8 +230,8 @@ class CustomerAdminTest(TestCase):
         customer = self.change_customer(service_managers=[user1.pk, user2.pk])
 
         # Asset
-        self.assertTrue(customer.has_user(user1, CustomerRole.MANAGER))
-        self.assertTrue(customer.has_user(user2, CustomerRole.MANAGER))
+        self.assertTrue(customer.has_user(user1, ServiceProviderRole.MANAGER))
+        self.assertTrue(customer.has_user(user2, ServiceProviderRole.MANAGER))
 
     def test_user_can_be_owner_and_service_manager(self):
         # Arrange
@@ -238,7 +242,7 @@ class CustomerAdminTest(TestCase):
         customer = self.change_customer(service_managers=[user], owners=[user])
 
         # Asset
-        self.assertTrue(customer.has_user(user, CustomerRole.MANAGER))
+        self.assertTrue(customer.has_user(user, ServiceProviderRole.MANAGER))
         self.assertTrue(customer.has_user(user, CustomerRole.OWNER))
 
     def test_old_users_are_deleted_and_existing_are_preserved(self):

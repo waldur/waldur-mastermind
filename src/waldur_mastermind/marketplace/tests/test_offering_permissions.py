@@ -3,7 +3,11 @@ from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole, OfferingRole
+from waldur_core.permissions.fixtures import (
+    CustomerRole,
+    OfferingRole,
+    ServiceProviderRole,
+)
 from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests.factories import UserFactory
 from waldur_core.structure.tests.utils import (
@@ -82,7 +86,9 @@ class GrantOfferingPermissionTest(BaseOfferingPermissionTest):
     ):
         self.grant_permission("owner")
         self.assertTrue(
-            self.offering.customer.has_user(self.fixture.user, CustomerRole.MANAGER)
+            self.offering.customer.has_user(
+                self.fixture.user, ServiceProviderRole.MANAGER
+            )
         )
 
     def test_service_manager_permission_is_created_even_for_customer_owner(
@@ -91,7 +97,9 @@ class GrantOfferingPermissionTest(BaseOfferingPermissionTest):
         self.offering.customer.add_user(self.fixture.user, CustomerRole.OWNER)
         self.grant_permission("owner")
         self.assertTrue(
-            self.offering.customer.has_user(self.fixture.user, CustomerRole.MANAGER)
+            self.offering.customer.has_user(
+                self.fixture.user, ServiceProviderRole.MANAGER
+            )
         )
 
 
@@ -153,7 +161,9 @@ class RevokeOfferingPermissionTest(BaseOfferingPermissionTest):
     ):
         self.revoke_permission("owner")
         self.assertFalse(
-            self.offering.customer.has_user(self.fixture.user, CustomerRole.MANAGER)
+            self.offering.customer.has_user(
+                self.fixture.user, ServiceProviderRole.MANAGER
+            )
         )
 
     def test_customer_permission_is_not_revoked_if_another_offering_exists(
@@ -165,11 +175,15 @@ class RevokeOfferingPermissionTest(BaseOfferingPermissionTest):
         offering.add_user(self.fixture.user, OfferingRole.MANAGER)
         self.revoke_permission("owner")
         self.assertTrue(
-            self.fixture.customer.has_user(self.fixture.user, CustomerRole.MANAGER)
+            self.fixture.customer.has_user(
+                self.fixture.user, ServiceProviderRole.MANAGER
+            )
         )
 
     def test_when_service_manager_role_is_revoked_offering_permissions_are_revoked_too(
         self,
     ):
-        self.offering.customer.remove_user(self.fixture.user, CustomerRole.MANAGER)
+        self.offering.customer.remove_user(
+            self.fixture.user, ServiceProviderRole.MANAGER
+        )
         self.assertFalse(self.offering.has_user(self.fixture.user))

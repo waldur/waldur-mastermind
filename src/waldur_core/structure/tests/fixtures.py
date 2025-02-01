@@ -1,7 +1,11 @@
 from django.utils.functional import cached_property
 
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
+from waldur_core.permissions.fixtures import (
+    CustomerRole,
+    ProjectRole,
+    ServiceProviderRole,
+)
 
 from . import factories
 
@@ -47,7 +51,7 @@ class CustomerFixture(UserFixture):
     @cached_property
     def service_manager(self):
         user = factories.UserFactory()
-        self.customer.add_user(user, CustomerRole.MANAGER)
+        self.customer.add_user(user, ServiceProviderRole.MANAGER)
         return user
 
 

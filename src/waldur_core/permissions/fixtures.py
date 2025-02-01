@@ -24,12 +24,14 @@ class CustomerRole:
             ),
         )
 
+
+class ServiceProviderRole:
     @classproperty
     def MANAGER(self):
         return Role.objects.get_system_role(
             RoleEnum.CUSTOMER_MANAGER,
             content_type=ContentType.objects.get_by_natural_key(
-                "structure", "customer"
+                "marketplace", "serviceprovider"
             ),
         )
 
