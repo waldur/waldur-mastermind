@@ -46,9 +46,10 @@ RUN mkdir -p /var/lib/nginx/tmp/client_body \
              /var/lib/nginx/tmp/fastcgi \
              /var/lib/nginx/tmp/uwsgi \
              /var/lib/nginx/tmp/scgi \
-             /var/lib/nginx/logs && \
-    chown -R 1001:0 /var/lib/nginx && \
-    chmod -R g+rwX /var/lib/nginx && \
+             /tmp/nginx \
+             /var/log/nginx && \
+    chown -R 1001:0 /var/lib/nginx /var/log/nginx /tmp/nginx && \
+    chmod -R g+rwX /var/lib/nginx /var/log/nginx /tmp/nginx && \
     chmod -R g+s /var/lib/nginx
 
 RUN sed -i '/^user/s/^/#/' /etc/nginx/nginx.conf
