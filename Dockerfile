@@ -55,11 +55,11 @@ RUN mkdir -p /var/lib/nginx/tmp/client_body \
 RUN sed -i '/^user/s/^/#/' /etc/nginx/nginx.conf
 
 # Create directories and set permissions for OpenShift compatibility
-RUN mkdir -p /usr/src/waldur /var/lib/waldur && \
-    chown -R 1001:0 /usr/src/waldur /var/lib/waldur && \
-    chmod -R g+rwX /usr/src/waldur /var/lib/waldur && \
-    chmod -R 775 /usr/src/waldur /var/lib/waldur && \
-    chmod -R g+s /usr/src/waldur /var/lib/waldur
+RUN mkdir -p /usr/src/waldur /var/lib/waldur /run/waldur/celery && \
+    chown -R 1001:0 /usr/src/waldur /var/lib/waldur /run/waldur/celery && \
+    chmod -R g+rwX /usr/src/waldur /var/lib/waldur /run/waldur/celery && \
+    chmod -R 775 /usr/src/waldur /var/lib/waldur /run/waldur/celery && \
+    chmod -R g+s /usr/src/waldur /var/lib/waldur /run/waldur/celery
 
 COPY . /usr/src/waldur/
 
@@ -75,8 +75,8 @@ RUN find /usr/local/src/ -name ".git" -type d -exec rm -rf {} +
 RUN apk del build-base
 
 # Set permissions again after copying files
-RUN chown -R 1001:0 /usr/src/waldur /var/lib/waldur /etc/nginx && \
-    chmod -R g+rwX /usr/src/waldur /var/lib/waldur /etc/nginx
+RUN chown -R 1001:0 /usr/src/waldur /var/lib/waldur /etc/nginx /run/waldur/celery && \
+    chmod -R g+rwX /usr/src/waldur /var/lib/waldur /etc/nginx /run/waldur/celery
 
 USER 1001:0
 
