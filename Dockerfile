@@ -74,8 +74,8 @@ RUN find /usr/local/src/ -name ".git" -type d -exec rm -rf {} +
 RUN apk del build-base
 
 # Set permissions again after copying files
-RUN chown -R 1001:0 /usr/src/waldur /var/lib/waldur && \
-    chmod -R g+rwX /usr/src/waldur /var/lib/waldur
+RUN chown -R 1001:0 /usr/src/waldur /var/lib/waldur /etc/nginx && \
+    chmod -R g+rwX /usr/src/waldur /var/lib/waldur /etc/nginx
 
 USER 1001:0
 
