@@ -35,6 +35,19 @@ RUN apk update && \
 # Set up locales
 RUN echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
 
+# Set up nginx directories with proper permissions
+RUN mkdir -p /var/lib/nginx/tmp/client_body \
+             /var/lib/nginx/tmp/proxy \
+             /var/lib/nginx/tmp/fastcgi \
+             /var/lib/nginx/tmp/uwsgi \
+             /var/lib/nginx/tmp/scgi \
+             /var/lib/nginx/logs && \
+    chown -R 1001:0 /var/lib/nginx && \
+    chmod -R g+rwX /var/lib/nginx && \
+    chmod -R g+s /var/lib/nginx
+
+RUN sed -i '/^user/s/^/#/' /etc/nginx/nginx.conf
+
 # Create directories and set permissions for OpenShift compatibility
 RUN mkdir -p /usr/src/waldur /var/lib/waldur && \
     chown -R 1001:0 /usr/src/waldur /var/lib/waldur && \
