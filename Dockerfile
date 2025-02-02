@@ -39,7 +39,8 @@ RUN echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
 RUN mkdir -p /usr/src/waldur /var/lib/waldur && \
     chown -R 1001:0 /usr/src/waldur /var/lib/waldur && \
     chmod -R g+rwX /usr/src/waldur /var/lib/waldur && \
-    chmod -R 775 /usr/src/waldur /var/lib/waldur
+    chmod -R 775 /usr/src/waldur /var/lib/waldur && \
+    chmod -R g+s /usr/src/waldur /var/lib/waldur
 
 COPY . /usr/src/waldur/
 
