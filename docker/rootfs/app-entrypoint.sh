@@ -1,11 +1,6 @@
 #!/bin/bash
 set -eo pipefail
 
-# Ensure proper permissions for OpenShift random UIDs
-if [ "$(id -u)" != "1001" ]; then
-    chmod -R g+rwX /var/lib/waldur
-fi
-
 # uwsgi
 : ${UWSGI_SOCKET:=":8000"}
 
