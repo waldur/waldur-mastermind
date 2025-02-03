@@ -54,7 +54,9 @@ class Command(BaseCommand):
         }
         for setting_key, setting_value in constance_settings.items():
             if setting_key in WHITELABELING_LOGOS:
-                if os.path.exists(setting_value):
+                if not setting_value.strip():
+                    setting_value = None
+                elif os.path.exists(setting_value):
                     with open(setting_value, "rb") as image_file:
                         image_content = image_file.read()
                         setting_value = SimpleUploadedFile(setting_value, image_content)
