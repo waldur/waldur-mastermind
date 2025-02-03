@@ -7,33 +7,38 @@ def upgrade_role(apps, schema_editor):
     UserRole = apps.get_model("permissions", "UserRole")
     ContentType = apps.get_model("contenttypes", "ContentType")
     Customer = apps.get_model("structure", "Customer")
-    ServiceProvider = apps.get_model("marketplace", "ServiceProvider")
+    CallManagingOrganisation = apps.get_model("proposal", "CallManagingOrganisation")
 
     CustomerContentType = ContentType.objects.get_for_model(Customer)
-    ServiceProviderContentType = ContentType.objects.get_for_model(ServiceProvider)
+    CallManagingOrganisationContentType = ContentType.objects.get_for_model(
+        CallManagingOrganisation
+    )
 
-    Role.objects.filter(name="CUSTOMER.MANAGER").update(
-        content_type=ServiceProviderContentType
+    Role.objects.filter(name="CUSTOMER.CALL_ORGANIZER").update(
+        content_type=CallManagingOrganisationContentType
     )
 
     for user_role in UserRole.objects.filter(
-        role__name="CUSTOMER.MANAGER", content_type=CustomerContentType
+        role__name="CUSTOMER.CALL_ORGANIZER", content_type=CustomerContentType
     ):
         try:
-            service_provider = ServiceProvider.objects.get(
+            service_provider = CallManagingOrganisation.objects.get(
                 customer_id=user_role.object_id
             )
         except ObjectDoesNotExist:
-            print(f"Service provider for customer {user_role.object_id} not found")
+            print(
+                f"CallManagingOrganisation for customer {user_role.object_id} not found"
+            )
             continue
-        user_role.content_type = ServiceProviderContentType
+        user_role.content_type = CallManagingOrganisationContentType
         user_role.object_id = service_provider.id
         user_role.save(update_fields=["content_type", "object_id"])
 
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("permissions", "0014_unify_log"),
+        ("permissions", "0015_customer_manager"),
+        ("proposal", "0032_call_external_url"),
     ]
 
     operations = [
