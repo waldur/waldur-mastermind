@@ -354,7 +354,6 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
         "terms_of_service",
         "terms_of_service_link",
         "privacy_policy_link",
-        "rating",
         "thumbnail",
         "attributes",
         "options",
@@ -375,7 +374,6 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
         "image",
     )
     readonly_fields = (
-        "rating",
         "scope_link",
         "citation_count",
         "uuid",
