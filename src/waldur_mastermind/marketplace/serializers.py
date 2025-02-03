@@ -3465,6 +3465,14 @@ def add_service_provider(sender, fields, **kwargs):
     setattr(sender, "get_is_service_provider", get_is_service_provider)
 
 
+def add_service_provider_uuid(sender, fields, **kwargs):
+    fields["service_provider_uuid"] = serializers.SlugRelatedField(
+        slug_field="uuid",
+        source="serviceprovider",
+        read_only=True,
+    )
+
+
 def add_service_provider_url(sender, fields, **kwargs):
     fields["service_provider"] = serializers.HyperlinkedRelatedField(
         lookup_field="uuid",
@@ -3533,6 +3541,11 @@ core_signals.pre_serializer_fields.connect(
 core_signals.pre_serializer_fields.connect(
     sender=structure_serializers.CustomerSerializer,
     receiver=add_service_provider_url,
+)
+
+core_signals.pre_serializer_fields.connect(
+    sender=structure_serializers.CustomerSerializer,
+    receiver=add_service_provider_uuid,
 )
 
 core_signals.pre_serializer_fields.connect(
