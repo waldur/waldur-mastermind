@@ -2,6 +2,7 @@ import os
 
 import yaml
 from django.core.files.storage import default_storage
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management.base import BaseCommand
 
 from waldur_core.core import logos
@@ -54,7 +55,9 @@ class Command(BaseCommand):
         for setting_key, setting_value in constance_settings.items():
             if setting_key in WHITELABELING_LOGOS:
                 if os.path.exists(setting_value):
-                    setting_value = make_constance_file_value(setting_value)
+                    with open(setting_value, "rb") as image_file:
+                        image_content = image_file.read()
+                        setting_value = SimpleUploadedFile(setting_value, image_content)
                 else:
                     self.stdout.write(
                         self.style.ERROR(f"{setting_key.upper()} file does not exist.")
