@@ -3465,6 +3465,15 @@ def add_service_provider(sender, fields, **kwargs):
     setattr(sender, "get_is_service_provider", get_is_service_provider)
 
 
+def add_service_provider_url(sender, fields, **kwargs):
+    fields["service_provider"] = serializers.HyperlinkedRelatedField(
+        lookup_field="uuid",
+        view_name="marketplace-service-provider-detail",
+        source="serviceprovider",
+        read_only=True,
+    )
+
+
 def get_call_managing_organization_uuid(serializer, scope):
     customer = structure_permissions._get_customer(scope)
     call_managing_organisation = (
@@ -3521,6 +3530,10 @@ core_signals.pre_serializer_fields.connect(
     receiver=add_service_provider,
 )
 
+core_signals.pre_serializer_fields.connect(
+    sender=structure_serializers.CustomerSerializer,
+    receiver=add_service_provider_url,
+)
 
 core_signals.pre_serializer_fields.connect(
     sender=structure_serializers.CustomerSerializer,

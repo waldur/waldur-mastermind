@@ -38,7 +38,7 @@ class RoleDetailsSerializer(TranslatedModelSerializerMixin):
 
     permissions = serializers.SerializerMethodField()
     users_count = serializers.SerializerMethodField()
-    content_type = serializers.ReadOnlyField(source="content_type.model")
+    content_type = serializers.SerializerMethodField()
 
     def get_fields(self):
         fields = super().get_fields()
@@ -54,15 +54,23 @@ class RoleDetailsSerializer(TranslatedModelSerializerMixin):
 
         return fields
 
-    def get_permissions(self, role):
+    def get_permissions(self, role: models.Role):
         return list(
             models.RolePermission.objects.filter(role=role).values_list(
                 "permission", flat=True
             )
         )
 
-    def get_users_count(self, role):
+    def get_users_count(self, role: models.Role):
         return models.UserRole.objects.filter(is_active=True, role=role).count()
+
+    def get_content_type(self, role: models.Role):
+        for external_ct_id, (app_label, model) in TYPE_MAP.items():
+            if (
+                role.content_type.app_label == app_label
+                and role.content_type.model == model
+            ):
+                return external_ct_id
 
 
 class RoleModifySerializer(RoleDetailsSerializer):
@@ -93,7 +101,7 @@ class RoleModifySerializer(RoleDetailsSerializer):
     def validate_permissions(self, permissions):
         invalid = set(permissions) - set(perm.value for perm in PermissionEnum)
         if invalid:
-            raise ValidationError(f'Invalid permissions {",".join(invalid)}')
+            raise ValidationError(f"Invalid permissions {','.join(invalid)}")
         return permissions
 
     def create(self, validated_data):
