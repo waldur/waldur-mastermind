@@ -25,6 +25,10 @@ class TotalCustomerCostView(views.APIView):
         if name:
             customers = customers.filter(name__icontains=name)
 
+        customer_uuid = request.query_params.get("customer_uuid", "")
+        if customer_uuid:
+            customers = customers.filter(uuid=customer_uuid)
+
         year, month = invoice_utils.parse_period(request.query_params)
         invoices = invoices_models.Invoice.objects.filter(customer__in=customers)
         invoices = invoices.filter(year=year, month=month)
@@ -58,3 +62,13 @@ class FinancialReportView(core_views.ReadOnlyActionsViewSet):
         "native_name",
         "registration_code",
     )
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+
+        customer_uuid = self.request.query_params.get("customer_uuid", "")
+
+        if customer_uuid:
+            queryset = queryset.filter(uuid=customer_uuid)
+
+        return queryset
