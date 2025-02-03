@@ -523,6 +523,7 @@ class ConstanceSettingsSerializer(serializers.Serializer):
                 kwargs["validators"] = [color_hex_validator]
             if config_type == "url_field":
                 kwargs["validators"] = [URLValidator()]
+                kwargs["allow_blank"] = True
             fields[name] = field_class(**kwargs)
         return fields
 
