@@ -3,7 +3,6 @@ set -e
 
 echo "INFO: Running Celery Beat..."
 source /etc/waldur/celery.conf
-mkdir -p /run/waldur/celerybeat
 cd /run/waldur/celerybeat
 celery -A $CELERY_APP beat --loglevel=$CELERYBEAT_LOG_LEVEL --pidfile=$CELERYBEAT_PID_FILE $CELERYBEAT_OPTS
 

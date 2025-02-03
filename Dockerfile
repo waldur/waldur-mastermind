@@ -55,11 +55,11 @@ RUN mkdir -p /var/lib/nginx/tmp/client_body \
 RUN sed -i '/^user/s/^/#/' /etc/nginx/nginx.conf
 
 # Create directories and set permissions for OpenShift compatibility
-RUN mkdir -p /usr/src/waldur /var/lib/waldur /run/waldur/celery && \
-    chown -R 1001:0 /usr/src/waldur /var/lib/waldur /run/waldur/celery && \
-    chmod -R g+rwX /usr/src/waldur /var/lib/waldur /run/waldur/celery && \
-    chmod -R 775 /usr/src/waldur /var/lib/waldur /run/waldur/celery && \
-    chmod -R g+s /usr/src/waldur /var/lib/waldur /run/waldur/celery
+RUN mkdir -p /usr/src/waldur /var/lib/waldur /run/waldur/celery /run/waldur/celerybeat && \
+    chown -R 1001:0 /usr/src/waldur /var/lib/waldur /run/waldur/celery /run/waldur/celerybeat && \
+    chmod -R g+rwX /usr/src/waldur /var/lib/waldur /run/waldur/celery /run/waldur/celerybeat && \
+    chmod -R 775 /usr/src/waldur /var/lib/waldur /run/waldur/celery /run/waldur/celerybeat && \
+    chmod -R g+s /usr/src/waldur /var/lib/waldur /run/waldur/celery /run/waldur/celerybeat
 
 COPY . /usr/src/waldur/
 
