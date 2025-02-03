@@ -2,7 +2,7 @@ from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
-from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
+from django.core.validators import MinValueValidator, RegexValidator
 from django.db import models
 from django.db.models.constraints import UniqueConstraint
 from django.utils import timezone
@@ -395,11 +395,6 @@ class Offering(
     vendor_details = models.TextField(blank=True)
     getting_started = models.TextField(blank=True)
     integration_guide = models.TextField(blank=True)
-    rating = models.IntegerField(
-        null=True,
-        validators=[MaxValueValidator(5), MinValueValidator(1)],
-        help_text=_("Rating is value from 1 to 5."),
-    )
     category = models.ForeignKey(
         on_delete=models.CASCADE, to=Category, related_name="offerings"
     )
