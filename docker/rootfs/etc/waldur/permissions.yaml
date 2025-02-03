@@ -243,7 +243,7 @@
     - PROJECT.LIST
 
 - role: CUSTOMER.CALL_ORGANIZER
-  scope: customer
+  scope: call_organizer
   description: Organization call organizer
   permissions:
     - CALL.APPROVE_AND_REJECT_PROPOSALS

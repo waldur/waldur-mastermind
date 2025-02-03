@@ -46,7 +46,9 @@ User = auth.get_user_model()
 logger = logging.getLogger(__name__)
 
 
-class CallManagingOrganisationViewSet(PublicViewsetMixin, BaseMarketplaceView):
+class CallManagingOrganisationViewSet(
+    UserRoleMixin, PublicViewsetMixin, BaseMarketplaceView
+):
     lookup_field = "uuid"
     queryset = models.CallManagingOrganisation.objects.all().order_by("customer__name")
     serializer_class = serializers.CallManagingOrganisationSerializer

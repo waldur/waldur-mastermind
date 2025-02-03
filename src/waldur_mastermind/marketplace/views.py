@@ -145,7 +145,7 @@ class ConnectedOfferingDetailsMixin:
             return Response(status.HTTP_204_NO_CONTENT)
 
 
-class ServiceProviderViewSet(PublicViewsetMixin, BaseMarketplaceView):
+class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceView):
     queryset = models.ServiceProvider.objects.all().order_by("customer__name")
     serializer_class = serializers.ServiceProviderSerializer
     filterset_class = filters.ServiceProviderFilter
