@@ -123,6 +123,8 @@ class BaseBatchClient(metaclass=abc.ABCMeta):
             "-o",
             "UserKnownHostsFile=/dev/null",
             "-o",
+            "StrictModes=no",  # ssh key can be group readable due to mount permissions
+            "-o",
             "StrictHostKeyChecking=no",
             server,
             "-p",
