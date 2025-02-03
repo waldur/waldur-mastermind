@@ -64,6 +64,8 @@ class BackendTest(TestCase):
             "-o",
             "UserKnownHostsFile=/dev/null",
             "-o",
+            "StrictModes=no",
+            "-o",
             "StrictHostKeyChecking=no",
             "root@localhost",
             "-p",
