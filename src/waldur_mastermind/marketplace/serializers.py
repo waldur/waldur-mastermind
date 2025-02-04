@@ -1679,6 +1679,15 @@ class RancherPluginOptionsSerializer(serializers.Serializer):
     )
 
 
+class AgentPluginOptionsSerializer(serializers.Serializer):
+    account_name_generation_policy = serializers.ChoiceField(
+        required=False,
+        choices=[None, "project_slug"],
+        help_text="Slurm account name generation policy",
+        default=None,
+    )
+
+
 class MergedPluginOptionsSerializer(
     LifecyclePluginOptionsSerializer,
     OpenStackPluginOptionsSerializer,
@@ -1686,6 +1695,7 @@ class MergedPluginOptionsSerializer(
     GLAuthPluginOptionsSerializer,
     SupportPluginOptionsSerializer,
     RancherPluginOptionsSerializer,
+    AgentPluginOptionsSerializer,
 ):
     pass
 
