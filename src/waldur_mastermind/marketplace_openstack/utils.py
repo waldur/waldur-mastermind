@@ -443,6 +443,7 @@ def create_marketplace_resource_for_imported_resources(
         resource.init_cost()
         resource.save()
         import_instance_metadata(resource)
+        update_external_addresses_of_resource(resource)
 
     if isinstance(instance, openstack_models.Volume):
         offering = offering or get_offering(VOLUME_TYPE, instance.tenant)
