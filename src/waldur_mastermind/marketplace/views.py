@@ -35,7 +35,6 @@ from rest_framework import exceptions as rf_exceptions
 from rest_framework import mixins, status, views
 from rest_framework import permissions as rf_permissions
 from rest_framework import viewsets as rf_viewsets
-from rest_framework.authtoken import models as auth_models
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.generics import ListAPIView
@@ -56,9 +55,6 @@ from waldur_core.core.utils import (
     remove_duplicate_hyphens,
 )
 from waldur_core.logging.loggers import event_logger
-from waldur_core.permissions import enums as permission_enums
-from waldur_core.permissions import models as permission_models
-from waldur_core.permissions import utils as permission_utils
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import (
@@ -1643,51 +1639,9 @@ class ProviderOfferingViewSet(
             data=serializer.data,
         )
 
-    list_customer_projects_permissions = list_customer_users_permissions = (
-        generate_integration_user_permissions
-    ) = [structure_permissions.is_owner]
-
-    @action(detail=True, methods=["post"])
-    def generate_integration_user(self, request, uuid=None):
-        offering = self.get_object()
-        customer = offering.customer
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        username = serializer.validated_data["username"]
-        first_name = serializer.validated_data["first_name"]
-        last_name = serializer.validated_data["last_name"]
-        email = serializer.validated_data["email"]
-
-        logger.info(
-            "Creating integration user %s for offering %s and customer %s",
-            username,
-            offering,
-            customer,
-        )
-        user = core_models.User.objects.create(
-            username=username,
-            first_name=first_name,
-            last_name=last_name,
-            email=email,
-        )
-        user.token_lifetime = None
-        user.set_unusable_password()
-        user.save()
-
-        role = permission_models.Role.objects.get(
-            name=permission_enums.RoleEnum.CUSTOMER_OWNER
-        )
-        permission_utils.add_user(customer, user, role, self.request.user)
-
-        token = auth_models.Token.objects.get(user=user).key
-        return Response(
-            status=status.HTTP_201_CREATED,
-            data={"token": token},
-        )
-
-    generate_integration_user_serializer_class = (
-        serializers.GenerateIntegrationUserSerializer
-    )
+    list_customer_projects_permissions = list_customer_users_permissions = [
+        structure_permissions.is_owner
+    ]
 
 
 class PublicOfferingViewSet(rf_viewsets.ReadOnlyModelViewSet):

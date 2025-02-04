@@ -1272,17 +1272,6 @@ class ProviderOfferingDetailsSerializer(
         }
 
 
-class GenerateIntegrationUserSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = core_models.User
-        fields = (
-            "username",
-            "first_name",
-            "last_name",
-            "email",
-        )
-
-
 class PublicOfferingDetailsSerializer(ProviderOfferingDetailsSerializer):
     class Meta(ProviderOfferingDetailsSerializer.Meta):
         view_name = "marketplace-public-offering-detail"
