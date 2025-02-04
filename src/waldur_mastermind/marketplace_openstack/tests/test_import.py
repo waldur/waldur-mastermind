@@ -160,13 +160,21 @@ class InstanceImportTest(BaseInstanceImportTest):
         }
 
     @mock.patch("waldur_openstack.executors.InstancePullExecutor.execute")
-    def test_instance_can_be_imported(self, resource_import_execute_mock):
+    @mock.patch(
+        "waldur_mastermind.marketplace_openstack.utils.update_external_addresses_of_resource"
+    )
+    def test_instance_can_be_imported(
+        self,
+        update_external_addresses_of_resource_mock,
+        resource_import_execute_mock,
+    ):
         response = self.client.post(self.url, self._get_payload())
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         resource_import_execute_mock.assert_called()
-        instance = marketplace_models.Resource.objects.get()
-        self.assertEqual(instance.backend_id, "1")
+        resource = marketplace_models.Resource.objects.get()
+        self.assertEqual(resource.backend_id, "1")
+        update_external_addresses_of_resource_mock.assert_called_once_with(resource)
 
     def test_existing_instance_cannot_be_imported(self):
         InstanceFactory(
