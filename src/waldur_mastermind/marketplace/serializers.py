@@ -2435,6 +2435,8 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "customer_name",
             "offering_uuid",
             "offering_name",
+            "parent_offering_uuid",
+            "parent_offering_name",
             "parent_uuid",
             "parent_name",
             "backend_metadata",
@@ -2506,6 +2508,8 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
     customer_uuid = serializers.ReadOnlyField(source="project.customer.uuid")
     offering_uuid = serializers.ReadOnlyField(source="offering.uuid")
     offering_name = serializers.ReadOnlyField(source="offering.name")
+    parent_offering_uuid = serializers.ReadOnlyField(source="offering.parent.uuid")
+    parent_offering_name = serializers.ReadOnlyField(source="offering.parent.name")
     parent_uuid = serializers.ReadOnlyField(source="parent.uuid")
     parent_name = serializers.ReadOnlyField(source="parent.name")
     # If resource is usage-based, frontend would render button to show and report usage

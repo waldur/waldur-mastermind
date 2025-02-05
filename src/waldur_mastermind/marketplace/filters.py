@@ -218,6 +218,9 @@ class OfferingFilterMixin(django_filters.FilterSet):
         field_name="offering__uuid",
     )
     offering_uuid = django_filters.UUIDFilter(field_name="offering__uuid")
+    parent_offering_uuid = django_filters.UUIDFilter(
+        field_name="offering__parent__uuid"
+    )
 
     def filter_service_manager(self, queryset, name, value):
         if not is_uuid_like(value):
