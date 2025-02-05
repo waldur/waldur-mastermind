@@ -1570,3 +1570,18 @@ def sync_component_user_usage(allocation_user_usage, plugin_name):
             logger.info("%s has been created", component_user_usage)
         else:
             logger.info("%s has been updated, new usage: %s", component_usage, usage)
+
+
+def generate_resource_name(
+    project: structure_models.Project, offering: models.Offering
+):
+    resource_count = models.Resource.objects.filter(
+        project=project, offering=offering
+    ).count()
+    parts = [
+        project.customer.slug,
+        project.slug,
+        offering.slug,
+    ]
+    result = "-".join(parts) + "-" + str(resource_count + 1)
+    return core_utils.remove_duplicate_hyphens(result)

@@ -6,6 +6,7 @@ from django.db import transaction
 from waldur_autoprovisioning.models import Rule
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.models import Project
+from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.models import Order, Resource
 from waldur_mastermind.marketplace.tasks import (
     process_order_on_commit,
@@ -77,7 +78,7 @@ def get_or_create_order(
             if order.resource.state != Resource.States.ERRED:
                 return order, False
 
-    name = f"{offering}. {user.username}"
+    name = marketplace_utils.generate_resource_name(project, offering)
     attributes.update({"name": name})
 
     with transaction.atomic():
