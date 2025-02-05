@@ -52,7 +52,6 @@ from waldur_core.core.utils import (
     is_uuid_like,
     month_start,
     order_with_nulls,
-    remove_duplicate_hyphens,
 )
 from waldur_core.logging.loggers import event_logger
 from waldur_core.permissions.enums import PermissionEnum
@@ -2579,17 +2578,7 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
         serializer.is_valid(raise_exception=True)
         project: structure_models.Project = serializer.validated_data["project"]
         offering: models.Offering = serializer.validated_data["offering"]
-        resource_count = models.Resource.objects.filter(
-            project=project, offering=offering
-        ).count()
-        parts = [
-            project.customer.slug,
-            project.slug,
-            offering.slug,
-        ]
-        result = "-".join(parts) + "-" + str(resource_count + 1)
-        result = remove_duplicate_hyphens(result)
-        return Response({"name": result})
+        return Response({"name": utils.generate_resource_name(project, offering)})
 
     suggest_name_serializer_class = serializers.ResourceSuggestNameSerializer
 
