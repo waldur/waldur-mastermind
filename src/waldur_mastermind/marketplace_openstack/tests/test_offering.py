@@ -539,20 +539,20 @@ class InstanceExternalIPTest(test.APITransactionTestCase):
             state=openstack_models.FloatingIP.States.OK,
         )
         floating_ip.refresh_from_db()
-        self.assertEqual(floating_ip.external_address, ["200.200.200.1"])
+        self.assertEqual(floating_ip.external_address, "200.200.200.1")
         self.parent_offering.secret_options["ipv4_external_ip_mapping"] = [
             {
                 "floating_ip": "100.100.100.0/24",
-                "external_ip": "300.300.300.0/24",
+                "external_ip": "250.250.250.0/24",
             }
         ]
         self.parent_offering.save()
         floating_ip.refresh_from_db()
-        self.assertEqual(floating_ip.external_address, ["300.300.300.1"])
+        self.assertEqual(floating_ip.external_address, "250.250.250.1")
 
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["external_address"], ["300.300.300.1"])
+        self.assertEqual(response.data["external_address"], {"250.250.250.1"})
 
     def test_external_ips_has_not_been_added(self):
         floating_ip = openstack_factories.FloatingIPFactory(
@@ -564,7 +564,7 @@ class InstanceExternalIPTest(test.APITransactionTestCase):
             state=openstack_models.FloatingIP.States.OK,
         )
         floating_ip.refresh_from_db()
-        self.assertEqual(floating_ip.external_address, [])
+        self.assertEqual(floating_ip.external_address, None)
 
     def test_filter(self):
         openstack_factories.FloatingIPFactory(
