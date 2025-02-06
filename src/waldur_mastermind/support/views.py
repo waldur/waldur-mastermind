@@ -282,11 +282,44 @@ class AttachmentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         return queryset.filter_for_user(self.request.user)
 
 
-class TemplateViewSet(CheckExtensionMixin, viewsets.ReadOnlyModelViewSet):
-    permission_classes = (permissions.IsAuthenticated,)
+class TemplateViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
+    permission_classes = [core_permissions.IsAdminOrReadOnly]
     queryset = models.Template.objects.all().order_by("name")
     lookup_field = "uuid"
     serializer_class = serializers.TemplateSerializer
+
+    @decorators.action(detail=True, methods=["post"])
+    def create_attachments(self, request, uuid=None):
+        template = self.get_object()
+        attachments = request.FILES.getlist("attachments")
+
+        if not attachments:
+            return response.Response(
+                {"detail": "No attachments provided."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        for attachment in attachments:
+            obj, created = models.TemplateAttachment.objects.get_or_create(
+                template=template,
+                name=attachment.name,
+                defaults={"file": attachment},
+            )
+            if created:
+                template.attachments.add(obj)
+        return response.Response(status=status.HTTP_201_CREATED)
+
+    attach_documents_serializer_class = serializers.TemplateAttachmentSerializer
+
+    @decorators.action(detail=True, methods=["post"])
+    def delete_attachments(self, request, uuid=None):
+        template = self.get_object()
+        attachment_ids = request.data.get("attachment_ids", [])
+        attachments = models.TemplateAttachment.objects.filter(
+            uuid__in=attachment_ids, template=template
+        )
+        attachments.delete()
+        return response.Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class FeedbackViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):

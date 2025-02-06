@@ -731,11 +731,11 @@ class AttachmentSerializer(
 class TemplateAttachmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.TemplateAttachment
-        fields = ("name", "file")
+        fields = ("uuid", "name", "file")
 
 
 class TemplateSerializer(serializers.HyperlinkedModelSerializer):
-    attachments = TemplateAttachmentSerializer(many=True)
+    attachments = TemplateAttachmentSerializer(many=True, read_only=True)
 
     class Meta:
         model = models.Template
