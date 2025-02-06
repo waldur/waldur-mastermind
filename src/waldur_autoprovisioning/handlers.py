@@ -30,7 +30,7 @@ def get_or_create_project(customer, user) -> Project | None:
     project = None
 
     try:
-        project = Project.objects.get(name=user.username, customer=customer)
+        project = Project.available_objects.get(name=user.username, customer=customer)
 
         if not project.has_user(user, ProjectRole.ADMIN):
             project.add_user(user, ProjectRole.ADMIN)
@@ -38,7 +38,9 @@ def get_or_create_project(customer, user) -> Project | None:
     except Project.MultipleObjectsReturned:
         logger.warning("Multiple projects with the same name %s exist.", user.username)
     except Project.DoesNotExist:
-        project = Project.objects.create(customer=customer, name=user.username)
+        project = Project.available_objects.create(
+            customer=customer, name=user.username
+        )
         project.add_user(user, ProjectRole.ADMIN)
 
     return project
