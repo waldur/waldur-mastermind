@@ -15,6 +15,7 @@ from rest_framework import filters as rf_filters
 from rest_framework import mixins, status, viewsets
 from rest_framework import permissions as rf_permissions
 from rest_framework import serializers as rf_serializers
+from rest_framework.authtoken.models import Token
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.response import Response
@@ -461,13 +462,14 @@ class ProjectViewSet(
         )
 
 
-class UserViewSet(viewsets.ModelViewSet):
+class UserViewSet(core_views.ActionsViewSet):
     queryset = User.all_objects.all()
     serializer_class = serializers.UserSerializer
     lookup_field = "uuid"
     permission_classes = (
         rf_permissions.IsAuthenticated,
         permissions.IsAdminOrOwner,
+        core_permissions.ActionsPermission,
     )
     filter_backends = (
         filters.CustomerUserFilter,
@@ -551,7 +553,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 }
             )
 
-        serializer = serializers.UserEmailChangeSerializer(data=request.data)
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         email = serializer.validated_data["email"]
@@ -564,6 +566,8 @@ class UserViewSet(viewsets.ModelViewSet):
             {"detail": _("The change email request has been successfully created.")},
             status=status.HTTP_200_OK,
         )
+
+    change_email_serializer_class = serializers.UserEmailChangeSerializer
 
     @action(detail=True, methods=["post"])
     def cancel_change_email(self, request, uuid=None):
@@ -633,11 +637,8 @@ class UserViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def change_password(self, request, uuid=None):
-        if not self.request.user.is_staff:
-            raise PermissionDenied()
-
         user = self.get_object()
-        serializer = serializers.PasswordChangeSerializer(data=request.data)
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user.set_password(serializer.validated_data["new_password"])
         user.save()
@@ -653,6 +654,30 @@ class UserViewSet(viewsets.ModelViewSet):
         )
 
         return Response({"status": "password set"}, status=status.HTTP_200_OK)
+
+    change_password_serializer_class = serializers.PasswordChangeSerializer
+    change_password_permissions = [permissions.is_staff]
+
+    @action(detail=True, methods=["get"])
+    def token(self, request, uuid=None):
+        user = self.get_object()
+        token = user.auth_token
+        serializer = self.get_serializer(token)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"])
+    def refresh_token(self, request, uuid=None):
+        user = self.get_object()
+        token = user.auth_token
+        token.delete()
+        token = Token.objects.create(user=user)
+        serializer = self.get_serializer(token)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    token_permissions = refresh_token_permissions = [permissions.is_staff]
+    token_serializer_class = refresh_token_serializer_class = (
+        serializers.UserAuthTokenSerializer
+    )
 
     def perform_create(self, serializer):
         user = serializer.save()
@@ -930,7 +955,7 @@ class NotificationTemplateViewSet(ActionsViewSet):
 
 
 class AuthTokenViewSet(ActionsViewSet):
-    serializer_class = serializers.AuthTokenSerializers
+    serializer_class = serializers.AuthTokenSerializer
     lookup_field = "user_id"
     disabled_actions = ["create", "update", "partial_update"]
     permission_classes = (core_permissions.IsStaff,)

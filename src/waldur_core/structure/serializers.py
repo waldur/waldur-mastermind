@@ -1465,12 +1465,12 @@ class NotificationTemplateUpdateSerializers(serializers.Serializer):
     content = serializers.CharField()
 
 
-class AuthTokenSerializers(serializers.HyperlinkedModelSerializer):
-    user_first_name = serializers.CharField(source="user.first_name")
-    user_last_name = serializers.CharField(source="user.last_name")
-    user_username = serializers.CharField(source="user.username")
-    user_is_active = serializers.CharField(source="user.is_active")
-    user_token_lifetime = serializers.CharField(source="user.token_lifetime")
+class AuthTokenSerializer(serializers.HyperlinkedModelSerializer):
+    user_first_name = serializers.ReadOnlyField(source="user.first_name")
+    user_last_name = serializers.ReadOnlyField(source="user.last_name")
+    user_username = serializers.ReadOnlyField(source="user.username")
+    user_is_active = serializers.ReadOnlyField(source="user.is_active")
+    user_token_lifetime = serializers.ReadOnlyField(source="user.token_lifetime")
 
     class Meta:
         model = authtoken_models.Token
@@ -1491,6 +1491,22 @@ class AuthTokenSerializers(serializers.HyperlinkedModelSerializer):
             },
             "user": {"lookup_field": "uuid", "view_name": "user-detail"},
         }
+
+
+class UserAuthTokenSerializer(AuthTokenSerializer):
+    token = serializers.ReadOnlyField(source="key")
+
+    class Meta:
+        model = authtoken_models.Token
+        fields = (
+            "created",
+            "user_first_name",
+            "user_last_name",
+            "user_username",
+            "user_is_active",
+            "user_token_lifetime",
+            "token",
+        )
 
 
 class PasswordChangeSerializer(serializers.Serializer):
