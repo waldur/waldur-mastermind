@@ -420,6 +420,7 @@ CONSTANCE_CONFIG = {
         False,
         "Do not allow user to grant multiple roles in the same project or organization using invitation.",
     ),
+    "DEFAULT_IDP": ("", "Triggers authentication flow at once."),
     "DOCS_URL": ("", "Renders link to docs in header", "url_field"),
     "SHORT_PAGE_TITLE": ("Waldur", "It is used as prefix for page title."),
     "FULL_PAGE_TITLE": (
@@ -788,6 +789,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "AUTO_APPROVE_USER_TOS",
         "ENABLE_STRICT_CHECK_ACCEPTING_INVITATION",
         "INVITATION_DISABLE_MULTIPLE_ROLES",
+        "DEFAULT_IDP",
     ),
 }
 
@@ -832,6 +834,7 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "PROPOSAL_REVIEW_DURATION",
     # Tables
     "USER_TABLE_COLUMNS",
+    "DEFAULT_IDP",
 )
 
 for ext in WaldurExtension.get_extensions():

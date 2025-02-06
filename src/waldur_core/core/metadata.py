@@ -259,8 +259,6 @@ class WaldurCore(BaseModel):
         description="The list of protected fields for local IdP.",
     )
 
-    DEFAULT_IDP: str = Field("", description="Triggers authentication flow at once.")
-
     OECD_FOS_2007_CODE_MANDATORY = Field(
         False,
         description="Field oecd_fos_2007_code must be required for project.",
@@ -288,7 +286,6 @@ class WaldurCore(BaseModel):
             "HOMEPORT_SENTRY_TRACES_SAMPLE_RATE",
             "HOMEPORT_URL",
             "OECD_FOS_2007_CODE_MANDATORY",
-            "DEFAULT_IDP",
             "INVITATION_USE_WEBHOOKS",
         ]
 
