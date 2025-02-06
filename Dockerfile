@@ -40,7 +40,9 @@ RUN apk update && \
 # Set up locales
 RUN echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
 
+
 # Set up nginx directories with proper permissions
+# UID 101 belong to nginx user
 RUN mkdir -p /var/lib/nginx/tmp/client_body \
              /var/lib/nginx/tmp/proxy \
              /var/lib/nginx/tmp/fastcgi \
@@ -48,7 +50,7 @@ RUN mkdir -p /var/lib/nginx/tmp/client_body \
              /var/lib/nginx/tmp/scgi \
              /tmp/nginx \
              /var/log/nginx && \
-    chown -R 1001:0 /var/lib/nginx /var/log/nginx /tmp/nginx && \
+    chown -R 101:0 /var/lib/nginx /var/log/nginx /tmp/nginx && \
     chmod -R g+rwX /var/lib/nginx /var/log/nginx /tmp/nginx && \
     chmod -R g+s /var/lib/nginx
 
@@ -56,7 +58,7 @@ RUN sed -i '/^user/s/^/#/' /etc/nginx/nginx.conf
 
 # Create directories and set permissions for OpenShift compatibility
 RUN mkdir -p /usr/src/waldur /var/lib/waldur /run/waldur/celery /run/waldur/celerybeat && \
-    chown -R 1001:0 /usr/src/waldur /var/lib/waldur /run/waldur/celery /run/waldur/celerybeat && \
+    chown -R 101:0 /usr/src/waldur /var/lib/waldur /run/waldur/celery /run/waldur/celerybeat && \
     chmod -R g+rwX /usr/src/waldur /var/lib/waldur /run/waldur/celery /run/waldur/celerybeat && \
     chmod -R 775 /usr/src/waldur /var/lib/waldur /run/waldur/celery /run/waldur/celerybeat && \
     chmod -R g+s /usr/src/waldur /var/lib/waldur /run/waldur/celery /run/waldur/celerybeat
@@ -75,10 +77,10 @@ RUN find /usr/local/src/ -name ".git" -type d -exec rm -rf {} +
 RUN apk del build-base
 
 # Set permissions again after copying files
-RUN chown -R 1001:0 /usr/src/waldur /var/lib/waldur /etc/nginx /run/waldur/celery && \
+RUN chown -R 101:0 /usr/src/waldur /var/lib/waldur /etc/nginx /run/waldur/celery && \
     chmod -R g+rwX /usr/src/waldur /var/lib/waldur /etc/nginx /run/waldur/celery
 
-USER 1001:0
+USER 101:0
 
 ENTRYPOINT ["/app-entrypoint.sh"]
 CMD ["/bin/bash"]
