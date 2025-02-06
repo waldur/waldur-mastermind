@@ -317,9 +317,9 @@ class FloatingIP(core_models.RuntimeStateMixin, structure_models.BaseResource):
     address = models.GenericIPAddressField(
         null=True, blank=True, protocol="IPv4", default=None
     )
-    external_address = models.JSONField(
+    external_address = models.GenericIPAddressField(
         editable=False,
-        default=list,
+        null=True,
         help_text="An optional address that maps to floating IP's address",
     )
 
@@ -849,12 +849,7 @@ class Instance(
 
     @property
     def external_address(self):
-        external_address = set()
-
-        for a in self.floating_ips.values_list("external_address", flat=True):
-            external_address.update(set(a))
-
-        return list(external_address)
+        return set(self.floating_ips.values_list("external_address", flat=True))
 
     @property
     def internal_ips(self):

@@ -6,7 +6,7 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace_openstack.utils import _apply_quotas
 from waldur_openstack import serializers as openstack_serializers
 
-from .utils import get_external_ips
+from .utils import get_external_ip
 
 
 class MarketplaceTenantCreateSerializer(openstack_serializers.TenantSerializer):
@@ -58,7 +58,13 @@ def get_router_external_ips(serializer, router):
             return
 
         resource = marketplace_models.Resource.objects.filter(scope=router.tenant).get()
-        return get_external_ips(resource.offering, router.fixed_ips)
+        external_ips = []
+
+        for router_fixed_ip in router.fixed_ips:
+            external_ip = get_external_ip(resource.offering, router_fixed_ip)
+            external_ip and external_ips.append(external_ip)
+
+        return external_ips
     except marketplace_models.Resource.DoesNotExist:
         return
 
