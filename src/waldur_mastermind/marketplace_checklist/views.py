@@ -1,4 +1,3 @@
-from django.contrib.contenttypes.models import ContentType
 from django.db.models import Count, F, Q
 from django.utils.translation import gettext_lazy as _
 from rest_framework import status
@@ -14,7 +13,7 @@ from waldur_core.core.utils import is_uuid_like
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.structure.filters import filter_visible_users
-from waldur_core.structure.models import Customer, Project, get_old_role_name
+from waldur_core.structure.models import Customer, Project
 from waldur_core.structure.permissions import is_administrator, is_owner
 
 from . import models, serializers
@@ -28,28 +27,13 @@ def filter_checklists_by_roles(queryset, user):
     if user.is_staff or user.is_support:
         return queryset
 
-    project_roles = UserRole.objects.filter(
+    roles = UserRole.objects.filter(
         user=user,
         is_active=True,
-        content_type=ContentType.objects.get_for_model(Project),
-        role__is_system_role=True,
-    ).values_list("role__name", flat=True)
-    project_roles = [get_old_role_name(role) for role in project_roles]
-    customer_roles = UserRole.objects.filter(
-        user=user,
-        is_active=True,
-        content_type=ContentType.objects.get_for_model(Customer),
-        role__is_system_role=True,
-    ).values_list("role__name", flat=True)
-    customer_roles = [get_old_role_name(role) for role in customer_roles]
+    ).values_list("role_id", flat=True)
     return queryset.annotate(
-        project_roles_count=Count("project_roles"),
-        customer_roles_count=Count("customer_roles"),
-    ).filter(
-        Q(project_roles__role__in=project_roles)
-        | Q(customer_roles__role__in=customer_roles)
-        | Q(project_roles_count=0, customer_roles_count=0)
-    )
+        roles_count=Count("roles"),
+    ).filter(Q(roles__in=roles) | Q(roles_count=0))
 
 
 class CategoriesView(RetrieveModelMixin, ListModelMixin, GenericViewSet):

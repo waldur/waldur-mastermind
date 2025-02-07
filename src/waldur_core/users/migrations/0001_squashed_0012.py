@@ -49,13 +49,8 @@ class Migration(migrations.Migration):
                 ("uuid", waldur_core.core.fields.UUIDField()),
                 (
                     "customer_role",
-                    waldur_core.structure.models.CustomerRole(
+                    models.CharField(
                         blank=True,
-                        choices=[
-                            ("owner", "Owner"),
-                            ("support", "Support"),
-                            ("service_manager", "Service manager"),
-                        ],
                         max_length=30,
                         null=True,
                         verbose_name="organization role",
@@ -63,13 +58,8 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "project_role",
-                    waldur_core.structure.models.ProjectRole(
+                    models.CharField(
                         blank=True,
-                        choices=[
-                            ("admin", "Administrator"),
-                            ("manager", "Manager"),
-                            ("member", "Member"),
-                        ],
                         max_length=30,
                         null=True,
                     ),
@@ -216,13 +206,8 @@ class Migration(migrations.Migration):
                 ("error_message", models.TextField(blank=True)),
                 (
                     "customer_role",
-                    waldur_core.structure.models.CustomerRole(
+                    models.CharField(
                         blank=True,
-                        choices=[
-                            ("owner", "Owner"),
-                            ("support", "Support"),
-                            ("service_manager", "Service manager"),
-                        ],
                         max_length=30,
                         null=True,
                         verbose_name="organization role",
@@ -230,13 +215,8 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "project_role",
-                    waldur_core.structure.models.ProjectRole(
+                    models.CharField(
                         blank=True,
-                        choices=[
-                            ("admin", "Administrator"),
-                            ("manager", "Manager"),
-                            ("member", "Member"),
-                        ],
                         max_length=30,
                         null=True,
                     ),

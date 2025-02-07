@@ -1,12 +1,12 @@
 from django.urls import reverse
 from rest_framework import test
 
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_mastermind.marketplace_checklist import models
 from waldur_mastermind.marketplace_checklist.tests import factories
 
 
-class CustomerChecklistTest(test.APITransactionTestCase):
+class ChecklistRolesTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ServiceFixture()
         self.project = self.fixture.customer
@@ -15,12 +15,8 @@ class CustomerChecklistTest(test.APITransactionTestCase):
         self.url = reverse("marketplace-checklist-list")
 
     def test_filter_by_project_roles(self):
-        models.ChecklistProjectRole.objects.create(
-            checklist=self.checklist1, role=models.ProjectRole.MANAGER
-        )
-        models.ChecklistProjectRole.objects.create(
-            checklist=self.checklist2, role=models.ProjectRole.ADMINISTRATOR
-        )
+        self.checklist1.roles.add(ProjectRole.MANAGER)
+        self.checklist2.roles.add(ProjectRole.ADMIN)
 
         self.client.force_authenticate(self.fixture.manager)
         data = self.client.get(self.url).data
@@ -33,12 +29,8 @@ class CustomerChecklistTest(test.APITransactionTestCase):
         self.assertEqual(data[0]["uuid"], self.checklist2.uuid.hex)
 
     def test_filter_by_customer_roles(self):
-        models.ChecklistCustomerRole.objects.create(
-            checklist=self.checklist1, role=models.CustomerRole.OWNER
-        )
-        models.ChecklistCustomerRole.objects.create(
-            checklist=self.checklist2, role=models.CustomerRole.SUPPORT
-        )
+        self.checklist1.roles.add(CustomerRole.OWNER)
+        self.checklist2.roles.add(CustomerRole.SUPPORT)
 
         self.client.force_authenticate(self.fixture.owner)
         data = self.client.get(self.url).data

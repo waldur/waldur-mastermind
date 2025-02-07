@@ -35,14 +35,8 @@ from waldur_core.core.validators import (
 from waldur_core.logging.mixins import LoggableMixin
 from waldur_core.media.mixins import ImageModelMixin
 from waldur_core.media.validators import CertificateValidator
-from waldur_core.permissions.enums import SYSTEM_PROJECT_ROLES, PermissionEnum, RoleEnum
-from waldur_core.permissions.models import Role
-from waldur_core.permissions.utils import (
-    add_user,
-    delete_user,
-    get_permissions,
-    has_user,
-)
+from waldur_core.permissions.enums import PermissionEnum, RoleEnum
+from waldur_core.permissions.mixins import PermissionMixin
 from waldur_core.quotas import fields as quotas_fields
 from waldur_core.quotas import models as quotas_models
 from waldur_core.structure.managers import (
@@ -167,70 +161,6 @@ class BasePermission(models.Model):
 
     def revoke(self):
         raise NotImplementedError
-
-
-class PermissionMixin:
-    """
-    Base permission management mixin for customer and project.
-    It is expected that reverse `permissions` relation is created for this model.
-    Provides method to grant, revoke and check object permissions.
-    """
-
-    def get_or_create_role(self, role=None):
-        if role and isinstance(role, str):
-            return Role.objects.get_system_role(
-                name=get_new_role_name(self._meta.model, role),
-                content_type=ContentType.objects.get_for_model(self._meta.model),
-            )
-        return role
-
-    def has_user(self, user, role=None, timestamp=False):
-        role = self.get_or_create_role(role)
-        return has_user(self, user, role, timestamp)
-
-    @transaction.atomic()
-    def add_user(self, user, role, created_by=None, expiration_time=None):
-        role = self.get_or_create_role(role)
-        permission = add_user(self, user, role, created_by, expiration_time)
-        return permission
-
-    @transaction.atomic()
-    def remove_user(self, user, role=None, removed_by=None):
-        role = self.get_or_create_role(role)
-        if role:
-            delete_user(self, user, role, removed_by)
-        else:
-            for perm in get_permissions(self, user):
-                perm.revoke(removed_by)
-
-    def get_users(self, role=None):
-        """Return all connected to scope users"""
-        raise NotImplementedError
-
-    def get_user_mails(self, role=None):
-        return (
-            self.get_users(role)
-            .exclude(email="")
-            .exclude(notifications_enabled=False)
-            .values_list("email", flat=True)
-        )
-
-
-class CustomerRole(models.CharField):
-    OWNER = "owner"
-    SUPPORT = "support"
-    SERVICE_MANAGER = "service_manager"
-
-    CHOICES = (
-        (OWNER, "Owner"),
-        (SUPPORT, "Support"),
-        (SERVICE_MANAGER, "Service manager"),
-    )
-
-    def __init__(self, *args, **kwargs):
-        kwargs["max_length"] = 30
-        kwargs["choices"] = self.CHOICES
-        super().__init__(*args, **kwargs)
 
 
 class OrganizationGroup(core_models.UuidMixin, core_models.NameMixin, models.Model):
@@ -450,23 +380,6 @@ class Customer(
             return self.name
 
 
-class ProjectRole(models.CharField):
-    ADMINISTRATOR = "admin"
-    MANAGER = "manager"
-    MEMBER = "member"
-
-    CHOICES = (
-        (ADMINISTRATOR, "Administrator"),
-        (MANAGER, "Manager"),
-        (MEMBER, "Member"),
-    )
-
-    def __init__(self, *args, **kwargs):
-        kwargs["max_length"] = 30
-        kwargs["choices"] = self.CHOICES
-        super().__init__(*args, **kwargs)
-
-
 class ProjectType(
     core_models.DescribableMixin, core_models.UuidMixin, core_models.NameMixin
 ):
@@ -636,9 +549,6 @@ class Project(
         return self.name
 
     def get_users(self, role=None):
-        if isinstance(role, str):
-            if role not in SYSTEM_PROJECT_ROLES:
-                role = get_new_role_name(Project, role)
         project_users = get_project_users(self.id, role)
         return (
             get_user_model().objects.filter(id__in=project_users).order_by("username")
@@ -1062,24 +972,3 @@ class UserAgreement(core_models.UuidMixin, LoggableMixin, TimeStampedModel):
 
 
 reversion.register(Customer)
-
-
-ROLE_MAP = {
-    ("customer", "owner"): RoleEnum.CUSTOMER_OWNER,
-    ("customer", "service_manager"): RoleEnum.CUSTOMER_MANAGER,
-    ("customer", "support"): RoleEnum.CUSTOMER_SUPPORT,
-    ("project", "admin"): RoleEnum.PROJECT_ADMIN,
-    ("project", "manager"): RoleEnum.PROJECT_MANAGER,
-    ("project", "member"): RoleEnum.PROJECT_MEMBER,
-    ("offering", None): RoleEnum.OFFERING_MANAGER,
-}
-
-
-def get_new_role_name(type, old_role_name):
-    return ROLE_MAP.get((type._meta.model_name, old_role_name)) or old_role_name
-
-
-def get_old_role_name(new_role_name):
-    keys = [key for key, value in ROLE_MAP.items() if value == new_role_name]
-    if keys:
-        return keys[0][1]

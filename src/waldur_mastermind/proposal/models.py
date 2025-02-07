@@ -13,6 +13,7 @@ from model_utils.models import TimeStampedModel
 import waldur_core.media.mixins
 from waldur_core.core import models as core_models
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
+from waldur_core.permissions.mixins import PermissionMixin
 from waldur_core.permissions.models import Role
 from waldur_core.permissions.utils import get_users
 from waldur_core.structure import models as structure_models
@@ -269,7 +270,7 @@ def filter_proposals(user):
 
 class Proposal(
     TimeStampedModel,
-    structure_models.PermissionMixin,
+    PermissionMixin,
     core_models.UuidMixin,
     core_models.NameMixin,
     core_models.DescribableMixin,

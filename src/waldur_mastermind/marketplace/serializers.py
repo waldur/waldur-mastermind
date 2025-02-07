@@ -3859,7 +3859,7 @@ class ProjectUserSerializer(serializers.ModelSerializer):
         setattr(
             user,
             "role",
-            permission and structure_models.get_old_role_name(permission.role.name),
+            permission and permission.role.name,
         )
         return super().to_representation(user)
 

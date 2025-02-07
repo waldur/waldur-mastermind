@@ -8,6 +8,7 @@ from waldur_core.core import middleware
 from waldur_core.core.utils import serialize_instance
 from waldur_core.permissions import signals as permission_signals
 from waldur_core.permissions.enums import RoleEnum
+from waldur_core.permissions.fixtures import ServiceProviderRole
 from waldur_core.permissions.models import UserRole
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
@@ -107,12 +108,9 @@ def create_request_when_project_is_updated(sender, instance, created=False, **kw
             user,
         )
         # Auto-approve if possible
-        # Code from waldur_mastermind.marketplace.permissions.user_is_service_provider_owner_or_service_provider_manager
         if structure_permissions._has_owner_access(
             user, offering.customer
-        ) or offering.customer.has_user(
-            user, role=structure_models.CustomerRole.SERVICE_MANAGER
-        ):
+        ) or offering.customer.has_user(user, role=ServiceProviderRole.MANAGER):
             logger.info(
                 "The user %s can automatically approve the request %s.",
                 user,

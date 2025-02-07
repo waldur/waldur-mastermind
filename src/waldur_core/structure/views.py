@@ -31,6 +31,7 @@ from waldur_core.core.log import event_logger
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.core.views import ActionsViewSet
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
+from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.permissions.utils import (
     has_permission,
     permission_factory,
@@ -205,14 +206,14 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
     )
     def users(self, request, uuid=None):
         """A list of users connected to the customer."""
-        customer = self.get_object()
+        customer: models.Customer = self.get_object()
         user = request.user
         queryset = customer.get_users()
 
         if not (
             _has_owner_access(user, customer)
             or user.is_support
-            or customer.has_user(user, models.CustomerRole.SUPPORT)
+            or customer.has_user(user, CustomerRole.SUPPORT)
         ):
             return Response(status=status.HTTP_403_FORBIDDEN)
 

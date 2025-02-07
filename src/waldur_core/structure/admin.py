@@ -1,5 +1,4 @@
 import collections
-import itertools
 import json
 import logging
 from functools import lru_cache
@@ -11,7 +10,7 @@ from django.contrib.admin import SimpleListFilter
 from django.core.exceptions import FieldDoesNotExist, ValidationError
 from django.db import models as django_models
 from django.db import transaction
-from django.forms import CharField, ChoiceField, ModelForm, ModelMultipleChoiceField
+from django.forms import CharField, ChoiceField, ModelForm
 from django.http import HttpResponseRedirect
 from django.shortcuts import redirect
 from django.urls import reverse
@@ -30,18 +29,15 @@ from waldur_core.core.admin import (
     ReadOnlyAdminMixin,
 )
 from waldur_core.core.admin_filters import RelatedOnlyDropdownFilter
-from waldur_core.core.models import Notification, NotificationTemplate, User
+from waldur_core.core.models import Notification, NotificationTemplate
 from waldur_core.core.utils import get_fake_context
 from waldur_core.core.validators import BackendURLValidator
-from waldur_core.permissions.enums import RoleEnum
 from waldur_core.structure import executors, models
 from waldur_core.structure.registry import SupportedServices, get_service_type
 from waldur_core.structure.serializers import (
     ServiceOptionsSerializer,
     get_options_serializer_class,
 )
-
-from .widgets import ScrolledSelectMultiple
 
 logger = logging.getLogger(__name__)
 
@@ -161,36 +157,8 @@ class ProtectedModelMixin:
 
 
 class CustomerAdminForm(ModelForm):
-    owners = ModelMultipleChoiceField(
-        User.objects.all().order_by("first_name", "last_name"),
-        required=False,
-        widget=ScrolledSelectMultiple(verbose_name=_("Owners")),
-    )
-    support_users = ModelMultipleChoiceField(
-        User.objects.all().order_by("first_name", "last_name"),
-        required=False,
-        widget=ScrolledSelectMultiple(verbose_name=_("Support users")),
-    )
-    service_managers = ModelMultipleChoiceField(
-        User.objects.all().order_by("first_name", "last_name"),
-        required=False,
-        widget=ScrolledSelectMultiple(verbose_name=_("Service managers")),
-    )
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if self.instance and self.instance.pk:
-            customer: models.Customer = self.instance
-            self.owners = customer.get_users(RoleEnum.CUSTOMER_OWNER)
-            self.support_users = customer.get_users(RoleEnum.CUSTOMER_SUPPORT)
-            self.service_managers = customer.get_users(RoleEnum.CUSTOMER_MANAGER)
-            self.fields["owners"].initial = self.owners
-            self.fields["support_users"].initial = self.support_users
-            self.fields["service_managers"].initial = self.service_managers
-        else:
-            self.owners = User.objects.none()
-            self.support_users = User.objects.none()
-            self.service_managers = User.objects.none()
 
         textarea_attrs = {"cols": "40", "rows": "4"}
         self.fields["contact_details"].widget.attrs = textarea_attrs
@@ -202,42 +170,7 @@ class CustomerAdminForm(ModelForm):
         if not customer.pk:
             customer.save()
 
-        self.populate_users("owners", customer, RoleEnum.CUSTOMER_OWNER)
-        self.populate_users("support_users", customer, RoleEnum.CUSTOMER_SUPPORT)
-        self.populate_users("service_managers", customer, RoleEnum.CUSTOMER_MANAGER)
-
         return customer
-
-    def populate_users(self, field_name, customer: models.Customer, role):
-        field = getattr(self, field_name)
-        new_users = self.cleaned_data[field_name]
-
-        removed_users = field.exclude(pk__in=new_users)
-        for user in removed_users:
-            customer.remove_user(user, role, self.request.user)
-
-        added_users = new_users.exclude(pk__in=field)
-        for user in added_users:
-            if not customer.has_user(user, role):
-                customer.add_user(user, role, self.request.user)
-
-        self.save_m2m()
-
-    def clean(self):
-        cleaned_data = super().clean()
-        owners = self.cleaned_data["owners"]
-        support_users = self.cleaned_data["support_users"]
-        invalid_users = set(owners) & set(support_users)
-        if invalid_users:
-            invalid_users_list = ", ".join(map(str, invalid_users))
-            raise ValidationError(
-                _(
-                    "User cannot be owner and support at the same time. "
-                    "Role assignment of The following users is invalid: %s."
-                )
-                % invalid_users_list
-            )
-        return cleaned_data
 
     def clean_accounting_start_date(self):
         accounting_start_date = self.cleaned_data["accounting_start_date"]
@@ -281,9 +214,6 @@ class CustomerAdmin(
         "homepage",
         "country",
         "vat_code",
-        "owners",
-        "support_users",
-        "service_managers",
         "address",
         "postal",
         "latitude",
@@ -320,84 +250,6 @@ class CustomerAdmin(
         queryset.delete()
 
 
-class ProjectAdminForm(ModelForm):
-    admins = ModelMultipleChoiceField(
-        User.objects.all().order_by("first_name", "last_name"),
-        required=False,
-        widget=ScrolledSelectMultiple(verbose_name=_("Admins")),
-    )
-    managers = ModelMultipleChoiceField(
-        User.objects.all().order_by("first_name", "last_name"),
-        required=False,
-        widget=ScrolledSelectMultiple(verbose_name=_("Managers")),
-    )
-    members = ModelMultipleChoiceField(
-        User.objects.all().order_by("first_name", "last_name"),
-        required=False,
-        widget=ScrolledSelectMultiple(verbose_name=_("Members")),
-    )
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        if self.instance and self.instance.pk:
-            self.admins = self.instance.get_users(models.ProjectRole.ADMINISTRATOR)
-            self.managers = self.instance.get_users(models.ProjectRole.MANAGER)
-            self.members = self.instance.get_users(models.ProjectRole.MEMBER)
-            self.fields["admins"].initial = self.admins
-            self.fields["managers"].initial = self.managers
-            self.fields["members"].initial = self.members
-        else:
-            for field_name in ("admins", "managers", "members"):
-                setattr(self, field_name, User.objects.none())
-
-    def clean(self):
-        cleaned_data = super().clean()
-        admins = self.cleaned_data["admins"]
-        managers = self.cleaned_data["managers"]
-        members = self.cleaned_data["members"]
-        for xs, ys in itertools.combinations(
-            [set(admins), set(managers), set(members)], 2
-        ):
-            invalid_users = xs & ys
-            if invalid_users:
-                invalid_users_list = ", ".join(map(str, invalid_users))
-                raise ValidationError(
-                    _(
-                        "User role within project must be unique. "
-                        "Role assignment of the following users is invalid: %s."
-                    )
-                    % invalid_users_list
-                )
-        return cleaned_data
-
-    def save(self, commit=True):
-        project = super().save(commit=False)
-
-        if not project.pk:
-            project.save()
-
-        self.populate_users("admins", project, models.ProjectRole.ADMINISTRATOR)
-        self.populate_users("managers", project, models.ProjectRole.MANAGER)
-        self.populate_users("members", project, models.ProjectRole.MEMBER)
-
-        return project
-
-    def populate_users(self, field_name, project: models.Project, role):
-        field = getattr(self, field_name)
-        new_users = self.cleaned_data[field_name]
-
-        removed_users = field.exclude(pk__in=new_users)
-        for user in removed_users:
-            project.remove_user(user, role, self.request.user)
-
-        added_users = new_users.exclude(pk__in=field)
-        for user in added_users:
-            # User role within project must be unique.
-            if not project.has_user(user):
-                project.add_user(user, role, self.request.user)
-        self.save_m2m()
-
-
 class ProjectAdmin(
     ExtraActionsMixin,
     FormRequestAdminMixin,
@@ -405,16 +257,11 @@ class ProjectAdmin(
     ChangeReadonlyMixin,
     admin.ModelAdmin,
 ):
-    form = ProjectAdminForm
-
     fields = (
         "name",
         "description",
         "customer",
         "type",
-        "admins",
-        "managers",
-        "members",
         "oecd_fos_2007_code",
         "image",
     )

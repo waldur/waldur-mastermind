@@ -14,8 +14,8 @@ from rest_framework.exceptions import ValidationError
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import views as core_views
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure import filters as structure_filters
-from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_mastermind.notifications.models import BroadcastMessage
 from waldur_mastermind.support.backend.smax import SmaxServiceBackend
@@ -97,7 +97,7 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     destroy_permissions = [is_staff_or_support]
     destroy_validators = [_destroy_is_available_validator]
 
-    def _comment_permission(request, view, obj=None):
+    def _comment_permission(request, view, obj: models.Issue = None):
         user = request.user
         if user.is_staff or user.is_support or not obj:
             return
@@ -105,13 +105,11 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         # if it's a personal issue
         if not issue.customer and not issue.project and issue.caller == user:
             return
-        if issue.customer and issue.customer.has_user(
-            user, structure_models.CustomerRole.OWNER
-        ):
+        if issue.customer and issue.customer.has_user(user, CustomerRole.OWNER):
             return
         if issue.project and (
-            issue.project.has_user(user, structure_models.ProjectRole.ADMINISTRATOR)
-            or issue.project.has_user(user, structure_models.ProjectRole.MANAGER)
+            issue.project.has_user(user, ProjectRole.ADMIN)
+            or issue.project.has_user(user, ProjectRole.MANAGER)
         ):
             return
         raise rf_exceptions.PermissionDenied()

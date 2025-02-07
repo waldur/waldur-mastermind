@@ -14,11 +14,13 @@ from waldur_core.core import views as core_views
 from waldur_core.core.utils import is_uuid_like, serialize_instance
 from waldur_core.core.views import ReviewViewSet
 from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import ServiceProviderRole
 from waldur_core.permissions.utils import has_permission
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure.filters import GenericRoleFilter
 from waldur_core.structure.models import Customer
-from waldur_mastermind.marketplace import callbacks, models, permissions
+from waldur_core.structure.permissions import _has_owner_access
+from waldur_mastermind.marketplace import callbacks, models
 from waldur_mastermind.marketplace_remote import PLUGIN_NAME
 from waldur_mastermind.marketplace_remote.models import (
     ProjectUpdateRequest,
@@ -131,10 +133,25 @@ class OfferingCreateView(RemoteView):
         return Response({"uuid": local_offering.uuid.hex})
 
 
+def user_is_service_provider_owner_or_service_provider_manager(
+    request, view, obj: ProjectUpdateRequest | None = None
+):
+    if not obj:
+        return
+
+    if _has_owner_access(request.user, obj.offering.customer):
+        return
+
+    if obj.offering.customer.has_user(request.user, role=ServiceProviderRole.MANAGER):
+        return
+
+    raise PermissionDenied()
+
+
 class ProjectUpdateRequestViewSet(ReviewViewSet):
     queryset = ProjectUpdateRequest.objects.all()
     approve_permissions = reject_permissions = [
-        permissions.user_is_service_provider_owner_or_service_provider_manager
+        user_is_service_provider_owner_or_service_provider_manager
     ]
     serializer_class = serializers.ProjectUpdateRequestSerializer
     filter_backends = [GenericRoleFilter, DjangoFilterBackend]

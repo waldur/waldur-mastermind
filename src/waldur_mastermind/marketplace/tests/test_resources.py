@@ -1407,6 +1407,10 @@ class ResourceDetailsTest(test.APITransactionTestCase):
         self.project = self.fixture.project
         self.offering = factories.OfferingFactory(customer=self.fixture.customer)
         self.offering.add_user(self.fixture.user, OfferingRole.MANAGER)
+        service_provider = factories.ServiceProviderFactory(
+            customer=self.fixture.customer
+        )
+        service_provider.add_user(self.fixture.user, ServiceProviderRole.MANAGER)
         self.resource = factories.ResourceFactory(
             project=self.project, offering=self.offering
         )

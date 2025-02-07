@@ -55,6 +55,7 @@ from waldur_core.core.utils import (
 )
 from waldur_core.logging.loggers import event_logger
 from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole, ServiceProviderRole
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import (
     get_user_ids,
@@ -631,16 +632,21 @@ class CategoryGroupViewSet(PublicViewsetMixin, core_views.ActionsViewSet):
     ) = [structure_permissions.is_staff]
 
 
-def can_update_offering(request, view, obj=None):
+def can_update_offering(request, view, obj: models.Offering = None):
     offering = obj
 
     if not offering:
         return
 
     if offering.state == models.Offering.States.DRAFT:
-        if has_permission(
-            request, PermissionEnum.UPDATE_OFFERING, offering
-        ) or has_permission(request, PermissionEnum.UPDATE_OFFERING, offering.customer):
+        if any(
+            has_permission(request, PermissionEnum.UPDATE_OFFERING, scope)
+            for scope in (
+                offering,
+                offering.customer,
+                offering.customer.serviceprovider,
+            )
+        ):
             return
         else:
             raise rf_exceptions.PermissionDenied()
@@ -872,21 +878,21 @@ class ProviderOfferingViewSet(
     pause_permissions = [
         permission_factory(
             PermissionEnum.PAUSE_OFFERING,
-            ["*", "customer"],
+            ["*", "customer", "customer.serviceprovider"],
         )
     ]
 
     unpause_permissions = [
         permission_factory(
             PermissionEnum.UNPAUSE_OFFERING,
-            ["*", "customer"],
+            ["*", "customer", "customer.serviceprovider"],
         )
     ]
 
     archive_permissions = [
         permission_factory(
             PermissionEnum.ARCHIVE_OFFERING,
-            ["*", "customer"],
+            ["*", "customer", "customer.serviceprovider"],
         )
     ]
 
@@ -1027,7 +1033,7 @@ class ProviderOfferingViewSet(
     update_attributes_permissions = [
         permission_factory(
             PermissionEnum.UPDATE_OFFERING_ATTRIBUTES,
-            ["*", "customer"],
+            ["*", "customer", "customer.serviceprovider"],
         )
     ]
     update_attributes_validators = update_validators
@@ -1046,7 +1052,7 @@ class ProviderOfferingViewSet(
     update_location_permissions = [
         permission_factory(
             PermissionEnum.UPDATE_OFFERING_LOCATION,
-            ["*", "customer"],
+            ["*", "customer", "customer.serviceprovider"],
         )
     ]
     update_location_validators = update_validators
@@ -1059,7 +1065,7 @@ class ProviderOfferingViewSet(
     update_description_permissions = [
         permission_factory(
             PermissionEnum.UPDATE_OFFERING_DESCRIPTION,
-            ["*", "customer"],
+            ["*", "customer", "customer.serviceprovider"],
         )
     ]
     update_description_validators = update_validators
@@ -1082,7 +1088,7 @@ class ProviderOfferingViewSet(
     update_options_permissions = [
         permission_factory(
             PermissionEnum.UPDATE_OFFERING_OPTIONS,
-            ["*", "customer"],
+            ["*", "customer", "customer.serviceprovider"],
         )
     ]
     update_options_validators = update_validators
@@ -1095,7 +1101,7 @@ class ProviderOfferingViewSet(
     update_resource_options_permissions = [
         permission_factory(
             PermissionEnum.UPDATE_OFFERING_OPTIONS,
-            ["*", "customer"],
+            ["*", "customer", "customer.serviceprovider"],
         )
     ]
     update_resource_options_validators = update_validators
@@ -1110,7 +1116,7 @@ class ProviderOfferingViewSet(
     update_integration_permissions = [
         permission_factory(
             PermissionEnum.UPDATE_OFFERING_INTEGRATION,
-            ["*", "customer"],
+            ["*", "customer", "customer.serviceprovider"],
         )
     ]
     update_integration_validators = update_validators
@@ -1278,7 +1284,7 @@ class ProviderOfferingViewSet(
     add_endpoint_permissions = [
         permission_factory(
             PermissionEnum.ADD_OFFERING_ENDPOINT,
-            ["*", "customer"],
+            ["*", "customer", "customer.serviceprovider"],
         )
     ]
     add_endpoint_serializer_class = serializers.NestedEndpointSerializer
@@ -1298,7 +1304,7 @@ class ProviderOfferingViewSet(
     delete_endpoint_permissions = [
         permission_factory(
             PermissionEnum.DELETE_OFFERING_ENDPOINT,
-            ["*", "customer"],
+            ["*", "customer", "customer.serviceprovider"],
         )
     ]
     delete_endpoint_validators = update_validators
@@ -1457,7 +1463,7 @@ class ProviderOfferingViewSet(
     update_offering_component_permissions = [
         permission_factory(
             PermissionEnum.UPDATE_OFFERING_COMPONENTS,
-            ["*", "customer"],
+            ["*", "customer", "customer.serviceprovider"],
         )
     ]
     update_offering_component_validators = update_validators
@@ -1516,7 +1522,7 @@ class ProviderOfferingViewSet(
     remove_offering_component_permissions = [
         permission_factory(
             PermissionEnum.UPDATE_OFFERING_COMPONENTS,
-            ["*", "customer"],
+            ["*", "customer", "customer.serviceprovider"],
         )
     ]
     remove_offering_component_validators = update_validators
@@ -1536,7 +1542,7 @@ class ProviderOfferingViewSet(
     create_offering_component_permissions = [
         permission_factory(
             PermissionEnum.UPDATE_OFFERING_COMPONENTS,
-            ["*", "customer"],
+            ["*", "customer", "customer.serviceprovider"],
         )
     ]
     create_offering_component_validators = update_validators
@@ -1574,7 +1580,7 @@ class ProviderOfferingViewSet(
     sync_permissions = [
         permission_factory(
             PermissionEnum.UPDATE_OFFERING_COMPONENTS,
-            ["*", "customer"],
+            ["*", "customer", "customer.serviceprovider"],
         )
     ]
 
@@ -1598,7 +1604,7 @@ class ProviderOfferingViewSet(
     set_backend_metadata_permissions = [
         permission_factory(
             PermissionEnum.UPDATE_OFFERING,
-            ["*", "customer"],
+            ["*", "customer", "customer.serviceprovider"],
         )
     ]
 
@@ -3075,8 +3081,7 @@ class OfferingFileViewSet(core_views.ActionsViewSet):
         offering = serializer.validated_data["offering"]
 
         if user.is_staff or (
-            offering.customer
-            and offering.customer.has_user(user, structure_models.CustomerRole.OWNER)
+            offering.customer and offering.customer.has_user(user, CustomerRole.OWNER)
         ):
             return
 
@@ -3978,10 +3983,10 @@ class IntegrationStatusViewSet(core_views.ReadOnlyActionsViewSet):
         offerings = [
             offering
             for offering in models.Offering.objects.all().filter_for_user(user)
-            if offering.customer.has_user(user, structure_models.CustomerRole.OWNER)
+            if offering.customer.has_user(user, CustomerRole.OWNER)
             or offering.customer.has_user(
                 user,
-                structure_models.CustomerRole.SERVICE_MANAGER,
+                ServiceProviderRole.MANAGER,
             )
         ]
         return qs.filter(offering__in=offerings)
