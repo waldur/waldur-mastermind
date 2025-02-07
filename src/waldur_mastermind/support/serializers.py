@@ -741,22 +741,13 @@ class TemplateSerializer(serializers.HyperlinkedModelSerializer):
             "url",
             "uuid",
             "name",
-            "native_name",
             "description",
-            "native_description",
             "issue_type",
             "attachments",
         )
         extra_kwargs = dict(
             url={"lookup_field": "uuid", "view_name": "support-template-detail"},
         )
-
-    def get_fields(self):
-        fields = super().get_fields()
-        if not settings.WALDUR_CORE["NATIVE_NAME_ENABLED"]:
-            del fields["native_name"]
-            del fields["native_description"]
-        return fields
 
 
 class CreateFeedbackSerializer(serializers.HyperlinkedModelSerializer):
