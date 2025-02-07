@@ -326,6 +326,7 @@ CONSTANCE_ADDITIONAL_FIELDS = {
     "url_field": ["django.forms.URLField", {"required": False}],
     "secret_field": ["django.forms.CharField", {"required": False}],
     "dict_field": ["waldur_core.core.serializers.DictField", {"required": False}],
+    "list_field": ["waldur_core.core.serializers.ListField", {"required": False}],
 }
 CONSTANCE_CONFIG = {
     "SITE_NAME": ("Waldur", "Human-friendly name of the Waldur deployment."),
@@ -651,6 +652,42 @@ CONSTANCE_CONFIG = {
         False,
         "Mark terms of services as approved for new users.",
     ),
+    # FREEIPA settings
+    "FREEIPA_ENABLED": (
+        False,
+        "Enable integration of identity provisioning in configured FreeIPA.",
+    ),
+    "FREEIPA_HOSTNAME": ("ipa.example.com", "Hostname of FreeIPA server."),
+    "FREEIPA_USERNAME": (
+        "admin",
+        "Username of FreeIPA user with administrative privileges.",
+    ),
+    "FREEIPA_PASSWORD": (
+        "secret",
+        "Password of FreeIPA user with administrative privileges",
+        "secret_field",
+    ),
+    "FREEIPA_VERIFY_SSL": (
+        True,
+        "Validate TLS certificate of FreeIPA web interface / REST API",
+    ),
+    "FREEIPA_USERNAME_PREFIX": (
+        "waldur_",
+        "Prefix to be appended to all usernames created in FreeIPA by Waldur",
+    ),
+    "FREEIPA_GROUPNAME_PREFIX": (
+        "waldur_",
+        "Prefix to be appended to all group names created in FreeIPA by Waldur",
+    ),
+    "FREEIPA_BLACKLISTED_USERNAMES": (
+        ["root"],
+        "List of username that users are not allowed to select",
+        "list_field",
+    ),
+    "FREEIPA_GROUP_SYNCHRONIZATION_ENABLED": (
+        True,
+        "Optionally disable creation of user groups in FreeIPA matching Waldur structure",
+    ),
 }
 
 CONSTANCE_CONFIG_FIELDSETS = {
@@ -791,6 +828,17 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "INVITATION_DISABLE_MULTIPLE_ROLES",
         "DEFAULT_IDP",
     ),
+    "FreeIPA settings": (
+        "FREEIPA_ENABLED",
+        "FREEIPA_HOSTNAME",
+        "FREEIPA_USERNAME",
+        "FREEIPA_PASSWORD",
+        "FREEIPA_VERIFY_SSL",
+        "FREEIPA_USERNAME_PREFIX",
+        "FREEIPA_GROUPNAME_PREFIX",
+        "FREEIPA_BLACKLISTED_USERNAMES",
+        "FREEIPA_GROUP_SYNCHRONIZATION_ENABLED",
+    ),
 }
 
 PUBLIC_CONSTANCE_SETTINGS = (
@@ -834,6 +882,9 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "PROPOSAL_REVIEW_DURATION",
     # Tables
     "USER_TABLE_COLUMNS",
+    # FreeIPA
+    "FREEIPA_ENABLED",
+    "FREEIPA_USERNAME_PREFIX",
     "DEFAULT_IDP",
 )
 

@@ -1,6 +1,7 @@
 import logging
 
 import requests
+from constance import config
 from django.conf import settings
 from django.core.signing import BadSignature, TimestampSigner
 from django.db import transaction
@@ -95,7 +96,7 @@ def generate_safe_username(username):
     username = generate_username(username)
     # Maximum length for FreeIPA username is 32 chars
     if len(username) > 32:
-        prefix_length = len(settings.WALDUR_FREEIPA["USERNAME_PREFIX"])
+        prefix_length = len(config.FREEIPA_USERNAME_PREFIX)
         username = generate_username(pwgen(32 - prefix_length))
     return username
 
