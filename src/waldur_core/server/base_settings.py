@@ -80,6 +80,7 @@ INSTALLED_APPS = (
 INSTALLED_APPS += ADMIN_INSTALLED_APPS  # noqa: F405
 
 MIDDLEWARE = (
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "waldur_core.server.middleware.cors_middleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.locale.LocaleMiddleware",
