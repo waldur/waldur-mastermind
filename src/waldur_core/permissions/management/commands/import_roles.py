@@ -36,8 +36,13 @@ class Command(BaseCommand):
                         *TYPE_MAP[row["scope"]]
                     )
                     role = Role.objects.create(
-                        name=row["role"], content_type=content_type
+                        name=row["role"], content_type=content_type, is_system_role=True
                     )
+
+                if not role.is_system_role:
+                    role.is_system_role = True
+                    role.save(update_fields=["is_system_role"])
+
                 current_permissions = set(
                     RolePermission.objects.filter(role=role).values_list(
                         "permission", flat=True

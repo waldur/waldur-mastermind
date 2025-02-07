@@ -94,6 +94,7 @@
 
 - role: CUSTOMER.MANAGER
   is_active: false
+  scope: service_provider
   description: Service provider manager
   permissions:
     - RESOURCE.SET_END_DATE
