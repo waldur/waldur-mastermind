@@ -391,9 +391,7 @@ class Template(core_models.UuidMixin, core_models.NameMixin, TimeStampedModel):
             (INCIDENT, "Incident"),
         )
 
-    native_name = models.CharField(max_length=150, blank=True)
     description = models.TextField()
-    native_description = models.TextField(blank=True)
     issue_type = models.CharField(
         max_length=30, choices=IssueTypes.CHOICES, default=IssueTypes.INFORMATIONAL
     )

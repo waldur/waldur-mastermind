@@ -1,11 +1,9 @@
 from django import forms
-from django.conf import settings
 from django.contrib import admin
 from django.contrib.auth import get_user_model
 from django.http import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
-from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy as _
 
 from waldur_core.core import admin as core_admin
@@ -112,24 +110,16 @@ class TemplateAttachmentInline(admin.TabularInline):
 
 class TemplateAdmin(core_admin.ExcludedFieldsAdminMixin, admin.ModelAdmin):
     list_display = ("name", "issue_type", "created")
-    search_fields = ("name", "native_name")
+    search_fields = ("name",)
     fields = (
         "name",
-        "native_name",
         "description",
-        "native_description",
         "issue_type",
         "created",
         "modified",
     )
     readonly_fields = ("created", "modified")
     inlines = [TemplateAttachmentInline]
-
-    @cached_property
-    def excluded_fields(self):
-        if not settings.WALDUR_CORE["NATIVE_NAME_ENABLED"]:
-            return ["native_name", "native_description"]
-        return []
 
 
 class RequestTypeAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
