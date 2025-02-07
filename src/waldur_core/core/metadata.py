@@ -374,41 +374,6 @@ class WaldurHPC(BaseModel):
     )
 
 
-class WaldurFreeipa(BaseModel):
-    ENABLED = Field(
-        False,
-        description="Enable integration of identity provisioning in configured FreeIPA",
-    )
-    HOSTNAME = Field("ipa.example.com", description="Hostname of FreeIPA server")
-    USERNAME = Field(
-        "admin", description="Username of FreeIPA user with administrative privileges"
-    )
-    PASSWORD = Field(
-        "secret", description="Password of FreeIPA user with administrative privileges"
-    )
-    VERIFY_SSL = Field(
-        True, description="Validate TLS certificate of FreeIPA web interface / REST API"
-    )
-    USERNAME_PREFIX = Field(
-        "waldur_",
-        description="Prefix to be appended to all usernames created in FreeIPA by Waldur",
-    )
-    GROUPNAME_PREFIX = Field(
-        "waldur_",
-        description="Prefix to be appended to all group names created in FreeIPA by Waldur",
-    )
-    BLACKLISTED_USERNAMES = Field(
-        ["root"], description="List of username that users are not allowed to select"
-    )
-    GROUP_SYNCHRONIZATION_ENABLED = Field(
-        True,
-        description="Optionally disable creation of user groups in FreeIPA matching Waldur structure",
-    )
-
-    class Meta:
-        public_settings = ["USERNAME_PREFIX", "ENABLED"]
-
-
 class WaldurSlurm(BaseModel):
     ENABLED = Field(
         False,
@@ -666,7 +631,6 @@ class WaldurOpenstack(BaseModel):
 class WaldurConfiguration(BaseModel):
     WALDUR_CORE = WaldurCore()
     WALDUR_AUTH_SOCIAL = WaldurAuthSocial()
-    WALDUR_FREEIPA = WaldurFreeipa()
     WALDUR_HPC = WaldurHPC()
     WALDUR_SLURM = WaldurSlurm()
     WALDUR_PID = WaldurPID()

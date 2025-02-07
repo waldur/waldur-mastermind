@@ -4,7 +4,7 @@ from io import StringIO
 
 import python_freeipa
 import python_freeipa.exceptions
-from django.conf import settings
+from constance import config
 from django.contrib.contenttypes.models import ContentType
 
 from waldur_core.permissions.models import UserRole
@@ -38,8 +38,8 @@ class GroupSynchronizer:
 
     def __init__(self, client: python_freeipa.Client):
         self.client = client
-        self.group_prefix = settings.WALDUR_FREEIPA["GROUPNAME_PREFIX"]
-        self.user_prefix = settings.WALDUR_FREEIPA["USERNAME_PREFIX"]
+        self.group_prefix = config.FREEIPA_GROUPNAME_PREFIX
+        self.user_prefix = config.FREEIPA_USERNAME_PREFIX
 
         self.profiles = {
             profile.user_id: profile.username
@@ -255,11 +255,10 @@ class GroupSynchronizer:
 
 class FreeIPABackend:
     def __init__(self):
-        options = settings.WALDUR_FREEIPA
         self._client = python_freeipa.Client(
-            host=options["HOSTNAME"], verify_ssl=options["VERIFY_SSL"]
+            host=config.FREEIPA_HOSTNAME, verify_ssl=config.FREEIPA_VERIFY_SSL
         )
-        self._client.login(options["USERNAME"], options["PASSWORD"])
+        self._client.login(config.FREEIPA_USERNAME, config.FREEIPA_PASSWORD)
 
     def _format_ssh_keys(self, user):
         return list(user.sshpublickey_set.values_list("public_key", flat=True))

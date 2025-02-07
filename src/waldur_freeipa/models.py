@@ -1,5 +1,6 @@
 import re
 
+from constance import config
 from django.conf import settings
 from django.core import exceptions, validators
 from django.db import models
@@ -11,7 +12,7 @@ from waldur_core.core import models as core_models
 
 
 def validate_username(value):
-    if value in settings.WALDUR_FREEIPA["BLACKLISTED_USERNAMES"]:
+    if value in config.FREEIPA_BLACKLISTED_USERNAMES:
         raise exceptions.ValidationError(
             _("%(value)s is not valid FreeIPA username."),
             params={"value": value},

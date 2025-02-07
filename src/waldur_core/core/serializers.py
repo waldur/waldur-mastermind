@@ -54,6 +54,44 @@ class DictField(forms.CharField):
         return value
 
 
+class ListField(forms.CharField):
+    def __init__(self, *args, **kwargs):
+        kwargs["widget"] = forms.TextInput
+        super().__init__(*args, **kwargs)
+
+    def to_python(self, value):
+        if not value:
+            return []
+        try:
+            return [item.strip() for item in value.split(",")]
+        except ValueError as e:
+            raise forms.ValidationError(f"Invalid string format: {str(e)}")
+
+    def prepare_value(self, value):
+        if value is None:
+            return ""
+        if isinstance(value, list):
+            return ", ".join(value)
+        return str(value)
+
+
+class ListSerializerField(serializers.CharField):
+    def to_internal_value(self, data):
+        """Convert JSON string to Python list."""
+        if not data:
+            return []
+        try:
+            return [item.strip() for item in data.split(",")]
+        except ValueError as e:
+            raise serializers.ValidationError(f"Invalid string format: {str(e)}")
+
+    def to_representation(self, value):
+        """Convert Python list to JSON string for representation."""
+        if isinstance(value, list):
+            return ", ".join(value)
+        return str(value)
+
+
 class DictSerializerField(serializers.CharField):
     def to_internal_value(self, data):
         """Convert JSON string to Python dictionary."""
@@ -504,6 +542,8 @@ class ConstanceSettingsSerializer(serializers.Serializer):
                 field_class = serializers.BooleanField
             if config_type == "dict_field":
                 field_class = DictSerializerField
+            if config_type == "list_field":
+                field_class = ListSerializerField
             if config_type in (
                 "color_field",
                 "html_field",

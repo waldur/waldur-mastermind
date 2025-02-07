@@ -1,7 +1,7 @@
 import logging
 
 from celery import shared_task
-from django.conf import settings
+from constance import config
 from django.core.exceptions import ObjectDoesNotExist
 from python_freeipa import exceptions as freeipa_exceptions
 
@@ -24,11 +24,11 @@ def schedule_sync():
         )
         return
 
-    if not settings.WALDUR_FREEIPA["ENABLED"]:
+    if not config.FREEIPA_ENABLED:
         logger.debug("Skipping FreeIPA synchronization because plugin is disabled.")
         return
 
-    if not settings.WALDUR_FREEIPA["GROUP_SYNCHRONIZATION_ENABLED"]:
+    if not config.FREEIPA_GROUP_SYNCHRONIZATION_ENABLED:
         logger.debug(
             "Skipping FreeIPA group synchronization because this feature is disabled."
         )
@@ -44,7 +44,7 @@ def sync_groups():
     This task is used by Celery beat in order to periodically
     schedule FreeIPA group synchronization.
     """
-    if not settings.WALDUR_FREEIPA["ENABLED"]:
+    if not config.FREEIPA_ENABLED:
         return
 
     schedule_sync()
@@ -65,7 +65,7 @@ def schedule_sync_names():
 
 @shared_task(name="waldur_freeipa.sync_names")
 def sync_names():
-    if not settings.WALDUR_FREEIPA["ENABLED"]:
+    if not config.FREEIPA_ENABLED:
         return
 
     FreeIPABackend().synchronize_names()
