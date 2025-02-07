@@ -6,6 +6,7 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
+from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.permissions import _get_customer
 from waldur_mastermind.invoices.models import CustomerCredit, ProjectCredit
@@ -150,9 +151,7 @@ class ProjectEstimatedCostPolicySerializer(
         user = self.context["request"].user
         customer = _get_customer(scope)
 
-        if user.is_staff or customer.has_user(
-            user, structure_models.CustomerRole.OWNER
-        ):
+        if user.is_staff or customer.has_user(user, CustomerRole.OWNER):
             return scope
 
         raise serializers.ValidationError(
@@ -214,9 +213,7 @@ class OfferingPolicySerializerMixin(core_serializers.AugmentedSerializerMixin):
 
         customer = _get_customer(scope)
 
-        if user.is_staff or customer.has_user(
-            user, structure_models.CustomerRole.OWNER
-        ):
+        if user.is_staff or customer.has_user(user, CustomerRole.OWNER):
             return scope
 
         raise serializers.ValidationError(

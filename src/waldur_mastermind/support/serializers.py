@@ -16,6 +16,7 @@ from rest_framework import exceptions, serializers
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core.clean_html import clean_html
 from waldur_core.core.utils import is_uuid_like, text2html
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.registry import get_resource_type
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -294,7 +295,7 @@ class IssueSerializer(
 
         return summary
 
-    def validate_customer(self, customer):
+    def validate_customer(self, customer: structure_models.Customer):
         """User has to be customer owner, staff or global support"""
         if not customer:
             return customer
@@ -303,14 +304,14 @@ class IssueSerializer(
             not customer
             or user.is_staff
             or user.is_support
-            or customer.has_user(user, structure_models.CustomerRole.OWNER)
+            or customer.has_user(user, CustomerRole.OWNER)
         ):
             return customer
         raise serializers.ValidationError(
             _("Only customer owner, staff or support can report customer issues.")
         )
 
-    def validate_project(self, project):
+    def validate_project(self, project: structure_models.Project):
         if not project:
             return project
         user = self.context["request"].user
@@ -318,10 +319,10 @@ class IssueSerializer(
             not project
             or user.is_staff
             or user.is_support
-            or project.customer.has_user(user, structure_models.CustomerRole.OWNER)
-            or project.has_user(user, structure_models.ProjectRole.MANAGER)
-            or project.has_user(user, structure_models.ProjectRole.ADMINISTRATOR)
-            or project.has_user(user, structure_models.ProjectRole.MEMBER)
+            or project.customer.has_user(user, CustomerRole.OWNER)
+            or project.has_user(user, ProjectRole.MANAGER)
+            or project.has_user(user, ProjectRole.ADMIN)
+            or project.has_user(user, ProjectRole.MEMBER)
         ):
             return project
         raise serializers.ValidationError(
@@ -717,10 +718,7 @@ class AttachmentSerializer(
 
         if (
             user.is_staff
-            or (
-                issue.customer
-                and issue.customer.has_user(user, structure_models.CustomerRole.OWNER)
-            )
+            or (issue.customer and issue.customer.has_user(user, CustomerRole.OWNER))
             or issue.caller == user
         ):
             return attrs

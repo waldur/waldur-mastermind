@@ -19,6 +19,7 @@ from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.logging import models as logging_models
 from waldur_core.permissions.enums import RoleEnum
+from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.log import event_logger
 from waldur_mastermind import __version__ as mastermind_version
@@ -335,12 +336,8 @@ def terminate_expired_resources():
 def notify_about_resource_termination(resource_uuid, user_uuid, is_staff_action=None):
     resource = models.Resource.objects.get(uuid=resource_uuid)
     user = User.objects.get(uuid=user_uuid)
-    admin_emails = set(
-        resource.project.get_user_mails(structure_models.ProjectRole.ADMINISTRATOR)
-    )
-    manager_emails = set(
-        resource.project.get_user_mails(structure_models.ProjectRole.MANAGER)
-    )
+    admin_emails = set(resource.project.get_user_mails(ProjectRole.ADMIN))
+    manager_emails = set(resource.project.get_user_mails(ProjectRole.MANAGER))
     emails = admin_emails | manager_emails
     bcc = []
     if user.email and user.notifications_enabled:
@@ -380,7 +377,7 @@ def notification_about_project_ending():
 
     for project in expired_projects:
         managers = (
-            project.get_users(structure_models.ProjectRole.MANAGER)
+            project.get_users(ProjectRole.MANAGER)
             .exclude(email="")
             .exclude(notifications_enabled=False)
         )

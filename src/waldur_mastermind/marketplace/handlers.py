@@ -7,14 +7,9 @@ from django.db.models import signals
 from django.utils.timezone import now
 
 from waldur_core.core import utils as core_utils
-from waldur_core.permissions.enums import RoleEnum
-from waldur_core.permissions.models import UserRole
-from waldur_core.permissions.utils import get_permissions
 from waldur_core.structure import models as structure_models
-from waldur_core.structure.models import Customer
 from waldur_core.users import models as users_models
 from waldur_core.users.tasks import process_invitation
-from waldur_mastermind.marketplace.managers import get_connected_offerings
 from waldur_mastermind.marketplace.permissions import (
     order_should_not_be_reviewed_by_consumer,
 )
@@ -502,38 +497,6 @@ def limit_update_failed(sender, order, error_message, **kwargs):
         error_message,
     )
     log.log_resource_limit_update_failed(resource)
-
-
-def add_service_manager_role_to_customer(
-    sender, instance: UserRole, current_user=None, **kwargs
-):
-    if instance.role.name == RoleEnum.OFFERING_MANAGER:
-        customer: Customer = instance.scope.customer
-        if not customer.has_user(instance.user, RoleEnum.CUSTOMER_MANAGER):
-            customer.add_user(
-                instance.user,
-                RoleEnum.CUSTOMER_MANAGER,
-                current_user,
-                instance.expiration_time,
-            )
-
-
-def drop_service_manager_role_from_customer(
-    sender, instance: UserRole, current_user=None, **kwargs
-):
-    if instance.role.name == RoleEnum.OFFERING_MANAGER:
-        customer: Customer = instance.scope.customer
-        offerings = models.Offering.objects.filter(customer=customer).values_list(
-            "id", flat=True
-        )
-        connected_offerings = get_connected_offerings(instance.user)
-        if not connected_offerings.intersection(offerings).exists():
-            customer.remove_user(instance.user, RoleEnum.CUSTOMER_MANAGER, current_user)
-    elif instance.role.name == RoleEnum.CUSTOMER_MANAGER:
-        offerings = models.Offering.objects.filter(customer=instance.scope)
-        for offering in offerings:
-            for permission in get_permissions(offering, instance.user):
-                permission.revoke(current_user)
 
 
 def update_customer_of_offering_if_project_has_been_moved(

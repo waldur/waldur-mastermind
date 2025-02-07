@@ -14,6 +14,7 @@ import waldur_core.core.models
 import waldur_core.core.validators
 import waldur_core.logging.loggers
 import waldur_core.media.models
+import waldur_core.permissions.mixins
 import waldur_core.structure.models
 
 
@@ -192,7 +193,7 @@ class Migration(migrations.Migration):
             },
             bases=(
                 waldur_core.core.models.DescendantMixin,
-                waldur_core.structure.models.PermissionMixin,
+                waldur_core.permissions.mixins.PermissionMixin,
                 waldur_core.logging.loggers.LoggableMixin,
                 models.Model,
             ),
@@ -498,7 +499,7 @@ class Migration(migrations.Migration):
             },
             bases=(
                 waldur_core.core.models.DescendantMixin,
-                waldur_core.structure.models.PermissionMixin,
+                waldur_core.permissions.mixins.PermissionMixin,
                 waldur_core.structure.models.StructureLoggableMixin,
                 models.Model,
             ),
@@ -676,15 +677,7 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "role",
-                    waldur_core.structure.models.CustomerRole(
-                        choices=[
-                            ("owner", "Owner"),
-                            ("support", "Support"),
-                            ("service_manager", "Service manager"),
-                        ],
-                        db_index=True,
-                        max_length=30,
-                    ),
+                    models.CharField(db_index=True, max_length=30),
                 ),
                 (
                     "created_by",
@@ -743,15 +736,7 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "role",
-                    waldur_core.structure.models.ProjectRole(
-                        choices=[
-                            ("admin", "Administrator"),
-                            ("manager", "Manager"),
-                            ("member", "Member"),
-                        ],
-                        db_index=True,
-                        max_length=30,
-                    ),
+                    models.CharField(db_index=True, max_length=30),
                 ),
                 (
                     "created_by",

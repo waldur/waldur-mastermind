@@ -9,8 +9,9 @@ from rest_framework import serializers
 
 from waldur_core.core.models import User
 from waldur_core.permissions.enums import RoleEnum
+from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.quotas import exceptions as quotas_exceptions
-from waldur_core.structure.models import ProjectRole, ServiceSettings
+from waldur_core.structure.models import ServiceSettings
 from waldur_openstack import models as openstack_models
 from waldur_openstack.models import Flavor, Image, SecurityGroup, Tenant
 from waldur_openstack.utils import (
@@ -313,7 +314,7 @@ class SyncUser:
                     "manager"
                     if project.has_user(user, ProjectRole.MANAGER)
                     else "admin"
-                    if project.has_user(user, ProjectRole.ADMINISTRATOR)
+                    if project.has_user(user, ProjectRole.ADMIN)
                     else None
                 )
                 add_to_result()

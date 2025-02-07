@@ -4,6 +4,11 @@ from functools import reduce
 from rest_framework import exceptions, permissions
 
 from waldur_core.core.permissions import SAFE_METHODS, IsAdminOrReadOnly
+from waldur_core.permissions.fixtures import (
+    CustomerRole,
+    ProjectRole,
+    ServiceProviderRole,
+)
 from waldur_core.structure import models
 
 logger = logging.getLogger(__name__)
@@ -75,25 +80,25 @@ def is_administrator(request, view, obj=None, **kwargs):
         raise exceptions.PermissionDenied()
 
 
-def _has_owner_access(user, customer):
-    return user.is_staff or customer.has_user(user, models.CustomerRole.OWNER)
+def _has_owner_access(user, customer: models.Customer):
+    return user.is_staff or customer.has_user(user, CustomerRole.OWNER)
 
 
-def _has_manager_access(user, project):
+def _has_manager_access(user, project: models.Project):
     return _has_owner_access(user, project.customer) or project.has_user(
-        user, models.ProjectRole.MANAGER
+        user, ProjectRole.MANAGER
     )
 
 
-def _has_service_manager_access(user, customer):
+def _has_service_manager_access(user, customer: models.Customer):
     return _has_owner_access(user, customer) or customer.has_user(
-        user, models.CustomerRole.SERVICE_MANAGER
+        user, ServiceProviderRole.MANAGER
     )
 
 
-def _has_admin_access(user, project):
+def _has_admin_access(user, project: models.Project):
     return _has_manager_access(user, project) or project.has_user(
-        user, models.ProjectRole.ADMINISTRATOR
+        user, ProjectRole.ADMIN
     )
 
 
@@ -107,9 +112,9 @@ def _get_parent_by_permission_path(obj, permission_path):
     return reduce(getattr, path.split("__"), obj)
 
 
-def _get_project(obj, **kwargs):
+def _get_project(obj, **kwargs) -> models.Project:
     return _get_parent_by_permission_path(obj, "project_path", **kwargs)
 
 
-def _get_customer(obj, **kwargs):
+def _get_customer(obj, **kwargs) -> models.Customer:
     return _get_parent_by_permission_path(obj, "customer_path", **kwargs)

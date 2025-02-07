@@ -24,6 +24,7 @@ from waldur_core.logging.mixins import LoggableMixin
 from waldur_core.media.mixins import get_upload_path
 from waldur_core.media.validators import ImageValidator
 from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.mixins import PermissionMixin
 from waldur_core.permissions.utils import get_users
 from waldur_core.quotas import fields as quotas_fields
 from waldur_core.quotas import models as quotas_models
@@ -40,6 +41,7 @@ User = get_user_model()
 
 
 class ServiceProvider(
+    PermissionMixin,
     core_models.UuidMixin,
     core_models.DescribableMixin,
     waldur_core.media.mixins.ImageModelMixin,
@@ -363,7 +365,7 @@ class Offering(
     core_models.SlugMixin,
     core_models.DescribableMixin,
     quotas_models.QuotaModelMixin,
-    structure_models.PermissionMixin,
+    PermissionMixin,
     TimeStampedModel,
     core_mixins.ScopeMixin,
     LoggableMixin,

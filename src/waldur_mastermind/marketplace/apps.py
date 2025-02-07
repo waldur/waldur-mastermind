@@ -197,16 +197,6 @@ class MarketplaceConfig(AppConfig):
 
         marketplace_registrators.MarketplaceRegistrator.connect()
 
-        permission_signals.role_granted.connect(
-            handlers.add_service_manager_role_to_customer,
-            dispatch_uid="waldur_mastermind.marketplace.add_service_manager_role_to_customer",
-        )
-
-        permission_signals.role_revoked.connect(
-            handlers.drop_service_manager_role_from_customer,
-            dispatch_uid="waldur_mastermind.marketplace.drop_service_manager_role_from_customer",
-        )
-
         structure_signals.project_moved.connect(
             handlers.update_customer_of_offering_if_project_has_been_moved,
             sender=structure_models.Project,

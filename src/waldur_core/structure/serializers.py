@@ -21,6 +21,7 @@ from waldur_core.core import serializers as core_serializers
 from waldur_core.core.clean_html import clean_html
 from waldur_core.core.fields import MappedChoiceField
 from waldur_core.permissions.enums import SYSTEM_CUSTOMER_ROLES, PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.serializers import PermissionSerializer
 from waldur_core.permissions.utils import has_permission
@@ -30,7 +31,7 @@ from waldur_core.structure.managers import (
     count_customer_users,
     filter_queryset_for_user,
 )
-from waldur_core.structure.models import CUSTOMER_DETAILS_FIELDS, get_old_role_name
+from waldur_core.structure.models import CUSTOMER_DETAILS_FIELDS
 from waldur_core.structure.registry import get_resource_type, get_service_type
 
 User = auth.get_user_model()
@@ -597,7 +598,6 @@ class NestedProjectPermissionSerializer(serializers.ModelSerializer):
     )
     uuid = serializers.ReadOnlyField(source="scope.uuid")
     name = serializers.ReadOnlyField(source="scope.name")
-    role = serializers.SerializerMethodField()
     role_name = serializers.SerializerMethodField()
 
     class Meta:
@@ -606,13 +606,9 @@ class NestedProjectPermissionSerializer(serializers.ModelSerializer):
             "url",
             "uuid",
             "name",
-            "role",
             "role_name",
             "expiration_time",
         ]
-
-    def get_role(self, instance):
-        return get_old_role_name(instance.role.name)
 
     def get_role_name(self, instance):
         return instance.role.name
@@ -670,7 +666,7 @@ class CustomerUserSerializer(
             is_active=True,
         )
         setattr(user, "perm", permission)
-        setattr(user, "role", permission and get_old_role_name(permission.role.name))
+        setattr(user, "role", permission and permission.role.name)
         setattr(user, "projects", projects)
         return super().to_representation(user)
 
@@ -678,7 +674,7 @@ class CustomerUserSerializer(
 class BasePermissionSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
-    role = serializers.SerializerMethodField()
+    role = serializers.ReadOnlyField(source="role.name")
 
     class Meta:
         fields = (
@@ -693,9 +689,6 @@ class BasePermissionSerializer(
         related_paths = {
             "user": ("username", "full_name", "native_name", "uuid", "email"),
         }
-
-    def get_role(self, instance):
-        return get_old_role_name(instance.role.name)
 
 
 class CustomerPermissionReviewSerializer(
@@ -737,7 +730,6 @@ class ProjectPermissionLogSerializer(
     project_name = serializers.ReadOnlyField(source="scope.name")
     project_created = serializers.ReadOnlyField(source="scope.created")
     project_end_date = serializers.ReadOnlyField(source="scope.end_date")
-    role = serializers.SerializerMethodField()
     project = serializers.HyperlinkedRelatedField(
         source="scope",
         view_name="project-detail",
@@ -748,7 +740,6 @@ class ProjectPermissionLogSerializer(
     class Meta(BasePermissionSerializer.Meta):
         model = UserRole
         fields = (
-            "role",
             "created",
             "expiration_time",
             "created_by",
@@ -1110,7 +1101,7 @@ class ServiceSettingsSerializer(
             fields["options"] = serializers.SerializerMethodField("get_options")
         return fields
 
-    def get_options(self, service):
+    def get_options(self, service: models.ServiceSettings):
         options = {
             "backend_url": service.backend_url,
             "username": service.username,
@@ -1125,7 +1116,7 @@ class ServiceSettingsSerializer(
             return options
 
         if service.customer and service.customer.has_user(
-            request.user, models.CustomerRole.OWNER
+            request.user, CustomerRole.OWNER
         ):
             return options
 

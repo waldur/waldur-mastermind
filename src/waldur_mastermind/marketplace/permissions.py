@@ -3,7 +3,6 @@ from rest_framework import exceptions
 
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import has_permission, permission_factory
-from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 
 from . import models
@@ -110,22 +109,7 @@ user_can_manage_offering_user_group = permission_factory(
 )
 
 
-def user_is_service_provider_owner_or_service_provider_manager(request, view, obj=None):
-    if not obj:
-        return
-
-    if structure_permissions._has_owner_access(request.user, obj.offering.customer):
-        return
-
-    if obj.offering.customer.has_user(
-        request.user, role=structure_models.CustomerRole.SERVICE_MANAGER
-    ):
-        return
-
-    raise exceptions.PermissionDenied()
-
-
-def user_can_set_end_date_by_provider(request, view, obj=None):
+def user_can_set_end_date_by_provider(request, view, obj: models.Resource = None):
     if not obj:
         return
     if request.user.is_support:
@@ -137,7 +121,7 @@ def user_can_set_end_date_by_provider(request, view, obj=None):
     raise exceptions.PermissionDenied()
 
 
-def user_can_update_thumbnail(request, view, obj=None):
+def user_can_update_thumbnail(request, view, obj: models.Offering = None):
     if not obj:
         return
 

@@ -1598,7 +1598,7 @@ class OfferingStateTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
-        factories.ServiceProviderFactory(customer=self.customer)
+        service_provider = factories.ServiceProviderFactory(customer=self.customer)
         self.offering = factories.OfferingFactory(
             customer=self.customer,
             project=self.fixture.project,
@@ -1606,8 +1606,11 @@ class OfferingStateTest(test.APITransactionTestCase):
             state=models.Offering.States.DRAFT,
         )
         self.plan = factories.PlanFactory(offering=self.offering)
-        self.fixture.service_manager = UserFactory()
-        self.offering.add_user(self.fixture.service_manager, OfferingRole.MANAGER)
+
+        user = UserFactory()
+        self.offering.add_user(user, OfferingRole.MANAGER)
+        service_provider.add_user(user, ServiceProviderRole.MANAGER)
+        self.fixture.service_manager = user
 
         CustomerRole.OWNER.add_permission(PermissionEnum.PAUSE_OFFERING)
         ServiceProviderRole.MANAGER.add_permission(PermissionEnum.PAUSE_OFFERING)

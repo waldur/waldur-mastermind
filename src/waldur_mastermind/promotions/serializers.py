@@ -5,7 +5,7 @@ from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
-from waldur_core.structure.models import CustomerRole
+from waldur_core.permissions.fixtures import CustomerRole, ServiceProviderRole
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
 from waldur_mastermind.promotions import models
@@ -83,7 +83,7 @@ class CampaignSerializer(
             and not user.is_support
             and not service_provider.customer.has_user(user, CustomerRole.OWNER)
             and not service_provider.customer.has_user(
-                user, CustomerRole.SERVICE_MANAGER
+                user, ServiceProviderRole.MANAGER
             )
         ):
             raise serializers.ValidationError(

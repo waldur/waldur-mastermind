@@ -280,14 +280,7 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "role",
-                    waldur_core.structure.models.ProjectRole(
-                        choices=[
-                            ("admin", "Administrator"),
-                            ("manager", "Manager"),
-                            ("member", "Member"),
-                        ],
-                        max_length=30,
-                    ),
+                    models.CharField(db_index=True, max_length=30),
                 ),
                 (
                     "checklist",
@@ -313,14 +306,7 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "role",
-                    waldur_core.structure.models.CustomerRole(
-                        choices=[
-                            ("owner", "Owner"),
-                            ("support", "Support"),
-                            ("service_manager", "Service manager"),
-                        ],
-                        max_length=30,
-                    ),
+                    models.CharField(db_index=True, max_length=30),
                 ),
                 (
                     "checklist",
