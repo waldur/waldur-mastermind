@@ -3249,6 +3249,7 @@ class OpenStackBackend(ServiceBackend):
         session = get_tenant_session(volume.tenant)
         cinder = get_cinder_client(session)
         try:
+            logger.info("Creating volume with parameters: %s", kwargs)
             backend_volume = cinder.volumes.create(**kwargs)
         except cinder_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
@@ -3761,6 +3762,9 @@ class OpenStackBackend(ServiceBackend):
             if server_group is not None:
                 server_create_parameters["scheduler_hints"] = {"group": server_group}
 
+            logger.info(
+                "Creating instance with parameters: %s", server_create_parameters
+            )
             server = nova.servers.create(**server_create_parameters)
             instance.backend_id = server.id
             instance.save()
