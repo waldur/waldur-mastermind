@@ -93,7 +93,7 @@
     - SERVICE_PROVIDER.GET_ROBOT_ACCOUNT_PROJECTS
 
 - role: CUSTOMER.MANAGER
-  is_active: false
+  is_active: true
   scope: service_provider
   description: Service provider manager
   permissions:
