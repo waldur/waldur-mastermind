@@ -412,6 +412,26 @@ class TemplateAttachment(
     )
     file = models.FileField(upload_to="support_template_attachments")
 
+    @property
+    def file_size(self):
+        if self.file:
+            return (
+                media_models.File.objects.filter(name=self.file.name)
+                .only("size")
+                .get()
+                .size
+            )
+
+    @property
+    def mime_type(self):
+        if self.file:
+            return (
+                media_models.File.objects.filter(name=self.file.name)
+                .only("mime_type")
+                .get()
+                .mime_type
+            )
+
 
 class IgnoredIssueStatus(models.Model):
     name = models.CharField(
