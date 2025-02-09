@@ -559,6 +559,8 @@ class ConstanceSettingsSerializer(serializers.Serializer):
                 kwargs["allow_blank"] = True
             if config_type == "image_field":
                 kwargs["allow_null"] = True
+            if config_type == "secret_field":
+                kwargs["allow_blank"] = True
             if config_type == "color_field":
                 kwargs["validators"] = [color_hex_validator]
                 kwargs["allow_blank"] = True
