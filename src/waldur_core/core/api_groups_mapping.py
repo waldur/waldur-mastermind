@@ -41,5 +41,3 @@ API_GROUPS = {
         "/api/invoice-items/",
     ],
 }
-
-VALID_ENDPOINTS = [endpoint for group in API_GROUPS.values() for endpoint in group]

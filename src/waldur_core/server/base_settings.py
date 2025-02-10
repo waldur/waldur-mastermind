@@ -947,12 +947,10 @@ SPECTACULAR_SETTINGS = {
     "TITLE": "Waldur API",
     "SWAGGER_UI_DIST": "SIDECAR",
     "SWAGGER_UI_FAVICON_HREF": "SIDECAR",
-    "PREPROCESSING_HOOKS": [
-        "waldur_core.core.schema_hooks.preprocess_filter_api_groups",
-    ],
     "POSTPROCESSING_HOOKS": [
         "drf_spectacular.hooks.postprocess_schema_enums",
-        "waldur_core.core.schema_hooks.postprocess_drop_path_description",
+        "waldur_core.core.schema_hooks.postprocess_drop_description",
         "waldur_core.core.schema_hooks.postprocess_add_tag",
     ],
+    "COMPONENT_SPLIT_REQUEST": True,
 }
