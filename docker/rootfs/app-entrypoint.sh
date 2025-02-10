@@ -10,11 +10,18 @@ echo "INFO: Welcome to Waldur Mastermind!"
 if [ -z "$KUBERNETES_SERVICE_HOST" ] && [ -e /var/run/docker.sock ]; then
     echo "INFO: Docker socket found."
     SOCKET_PERMS=$(stat -c '%a:%u:%g' /var/run/docker.sock)
+    USER_UID=$(id -u)
+    USER_GID=$(id -g)
+    USER_GROUPS=$(id -G | tr ' ' ',')
+
     if ! [ -r /var/run/docker.sock ] || ! [ -w /var/run/docker.sock ]; then
-        echo "Error: Container user $(id -u) must have read/write access to /var/run/docker.sock"
+        echo "Warning: Container user $USER_UID must have read/write access to /var/run/docker.sock"
         echo "Current socket permissions: $SOCKET_PERMS (mode:uid:gid)"
-        echo "Please ensure the container user is part of the docker group on the host system"
-        exit 1
+        echo "Container user details:"
+        echo "  - UID: $USER_UID"
+        echo "  - Primary GID: $USER_GID"
+        echo "  - All group IDs: $USER_GROUPS"
+        echo "Please ensure the container user is part of the docker group on the host system for custom scripts to run"
     fi
 fi
 

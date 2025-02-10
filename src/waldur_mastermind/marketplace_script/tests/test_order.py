@@ -14,7 +14,8 @@ class OrderProcessedTest(test.APITransactionTestCase):
         self.fixture = fixtures.ScriptFixture()
 
     @mock.patch("waldur_mastermind.marketplace_script.utils.docker")
-    def test_process_order(self, mock_docker):
+    @mock.patch("waldur_mastermind.marketplace_script.utils.check_docker_socket_access")
+    def test_process_order(self, mock_check_access, mock_docker):
         mock_docker.DockerClient().containers.run.return_value = b"OK"
         self.fixture.offering.secret_options = {
             "language": "python",
