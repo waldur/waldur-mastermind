@@ -749,15 +749,23 @@ class QueryViewSet(APIView):
 @api_view(["GET"])
 @permission_classes((rf_permissions.AllowAny,))
 def get_whitelabeling_logo(request, logo_type, default_image=None):
-    try:
-        file_name = getattr(config, logo_type)
-        content_type, encoding = mimetypes.guess_type(file_name)
-        return FileResponse(default_storage.open(file_name), content_type=content_type)
-    except NotImplementedError:  # storage cannot handle empty response
-        if default_image:
+    file_name = getattr(config, logo_type)
+    if file_name:
+        try:
+            content_type, encoding = mimetypes.guess_type(file_name)
+            return FileResponse(
+                default_storage.open(file_name), content_type=content_type
+            )
+        except FileNotFoundError:
+            logger.error(f"Custom logo file not found: {file_name}")
+    if default_image:
+        try:
             content_type, encoding = mimetypes.guess_type(default_image)
-            image_data = open(default_image, "rb").read()
-            return HttpResponse(image_data, content_type=content_type)
+            with open(default_image, "rb") as f:
+                return HttpResponse(f.read(), content_type=content_type)
+        except FileNotFoundError:
+            logger.error(f"Default logo file not found: {default_image}")
+    # Return 404 if we couldn't serve either custom or default
     return Response(
         {"error": f"{logo_type} not found"}, status=status.HTTP_404_NOT_FOUND
     )
