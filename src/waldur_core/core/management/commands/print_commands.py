@@ -8,7 +8,6 @@ BLACK_LIST = [
     "print_settings",
     "print_features",
     "print_schema",
-    "export_api_docs",
     "print_events",
     "print_templates",
 ]

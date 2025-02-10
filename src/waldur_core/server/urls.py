@@ -3,13 +3,12 @@ from django.conf import settings
 from django.conf.urls import include
 from django.contrib import admin
 from django.urls import path, re_path
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 from waldur_core.core import WaldurExtension
 from waldur_core.core import views as core_views
-from waldur_core.core.api_groups_mapping import API_GROUPS
 from waldur_core.core.logos import DEFAULT_LOGOS, LOGO_MAP
 from waldur_core.core.routers import SortedDefaultRouter as DefaultRouter
-from waldur_core.core.schemas import WaldurSchemaView
 from waldur_core.logging import urls as logging_urls
 from waldur_core.permissions import urls as permissions_urls
 from waldur_core.structure import urls as structure_urls
@@ -37,7 +36,6 @@ if settings.WALDUR_CORE.get("EXTENSIONS_AUTOREGISTER"):
             ext.rest_urls()(router)
 
 urlpatterns += [
-    re_path(r"^docs/", WaldurSchemaView.as_view()),
     re_path(r"^api/", include(router.urls)),
     re_path(r"^api/", include("waldur_core.logging.urls")),
     re_path(r"^api/", include("waldur_core.media.urls")),
@@ -46,6 +44,12 @@ urlpatterns += [
     re_path(r"^api/override-settings/", core_views.override_db_settings),
     re_path(r"^api/version/", core_views.version_detail),
     re_path(r"^api/feature-values/", core_views.feature_values),
+    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
+    path(
+        "api/schema/swagger-ui/",
+        SpectacularSwaggerView.as_view(url_name="schema"),
+        name="swagger-ui",
+    ),
     re_path(
         r"^api-auth/password/",
         core_views.ObtainAuthToken.as_view(),
@@ -57,16 +61,6 @@ urlpatterns += [
         core_views.ExtraContextTemplateView.as_view(
             template_name="landing/index.html",
             extra_context={"site_name": config.SITE_NAME},
-        ),
-    ),
-    re_path(
-        r"^apidocs$",
-        core_views.ExtraContextTemplateView.as_view(
-            template_name="landing/apidocs.html",
-            extra_context={
-                "api_groups": sorted(API_GROUPS.keys()),
-                "site_name": config.SITE_NAME,
-            },
         ),
     ),
 ]

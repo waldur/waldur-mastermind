@@ -1260,7 +1260,11 @@ class NetworkSerializer(
 
     def get_filtered_field(self):
         return [
-            ("segmentation_id", lambda user: user.is_staff or user.is_support),
+            (
+                "segmentation_id",
+                lambda user: user.is_authenticated
+                and (user.is_staff or user.is_support),
+            ),
         ]
 
 
@@ -2189,7 +2193,7 @@ def _validate_instance_name(data, max_len=255):
         trimmed = data[:-1] if data.endswith(".") else data
         if len(trimmed) > max_len:
             raise TypeError(
-                _("'%(trimmed)s' exceeds the %(maxlen)s character FQDN " "limit")
+                _("'%(trimmed)s' exceeds the %(maxlen)s character FQDN limit")
                 % {"trimmed": trimmed, "maxlen": max_len}
             )
         labels = trimmed.split(".")
@@ -2413,7 +2417,7 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
         fields = super().get_fields()
         user = self.context["request"].user
 
-        if not user.is_staff and not user.is_support:
+        if user.is_authenticated and not user.is_staff and not user.is_support:
             if "hypervisor_hostname" in fields:
                 del fields["hypervisor_hostname"]
 

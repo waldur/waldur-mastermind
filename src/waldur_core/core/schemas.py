@@ -1,21 +1,14 @@
-from urllib.parse import urlparse
-
-from constance import config
-from django.http.response import Http404
 from django.urls import NoReverseMatch
 from django_filters import ChoiceFilter, ModelMultipleChoiceFilter, OrderingFilter
-from rest_framework import exceptions, schemas
+from rest_framework import schemas
 from rest_framework.compat import coreapi
 from rest_framework.fields import ChoiceField, HiddenField, ModelField
-from rest_framework.permissions import SAFE_METHODS, AllowAny
+from rest_framework.permissions import SAFE_METHODS
 from rest_framework.relations import HyperlinkedRelatedField, ManyRelatedField
-from rest_framework.response import Response
 from rest_framework.reverse import reverse
 from rest_framework.schemas.generators import EndpointEnumerator
 from rest_framework.serializers import ListSerializer, Serializer
 from rest_framework.utils import formatting
-from rest_framework.views import APIView
-from rest_framework_swagger import renderers
 
 from waldur_core.core import filters as core_filters
 from waldur_core.core import permissions as core_permissions
@@ -26,7 +19,6 @@ from waldur_core.structure import filters as structure_filters
 from waldur_core.structure.registry import SupportedServices
 
 from ..core.api_groups_mapping import API_GROUPS
-from .models import User
 
 
 # XXX: Drop after removing HEAD requests
@@ -419,31 +411,3 @@ class WaldurSchemaGenerator(schemas.SchemaGenerator):
             fields.append(field)
 
         return fields
-
-
-class WaldurSchemaView(APIView):
-    permission_classes = [AllowAny]
-    renderer_classes = [renderers.OpenAPIRenderer, renderers.SwaggerUIRenderer]
-
-    def get(self, request):
-        if request.user.is_anonymous:
-            request.user = User(
-                id=0,
-                username="API docs user",
-                email="api_docs_user@example.com",
-                is_staff=True,
-            )
-        url = urlparse(request.get_full_path())
-        group = url.path.split("/")[2]
-        if group and group not in API_GROUPS:
-            raise Http404
-
-        generator = WaldurSchemaGenerator(title=config.SITE_NAME, group=group)
-        schema = generator.get_schema(request=request)
-
-        if not schema:
-            raise exceptions.ValidationError(
-                "The schema generator did not return a schema Document"
-            )
-
-        return Response(schema)

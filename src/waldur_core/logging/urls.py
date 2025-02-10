@@ -16,13 +16,7 @@ def register_in(router):
     )
 
 
-events_count_history = views.EventViewSet.as_view({"get": "count_history"})
-
 urlpatterns = [
-    # Separate history URL for consistency with other history endpoints
-    re_path(
-        r"^events/count/history/", events_count_history, name="event-count-history"
-    ),
     re_path(r"^rabbitmq-vhost-stats/", views.RabbitMQVhostStats.as_view()),
     re_path(r"^rabbitmq-user-stats/", views.RabbitMQUserStats.as_view()),
 ]

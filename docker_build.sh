@@ -28,8 +28,9 @@ INSTALLED_APPS = (
     'jsoneditor',
     'waldur_core.landing',
     'rest_framework',
-    'rest_framework_swagger',
     'django_filters',
+    'drf_spectacular',
+    'drf_spectacular_sidecar',
 )
 SECRET_KEY = 'tmp'
 STATIC_ROOT = '/usr/share/waldur/static'

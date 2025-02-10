@@ -211,7 +211,7 @@ class IssueSerializer(
             return fields
 
         user = self.context["view"].request.user
-        if not user.is_staff and not user.is_support:
+        if user.is_authenticated and not user.is_staff and not user.is_support:
             del fields["link"]
 
         return fields
@@ -338,7 +338,7 @@ class IssueSerializer(
 
     def validate_priority(self, priority):
         user = self.context["request"].user
-        if not user.is_staff and not user.is_support:
+        if user.is_authenticated and not user.is_staff and not user.is_support:
             raise serializers.ValidationError(
                 _("Only staff or support can specify issue priority.")
             )
