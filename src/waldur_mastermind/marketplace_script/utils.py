@@ -25,8 +25,32 @@ class DeploymentOptions(Enum):
     KUBERNETES = "k8s"
 
 
+def check_docker_socket_access(docker_config):
+    base_url = docker_config.get("base_url")
+
+    # Check if base_url is using Unix socket
+    if base_url and base_url.startswith("unix://"):
+        # Extract socket path from the URL
+        socket_path = base_url.replace("unix://", "")
+
+        # Check if socket exists
+        if not os.path.exists(socket_path):
+            raise Exception(f"Docker socket {socket_path} does not exist")
+
+        # Check read and write permissions for current user
+        try:
+            if not os.access(socket_path, os.R_OK | os.W_OK):
+                raise PermissionError(
+                    f"Current user doesn't have read/write permissions for Docker socket at {socket_path}"
+                )
+        except Exception as e:
+            raise Exception(f"Error checking socket permissions: {str(e)}")
+
+
 def execute_script_in_docker(image, command, src, **kwargs):
     remove_container = config.DOCKER_REMOVE_CONTAINER
+    check_docker_socket_access(config.DOCKER_CLIENT)
+
     with tempfile.NamedTemporaryFile(
         prefix="docker",
         dir=config.DOCKER_SCRIPT_DIR,
