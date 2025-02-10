@@ -182,6 +182,7 @@ class ReviewSerializer(
     call_uuid = serializers.UUIDField(source="proposal.round.call.uuid", read_only=True)
     call_name = serializers.ReadOnlyField(source="proposal.round.call.name")
     reviewer_full_name = serializers.ReadOnlyField(source="reviewer.full_name")
+    reviewer_uuid = serializers.ReadOnlyField(source="reviewer.uuid")
 
     proposal_name = serializers.ReadOnlyField(source="proposal.name")
 
@@ -193,6 +194,7 @@ class ReviewSerializer(
             "proposal",
             "reviewer",
             "reviewer_full_name",
+            "reviewer_uuid",
             "state",
             "review_end_date",
             "summary_score",
@@ -268,6 +270,7 @@ class ReviewSerializer(
         del fields["summary_private_comment"]
         del fields["reviewer"]
         del fields["reviewer_full_name"]
+        del fields["reviewer_uuid"]
 
         return fields
 
