@@ -953,4 +953,5 @@ SPECTACULAR_SETTINGS = {
         "waldur_core.core.schema_hooks.postprocess_add_tag",
     ],
     "COMPONENT_SPLIT_REQUEST": True,
+    "SCHEMA_PATH_PREFIX": "/api/",
 }
