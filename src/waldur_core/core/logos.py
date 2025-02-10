@@ -2,7 +2,7 @@ import os
 
 from django.conf import settings
 
-static_path = os.path.join(settings.BASE_DIR, "static")
+static_path = os.path.join(settings.BASE_DIR, "waldur_core/core/static")
 
 LOGO_MAP = {
     "LOGIN_LOGO": "api/icons/login_logo/",
