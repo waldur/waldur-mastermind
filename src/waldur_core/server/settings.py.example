@@ -143,11 +143,6 @@ LOGGING = {
     },
 }
 
-# Display a login/logout button on the Swagger UI
-SWAGGER_SETTINGS['USE_SESSION_AUTH'] = True
-SWAGGER_SETTINGS['LOGIN_URL'] = 'rest_framework:login'
-SWAGGER_SETTINGS['LOGOUT_URL'] = 'rest_framework:logout'
-
 # Settings, that are related to Waldur Core
 WALDUR_CORE.update({
     'EXTENSIONS_AUTOREGISTER': True,

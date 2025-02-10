@@ -59,7 +59,6 @@ INSTALLED_APPS = (
     "waldur_core.media",
     "rest_framework",
     "rest_framework.authtoken",
-    "rest_framework_swagger",
     "django_filters",
     "axes",
     "django_fsm",
@@ -76,6 +75,8 @@ INSTALLED_APPS = (
     "netfields",
     "constance",
     "constance.backends.database",
+    "drf_spectacular",
+    "drf_spectacular_sidecar",
 )
 INSTALLED_APPS += ADMIN_INSTALLED_APPS  # noqa: F405
 
@@ -113,7 +114,7 @@ REST_FRAMEWORK = {
         "oauth": "10/s",
     },
     "DEFAULT_PAGINATION_CLASS": "waldur_core.core.pagination.LinkHeaderPagination",
-    "DEFAULT_SCHEMA_CLASS": "rest_framework.schemas.coreapi.AutoSchema",
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "PAGE_SIZE": 10,
     "EXCEPTION_HANDLER": "waldur_core.core.views.exception_handler",
     # Return native `Date` and `Time` objects in `serializer.data`
@@ -908,22 +909,6 @@ for ext in WaldurExtension.get_extensions():
 
     ext.update_settings(globals())
 
-# Swagger
-SWAGGER_SETTINGS = {
-    # USE_SESSION_AUTH parameter should be equal to DEBUG parameter.
-    # If it is True, LOGIN_URL and LOGOUT_URL must be specified.
-    "USE_SESSION_AUTH": False,
-    "APIS_SORTER": "alpha",
-    "JSON_EDITOR": True,
-    "SECURITY_DEFINITIONS": {
-        "api_key": {
-            "type": "apiKey",
-            "name": "Authorization",
-            "in": "header",
-        },
-    },
-}
-
 AXES_LOCKOUT_PARAMETERS = ["username"]
 AXES_COOLOFF_TIME = timedelta(minutes=10)
 AXES_FAILURE_LIMIT = 5
@@ -957,3 +942,17 @@ LANGUAGES = (
 
 # Disable SAML2 CSP warnings
 SAML_CSP_HANDLER = ""
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Waldur API",
+    "SWAGGER_UI_DIST": "SIDECAR",
+    "SWAGGER_UI_FAVICON_HREF": "SIDECAR",
+    "PREPROCESSING_HOOKS": [
+        "waldur_core.core.schema_hooks.preprocess_filter_api_groups",
+    ],
+    "POSTPROCESSING_HOOKS": [
+        "drf_spectacular.hooks.postprocess_schema_enums",
+        "waldur_core.core.schema_hooks.postprocess_drop_path_description",
+        "waldur_core.core.schema_hooks.postprocess_add_tag",
+    ],
+}

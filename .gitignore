@@ -21,9 +21,5 @@ test_report.xml
 .cache/
 .pytest_cache/
 
-# documentation
-docs/_build/
-docs/drfapi/
-
 /static
 __pycache__/

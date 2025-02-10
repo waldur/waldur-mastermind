@@ -2074,7 +2074,9 @@ class BaseOrderSerializer(BaseRequestSerializer):
         fields = super().get_fields()
         user = self.context["view"].request.user
         # conceal detailed error message from non-system users
-        if not user.is_staff and not user.is_support and "error_traceback" in fields:
+        if (
+            not user.is_authenticated or (not user.is_staff and not user.is_support)
+        ) and "error_traceback" in fields:
             del fields["error_traceback"]
         return fields
 
@@ -3903,7 +3905,7 @@ class DetailedProviderUserSerializer(
         except (KeyError, AttributeError):
             return fields
 
-        if not user.is_staff and not user.is_support:
+        if user.is_authenticated and not user.is_staff and not user.is_support:
             del fields["is_active"]
 
         return fields

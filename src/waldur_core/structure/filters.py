@@ -273,7 +273,7 @@ class ProjectUserFilter(BaseFilterBackend):
 
 
 def filter_visible_users(queryset, user, extra=None):
-    if user.is_staff or user.is_support:
+    if user is None or not user.is_authenticated or user.is_staff or user.is_support:
         return queryset
     return (
         queryset.filter(is_staff=False)

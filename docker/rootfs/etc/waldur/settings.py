@@ -110,12 +110,6 @@ WALDUR_CORE.update(
     }
 )
 
-# Swagger uses DRF session authentication which can be enabled in DEBUG mode
-if DEBUG:
-    SWAGGER_SETTINGS["USE_SESSION_AUTH"] = True
-    SWAGGER_SETTINGS["LOGIN_URL"] = "rest_framework:login"
-    SWAGGER_SETTINGS["LOGOUT_URL"] = "rest_framework:logout"
-
 # Sentry integration
 # See also: https://docs.sentry.io/platforms/python/guides/django/
 sentry_dsn = env.get("SENTRY_DSN")
