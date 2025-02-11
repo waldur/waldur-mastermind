@@ -733,6 +733,13 @@ class CategoryFilter(django_filters.FilterSet):
         field_name="offerings__name", lookup_expr="icontains"
     )
 
+    resource_customer_uuid = django_filters.UUIDFilter(
+        method="filter_resource_customer_uuid"
+    )
+    resource_project_uuid = django_filters.UUIDFilter(
+        method="filter_resource_project_uuid"
+    )
+
     def filter_customer_uuid(self, queryset, name, value):
         states = self.request.GET.getlist("customers_offerings_state")
         offerings = models.Offering.objects.filter(customer__uuid=value)
@@ -752,6 +759,24 @@ class CategoryFilter(django_filters.FilterSet):
             "category_id", flat=True
         )
         return queryset.filter(id__in=category_ids)
+
+    def filter_resource_customer_uuid(self, queryset, name, value):
+        valid_ids = (
+            models.Resource.objects.filter(project__customer__uuid=value)
+            .exclude(state=models.Resource.States.TERMINATED)
+            .values_list("offering__category_id", flat=True)
+            .distinct()
+        )
+        return queryset.filter(id__in=valid_ids)
+
+    def filter_resource_project_uuid(self, queryset, name, value):
+        valid_ids = (
+            models.Resource.objects.filter(project__uuid=value)
+            .exclude(state=models.Resource.States.TERMINATED)
+            .values_list("offering__category_id", flat=True)
+            .distinct()
+        )
+        return queryset.filter(id__in=valid_ids)
 
 
 class CategoryColumnFilter(django_filters.FilterSet):
