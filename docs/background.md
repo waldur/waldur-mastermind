@@ -3,18 +3,10 @@
 For executing heavier requests and performing background tasks Waldur is
 using [Celery](https://docs.celeryproject.org/en/stable/). Celery is a task queue
 that supports multiple backends for storing the tasks and results.
-Currently Waldur is relying on [Redis](https://redis.io/) backend - Redis
+
+Currently Waldur is relying on RabbitMQ backend - RabbitMQ
 server **must be** running for requests triggering background scheduling
 to succeed.
-
-If you are developing on OS X and have brew installed:
-
-``` bash
-brew install redis-server
-redis-server
-```
-
-Please see Redis docs for installation on other platforms.
 
 ## Finite state machines
 

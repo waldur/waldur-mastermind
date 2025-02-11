@@ -23,9 +23,5 @@ services:
       POSTGRES_DB: postgres
       POSTGRES_PASSWORD: postgres
 
-  redis:
-    image: redis:latest
-    restart: unless-stopped
-
 volumes:
   postgres-data:

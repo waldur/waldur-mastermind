@@ -21,14 +21,6 @@ SECRET_KEY = env.get("GLOBAL_SECRET_KEY")
 
 media_root: str = os.path.join(work_dir, "media")
 
-redis_password: str = env.get("REDIS_PASSWORD")
-redis_host: str = env.get("REDIS_HOST", "localhost")
-redis_port: str = env.get("REDIS_PORT", "6379")
-if redis_password:
-    redis_url = "redis://:%s@%s:%s/1" % (redis_password, redis_host, redis_port)
-else:
-    redis_url = "redis://%s:%s/1" % (redis_host, redis_port)
-
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env.get("GLOBAL_DEBUG", "false").lower() == "true"
 
@@ -76,10 +68,6 @@ DATABASES = {
 # See also: https://docs.djangoproject.com/en/4.2/ref/settings/#static-files
 STATIC_ROOT = env.get("GLOBAL_STATIC_ROOT", os.path.join(data_dir, "static"))
 
-# Django cache
-# https://docs.djangoproject.com/en/4.2/topics/cache/
-CACHES["default"]["LOCATION"] = redis_url
-
 # Email
 # See also: https://docs.djangoproject.com/en/4.2/ref/settings/#default-from-email
 default_from_email = env.get("GLOBAL_DEFAULT_FROM_EMAIL")
@@ -92,14 +80,6 @@ EMAIL_HOOK_FROM_EMAIL = env.get("GLOBAL_EMAIL_HOOK_FROM_EMAIL", "")
 # Session
 # https://docs.djangoproject.com/en/4.2/ref/settings/#sessions
 SESSION_COOKIE_AGE = env.get("AUTH_COOKIE_AGE", 3600)
-
-# Celery
-# See also:
-#  - http://docs.celeryproject.org/en/latest/userguide/configuration.html
-#  - http://docs.celeryproject.org/en/latest/userguide/configuration.html#broker-settings
-#  - http://docs.celeryproject.org/en/latest/userguide/configuration.html#std:setting-result_backend
-CELERY_BROKER_URL = redis_url
-CELERY_RESULT_BACKEND = redis_url
 
 # Waldur Core internal configuration
 # See also: http://docs.waldur.com/latest/

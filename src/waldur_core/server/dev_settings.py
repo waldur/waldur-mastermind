@@ -66,7 +66,3 @@ CORS_ALLOW_HEADERS = (
     *default_headers,
     "X-Impersonated-User-Uuid",
 )
-
-CACHES["default"]["LOCATION"] = "redis://redis:6379/1"  # noqa
-CELERY_BROKER_URL = "redis://redis"
-CELERY_RESULT_BACKEND = "redis://redis"
