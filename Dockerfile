@@ -38,9 +38,12 @@ RUN apk update && \
 # Set up locales
 RUN echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
 
+# Create local group and user
+RUN /usr/sbin/groupadd -g 1001 waldur && useradd --home /var/lib/waldur --shell /bin/sh --system --uid 1001 --gid 1001 waldur
+
 # Create directories and set permissions for OpenShift compatibility
 RUN mkdir -p /usr/src/waldur /var/lib/waldur /run/waldur/celery /run/waldur/celerybeat && \
-    chown -R 1001:0 /usr/src/waldur /var/lib/waldur /run/waldur/celery /run/waldur/celerybeat && \
+    chown -R waldur /usr/src/waldur /var/lib/waldur /run/waldur/celery /run/waldur/celerybeat && \
     chmod -R g+rwX /usr/src/waldur /var/lib/waldur /run/waldur/celery /run/waldur/celerybeat && \
     chmod -R 775 /usr/src/waldur /var/lib/waldur /run/waldur/celery /run/waldur/celerybeat && \
     chmod -R g+s /usr/src/waldur /var/lib/waldur /run/waldur/celery /run/waldur/celerybeat
@@ -59,10 +62,10 @@ RUN find /usr/local/src/ -name ".git" -type d -exec rm -rf {} +
 RUN apk del build-base
 
 # Set permissions again after copying files
-RUN chown -R 1001:0 /usr/src/waldur /var/lib/waldur /run/waldur/celery && \
+RUN chown -R waldur /usr/src/waldur /var/lib/waldur /run/waldur/celery && \
     chmod -R g+rwX /usr/src/waldur /var/lib/waldur /run/waldur/celery
 
-USER 1001:0
+USER waldur
 
 ENTRYPOINT ["/app-entrypoint.sh"]
 CMD ["/bin/bash"]
