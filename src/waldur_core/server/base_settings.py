@@ -209,9 +209,6 @@ RABBITMQ_MQTT = {
 }
 
 # Celery
-CELERY_BROKER_URL = "redis://localhost"
-CELERY_RESULT_BACKEND = "redis://localhost"
-
 CELERY_TASK_QUEUES = {
     "tasks": {"exchange": "tasks"},
     "heavy": {"exchange": "heavy"},
@@ -221,16 +218,6 @@ CELERY_TASK_DEFAULT_QUEUE = "tasks"
 CELERY_TASK_ROUTES = ("waldur_core.server.celery.PriorityRouter",)
 CELERY_TRACK_STARTED = True
 CELERY_SEND_EVENTS = True
-
-CACHES = {
-    "default": {
-        "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": "redis://127.0.0.1:6379/1",
-        "OPTIONS": {
-            "CLIENT_CLASS": "django_redis.client.DefaultClient",
-        },
-    }
-}
 
 # Regular tasks
 CELERY_BEAT_SCHEDULE = {

@@ -5,7 +5,6 @@ from django.contrib.auth import authenticate, get_user_model
 from django.core.management.base import BaseCommand
 from django.db import connection
 from django.db.utils import OperationalError
-from redis import exceptions as redis_exceptions
 from rest_framework import status
 from rest_framework.authtoken.models import Token
 
@@ -33,7 +32,6 @@ class Command(BaseCommand):
         output_messages = {
             "database": " - Database %(vendor)s connection",
             "workers": " - Task runners (Celery workers)",
-            "redis": " - Queue and cache server (Redis) connection",
         }
         padding = len(max(output_messages.values(), key=len))
         # If services checks didn't pass, skip API endpoints check
@@ -59,27 +57,22 @@ class Command(BaseCommand):
         else:
             self.stdout.write(success_status)
 
-        # Check celery and redis
+        # Check celery
         celery_inspect = celery_app.control.inspect()
         celery_results = {
             "workers": success_status,
-            "redis": success_status,
         }
         try:
             stats = celery_inspect.stats()
             if not stats:
                 skip_endpoints = True
                 celery_results["workers"] = error_status
-        except redis_exceptions.RedisError:
+        except Exception:
             skip_endpoints = True
-            celery_results["redis"] = error_status
             celery_results["workers"] = error_status
         finally:
             self.stdout.write(
                 output_messages["workers"].ljust(padding) + celery_results["workers"]
-            )
-            self.stdout.write(
-                output_messages["redis"].ljust(padding) + celery_results["redis"]
             )
 
         if skip_endpoints:

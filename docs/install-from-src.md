@@ -18,7 +18,7 @@ VS Code will build the dev container and set up the environment automatically. T
 - Setting up Python with the correct version
 - Installing VS Code extensions
 - Installing Poetry and project dependencies
-- Installing PostgreSQL and Redis
+- Installing PostgreSQL
 - Configuring pre-commit hooks
 
 Once the container is built and running, you'll have a fully configured development environment ready to use.
@@ -31,7 +31,6 @@ Once the container is built and running, you'll have a fully configured developm
     [Virtualbox](https://www.freecodecamp.org/news/how-to-install-ubuntu-with-oracle-virtualbox/)
     or [Windows Subsystem for Linux](https://docs.microsoft.com/en-us/windows/wsl/install).
 - `git`
-- `redis` and `hiredis` library
 - `virtualenv`
 - `C` compiler and development libraries needed to build dependencies
 
