@@ -31,6 +31,7 @@ from django.views.decorators.cache import cache_page
 from django.views.decorators.csrf import csrf_exempt
 from django_filters.rest_framework import DjangoFilterBackend
 from django_fsm import TransitionNotAllowed
+from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import mixins, status, views
 from rest_framework import permissions as rf_permissions
@@ -668,6 +669,10 @@ def validate_offering_has_plans(offering):
         )
 
 
+@extend_schema_view(
+    add_endpoint=extend_schema(operation_id="marketplace_offering_endpoint_create"),
+    delete_endpoint=extend_schema(operation_id="marketplace_offering_endpoint_delete"),
+)
 class ProviderOfferingViewSet(
     UserRoleMixin,
     core_views.CreateReversionMixin,
@@ -1977,6 +1982,7 @@ class PluginViewSet(views.APIView):
     permission_classes = ()
     authentication_classes = ()
 
+    @extend_schema(responses={200: serializers.PluginOfferingTypeSerializer(many=True)})
     def get(self, request):
         offering_types = plugins.manager.get_offering_types()
         payload = []
@@ -2016,6 +2022,7 @@ class OfferingTypeValidator:
             )
 
 
+@extend_schema_view(unlink=extend_schema(operation_id="marketplace_order_unlink"))
 class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     queryset = models.Order.objects.all()
     filter_backends = (DjangoFilterBackend,)

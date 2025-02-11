@@ -4342,3 +4342,16 @@ core_signals.pre_serializer_fields.connect(
     sender=ProviderOfferingDetailsSerializer,
     receiver=add_integration_status,
 )
+
+
+class PluginComponentSerializer(serializers.Serializer):
+    type = serializers.CharField()
+    name = serializers.CharField()
+    measured_unit = serializers.CharField()
+    billing_type = serializers.ChoiceField(choices=BillingTypes.CHOICES)
+
+
+class PluginOfferingTypeSerializer(serializers.Serializer):
+    offering_type = serializers.CharField()
+    components = PluginComponentSerializer(many=True)
+    available_limits = serializers.ListField(child=serializers.CharField())
