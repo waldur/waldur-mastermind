@@ -225,6 +225,8 @@ class MigrationCreateSerializer(serializers.ModelSerializer):
                     host_routes=src_subnet.host_routes,
                     allocation_pools=_generate_subnet_allocation_pool(subnet_cidr),
                 )
+        group_map: dict[str, SecurityGroup] = {}
+        rules_map: dict[str, SecurityGroupRule] = {}
         for src_group in src_tenant.security_groups.all():
             dst_group = SecurityGroup.objects.create(
                 service_settings=dst_settings,
@@ -233,9 +235,10 @@ class MigrationCreateSerializer(serializers.ModelSerializer):
                 name=src_group.name,
                 description=src_group.description,
             )
+            group_map[src_group.id] = dst_group
             for src_rule in src_group.rules.all():
                 rule_cidr = subnet_mappings.get(src_rule.cidr) or src_rule.cidr
-                SecurityGroupRule.objects.create(
+                dst_rule = SecurityGroupRule.objects.create(
                     security_group=dst_group,
                     protocol=src_rule.protocol,
                     from_port=src_rule.from_port,
@@ -244,6 +247,16 @@ class MigrationCreateSerializer(serializers.ModelSerializer):
                     direction=src_rule.direction,
                     ethertype=src_rule.ethertype,
                 )
+                rules_map[src_rule.id] = dst_rule
+        for src_rule in SecurityGroupRule.objects.filter(
+            security_group__tenant=src_tenant
+        ).exclude(remote_group__isnull=True):
+            dst_rule = rules_map.get(src_rule.id)
+            if dst_rule:
+                dst_group = group_map.get(src_rule.remote_group.id)
+                if dst_group:
+                    dst_rule.remote_group = dst_group
+                    dst_rule.save(update_fields=["remote_group"])
         src_routers: QuerySet[Router] = src_tenant.routers.all()
         for src_router in src_routers:
             Router.objects.create(
