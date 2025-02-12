@@ -19,7 +19,7 @@ def sync_offering_users():
         ],
         secret_options__service_provider_can_create_offering_user=True,
     ).exclude(
-        plugin_options__username_generation_policy=utils.UsernameGenerationPolicy.SERVICE_PROVIDER.value
+        plugin_options__username_generation_policy=marketplace_utils.UsernameGenerationPolicy.SERVICE_PROVIDER.value
     )
 
     marketplace_utils.user_offerings_mapping(offerings)
