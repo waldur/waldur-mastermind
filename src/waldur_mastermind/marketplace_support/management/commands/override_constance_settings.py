@@ -44,14 +44,14 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         with open(options["constance_settings_file"]) as constance_settings_file:
             constance_settings = yaml.safe_load(constance_settings_file)
-
         if constance_settings is None:
-            self.stdout.write(self.style.ERROR("Constance settings file is empty."))
+            self.stdout.write(self.style.WARNING("Constance settings file is empty."))
             return
 
         constance_settings = {
             key.upper(): value for key, value in constance_settings.items()
         }
+        keys_to_delete = []
         for setting_key, setting_value in constance_settings.items():
             if setting_key in WHITELABELING_LOGOS:
                 if not setting_value.strip():
@@ -64,8 +64,13 @@ class Command(BaseCommand):
                     self.stdout.write(
                         self.style.ERROR(f"{setting_key.upper()} file does not exist.")
                     )
+                    keys_to_delete.append(setting_key)
                     continue
                 constance_settings[setting_key] = setting_value
+
+        # Delete keys that have invalid values
+        for key in keys_to_delete:
+            del constance_settings[key]
 
         serializer = ConstanceSettingsSerializer(data=constance_settings)
         serializer.is_valid(raise_exception=True)

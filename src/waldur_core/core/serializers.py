@@ -23,6 +23,7 @@ from rest_framework.fields import Field, ReadOnlyField
 from waldur_core.core import utils as core_utils
 from waldur_core.core.models import generate_slug
 from waldur_core.core.signals import pre_serializer_fields
+from waldur_mastermind.common.serializers import StringListSerializer
 
 from . import fields as core_fields
 
@@ -70,23 +71,6 @@ class ListField(forms.CharField):
     def prepare_value(self, value):
         if value is None:
             return ""
-        if isinstance(value, list):
-            return ", ".join(value)
-        return str(value)
-
-
-class ListSerializerField(serializers.CharField):
-    def to_internal_value(self, data):
-        """Convert JSON string to Python list."""
-        if not data:
-            return []
-        try:
-            return [item.strip() for item in data.split(",")]
-        except ValueError as e:
-            raise serializers.ValidationError(f"Invalid string format: {str(e)}")
-
-    def to_representation(self, value):
-        """Convert Python list to JSON string for representation."""
         if isinstance(value, list):
             return ", ".join(value)
         return str(value)
@@ -509,7 +493,6 @@ color_hex_validator = RegexValidator(
 class ConstanceSettingsSerializer(serializers.Serializer):
     def get_fields(self):
         fields = OrderedDict()
-
         for name, options in settings.CONFIG.items():
             default = options[0]
             if len(options) == 3:
@@ -543,7 +526,7 @@ class ConstanceSettingsSerializer(serializers.Serializer):
             if config_type == "dict_field":
                 field_class = DictSerializerField
             if config_type == "list_field":
-                field_class = ListSerializerField
+                field_class = StringListSerializer
             if config_type in (
                 "color_field",
                 "html_field",
