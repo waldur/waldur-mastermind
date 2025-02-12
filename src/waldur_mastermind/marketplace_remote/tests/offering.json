@@ -86,5 +86,6 @@
   "getting_started": "",
   "integration_guide": "",
   "country": "EE",
-  "resource_options": {}
+  "resource_options": {},
+  "access_url": "http://test-access-url.example.com/"
 }
