@@ -21,7 +21,7 @@ class GoogleCredentialsSerializer(marketplace_serializers.ServiceProviderSeriali
         )
         view_name = "google-auth-detail"
 
-    def get_google_auth_url(self, service_provider):
+    def get_google_auth_url(self, service_provider) -> str:
         from .backend import GoogleAuthorize
 
         request = self.context["request"]

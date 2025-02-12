@@ -31,9 +31,7 @@ from waldur_mastermind.support.tests.base import BaseTest
 class RequestCreateTest(BaseTest):
     def test_request_is_created_when_order_is_processed(self):
         fixture = fixtures.ProjectFixture()
-        offering = marketplace_factories.OfferingFactory(
-            type=PLUGIN_NAME, options={"order": []}
-        )
+        offering = marketplace_factories.OfferingFactory(type=PLUGIN_NAME)
 
         order = marketplace_factories.OrderFactory(
             offering=offering,
@@ -74,9 +72,7 @@ class RequestCreateTest(BaseTest):
 
     def submit_order(self):
         fixture = fixtures.ProjectFixture()
-        offering = marketplace_factories.OfferingFactory(
-            type=PLUGIN_NAME, options={"order": []}
-        )
+        offering = marketplace_factories.OfferingFactory(type=PLUGIN_NAME)
 
         order = marketplace_factories.OrderFactory(
             offering=offering,
@@ -141,9 +137,7 @@ class RequestCreateTest(BaseTest):
 
     def test_issue_caller_is_equal_order_created_by(self):
         fixture = fixtures.ProjectFixture()
-        offering = marketplace_factories.OfferingFactory(
-            type=PLUGIN_NAME, options={"order": []}
-        )
+        offering = marketplace_factories.OfferingFactory(type=PLUGIN_NAME)
 
         order = marketplace_factories.OrderFactory(
             offering=offering,
@@ -174,7 +168,6 @@ class RequestCreateTest(BaseTest):
         fixture = fixtures.ProjectFixture()
         offering = marketplace_factories.OfferingFactory(
             type=PLUGIN_NAME,
-            options={"order": []},
             secret_options={
                 "template_confirmation_comment": "template_confirmation_comment"
             },
@@ -199,7 +192,7 @@ class RequestCreateTest(BaseTest):
         self.mock_get_active_backend().create_issue = mock_create_issue
         fixture = fixtures.ProjectFixture()
         offering = marketplace_factories.OfferingFactory(
-            type=PLUGIN_NAME, options={"order": []}
+            type=PLUGIN_NAME,
         )
 
         order = marketplace_factories.OrderFactory(
@@ -583,9 +576,7 @@ class UpdateLimitsTest(BaseTest):
 @override_settings(task_always_eager=True)
 class NotificationTest(BaseTest):
     def setUp(self):
-        self.offering = marketplace_factories.OfferingFactory(
-            type=PLUGIN_NAME, options={"order": []}
-        )
+        self.offering = marketplace_factories.OfferingFactory(type=PLUGIN_NAME)
         self.service_provider = marketplace_factories.ServiceProviderFactory(
             customer=self.offering.customer, lead_email="to@example.com"
         )
@@ -669,9 +660,7 @@ class ProcessingTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.url = marketplace_factories.OrderFactory.get_list_url()
-        self.offering = marketplace_factories.OfferingFactory(
-            type=PLUGIN_NAME, options={"order": []}
-        )
+        self.offering = marketplace_factories.OfferingFactory(type=PLUGIN_NAME)
         mock_patch = mock.patch("waldur_mastermind.support.backend.get_active_backend")
         self.mock_get_active_backend = mock_patch.start()
         self.mock_get_active_backend.return_value = SupportBackend()

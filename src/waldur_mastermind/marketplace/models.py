@@ -62,13 +62,13 @@ class ServiceProvider(
         max_length=255,
         blank=True,
         help_text=_(
-            "Notification subject template. " "Django template variables can be used."
+            "Notification subject template. Django template variables can be used."
         ),
     )
     lead_body = models.TextField(
         blank=True,
         help_text=_(
-            "Notification body template. " "Django template variables can be used."
+            "Notification body template. Django template variables can be used."
         ),
         validators=[core_validators.validate_template_syntax],
     )
@@ -536,25 +536,25 @@ class Offering(
         return "marketplace-provider-offering"
 
     @cached_property
-    def component_factors(self):
+    def component_factors(self) -> dict[str, int]:
         # get factor from plugin components
         plugin_components = plugins.manager.get_components(self.type)
         return {c.type: c.factor for c in plugin_components}
 
     @cached_property
-    def is_usage_based(self):
+    def is_usage_based(self) -> bool:
         return self.components.filter(
             billing_type=OfferingComponent.BillingTypes.USAGE,
         ).exists()
 
-    def get_limit_components(self):
+    def get_limit_components(self) -> dict[str, "OfferingComponent"]:
         components = self.components.filter(
             billing_type=OfferingComponent.BillingTypes.LIMIT
         )
         return {component.type: component for component in components}
 
     @cached_property
-    def is_limit_based(self):
+    def is_limit_based(self) -> bool:
         if not plugins.manager.can_update_limits(self.type):
             return False
         if not self.components.filter(
@@ -564,22 +564,22 @@ class Offering(
         return True
 
     @property
-    def is_private(self):
+    def is_private(self) -> bool:
         return not self.billable and not self.shared
 
-    def get_datacite_title(self):
+    def get_datacite_title(self) -> str:
         return self.name
 
-    def get_datacite_creators_name(self):
+    def get_datacite_creators_name(self) -> str:
         return self.customer.name
 
-    def get_datacite_description(self):
+    def get_datacite_description(self) -> str:
         return self.description
 
-    def get_datacite_publication_year(self):
+    def get_datacite_publication_year(self) -> int:
         return self.created.year
 
-    def get_datacite_url(self):
+    def get_datacite_url(self) -> str:
         return core_utils.format_homeport_link(
             "marketplace-public-offering/{offering_uuid}/", offering_uuid=self.uuid.hex
         )
@@ -695,7 +695,7 @@ class OfferingComponent(
             )
 
     @property
-    def is_builtin(self):
+    def is_builtin(self) -> bool:
         return self.type in [
             c.type for c in plugins.manager.get_components(self.offering.type)
         ]
@@ -777,27 +777,27 @@ class Plan(
         return str(self.name)
 
     @property
-    def fixed_price(self):
+    def fixed_price(self) -> float:
         return self.sum_components(OfferingComponent.BillingTypes.FIXED)
 
     @property
-    def init_price(self):
+    def init_price(self) -> float:
         return self.sum_components(OfferingComponent.BillingTypes.ONE_TIME)
 
     @property
-    def switch_price(self):
+    def switch_price(self) -> float:
         return self.sum_components(OfferingComponent.BillingTypes.ON_PLAN_SWITCH)
 
-    def sum_components(self, billing_type):
+    def sum_components(self, billing_type) -> float:
         components = self.components.filter(component__billing_type=billing_type)
         return components.aggregate(sum=models.Sum("price"))["sum"] or 0
 
     @property
-    def has_connected_resources(self):
+    def has_connected_resources(self) -> bool:
         return Resource.objects.filter(plan=self).exists()
 
     @property
-    def is_active(self):
+    def is_active(self) -> bool:
         if not self.max_amount:
             return True
         usage = (
@@ -937,13 +937,13 @@ class RequestTypeMixin(CostEstimateMixin):
                 self.cost += self.plan.switch_price
 
     @property
-    def fixed_price(self):
+    def fixed_price(self) -> float:
         if self.type == RequestTypeMixin.Types.CREATE:
             return self.plan.fixed_price
         return 0
 
     @property
-    def activation_price(self):
+    def activation_price(self) -> float:
         if self.type == RequestTypeMixin.Types.CREATE:
             return self.plan.init_price
         elif self.type == RequestTypeMixin.Types.UPDATE:
@@ -959,7 +959,7 @@ class SafeAttributesMixin(models.Model):
     attributes = models.JSONField(blank=True, default=dict)
 
     @property
-    def safe_attributes(self):
+    def safe_attributes(self) -> dict:
         """
         Get attributes excluding secret attributes, such as username and password.
         """
@@ -1083,7 +1083,7 @@ class Resource(
     )
 
     @property
-    def customer(self):
+    def customer(self) -> structure_models.Customer:
         return self.project.customer
 
     @transition(
@@ -1111,12 +1111,12 @@ class Resource(
         pass
 
     @property
-    def backend_uuid(self):
+    def backend_uuid(self) -> str | None:
         if self.scope:
             return self.scope.uuid
 
     @property
-    def backend_type(self):
+    def backend_type(self) -> str | None:
         if self.scope:
             scope_type = self.scope.get_scope_type()
             return scope_type if scope_type else "Marketplace.Resource"
@@ -1143,7 +1143,7 @@ class Resource(
         )
 
     @property
-    def invoice_registrator_key(self):
+    def invoice_registrator_key(self) -> str:
         return self.offering.type
 
     @classmethod
@@ -1154,14 +1154,14 @@ class Resource(
     def get_url_name(cls):
         return "marketplace-resource"
 
-    def get_homeport_link(self):
+    def get_homeport_link(self) -> str:
         return core_utils.format_homeport_link(
             "resource-details/{resource_uuid}/",
             resource_uuid=self.uuid.hex,
         )
 
     @property
-    def is_expired(self):
+    def is_expired(self) -> bool:
         return self.end_date and self.end_date <= timezone.datetime.today().date()
 
     def __str__(self):

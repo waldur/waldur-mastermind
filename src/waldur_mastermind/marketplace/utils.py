@@ -509,49 +509,49 @@ def get_resource_state(state):
     return mapping.get(state, DstStates.ERRED)
 
 
-def get_marketplace_offering_uuid(serializer, scope):
+def get_marketplace_offering_uuid(serializer, scope) -> str:
     try:
         return models.Resource.objects.get(scope=scope).offering.uuid
     except ObjectDoesNotExist:
         return
 
 
-def get_marketplace_offering_plugin_options(serializer, scope):
+def get_marketplace_offering_plugin_options(serializer, scope) -> dict:
     try:
         return models.Resource.objects.get(scope=scope).offering.plugin_options
     except ObjectDoesNotExist:
         return
 
 
-def get_marketplace_offering_name(serializer, scope):
+def get_marketplace_offering_name(serializer, scope) -> str:
     try:
         return models.Resource.objects.get(scope=scope).offering.name
     except ObjectDoesNotExist:
         return
 
 
-def get_marketplace_category_uuid(serializer, scope):
+def get_marketplace_category_uuid(serializer, scope) -> str:
     try:
         return models.Resource.objects.get(scope=scope).offering.category.uuid
     except ObjectDoesNotExist:
         return
 
 
-def get_marketplace_category_name(serializer, scope):
+def get_marketplace_category_name(serializer, scope) -> str:
     try:
         return models.Resource.objects.get(scope=scope).offering.category.title
     except ObjectDoesNotExist:
         return
 
 
-def get_marketplace_resource_uuid(serializer, scope):
+def get_marketplace_resource_uuid(serializer, scope) -> str:
     try:
         return models.Resource.objects.get(scope=scope).uuid
     except ObjectDoesNotExist:
         return
 
 
-def get_marketplace_plan_uuid(serializer, scope):
+def get_marketplace_plan_uuid(serializer, scope) -> str:
     try:
         resource = models.Resource.objects.get(scope=scope)
         if resource.plan:
@@ -560,21 +560,21 @@ def get_marketplace_plan_uuid(serializer, scope):
         return
 
 
-def get_marketplace_resource_state(serializer, scope):
+def get_marketplace_resource_state(serializer, scope) -> str:
     try:
         return models.Resource.objects.get(scope=scope).get_state_display()
     except ObjectDoesNotExist:
         return
 
 
-def get_is_usage_based(serializer, scope):
+def get_is_usage_based(serializer, scope) -> bool:
     try:
         return models.Resource.objects.get(scope=scope).offering.is_usage_based
     except ObjectDoesNotExist:
         return
 
 
-def get_is_limit_based(serializer, scope):
+def get_is_limit_based(serializer, scope) -> bool:
     try:
         return models.Resource.objects.get(scope=scope).offering.is_limit_based
     except ObjectDoesNotExist:

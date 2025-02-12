@@ -5,6 +5,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db.models.aggregates import Sum
 from django.utils.translation import gettext_lazy as _
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import exceptions, serializers
 
 from waldur_core.core import serializers as core_serializers
@@ -34,7 +35,7 @@ class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
     details = serializers.JSONField()
     billing_type = serializers.SerializerMethodField()
 
-    def get_billing_type(self, item):
+    def get_billing_type(self, item: models.InvoiceItem):
         plan_component = item.get_plan_component()
         if plan_component:
             return plan_component.component.billing_type
@@ -236,7 +237,7 @@ class InvoiceSerializer(
     def get_issuer_details(self, invoice):
         return settings.WALDUR_INVOICES["ISSUER_DETAILS"]
 
-    def get_customer_details(self, invoice):
+    def get_customer_details(self, invoice: models.Invoice):
         return {
             "name": invoice.customer.name,
             "address": invoice.customer.address,
@@ -249,7 +250,8 @@ class InvoiceSerializer(
             "bank_account": invoice.customer.bank_account,
         }
 
-    def get_items(self, invoice):
+    @extend_schema_field(InvoiceItemSerializer(many=True))
+    def get_items(self, invoice: models.Invoice):
         qs = invoice.items.all().order_by("project_name", "name")
         items = utils.filter_invoice_items(qs)
         serializer = InvoiceItemSerializer(items, many=True, context=self.context)
@@ -526,12 +528,12 @@ class SAPReportSerializer(serializers.Serializer):
         if invoice_item.resource and invoice_item.resource.offering.plans.count() == 1:
             if "offering_component_name" in invoice_item.details:
                 return (
-                    f'{invoice_item.resource.name} ({invoice_item.resource.offering.name}) / '
-                    f'{invoice_item.details["offering_component_name"]}'
+                    f"{invoice_item.resource.name} ({invoice_item.resource.offering.name}) / "
+                    f"{invoice_item.details['offering_component_name']}"
                 )
             return invoice_item.name
         if "plan_name" in invoice_item.details.keys():
-            return f'{invoice_item.name} / {invoice_item.details["plan_name"]}'
+            return f"{invoice_item.name} / {invoice_item.details['plan_name']}"
         else:
             return invoice_item.name
 
@@ -613,63 +615,63 @@ class SAFReportSerializer(serializers.Serializer):
             return date.strftime("%d.%m.%Y")
         return ""
 
-    def get_partner(self, invoice_item):
+    def get_partner(self, invoice_item: models.InvoiceItem):
         customer = invoice_item.invoice.customer
         if customer.sponsor_number:
             return customer.sponsor_number
         else:
             return customer.agreement_number
 
-    def get_first_day(self, invoice_item):
+    def get_first_day(self, invoice_item: models.InvoiceItem):
         year = invoice_item.invoice.year
         month = invoice_item.invoice.month
         return datetime.date(year=year, month=month, day=1)
 
-    def get_last_day_of_month(self, invoice_item):
+    def get_last_day_of_month(self, invoice_item: models.InvoiceItem) -> str:
         first_day = self.get_first_day(invoice_item)
         last_day = core_utils.month_end(first_day)
         return self.format_date(last_day)
 
-    def get_invoice_date(self, invoice_item):
+    def get_invoice_date(self, invoice_item: models.InvoiceItem) -> str:
         date = invoice_item.invoice.invoice_date
         return self.format_date(date)
 
-    def get_due_date(self, invoice_item):
+    def get_due_date(self, invoice_item: models.InvoiceItem) -> str:
         date = invoice_item.invoice.due_date
         return self.format_date(date)
 
-    def get_total(self, invoice_item):
+    def get_total(self, invoice_item: models.InvoiceItem) -> Decimal:
         return quantize_price(invoice_item.price)
 
-    def get_tax(self, invoice_item):
+    def get_tax(self, invoice_item: models.InvoiceItem) -> Decimal:
         # SAF expects a specific handling of rounding for VAT
         return invoice_item.tax.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
-    def get_project(self, invoice_item):
+    def get_project(self, invoice_item: models.InvoiceItem) -> str:
         return settings.WALDUR_INVOICES["INVOICE_REPORTING"]["SAF_PARAMS"]["ARTPROJEKT"]
 
-    def get_vat(self, invoice_item):
+    def get_vat(self, invoice_item: models.InvoiceItem) -> float:
         return settings.WALDUR_INVOICES["INVOICE_REPORTING"]["SAF_PARAMS"]["RMAKSULIPP"]
 
-    def get_vali_field(self, invoice_item):
+    def get_vali_field(self, invoice_item: models.InvoiceItem) -> str:
         if invoice_item.invoice.customer.contact_details:
             return f"Record no {invoice_item.invoice.number}. {invoice_item.invoice.customer.contact_details}"
         else:
             return f"Record no {invoice_item.invoice.number}"
 
-    def get_empty_field(self, invoice_item):
+    def get_empty_field(self, invoice_item: models.InvoiceItem):
         return ""
 
-    def get_artnimi_field(self, invoice_item):
+    def get_artnimi_field(self, invoice_item: models.InvoiceItem) -> str:
         # If a single plan for an offering exists, skip it from display
         if invoice_item.resource and invoice_item.resource.offering.plans.count() == 1:
             return invoice_item.name
         if "plan_name" in invoice_item.details.keys():
-            return f'{invoice_item.name} / {invoice_item.details["plan_name"]}'
+            return f"{invoice_item.name} / {invoice_item.details['plan_name']}"
         else:
             return invoice_item.name
 
-    def get_covered_period(self, invoice_item):
+    def get_covered_period(self, invoice_item: models.InvoiceItem) -> str:
         first_day = self.get_first_day(invoice_item)
         last_day = core_utils.month_end(first_day)
         return f"{self.format_date(first_day)}-{self.format_date(last_day)}"
@@ -721,7 +723,7 @@ class PaymentSerializer(
     invoice_period = serializers.SerializerMethodField(method_name="get_invoice_period")
     customer_uuid = serializers.ReadOnlyField(source="profile.organization.uuid")
 
-    def get_invoice_period(self, payment):
+    def get_invoice_period(self, payment: models.Payment) -> str | None:
         if payment.invoice:
             return "%02d-%s" % (payment.invoice.month, payment.invoice.year)
 
@@ -775,7 +777,8 @@ class ReferenceNumberSerializer(serializers.ModelSerializer):
         fields = ("reference_number",)
 
 
-def get_payment_profiles(serializer, customer):
+@extend_schema_field(PaymentProfileSerializer(many=True))
+def get_payment_profiles(serializer, customer: structure_models.Customer):
     user = serializer.context["request"].user
     if user.is_staff or user.is_support:
         return PaymentProfileSerializer(
@@ -972,7 +975,7 @@ class ProjectCreditSerializer(serializers.HyperlinkedModelSerializer):
         read_only=True, many=True, source="project.customer.customercredit.offerings"
     )
 
-    def get_allocated_customer_credit(self, project_credit):
+    def get_allocated_customer_credit(self, project_credit) -> float:
         return models.ProjectCredit.objects.filter(
             project__customer=project_credit.project.customer
         ).aggregate(sum=Sum("value"))["sum"]
@@ -1022,7 +1025,7 @@ class ProjectCreditSerializer(serializers.HyperlinkedModelSerializer):
         }
 
 
-def get_project_credit(serializer, project):
+def get_project_credit(serializer, project) -> float | None:
     try:
         return models.ProjectCredit.objects.get(project=project).value
     except models.ProjectCredit.DoesNotExist:
@@ -1040,7 +1043,7 @@ core_signals.pre_serializer_fields.connect(
 )
 
 
-def get_customer_credit(serializer, customer):
+def get_customer_credit(serializer, customer) -> float | None:
     try:
         return models.CustomerCredit.objects.get(customer=customer).value
     except models.CustomerCredit.DoesNotExist:

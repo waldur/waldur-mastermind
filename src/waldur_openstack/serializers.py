@@ -238,7 +238,7 @@ class FlavorSerializer(structure_serializers.BasePropertySerializer):
             "settings": {"lookup_field": "uuid"},
         }
 
-    def get_display_name(self, flavor: models.Flavor):
+    def get_display_name(self, flavor: models.Flavor) -> str:
         return f"{flavor.name} ({flavor.cores} CPU, {flavor.ram} MB RAM, {flavor.disk} MB HDD)"
 
 
@@ -704,7 +704,7 @@ class CreateServerGroupSerializer(structure_serializers.BaseResourceActionSerial
     display_name = serializers.SerializerMethodField()
     instances = serializers.SerializerMethodField()
 
-    def get_display_name(self, server_group):
+    def get_display_name(self, server_group) -> str:
         return f"Name: {server_group.name}, Policy: {server_group.policy}"
 
     def get_instances(self, server_group):
@@ -3245,7 +3245,7 @@ class SnapshotScheduleSerializer(BaseScheduleSerializer):
         return super().validate(attrs)
 
 
-def get_instance(openstack_floating_ip):
+def get_instance(openstack_floating_ip) -> models.Instance:
     # cache openstack instance on openstack floating_ip instance
     if hasattr(openstack_floating_ip, "_instance"):
         return openstack_floating_ip._instance
@@ -3265,20 +3265,20 @@ def get_instance(openstack_floating_ip):
         return instance
 
 
-def get_instance_attr(openstack_floating_ip, name):
+def get_instance_attr(openstack_floating_ip: models.FloatingIP, name) -> str:
     instance = get_instance(openstack_floating_ip)
     return getattr(instance, name, None)
 
 
-def get_instance_uuid(serializer, openstack_floating_ip):
+def get_instance_uuid(serializer, openstack_floating_ip: models.FloatingIP) -> str:
     return get_instance_attr(openstack_floating_ip, "uuid")
 
 
-def get_instance_name(serializer, openstack_floating_ip):
+def get_instance_name(serializer, openstack_floating_ip: models.FloatingIP) -> str:
     return get_instance_attr(openstack_floating_ip, "name")
 
 
-def get_instance_url(serializer, openstack_floating_ip):
+def get_instance_url(serializer, openstack_floating_ip: models.FloatingIP) -> str:
     instance = get_instance(openstack_floating_ip)
     if instance:
         return reverse(
@@ -3307,11 +3307,11 @@ class ConsoleLogSerializer(serializers.Serializer):
 
 
 class SharedSettingsCustomerSerializer(serializers.Serializer):
-    name = serializers.ReadOnlyField()
-    uuid = serializers.ReadOnlyField()
-    created = serializers.ReadOnlyField()
-    abbreviation = serializers.ReadOnlyField()
-    vm_count = serializers.ReadOnlyField()
+    name = serializers.CharField(read_only=True)
+    uuid = serializers.CharField(read_only=True)
+    created = serializers.DateField(read_only=True)
+    abbreviation = serializers.CharField(read_only=True)
+    vm_count = serializers.IntegerField(read_only=True)
 
 
 class BackendInstanceSerializer(serializers.ModelSerializer):

@@ -130,14 +130,14 @@ class ProjectEstimatedCostPolicySerializer(
     project_credit = serializers.SerializerMethodField()
     customer_credit = serializers.SerializerMethodField()
 
-    def get_project_credit(self, instance):
+    def get_project_credit(self, instance) -> float | None:
         project: structure_models.Project = instance.scope
         try:
             return ProjectCredit.objects.get(project=project).value
         except ProjectCredit.DoesNotExist:
             return None
 
-    def get_customer_credit(self, instance):
+    def get_customer_credit(self, instance) -> float | None:
         customer: structure_models.Customer = instance.scope.customer
         try:
             return CustomerCredit.objects.get(customer=customer).value

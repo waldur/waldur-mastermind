@@ -54,17 +54,17 @@ class RoleDetailsSerializer(TranslatedModelSerializerMixin):
 
         return fields
 
-    def get_permissions(self, role: models.Role):
+    def get_permissions(self, role: models.Role) -> list[str]:
         return list(
             models.RolePermission.objects.filter(role=role).values_list(
                 "permission", flat=True
             )
         )
 
-    def get_users_count(self, role: models.Role):
+    def get_users_count(self, role: models.Role) -> int:
         return models.UserRole.objects.filter(is_active=True, role=role).count()
 
-    def get_content_type(self, role: models.Role):
+    def get_content_type(self, role: models.Role) -> str:
         for external_ct_id, (app_label, model) in TYPE_MAP.items():
             if (
                 role.content_type.app_label == app_label

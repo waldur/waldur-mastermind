@@ -1026,7 +1026,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
                 _("Please stop the instance before its removal.")
             )
         raise core_exceptions.IncorrectStateException(
-            _("Instance should be shutoff and OK or erred. " "Please contact support.")
+            _("Instance should be shutoff and OK or erred. Please contact support.")
         )
 
     @decorators.action(detail=True, methods=["post"])

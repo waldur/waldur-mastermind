@@ -218,22 +218,22 @@ class IssueSerializer(
 
         return fields
 
-    def get_resource_type(self, obj):
+    def get_resource_type(self, obj) -> str:
         if isinstance(obj.resource, structure_models.BaseResource):
             return get_resource_type(obj.resource_content_type.model_class())
         if isinstance(obj.resource, marketplace_models.Resource):
             return "Marketplace.Resource"
 
-    def get_update_is_available(self, obj):
+    def get_update_is_available(self, obj) -> bool:
         return backend.get_active_backend().update_is_available(obj)
 
-    def get_destroy_is_available(self, obj):
+    def get_destroy_is_available(self, obj) -> bool:
         return backend.get_active_backend().destroy_is_available(obj)
 
-    def get_add_comment_is_available(self, obj):
+    def get_add_comment_is_available(self, obj) -> bool:
         return backend.get_active_backend().comment_create_is_available(obj)
 
-    def get_add_attachment_is_available(self, obj):
+    def get_add_attachment_is_available(self, obj) -> bool:
         return backend.get_active_backend().attachment_create_is_available(obj)
 
     def validate(self, attrs):
@@ -445,10 +445,10 @@ class CommentSerializer(
         )
         protected_fields = ("remote_id",)
 
-    def get_update_is_available(self, obj):
+    def get_update_is_available(self, obj) -> bool:
         return backend.get_active_backend().comment_update_is_available(obj)
 
-    def get_destroy_is_available(self, obj):
+    def get_destroy_is_available(self, obj) -> bool:
         return backend.get_active_backend().comment_destroy_is_available(obj)
 
     def validate_description(self, description):
@@ -693,11 +693,11 @@ class AttachmentSerializer(
             issue=("key",),
         )
 
-    def get_file_name(self, attachment):
+    def get_file_name(self, attachment) -> str:
         _, file_name = os.path.split(attachment.file.name)
         return file_name
 
-    def get_destroy_is_available(self, obj):
+    def get_destroy_is_available(self, obj) -> bool:
         return backend.get_active_backend().attachment_destroy_is_available(obj)
 
     def validate(self, attrs):

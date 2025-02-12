@@ -189,9 +189,7 @@ class ObtainAuthToken(RefreshTokenMixin, APIView):
         )
 
         if not user:
-            logger.debug(
-                "Not returning auth token: " "user %s does not exist", username
-            )
+            logger.debug("Not returning auth token: user %s does not exist", username)
             cache.set(auth_failure_key, auth_failures + 1, lockout_time_in_mins * 60)
             event_logger.auth.info(
                 "User {username} failed to authenticate with username and password.",
@@ -207,7 +205,7 @@ class ObtainAuthToken(RefreshTokenMixin, APIView):
             cache.delete(auth_failure_key)
 
         if not user.is_active:
-            logger.debug("Not returning auth token: " "user %s is disabled", username)
+            logger.debug("Not returning auth token: user %s is disabled", username)
             return Response(
                 data={"detail": _("User account is disabled.")},
                 status=status.HTTP_401_UNAUTHORIZED,

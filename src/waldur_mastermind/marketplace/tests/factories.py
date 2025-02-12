@@ -163,6 +163,7 @@ class OfferingFactory(
 
     name = factory.Sequence(lambda n: "offering-%s" % n)
     slug = factory.Sequence(lambda n: "offer-%s" % n)
+    options = factory.LazyAttribute(lambda _: {"order": [], "options": {}})
     category = factory.SubFactory(CategoryFactory)
     customer = factory.SubFactory(structure_factories.CustomerFactory)
     type = PLUGIN_NAME

@@ -133,6 +133,7 @@ class PublicViewsetMixin:
 
 
 class ConnectedOfferingDetailsMixin:
+    @extend_schema(responses=serializers.PublicOfferingDetailsSerializer)
     @action(detail=True, methods=["get"])
     def offering(self, request, *args, **kwargs):
         requested_object = self.get_object()
@@ -200,6 +201,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         )
     ]
 
+    @extend_schema(responses=serializers.ProviderCustomerSerializer(many=True))
     @action(detail=True, methods=["GET"])
     def customers(self, request, uuid=None):
         service_provider = self.get_object()
@@ -223,6 +225,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         )
     ]
 
+    @extend_schema(responses=serializers.ProviderCustomerProjectSerializer(many=True))
     @action(detail=True, methods=["GET"])
     def customer_projects(self, request, uuid=None):
         service_provider = self.get_object()
@@ -250,6 +253,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         )
     ]
 
+    @extend_schema(responses=structure_serializers.ProjectSerializer(many=True))
     @action(detail=True, methods=["GET"])
     def projects(self, request, uuid=None):
         project_ids = self.get_customer_project_ids()
@@ -267,6 +271,9 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         )
     ]
 
+    @extend_schema(
+        responses=structure_serializers.ProjectPermissionLogSerializer(many=True)
+    )
     @action(detail=True, methods=["GET"])
     def project_permissions(self, request, uuid=None):
         project_ids = self.get_customer_project_ids()
@@ -290,6 +297,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         )
     ]
 
+    @extend_schema(responses=structure_serializers.SshKeySerializer(many=True))
     @action(detail=True, methods=["GET"])
     def keys(self, request, uuid=None):
         user_ids = self.get_customer_user_ids()
@@ -307,6 +315,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         )
     ]
 
+    @extend_schema(responses=serializers.DetailedProviderUserSerializer(many=True))
     @action(detail=True, methods=["GET"])
     def users(self, request, uuid=None):
         service_provider = self.get_object()
@@ -328,6 +337,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         )
     ]
 
+    @extend_schema(responses=serializers.ProviderCustomerSerializer(many=True))
     @action(detail=True, methods=["GET"])
     def user_customers(self, request, uuid=None):
         service_provider = self.get_object()
@@ -382,6 +392,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         )
     ]
 
+    @extend_schema(request=serializers.SetOfferingsUsernameSerializer)
     @action(detail=True, methods=["POST"])
     def set_offerings_username(self, request, uuid=None):
         serializer = self.get_serializer(data=request.data)
@@ -419,6 +430,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
 
     set_offerings_username_serializer_class = serializers.SetOfferingsUsernameSerializer
 
+    @extend_schema(responses=serializers.ProviderOfferingSerializer(many=True))
     @action(detail=True, methods=["GET"])
     def offerings(self, request, uuid=None):
         service_provider = self.get_object()
@@ -443,6 +455,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         )
     ]
 
+    @extend_schema(responses=serializers.ServiceProviderStatisticsSerializer)
     @action(detail=True, methods=["GET"])
     def stat(self, request, uuid=None):
         to_day = timezone.datetime.today().date()
@@ -502,21 +515,21 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         ).count()
 
         return Response(
-            {
-                "active_campaigns": active_campaigns,
-                "current_customers": current_customers,
-                "customers_number_change": utils.count_customers_number_change(
+            serializers.ServiceProviderStatisticsSerializer(
+                active_campaigns=active_campaigns,
+                current_customers=current_customers,
+                customers_number_change=utils.count_customers_number_change(
                     service_provider
                 ),
-                "active_resources": active_resources.count(),
-                "resources_number_change": utils.count_resources_number_change(
+                active_resources=active_resources.count(),
+                resources_number_change=utils.count_resources_number_change(
                     service_provider
                 ),
-                "active_and_paused_offerings": active_and_paused_offerings,
-                "unresolved_tickets": unresolved_tickets,
-                "pending_orders": pending_orders,
-                "erred_resources": erred_resources,
-            },
+                active_and_paused_offerings=active_and_paused_offerings,
+                unresolved_tickets=unresolved_tickets,
+                pending_orders=pending_orders,
+                erred_resources=erred_resources,
+            ).data,
             status=status.HTTP_200_OK,
         )
 
@@ -527,6 +540,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         )
     ]
 
+    @extend_schema(responses=serializers.ServiceProviderRevenues(many=True))
     @action(detail=True, methods=["GET"])
     def revenue(self, request, uuid=None):
         start = month_start(timezone.datetime.today()) - relativedelta(years=1)
@@ -555,6 +569,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         )
     ]
 
+    @extend_schema(responses=serializers.NameUUIDSerializer(many=True))
     @action(detail=True, methods=["GET"])
     def robot_account_customers(self, request, uuid=None):
         service_provider = self.get_object()
@@ -569,7 +584,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
             id__in=customer_ids
         ).order_by("name")
         page = self.paginate_queryset(customers)
-        data = [{"name": row.name, "uuid": row.uuid} for row in page]
+        data = serializers.NameUUIDSerializer(page, many=True).data
         return self.get_paginated_response(data)
 
     robot_account_projects_permissions = [
@@ -579,6 +594,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         )
     ]
 
+    @extend_schema(responses=serializers.NameUUIDSerializer(many=True))
     @action(detail=True, methods=["GET"])
     def robot_account_projects(self, request, uuid=None):
         service_provider = self.get_object()
@@ -593,7 +609,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
             "name"
         )
         page = self.paginate_queryset(projects)
-        data = [{"name": row.name, "uuid": row.uuid} for row in page]
+        data = serializers.NameUUIDSerializer(page, many=True).data
         return self.get_paginated_response(data)
 
 
@@ -829,24 +845,32 @@ class ProviderOfferingViewSet(
                 )
         return super().destroy(request, *args, **kwargs)
 
+    @extend_schema(responses=serializers.DetailStateSerializer)
     @action(detail=True, methods=["post"])
     def activate(self, request, uuid=None):
         return self._update_state("activate")
 
+    @extend_schema(responses=serializers.DetailStateSerializer)
     @action(detail=True, methods=["post"])
     def draft(self, request, uuid=None):
         return self._update_state("draft")
 
+    @extend_schema(
+        responses=serializers.DetailStateSerializer,
+        request=serializers.OfferingPauseSerializer,
+    )
     @action(detail=True, methods=["post"])
     def pause(self, request, uuid=None):
         return self._update_state("pause", request)
 
     pause_serializer_class = serializers.OfferingPauseSerializer
 
+    @extend_schema(responses=serializers.DetailStateSerializer)
     @action(detail=True, methods=["post"])
     def unpause(self, request, uuid=None):
         return self._update_state("unpause", request)
 
+    @extend_schema(responses=serializers.DetailStateSerializer)
     @action(detail=True, methods=["post"])
     def archive(self, request, uuid=None):
         return self._update_state("archive")
@@ -959,6 +983,10 @@ class ProviderOfferingViewSet(
 
     import_resource_serializer_class = serializers.ImportResourceSerializer
 
+    @extend_schema(
+        request=serializers.ImportResourceSerializer,
+        responses=serializers.ResourceSerializer,
+    )
     @action(detail=True, methods=["post"])
     def import_resource(self, request, uuid=None):
         import_resource_serializer = self.get_serializer(data=request.data)
@@ -1050,6 +1078,7 @@ class ProviderOfferingViewSet(
         serializer.save()
         return Response(status=status.HTTP_200_OK)
 
+    @extend_schema(request=serializers.OfferingLocationUpdateSerializer)
     @action(detail=True, methods=["post"])
     def update_location(self, request, uuid=None):
         return self._update_action(request)
@@ -1063,6 +1092,7 @@ class ProviderOfferingViewSet(
     update_location_validators = update_validators
     update_location_serializer_class = serializers.OfferingLocationUpdateSerializer
 
+    @extend_schema(request=serializers.OfferingDescriptionUpdateSerializer)
     @action(detail=True, methods=["post"])
     def update_description(self, request, uuid=None):
         return self._update_action(request)
@@ -1078,6 +1108,7 @@ class ProviderOfferingViewSet(
         serializers.OfferingDescriptionUpdateSerializer
     )
 
+    @extend_schema(request=serializers.OfferingOverviewUpdateSerializer)
     @action(detail=True, methods=["post"])
     def update_overview(self, request, uuid=None):
         return self._update_action(request)
@@ -1086,6 +1117,7 @@ class ProviderOfferingViewSet(
     update_overview_validators = update_validators
     update_overview_serializer_class = serializers.OfferingOverviewUpdateSerializer
 
+    @extend_schema(request=serializers.OfferingOptionsUpdateSerializer)
     @action(detail=True, methods=["post"])
     def update_options(self, request, uuid=None):
         return self._update_action(request)
@@ -1099,6 +1131,7 @@ class ProviderOfferingViewSet(
     update_options_validators = update_validators
     update_options_serializer_class = serializers.OfferingOptionsUpdateSerializer
 
+    @extend_schema(request=serializers.OfferingResourceOptionsUpdateSerializer)
     @action(detail=True, methods=["post"])
     def update_resource_options(self, request, uuid=None):
         return self._update_action(request)
@@ -1114,6 +1147,7 @@ class ProviderOfferingViewSet(
         serializers.OfferingResourceOptionsUpdateSerializer
     )
 
+    @extend_schema(request=serializers.OfferingIntegrationUpdateSerializer)
     @action(detail=True, methods=["post"])
     def update_integration(self, request, uuid=None):
         return self._update_action(request)
@@ -1129,6 +1163,7 @@ class ProviderOfferingViewSet(
         serializers.OfferingIntegrationUpdateSerializer
     )
 
+    @extend_schema(request=serializers.OfferingThumbnailSerializer)
     @action(detail=True, methods=["post"])
     def update_thumbnail(self, request, uuid=None):
         offering = self.get_object()
@@ -1150,6 +1185,7 @@ class ProviderOfferingViewSet(
 
     delete_thumbnail_permissions = update_thumbnail_permissions
 
+    @extend_schema(request=serializers.ProviderOfferingCustomerSerializer(many=True))
     @action(detail=True)
     def customers(self, request, uuid):
         offering = self.get_object()
@@ -1181,12 +1217,14 @@ class ProviderOfferingViewSet(
         page = self.paginate_queryset(serializer.data)
         return self.get_paginated_response(page)
 
+    @extend_schema(request=serializers.CostsSerializer(many=True))
     @action(detail=True)
     def costs(self, *args, **kwargs):
         return self.get_stats(utils.get_offering_costs, serializers.CostsSerializer)
 
     costs_permissions = [structure_permissions.is_owner]
 
+    @extend_schema(request=serializers.OfferingComponentStatSerializer(many=True))
     @action(detail=True)
     def component_stats(self, *args, **kwargs):
         offering = self.get_object()
@@ -1665,6 +1703,7 @@ class PublicOfferingViewSet(rf_viewsets.ReadOnlyModelViewSet):
         user = self.request.user
         return self.queryset.filter_by_ordering_availability_for_user(user)
 
+    @extend_schema(responses=serializers.BasePublicPlanSerializer(many=True))
     @action(detail=True, methods=["get"])
     def plans(self, request, uuid=None):
         offering = self.get_object()
@@ -1675,6 +1714,7 @@ class PublicOfferingViewSet(rf_viewsets.ReadOnlyModelViewSet):
             status=status.HTTP_200_OK,
         )
 
+    @extend_schema(responses=serializers.BasePublicPlanSerializer)
     def plan_detail(self, request, uuid=None, plan_uuid=None):
         offering = self.get_object()
 

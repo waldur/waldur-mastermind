@@ -36,7 +36,7 @@ class BaseInvitationDetailsSerializer(serializers.HyperlinkedModelSerializer):
             "created_by_username",
         )
 
-    def get_scope_type(self, invitation: models.Invitation):
+    def get_scope_type(self, invitation: models.Invitation) -> str:
         if not invitation.content_type:
             return
         for name, (app_label, model_name) in TYPE_MAP.items():

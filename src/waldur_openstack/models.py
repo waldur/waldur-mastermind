@@ -96,7 +96,7 @@ class Tenant(
             "runtime_state",
         )
 
-    def get_access_url(self):
+    def get_access_url(self) -> str:
         settings = self.service_settings
         access_url = settings.get_option("access_url")
         if access_url:
