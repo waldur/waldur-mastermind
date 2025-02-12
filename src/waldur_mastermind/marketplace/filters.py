@@ -571,6 +571,22 @@ class ComponentUserUsageFilter(django_filters.FilterSet):
         fields = ["component_usage__billing_period"]
 
 
+class ComponentUserUsageLimitFilter(django_filters.FilterSet):
+    resource = core_filters.URLFilter(
+        view_name="marketplace-resource-detail",
+        field_name="resource__uuid",
+        label="Resource URL",
+    )
+    resource_uuid = django_filters.UUIDFilter(field_name="resource__uuid")
+    offering_uuid = django_filters.UUIDFilter(field_name="resource__offering__uuid")
+    component_type = django_filters.CharFilter(field_name="component__type")
+    username = django_filters.CharFilter(field_name="user__username")
+
+    class Meta:
+        model = models.ComponentUserUsageLimit
+        fields = []
+
+
 class OfferingReferralFilter(django_filters.FilterSet):
     o = django_filters.OrderingFilter(
         fields=(
