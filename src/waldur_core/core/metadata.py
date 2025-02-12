@@ -173,10 +173,6 @@ class WaldurCore(BaseModel):
     EMAIL_CHANGE_MAX_AGE = Field(
         timedelta(days=1), description="Max age of change email request."
     )
-    HOMEPORT_URL = Field(
-        "https://example.com/",
-        description="It is used for rendering callback URL in HomePort.",
-    )
     MASTERMIND_URL = Field(
         "",
         description="It is used for rendering callback URL in MasterMind.",
@@ -284,7 +280,6 @@ class WaldurCore(BaseModel):
             "HOMEPORT_SENTRY_DSN",
             "HOMEPORT_SENTRY_ENVIRONMENT",
             "HOMEPORT_SENTRY_TRACES_SAMPLE_RATE",
-            "HOMEPORT_URL",
             "OECD_FOS_2007_CODE_MANDATORY",
             "INVITATION_USE_WEBHOOKS",
         ]

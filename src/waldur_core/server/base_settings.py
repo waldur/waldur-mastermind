@@ -323,6 +323,10 @@ CONSTANCE_CONFIG = {
         "Your single pane of control for managing projects, teams and resources in a self-service manner.",
         "Description of the Waldur deployment.",
     ),
+    "HOMEPORT_URL": (
+        "https://example.com/",
+        "It is used for rendering callback URL in HomePort",
+    ),
     "SITE_ADDRESS": ("", "It is used in marketplace order header."),
     "SITE_EMAIL": ("", "It is used in marketplace order header and UI footer."),
     "SITE_PHONE": ("", "It is used in marketplace order header and UI footer."),
@@ -685,6 +689,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "SHORT_PAGE_TITLE",
         "FULL_PAGE_TITLE",
         "SITE_DESCRIPTION",
+        "HOMEPORT_URL",
     ),
     "Marketplace Branding": (
         "SITE_ADDRESS",
@@ -875,6 +880,7 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "FREEIPA_ENABLED",
     "FREEIPA_USERNAME_PREFIX",
     "DEFAULT_IDP",
+    "HOMEPORT_URL",
 )
 
 for ext in WaldurExtension.get_extensions():

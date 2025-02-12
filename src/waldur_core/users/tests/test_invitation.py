@@ -589,9 +589,9 @@ class InvitationCancelTest(BaseInvitationTest):
         WALDUR_CORE={
             "INVITATION_LIFETIME": timedelta(weeks=1),
             "TRANSLATION_DOMAIN": "TEST",
-            "HOMEPORT_URL": "TEST",
         }
     )
+    @override_config(HOMEPORT_URL="TEST")
     def test_send_reminder_for_pending_invitations(self):
         waldur_section = settings.WALDUR_CORE.copy()
         waldur_section["INVITATION_LIFETIME"] = timedelta(weeks=1)

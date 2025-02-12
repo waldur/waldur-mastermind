@@ -36,7 +36,9 @@ def render_issue_template(config_name, template_name, issue):
         template = Template(raw)
 
     return template.render(
-        Context({"issue": issue, "settings": settings}, autoescape=False)
+        Context(
+            {"issue": issue, "settings": settings, "config": config}, autoescape=False
+        )
     )
 
 
