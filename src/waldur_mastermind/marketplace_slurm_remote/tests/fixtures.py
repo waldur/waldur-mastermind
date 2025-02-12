@@ -12,7 +12,6 @@ class MarketplaceSlurmRemoteFixture(marketplace_fixtures.MarketplaceFixture):
     def offering(self):
         return marketplace_factories.OfferingFactory(
             type=PLUGIN_NAME,
-            options={"order": []},
             state=marketplace_models.Offering.States.ACTIVE,
             project=self.offering_project,
             customer=self.offering_customer,

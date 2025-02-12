@@ -172,7 +172,7 @@ class Issue(
         )
 
     @property
-    def resolved(self):
+    def resolved(self) -> bool | None:
         return IssueStatus.check_success_status(self.status)
 
     def set_resolved(self):
@@ -318,7 +318,30 @@ class Comment(
         return self.description[:50]
 
 
+class FileMixin:
+    @property
+    def file_size(self) -> int:
+        if self.file:
+            return (
+                media_models.File.objects.filter(name=self.file.name)
+                .only("size")
+                .get()
+                .size
+            )
+
+    @property
+    def mime_type(self) -> str:
+        if self.file:
+            return (
+                media_models.File.objects.filter(name=self.file.name)
+                .only("mime_type")
+                .get()
+                .mime_type
+            )
+
+
 class Attachment(
+    FileMixin,
     BackendNameMixin,
     core_models.UuidMixin,
     TimeStampedModel,
@@ -356,26 +379,6 @@ class Attachment(
     def get_log_fields(self):
         return ("uuid", "issue", "author", "backend_id")
 
-    @property
-    def file_size(self):
-        if self.file:
-            return (
-                media_models.File.objects.filter(name=self.file.name)
-                .only("size")
-                .get()
-                .size
-            )
-
-    @property
-    def mime_type(self):
-        if self.file:
-            return (
-                media_models.File.objects.filter(name=self.file.name)
-                .only("mime_type")
-                .get()
-                .mime_type
-            )
-
 
 class Template(core_models.UuidMixin, core_models.NameMixin, TimeStampedModel):
     class IssueTypes:
@@ -405,32 +408,12 @@ class Template(core_models.UuidMixin, core_models.NameMixin, TimeStampedModel):
 
 
 class TemplateAttachment(
-    core_models.UuidMixin, core_models.NameMixin, TimeStampedModel
+    FileMixin, core_models.UuidMixin, core_models.NameMixin, TimeStampedModel
 ):
     template = models.ForeignKey(
         Template, on_delete=models.CASCADE, related_name="attachments"
     )
     file = models.FileField(upload_to="support_template_attachments")
-
-    @property
-    def file_size(self):
-        if self.file:
-            return (
-                media_models.File.objects.filter(name=self.file.name)
-                .only("size")
-                .get()
-                .size
-            )
-
-    @property
-    def mime_type(self):
-        if self.file:
-            return (
-                media_models.File.objects.filter(name=self.file.name)
-                .only("mime_type")
-                .get()
-                .mime_type
-            )
 
 
 class IgnoredIssueStatus(models.Model):

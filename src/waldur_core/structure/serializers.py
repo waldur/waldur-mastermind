@@ -12,6 +12,7 @@ from django.db.models import Q
 from django.template.loader import get_template
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import exceptions, serializers
 from rest_framework.authtoken import models as authtoken_models
 
@@ -93,7 +94,7 @@ class PermissionFieldFilteringMixin:
 
     def get_filtered_field_names(self):
         raise NotImplementedError(
-            "Implement get_filtered_field_names() " "to return list of filtered fields"
+            "Implement get_filtered_field_names() to return list of filtered fields"
         )
 
 
@@ -126,7 +127,7 @@ class FieldFilteringMixin:
 
     def get_filtered_field(self):
         raise NotImplementedError(
-            "Implement get_filtered_field() " "to return list of tuples "
+            "Implement get_filtered_field() to return list of tuples "
         )
 
 
@@ -191,7 +192,7 @@ class PermissionProjectSerializer(BasicProjectSerializer):
             "end_date",
         )
 
-    def get_resource_count(self, project):
+    def get_resource_count(self, project) -> int:
         from waldur_mastermind.marketplace import models as marketplace_models
 
         return (
@@ -341,7 +342,7 @@ class ProjectSerializer(
 
         return attrs
 
-    def get_resources_count(self, project):
+    def get_resources_count(self, project) -> int:
         from waldur_mastermind.marketplace import models as marketplace_models
 
         return marketplace_models.Resource.objects.filter(
@@ -405,7 +406,7 @@ class CustomerSerializer(
     serializers.HyperlinkedModelSerializer,
 ):
     projects = serializers.SerializerMethodField()
-    display_name = serializers.ReadOnlyField(source="get_display_name")
+    display_name = serializers.SerializerMethodField()
     organization_groups = OrganizationGroupSerializer(many=True, read_only=True)
     projects_count = serializers.SerializerMethodField()
     users_count = serializers.SerializerMethodField()
@@ -513,9 +514,13 @@ class CustomerSerializer(
                     )
         return attrs
 
-    def get_projects_count(self, customer):
+    def get_display_name(self, customer) -> str:
+        return customer.get_display_name()
+
+    def get_projects_count(self, customer) -> int:
         return models.Project.available_objects.filter(customer=customer).count()
 
+    @extend_schema_field(PermissionProjectSerializer(many=True))
     def get_projects(self, customer):
         projects = models.Project.available_objects.filter(customer=customer)
         show_all_projects = self.context["request"].query_params.get(
@@ -531,7 +536,7 @@ class CustomerSerializer(
             projects, many=True, context=self.context
         ).data
 
-    def get_users_count(self, customer):
+    def get_users_count(self, customer) -> int:
         return count_customer_users(customer)
 
 
@@ -598,7 +603,7 @@ class NestedProjectPermissionSerializer(serializers.ModelSerializer):
     )
     uuid = serializers.ReadOnlyField(source="scope.uuid")
     name = serializers.ReadOnlyField(source="scope.name")
-    role_name = serializers.SerializerMethodField()
+    role_name = serializers.ReadOnlyField(source="role.name")
 
     class Meta:
         model = UserRole
@@ -609,9 +614,6 @@ class NestedProjectPermissionSerializer(serializers.ModelSerializer):
             "role_name",
             "expiration_time",
         ]
-
-    def get_role_name(self, instance):
-        return instance.role.name
 
 
 class CustomerUserSerializer(
@@ -793,29 +795,30 @@ class UserSerializer(
     identity_provider_management_url = serializers.SerializerMethodField()
     identity_provider_fields = serializers.SerializerMethodField()
 
-    def get_permissions(self, user):
+    @extend_schema_field(PermissionSerializer(many=True))
+    def get_permissions(self, user: core_models.User):
         perms = UserRole.objects.filter(user=user, is_active=True)
         perms = [perm for perm in perms if perm.scope]
         serializer = PermissionSerializer(instance=perms, many=True)
         return serializer.data
 
-    def get_requested_email(self, user):
+    def get_requested_email(self, user: core_models.User) -> str | None:
         try:
             requested_email = core_models.ChangeEmailRequest.objects.get(user=user)
             return requested_email.email
         except core_models.ChangeEmailRequest.DoesNotExist:
             pass
 
-    def get_identity_provider_name(self, user):
+    def get_identity_provider_name(self, user: core_models.User) -> str:
         return utils.get_identity_provider_name(user.registration_method)
 
-    def get_identity_provider_label(self, user):
+    def get_identity_provider_label(self, user: core_models.User) -> str:
         return utils.get_identity_provider_label(user.registration_method)
 
-    def get_identity_provider_management_url(self, user):
+    def get_identity_provider_management_url(self, user: core_models.User) -> str:
         return utils.get_identity_provider_management_url(user.registration_method)
 
-    def get_identity_provider_fields(self, user):
+    def get_identity_provider_fields(self, user: core_models.User) -> str:
         return utils.get_identity_provider_fields(user.registration_method)
 
     class Meta:
@@ -1101,7 +1104,7 @@ class ServiceSettingsSerializer(
             fields["options"] = serializers.SerializerMethodField("get_options")
         return fields
 
-    def get_options(self, service: models.ServiceSettings):
+    def get_options(self, service: models.ServiceSettings) -> dict:
         options = {
             "backend_url": service.backend_url,
             "username": service.username,
@@ -1130,7 +1133,7 @@ class BasicResourceSerializer(serializers.Serializer):
     name = serializers.ReadOnlyField()
     resource_type = serializers.SerializerMethodField()
 
-    def get_resource_type(self, resource):
+    def get_resource_type(self, resource) -> str:
         return get_resource_type(resource)
 
 
@@ -1234,14 +1237,14 @@ class BaseResourceSerializer(
     def get_filtered_field_names(self):
         return ("project", "service_settings")
 
-    def get_resource_type(self, obj):
+    def get_resource_type(self, obj) -> str:
         return get_resource_type(obj)
 
-    def get_resource_fields(self):
+    def get_resource_fields(self) -> list[str]:
         return [f.name for f in self.Meta.model._meta.get_fields()]
 
     # an optional generic URL for accessing a resource
-    def get_access_url(self, obj):
+    def get_access_url(self, obj) -> str | None:
         return obj.get_access_url()
 
     def get_fields(self):
@@ -1409,10 +1412,10 @@ class NotificationTemplateDetailSerializers(serializers.ModelSerializer):
             },
         }
 
-    def get_content(self, obj):
+    def get_content(self, obj) -> str:
         return get_template(obj.path).template.source
 
-    def get_original_content(self, obj):
+    def get_original_content(self, obj) -> str | None:
         from django.template.engine import Engine
         from django.template.loaders.app_directories import Loader
 
@@ -1425,7 +1428,7 @@ class NotificationTemplateDetailSerializers(serializers.ModelSerializer):
             if source:
                 return source
 
-    def get_is_content_overridden(self, obj):
+    def get_is_content_overridden(self, obj) -> bool:
         return self.get_content(obj) != self.get_original_content(obj)
 
 

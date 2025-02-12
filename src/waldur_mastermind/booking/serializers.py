@@ -7,6 +7,7 @@ from waldur_core.structure.managers import get_connected_customers
 from waldur_mastermind.booking import models as booking_models
 from waldur_mastermind.google import serializers as google_serializers
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
+from waldur_mastermind.marketplace.models import Offering
 
 from . import PLUGIN_NAME
 
@@ -63,7 +64,7 @@ class BookingResourceSerializer(marketplace_serializers.ResourceSerializer):
         )
         extra_kwargs["url"] = {"lookup_field": "uuid", "read_only": True}
 
-    def get_description(self, resource):
+    def get_description(self, resource) -> str:
         return resource.attributes.get("description", "")
 
     def get_slots(self, resource):
@@ -78,7 +79,7 @@ class BookingSerializer(serializers.Serializer):
     start = serializers.DateTimeField()
     end = serializers.DateTimeField()
 
-    def get_created_by_full_name(self, booking):
+    def get_created_by_full_name(self, booking) -> str | None:
         order = booking.order
 
         if not order:
@@ -101,7 +102,7 @@ class OfferingSerializer(marketplace_serializers.PublicOfferingDetailsSerializer
         view_name = "booking-offering-detail"
 
 
-def get_google_calendar_public(serializer, offering):
+def get_google_calendar_public(serializer, offering: Offering) -> bool:
     if offering.type != PLUGIN_NAME or not hasattr(offering, "googlecalendar"):
         return
 
@@ -124,7 +125,7 @@ core_signals.pre_serializer_fields.connect(
 )
 
 
-def get_google_calendar_link(serializer, offering):
+def get_google_calendar_link(serializer, offering) -> str | None:
     try:
         return offering.googlecalendar.http_link
     except AttributeError:

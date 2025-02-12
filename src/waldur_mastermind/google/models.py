@@ -30,7 +30,7 @@ class GoogleCalendar(core_models.StateMixin):
     public = models.BooleanField(default=False)
 
     @property
-    def http_link(self):
+    def http_link(self) -> str:
         if self.public:
             return "https://calendar.google.com/calendar/embed?%s" % urlencode(
                 {"src": self.backend_id}

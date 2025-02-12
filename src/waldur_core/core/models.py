@@ -276,7 +276,7 @@ class User(
     is_staff = models.BooleanField(
         _("staff status"),
         default=False,
-        help_text=_("Designates whether the user can log into this admin " "site."),
+        help_text=_("Designates whether the user can log into this admin site."),
     )
     is_active = models.BooleanField(
         _("active"),
@@ -360,11 +360,11 @@ class User(
     ]
 
     @property
-    def full_name(self):
+    def full_name(self) -> str:
         return (f"{self.first_name} {self.last_name}").strip()
 
     @full_name.setter
-    def full_name(self, value):
+    def full_name(self, value: str):
         names = value.split()
         self.first_name = " ".join(names[:1])
         self.last_name = " ".join(names[1:])

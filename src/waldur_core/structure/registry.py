@@ -6,7 +6,7 @@ from django.apps import apps
 from waldur_core.structure.exceptions import ServiceBackendNotImplemented
 
 
-def get_resource_type(model):
+def get_resource_type(model) -> str:
     return f"{get_service_type(model)}.{model._meta.object_name}"
 
 

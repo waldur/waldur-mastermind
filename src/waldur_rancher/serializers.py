@@ -454,7 +454,7 @@ class NodeSerializer(serializers.HyperlinkedModelSerializer):
 
         return super().validate(attrs)
 
-    def get_resource_type(self, obj):
+    def get_resource_type(self, obj) -> str:
         return "Rancher.Node"
 
 

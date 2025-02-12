@@ -78,9 +78,7 @@ class SupportFixture(structure_fixtures.ProjectFixture):
 
     @cached_property
     def offering(self):
-        return marketplace_factories.OfferingFactory(
-            type=PLUGIN_NAME, options={"order": []}
-        )
+        return marketplace_factories.OfferingFactory(type=PLUGIN_NAME)
 
     @cached_property
     def plan(self):

@@ -559,7 +559,7 @@ class BaseCredit(core_models.UuidMixin, core_models.TimeStampedModel):
     )
 
     @property
-    def time_left_factor(self):
+    def time_left_factor(self) -> decimal.Decimal:
         today = datetime.date.today()
         days_until_credit_end = decimal.Decimal(
             (self.end_date.replace(day=1) - today).days
@@ -579,7 +579,7 @@ class BaseCredit(core_models.UuidMixin, core_models.TimeStampedModel):
         )
 
     @property
-    def minimal_consumption(self):
+    def minimal_consumption(self) -> float:
         if not self.apply_as_minimal_consumption:
             return 0
 
@@ -606,7 +606,7 @@ class CustomerCredit(BaseCredit):
         customer_path = "customer"
 
     @property
-    def allocated_to_projects(self):
+    def allocated_to_projects(self) -> float:
         return (
             ProjectCredit.objects.filter(project__customer=self.customer).aggregate(
                 sum=Sum("value")
@@ -615,7 +615,7 @@ class CustomerCredit(BaseCredit):
         )
 
     @property
-    def consumption_last_month(self):
+    def consumption_last_month(self) -> float:
         last_month = core_utils.get_last_month()
         invoice = Invoice.objects.filter(
             year=last_month.year,
@@ -643,7 +643,7 @@ class ProjectCredit(BaseCredit):
     project = models.OneToOneField(structure_models.Project, on_delete=models.CASCADE)
 
     @property
-    def consumption_last_month(self):
+    def consumption_last_month(self) -> float:
         last_month = core_utils.get_last_month()
         invoice = Invoice.objects.filter(
             year=last_month.year,

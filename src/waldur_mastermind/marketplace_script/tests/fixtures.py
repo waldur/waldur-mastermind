@@ -12,7 +12,6 @@ class ScriptFixture(marketplace_fixtures.MarketplaceFixture):
     def offering(self):
         return marketplace_factories.OfferingFactory(
             type=PLUGIN_NAME,
-            options={"order": []},
             secret_options={
                 "pull": "print('Resource got regular update')",
                 "create": "print('Hello world!')",

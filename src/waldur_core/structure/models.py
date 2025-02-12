@@ -545,7 +545,7 @@ class Project(
         return self.end_date and self.end_date <= timezone.datetime.today().date()
 
     @property
-    def full_name(self):
+    def full_name(self) -> str:
         return self.name
 
     def get_users(self, role=None):
@@ -830,7 +830,7 @@ class BaseResource(
         return ("uuid", "name", "service_settings", "project", "full_name")
 
     @property
-    def full_name(self):
+    def full_name(self) -> str:
         return "{} {}".format(
             get_resource_type(self).replace(".", " "),
             self.name,
@@ -859,15 +859,15 @@ class BaseResource(
         pass
 
     @classmethod
-    def get_scope_type(cls):
+    def get_scope_type(cls) -> str:
         return get_resource_type(cls)
 
     @property
-    def customer(self):
+    def customer(self) -> Customer:
         return self.project.customer
 
     @property
-    def marketplace_uuid(self):
+    def marketplace_uuid(self) -> str:
         from waldur_mastermind.marketplace.models import Resource
 
         try:
