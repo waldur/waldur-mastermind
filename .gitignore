@@ -20,6 +20,7 @@ coverage.xml
 test_report.xml
 .cache/
 .pytest_cache/
+pytest.ini
 
 /static
 __pycache__/
