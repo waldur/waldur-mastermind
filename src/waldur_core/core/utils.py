@@ -488,7 +488,7 @@ class QuietSession(requests.Session):
 
 
 def format_homeport_link(format_str="", **kwargs):
-    link = settings.WALDUR_CORE["HOMEPORT_URL"] + format_str
+    link = config.HOMEPORT_URL + format_str
     return link.format(**kwargs)
 
 

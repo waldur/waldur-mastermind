@@ -7,7 +7,6 @@ import requests
 from celery import shared_task
 from constance import config
 from dateutil.relativedelta import relativedelta
-from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
@@ -448,7 +447,7 @@ def send_metrics():
     if not core_models.Feature.objects.filter(key="telemetry.send_metrics").exists():
         return
 
-    site_name = settings.WALDUR_CORE["HOMEPORT_URL"]
+    site_name = config.HOMEPORT_URL
     deployment_type = core_utils.get_deployment_type()
     first_event = logging_models.Event.objects.order_by("created").first()
     installation_date = (
