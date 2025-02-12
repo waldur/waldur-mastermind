@@ -10,6 +10,7 @@ OFFERING_FIELDS = (
     "country",
     "options",
     "resource_options",
+    "access_url",
 )
 
 OFFERING_COMPONENT_FIELDS = (

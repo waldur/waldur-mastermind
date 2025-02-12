@@ -138,6 +138,7 @@ class OfferingDetailsPullTest(test.APITransactionTestCase):
                     "url": "https://existing-endpoint.example.com/",
                 },
             ],
+            "access_url": "http://test-access-url.example.com/",
         }
 
     def tearDown(self) -> None:
@@ -403,6 +404,7 @@ class OfferingCreateTest(test.APITransactionTestCase):
             "country": "",
             "options": "",
             "resource_options": "",
+            "access_url": "",
         }
         self.client_mock = client_mock
 
