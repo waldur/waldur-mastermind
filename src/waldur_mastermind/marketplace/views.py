@@ -4003,6 +4003,7 @@ class ComponentUserUsageLimitViewSet(core_views.ActionsViewSet):
     lookup_field = "uuid"
     queryset = models.ComponentUserUsageLimit.objects.all().order_by("-created")
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    filterset_class = filters.ComponentUserUsageLimitFilter
     serializer_class = serializers.ComponentUserUsageLimitSerializer
 
     destroy_permissions = update_permissions = partial_update_permissions = [
