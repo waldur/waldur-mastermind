@@ -515,7 +515,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         ).count()
 
         return Response(
-            serializers.ServiceProviderStatisticsSerializer(
+            dict(
                 active_campaigns=active_campaigns,
                 current_customers=current_customers,
                 customers_number_change=utils.count_customers_number_change(
@@ -529,7 +529,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
                 unresolved_tickets=unresolved_tickets,
                 pending_orders=pending_orders,
                 erred_resources=erred_resources,
-            ).data,
+            ),
             status=status.HTTP_200_OK,
         )
 
