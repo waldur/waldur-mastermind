@@ -4,6 +4,7 @@ import yaml
 from django.core.files.storage import default_storage
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management.base import BaseCommand
+from rest_framework.exceptions import ValidationError
 
 from waldur_core.core import logos
 from waldur_core.core.serializers import ConstanceSettingsSerializer
@@ -72,25 +73,32 @@ class Command(BaseCommand):
         for key in keys_to_delete:
             del constance_settings[key]
 
-        settings_to_delete = []
-        for name in constance_settings.keys():
-            try:
-                serializer = ConstanceSettingsSerializer(
-                    data={name: constance_settings[name]}
-                )
-                serializer.is_valid(raise_exception=True)
+        try:
+            serializer = ConstanceSettingsSerializer(data=constance_settings)
+            serializer.is_valid(raise_exception=False)
+
+            # settings_to_delete = [key for key,_ in serializer.errors.items()]
+            settings_to_delete = dict(serializer.errors)
+
+            # Remove broken fields from the data
+            for name, _ in settings_to_delete.items():
+                del constance_settings[name]
+
+            serializer = ConstanceSettingsSerializer(data=constance_settings)
+            if serializer.is_valid():
                 serializer.save()
-            except Exception as e:
+
+            # Show error messages for broken fields
+            for name, error in settings_to_delete.items():
                 self.stdout.write(
                     self.style.ERROR(
-                        f"Failed to save setting {name} due to error: {str(e)}"
+                        f"Failed to save setting {name} due to error: {str(error[0])}"
                     )
                 )
-                settings_to_delete.append(name)
-
-        # Remove failed settings from the display list
-        for name in settings_to_delete:
-            del constance_settings[name]
+        except ValidationError as e:
+            self.stdout.write(
+                self.style.ERROR(f"Unexpected validation error: {str(e)}")
+            )
 
         for setting_key, setting_value in constance_settings.items():
             if "password" in setting_key.lower() or "token" in setting_key.lower():

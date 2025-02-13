@@ -35,6 +35,20 @@ class OverrideConstanceSettingsTest(TestCase):
         call_command("override_constance_settings", settings_file, stdout=output)
         self.assertIn("Constance settings file is empty", output.getvalue())
 
+    def test_empty_image_file(self):
+        """
+        Test that the command prints an error when the image file is empty.
+        """
+        temp_image = os.path.join(self.temp_dir, "test_logo.png")
+        open(temp_image, "wb").close()
+        settings = {"LOGIN_LOGO": temp_image}
+        settings_file = self.create_settings_file(settings)
+        output = StringIO()
+        call_command("override_constance_settings", settings_file, stdout=output)
+        self.assertIn(
+            "Failed to save setting LOGIN_LOGO due to error: ", output.getvalue()
+        )
+
     def test_basic_settings_override(self):
         """
         Test that the command overrides the settings correctly.
@@ -110,6 +124,46 @@ class OverrideConstanceSettingsTest(TestCase):
             output.getvalue(),
         )
 
+    def test_dict_field_validation_failure(self):
+        """
+        Test that the dict field is validated correctly.
+        """
+        # Set invalid dict
+        settings = {"DOCKER_RUN_OPTIONS": "randomstring"}
+        settings_file = self.create_settings_file(settings)
+        output = StringIO()
+        call_command("override_constance_settings", settings_file, stdout=output)
+        self.assertIn(
+            "Failed to save setting DOCKER_RUN_OPTIONS due to error: ",
+            output.getvalue(),
+        )
+
+    def test_url_field_validation(self):
+        """
+        Test that the url field is validated correctly.
+        """
+        # Set invalid url
+        settings = {"ZAMMAD_API_URL": "prandomstring"}
+        settings_file = self.create_settings_file(settings)
+        output = StringIO()
+        call_command("override_constance_settings", settings_file, stdout=output)
+        self.assertIn(
+            "Failed to save setting ZAMMAD_API_URL due to error: ", output.getvalue()
+        )
+
+    def test_color_field_validation(self):
+        """
+        Test that the color field is validated correctly.
+        """
+        # Set invalid color
+        settings = {"BRAND_COLOR": "randomstring"}
+        settings_file = self.create_settings_file(settings)
+        output = StringIO()
+        call_command("override_constance_settings", settings_file, stdout=output)
+        self.assertIn(
+            "Failed to save setting BRAND_COLOR due to error: ", output.getvalue()
+        )
+
         # Set valid color
         settings = {"BRAND_COLOR": "#FF0000"}
         settings_file = self.create_settings_file(settings)
@@ -121,6 +175,17 @@ class OverrideConstanceSettingsTest(TestCase):
         """
         Test that the list field is validated correctly.
         """
+        # Set invalid list
+        settings = {"FREEIPA_BLACKLISTED_USERNAMES": "randomstring"}
+        settings_file = self.create_settings_file(settings)
+
+        output = StringIO()
+        call_command("override_constance_settings", settings_file, stdout=output)
+        self.assertIn(
+            "Failed to save setting FREEIPA_BLACKLISTED_USERNAMES due to error: ",
+            output.getvalue(),
+        )
+
         # Set valid list
         settings = {"FREEIPA_BLACKLISTED_USERNAMES": ["root", "admin"]}
         settings_file = self.create_settings_file(settings)
