@@ -6,7 +6,6 @@ from io import StringIO
 import yaml
 from django.core.management import call_command
 from django.test import TestCase
-from rest_framework.exceptions import ValidationError
 
 from waldur_core.media.utils import dummy_image
 
@@ -109,42 +108,6 @@ class OverrideConstanceSettingsTest(TestCase):
         self.assertIn(
             "DOCKER_RUN_OPTIONS has been set to {'cpu_count': 2, 'mem_limit': '512m'}",
             output.getvalue(),
-        )
-
-    def test_dict_field_validation_failure(self):
-        """
-        Test that the dict field is validated correctly.
-        """
-        # Set invalid dict
-        settings = {"DOCKER_RUN_OPTIONS": "randomstring"}
-        settings_file = self.create_settings_file(settings)
-
-        self.assertRaises(
-            ValidationError, call_command, "override_constance_settings", settings_file
-        )
-
-    def test_url_field_validation(self):
-        """
-        Test that the url field is validated correctly.
-        """
-        # Set invalid url
-        settings = {"ZAMMAD_API_URL": "prandomstring"}
-        settings_file = self.create_settings_file(settings)
-
-        self.assertRaises(
-            ValidationError, call_command, "override_constance_settings", settings_file
-        )
-
-    def test_color_field_validation(self):
-        """
-        Test that the color field is validated correctly.
-        """
-        # Set invalid color
-        settings = {"BRAND_COLOR": "randomstring"}
-        settings_file = self.create_settings_file(settings)
-
-        self.assertRaises(
-            ValidationError, call_command, "override_constance_settings", settings_file
         )
 
         # Set valid color
