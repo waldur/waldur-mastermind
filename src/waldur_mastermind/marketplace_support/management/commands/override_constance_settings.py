@@ -72,9 +72,25 @@ class Command(BaseCommand):
         for key in keys_to_delete:
             del constance_settings[key]
 
-        serializer = ConstanceSettingsSerializer(data=constance_settings)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
+        settings_to_delete = []
+        for name in constance_settings.keys():
+            try:
+                serializer = ConstanceSettingsSerializer(
+                    data={name: constance_settings[name]}
+                )
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
+            except Exception as e:
+                self.stdout.write(
+                    self.style.ERROR(
+                        f"Failed to save setting {name} due to error: {str(e)}"
+                    )
+                )
+                settings_to_delete.append(name)
+
+        # Remove failed settings from the display list
+        for name in settings_to_delete:
+            del constance_settings[name]
 
         for setting_key, setting_value in constance_settings.items():
             if "password" in setting_key.lower() or "token" in setting_key.lower():
