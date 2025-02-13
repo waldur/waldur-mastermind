@@ -8,8 +8,8 @@ from waldur_core.core import views as core_views
 from . import backend, filters, models, serializers, tasks
 
 
-class CheckExtensionMixin(core_views.CheckExtensionMixin):
-    extension_name = "WALDUR_FREEIPA"
+class CheckExtensionMixin(core_views.ConstanceCheckExtensionMixin):
+    extension_name = "FREEIPA"
 
 
 class ProfileViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
