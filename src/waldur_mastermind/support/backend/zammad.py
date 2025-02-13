@@ -321,8 +321,8 @@ class ZammadServiceBackend(SupportBackend):
         }
         local_ids = set(local_map.keys())
 
-        new_ids = local_ids - remote_ids
-        stale_ids = remote_ids - local_ids
+        new_ids = remote_ids - local_ids
+        stale_ids = local_ids - remote_ids
         common_ids = local_ids & remote_ids
 
         models.SupportUser.objects.filter(
