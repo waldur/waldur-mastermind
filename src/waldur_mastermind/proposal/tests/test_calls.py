@@ -280,15 +280,13 @@ class CallActivateTest(test.APITransactionTestCase):
         self.assertEqual(self.draft_call.state, models.Call.States.DRAFT)
 
     @data("staff")
-    def test_user_can_not_activate_call_without_reviewer(self, user):
+    def test_user_can_activate_call_without_reviewer(self, user):
         factories.RoundFactory(
             call=self.draft_call,
         )
         response = self.activate_call(user, self.draft_call)
-        self.assertEqual(
-            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
-        )
-        self.assertEqual(self.draft_call.state, models.Call.States.DRAFT)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(self.draft_call.state, models.Call.States.ACTIVE)
 
     @data(
         "staff",
