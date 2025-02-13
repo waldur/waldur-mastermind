@@ -1079,6 +1079,7 @@ class Resource(
         "object_id",
         "content_type_id",
         "error_message",
+        "error_traceback",
         "current_usages",
     )
 
