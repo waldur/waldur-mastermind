@@ -25,30 +25,6 @@ if [ -z "$KUBERNETES_SERVICE_HOST" ] && [ -e /var/run/docker.sock ]; then
     fi
 fi
 
-if [[ -f "/etc/waldur/id_rsa" ]]; then
-    WALDUR_DIR="/var/lib/waldur"
-    TARGET_FILE="$WALDUR_DIR/id_rsa"
-
-    if ! [ -w "$WALDUR_DIR" ]; then
-        DIR_PERMS=$(stat -c '%a %u:%g' "$WALDUR_DIR")
-        echo "Warning: Cannot write to $WALDUR_DIR"
-        echo "Current directory permissions: $DIR_PERMS (mode:uid:gid)"
-        echo "Container user: $(id)"
-        echo "Container user groups: $(id -G)"
-        echo "Primary group: $(id -g)"
-        echo "Required: write permission for user $(id -u) or group $(id -g)"
-    else
-        cp -vf "/etc/waldur/id_rsa" "$TARGET_FILE" || {
-            SRC_PERMS=$(stat -c '%a %u:%g' "/etc/waldur/id_rsa")
-            echo "Warning: Failed to copy SSH key"
-            echo "Source permissions: $SRC_PERMS (mode:uid:gid)"
-            echo "Container user: $(id)"
-            echo "Container user groups: $(id -G)"
-            echo "Primary group: $(id -g)"
-            echo "Required: read permission for user $(id -u) or group $(id -g)"
-        }
-    fi
-fi
 
 if [[ -f "/etc/waldur/saml2/sp.pem" ]]; then
     cp -vf "/etc/waldur/saml2/sp.pem" "/var/lib/waldur/sp.pem" || {
