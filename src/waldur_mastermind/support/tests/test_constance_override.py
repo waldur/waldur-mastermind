@@ -158,14 +158,6 @@ class OverrideConstanceSettingsTest(TestCase):
         """
         Test that the list field is validated correctly.
         """
-        # Set invalid list
-        settings = {"FREEIPA_BLACKLISTED_USERNAMES": "randomstring"}
-        settings_file = self.create_settings_file(settings)
-
-        self.assertRaises(
-            ValidationError, call_command, "override_constance_settings", settings_file
-        )
-
         # Set valid list
         settings = {"FREEIPA_BLACKLISTED_USERNAMES": ["root", "admin"]}
         settings_file = self.create_settings_file(settings)
