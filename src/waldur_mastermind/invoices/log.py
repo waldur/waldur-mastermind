@@ -130,7 +130,7 @@ event_logger.register("credit", CreditLogger)
 
 def log_roll_back_customer_credit(customer, old_value, new_value):
     event_logger.credit.info(
-        "Customer credit for {customer} has been rolled back from {old_value} to {new_value}.",
+        "Customer credit for {customer_name} has been rolled back from {old_value} to {new_value}.",
         event_type="roll_back_customer_credit",
         event_context={
             "old_value": int(old_value),
@@ -142,7 +142,7 @@ def log_roll_back_customer_credit(customer, old_value, new_value):
 
 def log_roll_back_project_credit(customer, project, old_value, new_value):
     event_logger.credit.info(
-        "Project credit for {project} has been rolled back from {old_value} to {new_value}.",
+        "Project credit for {project_name} has been rolled back from {old_value} to {new_value}.",
         event_type="roll_back_project_credit",
         event_context={
             "old_value": int(old_value),
@@ -155,7 +155,7 @@ def log_roll_back_project_credit(customer, project, old_value, new_value):
 
 def log_changing_of_offerings(customer, old_offerings, new_offerings):
     event_logger.credit.info(
-        "Allowed offerings of {customer} have been updated from {old_offerings} to {new_offerings}.",
+        "Allowed offerings of {customer_name} have been updated from {old_offerings} to {new_offerings}.",
         event_type="allowed_offerings_have_been_updated",
         event_context={
             "old_offerings": old_offerings,
