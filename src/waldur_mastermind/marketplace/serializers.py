@@ -1907,7 +1907,6 @@ class OfferingPermissionSerializer(
     offering_name = serializers.ReadOnlyField(source="scope.name")
     offering_slug = serializers.ReadOnlyField(source="scope.slug")
     offering_uuid = serializers.ReadOnlyField(source="scope.uuid")
-    role_name = serializers.ReadOnlyField(source="role.name")
 
     class Meta(structure_serializers.BasePermissionSerializer.Meta):
         model = UserRole
@@ -1921,7 +1920,6 @@ class OfferingPermissionSerializer(
             "offering_uuid",
             "offering_slug",
             "offering_name",
-            "role_name",
         ) + structure_serializers.BasePermissionSerializer.Meta.fields
         protected_fields = ("offering", "user", "created_by", "created")
         view_name = "marketplace-offering-permission-detail"
