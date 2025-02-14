@@ -16,7 +16,7 @@ class DigitalOceanServiceSerializer(structure_serializers.ServiceOptionsSerializ
     token = serializers.CharField(label=_("Access token"))
 
 
-class RegionSerializer(structure_serializers.BasePropertySerializer):
+class DigitalOceanRegionSerializer(structure_serializers.BasePropertySerializer):
     class Meta:
         model = models.Region
         fields = ("url", "uuid", "name")
@@ -25,7 +25,7 @@ class RegionSerializer(structure_serializers.BasePropertySerializer):
         }
 
 
-class ImageSerializer(structure_serializers.BasePropertySerializer):
+class DigitalOceanImageSerializer(structure_serializers.BasePropertySerializer):
     class Meta:
         model = models.Image
         fields = (
@@ -43,10 +43,10 @@ class ImageSerializer(structure_serializers.BasePropertySerializer):
             "url": {"lookup_field": "uuid"},
         }
 
-    regions = RegionSerializer(many=True, read_only=True)
+    regions = DigitalOceanRegionSerializer(many=True, read_only=True)
 
 
-class SizeSerializer(structure_serializers.BasePropertySerializer):
+class DigitalOceanSizeSerializer(structure_serializers.BasePropertySerializer):
     class Meta:
         model = models.Size
         fields = ("url", "uuid", "name", "cores", "ram", "disk", "transfer", "regions")
@@ -54,10 +54,10 @@ class SizeSerializer(structure_serializers.BasePropertySerializer):
             "url": {"lookup_field": "uuid"},
         }
 
-    regions = RegionSerializer(many=True, read_only=True)
+    regions = DigitalOceanRegionSerializer(many=True, read_only=True)
 
 
-class DropletSerializer(structure_serializers.VirtualMachineSerializer):
+class DigitalOceanDropletSerializer(structure_serializers.VirtualMachineSerializer):
     region = serializers.HyperlinkedRelatedField(
         view_name="digitalocean-region-detail",
         lookup_field="uuid",
@@ -154,7 +154,7 @@ class DropletSerializer(structure_serializers.VirtualMachineSerializer):
         return super().create(validated_data)
 
 
-class DropletResizeSerializer(serializers.Serializer):
+class DigitalOceanDropletResizeSerializer(serializers.Serializer):
     size = serializers.HyperlinkedRelatedField(
         view_name="digitalocean-size-detail",
         lookup_field="uuid",

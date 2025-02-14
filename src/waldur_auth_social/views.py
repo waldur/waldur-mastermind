@@ -10,7 +10,8 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.shortcuts import redirect
 from django.utils import timezone
-from rest_framework import status, views, viewsets
+from drf_spectacular.utils import OpenApiParameter, extend_schema
+from rest_framework import generics, status, views, viewsets
 from rest_framework.exceptions import AuthenticationFailed, NotFound, ValidationError
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
@@ -23,6 +24,7 @@ from waldur_auth_social.utils import (
 )
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core.authentication import set_authentication_method
+from waldur_core.core.serializers import EmptySerializer
 from waldur_core.core.utils import format_homeport_link
 from waldur_core.core.views import RefreshTokenMixin
 
@@ -51,10 +53,11 @@ def generate_code_challenge(code_verifier):
     return base64.urlsafe_b64encode(code_challenge).decode("utf-8").replace("=", "")
 
 
-class BaseOAuthView(RefreshTokenMixin, views.APIView):
+class BaseOAuthView(RefreshTokenMixin, generics.GenericAPIView):
     permission_classes = []
     authentication_classes = []
     throttle_scope = "oauth"
+    serializer_class = EmptySerializer
 
     def validate_config(self, provider):
         if not self.request.user.is_anonymous:
@@ -109,6 +112,12 @@ class OAuthViewInit(BaseOAuthView):
 
 
 class OAuthViewComplete(BaseOAuthView):
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(name="state", type=str, location=OpenApiParameter.QUERY),
+            OpenApiParameter(name="code", type=str, location=OpenApiParameter.QUERY),
+        ]
+    )
     def get(self, request, provider, format=None):
         self.validate_config(provider)
 
@@ -265,6 +274,7 @@ class IdentityProvidersViewSet(viewsets.ModelViewSet):
 
 
 class RemoteEduteamsView(views.APIView):
+    @extend_schema(request=RemoteEduteamsRequestSerializer)
     def post(self, request, *args, **kwargs):
         if not request.user.is_staff and not request.user.is_identity_manager:
             return Response(

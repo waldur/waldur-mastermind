@@ -23,18 +23,22 @@ class OfferingCreateSerializer(CredentialsSerializer):
 
 class ProjectUpdateRequestSerializer(serializers.ModelSerializer):
     state = serializers.ReadOnlyField(source="get_state_display")
-    customer_name = serializers.ReadOnlyField(source="project.customer.name")
-    offering_name = serializers.ReadOnlyField(source="offering.name")
-    offering_uuid = serializers.ReadOnlyField(source="offering.uuid")
-
-    reviewed_by_full_name = serializers.ReadOnlyField(source="reviewed_by.full_name")
-    reviewed_by_uuid = serializers.ReadOnlyField(source="reviewed_by.uuid")
-
-    old_oecd_fos_2007_label = serializers.ReadOnlyField(
-        source="get_old_oecd_fos_2007_code_display"
+    customer_name = serializers.CharField(
+        read_only=True, source="project.customer.name"
     )
-    new_oecd_fos_2007_label = serializers.ReadOnlyField(
-        source="get_new_oecd_fos_2007_code_display"
+    offering_name = serializers.CharField(read_only=True, source="offering.name")
+    offering_uuid = serializers.CharField(read_only=True, source="offering.uuid")
+
+    reviewed_by_full_name = serializers.CharField(
+        read_only=True, source="reviewed_by.full_name"
+    )
+    reviewed_by_uuid = serializers.CharField(read_only=True, source="reviewed_by.uuid")
+
+    old_oecd_fos_2007_label = serializers.CharField(
+        read_only=True, source="get_old_oecd_fos_2007_code_display"
+    )
+    new_oecd_fos_2007_label = serializers.CharField(
+        read_only=True, source="get_new_oecd_fos_2007_code_display"
     )
 
     class Meta:
@@ -68,8 +72,12 @@ class ProjectUpdateRequestSerializer(serializers.ModelSerializer):
 
 
 class NestedRemoteLocalCategorySerializer(serializers.HyperlinkedModelSerializer):
-    local_category_name = serializers.ReadOnlyField(source="local_category.title")
-    local_category_uuid = serializers.ReadOnlyField(source="local_category.uuid")
+    local_category_name = serializers.CharField(
+        read_only=True, source="local_category.title"
+    )
+    local_category_uuid = serializers.CharField(
+        read_only=True, source="local_category.uuid"
+    )
 
     class Meta:
         fields = (

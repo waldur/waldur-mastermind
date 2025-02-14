@@ -12,6 +12,7 @@ class CoreConfig(AppConfig):
     def ready(self):
         from rest_framework.authtoken.models import Token
 
+        import waldur_core.core.openapi_extensions  # noqa
         from waldur_core.core import (
             checks,  # noqa
             handlers,

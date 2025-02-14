@@ -1,9 +1,11 @@
 import logging
+from datetime import datetime
 
 from constance import config
 from django.db.models import Q
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 from rest_framework.reverse import reverse
 
@@ -115,7 +117,7 @@ class NestedRequestedOfferingSerializer(serializers.HyperlinkedModelSerializer):
             },
         }
 
-    def get_url(self, requested_offering):
+    def get_url(self, requested_offering) -> str:
         return self.context["request"].build_absolute_uri(
             reverse(
                 "proposal-call-offering-detail",
@@ -133,7 +135,7 @@ class NestedRequestedResourceSerializer(serializers.HyperlinkedModelSerializer):
     created_by_name = serializers.ReadOnlyField(source="created_by.full_name")
     url = serializers.SerializerMethodField()
 
-    def get_url(self, requested_resource):
+    def get_url(self, requested_resource) -> str:
         return self.context["request"].build_absolute_uri(
             reverse(
                 "proposal-proposal-resource-detail",
@@ -318,7 +320,7 @@ class NestedRoundSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class CallDocumentSerializer(serializers.ModelSerializer):
-    file_name = serializers.ReadOnlyField(source="file.name")
+    file_name = serializers.CharField(source="file.name", read_only=True)
 
     class Meta:
         model = models.CallDocument
@@ -374,14 +376,15 @@ class PublicCallSerializer(
             "documents": {"required": False},
         }
 
-    def get_start_date(self, obj):
+    def get_start_date(self, obj) -> datetime:
         first_round = obj.round_set.order_by("start_time").first()
         return first_round.start_time if first_round else None
 
-    def get_end_date(self, obj):
+    def get_end_date(self, obj) -> datetime:
         last_round = obj.round_set.order_by("-cutoff_time").first()
         return last_round.cutoff_time if last_round else None
 
+    @extend_schema_field(NestedRequestedOfferingSerializer(many=True))
     def get_offerings(self, obj):
         queryset = obj.requestedoffering_set.filter(
             state=models.RequestedOffering.States.ACCEPTED
@@ -394,6 +397,7 @@ class PublicCallSerializer(
         )
         return serializer.data
 
+    @extend_schema_field(NestedRoundSerializer(many=True))
     def get_rounds(self, obj):
         queryset = obj.round_set.all()
         all_open_rounds = queryset.filter(
@@ -451,7 +455,7 @@ class RequestedOfferingSerializer(
             },
         }
 
-    def get_url(self, requested_offering):
+    def get_url(self, requested_offering) -> str:
         return self.context["request"].build_absolute_uri(
             reverse(
                 "proposal-call-offering-detail",
@@ -561,22 +565,15 @@ class ProviderRequestedResourceSerializer(NestedRequestedResourceSerializer):
                     "lookup_field": "uuid",
                     "view_name": "proposal-proposal-detail",
                 },
+                "url": {
+                    "lookup_field": "uuid",
+                    "view_name": "proposal-requested-resource-detail",
+                },
             },
         }
 
-    def get_url(self, requested_resource):
-        return self.context["request"].build_absolute_uri(
-            reverse(
-                "proposal-requested-resource-detail",
-                kwargs={
-                    "uuid": requested_resource.uuid.hex,
-                },
-            )
-        )
-
 
 class ProviderRequestedOfferingSerializer(NestedRequestedOfferingSerializer):
-    url = serializers.SerializerMethodField()
     call_name = serializers.ReadOnlyField(source="call.name")
     created_by_name = serializers.ReadOnlyField(source="created_by.full_name")
     created_by_email = serializers.ReadOnlyField(source="created_by.email")
@@ -613,17 +610,11 @@ class ProviderRequestedOfferingSerializer(NestedRequestedOfferingSerializer):
                 "view_name": "marketplace-plan-detail",
                 "read_only": True,
             },
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "proposal-requested-offering-detail",
+            },
         }
-
-    def get_url(self, requested_offering):
-        return self.context["request"].build_absolute_uri(
-            reverse(
-                "proposal-requested-offering-detail",
-                kwargs={
-                    "uuid": requested_offering.uuid.hex,
-                },
-            )
-        )
 
 
 class ProtectedCallSerializer(PublicCallSerializer):
@@ -689,7 +680,7 @@ class ProtectedRoundSerializer(
     class Meta(NestedRoundSerializer.Meta):
         fields = NestedRoundSerializer.Meta.fields + ["url", "proposals"]
 
-    def get_url(self, call_round):
+    def get_url(self, call_round) -> str:
         return self.context["request"].build_absolute_uri(
             reverse(
                 "proposal-call-round-detail",
@@ -726,7 +717,7 @@ class ProtectedRoundSerializer(
 
 
 class ProposalDocumentationSerializer(serializers.ModelSerializer):
-    file_name = serializers.ReadOnlyField(source="file.name")
+    file_name = serializers.CharField(source="file.name", read_only=True)
 
     class Meta:
         model = models.ProposalDocumentation
@@ -840,7 +831,7 @@ class ReviewerSerializer(serializers.Serializer):
     rejected_proposals = serializers.IntegerField()
     in_review_proposals = serializers.IntegerField()
 
-    def get_full_name(self, obj):
+    def get_full_name(self, obj) -> str:
         return f"{obj.first_name} {obj.last_name}"
 
 
@@ -848,8 +839,7 @@ class ProposalAllocateSerializer(serializers.Serializer):
     allocation_comment = serializers.CharField(required=False)
 
 
-class RoundSerializer(serializers.ModelSerializer):
-    url = serializers.SerializerMethodField()
+class RoundSerializer(serializers.HyperlinkedModelSerializer):
     call_uuid = serializers.UUIDField(source="call.uuid", read_only=True)
     call_name = serializers.ReadOnlyField(source="call.name")
 
@@ -876,12 +866,13 @@ class RoundSerializer(serializers.ModelSerializer):
         },
     }
 
-    def get_url(self, obj):
-        return self.context["request"].build_absolute_uri(
-            reverse(
-                "call-round-detail",
-                kwargs={
-                    "uuid": obj.uuid.hex,
-                },
-            )
-        )
+
+class CallManagingOrganisationStatSerializer(serializers.Serializer):
+    open_calls = serializers.IntegerField(read_only=True)
+    active_rounds = serializers.IntegerField(read_only=True)
+    accepted_proposals = serializers.IntegerField(read_only=True)
+    pending_proposals = serializers.IntegerField(read_only=True)
+    pending_review = serializers.IntegerField(read_only=True)
+    rounds_closing_in_one_week = serializers.IntegerField(read_only=True)
+    calls_closing_in_one_week = serializers.IntegerField(read_only=True)
+    offering_requests_pending = serializers.IntegerField(read_only=True)

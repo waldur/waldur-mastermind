@@ -10,6 +10,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
 from waldur_core.core import validators as core_validators
+from waldur_core.core.serializers import EmptySerializer
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import views as structure_views
 from waldur_vmware.apps import VMwareConfig
@@ -33,12 +34,12 @@ class LimitViewSet(RetrieveModelMixin, GenericViewSet):
         type=VMwareConfig.service_name
     )
     lookup_field = "uuid"
-    serializer_class = serializers.LimitSerializer
+    serializer_class = serializers.VmwareLimitSerializer
 
 
 class VirtualMachineViewSet(structure_views.ResourceViewSet):
     queryset = models.VirtualMachine.objects.all().order_by("name")
-    serializer_class = serializers.VirtualMachineSerializer
+    serializer_class = serializers.VmwareVirtualMachineSerializer
     filterset_class = filters.VirtualMachineFilter
     pull_executor = executors.VirtualMachinePullExecutor
     create_executor = executors.VirtualMachineCreateExecutor
@@ -72,7 +73,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
             models.VirtualMachine.RuntimeStates.SUSPENDED,
         ),
     ]
-    start_serializer_class = rf_serializers.Serializer
+    start_serializer_class = EmptySerializer
 
     @action(detail=True, methods=["post"])
     def stop(self, request, uuid=None):
@@ -89,7 +90,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
             models.VirtualMachine.RuntimeStates.SUSPENDED,
         ),
     ]
-    stop_serializer_class = rf_serializers.Serializer
+    stop_serializer_class = EmptySerializer
 
     @action(detail=True, methods=["post"])
     def reset(self, request, uuid=None):
@@ -105,7 +106,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
             models.VirtualMachine.RuntimeStates.POWERED_ON,
         ),
     ]
-    reset_serializer_class = rf_serializers.Serializer
+    reset_serializer_class = EmptySerializer
 
     @action(detail=True, methods=["post"])
     def suspend(self, request, uuid=None):
@@ -121,7 +122,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
             models.VirtualMachine.RuntimeStates.POWERED_ON,
         ),
     ]
-    suspend_serializer_class = rf_serializers.Serializer
+    suspend_serializer_class = EmptySerializer
 
     def vm_tools_are_running(vm):
         if vm.tools_state != models.VirtualMachine.ToolsStates.RUNNING:
@@ -142,7 +143,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
         ),
         vm_tools_are_running,
     ]
-    shutdown_guest_serializer_class = rf_serializers.Serializer
+    shutdown_guest_serializer_class = EmptySerializer
 
     @action(detail=True, methods=["post"])
     def reboot_guest(self, request, uuid=None):
@@ -152,7 +153,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
             {"status": _("reboot was scheduled")}, status=status.HTTP_202_ACCEPTED
         )
 
-    reboot_guest_serializer_class = rf_serializers.Serializer
+    reboot_guest_serializer_class = EmptySerializer
 
     @action(detail=True, methods=["post"])
     def create_port(self, request, uuid=None):
@@ -174,7 +175,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
         core_validators.StateValidator(models.VirtualMachine.States.OK),
         check_number_of_ports,
     ]
-    create_port_serializer_class = serializers.PortSerializer
+    create_port_serializer_class = serializers.VmwarePortSerializer
 
     @action(detail=True, methods=["post"])
     def create_disk(self, request, uuid=None):
@@ -199,7 +200,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
         core_validators.StateValidator(models.VirtualMachine.States.OK),
         validate_total_size,
     ]
-    create_disk_serializer_class = serializers.DiskSerializer
+    create_disk_serializer_class = serializers.VmwareDiskSerializer
 
     @action(detail=True, methods=["get"])
     def console(self, request, uuid=None):
@@ -243,7 +244,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
 
 class PortViewSet(structure_views.ResourceViewSet):
     queryset = models.Port.objects.all().order_by("-created")
-    serializer_class = serializers.PortSerializer
+    serializer_class = serializers.VmwarePortSerializer
     filterset_class = filters.PortFilter
     disabled_actions = ["create", "update", "partial_update"]
     pull_executor = executors.PortPullExecutor
@@ -252,7 +253,7 @@ class PortViewSet(structure_views.ResourceViewSet):
 
 class DiskViewSet(structure_views.ResourceViewSet):
     queryset = models.Disk.objects.all().order_by("-created")
-    serializer_class = serializers.DiskSerializer
+    serializer_class = serializers.VmwareDiskSerializer
     filterset_class = filters.DiskFilter
     disabled_actions = ["create", "update", "partial_update"]
     pull_executor = executors.DiskPullExecutor
@@ -291,39 +292,39 @@ class DiskViewSet(structure_views.ResourceViewSet):
         core_validators.StateValidator(models.Disk.States.OK),
         validate_total_size,
     ]
-    extend_serializer_class = serializers.DiskExtendSerializer
+    extend_serializer_class = serializers.VmwareDiskExtendSerializer
 
 
 class TemplateViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Template.objects.all().order_by("name")
-    serializer_class = serializers.TemplateSerializer
+    serializer_class = serializers.VmwareTemplateSerializer
     filterset_class = filters.TemplateFilter
     lookup_field = "uuid"
 
 
 class ClusterViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Cluster.objects.all().order_by("name")
-    serializer_class = serializers.ClusterSerializer
+    serializer_class = serializers.VmwareClusterSerializer
     filterset_class = filters.ClusterFilter
     lookup_field = "uuid"
 
 
 class NetworkViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Network.objects.all().order_by("name")
-    serializer_class = serializers.NetworkSerializer
+    serializer_class = serializers.VmwareNetworkSerializer
     filterset_class = filters.NetworkFilter
     lookup_field = "uuid"
 
 
 class DatastoreViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Datastore.objects.all().order_by("name")
-    serializer_class = serializers.DatastoreSerializer
+    serializer_class = serializers.VmwareDatastoreSerializer
     filterset_class = filters.DatastoreFilter
     lookup_field = "uuid"
 
 
 class FolderViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Folder.objects.all().order_by("name")
-    serializer_class = serializers.FolderSerializer
+    serializer_class = serializers.VmwareFolderSerializer
     filterset_class = filters.FolderFilter
     lookup_field = "uuid"

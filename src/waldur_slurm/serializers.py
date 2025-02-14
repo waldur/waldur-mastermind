@@ -51,15 +51,14 @@ class SlurmServiceSerializer(structure_serializers.ServiceOptionsSerializer):
     )
 
 
-class AllocationSerializer(
+class SlurmAllocationSerializer(
     structure_serializers.BaseResourceSerializer,
     core_serializers.AugmentedSerializerMixin,
 ):
     username = rf_serializers.SerializerMethodField()
     gateway = rf_serializers.SerializerMethodField()
-    homepage = rf_serializers.ReadOnlyField(source="service_settings.homepage")
 
-    def get_username(self, allocation):
+    def get_username(self, allocation) -> str | None:
         request = self.context["request"]
         try:
             profile = freeipa_models.Profile.objects.get(user=request.user)
@@ -67,7 +66,7 @@ class AllocationSerializer(
         except freeipa_models.Profile.DoesNotExist:
             return None
 
-    def get_gateway(self, allocation):
+    def get_gateway(self, allocation) -> str | None:
         options = allocation.service_settings.options
         return options.get("gateway") or options.get("hostname")
 
@@ -83,7 +82,6 @@ class AllocationSerializer(
             "username",
             "gateway",
             "is_active",
-            "homepage",
         )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
@@ -130,7 +128,7 @@ class AllocationSerializer(
         return attrs
 
 
-class AllocationSetLimitsSerializer(rf_serializers.ModelSerializer):
+class SlurmAllocationSetLimitsSerializer(rf_serializers.ModelSerializer):
     cpu_limit = rf_serializers.IntegerField(min_value=-1)
     gpu_limit = rf_serializers.IntegerField(min_value=-1)
     ram_limit = rf_serializers.IntegerField(min_value=-1)
@@ -140,7 +138,7 @@ class AllocationSetLimitsSerializer(rf_serializers.ModelSerializer):
         fields = ("cpu_limit", "gpu_limit", "ram_limit")
 
 
-class AllocationUserUsageSerializer(rf_serializers.HyperlinkedModelSerializer):
+class SlurmAllocationUserUsageSerializer(rf_serializers.HyperlinkedModelSerializer):
     full_name = rf_serializers.ReadOnlyField(source="user.full_name")
 
     class Meta:
@@ -168,7 +166,7 @@ class AllocationUserUsageSerializer(rf_serializers.HyperlinkedModelSerializer):
         }
 
 
-class AssociationSerializer(rf_serializers.HyperlinkedModelSerializer):
+class SlurmAssociationSerializer(rf_serializers.HyperlinkedModelSerializer):
     allocation = rf_serializers.HyperlinkedRelatedField(
         queryset=models.Allocation.objects.all(),
         view_name="slurm-allocation-detail",

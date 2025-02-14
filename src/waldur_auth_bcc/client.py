@@ -1,12 +1,15 @@
-import collections
 import logging
 
 import requests
 from django.conf import settings
+from rest_framework import serializers
 
-UserDetails = collections.namedtuple(
-    "UserDetails", ("full_name", "native_name", "organization", "job_title")
-)
+
+class UserDetails(serializers.Serializer):
+    full_name = serializers.CharField(read_only=True)
+    native_name = serializers.CharField(read_only=True)
+    organization = serializers.CharField(read_only=True)
+    job_title = serializers.CharField(read_only=True)
 
 
 class BCCException(Exception):
@@ -66,8 +69,10 @@ def get_user_details(nid, vno):
         raise BCCException(detail="Invalid input parameters.")
 
     return UserDetails(
-        full_name=data["nameen"],
-        native_name=data["namebn"],
-        job_title=data["desig"],
-        organization=data["office"],
+        dict(
+            full_name=data["nameen"],
+            native_name=data["namebn"],
+            job_title=data["desig"],
+            organization=data["office"],
+        )
     )

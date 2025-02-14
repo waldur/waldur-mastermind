@@ -90,7 +90,7 @@ class IssueSerializer(
         allow_null=True,
     )
     resource_type = serializers.SerializerMethodField()
-    resource_name = serializers.ReadOnlyField(source="resource.name")
+    resource_name = serializers.CharField(read_only=True, source="resource.name")
     type = serializers.ChoiceField(
         choices=[
             (t.strip(), t.strip()) for t in config.ATLASSIAN_ISSUE_TYPES.split(",")

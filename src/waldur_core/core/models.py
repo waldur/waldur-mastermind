@@ -541,7 +541,7 @@ class SshPublicKey(LoggableMixin, UuidMixin, models.Model):
     is_shared = models.BooleanField(default=False)
 
     @property
-    def type(self):
+    def type(self) -> str:
         key_parts = self.public_key.split(" ", 1)
         return key_parts[0]
 

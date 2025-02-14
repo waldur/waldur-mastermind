@@ -135,40 +135,40 @@ class Invoice(
             self.save(update_fields=list(updates.keys()))
 
     @property
-    def tax(self):
+    def tax(self) -> decimal.Decimal:
         return self.price * self.tax_percent / 100
 
     @property
-    def total(self):
+    def total(self) -> decimal.Decimal:
         return self.price + self.tax
 
     @property
-    def price(self):
+    def price(self) -> decimal.Decimal:
         return quantize_price(
             decimal.Decimal(sum(item.price for item in self.items.all()))
         )
 
     @property
-    def tax_current(self):
+    def tax_current(self) -> decimal.Decimal:
         return self.price_current * self.tax_percent / 100
 
     @property
-    def total_current(self):
+    def total_current(self) -> decimal.Decimal:
         return self.price_current + self.tax_current
 
     @property
-    def price_current(self):
+    def price_current(self) -> decimal.Decimal:
         return sum(item.price_current for item in self.items.all())
 
     @property
-    def due_date(self):
+    def due_date(self) -> datetime.date:
         if self.invoice_date:
             return self.invoice_date + datetime.timedelta(
                 days=settings.WALDUR_INVOICES["PAYMENT_INTERVAL"]
             )
 
     @property
-    def number(self):
+    def number(self) -> int:
         return 100000 + self.id
 
     def set_created(self):
@@ -192,7 +192,7 @@ class Invoice(
         return f"{self.customer} | {self.year}-{self.month}"
 
 
-def get_quantity(unit, start, end):
+def get_quantity(unit, start, end) -> decimal.Decimal:
     """
     For fixed components this method computes number of billing periods resource
     was used from the time it was purchased or from the start of current month
@@ -302,18 +302,18 @@ class InvoiceItem(
     tracker = FieldTracker()
 
     @property
-    def tax(self):
+    def tax(self) -> decimal.Decimal:
         return self.price * self.invoice.tax_percent / 100
 
     @property
-    def tax_current(self):
+    def tax_current(self) -> decimal.Decimal:
         return self.price_current * self.invoice.tax_percent / 100
 
     @property
-    def total(self):
+    def total(self) -> decimal.Decimal:
         return self.price + self.tax
 
-    def _price(self, current=False):
+    def _price(self, current=False) -> decimal.Decimal:
         """
         For components billed daily and hourly this method returns estimated price if `current` is True.
         Otherwise, it returns total price calculated using `quantity` field.
@@ -332,7 +332,7 @@ class InvoiceItem(
 
         return quantize_price(self.unit_price * decimal.Decimal(quantity))
 
-    def get_measured_unit(self):
+    def get_measured_unit(self) -> str:
         if self.measured_unit:
             return self.measured_unit
 
@@ -363,12 +363,12 @@ class InvoiceItem(
         else:
             return _("percents from a month")
 
-    def get_project_uuid(self):
+    def get_project_uuid(self) -> str:
         if self.project_uuid:
             return self.project_uuid
         return self.project.uuid
 
-    def get_project_name(self):
+    def get_project_name(self) -> str:
         if self.project_name:
             return self.project_name
         if self.project:
@@ -376,14 +376,14 @@ class InvoiceItem(
         return "N/A"
 
     @property
-    def price(self):
+    def price(self) -> decimal.Decimal:
         return self._price()
 
     @property
-    def price_current(self):
+    def price_current(self) -> decimal.Decimal:
         return self._price(current=True)
 
-    def get_plan_component(self):
+    def get_plan_component(self) -> marketplace_models.PlanComponent | None:
         plan_component_id = self.details.get("plan_component_id")
         if not plan_component_id:
             return
@@ -571,7 +571,9 @@ class BaseCredit(core_models.UuidMixin, core_models.TimeStampedModel):
         days_in_current_month = decimal.Decimal(monthrange(today.year, today.month)[1])
         return min(decimal.Decimal("1"), days_in_current_month / days_until_credit_end)
 
-    def calculate_linear_expected_consumption(self, total_compensation):
+    def calculate_linear_expected_consumption(
+        self, total_compensation
+    ) -> decimal.Decimal:
         return (
             max(decimal.Decimal("0"), self.expected_consumption - total_compensation)
             * (decimal.Decimal("1") - self.time_left_factor)
@@ -579,7 +581,7 @@ class BaseCredit(core_models.UuidMixin, core_models.TimeStampedModel):
         )
 
     @property
-    def minimal_consumption(self) -> float:
+    def minimal_consumption(self) -> decimal.Decimal:
         if not self.apply_as_minimal_consumption:
             return 0
 

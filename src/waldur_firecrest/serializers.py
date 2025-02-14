@@ -11,7 +11,7 @@ class JobSerializer(BaseResourceSerializer):
             "file",
             "user",
             "user_uuid",
-            "user_name",
+            "user_username",
             "report",
         )
         read_only_fields = BaseResourceSerializer.Meta.read_only_fields + (
@@ -24,7 +24,7 @@ class JobSerializer(BaseResourceSerializer):
             "user": {"lookup_field": "uuid", "view_name": "user-detail"},
         }
         related_paths = {
-            "user": ("uuid", "name"),
+            "user": ("uuid", "username"),
         }
 
     def get_fields(self):

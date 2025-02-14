@@ -1,8 +1,11 @@
+from typing import Literal
+
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core import validators as django_validators
 from django.core.exceptions import MultipleObjectsReturned
 from django.utils.translation import gettext_lazy as _
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
@@ -138,7 +141,7 @@ class DataVolumeSerializer(
         return attrs
 
 
-class BaseNodeSerializer(
+class RancherBaseNodeSerializer(
     structure_serializers.PermissionFieldFilteringMixin,
     serializers.HyperlinkedModelSerializer,
 ):
@@ -214,12 +217,12 @@ class BaseNodeSerializer(
         return fields
 
 
-class NestedNodeSerializer(BaseNodeSerializer):
+class RancherNestedNodeSerializer(RancherBaseNodeSerializer):
     instance = core_serializers.GenericRelatedField(
         related_models=VirtualMachine.get_all_models(), read_only=True
     )
 
-    class Meta(BaseNodeSerializer.Meta):
+    class Meta(RancherBaseNodeSerializer.Meta):
         extra_kwargs = {
             "url": {"lookup_field": "uuid", "view_name": "rancher-node-detail"},
             "cluster": {"lookup_field": "uuid", "view_name": "rancher-cluster-detail"},
@@ -227,7 +230,7 @@ class NestedNodeSerializer(BaseNodeSerializer):
         exclude = ("cluster", "object_id", "content_type", "name")
 
 
-class NestedSecurityGroupSerializer(
+class RancherNestedSecurityGroupSerializer(
     core_serializers.HyperlinkedRelatedModelSerializer,
 ):
     class Meta:
@@ -238,7 +241,7 @@ class NestedSecurityGroupSerializer(
         }
 
 
-class ClusterSerializer(
+class RancherClusterSerializer(
     structure_serializers.SshPublicKeySerializerMixin,
     structure_serializers.BaseResourceSerializer,
 ):
@@ -253,7 +256,7 @@ class ClusterSerializer(
     name = serializers.CharField(
         max_length=150, validators=[validators.ClusterNameValidator]
     )
-    nodes = NestedNodeSerializer(many=True, source="node_set")
+    nodes = RancherNestedNodeSerializer(many=True, source="node_set")
 
     install_longhorn = serializers.BooleanField(
         default=False,
@@ -262,7 +265,7 @@ class ClusterSerializer(
         ),
     )
 
-    security_groups = NestedSecurityGroupSerializer(
+    security_groups = RancherNestedSecurityGroupSerializer(
         queryset=openstack_models.SecurityGroup.objects.all(),
         many=True,
         required=False,
@@ -365,22 +368,26 @@ class ClusterSerializer(
         return nodes
 
 
-class NodeSerializer(serializers.HyperlinkedModelSerializer):
+class RancherNodeSerializer(serializers.HyperlinkedModelSerializer):
     instance = core_serializers.GenericRelatedField(
         related_models=VirtualMachine.get_all_models(),
         required=True,
     )
     resource_type = serializers.SerializerMethodField()
-    state = serializers.ReadOnlyField(source="get_state_display")
-    service_settings_name = serializers.ReadOnlyField(source="service_settings.name")
-    service_settings_uuid = serializers.ReadOnlyField(source="service_settings.uuid")
-    project_uuid = serializers.ReadOnlyField(source="project.uuid")
-    cluster_name = serializers.ReadOnlyField(source="cluster.name")
-    cluster_uuid = serializers.ReadOnlyField(source="cluster.uuid")
-    instance_name = serializers.ReadOnlyField(source="instance.name")
-    instance_uuid = serializers.ReadOnlyField(source="instance.uuid")
-    instance_marketplace_uuid = serializers.ReadOnlyField(
-        source="instance.marketplace_uuid"
+    state = serializers.CharField(read_only=True, source="get_state_display")
+    service_settings_name = serializers.CharField(
+        read_only=True, source="service_settings.name"
+    )
+    service_settings_uuid = serializers.CharField(
+        read_only=True, source="service_settings.uuid"
+    )
+    project_uuid = serializers.CharField(read_only=True, source="project.uuid")
+    cluster_name = serializers.CharField(read_only=True, source="cluster.name")
+    cluster_uuid = serializers.CharField(read_only=True, source="cluster.uuid")
+    instance_name = serializers.CharField(read_only=True, source="instance.name")
+    instance_uuid = serializers.CharField(read_only=True, source="instance.uuid")
+    instance_marketplace_uuid = serializers.CharField(
+        read_only=True, source="instance.marketplace_uuid"
     )
 
     class Meta:
@@ -458,8 +465,8 @@ class NodeSerializer(serializers.HyperlinkedModelSerializer):
         return "Rancher.Node"
 
 
-class CreateNodeSerializer(
-    structure_serializers.SshPublicKeySerializerMixin, BaseNodeSerializer
+class RancherCreateNodeSerializer(
+    structure_serializers.SshPublicKeySerializerMixin, RancherBaseNodeSerializer
 ):
     class Meta:
         model = models.Node
@@ -504,7 +511,7 @@ class LinkOpenstackSerializer(serializers.Serializer):
     )
 
 
-class CatalogSerializer(serializers.HyperlinkedModelSerializer):
+class RancherCatalogSerializer(serializers.HyperlinkedModelSerializer):
     scope = core_serializers.GenericRelatedField()
 
     class Meta:
@@ -529,17 +536,17 @@ class CatalogSerializer(serializers.HyperlinkedModelSerializer):
         }
 
 
-class CatalogCreateSerializer(CatalogSerializer):
-    class Meta(CatalogSerializer.Meta):
-        fields = CatalogSerializer.Meta.fields + ("username", "password")
+class RancherCatalogCreateSerializer(RancherCatalogSerializer):
+    class Meta(RancherCatalogSerializer.Meta):
+        fields = RancherCatalogSerializer.Meta.fields + ("username", "password")
 
 
-class CatalogUpdateSerializer(CatalogCreateSerializer):
-    class Meta(CatalogSerializer.Meta):
-        read_only_fields = CatalogSerializer.Meta.read_only_fields + ("scope",)
+class RancherCatalogUpdateSerializer(RancherCatalogCreateSerializer):
+    class Meta(RancherCatalogSerializer.Meta):
+        read_only_fields = RancherCatalogSerializer.Meta.read_only_fields + ("scope",)
 
 
-class NestedNamespaceSerializer(serializers.ModelSerializer):
+class RancherNestedNamespaceSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Namespace
         fields = (
@@ -552,8 +559,8 @@ class NestedNamespaceSerializer(serializers.ModelSerializer):
         }
 
 
-class ProjectSerializer(structure_serializers.BasePropertySerializer):
-    namespaces = NestedNamespaceSerializer(many=True)
+class RancherProjectSerializer(structure_serializers.BasePropertySerializer):
+    namespaces = RancherNestedNamespaceSerializer(many=True)
 
     class Meta:
         model = models.Project
@@ -575,7 +582,7 @@ class ProjectSerializer(structure_serializers.BasePropertySerializer):
         }
 
 
-class NamespaceSerializer(structure_serializers.BasePropertySerializer):
+class RancherNamespaceSerializer(structure_serializers.BasePropertySerializer):
     class Meta:
         model = models.Namespace
         view_name = "rancher-namespace-detail"
@@ -594,7 +601,7 @@ class NamespaceSerializer(structure_serializers.BasePropertySerializer):
         }
 
 
-class TemplateSerializer(structure_serializers.BasePropertySerializer):
+class RancherTemplateSerializer(structure_serializers.BasePropertySerializer):
     catalog_name = serializers.ReadOnlyField(source="catalog.name")
 
     class Meta:
@@ -625,7 +632,7 @@ class TemplateSerializer(structure_serializers.BasePropertySerializer):
         }
 
 
-class ApplicationSerializer(structure_serializers.BaseResourceSerializer):
+class RancherApplicationSerializer(structure_serializers.BaseResourceSerializer):
     version = serializers.CharField()
     namespace_name = serializers.CharField(required=False, write_only=True)
     answers = serializers.DictField(required=False)
@@ -715,7 +722,7 @@ class ApplicationSerializer(structure_serializers.BaseResourceSerializer):
         return super().create(validated_data)
 
 
-class WorkloadSerializer(serializers.HyperlinkedModelSerializer):
+class RancherWorkloadSerializer(serializers.HyperlinkedModelSerializer):
     cluster_uuid = serializers.ReadOnlyField(source="cluster.uuid")
     cluster_name = serializers.ReadOnlyField(source="cluster.name")
     project_uuid = serializers.ReadOnlyField(source="project.uuid")
@@ -754,7 +761,7 @@ class WorkloadSerializer(serializers.HyperlinkedModelSerializer):
         }
 
 
-class HPASerializer(serializers.HyperlinkedModelSerializer):
+class RancherHPASerializer(serializers.HyperlinkedModelSerializer):
     cluster_uuid = serializers.ReadOnlyField(source="cluster.uuid")
     cluster_name = serializers.ReadOnlyField(source="cluster.name")
     project_uuid = serializers.ReadOnlyField(source="project.uuid")
@@ -824,7 +831,7 @@ class HPASerializer(serializers.HyperlinkedModelSerializer):
         return super().create(validated_data)
 
 
-class ConsoleLogSerializer(serializers.Serializer):
+class RancherConsoleLogSerializer(serializers.Serializer):
     length = serializers.IntegerField(required=False)
 
 
@@ -903,7 +910,7 @@ class RancherUserSerializer(serializers.HyperlinkedModelSerializer):
         }
 
 
-class ClusterTemplateNodeSerializer(serializers.HyperlinkedModelSerializer):
+class RancherClusterTemplateNodeSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = models.ClusterTemplateNode
         fields = (
@@ -916,7 +923,7 @@ class ClusterTemplateNodeSerializer(serializers.HyperlinkedModelSerializer):
 
     roles = serializers.SerializerMethodField()
 
-    def get_roles(self, node):
+    def get_roles(self, node) -> list[Literal["controlplane", "etcd", "worker"]]:
         roles = []
         if node.controlplane_role:
             roles.append("controlplane")
@@ -927,8 +934,8 @@ class ClusterTemplateNodeSerializer(serializers.HyperlinkedModelSerializer):
         return roles
 
 
-class ClusterTemplateSerializer(serializers.HyperlinkedModelSerializer):
-    nodes = ClusterTemplateNodeSerializer(many=True)
+class RancherClusterTemplateSerializer(serializers.HyperlinkedModelSerializer):
+    nodes = RancherClusterTemplateNodeSerializer(many=True)
 
     class Meta:
         model = models.ClusterTemplate
@@ -942,7 +949,7 @@ class ClusterTemplateSerializer(serializers.HyperlinkedModelSerializer):
         )
 
 
-class IngressSerializer(structure_serializers.BaseResourceSerializer):
+class RancherIngressSerializer(structure_serializers.BaseResourceSerializer):
     rancher_project_name = serializers.ReadOnlyField(source="rancher_project.name")
     namespace_name = serializers.ReadOnlyField(source="namespace.name")
 
@@ -989,7 +996,7 @@ class IngressSerializer(structure_serializers.BaseResourceSerializer):
         return super().create(validated_data)
 
 
-class NestedWorkloadSerializer(
+class RancherNestedWorkloadSerializer(
     core_serializers.AugmentedSerializerMixin,
     core_serializers.HyperlinkedRelatedModelSerializer,
 ):
@@ -1003,7 +1010,7 @@ class NestedWorkloadSerializer(
 
 class ServiceSerializer(structure_serializers.BaseResourceSerializer):
     namespace_name = serializers.ReadOnlyField(source="namespace.name")
-    target_workloads = NestedWorkloadSerializer(
+    target_workloads = RancherNestedWorkloadSerializer(
         queryset=models.Workload.objects.all(), many=True, required=False
     )
 
@@ -1033,7 +1040,7 @@ class ServiceSerializer(structure_serializers.BaseResourceSerializer):
         return super().create(validated_data)
 
 
-class ImportYamlSerializer(serializers.Serializer):
+class RancherImportYamlSerializer(serializers.Serializer):
     yaml = serializers.CharField()
     default_namespace = serializers.HyperlinkedRelatedField(
         view_name="rancher-namespace-detail",
@@ -1075,7 +1082,7 @@ class ImportYamlSerializer(serializers.Serializer):
         return attrs
 
 
-class CreateManagementSecurityGroupSerializer(serializers.Serializer):
+class RancherCreateManagementSecurityGroupSerializer(serializers.Serializer):
     cidr = serializers.CharField(
         validators=[openstack_serializers.validate_private_subnet_cidr],
         default="192.168.42.0/24",
@@ -1088,6 +1095,13 @@ class CreateManagementSecurityGroupSerializer(serializers.Serializer):
     )
 
 
+class RancherClusterReference(serializers.ModelSerializer):
+    class Meta:
+        model = models.Cluster
+        fields = ("uuid", "name", "marketplace_uuid")
+
+
+@extend_schema_field(RancherClusterReference)
 def get_rancher_cluster_for_openstack_instance(serializer, scope):
     request = serializer.context["request"]
     queryset = filter_queryset_for_user(models.Cluster.objects.all(), request.user)
@@ -1101,11 +1115,7 @@ def get_rancher_cluster_for_openstack_instance(serializer, scope):
         cluster = queryset.filter(tenant=scope.tenant).get()
     except (models.Cluster.DoesNotExist, MultipleObjectsReturned):
         return None
-    return {
-        "name": cluster.name,
-        "marketplace_uuid": cluster.marketplace_uuid,
-        "uuid": cluster.uuid,
-    }
+    return RancherClusterReference(cluster).data
 
 
 def add_rancher_cluster_to_openstack_instance(sender, fields, **kwargs):
@@ -1114,6 +1124,6 @@ def add_rancher_cluster_to_openstack_instance(sender, fields, **kwargs):
 
 
 core_signals.pre_serializer_fields.connect(
-    sender=openstack_serializers.InstanceSerializer,
+    sender=openstack_serializers.OpenStackInstanceSerializer,
     receiver=add_rancher_cluster_to_openstack_instance,
 )

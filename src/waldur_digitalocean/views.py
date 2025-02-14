@@ -1,9 +1,9 @@
 from django.utils.translation import gettext_lazy as _
 from rest_framework import decorators, response, status
-from rest_framework import serializers as rf_serializers
 
 from waldur_core.core import executors as core_executors
 from waldur_core.core import validators as core_validators
+from waldur_core.core.serializers import EmptySerializer
 from waldur_core.structure import views as structure_views
 
 from . import executors, filters, log, models, serializers
@@ -11,14 +11,14 @@ from . import executors, filters, log, models, serializers
 
 class ImageViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Image.objects.all().order_by("name")
-    serializer_class = serializers.ImageSerializer
+    serializer_class = serializers.DigitalOceanImageSerializer
     filterset_class = filters.ImageFilter
     lookup_field = "uuid"
 
 
 class RegionViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Region.objects.all()
-    serializer_class = serializers.RegionSerializer
+    serializer_class = serializers.DigitalOceanRegionSerializer
     filterset_class = filters.RegionFilter
     lookup_field = "uuid"
 
@@ -28,14 +28,14 @@ class RegionViewSet(structure_views.BaseServicePropertyViewSet):
 
 class SizeViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Size.objects.all().order_by("name")
-    serializer_class = serializers.SizeSerializer
+    serializer_class = serializers.DigitalOceanSizeSerializer
     filterset_class = filters.SizeFilter
     lookup_field = "uuid"
 
 
 class DropletViewSet(structure_views.ResourceViewSet):
     queryset = models.Droplet.objects.all().order_by("name")
-    serializer_class = serializers.DropletSerializer
+    serializer_class = serializers.DigitalOceanDropletSerializer
     filterset_class = filters.DropletFilter
     create_executor = executors.DropletCreateExecutor
     update_executor = core_executors.EmptyExecutor
@@ -79,7 +79,7 @@ class DropletViewSet(structure_views.ResourceViewSet):
         core_validators.StateValidator(models.Droplet.States.OK),
         core_validators.RuntimeStateValidator(models.Droplet.RuntimeStates.OFFLINE),
     ]
-    start_serializer_class = rf_serializers.Serializer
+    start_serializer_class = EmptySerializer
 
     @decorators.action(detail=True, methods=["post"])
     def stop(self, request, uuid=None):
@@ -93,7 +93,7 @@ class DropletViewSet(structure_views.ResourceViewSet):
         core_validators.StateValidator(models.Droplet.States.OK),
         core_validators.RuntimeStateValidator(models.Droplet.RuntimeStates.ONLINE),
     ]
-    stop_serializer_class = rf_serializers.Serializer
+    stop_serializer_class = EmptySerializer
 
     @decorators.action(detail=True, methods=["post"])
     def restart(self, request, uuid=None):
@@ -107,7 +107,7 @@ class DropletViewSet(structure_views.ResourceViewSet):
         core_validators.StateValidator(models.Droplet.States.OK),
         core_validators.RuntimeStateValidator(models.Droplet.RuntimeStates.ONLINE),
     ]
-    restart_serializer_class = rf_serializers.Serializer
+    restart_serializer_class = EmptySerializer
 
     @decorators.action(detail=True, methods=["post"])
     def resize(self, request, uuid=None):
@@ -172,4 +172,4 @@ class DropletViewSet(structure_views.ResourceViewSet):
         )
 
     resize_validators = [core_validators.StateValidator(models.Droplet.States.OK)]
-    resize_serializer_class = serializers.DropletResizeSerializer
+    resize_serializer_class = serializers.DigitalOceanDropletResizeSerializer

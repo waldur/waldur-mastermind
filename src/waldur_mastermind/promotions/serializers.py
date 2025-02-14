@@ -1,6 +1,7 @@
 import datetime
 
 from django.utils.translation import gettext_lazy as _
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
@@ -212,6 +213,19 @@ class CampaignSerializer(
         return campaign
 
 
+class NestedCampaignSerializer(CampaignSerializer):
+    def get_fields(self):
+        fields = super().get_fields()
+        fields.pop("url")
+        fields.pop("offerings")
+        fields.pop("required_offerings")
+        fields.pop("coupon")
+        fields.pop("state")
+        fields.pop("auto_apply")
+        return fields
+
+
+@extend_schema_field(NestedCampaignSerializer)
 def get_promotion_campaigns(serializer, offering):
     campaigns = []
     today = datetime.date.today()
@@ -223,20 +237,10 @@ def get_promotion_campaigns(serializer, offering):
         state=models.Campaign.States.ACTIVE,
     ):
         try:
-
-            class KlassSerializer(CampaignSerializer):
-                def get_fields(self):
-                    fields = super().get_fields()
-                    fields.pop("url")
-                    fields.pop("offerings")
-                    fields.pop("required_offerings")
-                    fields.pop("coupon")
-                    fields.pop("state")
-                    fields.pop("auto_apply")
-                    return fields
-
             campaigns.append(
-                KlassSerializer(instance=campaign, context=serializer.context).data
+                NestedCampaignSerializer(
+                    instance=campaign, context=serializer.context
+                ).data
             )
         except IndexError:
             continue

@@ -165,22 +165,44 @@ class UserRoleDetailsSerializer(serializers.ModelSerializer):
         )
 
 
-class PermissionSerializer(serializers.Serializer):
-    user_uuid = serializers.ReadOnlyField(source="user.uuid")
-    user_name = serializers.ReadOnlyField(source="user.full_name")
-    user_slug = serializers.ReadOnlyField(source="user.slug")
-    created = serializers.ReadOnlyField()
-    expiration_time = serializers.ReadOnlyField()
-    created_by_full_name = serializers.ReadOnlyField(source="created_by.full_name")
-    created_by_username = serializers.ReadOnlyField(source="created_by.username")
-    role_name = serializers.ReadOnlyField(source="role.name")
-    role_description = serializers.ReadOnlyField(source="role.description")
-    role_uuid = serializers.ReadOnlyField(source="role.uuid")
-    scope_type = serializers.ReadOnlyField(source="scope._meta.model_name")
-    scope_uuid = serializers.ReadOnlyField(source="scope.uuid")
-    scope_name = serializers.ReadOnlyField(source="scope.name")
-    customer_uuid = serializers.ReadOnlyField(source="scope.customer.uuid")
-    customer_name = serializers.ReadOnlyField(source="scope.customer.name")
+class PermissionSerializer(serializers.ModelSerializer):
+    user_uuid = serializers.CharField(read_only=True, source="user.uuid")
+    user_name = serializers.CharField(read_only=True, source="user.full_name")
+    user_slug = serializers.CharField(read_only=True, source="user.slug")
+    created_by_full_name = serializers.CharField(
+        read_only=True, source="created_by.full_name"
+    )
+    created_by_username = serializers.CharField(
+        read_only=True, source="created_by.username"
+    )
+    role_name = serializers.CharField(read_only=True, source="role.name")
+    role_description = serializers.CharField(read_only=True, source="role.description")
+    role_uuid = serializers.CharField(read_only=True, source="role.uuid")
+    scope_type = serializers.CharField(read_only=True, source="scope._meta.model_name")
+    scope_uuid = serializers.CharField(read_only=True, source="scope.uuid")
+    scope_name = serializers.CharField(read_only=True, source="scope.name")
+    customer_uuid = serializers.CharField(read_only=True, source="scope.customer.uuid")
+    customer_name = serializers.CharField(read_only=True, source="scope.customer.name")
+
+    class Meta:
+        model = models.UserRole
+        fields = (
+            "user_uuid",
+            "user_name",
+            "user_slug",
+            "created",
+            "expiration_time",
+            "created_by_full_name",
+            "created_by_username",
+            "role_name",
+            "role_description",
+            "role_uuid",
+            "scope_type",
+            "scope_uuid",
+            "scope_name",
+            "customer_uuid",
+            "customer_name",
+        )
 
 
 class UserRoleMutateSerializer(serializers.Serializer):

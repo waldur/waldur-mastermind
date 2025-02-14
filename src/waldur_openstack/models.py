@@ -839,7 +839,7 @@ class Instance(
         ordering = ["name", "created"]
 
     @property
-    def external_ips(self):
+    def external_ips(self) -> list[str]:
         floating_ips = set(self.floating_ips.values_list("address", flat=True))
         if self.directly_connected_ips:
             floating_ips = floating_ips.union(
@@ -848,7 +848,7 @@ class Instance(
         return list(floating_ips - set(self.internal_ips))
 
     @property
-    def external_address(self):
+    def external_address(self) -> set[str]:
         return set(self.floating_ips.values_list("external_address", flat=True))
 
     @property
@@ -860,7 +860,7 @@ class Instance(
         ]
 
     @property
-    def size(self):
+    def size(self) -> int:
         return self.volumes.aggregate(models.Sum("size"))["size__sum"]
 
     @classmethod
@@ -886,7 +886,7 @@ class Instance(
         }
 
     @property
-    def floating_ips(self):
+    def floating_ips(self) -> models.QuerySet[FloatingIP]:
         return FloatingIP.objects.filter(port__instance=self)
 
     @classmethod

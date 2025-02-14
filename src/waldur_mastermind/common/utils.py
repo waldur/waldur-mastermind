@@ -10,7 +10,7 @@ from waldur_core.core.views import RefreshTokenMixin
 from waldur_mastermind.common import mixins as common_mixins
 
 
-def quantize_price(value):
+def quantize_price(value: Decimal) -> Decimal:
     """
     Returns value rounded up to 2 places after the decimal point.
     :rtype: Decimal

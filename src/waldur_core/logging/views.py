@@ -3,6 +3,7 @@ import logging
 import rest_framework
 from django.db.models import Count
 from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.utils import extend_schema
 from rest_framework import (
     decorators,
     mixins,
@@ -16,7 +17,6 @@ from rest_framework import (
 from waldur_core.core import filters as core_filters
 from waldur_core.core import models as core_models
 from waldur_core.core import permissions as core_permissions
-from waldur_core.core import views as core_views
 from waldur_core.core.managers import SummaryQuerySet
 from waldur_core.logging import backend, filters, models, serializers, utils
 from waldur_core.logging.loggers import get_event_groups
@@ -178,10 +178,11 @@ class HookSummary(mixins.ListModelMixin, viewsets.GenericViewSet):
         return SummaryQuerySet(models.BaseHook.get_all_models())
 
 
-class EventsStatsViewSet(viewsets.ReadOnlyModelViewSet):
+class EventsStatsViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
     queryset = models.Event.objects.all()
     filter_backends = (filters.EventFilterBackend,)
 
+    @extend_schema(responses=serializers.EventStatsSerializer(many=True))
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
         aggregated_result = (
@@ -201,16 +202,18 @@ class EventsStatsViewSet(viewsets.ReadOnlyModelViewSet):
 
         return self.get_paginated_response(final_result)
 
-    def retrieve(self, request, *args, **kwargs):
-        return response.Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
-
-class EventSubscriptionViewSet(core_views.ActionsViewSet):
+class EventSubscriptionViewSet(
+    mixins.CreateModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.ListModelMixin,
+    mixins.DestroyModelMixin,
+    viewsets.GenericViewSet,
+):
     lookup_field = "uuid"
     queryset = models.EventSubscription.objects.all().order_by("-created")
     serializer_class = serializers.EventSubscriptionSerializer
     filterset_class = filters.EventSubscriptionFilter
-    disabled_actions = ["update", "partial_update"]
 
     def get_queryset(self):
         queryset = super().get_queryset()

@@ -3,8 +3,10 @@ from rest_framework import serializers
 from . import models
 
 
-class CategorySerializer(serializers.HyperlinkedModelSerializer):
-    checklists_count = serializers.ReadOnlyField(source="checklists.count")
+class ChecklistCategorySerializer(serializers.HyperlinkedModelSerializer):
+    checklists_count = serializers.IntegerField(
+        source="checklists.count", read_only=True
+    )
 
     class Meta:
         model = models.Category
@@ -18,12 +20,12 @@ class CategorySerializer(serializers.HyperlinkedModelSerializer):
 
 
 class ChecklistSerializer(serializers.ModelSerializer):
-    questions_count = serializers.ReadOnlyField(source="questions.count")
+    questions_count = serializers.IntegerField(source="questions.count", read_only=True)
     category_name = serializers.ReadOnlyField(source="category.name")
     category_uuid = serializers.ReadOnlyField(source="category.uuid")
     roles = serializers.SerializerMethodField()
 
-    def get_roles(self, checklist):
+    def get_roles(self, checklist) -> list[str]:
         return checklist.roles.values_list("name", flat=True)
 
     class Meta:
@@ -39,7 +41,7 @@ class ChecklistSerializer(serializers.ModelSerializer):
         )
 
 
-class QuestionSerializer(serializers.ModelSerializer):
+class ChecklistQuestionSerializer(serializers.ModelSerializer):
     category_uuid = serializers.ReadOnlyField(source="category.uuid")
 
     class Meta:
@@ -79,3 +81,9 @@ class CustomerChecklistUpdateSerializer(serializers.ListSerializer):
         write_only=True,
         queryset=models.Checklist.objects.all(),
     )
+
+
+class CustomerChecklistStatSerializer(serializers.Serializer):
+    name = serializers.CharField(read_only=True)
+    uuid = serializers.CharField(read_only=True)
+    score = serializers.FloatField(read_only=True)

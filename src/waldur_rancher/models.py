@@ -1,4 +1,5 @@
 import logging
+from typing import Literal
 from urllib.parse import urljoin
 
 from django.contrib.contenttypes.fields import GenericForeignKey
@@ -69,7 +70,7 @@ class Cluster(SettingsMixin, BaseResource):
     def get_url_name(cls):
         return "rancher-cluster"
 
-    def get_access_url(self):
+    def get_access_url(self) -> str:
         base_url = self.service_settings.backend_url
         return urljoin(base_url, "c/" + self.backend_id)
 
@@ -127,7 +128,7 @@ class Node(
 
     tracker = FieldTracker()
 
-    def get_node_command(self):
+    def get_node_command(self) -> str:
         roles_command = []
         if self.controlplane_role:
             roles_command.append("--controlplane")
@@ -242,7 +243,7 @@ class Catalog(
         return self.scope.get_backend()
 
     @property
-    def scope_type(self):
+    def scope_type(self) -> Literal["global", "cluster", "project"]:
         if isinstance(self.scope, ServiceSettings):
             return "global"
         elif isinstance(self.scope, Cluster):
@@ -458,8 +459,8 @@ class Application(SettingsMixin, core_models.RuntimeStateMixin, BaseResource):
         return self.name
 
     @property
-    def external_url(self):
-        return f'{self.settings.backend_url.strip("/")}/p/{self.project.backend_id}/apps/{self.backend_id}'
+    def external_url(self) -> str:
+        return f"{self.settings.backend_url.strip('/')}/p/{self.project.backend_id}/apps/{self.backend_id}"
 
 
 class Ingress(SettingsMixin, core_models.RuntimeStateMixin, BaseResource):

@@ -1,5 +1,6 @@
 from django.db.models import Count, F, Q
 from django.utils.translation import gettext_lazy as _
+from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.generics import get_object_or_404
@@ -38,7 +39,7 @@ def filter_checklists_by_roles(queryset, user):
 
 class CategoriesView(RetrieveModelMixin, ListModelMixin, GenericViewSet):
     queryset = models.Category.objects.all()
-    serializer_class = serializers.CategorySerializer
+    serializer_class = serializers.ChecklistCategorySerializer
     lookup_field = "uuid"
 
 
@@ -46,6 +47,8 @@ class CategoryChecklistsView(ListModelMixin, GenericViewSet):
     serializer_class = serializers.ChecklistSerializer
 
     def get_queryset(self):
+        if not self.kwargs.get("category_uuid"):
+            return models.Checklist.objects.none()
         qs = models.Checklist.objects.filter(
             category__uuid=self.kwargs["category_uuid"]
         )
@@ -67,9 +70,11 @@ class ChecklistDetailView(RetrieveModelMixin, GenericViewSet):
 
 
 class QuestionsView(ListModelMixin, GenericViewSet):
-    serializer_class = serializers.QuestionSerializer
+    serializer_class = serializers.ChecklistQuestionSerializer
 
     def get_queryset(self):
+        if "checklist_uuid" not in self.kwargs:
+            return models.Question.objects.none()
         return models.Question.objects.filter(
             checklist__uuid=self.kwargs["checklist_uuid"]
         )
@@ -143,6 +148,10 @@ class ProjectStatsView(APIView):
 
 
 class CustomerStatsView(APIView):
+    @extend_schema(
+        operation_id="checklist_customer_stats_retrieve",
+        responses=serializers.CustomerChecklistStatSerializer(many=True),
+    )
     def get(self, request, customer_uuid, checklist_uuid, format=None):
         customer = get_object_or_404(Customer, uuid=customer_uuid)
         is_owner(request, self, customer)
@@ -177,6 +186,10 @@ class CustomerStatsView(APIView):
 
 
 class CustomerChecklistUpdateView(APIView):
+    @extend_schema(
+        operation_id="checklist_customer_retrieve",
+        responses=serializers.CustomerChecklistUpdateSerializer,
+    )
     def get(self, request, customer_uuid, format=None):
         customer = get_object_or_404(Customer, uuid=customer_uuid)
         is_owner(request, self, customer)
@@ -188,6 +201,10 @@ class CustomerChecklistUpdateView(APIView):
         )
         return Response(serializer.data)
 
+    @extend_schema(
+        operation_id="checklist_customer_update",
+        request=serializers.CustomerChecklistUpdateSerializer,
+    )
     def post(self, request, customer_uuid, format=None):
         customer = get_object_or_404(Customer, uuid=customer_uuid)
         is_owner(request, self, customer)
@@ -219,6 +236,8 @@ class AnswersListView(ListModelMixin, GenericViewSet):
     serializer_class = serializers.AnswerListSerializer
 
     def get_queryset(self):
+        if "checklist_uuid" not in self.kwargs:
+            return models.Answer.objects.none()
         return models.Answer.objects.filter(
             question__checklist__uuid=self.kwargs["checklist_uuid"],
             user=self.request.user,
@@ -229,6 +248,8 @@ class UserAnswersListView(ListModelMixin, GenericViewSet):
     serializer_class = serializers.AnswerListSerializer
 
     def get_queryset(self):
+        if "user_uuid" not in self.kwargs or "checklist_uuid" not in self.kwargs:
+            return models.Answer.objects.none()
         visible_users = filter_visible_users(User.objects.all(), self.request.user)
         user = get_object_or_404(visible_users, uuid=self.kwargs["user_uuid"])
         return models.Answer.objects.filter(

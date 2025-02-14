@@ -1,5 +1,6 @@
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
+from typing import Literal
 
 from django.conf import settings
 from django.core.validators import MinValueValidator
@@ -195,8 +196,8 @@ class Round(
 
         CHOICES = (
             (SCHEDULED, "Round is scheduled"),
-            (OPEN, "Round is open."),
-            (ENDED, "Round is ended."),
+            (OPEN, "Round is open"),
+            (ENDED, "Round is ended"),
         )
 
     review_strategy = models.CharField(
@@ -236,11 +237,11 @@ class Round(
         return f"{self.call.name} | {self.start_time} - {self.cutoff_time}"
 
     @property
-    def name(self):
+    def name(self) -> str:
         return f"Round {self.start_time.strftime('%d.%m.%Y')}-{self.cutoff_time.strftime('%d.%m.%Y')}"
 
     @property
-    def status(self):
+    def status(self) -> Literal["scheduled", "open", "ended"]:
         now = timezone.now()
 
         if self.start_time > now:
@@ -435,7 +436,7 @@ class Review(
         return "proposal-review"
 
     @property
-    def review_end_date(self):
+    def review_end_date(self) -> datetime:
         if not self.proposal.round.review_duration_in_days:
             return
 

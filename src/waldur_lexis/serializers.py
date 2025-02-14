@@ -38,30 +38,40 @@ class LexisLinkSerializer(serializers.HyperlinkedModelSerializer):
             },
         )
 
-    resource_uuid = serializers.ReadOnlyField(source="robot_account.resource.uuid")
-    resource_name = serializers.ReadOnlyField(source="robot_account.resource.name")
-    resource_type = serializers.ReadOnlyField(source="robot_account.resource.type")
-    resource_backend_id = serializers.ReadOnlyField(
-        source="robot_account.resource.backend_id"
+    resource_uuid = serializers.CharField(
+        read_only=True, source="robot_account.resource.uuid"
     )
-    resource_end_date = serializers.ReadOnlyField(
-        source="robot_account.resource.end_date"
+    resource_name = serializers.CharField(
+        read_only=True, source="robot_account.resource.name"
     )
-    project_uuid = serializers.ReadOnlyField(
-        source="robot_account.resource.project.uuid"
+    resource_type = serializers.CharField(
+        read_only=True, source="robot_account.resource.type"
     )
-    project_name = serializers.ReadOnlyField(
-        source="robot_account.resource.project.name"
+    resource_backend_id = serializers.CharField(
+        read_only=True, source="robot_account.resource.backend_id"
     )
-    customer_uuid = serializers.ReadOnlyField(
-        source="robot_account.resource.project.customer.uuid"
+    resource_end_date = serializers.DateTimeField(
+        read_only=True, source="robot_account.resource.end_date"
     )
-    customer_name = serializers.ReadOnlyField(
-        source="robot_account.resource.project.customer.name"
+    project_uuid = serializers.CharField(
+        read_only=True, source="robot_account.resource.project.uuid"
     )
-    robot_account_username = serializers.ReadOnlyField(source="robot_account.username")
-    robot_account_type = serializers.ReadOnlyField(source="robot_account.type")
-    state = serializers.ReadOnlyField(source="get_state_display")
+    project_name = serializers.CharField(
+        read_only=True, source="robot_account.resource.project.name"
+    )
+    customer_uuid = serializers.CharField(
+        read_only=True, source="robot_account.resource.project.customer.uuid"
+    )
+    customer_name = serializers.CharField(
+        read_only=True, source="robot_account.resource.project.customer.name"
+    )
+    robot_account_username = serializers.CharField(
+        read_only=True, source="robot_account.username"
+    )
+    robot_account_type = serializers.CharField(
+        read_only=True, source="robot_account.type"
+    )
+    state = serializers.CharField(read_only=True, source="get_state_display")
 
 
 class LexisLinkCreateSerializer(serializers.HyperlinkedModelSerializer):

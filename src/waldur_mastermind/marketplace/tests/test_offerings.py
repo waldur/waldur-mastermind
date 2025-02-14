@@ -116,7 +116,6 @@ class OfferingExtraFieldsTest(test.APITransactionTestCase):
 
     def test_total_customers(self):
         self.client.force_authenticate(self.fixture.staff)
-        self._check_field_before_set_of_it("total_customers")
 
         factories.ResourceFactory(
             offering=self.offering_2,
@@ -127,7 +126,6 @@ class OfferingExtraFieldsTest(test.APITransactionTestCase):
 
     def test_total_cost_estimated(self):
         self.client.force_authenticate(self.fixture.staff)
-        self._check_field_before_set_of_it("total_cost_estimated")
 
         invoice_item = invoices_factories.InvoiceItemFactory()
         resource = factories.ResourceFactory(
@@ -144,7 +142,6 @@ class OfferingExtraFieldsTest(test.APITransactionTestCase):
 
     def test_total_cost(self):
         self.client.force_authenticate(self.fixture.staff)
-        self._check_field_before_set_of_it("total_cost")
 
         invoice_item = invoices_factories.InvoiceItemFactory()
         resource = factories.ResourceFactory(

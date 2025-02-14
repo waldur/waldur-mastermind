@@ -9,13 +9,15 @@ from waldur_openstack import serializers as openstack_serializers
 from .utils import get_external_ip
 
 
-class MarketplaceTenantCreateSerializer(openstack_serializers.TenantSerializer):
+class MarketplaceTenantCreateSerializer(
+    openstack_serializers.OpenStackTenantSerializer
+):
     quotas = serializers.JSONField(required=False, default=dict)
     skip_connection_extnet = serializers.BooleanField(default=False)
     mtu = serializers.IntegerField(min_value=68, max_value=9000, required=False)
 
-    class Meta(openstack_serializers.TenantSerializer.Meta):
-        fields = openstack_serializers.TenantSerializer.Meta.fields + (
+    class Meta(openstack_serializers.OpenStackTenantSerializer.Meta):
+        fields = openstack_serializers.OpenStackTenantSerializer.Meta.fields + (
             "skip_connection_extnet",
             "quotas",
             "mtu",
@@ -33,7 +35,7 @@ class MarketplaceTenantCreateSerializer(openstack_serializers.TenantSerializer):
         pass
 
 
-def get_marketplace_resource_uuid(serializer, volume):
+def get_marketplace_resource_uuid(serializer, volume) -> str:
     try:
         resource = marketplace_models.Resource.objects.filter(scope=volume).get()
         return resource.uuid.hex
@@ -47,12 +49,12 @@ def add_marketplace_resource_uuid(sender, fields, **kwargs):
 
 
 core_signals.pre_serializer_fields.connect(
-    sender=openstack_serializers.NestedVolumeSerializer,
+    sender=openstack_serializers.OpenStackNestedVolumeSerializer,
     receiver=add_marketplace_resource_uuid,
 )
 
 
-def get_router_external_ips(serializer, router):
+def get_router_external_ips(serializer, router) -> list[str] | None:
     try:
         if not (router.fixed_ips or router.tenant):
             return
@@ -75,6 +77,6 @@ def add_router_external_ips(sender, fields, **kwargs):
 
 
 core_signals.pre_serializer_fields.connect(
-    sender=openstack_serializers.RouterSerializer,
+    sender=openstack_serializers.OpenStackRouterSerializer,
     receiver=add_router_external_ips,
 )

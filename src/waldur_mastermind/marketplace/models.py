@@ -87,7 +87,7 @@ class ServiceProvider(
         return "marketplace-service-provider"
 
     @property
-    def has_active_offerings(self):
+    def has_active_offerings(self) -> bool:
         return (
             Offering.objects.filter(customer=self.customer)
             .exclude(state=Offering.States.ARCHIVED)
@@ -95,7 +95,7 @@ class ServiceProvider(
         )
 
     @property
-    def offering_count(self):
+    def offering_count(self) -> int:
         return Offering.objects.filter(
             customer=self.customer,
             state__in=[Offering.States.ACTIVE, Offering.States.PAUSED],
@@ -1174,7 +1174,7 @@ class Resource(
         return f"{self.uuid} ({self.offering.name})"
 
     @property
-    def creation_order(self):
+    def creation_order(self) -> "Order":
         return Order.objects.filter(resource=self, type=Order.Types.CREATE).first()
 
     @property
@@ -1680,9 +1680,6 @@ class IntegrationStatus(core_models.UuidMixin):
 
     def set_last_request_timestamp(self):
         self.last_request_timestamp = timezone.now()
-
-    def get_agent_type_display(self):
-        return dict(self.AgentTypes.CHOICES).get(int(self.agent_type))
 
 
 reversion.register(Screenshot)

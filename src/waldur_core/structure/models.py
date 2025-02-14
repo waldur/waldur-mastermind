@@ -94,17 +94,17 @@ class VATMixin(models.Model):
 
     country = models.CharField(max_length=2, blank=True)
 
-    def get_country_display(self):
+    def get_country_display(self) -> str:
         return COUNTRIES_DICT.get(self.country)
 
-    def get_vat_rate(self):
+    def get_vat_rate(self) -> float:
         charge = self.get_vat_charge()
         if charge.action == pyvat.VatChargeAction.charge:
             return charge.rate
 
         # Return None, if reverse_charge or no_charge action is applied
 
-    def get_vat_charge(self):
+    def get_vat_charge(self) -> float:
         if not self.country:
             raise VATException(
                 _(
