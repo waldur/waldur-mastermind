@@ -4,7 +4,7 @@ from rest_framework.test import APITransactionTestCase
 from waldur_core.logging.models import Event
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import models as structure_tests_models
-from waldur_mastermind.marketplace import callbacks
+from waldur_mastermind.marketplace import PLUGIN_NAME, callbacks, utils
 from waldur_mastermind.marketplace import handlers as marketplace_handlers
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories, fixtures
@@ -217,3 +217,52 @@ class ResourceHandlerTest(APITransactionTestCase):
 
         service_settings.refresh_from_db()
         self.assertFalse(service_settings.is_active)
+
+
+class UpdateOfferingUserUsernameAfterUserChangeTest(APITransactionTestCase):
+    def setUp(self):
+        self.offering = factories.OfferingFactory(
+            type=PLUGIN_NAME,
+            plugin_options={
+                "username_generation_policy": utils.UsernameGenerationPolicy.IDENTITY_CLAIM.value
+            },
+        )
+        self.offering_user = factories.OfferingUserFactory(
+            offering=self.offering, username="old_username"
+        )
+        self.user = self.offering_user.user
+
+    def test_update_offering_user_username_after_user_change(self):
+        new_username = "new_site_username"
+        self.user.details = {"site_username": new_username}
+        self.user.save()
+
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.username, new_username)
+
+    def test_do_not_update_offering_user_username_if_site_username_is_not_changed(self):
+        self.user.first_name = "new_first_name"
+        self.user.save()
+
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.username, "old_username")
+
+    def test_do_not_update_offering_user_username_if_username_generation_policy_is_not_identity_claim(
+        self,
+    ):
+        offering = factories.OfferingFactory(
+            type=PLUGIN_NAME,
+            plugin_options={
+                "username_generation_policy": utils.UsernameGenerationPolicy.SERVICE_PROVIDER.value
+            },
+        )
+        offering_user = factories.OfferingUserFactory(
+            offering=offering, username="old_username"
+        )
+        user = offering_user.user
+
+        user.details = {"site_username": "new_site_username"}
+        user.save()
+
+        offering_user.refresh_from_db()
+        self.assertEqual(offering_user.username, "old_username")
