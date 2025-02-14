@@ -2156,7 +2156,7 @@ class PlanComponentViewSet(PublicViewsetMixin, rf_viewsets.ReadOnlyModelViewSet)
     queryset = models.PlanComponent.objects.filter()
     serializer_class = serializers.PlanComponentSerializer
     filterset_class = filters.PlanComponentFilter
-    lookup_field = "uuid"
+    lookup_field = "pk"
 
     def get_queryset(self):
         queryset = super().get_queryset()
