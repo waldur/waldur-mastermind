@@ -12,15 +12,19 @@ User = get_user_model()
 
 
 class BaseInvitationDetailsSerializer(serializers.HyperlinkedModelSerializer):
-    created_by_full_name = serializers.ReadOnlyField(source="created_by.full_name")
-    created_by_username = serializers.ReadOnlyField(source="created_by.username")
-    scope_uuid = serializers.ReadOnlyField(source="scope.uuid")
-    scope_name = serializers.ReadOnlyField(source="scope.name")
+    created_by_full_name = serializers.CharField(
+        read_only=True, source="created_by.full_name"
+    )
+    created_by_username = serializers.CharField(
+        read_only=True, source="created_by.username"
+    )
+    scope_uuid = serializers.CharField(read_only=True, source="scope.uuid")
+    scope_name = serializers.CharField(read_only=True, source="scope.name")
     scope_type = serializers.SerializerMethodField()
-    customer_uuid = serializers.ReadOnlyField(source="customer.uuid")
-    customer_name = serializers.ReadOnlyField(source="customer.name")
-    role_name = serializers.ReadOnlyField(source="role.name")
-    role_description = serializers.ReadOnlyField(source="role.description")
+    customer_uuid = serializers.CharField(read_only=True, source="customer.uuid")
+    customer_name = serializers.CharField(read_only=True, source="customer.name")
+    role_name = serializers.CharField(read_only=True, source="role.name")
+    role_description = serializers.CharField(read_only=True, source="role.description")
 
     class Meta:
         model = models.BaseInvitation
@@ -149,17 +153,31 @@ class VisibleInvitationDetailsSerializer(BaseInvitationDetailsSerializer):
 
 
 class PermissionRequestSerializer(serializers.HyperlinkedModelSerializer):
-    created_by_full_name = serializers.ReadOnlyField(source="created_by.full_name")
-    created_by_username = serializers.ReadOnlyField(source="created_by.username")
-    reviewed_by_full_name = serializers.ReadOnlyField(source="reviewed_by.full_name")
-    reviewed_by_username = serializers.ReadOnlyField(source="reviewed_by.username")
-    state = serializers.ReadOnlyField(source="get_state_display")
-    scope_uuid = serializers.ReadOnlyField(source="invitation.scope.uuid")
-    scope_name = serializers.ReadOnlyField(source="invitation.scope.name")
-    customer_uuid = serializers.ReadOnlyField(source="invitation.customer.uuid")
-    customer_name = serializers.ReadOnlyField(source="invitation.customer.name")
-    role_name = serializers.ReadOnlyField(source="invitation.role.name")
-    role_description = serializers.ReadOnlyField(source="invitation.role.description")
+    created_by_full_name = serializers.CharField(
+        read_only=True, source="created_by.full_name"
+    )
+    created_by_username = serializers.CharField(
+        read_only=True, source="created_by.username"
+    )
+    reviewed_by_full_name = serializers.CharField(
+        read_only=True, source="reviewed_by.full_name"
+    )
+    reviewed_by_username = serializers.CharField(
+        read_only=True, source="reviewed_by.username"
+    )
+    state = serializers.CharField(read_only=True, source="get_state_display")
+    scope_uuid = serializers.CharField(read_only=True, source="invitation.scope.uuid")
+    scope_name = serializers.CharField(read_only=True, source="invitation.scope.name")
+    customer_uuid = serializers.CharField(
+        read_only=True, source="invitation.customer.uuid"
+    )
+    customer_name = serializers.CharField(
+        read_only=True, source="invitation.customer.name"
+    )
+    role_name = serializers.CharField(read_only=True, source="invitation.role.name")
+    role_description = serializers.CharField(
+        read_only=True, source="invitation.role.description"
+    )
 
     class Meta:
         model = models.PermissionRequest

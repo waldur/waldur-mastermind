@@ -54,7 +54,7 @@ class OptionalReadonlyViewset:
 
 class ClusterViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
     queryset = models.Cluster.objects.all().order_by("name")
-    serializer_class = serializers.ClusterSerializer
+    serializer_class = serializers.RancherClusterSerializer
     filterset_class = filters.ClusterFilter
     update_executor = executors.ClusterUpdateExecutor
 
@@ -137,11 +137,11 @@ class ClusterViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
 
         return response.Response(status.HTTP_200_OK)
 
-    import_yaml_serializer_class = serializers.ImportYamlSerializer
+    import_yaml_serializer_class = serializers.RancherImportYamlSerializer
 
     @decorators.action(detail=True, methods=["post"])
     def create_management_security_group(self, request, uuid=None):
-        serializer = serializers.CreateManagementSecurityGroupSerializer(
+        serializer = serializers.RancherCreateManagementSecurityGroupSerializer(
             data=request.data, many=True
         )
         serializer.is_valid(raise_exception=True)
@@ -198,8 +198,8 @@ class ClusterViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
 class NodeViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
     queryset = models.Node.objects.all()
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
-    serializer_class = serializers.NodeSerializer
-    create_serializer_class = serializers.CreateNodeSerializer
+    serializer_class = serializers.RancherNodeSerializer
+    create_serializer_class = serializers.RancherCreateNodeSerializer
     filterset_class = filters.NodeFilter
     lookup_field = "uuid"
     disabled_actions = ["update", "partial_update"]
@@ -317,13 +317,13 @@ class NodeViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
         else:
             return response.Response(status=status.HTTP_404_NOT_FOUND)
 
-    console_log_serializer_class = serializers.ConsoleLogSerializer
+    console_log_serializer_class = serializers.RancherConsoleLogSerializer
     console_log_permissions = [utils.check_permissions_for_console_log()]
 
 
 class CatalogViewSet(OptionalReadonlyViewset, core_views.ActionsViewSet):
     queryset = models.Catalog.objects.all()
-    serializer_class = serializers.CatalogSerializer
+    serializer_class = serializers.RancherCatalogSerializer
     lookup_field = "uuid"
 
     def get_queryset(self):
@@ -411,7 +411,7 @@ class CatalogViewSet(OptionalReadonlyViewset, core_views.ActionsViewSet):
         backend = catalog.get_backend()
         backend.create_catalog(catalog)
 
-    create_serializer_class = serializers.CatalogCreateSerializer
+    create_serializer_class = serializers.RancherCatalogCreateSerializer
 
     def perform_update(self, serializer):
         scope = serializer.instance.scope
@@ -420,7 +420,7 @@ class CatalogViewSet(OptionalReadonlyViewset, core_views.ActionsViewSet):
         backend = catalog.get_backend()
         backend.update_catalog(catalog)
 
-    update_serializer_class = serializers.CatalogUpdateSerializer
+    update_serializer_class = serializers.RancherCatalogUpdateSerializer
 
     def perform_destroy(self, catalog):
         self.check_catalog_permissions(catalog.scope)
@@ -437,7 +437,7 @@ class CatalogViewSet(OptionalReadonlyViewset, core_views.ActionsViewSet):
 
 class ProjectViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Project.objects.all().order_by("name")
-    serializer_class = serializers.ProjectSerializer
+    serializer_class = serializers.RancherProjectSerializer
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.ProjectFilter
     lookup_field = "uuid"
@@ -453,7 +453,7 @@ class ProjectViewSet(structure_views.BaseServicePropertyViewSet):
 
 class NamespaceViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Namespace.objects.all().order_by("name")
-    serializer_class = serializers.NamespaceSerializer
+    serializer_class = serializers.RancherNamespaceSerializer
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.NamespaceFilter
     lookup_field = "uuid"
@@ -461,7 +461,7 @@ class NamespaceViewSet(structure_views.BaseServicePropertyViewSet):
 
 class TemplateViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Template.objects.all()
-    serializer_class = serializers.TemplateSerializer
+    serializer_class = serializers.RancherTemplateSerializer
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.TemplateFilter
     lookup_field = "uuid"
@@ -489,7 +489,7 @@ class TemplateVersionView(APIView):
 
 class ApplicationViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
     queryset = models.Application.objects.all().order_by("name")
-    serializer_class = serializers.ApplicationSerializer
+    serializer_class = serializers.RancherApplicationSerializer
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.ApplicationFilter
     lookup_field = "uuid"
@@ -545,7 +545,7 @@ class WorkloadViewSet(
     OptionalReadonlyViewset, YamlMixin, SyncDestroyMixin, core_views.ActionsViewSet
 ):
     queryset = models.Workload.objects.all()
-    serializer_class = serializers.WorkloadSerializer
+    serializer_class = serializers.RancherWorkloadSerializer
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.WorkloadFilter
     lookup_field = "uuid"
@@ -563,7 +563,7 @@ class WorkloadViewSet(
 
 class HPAViewSet(OptionalReadonlyViewset, YamlMixin, structure_views.ResourceViewSet):
     queryset = models.HPA.objects.all()
-    serializer_class = serializers.HPASerializer
+    serializer_class = serializers.RancherHPASerializer
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.HPAFilter
     lookup_field = "uuid"
@@ -576,7 +576,7 @@ class HPAViewSet(OptionalReadonlyViewset, YamlMixin, structure_views.ResourceVie
 
 class ClusterTemplateViewSet(core_views.ReadOnlyActionsViewSet):
     queryset = models.ClusterTemplate.objects.all()
-    serializer_class = serializers.ClusterTemplateSerializer
+    serializer_class = serializers.RancherClusterTemplateSerializer
     lookup_field = "uuid"
 
 
@@ -587,7 +587,7 @@ class IngressViewSet(
     structure_views.ResourceViewSet,
 ):
     queryset = models.Ingress.objects.all().order_by("name")
-    serializer_class = serializers.IngressSerializer
+    serializer_class = serializers.RancherIngressSerializer
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.IngressFilter
     lookup_field = "uuid"

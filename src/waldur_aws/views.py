@@ -1,9 +1,9 @@
 from django.utils.translation import gettext_lazy as _
 from rest_framework import decorators, response, status, viewsets
-from rest_framework import serializers as rf_serializers
 
 from waldur_core.core import exceptions as core_exceptions
 from waldur_core.core import validators as core_validators
+from waldur_core.core.serializers import EmptySerializer
 from waldur_core.structure import views as structure_views
 
 from . import executors, filters, models, serializers
@@ -11,21 +11,21 @@ from . import executors, filters, models, serializers
 
 class RegionViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Region.objects.all()
-    serializer_class = serializers.RegionSerializer
+    serializer_class = serializers.AwsRegionSerializer
     filterset_class = filters.RegionFilter
     lookup_field = "uuid"
 
 
 class ImageViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Image.objects.all()
-    serializer_class = serializers.ImageSerializer
+    serializer_class = serializers.AwsImageSerializer
     filterset_class = filters.ImageFilter
     lookup_field = "uuid"
 
 
 class SizeViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = models.Size.objects.all()
-    serializer_class = serializers.SizeSerializer
+    serializer_class = serializers.AwsSizeSerializer
     filterset_class = filters.SizeFilter
     lookup_field = "uuid"
 
@@ -33,7 +33,7 @@ class SizeViewSet(viewsets.ReadOnlyModelViewSet):
 class InstanceViewSet(structure_views.ResourceViewSet):
     queryset = models.Instance.objects.all().order_by("name")
     filterset_class = filters.InstanceFilter
-    serializer_class = serializers.InstanceSerializer
+    serializer_class = serializers.AwsInstanceSerializer
     create_executor = executors.InstanceCreateExecutor
 
     delete_executor = executors.InstanceDeleteExecutor
@@ -67,7 +67,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         core_validators.StateValidator(models.Instance.States.OK),
         core_validators.RuntimeStateValidator("stopped"),
     ]
-    start_serializer_class = rf_serializers.Serializer
+    start_serializer_class = EmptySerializer
 
     @decorators.action(detail=True, methods=["post"])
     def stop(self, request, uuid=None):
@@ -81,7 +81,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         core_validators.StateValidator(models.Instance.States.OK),
         core_validators.RuntimeStateValidator("running"),
     ]
-    stop_serializer_class = rf_serializers.Serializer
+    stop_serializer_class = EmptySerializer
 
     @decorators.action(detail=True, methods=["post"])
     def restart(self, request, uuid=None):
@@ -95,7 +95,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         core_validators.StateValidator(models.Instance.States.OK),
         core_validators.RuntimeStateValidator("running"),
     ]
-    restart_serializer_class = rf_serializers.Serializer
+    restart_serializer_class = EmptySerializer
 
     @decorators.action(detail=True, methods=["post"])
     def resize(self, request, uuid=None):
@@ -111,12 +111,12 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         )
 
     resize_validators = [core_validators.StateValidator(models.Instance.States.OK)]
-    resize_serializer_class = serializers.InstanceResizeSerializer
+    resize_serializer_class = serializers.AwsInstanceResizeSerializer
 
 
 class VolumeViewSet(structure_views.ResourceViewSet):
     queryset = models.Volume.objects.all().order_by("name")
-    serializer_class = serializers.VolumeSerializer
+    serializer_class = serializers.AwsVolumeSerializer
     create_executor = executors.VolumeCreateExecutor
     delete_executor = executors.VolumeDeleteExecutor
 
@@ -134,7 +134,7 @@ class VolumeViewSet(structure_views.ResourceViewSet):
         core_validators.StateValidator(models.Volume.States.OK),
         _has_instance,
     ]
-    detach_serializer_class = rf_serializers.Serializer
+    detach_serializer_class = EmptySerializer
 
     @decorators.action(detail=True, methods=["post"])
     def attach(self, request, volume, uuid=None):
@@ -145,4 +145,4 @@ class VolumeViewSet(structure_views.ResourceViewSet):
         executors.VolumeAttachExecutor.execute(volume)
 
     attach_validators = [core_validators.StateValidator(models.Volume.States.OK)]
-    attach_serializer_class = serializers.VolumeAttachSerializer
+    attach_serializer_class = serializers.AwsVolumeAttachSerializer

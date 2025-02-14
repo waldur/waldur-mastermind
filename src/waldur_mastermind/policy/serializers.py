@@ -18,10 +18,14 @@ logger = logging.getLogger(__name__)
 
 
 class PolicySerializer(serializers.HyperlinkedModelSerializer):
-    scope_name = serializers.ReadOnlyField(source="scope.name")
-    scope_uuid = serializers.ReadOnlyField(source="scope.uuid")
-    created_by_full_name = serializers.ReadOnlyField(source="created_by.full_name")
-    created_by_username = serializers.ReadOnlyField(source="created_by.username")
+    scope_name = serializers.CharField(read_only=True, source="scope.name")
+    scope_uuid = serializers.CharField(read_only=True, source="scope.uuid")
+    created_by_full_name = serializers.CharField(
+        read_only=True, source="created_by.full_name"
+    )
+    created_by_username = serializers.CharField(
+        read_only=True, source="created_by.username"
+    )
     has_fired = serializers.BooleanField(read_only=True)
     fired_datetime = serializers.DateTimeField(read_only=True)
 
@@ -176,7 +180,7 @@ class CustomerEstimatedCostPolicySerializer(
 
     customer_credit = serializers.SerializerMethodField()
 
-    def get_customer_credit(self, instance):
+    def get_customer_credit(self, instance) -> int:
         customer: structure_models.Customer = instance.scope
         try:
             return CustomerCredit.objects.get(customer=customer).value

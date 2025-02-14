@@ -13,7 +13,7 @@ from . import executors, filters, models, serializers
 
 class AllocationViewSet(structure_views.ResourceViewSet):
     queryset = models.Allocation.objects.all().order_by("name")
-    serializer_class = serializers.AllocationSerializer
+    serializer_class = serializers.SlurmAllocationSerializer
     filterset_class = filters.AllocationFilter
 
     create_executor = executors.AllocationCreateExecutor
@@ -24,7 +24,7 @@ class AllocationViewSet(structure_views.ResourceViewSet):
     delete_executor = executors.AllocationDeleteExecutor
 
     set_limits_permissions = [structure_permissions.is_staff]
-    set_limits_serializer_class = serializers.AllocationSetLimitsSerializer
+    set_limits_serializer_class = serializers.SlurmAllocationSetLimitsSerializer
 
     @action(detail=True, methods=["post"])
     def set_limits(self, request, uuid=None):
@@ -42,7 +42,7 @@ class AllocationViewSet(structure_views.ResourceViewSet):
 
 class AllocationUserUsageViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = models.AllocationUserUsage.objects.all().order_by("year", "month")
-    serializer_class = serializers.AllocationUserUsageSerializer
+    serializer_class = serializers.SlurmAllocationUserUsageSerializer
     permission_classes = (permissions.IsAuthenticated,)
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.AllocationUserUsageFilter
@@ -51,7 +51,7 @@ class AllocationUserUsageViewSet(viewsets.ReadOnlyModelViewSet):
 class AssociationViewSet(viewsets.ReadOnlyModelViewSet):
     lookup_field = "uuid"
     queryset = models.Association.objects.all().order_by("username")
-    serializer_class = serializers.AssociationSerializer
+    serializer_class = serializers.SlurmAssociationSerializer
     permission_classes = (permissions.IsAuthenticated,)
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.AssociationFilter

@@ -42,7 +42,7 @@ class AzureServiceSerializer(structure_serializers.ServiceOptionsSerializer):
     )
 
 
-class ImageSerializer(structure_serializers.BasePropertySerializer):
+class AzureImageSerializer(structure_serializers.BasePropertySerializer):
     class Meta:
         model = models.Image
         view_name = "azure-image-detail"
@@ -52,7 +52,7 @@ class ImageSerializer(structure_serializers.BasePropertySerializer):
         }
 
 
-class SizeSerializer(structure_serializers.BasePropertySerializer):
+class AzureSizeSerializer(structure_serializers.BasePropertySerializer):
     class Meta:
         model = models.Size
         view_name = "azure-size-detail"
@@ -71,7 +71,7 @@ class SizeSerializer(structure_serializers.BasePropertySerializer):
         }
 
 
-class LocationSerializer(structure_serializers.BasePropertySerializer):
+class AzureLocationSerializer(structure_serializers.BasePropertySerializer):
     class Meta:
         model = models.Location
         view_name = "azure-location-detail"
@@ -89,7 +89,7 @@ class BaseResourceSerializer(structure_serializers.BaseResourceSerializer):
         )
 
 
-class ResourceGroupSerializer(BaseResourceSerializer):
+class AzureResourceGroupSerializer(BaseResourceSerializer):
     location = serializers.HyperlinkedRelatedField(
         view_name="azure-location-detail",
         lookup_field="uuid",
@@ -120,7 +120,7 @@ class BaseResourceGroupSerializer(BaseResourceSerializer):
     )
 
 
-class VirtualMachineSerializer(
+class AzureVirtualMachineSerializer(
     structure_serializers.VirtualMachineSerializer, BaseResourceGroupSerializer
 ):
     image = serializers.HyperlinkedRelatedField(
@@ -280,7 +280,7 @@ class VirtualMachineSerializer(
         return super().create(validated_data)
 
 
-class PublicIPSerializer(BaseResourceSerializer):
+class AzurePublicIPSerializer(BaseResourceSerializer):
     location = serializers.HyperlinkedRelatedField(
         view_name="azure-location-detail",
         lookup_field="uuid",
@@ -302,7 +302,7 @@ class PublicIPSerializer(BaseResourceSerializer):
         )
 
 
-class SQLServerSerializer(BaseResourceGroupSerializer):
+class AzureSqlServerSerializer(BaseResourceGroupSerializer):
     class Meta(BaseResourceGroupSerializer.Meta):
         model = models.SQLServer
         view_name = "azure-sql-server-detail"
@@ -345,7 +345,7 @@ class SQLServerSerializer(BaseResourceGroupSerializer):
         return super().create(validated_data)
 
 
-class SQLDatabaseSerializer(BaseResourceSerializer):
+class AzureSqlDatabaseSerializer(BaseResourceSerializer):
     resource_group_name = serializers.ReadOnlyField(source="server.resource_group.name")
     location_name = serializers.ReadOnlyField(
         source="server.resource_group.location.name"
@@ -377,7 +377,7 @@ class SQLDatabaseSerializer(BaseResourceSerializer):
         )
 
 
-class SQLDatabaseCreateSerializer(serializers.ModelSerializer):
+class AzureSqlDatabaseCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.SQLDatabase
         fields = ("name", "description")

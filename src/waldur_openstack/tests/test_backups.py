@@ -4,7 +4,6 @@ from unittest.mock import patch
 from ddt import data, ddt
 from rest_framework import status, test
 
-from waldur_core.core.tests import helpers
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_openstack import models
 
@@ -31,11 +30,14 @@ class BackupDeleteTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
-class BackupListPermissionsTest(helpers.ListPermissionsTest):
-    def get_url(self):
-        return factories.BackupFactory.get_list_url()
-
+class BackupListPermissionsTest(test.APITransactionTestCase):
     def get_users_and_expected_results(self):
+        """
+        Return list or generator of dictionaries with such keys:
+         - user - user which we want to test
+         - expected_results - list of dictionaries with fields which user has
+                              to receive as answer from server
+        """
         models.Backup.objects.all().delete()
         instance = factories.InstanceFactory()
         backup1 = factories.BackupFactory(instance=instance)
@@ -57,8 +59,24 @@ class BackupListPermissionsTest(helpers.ListPermissionsTest):
             {"user": user_without_view_permission, "expected_results": []},
         ]
 
+    def test_list_permissions(self):
+        for user_and_expected_result in self.get_users_and_expected_results():
+            user = user_and_expected_result["user"]
+            expected_results = user_and_expected_result["expected_results"]
 
-class BackupPermissionsTest(helpers.PermissionsTest):
+            self.client.force_authenticate(user=user)
+            response = self.client.get(factories.BackupFactory.get_list_url())
+            self.assertEqual(
+                len(expected_results),
+                len(response.data),
+                f"User {user} receive wrong number of objects. Expected: {len(expected_results)}, received {len(response.data)}",
+            )
+            for actual, expected in zip(response.data, expected_results):
+                for key, value in expected.items():
+                    self.assertEqual(actual[key], value)
+
+
+class BackupPermissionsTest(test.APITransactionTestCase):
     def setUp(self):
         super().setUp()
         self.fixture = fixtures.OpenStackFixture()
@@ -71,6 +89,9 @@ class BackupPermissionsTest(helpers.PermissionsTest):
         )
 
     def get_users_with_permission(self, url, method):
+        """
+        Return list of users which can access given url with given method
+        """
         if method == "GET":
             return [self.fixture.staff, self.fixture.admin, self.fixture.manager]
         else:
@@ -82,15 +103,46 @@ class BackupPermissionsTest(helpers.PermissionsTest):
             ]
 
     def get_users_without_permissions(self, url, method):
+        """
+        Return list of users which can not access given url with given method
+        """
         return [self.fixture.user]
 
     def get_urls_configs(self):
         yield {"url": factories.BackupFactory.get_url(self.backup), "method": "GET"}
         yield {"url": factories.BackupFactory.get_url(self.backup), "method": "DELETE"}
 
-    def test_permissions(self):
-        with patch("waldur_openstack.executors.BackupDeleteExecutor.execute"):
-            super().test_permissions()
+    @patch("waldur_openstack.executors.BackupDeleteExecutor.execute")
+    def test_permissions(self, mock_execute):
+        """
+        Go through all url configs ands checks that user with permissions
+        can request them and users without - can't
+        """
+        for conf in self.get_urls_configs():
+            url, method = conf["url"], conf["method"]
+            data = conf["data"] if "data" in conf else {}
+
+            for user in self.get_users_with_permission(url, method):
+                self.client.force_authenticate(user=user)
+                response = getattr(self.client, method.lower())(url, data=data)
+                self.assertFalse(
+                    response.status_code
+                    in (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND),
+                    f"Error. User {user} can not reach url: {url} (method:{method}). (Response status code {response.status_code}, data {response.data})",
+                )
+
+            for user in self.get_users_without_permissions(url, method):
+                self.client.force_authenticate(user=user)
+                response = getattr(self.client, method.lower())(url, data=data)
+                unreachable_statuses = (
+                    status.HTTP_403_FORBIDDEN,
+                    status.HTTP_404_NOT_FOUND,
+                    status.HTTP_409_CONFLICT,
+                )
+                self.assertTrue(
+                    response.status_code in unreachable_statuses,
+                    f"Error. User {user} can reach url: {url} (method:{method}). (Response status code {response.status_code}, data {response.data})",
+                )
 
 
 class BackupSourceFilterTest(test.APITransactionTestCase):

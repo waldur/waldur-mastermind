@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from functools import lru_cache
 
 import pyvat
@@ -363,13 +364,13 @@ class CountrySerializerMixin(serializers.Serializer):
     country = serializers.ChoiceField(
         required=False, choices=COUNTRIES, allow_blank=True
     )
-    country_name = serializers.ReadOnlyField(source="get_country_display")
+    country_name = serializers.CharField(read_only=True, source="get_country_display")
 
 
 class OrganizationGroupSerializer(serializers.HyperlinkedModelSerializer):
-    parent_uuid = serializers.ReadOnlyField(source="parent.uuid")
-    parent_name = serializers.ReadOnlyField(source="parent.name")
-    customers_count = serializers.ReadOnlyField()
+    parent_uuid = serializers.CharField(read_only=True, source="parent.uuid")
+    parent_name = serializers.CharField(read_only=True, source="parent.name")
+    customers_count = serializers.SerializerMethodField()
 
     class Meta:
         model = models.OrganizationGroup
@@ -396,6 +397,13 @@ class OrganizationGroupSerializer(serializers.HyperlinkedModelSerializer):
                 {"parent": _("Organization group cannot be parent of itself.")}
             )
         return parent
+
+    def get_customers_count(self, group: models.OrganizationGroup) -> int:
+        # Injected to queryset via annotate in view
+        try:
+            return group.customers_count
+        except AttributeError:
+            return 0
 
 
 class CustomerSerializer(
@@ -601,9 +609,9 @@ class NestedProjectPermissionSerializer(serializers.ModelSerializer):
     url = serializers.HyperlinkedRelatedField(
         source="scope", lookup_field="uuid", view_name="project-detail", read_only=True
     )
-    uuid = serializers.ReadOnlyField(source="scope.uuid")
-    name = serializers.ReadOnlyField(source="scope.name")
-    role_name = serializers.ReadOnlyField(source="role.name")
+    uuid = serializers.CharField(read_only=True, source="scope.uuid")
+    name = serializers.CharField(read_only=True, source="scope.name")
+    role_name = serializers.CharField(read_only=True, source="role.name")
 
     class Meta:
         model = UserRole
@@ -649,18 +657,19 @@ class CustomerUserSerializer(serializers.ModelSerializer):
             is_active=True,
         ).first()
 
-    def get_role(self, user):
+    def get_role(self, user) -> str:
         permission = self.get_customer_permission(user)
         return permission and get_old_role_name(permission.role.name)
 
-    def get_role_name(self, user):
+    def get_role_name(self, user) -> str:
         permission = self.get_customer_permission(user)
         return permission and permission.role.name
 
-    def get_expiration_time(self, user):
+    def get_expiration_time(self, user) -> datetime:
         permission = self.get_customer_permission(user)
         return permission and permission.expiration_time
 
+    @extend_schema_field(NestedProjectPermissionSerializer(many=True))
     def get_projects(self, user):
         customer = self.context["customer"]
         project_ids = customer.projects.values_list("id", flat=True)
@@ -680,7 +689,7 @@ class BasePermissionSerializer(
 ):
     # role is old, role_name is new
     role = serializers.SerializerMethodField()
-    role_name = serializers.ReadOnlyField(source="role.name")
+    role_name = serializers.CharField(source="role.name", read_only=True)
 
     class Meta:
         fields = (
@@ -697,7 +706,7 @@ class BasePermissionSerializer(
             "user": ("username", "full_name", "native_name", "uuid", "email"),
         }
 
-    def get_role(self, instance):
+    def get_role(self, instance) -> str:
         return get_old_role_name(instance.role.name)
 
 
@@ -734,12 +743,14 @@ class CustomerPermissionReviewSerializer(
 class ProjectPermissionLogSerializer(
     core_serializers.RestrictedSerializerMixin, BasePermissionSerializer
 ):
-    customer_uuid = serializers.ReadOnlyField(source="scope.customer.uuid")
-    customer_name = serializers.ReadOnlyField(source="scope.customer.name")
-    project_uuid = serializers.ReadOnlyField(source="scope.uuid")
-    project_name = serializers.ReadOnlyField(source="scope.name")
-    project_created = serializers.ReadOnlyField(source="scope.created")
-    project_end_date = serializers.ReadOnlyField(source="scope.end_date")
+    customer_uuid = serializers.CharField(read_only=True, source="scope.customer.uuid")
+    customer_name = serializers.CharField(read_only=True, source="scope.customer.name")
+    project_uuid = serializers.CharField(read_only=True, source="scope.uuid")
+    project_name = serializers.CharField(read_only=True, source="scope.name")
+    project_created = serializers.DateTimeField(read_only=True, source="scope.created")
+    project_end_date = serializers.DateTimeField(
+        read_only=True, source="scope.end_date"
+    )
     project = serializers.HyperlinkedRelatedField(
         source="scope",
         view_name="project-detail",
@@ -1061,7 +1072,9 @@ class ServiceSettingsSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
-    customer_native_name = serializers.ReadOnlyField(source="customer.native_name")
+    customer_native_name = serializers.CharField(
+        read_only=True, source="customer.native_name"
+    )
     state = MappedChoiceField(
         choices=[(v, k) for k, v in core_models.StateMixin.States.CHOICES],
         choice_mappings={v: k for k, v in core_models.StateMixin.States.CHOICES},
@@ -1072,7 +1085,7 @@ class ServiceSettingsSerializer(
         required=False,
         allow_null=True,
     )
-    scope_uuid = serializers.ReadOnlyField(source="scope.uuid")
+    scope_uuid = serializers.CharField(read_only=True, source="scope.uuid")
     options = serializers.DictField()
 
     class Meta:
@@ -1169,22 +1182,24 @@ class BaseResourceSerializer(
         lookup_field="uuid",
     )
 
-    project_name = serializers.ReadOnlyField(source="project.name")
-    project_uuid = serializers.ReadOnlyField(source="project.uuid")
+    project_name = serializers.CharField(read_only=True, source="project.name")
+    project_uuid = serializers.CharField(read_only=True, source="project.uuid")
 
-    service_name = serializers.ReadOnlyField(source="service_settings.name")
+    service_name = serializers.CharField(read_only=True, source="service_settings.name")
 
     service_settings = serializers.HyperlinkedRelatedField(
         queryset=models.ServiceSettings.objects.all(),
         view_name="servicesettings-detail",
         lookup_field="uuid",
     )
-    service_settings_uuid = serializers.ReadOnlyField(source="service_settings.uuid")
-    service_settings_state = serializers.ReadOnlyField(
-        source="service_settings.get_state_display"
+    service_settings_uuid = serializers.CharField(
+        read_only=True, source="service_settings.uuid"
     )
-    service_settings_error_message = serializers.ReadOnlyField(
-        source="service_settings.error_message"
+    service_settings_state = serializers.CharField(
+        read_only=True, source="service_settings.get_state_display"
+    )
+    service_settings_error_message = serializers.CharField(
+        read_only=True, source="service_settings.error_message"
     )
 
     customer = serializers.HyperlinkedRelatedField(
@@ -1194,12 +1209,14 @@ class BaseResourceSerializer(
         lookup_field="uuid",
     )
 
-    customer_name = serializers.ReadOnlyField(source="project.customer.name")
-    customer_abbreviation = serializers.ReadOnlyField(
-        source="project.customer.abbreviation"
+    customer_name = serializers.CharField(
+        read_only=True, source="project.customer.name"
     )
-    customer_native_name = serializers.ReadOnlyField(
-        source="project.customer.native_name"
+    customer_abbreviation = serializers.CharField(
+        read_only=True, source="project.customer.abbreviation"
+    )
+    customer_native_name = serializers.CharField(
+        read_only=True, source="project.customer.native_name"
     )
 
     created = serializers.DateTimeField(read_only=True)
@@ -1515,3 +1532,20 @@ class UserAuthTokenSerializer(AuthTokenSerializer):
 
 class PasswordChangeSerializer(serializers.Serializer):
     new_password = serializers.CharField(write_only=True, required=True)
+
+
+class ComponentStatsSerializer(serializers.Serializer):
+    type = serializers.CharField(read_only=True)
+    name = serializers.CharField(read_only=True)
+    description = serializers.CharField(read_only=True)
+    measured_unit = serializers.CharField(read_only=True)
+    billing_type = serializers.CharField(read_only=True)
+    usage = serializers.IntegerField(read_only=True)
+    limit_usage = serializers.IntegerField(read_only=True)
+    limit = serializers.IntegerField(read_only=True)
+    offering_name = serializers.CharField(read_only=True)
+    offering_uuid = serializers.CharField(read_only=True)
+
+
+class ComponentsUsageStatsSerializer(serializers.Serializer):
+    components = ComponentStatsSerializer(many=True, read_only=True)

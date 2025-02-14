@@ -5,6 +5,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models import F, OuterRef, Subquery, Value
 from django.db.models.functions import Coalesce
 from django.db.models.query import QuerySet
+from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import permissions, status, viewsets
 from rest_framework.response import Response
 
@@ -123,9 +124,21 @@ class BaseQuotasViewSet(viewsets.GenericViewSet):
         return self.get_queryset().annotate(value=subquery)
 
 
+@extend_schema_view(
+    list=extend_schema(
+        description="List project quotas.",
+        responses=serializers.ProjectQuotasSerializer,
+    )
+)
 class ProjectQuotasViewSet(BaseQuotasViewSet):
     model = Project
 
 
+@extend_schema_view(
+    list=extend_schema(
+        description="List customer quotas.",
+        responses=serializers.CustomerQuotasSerializer,
+    )
+)
 class CustomerQuotasViewSet(BaseQuotasViewSet):
     model = Customer

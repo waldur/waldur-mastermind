@@ -1,8 +1,12 @@
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.permissions import _get_project
-from waldur_mastermind.invoices.serializers import get_payment_profiles
+from waldur_mastermind.invoices.serializers import (
+    PaymentProfileSerializer,
+    get_payment_profiles,
+)
 from waldur_mastermind.policy import models as policy_models
 
 from ..invoices import utils
@@ -69,6 +73,7 @@ class NestedPriceEstimateSerializer(serializers.HyperlinkedModelSerializer):
         fields = ("total", "current", "tax", "tax_current")
 
 
+@extend_schema_field(NestedPriceEstimateSerializer)
 def get_price_estimate(serializer, scope):
     # For cases when we want to get project estimates under project cost policies
     if isinstance(scope, policy_models.ProjectEstimatedCostPolicy):
@@ -112,6 +117,7 @@ class FinancialReportSerializer(serializers.ModelSerializer):
     payment_profiles = serializers.SerializerMethodField()
     billing_price_estimate = serializers.SerializerMethodField()
 
+    @extend_schema_field(NestedPriceEstimateSerializer)
     def get_billing_price_estimate(self, customer):
         request = self.context["request"]
         provider_uuid = request.query_params.get("provider_uuid")
@@ -122,5 +128,6 @@ class FinancialReportSerializer(serializers.ModelSerializer):
         else:
             return get_price_estimate(self, customer)
 
+    @extend_schema_field(PaymentProfileSerializer(many=True))
     def get_payment_profiles(self, customer):
         return get_payment_profiles(self, customer)

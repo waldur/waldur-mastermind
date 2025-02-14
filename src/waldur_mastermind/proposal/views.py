@@ -7,6 +7,7 @@ from django.db.models.functions import Coalesce
 from django.utils import timezone as timezone
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.utils import extend_schema
 from rest_framework import decorators, exceptions, response, status, viewsets
 from rest_framework import permissions as rf_permissions
 
@@ -67,6 +68,7 @@ class CallManagingOrganisationViewSet(
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+    @extend_schema(responses=serializers.CallManagingOrganisationStatSerializer)
     @decorators.action(detail=True)
     def stats(self, request, uuid=None):
         instance = self.get_object()
@@ -635,6 +637,7 @@ class ReviewViewSet(ActionsViewSet):
 
         raise exceptions.PermissionDenied()
 
+    @extend_schema(operation_id="proposal_review_accept")
     @decorators.action(detail=True, methods=["post"])
     def accept(self, request, uuid=None):
         review = self.get_object()
@@ -649,6 +652,7 @@ class ReviewViewSet(ActionsViewSet):
         core_validators.StateValidator(models.Review.States.CREATED),
     ]
 
+    @extend_schema(operation_id="proposal_review_reject")
     @decorators.action(detail=True, methods=["post"])
     def reject(self, request, uuid=None):
         review = self.get_object()
@@ -665,6 +669,7 @@ class ReviewViewSet(ActionsViewSet):
         ),
     ]
 
+    @extend_schema(operation_id="proposal_review_submit")
     @decorators.action(detail=True, methods=["post"])
     def submit(self, request, uuid=None):
         review = self.get_object()

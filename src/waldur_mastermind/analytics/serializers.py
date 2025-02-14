@@ -29,13 +29,15 @@ class DailyHistoryQuotaSerializer(serializers.Serializer):
 
 
 class ProjectQuotasSerializer(serializers.Serializer):
-    project_name = serializers.ReadOnlyField(source="name")
-    customer_name = serializers.ReadOnlyField(source="customer.name")
-    customer_abbreviation = serializers.ReadOnlyField(source="customer.abbreviation")
-    value = serializers.ReadOnlyField()
+    project_name = serializers.CharField(read_only=True, source="name")
+    customer_name = serializers.CharField(read_only=True, source="customer.name")
+    customer_abbreviation = serializers.CharField(
+        read_only=True, source="customer.abbreviation"
+    )
+    value = serializers.IntegerField(read_only=True)
 
 
 class CustomerQuotasSerializer(serializers.Serializer):
-    customer_name = serializers.ReadOnlyField(source="name")
-    customer_abbreviation = serializers.ReadOnlyField(source="abbreviation")
-    value = serializers.ReadOnlyField()
+    customer_name = serializers.CharField(read_only=True, source="name")
+    customer_abbreviation = serializers.CharField(read_only=True, source="abbreviation")
+    value = serializers.IntegerField(read_only=True)

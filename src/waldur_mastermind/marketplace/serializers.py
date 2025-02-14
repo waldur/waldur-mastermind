@@ -40,12 +40,16 @@ from waldur_core.structure import utils as structure_utils
 from waldur_core.structure.executors import ServiceSettingsCreateExecutor
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.serializers import get_options_serializer_class
-from waldur_mastermind.billing.serializers import get_payment_profiles
+from waldur_mastermind.billing.serializers import (
+    NestedPriceEstimateSerializer,
+    get_payment_profiles,
+)
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.common.exceptions import TransactionRollback
 from waldur_mastermind.common.serializers import validate_options
 from waldur_mastermind.common.utils import prices_are_equal
 from waldur_mastermind.invoices.models import InvoiceItem
+from waldur_mastermind.invoices.serializers import PaymentProfileSerializer
 from waldur_mastermind.invoices.utils import get_billing_price_estimate_for_resources
 from waldur_mastermind.marketplace.fields import PublicPlanField
 from waldur_mastermind.marketplace.managers import ResourceQuerySet
@@ -259,13 +263,13 @@ class CategoryGroupSerializer(
         }
 
 
-class CategorySerializer(
+class MarketplaceCategorySerializer(
     core_serializers.AugmentedSerializerMixin,
     core_serializers.RestrictedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
     offering_count = serializers.SerializerMethodField()
-    available_offerings_count = serializers.ReadOnlyField()
+    available_offerings_count = serializers.IntegerField(read_only=True)
     sections = NestedSectionSerializer(many=True, read_only=True)
     columns = NestedColumnSerializer(many=True, read_only=True)
     components = CategoryComponentSerializer(many=True, read_only=True)
@@ -621,18 +625,22 @@ class PlanUsageRequestSerializer(serializers.Serializer):
 
 
 class PlanUsageResponseSerializer(serializers.Serializer):
-    plan_uuid = serializers.ReadOnlyField(source="uuid")
-    plan_name = serializers.ReadOnlyField(source="name")
+    plan_uuid = serializers.UUIDField(read_only=True, source="uuid")
+    plan_name = serializers.CharField(read_only=True, source="name")
 
-    limit = serializers.ReadOnlyField()
-    usage = serializers.ReadOnlyField()
-    remaining = serializers.ReadOnlyField()
+    limit = serializers.IntegerField(read_only=True)
+    usage = serializers.IntegerField(read_only=True)
+    remaining = serializers.IntegerField(read_only=True)
 
-    offering_uuid = serializers.ReadOnlyField(source="offering.uuid")
-    offering_name = serializers.ReadOnlyField(source="offering.name")
+    offering_uuid = serializers.UUIDField(read_only=True, source="offering.uuid")
+    offering_name = serializers.CharField(read_only=True, source="offering.name")
 
-    customer_provider_uuid = serializers.ReadOnlyField(source="offering.customer.uuid")
-    customer_provider_name = serializers.ReadOnlyField(source="offering.customer.name")
+    customer_provider_uuid = serializers.UUIDField(
+        read_only=True, source="offering.customer.uuid"
+    )
+    customer_provider_name = serializers.CharField(
+        read_only=True, source="offering.customer.name"
+    )
 
 
 class NestedScreenshotSerializer(serializers.ModelSerializer):
@@ -1081,16 +1089,16 @@ class ProviderOfferingDetailsSerializer(
     state = serializers.SerializerMethodField()
     state_code = serializers.ReadOnlyField(source="state")
     scope = core_serializers.GenericRelatedField(read_only=True)
-    scope_uuid = serializers.ReadOnlyField(source="scope.uuid")
+    scope_uuid = serializers.CharField(read_only=True, source="scope.uuid")
     scope_state = serializers.SerializerMethodField()
     files = NestedOfferingFileSerializer(many=True, read_only=True)
     quotas = serializers.SerializerMethodField()
     organization_groups = structure_serializers.OrganizationGroupSerializer(
         many=True, read_only=True
     )
-    total_customers = serializers.ReadOnlyField()
-    total_cost = serializers.ReadOnlyField()
-    total_cost_estimated = serializers.ReadOnlyField()
+    total_customers = serializers.SerializerMethodField()
+    total_cost = serializers.SerializerMethodField()
+    total_cost_estimated = serializers.SerializerMethodField()
     endpoints = NestedEndpointSerializer(many=True, read_only=True)
     roles = NestedRoleSerializer(many=True, read_only=True)
 
@@ -1232,6 +1240,27 @@ class ProviderOfferingDetailsSerializer(
     def can_see_secret_options(self) -> bool:
         request = self.context.get("request")
         return request and permissions.can_see_secret_options(request, self.instance)
+
+    def get_total_customers(self, offering: models.Offering) -> int:
+        # Added via annotate in ProviderOfferingViewSet.get_queryset
+        try:
+            return offering.total_customers
+        except AttributeError:
+            return None
+
+    def get_total_cost(self, offering: models.Offering) -> int:
+        # Added via annotate in ProviderOfferingViewSet.get_queryset
+        try:
+            return offering.total_cost
+        except AttributeError:
+            return None
+
+    def get_total_cost_estimated(self, offering: models.Offering) -> int:
+        # Added via annotate in ProviderOfferingViewSet.get_queryset
+        try:
+            return offering.total_cost_estimated
+        except AttributeError:
+            return None
 
     def get_state(
         self, offering: models.Offering
@@ -1904,9 +1933,9 @@ class OfferingPermissionSerializer(
         read_only=True,
         lookup_field="uuid",
     )
-    offering_name = serializers.ReadOnlyField(source="scope.name")
-    offering_slug = serializers.ReadOnlyField(source="scope.slug")
-    offering_uuid = serializers.ReadOnlyField(source="scope.uuid")
+    offering_name = serializers.CharField(read_only=True, source="scope.name")
+    offering_slug = serializers.CharField(read_only=True, source="scope.slug")
+    offering_uuid = serializers.CharField(read_only=True, source="scope.uuid")
 
     class Meta(structure_serializers.BasePermissionSerializer.Meta):
         model = UserRole
@@ -3025,7 +3054,7 @@ class ComponentUserUsageSerializer(serializers.HyperlinkedModelSerializer):
         )
         model = models.ComponentUserUsage
 
-    def get_usage(self, instance):
+    def get_usage(self, instance) -> int:
         # TODO: temporary functionality, remove after full migration to the new SLURM plugin
         from waldur_mastermind.marketplace_slurm import PLUGIN_NAME as SLURM_PLUGIN_NAME
         from waldur_mastermind.marketplace_slurm import (
@@ -3285,7 +3314,7 @@ class OfferingReferralSerializer(
     core_serializers.AugmentedSerializerMixin,
 ):
     scope = core_serializers.GenericRelatedField(read_only=True)
-    scope_uuid = serializers.ReadOnlyField(source="scope.uuid")
+    scope_uuid = serializers.CharField(read_only=True, source="scope.uuid")
 
     class Meta:
         model = pid_models.DataciteReferral
@@ -3620,7 +3649,9 @@ core_signals.pre_serializer_fields.connect(
 )
 
 
-def get_marketplace_resource_count(serializer, project: structure_models.Project):
+def get_marketplace_resource_count(
+    serializer, project: structure_models.Project
+) -> dict[str, int]:
     counts = (
         models.Resource.objects.order_by()
         .filter(
@@ -3719,7 +3750,7 @@ class OfferingComponentStatSerializer(serializers.Serializer):
     type = serializers.SerializerMethodField()
     name = serializers.SerializerMethodField()
 
-    def get_date(self, record):
+    def get_date(self, record) -> str:
         date = parse_datetime(self.get_period(record))
         # for consistency with usage resource usage reporting, assume values at the beginning of the last day
         return (
@@ -3728,28 +3759,28 @@ class OfferingComponentStatSerializer(serializers.Serializer):
             .isoformat()
         )
 
-    def get_usage(self, record):
+    def get_usage(self, record) -> int:
         return record["total_quantity"]
 
-    def get_period(self, record):
+    def get_period(self, record) -> str:
         return "%s-%02d" % (record["invoice__year"], record["invoice__month"])
 
-    def get_component_attr(self, record, attrname):
+    def get_component_attr(self, record, attrname) -> str:
         component = self.context["offering_components_map"].get(
             record["details__offering_component_type"]
         )
         return component and getattr(component, attrname)
 
-    def get_description(self, record):
+    def get_description(self, record) -> str:
         return self.get_component_attr(record, "description")
 
-    def get_measured_unit(self, record):
+    def get_measured_unit(self, record) -> str:
         return self.get_component_attr(record, "measured_unit")
 
-    def get_type(self, record):
+    def get_type(self, record) -> str:
         return self.get_component_attr(record, "type")
 
-    def get_name(self, record):
+    def get_name(self, record) -> str:
         return self.get_component_attr(record, "name")
 
 
@@ -3763,13 +3794,13 @@ class CountStatsSerializer(serializers.Serializer):
             if name in k:
                 return record[k]
 
-    def get_name(self, record):
+    def get_name(self, record) -> str:
         return self._get_value(record, "name")
 
-    def get_uuid(self, record):
+    def get_uuid(self, record) -> str:
         return self._get_value(record, "uuid")
 
-    def get_count(self, record):
+    def get_count(self, record) -> int:
         return self._get_value(record, "count")
 
 
@@ -3784,7 +3815,7 @@ class OfferingStatsCounterSerializer(serializers.Serializer):
 class CustomerStatsSerializer(CountStatsSerializer):
     abbreviation = serializers.SerializerMethodField()
 
-    def get_abbreviation(self, record):
+    def get_abbreviation(self, record) -> str:
         return self._get_value(record, "abbreviation")
 
 
@@ -3844,12 +3875,13 @@ class ProviderCustomerProjectSerializer(
             project=instance
         )
 
-    def get_resources_count(self, instance):
+    def get_resources_count(self, instance) -> int:
         return self.get_resources(instance).count()
 
-    def get_users_count(self, instance):
+    def get_users_count(self, instance) -> int:
         return count_users(instance)
 
+    @extend_schema_field(NestedPriceEstimateSerializer)
     def get_billing_price_estimate(self, instance):
         resources = self.get_resources(instance)
         return get_billing_price_estimate_for_resources(resources)
@@ -3938,7 +3970,7 @@ class DetailedProviderUserSerializer(
 
     projects_count = serializers.SerializerMethodField()
 
-    def get_projects_count(self, user):
+    def get_projects_count(self, user) -> int:
         service_provider = self.context["service_provider"]
         projects = utils.get_service_provider_project_ids(service_provider)
         content_type = ContentType.objects.get_for_model(structure_models.Project)
@@ -4013,19 +4045,22 @@ class ProviderCustomerSerializer(ProviderOfferingCustomerSerializer):
         ids = get_service_provider_user_ids(user, service_provider, customer)
         return get_user_model().objects.filter(id__in=ids)
 
+    @extend_schema_field(NestedPriceEstimateSerializer)
     def get_billing_price_estimate(self, customer):
         resources = self.get_resources(customer)
         return get_billing_price_estimate_for_resources(resources)
 
+    @extend_schema_field(PaymentProfileSerializer(many=True))
     def get_payment_profiles(self, customer):
         return get_payment_profiles(self, customer)
 
-    def get_projects_count(self, customer):
+    def get_projects_count(self, customer) -> int:
         return self.get_resources(customer).values_list("project_id").distinct().count()
 
-    def get_users_count(self, customer):
+    def get_users_count(self, customer) -> int:
         return self.get_users_qs(customer).count()
 
+    @extend_schema_field(ProviderProjectSerializer(many=True))
     def get_projects(self, customer):
         resources = self.get_resources(customer)
         projects = structure_models.Project.available_objects.filter(
@@ -4036,6 +4071,7 @@ class ProviderCustomerSerializer(ProviderOfferingCustomerSerializer):
         )
         return serializer.data
 
+    @extend_schema_field(ProviderUserSerializer(many=True))
     def get_users(self, customer):
         users = self.get_users_qs(customer)[:5]
         serializer = ProviderUserSerializer(
@@ -4087,9 +4123,10 @@ class ProviderOfferingSerializer(
             state=models.Resource.States.TERMINATED
         )
 
-    def get_resources_count(self, offering: models.Offering):
+    def get_resources_count(self, offering: models.Offering) -> int:
         return self.get_resources(offering).count()
 
+    @extend_schema_field(NestedPriceEstimateSerializer)
     def get_billing_price_estimate(self, offering: models.Offering):
         resources = self.get_resources(offering)
         return get_billing_price_estimate_for_resources(resources)
@@ -4107,6 +4144,12 @@ class ProviderOfferingSerializer(
     def can_see_secret_options(self) -> bool:
         request = self.context.get("request")
         return request and permissions.can_see_secret_options(request, self.instance)
+
+
+class FingerprintSerializer(serializers.Serializer):
+    md5 = serializers.CharField(read_only=True)
+    sha256 = serializers.CharField(read_only=True)
+    sha512 = serializers.CharField(read_only=True)
 
 
 class RobotAccountSerializer(
@@ -4145,6 +4188,7 @@ class RobotAccountSerializer(
 
     fingerprints = serializers.SerializerMethodField()
 
+    @extend_schema_field(FingerprintSerializer(many=True))
     def get_fingerprints(self, robot_account):
         fingerprints = []
         for key in robot_account.keys:
@@ -4207,17 +4251,21 @@ class RobotAccountDetailsSerializer(RobotAccountSerializer):
     users = structure_serializers.BasicUserSerializer(many=True, read_only=True)
     responsible_user = structure_serializers.BasicUserSerializer(read_only=True)
     user_keys = serializers.SerializerMethodField()
-    resource_uuid = serializers.ReadOnlyField(source="resource.uuid")
-    resource_name = serializers.ReadOnlyField(source="resource.name")
-    project_uuid = serializers.ReadOnlyField(source="resource.project.uuid")
-    project_name = serializers.ReadOnlyField(source="resource.project.name")
-    customer_uuid = serializers.ReadOnlyField(source="resource.project.customer.uuid")
-    customer_name = serializers.ReadOnlyField(source="resource.project.customer.name")
-    offering_customer_uuid = serializers.ReadOnlyField(
-        source="resource.offering.customer.uuid"
+    resource_uuid = serializers.CharField(read_only=True, source="resource.uuid")
+    resource_name = serializers.CharField(read_only=True, source="resource.name")
+    project_uuid = serializers.CharField(read_only=True, source="resource.project.uuid")
+    project_name = serializers.CharField(read_only=True, source="resource.project.name")
+    customer_uuid = serializers.CharField(
+        read_only=True, source="resource.project.customer.uuid"
     )
-    offering_plugin_options = serializers.ReadOnlyField(
-        source="resource.offering.plugin_options"
+    customer_name = serializers.CharField(
+        read_only=True, source="resource.project.customer.name"
+    )
+    offering_customer_uuid = serializers.CharField(
+        read_only=True, source="resource.offering.customer.uuid"
+    )
+    offering_plugin_options = serializers.CharField(
+        read_only=True, source="resource.offering.plugin_options"
     )
 
     class Meta(RobotAccountSerializer.Meta):
@@ -4233,6 +4281,7 @@ class RobotAccountDetailsSerializer(RobotAccountSerializer):
             "offering_plugin_options",
         )
 
+    @extend_schema_field(structure_serializers.SshKeySerializer(many=True))
     def get_user_keys(self, instance):
         return structure_serializers.SshKeySerializer(
             core_models.SshPublicKey.objects.filter(user__in=instance.users.all()),
@@ -4242,9 +4291,9 @@ class RobotAccountDetailsSerializer(RobotAccountSerializer):
 
 
 class ServiceProviderRevenues(serializers.Serializer):
-    total = serializers.IntegerField()
-    year = serializers.CharField(source="invoice__year")
-    month = serializers.CharField(source="invoice__month")
+    total = serializers.IntegerField(read_only=True)
+    year = serializers.CharField(read_only=True, source="invoice__year")
+    month = serializers.CharField(read_only=True, source="invoice__month")
 
 
 class SectionSerializer(serializers.HyperlinkedModelSerializer):
@@ -4275,8 +4324,8 @@ class SectionSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class IntegrationStatusSerializer(serializers.ModelSerializer):
-    status = serializers.ReadOnlyField(source="get_status_display")
-    agent_type = serializers.ReadOnlyField(source="get_agent_type_display")
+    status = serializers.CharField(read_only=True, source="get_status_display")
+    agent_type = serializers.CharField(read_only=True, source="get_agent_type_display")
 
     class Meta:
         model = models.IntegrationStatus
@@ -4377,6 +4426,7 @@ class ComponentUserUsageLimitSerializer(
         return attrs
 
 
+@extend_schema_field(IntegrationStatusSerializer(many=True))
 def get_integration_status(serializer, offering):
     if not has_permission(
         serializer.context["request"], PermissionEnum.UPDATE_OFFERING, offering.customer

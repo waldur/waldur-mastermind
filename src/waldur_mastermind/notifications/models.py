@@ -59,5 +59,5 @@ class AdminAnnouncement(UuidMixin, DescribableMixin, TimeStampedModel):
     active_to = models.DateTimeField()
 
     @property
-    def is_active(self):
+    def is_active(self) -> bool:
         return self.active_from <= timezone.now() <= self.active_to

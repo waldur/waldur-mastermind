@@ -18,6 +18,7 @@ from django.urls import Resolver404, reverse
 from django.utils.translation import gettext_lazy as _
 from modeltranslation.manager import get_translatable_fields_for_model
 from rest_framework import serializers
+from rest_framework import serializers as rf_serializers
 from rest_framework.fields import Field, ReadOnlyField
 
 from waldur_core.core import utils as core_utils
@@ -98,7 +99,7 @@ class DictSerializerField(serializers.CharField):
         return value
 
 
-class AuthTokenSerializer(serializers.Serializer):
+class ObtainAuthTokenSerializer(serializers.Serializer):
     """
     API token serializer loosely based on DRF's default AuthTokenSerializer.
     but with the logic of authorization is extracted to view.
@@ -610,3 +611,14 @@ class SlugSerializerMixin(serializers.Serializer):
             slug_source = validated_data[klass.get_slug_source_field()]
             validated_data["slug"] = generate_slug(slug_source, klass)
         return super().create(validated_data)
+
+
+class EmptySerializer(rf_serializers.Serializer):
+    pass
+
+
+class TableSizeSerializer(serializers.Serializer):
+    table_name = serializers.CharField(read_only=True)
+    total_size = serializers.IntegerField(read_only=True)
+    data_size = serializers.IntegerField(read_only=True)
+    external_size = serializers.IntegerField(read_only=True)

@@ -236,6 +236,9 @@ def get_connected_serviceproviders(user, role=None):
 
 
 def filter_offering_permissions(user, is_active=True):
+    if user.is_anonymous:
+        return UserRole.objects.none()
+
     queryset = UserRole.objects.filter(
         content_type=ContentType.objects.get_for_model(models.Offering),
         role__name=RoleEnum.OFFERING_MANAGER,

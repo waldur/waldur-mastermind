@@ -11,6 +11,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import filters as rf_filters
 from rest_framework import mixins, status, viewsets
 from rest_framework import permissions as rf_permissions
@@ -28,6 +29,7 @@ from waldur_core.core import permissions as core_permissions
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.log import event_logger
+from waldur_core.core.serializers import EmptySerializer
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.core.views import ActionsViewSet
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
@@ -200,6 +202,26 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
 
         return super().perform_destroy(instance)
 
+    @extend_schema(
+        responses=serializers.CustomerUserSerializer(many=True),
+        parameters=[
+            OpenApiParameter("full_name", str, OpenApiParameter.QUERY),
+            OpenApiParameter("user_keyword", str, OpenApiParameter.QUERY),
+            OpenApiParameter("native_name", str, OpenApiParameter.QUERY),
+            OpenApiParameter("organization", str, OpenApiParameter.QUERY),
+            OpenApiParameter("email", str, OpenApiParameter.QUERY),
+            OpenApiParameter("phone_number", str, OpenApiParameter.QUERY),
+            OpenApiParameter("description", str, OpenApiParameter.QUERY),
+            OpenApiParameter("job_title", str, OpenApiParameter.QUERY),
+            OpenApiParameter("username", str, OpenApiParameter.QUERY),
+            OpenApiParameter("civil_number", str, OpenApiParameter.QUERY),
+            OpenApiParameter("is_active", str, OpenApiParameter.QUERY),
+            OpenApiParameter("registration_method", str, OpenApiParameter.QUERY),
+            OpenApiParameter("project_role", str, OpenApiParameter.QUERY),
+            OpenApiParameter("organization_role", str, OpenApiParameter.QUERY),
+            OpenApiParameter("o", str, OpenApiParameter.QUERY),
+        ],
+    )
     @action(
         detail=True,
         filter_backends=[filters.GenericRoleFilter],
@@ -235,6 +257,7 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
             ]
         )
 
+    @extend_schema(responses=serializers.ComponentsUsageStatsSerializer)
     @action(detail=True)
     def stats(self, request, *args, **kwargs):
         customer = self.get_object()
@@ -253,6 +276,10 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
             status=status.HTTP_200_OK,
         )
 
+    @extend_schema(
+        request=marketplace_serializers.OrganizationGroupsSerializer,
+        operation_id="customer_update_organization_groups",
+    )
     @action(detail=True, methods=["post"])
     def update_organization_groups(self, request, uuid):
         if not self.request.user.is_staff:
@@ -426,6 +453,11 @@ class ProjectViewSet(
 
         super().perform_create(serializer)
 
+    @extend_schema(
+        request=serializers.MoveProjectSerializer,
+        responses=serializers.ProjectSerializer,
+        operation_id="move_project",
+    )
     @action(detail=True, methods=["post"])
     def move_project(self, request, uuid=None):
         project = self.get_object()
@@ -444,6 +476,7 @@ class ProjectViewSet(
     move_project_serializer_class = serializers.MoveProjectSerializer
     move_project_permissions = [permissions.is_staff]
 
+    @extend_schema(responses=serializers.ComponentsUsageStatsSerializer)
     @action(detail=True)
     def stats(self, request, *args, **kwargs):
         project = self.get_object()
@@ -537,6 +570,9 @@ class UserViewSet(core_views.ActionsViewSet):
             )
         return super().list(request, *args, **kwargs)
 
+    @extend_schema(
+        request=serializers.UserEmailChangeSerializer, responses=EmptySerializer
+    )
     @action(detail=True, methods=["post"])
     def change_email(self, request, uuid=None):
         user = self.get_object()
@@ -570,6 +606,11 @@ class UserViewSet(core_views.ActionsViewSet):
 
     change_email_serializer_class = serializers.UserEmailChangeSerializer
 
+    @extend_schema(
+        request=EmptySerializer,
+        responses=EmptySerializer,
+        operation_id="user_cancel_change_email",
+    )
     @action(detail=True, methods=["post"])
     def cancel_change_email(self, request, uuid=None):
         user = self.get_object()
@@ -621,6 +662,7 @@ class UserViewSet(core_views.ActionsViewSet):
             status=status.HTTP_200_OK,
         )
 
+    @extend_schema(operation_id="user_pull_remote")
     @action(detail=True, methods=["post"])
     def pull_remote_user(self, request, uuid=None):
         user = self.get_object()
@@ -636,6 +678,7 @@ class UserViewSet(core_views.ActionsViewSet):
         pull_remote_eduteams_user(user.username)
         return Response(status=status.HTTP_200_OK)
 
+    @extend_schema(operation_id="user_change_password")
     @action(detail=True, methods=["post"])
     def change_password(self, request, uuid=None):
         user = self.get_object()
@@ -659,6 +702,10 @@ class UserViewSet(core_views.ActionsViewSet):
     change_password_serializer_class = serializers.PasswordChangeSerializer
     change_password_permissions = [permissions.is_staff]
 
+    @extend_schema(
+        request=serializers.UserAuthTokenSerializer,
+        responses=serializers.UserAuthTokenSerializer,
+    )
     @action(detail=True, methods=["get"])
     def token(self, request, uuid=None):
         user = self.get_object()
@@ -666,6 +713,11 @@ class UserViewSet(core_views.ActionsViewSet):
         serializer = self.get_serializer(token)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    @extend_schema(
+        request=serializers.UserAuthTokenSerializer,
+        responses=serializers.UserAuthTokenSerializer,
+        operation_id="user_refresh_token",
+    )
     @action(detail=True, methods=["post"])
     def refresh_token(self, request, uuid=None):
         user = self.get_object()
@@ -702,6 +754,11 @@ class CustomerPermissionReviewViewSet(
     filterset_class = filters.CustomerPermissionReviewFilter
     lookup_field = "uuid"
 
+    @extend_schema(
+        request=EmptySerializer,
+        responses=EmptySerializer,
+        operation_id="customer_permission_review_close",
+    )
     @action(detail=True, methods=["post"])
     def close(self, request, uuid=None):
         review: models.CustomerPermissionReview = self.get_object()
@@ -899,6 +956,10 @@ class NotificationViewSet(ActionsViewSet):
     filterset_class = filters.NotificationFilter
     lookup_field = "uuid"
 
+    @extend_schema(
+        request=EmptySerializer,
+        responses=EmptySerializer,
+    )
     @action(detail=True, methods=["post"])
     def enable(self, request, uuid=None):
         notification: core_models.Notification = self.get_object()
@@ -912,6 +973,10 @@ class NotificationViewSet(ActionsViewSet):
             status=status.HTTP_200_OK,
         )
 
+    @extend_schema(
+        request=EmptySerializer,
+        responses=EmptySerializer,
+    )
     @action(detail=True, methods=["post"])
     def disable(self, request, uuid=None):
         notification: core_models.Notification = self.get_object()
@@ -933,6 +998,10 @@ class NotificationTemplateViewSet(ActionsViewSet):
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.NotificationTemplateFilter
 
+    @extend_schema(
+        request=serializers.NotificationTemplateUpdateSerializers,
+        responses=EmptySerializer,
+    )
     @action(detail=True, methods=["post"])
     def override(self, request, uuid=None):
         template = self.get_object()

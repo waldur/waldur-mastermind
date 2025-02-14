@@ -8,12 +8,14 @@ from django.db import transaction
 from django.db.models import F, Q, QuerySet, Sum
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.utils import extend_schema
 from rest_framework import exceptions, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
+from waldur_core.core.serializers import EmptySerializer
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
@@ -251,6 +253,9 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
     set_backend_id_permissions = [structure_permissions.is_staff]
     set_backend_id_serializer_class = serializers.BackendIdSerializer
 
+    @extend_schema(
+        request=serializers.PaymentURLSerializer, operation_id="invoice_set_payment_url"
+    )
     @action(detail=True, methods=["post"])
     def set_payment_url(self, request, uuid=None):
         serializer = self.get_serializer(instance=self.get_object(), data=request.data)
@@ -261,6 +266,10 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
     set_payment_url_permissions = [structure_permissions.is_staff]
     set_payment_url_serializer_class = serializers.PaymentURLSerializer
 
+    @extend_schema(
+        request=serializers.ReferenceNumberSerializer,
+        operation_id="invoice_set_reference_number",
+    )
     @action(detail=True, methods=["post"])
     def set_reference_number(self, request, uuid=None):
         serializer = self.get_serializer(instance=self.get_object(), data=request.data)
@@ -280,6 +289,10 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.InvoiceItemFilter
 
+    @extend_schema(
+        operation_id="invoice_item_create_compensation",
+        request=serializers.InvoiceItemCompensationSerializer,
+    )
     @transaction.atomic
     @action(detail=True, methods=["post"])
     def create_compensation(self, request, **kwargs):
@@ -632,6 +645,9 @@ class PaymentViewSet(core_views.ActionsViewSet):
         )
 
 
+@extend_schema(
+    request=serializers.FinancialReportEmailSerializer, responses=EmptySerializer
+)
 @api_view(["POST"])
 @permission_classes((IsStaffOrSupportUser,))
 def send_financial_report_by_mail(request):

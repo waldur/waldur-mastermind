@@ -1,5 +1,6 @@
 import copy
 
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from waldur_core.core import signals as core_signals
@@ -67,6 +68,7 @@ class BookingResourceSerializer(marketplace_serializers.ResourceSerializer):
     def get_description(self, resource) -> str:
         return resource.attributes.get("description", "")
 
+    @extend_schema_field(BookingSlotSerializer(many=True))
     def get_slots(self, resource):
         slots = booking_models.BookingSlot.objects.filter(resource=resource).order_by(
             "start"

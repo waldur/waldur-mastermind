@@ -26,16 +26,16 @@ from . import log, models, utils
 class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
     tax = serializers.DecimalField(max_digits=PRICE_DECIMAL_PLACES, decimal_places=2)
     total = serializers.DecimalField(max_digits=PRICE_MAX_DIGITS, decimal_places=2)
-    factor = serializers.ReadOnlyField(source="get_factor")
-    measured_unit = serializers.ReadOnlyField(source="get_measured_unit")
-    resource_uuid = serializers.ReadOnlyField(source="resource.uuid")
-    resource_name = serializers.ReadOnlyField(source="resource.name")
-    project_uuid = serializers.ReadOnlyField(source="get_project_uuid")
-    project_name = serializers.ReadOnlyField(source="get_project_name")
+    factor = serializers.IntegerField(read_only=True, source="get_factor")
+    measured_unit = serializers.CharField(read_only=True, source="get_measured_unit")
+    resource_uuid = serializers.CharField(read_only=True, source="resource.uuid")
+    resource_name = serializers.CharField(read_only=True, source="resource.name")
+    project_uuid = serializers.CharField(read_only=True, source="get_project_uuid")
+    project_name = serializers.CharField(read_only=True, source="get_project_name")
     details = serializers.JSONField()
     billing_type = serializers.SerializerMethodField()
 
-    def get_billing_type(self, item: models.InvoiceItem):
+    def get_billing_type(self, item: models.InvoiceItem) -> str:
         plan_component = item.get_plan_component()
         if plan_component:
             return plan_component.component.billing_type
@@ -189,6 +189,24 @@ class InvoiceItemMigrateToSerializer(serializers.HyperlinkedModelSerializer):
         fields = ("invoice",)
 
 
+class CustomerDetailsSerializer(serializers.ModelSerializer):
+    country_name = serializers.ReadOnlyField(source="get_country_display")
+
+    class Meta:
+        model = structure_models.Customer
+        fields = (
+            "name",
+            "address",
+            "country",
+            "country_name",
+            "email",
+            "postal",
+            "phone_number",
+            "bank_name",
+            "bank_account",
+        )
+
+
 class InvoiceSerializer(
     core_serializers.RestrictedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
@@ -203,7 +221,7 @@ class InvoiceSerializer(
     )
     items = serializers.SerializerMethodField()
     issuer_details = serializers.SerializerMethodField()
-    customer_details = serializers.SerializerMethodField()
+    customer_details = CustomerDetailsSerializer(source="customer")
     due_date = serializers.DateField()
 
     class Meta:
@@ -234,21 +252,8 @@ class InvoiceSerializer(
             "customer": {"lookup_field": "uuid"},
         }
 
-    def get_issuer_details(self, invoice):
+    def get_issuer_details(self, invoice) -> dict:
         return settings.WALDUR_INVOICES["ISSUER_DETAILS"]
-
-    def get_customer_details(self, invoice: models.Invoice):
-        return {
-            "name": invoice.customer.name,
-            "address": invoice.customer.address,
-            "country": invoice.customer.country,
-            "country_name": invoice.customer.get_country_display(),
-            "email": invoice.customer.email,
-            "postal": invoice.customer.postal,
-            "phone_number": invoice.customer.phone_number,
-            "bank_name": invoice.customer.bank_name,
-            "bank_account": invoice.customer.bank_account,
-        }
 
     @extend_schema_field(InvoiceItemSerializer(many=True))
     def get_items(self, invoice: models.Invoice):

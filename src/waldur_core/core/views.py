@@ -16,11 +16,12 @@ from django.http import FileResponse, HttpResponse, HttpResponseRedirect, JsonRe
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import TemplateView
-from rest_framework import exceptions, serializers, status, viewsets
+from drf_spectacular.utils import extend_schema
+from rest_framework import exceptions, generics, serializers, status, viewsets
 from rest_framework import mixins as rf_mixins
 from rest_framework import permissions as rf_permissions
 from rest_framework.authtoken.models import Token
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
 from rest_framework.views import APIView
@@ -39,14 +40,14 @@ from waldur_core.core.exceptions import ExtensionDisabled, IncorrectStateExcepti
 from waldur_core.core.features import FEATURES
 from waldur_core.core.logos import DEFAULT_LOGOS, LOGO_MAP
 from waldur_core.core.metadata import WaldurConfiguration
-from waldur_core.core.mixins import ReviewMixin, ensure_atomic_transaction
+from waldur_core.core.mixins import ensure_atomic_transaction
 from waldur_core.core.serializers import (
-    AuthTokenSerializer,
     ConstanceSettingsSerializer,
-    ReviewCommentSerializer,
+    EmptySerializer,
+    ObtainAuthTokenSerializer,
+    TableSizeSerializer,
 )
 from waldur_core.core.utils import format_homeport_link
-from waldur_core.core.validators import StateValidator
 from waldur_core.logging.loggers import event_logger
 from waldur_core.structure.permissions import IsStaffOrSupportUser
 
@@ -156,7 +157,7 @@ class ObtainAuthToken(RefreshTokenMixin, APIView):
 
     throttle_classes = ()
     permission_classes = ()
-    serializer_class = AuthTokenSerializer
+    serializer_class = ObtainAuthTokenSerializer
 
     @validate_authentication_method("LOCAL_SIGNIN")
     def post(self, request):
@@ -228,8 +229,9 @@ class ObtainAuthToken(RefreshTokenMixin, APIView):
         return Response({"token": token.key})
 
 
-class LogoutView(APIView):
+class LogoutView(generics.GenericAPIView):
     permission_classes = (rf_permissions.IsAuthenticated,)
+    serializer_class = EmptySerializer
 
     def post(self, request, format=None):
         request.user.auth_token.delete()
@@ -399,7 +401,7 @@ def get_feature_values():
     return {
         section["key"]: {
             feature["key"]: feature_values.get(
-                f'{section["key"]}.{feature["key"]}', False
+                f"{section['key']}.{feature['key']}", False
             )
             for feature in section["items"]
         }
@@ -514,6 +516,7 @@ def configuration_detail(request):
     return Response(get_public_settings(request))
 
 
+@extend_schema(request=ConstanceSettingsSerializer)
 @api_view(["POST", "GET"])
 @permission_classes((rf_permissions.IsAdminUser,))
 def override_db_settings(request):
@@ -541,7 +544,7 @@ def feature_values(request):
             feature_value = request.data.get(section["key"], {}).get(feature["key"])
             if feature_value is not None:
                 models.Feature.objects.update_or_create(
-                    key=f'{section["key"]}.{feature["key"]}',
+                    key=f"{section['key']}.{feature['key']}",
                     defaults=dict(value=feature_value),
                 )
                 updated += 1
@@ -629,34 +632,6 @@ class UpdateReversionMixin:
             reversion.set_comment("Updated via REST API")
 
 
-class ReviewViewSet(ActionsViewSet):
-    disabled_actions = ["create", "destroy", "update", "partial_update"]
-    lookup_field = "uuid"
-
-    @action(detail=True, methods=["post"])
-    def approve(self, request, **kwargs):
-        review_request = self.get_object()
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        comment = serializer.validated_data.get("comment")
-        review_request.approve(request.user, comment)
-        return Response(status=status.HTTP_200_OK)
-
-    @action(detail=True, methods=["post"])
-    def reject(self, request, **kwargs):
-        review_request = self.get_object()
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        comment = serializer.validated_data.get("comment")
-        review_request.reject(request.user, comment)
-        return Response(status=status.HTTP_200_OK)
-
-    approve_serializer_class = reject_serializer_class = ReviewCommentSerializer
-    approve_validators = reject_validators = [
-        StateValidator(ReviewMixin.States.PENDING)
-    ]
-
-
 class CeleryStatsViewSet(APIView):
     permission_classes = [rf_permissions.IsAuthenticated, permissions.IsSupport]
 
@@ -705,6 +680,7 @@ def dictfetchall(cursor):
 class DatabaseStatsViewSet(APIView):
     permission_classes = [rf_permissions.IsAuthenticated, permissions.IsSupport]
 
+    @extend_schema(request=EmptySerializer, responses=TableSizeSerializer(many=True))
     def get(self, request, *args, **kwargs):
         data = []
         with connection.cursor() as cursor:

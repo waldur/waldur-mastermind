@@ -72,6 +72,20 @@ class AuthenticationBackend:
         return can_access_admin_site(user_obj)
 
 
+def set_user_context_and_refresh_token(user):
+    waldur_core.logging.middleware.set_current_user(user)
+    waldur_core.core.middleware.set_current_user(user)
+    try:
+        token = Token.objects.get(user=user)
+    except Token.DoesNotExist:
+        raise exceptions.PermissionDenied(
+            "Unable to impersonate user which does not have an active session."
+        )
+    if token:
+        token.created = timezone.now()
+        token.save()
+
+
 class TokenAuthentication(rest_framework.authentication.TokenAuthentication):
     """
     Custom token-based authentication.
@@ -114,6 +128,7 @@ class TokenAuthentication(rest_framework.authentication.TokenAuthentication):
                     f"Incorrect impersonated user UUID {impersonated_user_uuid}. User not found"
                 )
 
+        set_user_context_and_refresh_token(token.user)
         return token.user, token
 
     def authenticate(self, request):
@@ -152,34 +167,13 @@ class TokenAuthentication(rest_framework.authentication.TokenAuthentication):
         return self.authenticate_credentials(token)
 
 
-def user_capturing_auth(auth):
-    class CapturingAuthentication(auth):
-        def authenticate(self, request):
-            result = super().authenticate(request)
-            if result is not None:
-                user, _ = result
-                waldur_core.logging.middleware.set_current_user(user)
-                waldur_core.core.middleware.set_current_user(user)
-                try:
-                    token = Token.objects.get(user=user)
-                except Token.DoesNotExist:
-                    raise exceptions.PermissionDenied(
-                        "Unable to impersonate user which does not have an active session."
-                    )
-                if token:
-                    token.created = timezone.now()
-                    token.save()
-            return result
-
-    return CapturingAuthentication
-
-
-class CsrfExemptSessionAuthentication(
-    rest_framework.authentication.SessionAuthentication
-):
+class SessionAuthentication(rest_framework.authentication.SessionAuthentication):
     def enforce_csrf(self, request):
         return  # Skip CSRF check
 
-
-SessionAuthentication = user_capturing_auth(CsrfExemptSessionAuthentication)
-TokenAuthentication = user_capturing_auth(TokenAuthentication)
+    def authenticate(self, request):
+        result = super().authenticate(request)
+        if result is not None:
+            user, _ = result
+            set_user_context_and_refresh_token(user)
+        return result

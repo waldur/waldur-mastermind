@@ -15,6 +15,7 @@ from django.template.defaultfilters import slugify
 from django.utils import timezone
 from django.utils.translation import gettext
 from django.utils.translation import gettext_lazy as _
+from drf_spectacular.utils import extend_schema_field
 from iptools.ipv4 import validate_cidr as is_valid_ipv4_cidr
 from iptools.ipv6 import validate_cidr as is_valid_ipv6_cidr
 from netaddr import AddrFormatError, IPNetwork, all_matching_cidrs
@@ -27,6 +28,7 @@ from waldur_core.core import signals as core_signals
 from waldur_core.core import utils as core_utils
 from waldur_core.core.validators import BackendURLValidator, validate_x509_certificate
 from waldur_core.quotas.models import SharedQuotaMixin
+from waldur_core.quotas.serializers import QuotaSerializer
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
@@ -217,7 +219,7 @@ class OpenStackServiceSerializer(structure_serializers.ServiceOptionsSerializer)
     )
 
 
-class FlavorSerializer(structure_serializers.BasePropertySerializer):
+class OpenStackFlavorSerializer(structure_serializers.BasePropertySerializer):
     display_name = serializers.SerializerMethodField()
 
     class Meta(structure_serializers.BasePropertySerializer.Meta):
@@ -242,7 +244,7 @@ class FlavorSerializer(structure_serializers.BasePropertySerializer):
         return f"{flavor.name} ({flavor.cores} CPU, {flavor.ram} MB RAM, {flavor.disk} MB HDD)"
 
 
-class ImageSerializer(structure_serializers.BasePropertySerializer):
+class OpenStackImageSerializer(structure_serializers.BasePropertySerializer):
     class Meta:
         model = models.Image
         fields = (
@@ -260,7 +262,7 @@ class ImageSerializer(structure_serializers.BasePropertySerializer):
         }
 
 
-class VolumeTypeSerializer(structure_serializers.BasePropertySerializer):
+class OpenStackVolumeTypeSerializer(structure_serializers.BasePropertySerializer):
     class Meta(structure_serializers.BasePropertySerializer.Meta):
         model = models.VolumeType
         fields = ("url", "uuid", "name", "description", "settings")
@@ -273,7 +275,7 @@ class VolumeTypeSerializer(structure_serializers.BasePropertySerializer):
         }
 
 
-class TenantQuotaSerializer(serializers.Serializer):
+class OpenStackTenantQuotaSerializer(serializers.Serializer):
     instances = serializers.IntegerField(min_value=1, required=False)
     volumes = serializers.IntegerField(min_value=1, required=False)
     snapshots = serializers.IntegerField(min_value=1, required=False)
@@ -284,7 +286,7 @@ class TenantQuotaSerializer(serializers.Serializer):
     security_group_rule_count = serializers.IntegerField(min_value=1, required=False)
 
 
-class FloatingIPSerializer(structure_serializers.BaseResourceActionSerializer):
+class OpenStackFloatingIPSerializer(structure_serializers.BaseResourceActionSerializer):
     port = serializers.HyperlinkedRelatedField(
         view_name="openstack-port-detail",
         lookup_field="uuid",
@@ -334,7 +336,7 @@ class FloatingIPSerializer(structure_serializers.BaseResourceActionSerializer):
         return super().validate(attrs)
 
 
-class FloatingIPAttachSerializer(serializers.Serializer):
+class OpenStackFloatingIPAttachSerializer(serializers.Serializer):
     port = serializers.HyperlinkedRelatedField(
         queryset=models.Port.objects.all(),
         view_name="openstack-port-detail",
@@ -344,7 +346,7 @@ class FloatingIPAttachSerializer(serializers.Serializer):
     )
 
 
-class FloatingIPDescriptionUpdateSerializer(serializers.Serializer):
+class OpenStackFloatingIPDescriptionUpdateSerializer(serializers.Serializer):
     description = serializers.CharField(
         required=False, help_text=_("New floating IP description.")
     )
@@ -373,7 +375,7 @@ class DebugSecurityGroupRuleSerializer(BaseSecurityGroupRuleSerializer):
         model = models.SecurityGroupRule
 
 
-class SecurityGroupRuleSerializer(
+class OpenStackSecurityGroupRuleSerializer(
     BaseSecurityGroupRuleSerializer, serializers.HyperlinkedModelSerializer
 ):
     class Meta(BaseSecurityGroupRuleSerializer.Meta):
@@ -507,7 +509,7 @@ class SecurityGroupRuleSerializer(
         return rule
 
 
-class SecurityGroupRuleCreateSerializer(SecurityGroupRuleSerializer):
+class OpenStackSecurityGroupRuleCreateSerializer(OpenStackSecurityGroupRuleSerializer):
     """Create rules on security group creation"""
 
     def to_internal_value(self, data):
@@ -516,15 +518,19 @@ class SecurityGroupRuleCreateSerializer(SecurityGroupRuleSerializer):
                 _("Cannot add existed rule with id %s to new security group")
                 % data["id"]
             )
-        internal_data = super(SecurityGroupRuleSerializer, self).to_internal_value(data)
+        internal_data = super(
+            OpenStackSecurityGroupRuleSerializer, self
+        ).to_internal_value(data)
         return models.SecurityGroupRule(**internal_data)
 
 
-class SecurityGroupRuleUpdateSerializer(SecurityGroupRuleSerializer):
+class OpenStackSecurityGroupRuleUpdateSerializer(OpenStackSecurityGroupRuleSerializer):
     def to_internal_value(self, data):
         """Create new rule if id is not specified, update exist rule if id is specified"""
         security_group = self.context["view"].get_object()
-        internal_data = super(SecurityGroupRuleSerializer, self).to_internal_value(data)
+        internal_data = super(
+            OpenStackSecurityGroupRuleSerializer, self
+        ).to_internal_value(data)
         if "id" not in data:
             return models.SecurityGroupRule(
                 security_group=security_group, **internal_data
@@ -557,8 +563,8 @@ def validate_duplicate_security_group_rules(rules):
         )
 
 
-class SecurityGroupRuleListUpdateSerializer(serializers.ListSerializer):
-    child = SecurityGroupRuleUpdateSerializer()
+class OpenStackSecurityGroupRuleListUpdateSerializer(serializers.ListSerializer):
+    child = OpenStackSecurityGroupRuleUpdateSerializer()
 
     @transaction.atomic()
     def save(self, **kwargs):
@@ -575,8 +581,10 @@ class SecurityGroupRuleListUpdateSerializer(serializers.ListSerializer):
         return rules
 
 
-class SecurityGroupSerializer(structure_serializers.BaseResourceActionSerializer):
-    rules = SecurityGroupRuleCreateSerializer(many=True)
+class OpenStackSecurityGroupSerializer(
+    structure_serializers.BaseResourceActionSerializer
+):
+    rules = OpenStackSecurityGroupRuleCreateSerializer(many=True)
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.SecurityGroup
@@ -650,7 +658,7 @@ class SecurityGroupSerializer(structure_serializers.BaseResourceActionSerializer
         return security_group
 
 
-class SecurityGroupUpdateSerializer(serializers.ModelSerializer):
+class OpenStackSecurityGroupUpdateSerializer(serializers.ModelSerializer):
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.SecurityGroup
         fields = ("name", "description")
@@ -671,7 +679,15 @@ class SecurityGroupUpdateSerializer(serializers.ModelSerializer):
         return name
 
 
-class CreateServerGroupSerializer(structure_serializers.BaseResourceActionSerializer):
+class OpenStackNestedInstanceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Instance
+        fields = ("backend_id", "name", "uuid")
+
+
+class OpenStackCreateServerGroupSerializer(
+    structure_serializers.BaseResourceActionSerializer
+):
     class Meta:
         model = models.ServerGroup
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
@@ -707,6 +723,7 @@ class CreateServerGroupSerializer(structure_serializers.BaseResourceActionSerial
     def get_display_name(self, server_group) -> str:
         return f"Name: {server_group.name}, Policy: {server_group.policy}"
 
+    @extend_schema_field(OpenStackNestedInstanceSerializer(many=True))
     def get_instances(self, server_group):
         filtered_instances = models.Instance.objects.filter(
             server_group__backend_id=server_group.backend_id
@@ -780,8 +797,8 @@ def can_create_tenant(
         raise serializers.ValidationError(message)
 
 
-class TenantSerializer(structure_serializers.BaseResourceSerializer):
-    quotas = serializers.ReadOnlyField()
+class OpenStackTenantSerializer(structure_serializers.BaseResourceSerializer):
+    quotas = QuotaSerializer(many=True, read_only=True)
     subnet_cidr = serializers.CharField(
         default="192.168.42.0/24",
         initial="192.168.42.0/24",
@@ -1031,7 +1048,7 @@ class TenantSerializer(structure_serializers.BaseResourceSerializer):
         return tenant
 
 
-class NestedSubNetSerializer(serializers.ModelSerializer):
+class OpenStackNestedSubNetSerializer(serializers.ModelSerializer):
     allocation_pools = serializers.JSONField(read_only=True)
 
     class Meta:
@@ -1047,7 +1064,7 @@ class NestedSubNetSerializer(serializers.ModelSerializer):
         )
 
 
-class StaticRouteSerializer(serializers.Serializer):
+class OpenStackStaticRouteSerializer(serializers.Serializer):
     destination = serializers.CharField()
     nexthop = serializers.IPAddressField()
 
@@ -1058,8 +1075,8 @@ class StaticRouteSerializer(serializers.Serializer):
             raise serializers.ValidationError("Invalid CIDR format.")
 
 
-class RouterSetRoutesSerializer(serializers.Serializer):
-    routes = StaticRouteSerializer(many=True)
+class OpenStackRouterSetRoutesSerializer(serializers.Serializer):
+    routes = OpenStackStaticRouteSerializer(many=True)
 
     def validate(self, attrs):
         fixed_ips = self.instance.fixed_ips
@@ -1072,8 +1089,8 @@ class RouterSetRoutesSerializer(serializers.Serializer):
         return attrs
 
 
-class RouterSerializer(structure_serializers.BaseResourceSerializer):
-    routes = StaticRouteSerializer(many=True)
+class OpenStackRouterSerializer(structure_serializers.BaseResourceSerializer):
+    routes = OpenStackStaticRouteSerializer(many=True)
     tenant_name = serializers.CharField(source="tenant.name", read_only=True)
     tenant_uuid = serializers.CharField(source="tenant.uuid", read_only=True)
     fixed_ips = serializers.JSONField(read_only=True)
@@ -1093,13 +1110,13 @@ class RouterSerializer(structure_serializers.BaseResourceSerializer):
         )
 
 
-class NestedSecurityGroupSerializer(serializers.ModelSerializer):
+class OpenStackPortNestedSecurityGroupSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.SecurityGroup
         fields = ("uuid", "name")
 
 
-class PortSerializer(structure_serializers.BaseResourceActionSerializer):
+class OpenStackPortSerializer(structure_serializers.BaseResourceActionSerializer):
     tenant_name = serializers.CharField(source="tenant.name", read_only=True)
     tenant_uuid = serializers.CharField(source="tenant.uuid", read_only=True)
     network_name = serializers.CharField(source="network.name", read_only=True)
@@ -1112,7 +1129,9 @@ class PortSerializer(structure_serializers.BaseResourceActionSerializer):
         many=True,
     )
     fixed_ips = serializers.JSONField(required=False)
-    security_groups = NestedSecurityGroupSerializer(many=True, read_only=True)
+    security_groups = OpenStackPortNestedSecurityGroupSerializer(
+        many=True, read_only=True
+    )
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Port
@@ -1211,11 +1230,11 @@ class PortSerializer(structure_serializers.BaseResourceActionSerializer):
         return super().validate(attrs)
 
 
-class NetworkSerializer(
+class OpenStackNetworkSerializer(
     structure_serializers.FieldFilteringMixin,
     structure_serializers.BaseResourceActionSerializer,
 ):
-    subnets = NestedSubNetSerializer(many=True, read_only=True)
+    subnets = OpenStackNestedSubNetSerializer(many=True, read_only=True)
     tenant_name = serializers.CharField(source="tenant.name", read_only=True)
     tenant_uuid = serializers.CharField(source="tenant.uuid", read_only=True)
 
@@ -1277,7 +1296,7 @@ class SetMtuSerializer(serializers.Serializer):
         return network
 
 
-class SubNetSerializer(structure_serializers.BaseResourceActionSerializer):
+class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializer):
     cidr = serializers.CharField(
         required=False,
         initial="192.168.42.0/24",
@@ -1293,7 +1312,7 @@ class SubNetSerializer(structure_serializers.BaseResourceActionSerializer):
     )
     tenant_name = serializers.CharField(source="network.tenant.name", read_only=True)
     dns_nameservers = serializers.JSONField(required=False)
-    host_routes = StaticRouteSerializer(many=True, required=False)
+    host_routes = OpenStackStaticRouteSerializer(many=True, required=False)
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.SubNet
@@ -1412,7 +1431,7 @@ def _generate_subnet_allocation_pool(cidr):
     ]
 
 
-class TenantChangePasswordSerializer(serializers.Serializer):
+class OpenStackTenantChangePasswordSerializer(serializers.Serializer):
     user_password = serializers.CharField(
         max_length=50,
         allow_blank=True,
@@ -1434,7 +1453,7 @@ class TenantChangePasswordSerializer(serializers.Serializer):
         return tenant
 
 
-class NestedPortSerializer(
+class OpenStackNestedPortSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
     allowed_address_pairs = serializers.JSONField(read_only=True)
@@ -1487,7 +1506,7 @@ class NestedPortSerializer(
         )
 
 
-class NestedFloatingIPSerializer(
+class OpenStackNestedFloatingIPSerializer(
     core_serializers.AugmentedSerializerMixin,
     core_serializers.HyperlinkedRelatedModelSerializer,
 ):
@@ -1551,7 +1570,7 @@ class NestedFloatingIPSerializer(
         return floating_ip, subnet
 
 
-class UsageStatsSerializer(serializers.Serializer):
+class OpenStackUsageStatsSerializer(serializers.Serializer):
     shared = serializers.BooleanField()
     service_provider = serializers.ListField(child=serializers.CharField())
 
@@ -1573,7 +1592,7 @@ class BaseAvailabilityZoneSerializer(structure_serializers.BasePropertySerialize
         }
 
 
-class ServerGroupSerializer(structure_serializers.BasePropertySerializer):
+class OpenStackServerGroupSerializer(structure_serializers.BasePropertySerializer):
     class Meta(structure_serializers.BasePropertySerializer.Meta):
         model = models.ServerGroup
         fields = (
@@ -1592,12 +1611,12 @@ class ServerGroupSerializer(structure_serializers.BasePropertySerializer):
         }
 
 
-class VolumeAvailabilityZoneSerializer(BaseAvailabilityZoneSerializer):
+class OpenStackVolumeAvailabilityZoneSerializer(BaseAvailabilityZoneSerializer):
     class Meta(BaseAvailabilityZoneSerializer.Meta):
         model = models.VolumeAvailabilityZone
 
 
-class VolumeSerializer(structure_serializers.BaseResourceSerializer):
+class OpenStackVolumeSerializer(structure_serializers.BaseResourceSerializer):
     action_details = serializers.JSONField(read_only=True)
     metadata = serializers.JSONField(read_only=True)
     instance_name = serializers.ReadOnlyField(source="instance.name")
@@ -1759,7 +1778,7 @@ class VolumeSerializer(structure_serializers.BaseResourceSerializer):
         return super().create(validated_data)
 
 
-class VolumeExtendSerializer(serializers.Serializer):
+class OpenStackVolumeExtendSerializer(serializers.Serializer):
     disk_size = serializers.IntegerField(min_value=1, label="Disk size")
 
     def validate_disk_size(self, disk_size):
@@ -1843,7 +1862,7 @@ class VolumeAttachSerializer(
         return instance
 
 
-class VolumeRetypeSerializer(serializers.HyperlinkedModelSerializer):
+class OpenStackVolumeRetypeSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = models.Volume
         fields = ["type"]
@@ -1887,7 +1906,7 @@ class VolumeRetypeSerializer(serializers.HyperlinkedModelSerializer):
         return super().update(instance, validated_data)
 
 
-class SnapshotRestorationSerializer(
+class OpenStackSnapshotRestorationSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
     name = serializers.CharField(write_only=True, help_text=_("New volume name."))
@@ -1948,14 +1967,14 @@ class SnapshotRestorationSerializer(
         return super().create(validated_data)
 
 
-class SnapshotSerializer(structure_serializers.BaseResourceActionSerializer):
+class OpenStackSnapshotSerializer(structure_serializers.BaseResourceActionSerializer):
     source_volume_name = serializers.ReadOnlyField(source="source_volume.name")
     source_volume_marketplace_uuid = serializers.ReadOnlyField(
         source="source_volume.marketplace_uuid"
     )
     action_details = serializers.JSONField(read_only=True)
     metadata = serializers.JSONField(required=False)
-    restorations = SnapshotRestorationSerializer(many=True, read_only=True)
+    restorations = OpenStackSnapshotRestorationSerializer(many=True, read_only=True)
     snapshot_schedule_uuid = serializers.ReadOnlyField(source="snapshot_schedule.uuid")
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
@@ -2012,7 +2031,7 @@ class SnapshotSerializer(structure_serializers.BaseResourceActionSerializer):
         return super().validate(attrs)
 
 
-class NestedVolumeSerializer(
+class OpenStackNestedVolumeSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
     structure_serializers.BasicResourceSerializer,
@@ -2063,7 +2082,7 @@ class NestedSecurityGroupRuleSerializer(BaseSecurityGroupRuleSerializer):
             return models.SecurityGroupRule(**internal_data)
 
 
-class NestedSecurityGroupSerializer(
+class OpenStackNestedSecurityGroupSerializer(
     core_serializers.AugmentedSerializerMixin,
     core_serializers.HyperlinkedRelatedModelSerializer,
 ):
@@ -2080,7 +2099,7 @@ class NestedSecurityGroupSerializer(
         extra_kwargs = {"url": {"lookup_field": "uuid"}}
 
 
-class NestedServerGroupSerializer(
+class OpenStackNestedServerGroupSerializer(
     core_serializers.AugmentedSerializerMixin,
     core_serializers.HyperlinkedRelatedModelSerializer,
 ):
@@ -2265,12 +2284,12 @@ def _connect_floating_ip_to_instance(
     return floating_ip
 
 
-class InstanceAvailabilityZoneSerializer(BaseAvailabilityZoneSerializer):
+class OpenStackInstanceAvailabilityZoneSerializer(BaseAvailabilityZoneSerializer):
     class Meta(BaseAvailabilityZoneSerializer.Meta):
         model = models.InstanceAvailabilityZone
 
 
-class DataVolumeSerializer(serializers.Serializer):
+class OpenStackDataVolumeSerializer(serializers.Serializer):
     size = serializers.IntegerField()
     volume_type = serializers.HyperlinkedRelatedField(
         view_name="openstack-volume-type-detail",
@@ -2281,7 +2300,7 @@ class DataVolumeSerializer(serializers.Serializer):
     )
 
 
-class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
+class OpenStackInstanceSerializer(structure_serializers.VirtualMachineSerializer):
     flavor = serializers.HyperlinkedRelatedField(
         view_name="openstack-flavor-detail",
         lookup_field="uuid",
@@ -2308,14 +2327,14 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
         queryset=models.Tenant.objects.all(),
     )
 
-    security_groups = NestedSecurityGroupSerializer(
+    security_groups = OpenStackNestedSecurityGroupSerializer(
         queryset=models.SecurityGroup.objects.all(), many=True, required=False
     )
-    server_group = NestedServerGroupSerializer(
+    server_group = OpenStackNestedServerGroupSerializer(
         queryset=models.ServerGroup.objects.all(), required=False
     )
-    ports = NestedPortSerializer(many=True, required=True)
-    floating_ips = NestedFloatingIPSerializer(
+    ports = OpenStackNestedPortSerializer(many=True, required=True)
+    floating_ips = OpenStackNestedFloatingIPSerializer(
         queryset=models.FloatingIP.objects.all().filter(port__isnull=True),
         many=True,
         required=False,
@@ -2341,8 +2360,10 @@ class InstanceSerializer(structure_serializers.VirtualMachineSerializer):
         required=False,
         write_only=True,
     )
-    data_volumes = DataVolumeSerializer(many=True, required=False, write_only=True)
-    volumes = NestedVolumeSerializer(many=True, required=False, read_only=True)
+    data_volumes = OpenStackDataVolumeSerializer(
+        many=True, required=False, write_only=True
+    )
+    volumes = OpenStackNestedVolumeSerializer(many=True, required=False, read_only=True)
     action_details = serializers.JSONField(read_only=True)
 
     availability_zone_name = serializers.CharField(
@@ -2748,7 +2769,7 @@ class InstanceFlavorChangeSerializer(serializers.Serializer):
         return instance
 
 
-class InstanceDeleteSerializer(serializers.Serializer):
+class OpenStackInstanceDeleteSerializer(serializers.Serializer):
     delete_volumes = serializers.BooleanField(default=True)
     release_floating_ips = serializers.BooleanField(
         label=_("Release floating IPs"), default=True
@@ -2767,8 +2788,8 @@ class InstanceDeleteSerializer(serializers.Serializer):
         return attrs
 
 
-class InstanceSecurityGroupsUpdateSerializer(serializers.Serializer):
-    security_groups = NestedSecurityGroupSerializer(
+class OpenStackInstanceSecurityGroupsUpdateSerializer(serializers.Serializer):
+    security_groups = OpenStackNestedSecurityGroupSerializer(
         queryset=models.SecurityGroup.objects.all(),
         many=True,
     )
@@ -2793,7 +2814,7 @@ class InstanceSecurityGroupsUpdateSerializer(serializers.Serializer):
         return instance
 
 
-class AllowedAddressPairSerializer(serializers.Serializer):
+class OpenStackAllowedAddressPairSerializer(serializers.Serializer):
     ip_address = serializers.CharField(
         default="192.168.42.0/24",
         initial="192.168.42.0/24",
@@ -2805,7 +2826,7 @@ class AllowedAddressPairSerializer(serializers.Serializer):
         return validate_private_cidr(value)
 
 
-class InstanceAllowedAddressPairsUpdateSerializer(serializers.Serializer):
+class OpenStackInstanceAllowedAddressPairsUpdateSerializer(serializers.Serializer):
     subnet = serializers.HyperlinkedRelatedField(
         queryset=models.SubNet.objects.all(),
         view_name="openstack-subnet-detail",
@@ -2813,7 +2834,7 @@ class InstanceAllowedAddressPairsUpdateSerializer(serializers.Serializer):
         write_only=True,
     )
 
-    allowed_address_pairs = AllowedAddressPairSerializer(many=True)
+    allowed_address_pairs = OpenStackAllowedAddressPairSerializer(many=True)
 
     @transaction.atomic
     def update(self, instance, validated_data):
@@ -2830,8 +2851,8 @@ class InstanceAllowedAddressPairsUpdateSerializer(serializers.Serializer):
         return instance
 
 
-class InstancePortsUpdateSerializer(serializers.Serializer):
-    ports = NestedPortSerializer(many=True)
+class OpenStackInstancePortsUpdateSerializer(serializers.Serializer):
+    ports = OpenStackNestedPortSerializer(many=True)
 
     def validate_ports(self, ports):
         _validate_instance_ports(ports, self.instance.tenant)
@@ -2863,8 +2884,8 @@ class InstancePortsUpdateSerializer(serializers.Serializer):
         return instance
 
 
-class InstanceFloatingIPsUpdateSerializer(serializers.Serializer):
-    floating_ips = NestedFloatingIPSerializer(
+class OpenStackInstanceFloatingIPsUpdateSerializer(serializers.Serializer):
+    floating_ips = OpenStackNestedFloatingIPSerializer(
         queryset=models.FloatingIP.objects.all(), many=True, required=False
     )
 
@@ -2875,7 +2896,7 @@ class InstanceFloatingIPsUpdateSerializer(serializers.Serializer):
             queryset = models.FloatingIP.objects.all().filter(
                 Q(port__isnull=True) | Q(port__instance=instance)
             )
-            fields["floating_ips"] = NestedFloatingIPSerializer(
+            fields["floating_ips"] = OpenStackNestedFloatingIPSerializer(
                 queryset=queryset, many=True, required=False
             )
             fields["floating_ips"].view_name = "openstack-fip-detail"
@@ -2916,16 +2937,16 @@ class InstanceFloatingIPsUpdateSerializer(serializers.Serializer):
         return instance
 
 
-class BackupRestorationSerializer(serializers.HyperlinkedModelSerializer):
+class OpenStackBackupRestorationSerializer(serializers.HyperlinkedModelSerializer):
     name = serializers.CharField(
         required=False,
         help_text=_("New instance name. Leave blank to use source instance name."),
     )
-    security_groups = NestedSecurityGroupSerializer(
+    security_groups = OpenStackNestedSecurityGroupSerializer(
         queryset=models.SecurityGroup.objects.all(), many=True, required=False
     )
-    ports = NestedPortSerializer(many=True, required=False)
-    floating_ips = NestedFloatingIPSerializer(
+    ports = OpenStackNestedPortSerializer(many=True, required=False)
+    floating_ips = OpenStackNestedFloatingIPSerializer(
         queryset=models.FloatingIP.objects.all().filter(port__isnull=True),
         many=True,
         required=False,
@@ -3045,17 +3066,17 @@ class BackupSerializer(structure_serializers.BaseResourceActionSerializer):
     instance_marketplace_uuid = serializers.ReadOnlyField(
         source="instance.marketplace_uuid"
     )
-    instance_security_groups = NestedSecurityGroupSerializer(
+    instance_security_groups = OpenStackNestedSecurityGroupSerializer(
         read_only=True, many=True, source="instance.security_groups"
     )
-    instance_ports = NestedPortSerializer(
+    instance_ports = OpenStackNestedPortSerializer(
         read_only=True, many=True, source="instance.ports"
     )
-    instance_floating_ips = NestedFloatingIPSerializer(
+    instance_floating_ips = OpenStackNestedFloatingIPSerializer(
         read_only=True, many=True, source="instance.floating_ips"
     )
 
-    restorations = BackupRestorationSerializer(many=True, read_only=True)
+    restorations = OpenStackBackupRestorationSerializer(many=True, read_only=True)
     backup_schedule_uuid = serializers.ReadOnlyField(source="backup_schedule.uuid")
     tenant_uuid = serializers.ReadOnlyField(source="tenant.uuid")
 
@@ -3145,7 +3166,9 @@ class BackupSerializer(structure_serializers.BaseResourceActionSerializer):
             backup.snapshots.add(snapshot)
 
 
-class BaseScheduleSerializer(structure_serializers.BaseResourceActionSerializer):
+class OpenStackBaseScheduleSerializer(
+    structure_serializers.BaseResourceActionSerializer
+):
     timezone = serializers.ChoiceField(
         choices=[(t, t) for t in zoneinfo.available_timezones()],
         initial=timezone.get_current_timezone_name(),
@@ -3172,11 +3195,14 @@ class BaseScheduleSerializer(structure_serializers.BaseResourceActionSerializer)
         )
 
 
-class BackupScheduleSerializer(BaseScheduleSerializer):
-    class Meta(BaseScheduleSerializer.Meta):
+class OpenStackBackupScheduleSerializer(OpenStackBaseScheduleSerializer):
+    class Meta(OpenStackBaseScheduleSerializer.Meta):
         model = models.BackupSchedule
-        fields = BaseScheduleSerializer.Meta.fields + ("instance", "instance_name")
-        read_only_fields = BaseScheduleSerializer.Meta.read_only_fields + (
+        fields = OpenStackBaseScheduleSerializer.Meta.fields + (
+            "instance",
+            "instance_name",
+        )
+        read_only_fields = OpenStackBaseScheduleSerializer.Meta.read_only_fields + (
             "backups",
             "instance",
         )
@@ -3209,14 +3235,14 @@ class BackupScheduleSerializer(BaseScheduleSerializer):
         return super().validate(attrs)
 
 
-class SnapshotScheduleSerializer(BaseScheduleSerializer):
-    class Meta(BaseScheduleSerializer.Meta):
+class OpenStackSnapshotScheduleSerializer(OpenStackBaseScheduleSerializer):
+    class Meta(OpenStackBaseScheduleSerializer.Meta):
         model = models.SnapshotSchedule
-        fields = BaseScheduleSerializer.Meta.fields + (
+        fields = OpenStackBaseScheduleSerializer.Meta.fields + (
             "source_volume",
             "source_volume_name",
         )
-        read_only_fields = BaseScheduleSerializer.Meta.read_only_fields + (
+        read_only_fields = OpenStackBaseScheduleSerializer.Meta.read_only_fields + (
             "snapshots",
             "source_volume",
         )
@@ -3298,15 +3324,15 @@ def add_instance_fields(sender, fields, **kwargs):
 
 
 core_signals.pre_serializer_fields.connect(
-    add_instance_fields, sender=FloatingIPSerializer
+    add_instance_fields, sender=OpenStackFloatingIPSerializer
 )
 
 
-class ConsoleLogSerializer(serializers.Serializer):
+class OpenStackConsoleLogSerializer(serializers.Serializer):
     length = serializers.IntegerField(required=False)
 
 
-class SharedSettingsCustomerSerializer(serializers.Serializer):
+class OpenStackSharedSettingsCustomerSerializer(serializers.Serializer):
     name = serializers.CharField(read_only=True)
     uuid = serializers.CharField(read_only=True)
     created = serializers.DateField(read_only=True)
@@ -3314,7 +3340,7 @@ class SharedSettingsCustomerSerializer(serializers.Serializer):
     vm_count = serializers.IntegerField(read_only=True)
 
 
-class BackendInstanceSerializer(serializers.ModelSerializer):
+class OpenStackBackendInstanceSerializer(serializers.ModelSerializer):
     availability_zone = serializers.ReadOnlyField(source="availability_zone.name")
     state = serializers.ReadOnlyField(source="get_state_display")
 
@@ -3333,7 +3359,7 @@ class BackendInstanceSerializer(serializers.ModelSerializer):
         )
 
 
-class BackendVolumesSerializer(serializers.ModelSerializer):
+class OpenStackBackendVolumesSerializer(serializers.ModelSerializer):
     availability_zone = serializers.ReadOnlyField(source="availability_zone.name")
     state = serializers.ReadOnlyField(source="get_state_display")
     type = serializers.ReadOnlyField(source="type.name")

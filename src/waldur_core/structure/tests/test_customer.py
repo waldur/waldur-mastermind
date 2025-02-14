@@ -531,7 +531,7 @@ class CustomerUsersListTest(test.APITransactionTestCase):
         )
         self.assertSetEqual(
             {
-                user["projects"] and user["projects"][0]["role"] or None
+                user["projects"] and user["projects"][0]["role_name"] or None
                 for user in response.data
             },
             {None},

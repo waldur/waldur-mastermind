@@ -500,11 +500,11 @@ class PlanUsageTest(test.APITransactionTestCase):
 
     def test_count_plans_for_ok_resources(self):
         response = self.get_stats()
-        self.assertEqual(response.data[0]["offering_uuid"], self.offering.uuid)
+        self.assertEqual(response.data[0]["offering_uuid"], self.offering.uuid.hex)
         self.assertEqual(
-            response.data[0]["customer_provider_uuid"], self.offering.customer.uuid
+            response.data[0]["customer_provider_uuid"], self.offering.customer.uuid.hex
         )
-        self.assertEqual(response.data[0]["plan_uuid"], self.plan1.uuid)
+        self.assertEqual(response.data[0]["plan_uuid"], self.plan1.uuid.hex)
         self.assertEqual(response.data[0]["usage"], 3)
 
     def test_count_plans_for_terminated_resources(self):
@@ -551,7 +551,7 @@ class PlanUsageTest(test.APITransactionTestCase):
         response = self.get_stats({"offering_uuid": plan.offering.uuid.hex})
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["usage"], 4)
-        self.assertEqual(response.data[0]["offering_uuid"], plan.offering.uuid)
+        self.assertEqual(response.data[0]["offering_uuid"], plan.offering.uuid.hex)
 
     def test_filter_plans_by_customer_provider_uuid(self):
         plan = factories.PlanFactory()
@@ -570,7 +570,7 @@ class PlanUsageTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["usage"], 4)
         self.assertEqual(
-            response.data[0]["customer_provider_uuid"], plan.offering.customer.uuid
+            response.data[0]["customer_provider_uuid"], plan.offering.customer.uuid.hex
         )
 
 

@@ -27,7 +27,7 @@ class AuthResultSerializer(serializers.ModelSerializer):
             "details",
         )
 
-    def get_token(self, auth_result):
+    def get_token(self, auth_result) -> str:
         if auth_result.user:
             return auth_result.user.auth_token.key
         return None

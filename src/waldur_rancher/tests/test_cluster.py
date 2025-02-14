@@ -46,7 +46,7 @@ class ClusterGetTest(test.APITransactionTestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(
-            response.data["rancher_cluster"]["uuid"].hex, self.fixture.cluster.uuid.hex
+            response.data["rancher_cluster"]["uuid"], self.fixture.cluster.uuid.hex
         )
 
     def test_rancher_cluster_is_none_if_node_is_not_existed(self):

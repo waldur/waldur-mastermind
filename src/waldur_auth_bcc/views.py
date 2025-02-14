@@ -1,4 +1,5 @@
 from django.conf import settings
+from drf_spectacular.utils import extend_schema
 from rest_framework import views
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
@@ -7,6 +8,7 @@ from . import client, serializers
 
 
 class UserDetailsViewSet(views.APIView):
+    @extend_schema(responses=client.UserDetails)
     def get(self, request, *args, **kwargs):
         if not settings.WALDUR_AUTH_BCC["ENABLED"]:
             raise ValidationError("This feature is disabled.")
@@ -19,6 +21,6 @@ class UserDetailsViewSet(views.APIView):
 
         try:
             user_details = client.get_user_details(civil_number, tax_number)
-            return Response(user_details._asdict())
+            return Response(user_details.data)
         except client.BCCException as e:
             return Response({"details": e.detail}, status=e.code)

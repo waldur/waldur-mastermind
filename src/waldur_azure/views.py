@@ -1,9 +1,9 @@
 from django.db import transaction
 from django.utils.translation import gettext_lazy as _
 from rest_framework import decorators, response, status, viewsets
-from rest_framework import serializers as rf_serializers
 
 from waldur_core.core import validators as core_validators
+from waldur_core.core.serializers import EmptySerializer
 from waldur_core.structure import views as structure_views
 
 from . import executors, filters, models, serializers
@@ -11,7 +11,7 @@ from . import executors, filters, models, serializers
 
 class ImageViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.Image.objects.all()
-    serializer_class = serializers.ImageSerializer
+    serializer_class = serializers.AzureImageSerializer
     filterset_class = filters.ImageFilter
     lookup_field = "uuid"
 
@@ -21,28 +21,28 @@ class ImageViewSet(structure_views.BaseServicePropertyViewSet):
 
 class SizeViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = models.Size.objects.all()
-    serializer_class = serializers.SizeSerializer
+    serializer_class = serializers.AzureSizeSerializer
     filterset_class = filters.SizeFilter
     lookup_field = "uuid"
 
 
 class LocationViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = models.Location.objects.filter(enabled=True)
-    serializer_class = serializers.LocationSerializer
+    serializer_class = serializers.AzureLocationSerializer
     filterset_class = filters.LocationFilter
     lookup_field = "uuid"
 
 
 class ResourceGroupViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = models.ResourceGroup.objects.all().order_by("name")
-    serializer_class = serializers.ResourceGroupSerializer
+    serializer_class = serializers.AzureResourceGroupSerializer
     lookup_field = "uuid"
 
 
 class PublicIPViewSet(structure_views.ResourceViewSet):
     queryset = models.PublicIP.objects.all().order_by("name")
     filterset_class = filters.PublicIPFilter
-    serializer_class = serializers.PublicIPSerializer
+    serializer_class = serializers.AzurePublicIPSerializer
     create_executor = executors.PublicIPCreateExecutor
     delete_executor = executors.PublicIPDeleteExecutor
 
@@ -50,7 +50,7 @@ class PublicIPViewSet(structure_views.ResourceViewSet):
 class VirtualMachineViewSet(structure_views.ResourceViewSet):
     queryset = models.VirtualMachine.objects.all().order_by("name")
     filterset_class = filters.VirtualMachineFilter
-    serializer_class = serializers.VirtualMachineSerializer
+    serializer_class = serializers.AzureVirtualMachineSerializer
     create_executor = executors.VirtualMachineCreateExecutor
     delete_executor = executors.VirtualMachineDeleteExecutor
     pull_executor = executors.VirtualMachinePullExecutor
@@ -67,7 +67,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
         core_validators.StateValidator(models.VirtualMachine.States.OK),
         core_validators.RuntimeStateValidator("stopped"),
     ]
-    start_serializer_class = rf_serializers.Serializer
+    start_serializer_class = EmptySerializer
 
     @decorators.action(detail=True, methods=["post"])
     def stop(self, request, uuid=None):
@@ -81,7 +81,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
         core_validators.StateValidator(models.VirtualMachine.States.OK),
         core_validators.RuntimeStateValidator("running"),
     ]
-    stop_serializer_class = rf_serializers.Serializer
+    stop_serializer_class = EmptySerializer
 
     @decorators.action(detail=True, methods=["post"])
     def restart(self, request, uuid=None):
@@ -95,13 +95,13 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
         core_validators.StateValidator(models.VirtualMachine.States.OK),
         core_validators.RuntimeStateValidator("running"),
     ]
-    restart_serializer_class = rf_serializers.Serializer
+    restart_serializer_class = EmptySerializer
 
 
 class SQLServerViewSet(structure_views.ResourceViewSet):
     queryset = models.SQLServer.objects.all().order_by("name")
     filterset_class = filters.SQLServerFilter
-    serializer_class = serializers.SQLServerSerializer
+    serializer_class = serializers.AzureSqlServerSerializer
     create_executor = executors.SQLServerCreateExecutor
     delete_executor = executors.SQLServerDeleteExecutor
 
@@ -124,12 +124,12 @@ class SQLServerViewSet(structure_views.ResourceViewSet):
     create_database_validators = [
         core_validators.StateValidator(models.SQLServer.States.OK)
     ]
-    create_database_serializer_class = serializers.SQLDatabaseCreateSerializer
+    create_database_serializer_class = serializers.AzureSqlDatabaseCreateSerializer
 
 
 class SQLDatabaseViewSet(structure_views.ResourceViewSet):
     queryset = models.SQLDatabase.objects.all().order_by("name")
     filterset_class = filters.SQLDatabaseFilter
-    serializer_class = serializers.SQLDatabaseSerializer
+    serializer_class = serializers.AzureSqlDatabaseSerializer
     create_executor = executors.SQLDatabaseCreateExecutor
     delete_executor = executors.SQLDatabaseDeleteExecutor

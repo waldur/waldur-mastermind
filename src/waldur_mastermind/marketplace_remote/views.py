@@ -1,7 +1,9 @@
 from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import permissions as rf_permissions
+from rest_framework import serializers as rf_serializers
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -11,8 +13,11 @@ from waldur_client import WaldurClient, WaldurClientException
 
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import views as core_views
+from waldur_core.core.mixins import ReviewMixin
+from waldur_core.core.serializers import EmptySerializer, ReviewCommentSerializer
 from waldur_core.core.utils import is_uuid_like, serialize_instance
-from waldur_core.core.views import ReviewViewSet
+from waldur_core.core.validators import StateValidator
+from waldur_core.core.views import ActionsViewSet
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import ServiceProviderRole
 from waldur_core.permissions.utils import has_permission
@@ -21,6 +26,7 @@ from waldur_core.structure.filters import GenericRoleFilter
 from waldur_core.structure.models import Customer
 from waldur_core.structure.permissions import _has_owner_access
 from waldur_mastermind.marketplace import callbacks, models
+from waldur_mastermind.marketplace.serializers import MarketplaceCategorySerializer
 from waldur_mastermind.marketplace_remote import PLUGIN_NAME
 from waldur_mastermind.marketplace_remote.models import (
     ProjectUpdateRequest,
@@ -28,6 +34,22 @@ from waldur_mastermind.marketplace_remote.models import (
 )
 
 from . import filters, serializers, tasks, utils, utils_sync_remote_offerings
+
+
+class RemoteCustomerSerializer(rf_serializers.Serializer):
+    uuid = rf_serializers.CharField(read_only=True)
+    name = rf_serializers.CharField(read_only=True)
+    abbreviation = rf_serializers.CharField(read_only=True)
+    phone_number = rf_serializers.CharField(read_only=True)
+    email = rf_serializers.CharField(read_only=True)
+
+
+class RemoteOfferingSerializer(rf_serializers.Serializer):
+    uuid = rf_serializers.CharField(read_only=True)
+    name = rf_serializers.CharField(read_only=True)
+    type = rf_serializers.CharField(read_only=True)
+    state = rf_serializers.CharField(read_only=True)
+    category_title = rf_serializers.CharField(read_only=True)
 
 
 class RemoteView(APIView):
@@ -40,6 +62,10 @@ class RemoteView(APIView):
 
 
 class CustomersView(RemoteView):
+    @extend_schema(
+        request=serializers.CredentialsSerializer,
+        responses=RemoteCustomerSerializer(many=True),
+    )
     def post(self, request, *args, **kwargs):
         client = self.get_client(request)
         params = {
@@ -54,6 +80,10 @@ class CustomersView(RemoteView):
 
 
 class СategoriesView(RemoteView):
+    @extend_schema(
+        request=serializers.CredentialsSerializer,
+        responses=MarketplaceCategorySerializer(many=True),
+    )
     def post(self, request, *args, **kwargs):
         client = self.get_client(request)
         try:
@@ -64,6 +94,15 @@ class СategoriesView(RemoteView):
 
 
 class OfferingsListView(RemoteView):
+    @extend_schema(
+        request=serializers.CredentialsSerializer,
+        responses=RemoteOfferingSerializer(many=True),
+        parameters=[
+            OpenApiParameter(
+                name="customer_uuid", type=str, location=OpenApiParameter.QUERY
+            )
+        ],
+    )
     def post(self, request, *args, **kwargs):
         client = self.get_client(request)
         if "customer_uuid" not in request.query_params:
@@ -96,6 +135,7 @@ class OfferingsListView(RemoteView):
 
 
 class OfferingCreateView(RemoteView):
+    @extend_schema(request=serializers.OfferingCreateSerializer)
     def post(self, request, *args, **kwargs):
         serializer = serializers.OfferingCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -148,7 +188,7 @@ def user_is_service_provider_owner_or_service_provider_manager(
     raise PermissionDenied()
 
 
-class ProjectUpdateRequestViewSet(ReviewViewSet):
+class ProjectUpdateRequestViewSet(ActionsViewSet):
     queryset = ProjectUpdateRequest.objects.all()
     approve_permissions = reject_permissions = [
         user_is_service_provider_owner_or_service_provider_manager
@@ -156,6 +196,42 @@ class ProjectUpdateRequestViewSet(ReviewViewSet):
     serializer_class = serializers.ProjectUpdateRequestSerializer
     filter_backends = [GenericRoleFilter, DjangoFilterBackend]
     filterset_class = filters.ProjectUpdateRequestFilter
+
+    disabled_actions = ["create", "destroy", "update", "partial_update"]
+    lookup_field = "uuid"
+
+    @extend_schema(
+        request=ReviewCommentSerializer,
+        responses=EmptySerializer,
+        operation_id="project_update_request_approve",
+    )
+    @action(detail=True, methods=["post"])
+    def approve(self, request, **kwargs):
+        review_request = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        comment = serializer.validated_data.get("comment")
+        review_request.approve(request.user, comment)
+        return Response(status=status.HTTP_200_OK)
+
+    @extend_schema(
+        request=ReviewCommentSerializer,
+        responses=EmptySerializer,
+        operation_id="project_update_request_reject",
+    )
+    @action(detail=True, methods=["post"])
+    def reject(self, request, **kwargs):
+        review_request = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        comment = serializer.validated_data.get("comment")
+        review_request.reject(request.user, comment)
+        return Response(status=status.HTTP_200_OK)
+
+    approve_serializer_class = reject_serializer_class = ReviewCommentSerializer
+    approve_validators = reject_validators = [
+        StateValidator(ReviewMixin.States.PENDING)
+    ]
 
 
 class PullOrderView(APIView):
@@ -169,6 +245,8 @@ class PullOrderView(APIView):
             state__in=models.Order.States.TERMINAL_STATES
         )
         return get_object_or_404(qs, uuid=item_uuid)
+
+    serializer_class = EmptySerializer
 
     def post(self, *args, **kwargs):
         order = self.get_order()
@@ -187,6 +265,8 @@ class CancelTerminationOrderView(APIView):
             type=models.Order.Types.TERMINATE,
         )
         return get_object_or_404(qs, uuid=item_uuid)
+
+    serializer_class = EmptySerializer
 
     def post(self, request, *args, **kwargs):
         order = self.get_order()
@@ -207,6 +287,8 @@ class CancelTerminationOrderView(APIView):
 
 
 class OfferingActionView(APIView):
+    serializer_class = EmptySerializer
+
     def post(self, request, uuid):
         qs = models.Offering.objects.filter(type=PLUGIN_NAME)
         offering = get_object_or_404(qs, uuid=uuid)
@@ -254,6 +336,8 @@ class PushProjectData(OfferingActionView):
 
 class SyncResourceProjectPermissions(APIView):
     permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
+
+    serializer_class = EmptySerializer
 
     def post(self, request, uuid):
         qs = models.Resource.objects.filter(offering__type=PLUGIN_NAME)
@@ -306,6 +390,8 @@ class SyncResourceView(APIView):
                 status=status.HTTP_400_BAD_REQUEST, data="The resource is updating"
             )
         return resource
+
+    serializer_class = EmptySerializer
 
     def post(self, *args, **kwargs):
         resource = self.get_resource()

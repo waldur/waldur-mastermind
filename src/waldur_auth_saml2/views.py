@@ -13,8 +13,7 @@ from djangosaml2.signals import post_authenticated
 from djangosaml2.utils import get_custom_setting, get_location
 from djangosaml2.views import _get_subject_id, _set_subject_id
 from rest_framework.authtoken.models import Token
-from rest_framework.generics import ListAPIView
-from rest_framework.views import APIView
+from rest_framework.generics import GenericAPIView, ListAPIView
 from saml2 import BINDING_HTTP_POST, BINDING_HTTP_REDIRECT, md
 from saml2.client import Saml2Client
 from saml2.metadata import do_extensions, entity_descriptor
@@ -26,6 +25,7 @@ from waldur_core.core.authentication import (
     AuthenticationMethod,
     set_authentication_method,
 )
+from waldur_core.core.serializers import EmptySerializer
 from waldur_core.core.views import (
     RefreshTokenMixin,
     login_completed,
@@ -65,7 +65,7 @@ def metadata(request, config_loader_path=None, valid_for=None):
     )
 
 
-class BaseSaml2View(APIView):
+class BaseSaml2View(GenericAPIView):
     throttle_classes = ()
     permission_classes = ()
     authentication_classes = ()
@@ -277,6 +277,8 @@ class Saml2LogoutView(BaseSaml2View):
 
     This view redirects users to corresponding IdP page for the logout.
     """
+
+    serializer_class = EmptySerializer
 
     @validate_saml2
     def get(self, request):

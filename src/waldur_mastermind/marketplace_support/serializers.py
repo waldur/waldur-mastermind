@@ -1,6 +1,7 @@
 import logging
 
 from django.contrib.contenttypes.models import ContentType
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from waldur_mastermind.support import models as support_models
@@ -8,6 +9,12 @@ from waldur_mastermind.support import models as support_models
 logger = logging.getLogger(__name__)
 
 
+class IssueReferenceSerializer(serializers.Serializer):
+    key = serializers.CharField(read_only=True)
+    uuid = serializers.CharField(read_only=True)
+
+
+@extend_schema_field(IssueReferenceSerializer)
 def get_issue(serializer, scope):
     issues = support_models.Issue.objects.filter(
         resource_object_id=scope.id,
