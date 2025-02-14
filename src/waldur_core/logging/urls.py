@@ -14,6 +14,7 @@ def register_in(router):
         views.EventSubscriptionViewSet,
         basename="event-subscription",
     )
+    router.register(r"email-logs", views.EmailLogView, basename="email-log")
 
 
 urlpatterns = [

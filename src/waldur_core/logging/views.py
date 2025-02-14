@@ -317,3 +317,14 @@ class RabbitMQUserStats(views.APIView):
         paginator = self.pagination_class()
         paginated_output = paginator.paginate_queryset(output, request)
         return paginator.get_paginated_response(paginated_output)
+
+
+class EmailLogView(viewsets.ReadOnlyModelViewSet):
+    queryset = models.EmailLog.objects.all()
+    lookup_field = "uuid"
+    permission_classes = (
+        permissions.IsAuthenticated,
+        core_permissions.IsSupport,
+    )
+    filterset_class = filters.EmailLogFilter
+    serializer_class = serializers.EmailLogSerializer

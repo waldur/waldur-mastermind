@@ -85,3 +85,29 @@ class EventSubscriptionFactory(factory.django.DjangoModelFactory):
         model = models.EventSubscription
 
     user = factory.SubFactory(structure_factories.UserFactory)
+
+
+class EmailLogFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = models.EmailLog
+
+    subject = factory.Sequence(lambda i: "subject_#%s" % i)
+    body = factory.Sequence(lambda i: "body_#%s" % i)
+    emails = factory.List(
+        [
+            factory.LazyAttribute(lambda n: f"user_{n}_1@example.com"),
+            factory.LazyAttribute(lambda n: f"user_{n}_2@example.com"),
+        ]
+    )
+
+    @classmethod
+    def get_list_url(cls):
+        return "http://testserver" + reverse("email-log-list")
+
+    @classmethod
+    def get_url(cls, email_log=None):
+        if email_log is None:
+            email_log = EmailLogFactory()
+        return "http://testserver" + reverse(
+            "email-log-detail", kwargs={"uuid": email_log.uuid.hex}
+        )
