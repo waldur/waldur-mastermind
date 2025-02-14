@@ -897,7 +897,7 @@ class VmwareTemplateSerializer(structure_serializers.BasePropertySerializer):
 
     guest_os_name = serializers.SerializerMethodField()
 
-    def get_guest_os_name(self, template):
+    def get_guest_os_name(self, template) -> str:
         return constants.GUEST_OS_CHOICES.get(template.guest_os)
 
 
