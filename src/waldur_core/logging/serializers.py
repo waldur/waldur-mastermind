@@ -229,3 +229,23 @@ class EventStatsSerializer(serializers.Serializer):
     year = serializers.IntegerField(read_only=True)
     month = serializers.IntegerField(read_only=True)
     count = serializers.IntegerField(read_only=True)
+
+
+class EmailLogSerializer(serializers.HyperlinkedModelSerializer):
+    class Meta:
+        model = models.EmailLog
+        fields = (
+            "uuid",
+            "url",
+            "sent_at",
+            "subject",
+            "body",
+            "emails",
+        )
+
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "email-log-detail",
+            },
+        }

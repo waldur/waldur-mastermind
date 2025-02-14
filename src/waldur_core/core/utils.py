@@ -219,7 +219,7 @@ def find_template_from_registry(app, event_type, template_suffix):
 def send_mail(
     subject,
     body,
-    to,
+    to: list | tuple,
     from_email=None,
     html_message=None,
     filename=None,
@@ -229,6 +229,8 @@ def send_mail(
     reply_to=None,
     fail_silently=False,
 ):
+    from waldur_core.logging.models import EmailLog
+
     from_email = from_email or settings.DEFAULT_FROM_EMAIL
     reply_to = reply_to or settings.DEFAULT_REPLY_TO_EMAIL
     email = EmailMultiAlternatives(
@@ -253,7 +255,14 @@ def send_mail(
 
     if filename:
         email.attach(filename, attachment, content_type)
-    return email.send(fail_silently=fail_silently)
+
+    result = email.send(fail_silently=fail_silently)
+    EmailLog.objects.create(
+        subject=subject,
+        body=email.body,
+        emails=to,
+    )
+    return result
 
 
 def broadcast_mail(

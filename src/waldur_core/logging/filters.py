@@ -148,3 +148,20 @@ class EventSubscriptionFilter(django_filters.FilterSet):
     class Meta:
         model = models.EventSubscription
         fields = []
+
+
+class EmailLogFilter(django_filters.FilterSet):
+    subject = django_filters.CharFilter(lookup_expr="icontains")
+    body = django_filters.CharFilter(lookup_expr="icontains")
+    emails = django_filters.CharFilter(lookup_expr="icontains")
+    sent_at = django_filters.DateFilter(field_name="sent_at", lookup_expr="date")
+    o = django_filters.OrderingFilter(fields=("sent_at",))
+
+    class Meta:
+        model = models.EmailLog
+        fields = [
+            "sent_at",
+            "subject",
+            "body",
+            "emails",
+        ]
