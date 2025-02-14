@@ -21,7 +21,7 @@ from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core.clean_html import clean_html
 from waldur_core.core.fields import MappedChoiceField
-from waldur_core.permissions.enums import SYSTEM_CUSTOMER_ROLES, PermissionEnum
+from waldur_core.permissions.enums import PermissionEnum, get_old_role_name
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.serializers import PermissionSerializer
@@ -616,12 +616,11 @@ class NestedProjectPermissionSerializer(serializers.ModelSerializer):
         ]
 
 
-class CustomerUserSerializer(
-    serializers.ModelSerializer,
-):
-    role = serializers.ReadOnlyField()
-    expiration_time = serializers.ReadOnlyField(source="perm.expiration_time")
-    projects = NestedProjectPermissionSerializer(many=True, read_only=True)
+class CustomerUserSerializer(serializers.ModelSerializer):
+    expiration_time = serializers.SerializerMethodField()
+    projects = serializers.SerializerMethodField()
+    # role is old, role_name is new
+    role = serializers.SerializerMethodField()
     role_name = serializers.SerializerMethodField()
 
     class Meta:
@@ -642,24 +641,28 @@ class CustomerUserSerializer(
             "url": {"lookup_field": "uuid"},
         }
 
-    def get_role_name(self, user):
+    def get_customer_permission(self, user):
         customer = self.context["customer"]
-        permission = UserRole.objects.filter(
+        return UserRole.objects.filter(
             scope=customer,
             user=user,
             is_active=True,
         ).first()
+
+    def get_role(self, user):
+        permission = self.get_customer_permission(user)
+        return permission and get_old_role_name(permission.role.name)
+
+    def get_role_name(self, user):
+        permission = self.get_customer_permission(user)
         return permission and permission.role.name
 
-    def to_representation(self, user):
+    def get_expiration_time(self, user):
+        permission = self.get_customer_permission(user)
+        return permission and permission.expiration_time
+
+    def get_projects(self, user):
         customer = self.context["customer"]
-        permission = UserRole.objects.filter(
-            content_type=ContentType.objects.get_for_model(models.Customer),
-            object_id=customer.id,
-            user=user,
-            is_active=True,
-            role__name__in=SYSTEM_CUSTOMER_ROLES,
-        ).first()
         project_ids = customer.projects.values_list("id", flat=True)
         projects = UserRole.objects.filter(
             content_type=ContentType.objects.get_for_model(models.Project),
@@ -667,20 +670,22 @@ class CustomerUserSerializer(
             user=user,
             is_active=True,
         )
-        setattr(user, "perm", permission)
-        setattr(user, "role", permission and permission.role.name)
-        setattr(user, "projects", projects)
-        return super().to_representation(user)
+        return NestedProjectPermissionSerializer(
+            projects, many=True, context=self.context
+        ).data
 
 
 class BasePermissionSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
-    role = serializers.ReadOnlyField(source="role.name")
+    # role is old, role_name is new
+    role = serializers.SerializerMethodField()
+    role_name = serializers.ReadOnlyField(source="role.name")
 
     class Meta:
         fields = (
             "role",
+            "role_name",
             "user",
             "user_full_name",
             "user_native_name",
@@ -691,6 +696,9 @@ class BasePermissionSerializer(
         related_paths = {
             "user": ("username", "full_name", "native_name", "uuid", "email"),
         }
+
+    def get_role(self, instance):
+        return get_old_role_name(instance.role.name)
 
 
 class CustomerPermissionReviewSerializer(
@@ -738,6 +746,8 @@ class ProjectPermissionLogSerializer(
         read_only=True,
         lookup_field="uuid",
     )
+    # this is already migrated
+    role = serializers.ReadOnlyField(source="role.name")
 
     class Meta(BasePermissionSerializer.Meta):
         model = UserRole

@@ -8,7 +8,7 @@ from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
-from waldur_core.permissions.enums import PermissionEnum, RoleEnum
+from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import (
     CustomerRole,
     ProjectRole,
@@ -520,7 +520,7 @@ class CustomerUsersListTest(test.APITransactionTestCase):
 
         self.assertSetEqual(
             {user["role"] for user in response.data},
-            {RoleEnum.CUSTOMER_OWNER, RoleEnum.CUSTOMER_SUPPORT},
+            {"owner", "support"},
         )
         self.assertSetEqual(
             {user["uuid"] for user in response.data},
