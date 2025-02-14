@@ -1,4 +1,5 @@
 import datetime
+import decimal
 import logging
 
 from django.conf import settings
@@ -244,20 +245,54 @@ def log_invoice_item_save(
             },
         )
     else:
-        diff = ", ".join(
-            [
-                f"{field}: {instance.tracker.previous(field)} -> {getattr(instance, field, None)}"
-                for field in instance.tracker.changed()
-                if field != "details"
-            ]
-        )
-        log.event_logger.invoice_item.info(
-            f"Invoice item {instance.name} has been updated. Details: {diff}.",
-            event_type="invoice_item_updated",
-            event_context={
-                "invoice_item": instance,
-            },
-        )
+
+        def values_different(old, new):
+            # Handle None values
+            if old is None or new is None:
+                return old is not new
+
+            # Convert both to same type if one is string and other is numeric
+            try:
+                if isinstance(old, str) and isinstance(new, (float | decimal.Decimal)):
+                    old = float(old)
+                elif isinstance(new, str) and isinstance(
+                    old, (float | decimal.Decimal)
+                ):
+                    new = float(new)
+            except (ValueError, TypeError):
+                # If conversion fails, fall back to string comparison
+                return str(old).strip() != str(new).strip()
+
+            # Handle numeric comparisons with tolerance
+            if isinstance(old, (float | decimal.Decimal)) and isinstance(
+                new, (float | decimal.Decimal)
+            ):
+                return abs(float(old) - float(new)) > 1e-10
+
+            # Handle string comparisons
+            if isinstance(old, str) and isinstance(new, str):
+                return old.strip() != new.strip()
+
+            # Default comparison for other types
+            return old != new
+
+        changes = [
+            f"{field}: {instance.tracker.previous(field)} -> {getattr(instance, field, None)}"
+            for field in instance.tracker.changed()
+            if field != "details"
+            and values_different(
+                instance.tracker.previous(field), getattr(instance, field, None)
+            )
+        ]
+        if changes:
+            diff = ", ".join(changes)
+            log.event_logger.invoice_item.info(
+                f"Invoice item {instance.name} has been updated. Details: {diff}.",
+                event_type="invoice_item_updated",
+                event_context={
+                    "invoice_item": instance,
+                },
+            )
 
 
 def log_invoice_item_delete(sender, instance: models.InvoiceItem, **kwargs):
