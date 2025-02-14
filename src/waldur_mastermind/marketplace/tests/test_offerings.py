@@ -3,6 +3,7 @@ import json
 import os
 import tempfile
 from itertools import product
+from unittest import mock
 
 import pkg_resources
 from constance.test.pytest import override_config
@@ -25,7 +26,7 @@ from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests.factories import UserFactory
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.invoices.tests import factories as invoices_factories
-from waldur_mastermind.marketplace import models, serializers
+from waldur_mastermind.marketplace import models, serializers, utils
 from waldur_mastermind.marketplace.management.commands.export_offering import (
     export_offering,
 )
@@ -2369,3 +2370,86 @@ class ResourceOfferingsViewSetTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["uuid"], self.fixture.offering.uuid.hex)
+
+
+@ddt
+class RefreshOfferingUsernamesTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.customer = self.fixture.offering_customer
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_INTEGRATION)
+        ServiceProviderRole.MANAGER.add_permission(
+            PermissionEnum.UPDATE_OFFERING_INTEGRATION
+        )
+        self.offering = self.fixture.offering
+        self.offering.plugin_options = {
+            "username_generation_policy": utils.UsernameGenerationPolicy.WALDUR_USERNAME.value
+        }
+        self.offering.save()
+        self.offering_user = factories.OfferingUserFactory(
+            offering=self.offering, username="old_username"
+        )
+        self.url = factories.OfferingFactory.get_url(
+            self.offering, "refresh_offering_usernames"
+        )
+
+    @data("staff", "service_owner", "service_manager")
+    def test_refresh_offering_usernames(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        new_username = "new_username"
+        with mock.patch(
+            "waldur_mastermind.marketplace.utils.generate_username",
+            return_value=new_username,
+        ):
+            response = self.client.post(self.url)
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.username, new_username)
+
+    @data("admin", "owner", "manager")
+    def test_refresh_offering_usernames_forbidden(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.username, "old_username")
+
+    def test_refresh_offering_usernames_does_not_update_if_policy_is_service_provider(
+        self,
+    ):
+        self.client.force_authenticate(self.fixture.service_owner)
+        offering = factories.OfferingFactory(
+            plugin_options={
+                "username_generation_policy": utils.UsernameGenerationPolicy.SERVICE_PROVIDER.value
+            },
+            customer=self.customer,
+        )
+        offering_user = factories.OfferingUserFactory(
+            offering=offering, username="old_username"
+        )
+        url = factories.OfferingFactory.get_url(offering, "refresh_offering_usernames")
+
+        with mock.patch(
+            "waldur_mastermind.marketplace.utils.generate_username",
+            return_value="new_username",
+        ):
+            response = self.client.post(url)
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        offering_user.refresh_from_db()
+        self.assertEqual(offering_user.username, "old_username")
+
+    def test_refresh_offering_usernames_validation_for_offering_state(self):
+        self.client.force_authenticate(self.fixture.service_owner)
+        offering = factories.OfferingFactory(
+            plugin_options={
+                "username_generation_policy": utils.UsernameGenerationPolicy.SERVICE_PROVIDER.value
+            },
+            customer=self.customer,
+        )
+        url = factories.OfferingFactory.get_url(offering, "refresh_offering_usernames")
+
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

@@ -14,6 +14,7 @@ class MarketplaceConfig(AppConfig):
         from waldur_core.structure import models as structure_models
         from waldur_core.structure import signals as structure_signals
         from waldur_core.structure.serializers import BaseResourceSerializer
+        from waldur_freeipa import models as freeipa_models
 
         from . import PLUGIN_NAME, handlers, models, processors, utils
         from . import registrators as marketplace_registrators
@@ -267,6 +268,12 @@ class MarketplaceConfig(AppConfig):
             handlers.update_offering_user_username_after_offering_settings_change,
             sender=models.Offering,
             dispatch_uid="waldur_mastermind.marketplace.update_offering_user_username_after_offering_settings_change",
+        )
+
+        signals.post_save.connect(
+            handlers.update_offering_user_username_after_freeipa_profile_update,
+            sender=freeipa_models.Profile,
+            dispatch_uid="waldur_mastermind.marketplace.update_offering_user_username_after_freeipa_profile_update",
         )
 
         signals.post_save.connect(

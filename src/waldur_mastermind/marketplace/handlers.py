@@ -1006,7 +1006,7 @@ def update_offering_user_username_after_user_change(sender, instance, **kwargs):
     offering_users = models.OfferingUser.objects.filter(
         user=user,
         offering__type__in=OFFERING_USER_ALLOWED_OFFERING_TYPES,
-        offering__plugin_options__username_generation_policy=utils.UsernameGenerationPolicy.IDENTITY_CLAIM.name,
+        offering__plugin_options__username_generation_policy=utils.UsernameGenerationPolicy.IDENTITY_CLAIM.value,
     )
 
     for offering_user in offering_users:
@@ -1017,6 +1017,35 @@ def update_offering_user_username_after_user_change(sender, instance, **kwargs):
 
         utils.setup_linux_related_data(offering_user, offering)
         offering_user.save(update_fields=["username", "backend_metadata"])
+
+
+def update_offering_user_username_after_freeipa_profile_update(
+    sender, instance, created=False, **kwargs
+):
+    from waldur_freeipa.models import Profile
+
+    profile: Profile = instance
+
+    if not profile.tracker.has_changed("username") or not created:
+        return
+
+    offering_users = models.OfferingUser.objects.filter(
+        user=profile.user,
+        is_restricted=False,
+        offering__plugin_options__username_generation_policy=utils.UsernameGenerationPolicy.FREEIPA.value,
+    )
+
+    for offering_user in offering_users:
+        logger.info(
+            "Updating %s username after FreeIPA profile %s change",
+            offering_user,
+            profile,
+        )
+        new_username = utils.generate_username(profile.user, offering_user.offering)
+
+        logger.info("Setting username for %s to %s", offering_user, new_username)
+        offering_user.username = new_username
+        offering_user.save(update_fields=["username"])
 
 
 def log_offering_role_created_or_updated(sender, instance, created=False, **kwargs):

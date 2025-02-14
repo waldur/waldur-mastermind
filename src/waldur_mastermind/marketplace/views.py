@@ -689,6 +689,19 @@ def validate_offering_has_plans(offering):
         )
 
 
+def validate_offering_username_generation_policy(offering):
+    service_provider_policy = utils.UsernameGenerationPolicy.SERVICE_PROVIDER.value
+    if (
+        offering.plugin_options.get("username_generation_policy")
+        == service_provider_policy
+    ):
+        raise rf_exceptions.ValidationError(
+            _(
+                f"Invalid generation policy service_provider_policy {service_provider_policy}"
+            )
+        )
+
+
 class ProviderOfferingViewSet(
     UserRoleMixin,
     core_views.CreateReversionMixin,
@@ -1782,6 +1795,39 @@ class ProviderOfferingViewSet(
 
     list_customer_projects_permissions = list_customer_users_permissions = [
         structure_permissions.is_owner
+    ]
+
+    @action(detail=True, methods=["post"])
+    def refresh_offering_usernames(self, request, uuid=None):
+        offering = self.get_object()
+        offering_users = models.OfferingUser.objects.filter(
+            is_restricted=False,
+            offering=offering,
+        )
+
+        for offering_user in offering_users:
+            new_username = utils.generate_username(
+                offering_user.user, offering_user.offering
+            )
+            if new_username != offering_user.username:
+                logger.info("Updating %s username to %s", offering_user, new_username)
+                offering_user.username = new_username
+                offering_user.save(update_fields=["username"])
+
+        return Response(
+            status=status.HTTP_200_OK,
+            data={"status": _("Offering user usernames have been changed.")},
+        )
+
+    refresh_offering_usernames_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING_INTEGRATION,
+            ["*", "customer", "customer.serviceprovider"],
+        )
+    ]
+    refresh_offering_usernames_validators = [
+        core_validators.StateValidator(models.Offering.States.ACTIVE),
+        validate_offering_username_generation_policy,
     ]
 
 
