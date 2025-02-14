@@ -2,18 +2,23 @@ from celery import shared_task
 
 from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
-from waldur_core.structure.exceptions import ServiceBackendNotImplemented
 
 from . import backend, models, utils
 
 
 def get_structure_allocations(structure):
     if isinstance(structure, structure_models.Project):
-        return list(models.Allocation.objects.filter(is_active=True, project=structure))
+        return list(
+            models.Allocation.objects.filter(
+                is_active=True, project=structure, service_settings__type="SLURM"
+            )
+        )
     elif isinstance(structure, structure_models.Customer):
         return list(
             models.Allocation.objects.filter(
-                is_active=True, project__customer=structure
+                is_active=True,
+                project__customer=structure,
+                service_settings__type="SLURM",
             )
         )
     else:
@@ -42,13 +47,7 @@ def process_role_granted(serialized_profile, serialized_structure):
     allocations = get_structure_allocations(structure)
 
     for allocation in allocations:
-        try:
-            allocation.get_backend().add_user(
-                allocation, profile.user, profile.username
-            )
-        except ServiceBackendNotImplemented:
-            # Ignore a case of the remote SLURM allocation
-            pass
+        allocation.get_backend().add_user(allocation, profile.user, profile.username)
 
 
 @shared_task(name="waldur_slurm.process_role_revoked")
@@ -65,5 +64,7 @@ def process_role_revoked(serialized_profile, serialized_structure):
 @shared_task(name="waldur_slurm.sync_allocation_users")
 def sync_allocation_users(serialized_allocation):
     allocation = core_utils.deserialize_instance(serialized_allocation)
+    if allocation.service_settings != "SLURM":
+        return
     slurm_backend: backend.SlurmBackend = allocation.get_backend()
     slurm_backend.sync_users(allocation)

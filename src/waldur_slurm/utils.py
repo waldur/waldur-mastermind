@@ -38,11 +38,13 @@ def get_user_allocations(user):
     connected_customers = get_connected_customers(user)
 
     project_allocations = models.Allocation.objects.filter(
-        is_active=True, project__in=connected_projects
+        is_active=True, project__in=connected_projects, service_settings__type="SLURM"
     )
 
     customer_allocations = models.Allocation.objects.filter(
-        is_active=True, project__customer__in=connected_customers
+        is_active=True,
+        project__customer__in=connected_customers,
+        service_settings__type="SLURM",
     )
 
     return (project_allocations, customer_allocations)
