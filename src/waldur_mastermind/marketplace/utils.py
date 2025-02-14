@@ -1153,6 +1153,12 @@ def generate_glauth_records_for_offering_users(offering, offering_users):
 
         other_groups = ", ".join(group_ids)
 
+        user_disabled_status = "false"
+        # Check if user has access to non-terminated resources in offering
+        has_access = is_user_related_to_offering(offering, user)
+        if not has_access:
+            user_disabled_status = "true"
+
         record = textwrap.dedent(
             f"""
         [[users]]
@@ -1167,6 +1173,7 @@ def generate_glauth_records_for_offering_users(offering, offering_users):
           loginShell = "{login_shell}"
           homeDir = "{home_dir}"
           passsha256 = "{password_sha256}"
+          disabled = {user_disabled_status}
             [[users.customattributes]]
             preferredUsername = ["{username}"]
         """

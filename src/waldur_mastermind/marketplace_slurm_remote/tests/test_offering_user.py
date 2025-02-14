@@ -9,6 +9,7 @@ from waldur_mastermind.marketplace.callbacks import resource_creation_succeeded
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME
+from waldur_mastermind.marketplace_slurm_remote.tests.fixtures import GlauthUserFixture
 
 
 class OfferingUserCreationTest(test.APITransactionTestCase):
@@ -175,90 +176,90 @@ class OfferingUserUpdateTest(test.APITransactionTestCase):
 
 class OfferingUserGlauthConfigTest(test.APITransactionTestCase):
     def setUp(self) -> None:
-        self.fixture = marketplace_fixtures.MarketplaceFixture()
-
-        self.offering = self.fixture.offering
-        self.offering.type = PLUGIN_NAME
-        self.offering.plugin_options = {
-            "username_generation_policy": "waldur_username",
-            "initial_uidnumber": 1000,
-            "initial_primarygroup_number": 2000,
-            "initial_usergroup_number": 3000,
-            "homedir_prefix": "/tmp/",
-        }
-        self.offering.secret_options = {
-            "service_provider_can_create_offering_user": True
-        }
-        self.offering.save()
-
-        self.resource = self.fixture.resource
-        self.resource.state = marketplace_models.Resource.States.OK
-        self.resource.save()
-
-        self.manager = self.fixture.manager
-        self.offering_user = marketplace_models.OfferingUser.objects.get(
-            offering=self.offering, user=self.manager
-        )
-        self.offering_user.set_propagation_date()
-        self.offering_user.save()
-
-        self.offering_user_group1 = marketplace_models.OfferingUserGroup.objects.create(
-            offering=self.offering, backend_metadata={"gid": 6001}
-        )
-        self.offering_user_group1.projects.set(
-            [self.resource.project, self.fixture.offering_project]
-        )
-        self.offering_user_group1.save()
-
-        self.offering_user_group2 = marketplace_models.OfferingUserGroup.objects.create(
-            offering=self.offering, backend_metadata={"gid": 6002}
-        )
-        self.offering_user_group2.projects.set([self.fixture.offering_project])
-        self.offering_user_group2.save()
-
-        self.url = marketplace_factories.OfferingFactory.get_url(
-            self.offering, "glauth_users_config"
-        )
+        self.fixture = GlauthUserFixture()
         self.maxDiff = None
 
-    def test_galuth_config_file_fetching_not_allowed(self):
+    def test_glauth_config_user_disabled_when_no_resources(self):
+        """
+        Test that the user is disabled when there are no resources.
+        """
+        offering_user = self.fixture.offering_user_without_resources
+        url = marketplace_factories.OfferingFactory.get_url(
+            offering_user.offering, "glauth_users_config"
+        )
+        self.client.force_login(self.fixture.offering_owner)
+        response = self.client.get(url)
+        self.assertEqual(
+            200,
+            response.status_code,
+            f"Expected status code 200, but got {response.status_code}",
+        )
+        self.assertIn(
+            "disabled = true",
+            response.data,
+            f"Expected disabled = true, but got {response.data}",
+        )
+
+    def test_glauth_config_user_disabled_when_only_terminated_resources(self):
+        """
+        Test that the user is disabled when there are only terminated resources.
+        """
+        offering_user = self.fixture.offering_user_with_terminated_resource
+        url = marketplace_factories.OfferingFactory.get_url(
+            offering_user.offering, "glauth_users_config"
+        )
+        self.client.force_login(self.fixture.offering_owner)
+        response = self.client.get(url)
+        self.assertEqual(
+            200,
+            response.status_code,
+            f"Expected status code 200, but got {response.status_code}",
+        )
+        self.assertIn(
+            "disabled = true",
+            response.data,
+            f"Expected disabled = true, but got {response.data}",
+        )
+
+    def test_glauth_config_file_fetching_not_allowed(self):
         self.client.force_login(self.fixture.owner)
-        response = self.client.get(self.url)
+        response = self.client.get(self.fixture.url)
         self.assertEqual(404, response.status_code)
 
     def test_glauth_config_file_fetching(self):
-        ssh_key = structure_factories.SshPublicKeyFactory(user=self.manager)
+        ssh_key = structure_factories.SshPublicKeyFactory(user=self.fixture.manager)
         self.client.force_login(self.fixture.offering_owner)
         self.assertEqual(
             0,
             marketplace_models.IntegrationStatus.objects.filter(
-                offering=self.offering,
+                offering=self.fixture.offering,
                 agent_type=marketplace_models.IntegrationStatus.AgentTypes.GLAUTH_SYNC,
                 status=marketplace_models.IntegrationStatus.States.ACTIVE,
             ).count(),
         )
-        response = self.client.get(self.url)
+        response = self.client.get(self.fixture.url)
         self.assertEqual(200, response.status_code)
 
         expected_config_file = textwrap.dedent(
             f"""
         [[users]]
-          name = "{self.manager.get_username()}"
-          givenname="{self.manager.first_name}"
-          sn="{self.manager.last_name}"
-          mail = "{self.manager.email}"
+          name = "{self.fixture.manager.get_username()}"
+          givenname="{self.fixture.manager.first_name}"
+          sn="{self.fixture.manager.last_name}"
+          mail = "{self.fixture.manager.email}"
           uidnumber = 1001
           primarygroup = 2001
           otherGroups = [6001]
           sshkeys = ["{ssh_key.public_key}"]
           loginShell = "/bin/bash"
-          homeDir = "/tmp/{self.offering_user.username}"
+          homeDir = "/tmp/{self.fixture.offering_user.username}"
           passsha256 = ""
+          disabled = false
             [[users.customattributes]]
-            preferredUsername = ["{self.offering_user.username}"]
+            preferredUsername = ["{self.fixture.offering_user.username}"]
 
         [[groups]]
-          name = "{self.offering_user.username}"
+          name = "{self.fixture.offering_user.username}"
           gidnumber = 2001
 
 
@@ -277,13 +278,13 @@ class OfferingUserGlauthConfigTest(test.APITransactionTestCase):
         self.assertEqual(
             1,
             marketplace_models.IntegrationStatus.objects.filter(
-                offering=self.offering,
+                offering=self.fixture.offering,
                 agent_type=marketplace_models.IntegrationStatus.AgentTypes.GLAUTH_SYNC,
                 status=marketplace_models.IntegrationStatus.States.ACTIVE,
             ).count(),
         )
         integration_status = marketplace_models.IntegrationStatus.objects.get(
-            offering=self.offering,
+            offering=self.fixture.offering,
             agent_type=marketplace_models.IntegrationStatus.AgentTypes.GLAUTH_SYNC,
             status=marketplace_models.IntegrationStatus.States.ACTIVE,
         )
