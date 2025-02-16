@@ -265,9 +265,7 @@ class FeedbackFilter(django_filters.FilterSet):
         field_name="created", lookup_expr="gte"
     )
 
-    evaluation = core_filters.MappedMultipleChoiceFilter(
-        models.Feedback.Evaluation.CHOICES
-    )
+    evaluation = django_filters.NumberFilter()
 
     issue_key = django_filters.CharFilter(field_name="issue__key")
     user_full_name = django_filters.CharFilter(

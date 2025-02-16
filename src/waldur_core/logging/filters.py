@@ -141,7 +141,7 @@ class EventFilterBackend(filters.BaseFilterBackend):
 
 
 class EventSubscriptionFilter(django_filters.FilterSet):
-    o = django_filters.OrderingFilter(fields=("created"))
+    o = django_filters.OrderingFilter(fields=["created"])
     user_uuid = django_filters.CharFilter(field_name="user__uuid")
     user_username = django_filters.CharFilter(field_name="user__username")
 

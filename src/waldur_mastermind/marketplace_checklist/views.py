@@ -3,7 +3,7 @@ from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.exceptions import PermissionDenied, ValidationError
-from rest_framework.generics import get_object_or_404
+from rest_framework.generics import GenericAPIView, get_object_or_404
 from rest_framework.mixins import CreateModelMixin, ListModelMixin, RetrieveModelMixin
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -109,7 +109,9 @@ class StatsView(APIView):
         return Response(points)
 
 
-class ProjectStatsView(APIView):
+class ProjectStatsView(GenericAPIView):
+    serializer_class = serializers.ChecklistProjectStatsSerializer
+
     def get(self, request, project_uuid, format=None):
         try:
             project = Project.available_objects.get(uuid=project_uuid)
@@ -298,7 +300,9 @@ class AnswersSubmitView(CreateModelMixin, GenericViewSet):
         )
 
 
-class UserStatsView(APIView):
+class UserStatsView(GenericAPIView):
+    serializer_class = serializers.UserStatsSerializer
+
     def get(self, request, user_uuid, format=None):
         visible_users = filter_visible_users(User.objects.all(), self.request.user)
         user = get_object_or_404(visible_users, uuid=user_uuid)

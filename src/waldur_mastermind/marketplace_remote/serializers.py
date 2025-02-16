@@ -9,19 +9,23 @@ from waldur_mastermind.marketplace import serializers as marketplace_serializers
 from . import PLUGIN_NAME, constants, models
 
 
-class CredentialsSerializer(serializers.Serializer):
+class RemoteCredentialsSerializer(serializers.Serializer):
     api_url = serializers.URLField()
     token = serializers.CharField()
 
 
-class OfferingCreateSerializer(CredentialsSerializer):
+class RemoteOfferingCreateSerializer(RemoteCredentialsSerializer):
     remote_offering_uuid = serializers.CharField()
     local_category_uuid = serializers.CharField()
     local_customer_uuid = serializers.CharField()
     remote_customer_uuid = serializers.CharField()
 
 
-class ProjectUpdateRequestSerializer(serializers.ModelSerializer):
+class RemoteOfferingCreateResponseSerializer(serializers.Serializer):
+    uuid = serializers.UUIDField(read_only=True)
+
+
+class RemoteProjectUpdateRequestSerializer(serializers.ModelSerializer):
     state = serializers.ReadOnlyField(source="get_state_display")
     customer_name = serializers.CharField(
         read_only=True, source="project.customer.name"

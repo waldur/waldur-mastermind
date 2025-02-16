@@ -7,8 +7,8 @@ from rest_framework import serializers as rf_serializers
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.generics import GenericAPIView
 from rest_framework.response import Response
-from rest_framework.views import APIView
 from waldur_client import WaldurClient, WaldurClientException
 
 from waldur_core.core import permissions as core_permissions
@@ -52,9 +52,9 @@ class RemoteOfferingSerializer(rf_serializers.Serializer):
     category_title = rf_serializers.CharField(read_only=True)
 
 
-class RemoteView(APIView):
+class RemoteView(GenericAPIView):
     def get_client(self, request):
-        serializer = serializers.CredentialsSerializer(data=request.data)
+        serializer = serializers.RemoteCredentialsSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         api_url = serializer.validated_data["api_url"]
         token = serializer.validated_data["token"]
@@ -63,7 +63,7 @@ class RemoteView(APIView):
 
 class CustomersView(RemoteView):
     @extend_schema(
-        request=serializers.CredentialsSerializer,
+        request=serializers.RemoteCredentialsSerializer,
         responses=RemoteCustomerSerializer(many=True),
     )
     def post(self, request, *args, **kwargs):
@@ -81,7 +81,7 @@ class CustomersView(RemoteView):
 
 class СategoriesView(RemoteView):
     @extend_schema(
-        request=serializers.CredentialsSerializer,
+        request=serializers.RemoteCredentialsSerializer,
         responses=MarketplaceCategorySerializer(many=True),
     )
     def post(self, request, *args, **kwargs):
@@ -95,7 +95,7 @@ class СategoriesView(RemoteView):
 
 class OfferingsListView(RemoteView):
     @extend_schema(
-        request=serializers.CredentialsSerializer,
+        request=serializers.RemoteCredentialsSerializer,
         responses=RemoteOfferingSerializer(many=True),
         parameters=[
             OpenApiParameter(
@@ -135,9 +135,12 @@ class OfferingsListView(RemoteView):
 
 
 class OfferingCreateView(RemoteView):
-    @extend_schema(request=serializers.OfferingCreateSerializer)
+    @extend_schema(
+        request=serializers.RemoteOfferingCreateSerializer,
+        responses=serializers.RemoteOfferingCreateResponseSerializer,
+    )
     def post(self, request, *args, **kwargs):
-        serializer = serializers.OfferingCreateSerializer(data=request.data)
+        serializer = serializers.RemoteOfferingCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         client = self.get_client(request)
 
@@ -193,7 +196,7 @@ class ProjectUpdateRequestViewSet(ActionsViewSet):
     approve_permissions = reject_permissions = [
         user_is_service_provider_owner_or_service_provider_manager
     ]
-    serializer_class = serializers.ProjectUpdateRequestSerializer
+    serializer_class = serializers.RemoteProjectUpdateRequestSerializer
     filter_backends = [GenericRoleFilter, DjangoFilterBackend]
     filterset_class = filters.ProjectUpdateRequestFilter
 
@@ -234,7 +237,7 @@ class ProjectUpdateRequestViewSet(ActionsViewSet):
     ]
 
 
-class PullOrderView(APIView):
+class PullOrderView(GenericAPIView):
     permission_classes = []
 
     def get_order(self):
@@ -254,7 +257,7 @@ class PullOrderView(APIView):
         return Response(status=status.HTTP_200_OK)
 
 
-class CancelTerminationOrderView(APIView):
+class CancelTerminationOrderView(GenericAPIView):
     def get_order(self):
         item_uuid = self.kwargs["uuid"]
         if not is_uuid_like(item_uuid):
@@ -286,7 +289,7 @@ class CancelTerminationOrderView(APIView):
         return Response(status=status.HTTP_200_OK)
 
 
-class OfferingActionView(APIView):
+class OfferingActionView(GenericAPIView):
     serializer_class = EmptySerializer
 
     def post(self, request, uuid):
@@ -334,7 +337,7 @@ class PushProjectData(OfferingActionView):
     task = tasks.RemoteProjectDataPushTask()
 
 
-class SyncResourceProjectPermissions(APIView):
+class SyncResourceProjectPermissions(GenericAPIView):
     permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
 
     serializer_class = EmptySerializer
@@ -369,7 +372,7 @@ class RemoteSynchronisationViewSet(core_views.ActionsViewSet):
         )
 
 
-class SyncResourceView(APIView):
+class SyncResourceView(GenericAPIView):
     permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
 
     def get_resource(self):

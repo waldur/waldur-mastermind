@@ -21,9 +21,10 @@ from . import models, serializers
 class DailyQuotaHistoryViewSet(viewsets.GenericViewSet):
     # Fix for schema generation
     queryset = []
+    serializer_class = serializers.DailyHistoryQuotaSerializer
 
     def list(self, request):
-        serializer = serializers.DailyHistoryQuotaSerializer(
+        serializer = self.serializer_class(
             data=request.query_params,
             context={"request": request},
         )

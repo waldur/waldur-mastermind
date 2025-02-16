@@ -7,7 +7,15 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import decorators, permissions, response, status, views, viewsets
+from rest_framework import (
+    decorators,
+    generics,
+    permissions,
+    response,
+    status,
+    views,
+    viewsets,
+)
 from rest_framework import exceptions as rf_exceptions
 from rest_framework.exceptions import ValidationError
 
@@ -205,7 +213,9 @@ class SupportUserViewSet(CheckExtensionMixin, viewsets.ReadOnlyModelViewSet):
     filterset_class = filters.SupportUserFilter
 
 
-class SupportStatsViewSet(CheckExtensionMixin, views.APIView):
+class SupportStatsViewSet(CheckExtensionMixin, generics.GenericAPIView):
+    serializer_class = serializers.SupportStatsSerializer
+
     def get(self, request, format=None):
         today = date.today()
         current_month = today.month
@@ -344,9 +354,7 @@ class FeedbackReportViewSet(views.APIView):
 
     def get(self, request, format=None):
         result = {
-            dict(models.Feedback.Evaluation.CHOICES).get(count["evaluation"]): count[
-                "id__count"
-            ]
+            count["evaluation"]: count["id__count"]
             for count in models.Feedback.objects.values("evaluation").annotate(
                 Count("id")
             )

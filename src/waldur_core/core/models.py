@@ -19,6 +19,7 @@ from model_utils.models import TimeStampedModel
 from reversion import revisions as reversion
 
 from waldur_core.core import managers as core_managers
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.fields import JSONField, UUIDField
 from waldur_core.core.utils import normalize_unicode, send_mail
 from waldur_core.core.validators import (
@@ -609,26 +610,8 @@ class RuntimeStateMixin(models.Model):
 
 
 class StateMixin(ErrorMessageMixin, ConcurrentTransitionMixin):
-    class States:
-        CREATION_SCHEDULED = 5
-        CREATING = 6
-        UPDATE_SCHEDULED = 1
-        UPDATING = 2
-        DELETION_SCHEDULED = 7
-        DELETING = 8
-        OK = 3
-        ERRED = 4
-
-        CHOICES = (
-            (CREATION_SCHEDULED, "Creation Scheduled"),
-            (CREATING, "Creating"),
-            (UPDATE_SCHEDULED, "Update Scheduled"),
-            (UPDATING, "Updating"),
-            (DELETION_SCHEDULED, "Deletion Scheduled"),
-            (DELETING, "Deleting"),
-            (OK, "OK"),
-            (ERRED, "Erred"),
-        )
+    class States(CoreStates):
+        pass
 
     class Meta:
         abstract = True

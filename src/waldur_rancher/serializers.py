@@ -10,6 +10,7 @@ from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
+from waldur_core.core.enums import CoreStateType
 from waldur_core.core.validators import BackendURLValidator
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.managers import filter_queryset_for_user
@@ -374,7 +375,7 @@ class RancherNodeSerializer(serializers.HyperlinkedModelSerializer):
         required=True,
     )
     resource_type = serializers.SerializerMethodField()
-    state = serializers.CharField(read_only=True, source="get_state_display")
+    state = serializers.SerializerMethodField()
     service_settings_name = serializers.CharField(
         read_only=True, source="service_settings.name"
     )
@@ -445,6 +446,9 @@ class RancherNodeSerializer(serializers.HyperlinkedModelSerializer):
             "url": {"lookup_field": "uuid", "view_name": "rancher-node-detail"},
             "cluster": {"lookup_field": "uuid", "view_name": "rancher-cluster-detail"},
         }
+
+    def get_state(self, obj) -> CoreStateType:
+        return obj.get_state_display()
 
     def validate(self, attrs):
         instance = attrs.get("instance")
