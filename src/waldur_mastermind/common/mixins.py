@@ -2,7 +2,8 @@ from decimal import Decimal
 
 from django.core.validators import MinValueValidator
 from django.db import models
-from django.utils.translation import gettext_lazy as _
+
+from . import enums
 
 PRICE_MAX_DIGITS = 22
 
@@ -17,20 +18,8 @@ class UnitPriceMixin(models.Model):
     class Meta:
         abstract = True
 
-    class Units:
-        PER_MONTH = "month"
-        PER_HALF_MONTH = "half_month"
-        PER_DAY = "day"
-        PER_HOUR = "hour"
-        QUANTITY = "quantity"
-
-        CHOICES = (
-            (PER_MONTH, _("Per month")),
-            (PER_HALF_MONTH, _("Per half month")),
-            (PER_DAY, _("Per day")),
-            (PER_HOUR, _("Per hour")),
-            (QUANTITY, _("Quantity")),
-        )
+    class Units(enums.Units):
+        pass
 
     unit_price = models.DecimalField(
         default=0,

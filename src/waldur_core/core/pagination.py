@@ -42,3 +42,6 @@ class LinkHeaderPagination(pagination.PageNumberPagination):
         if page_number == 1:
             return remove_query_param(url, self.page_query_param)
         return replace_query_param(url, self.page_query_param, page_number)
+
+    def get_paginated_response_schema(self, schema):
+        return schema

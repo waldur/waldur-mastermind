@@ -15,6 +15,7 @@ from rest_framework import exceptions, serializers
 
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core.clean_html import clean_html
+from waldur_core.core.enums import CoreStateType
 from waldur_core.core.utils import is_uuid_like, text2html
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure import models as structure_models
@@ -44,8 +45,8 @@ def render_issue_template(config_name, template_name, issue):
 
 class NestedFeedbackSerializer(serializers.HyperlinkedModelSerializer):
     state = serializers.ReadOnlyField(source="get_state_display")
-    evaluation = serializers.ReadOnlyField(source="get_evaluation_display")
-    evaluation_number = serializers.ReadOnlyField(source="evaluation")
+    evaluation = serializers.IntegerField(read_only=True)
+    evaluation_number = serializers.IntegerField(read_only=True, source="evaluation")
 
     class Meta:
         model = models.Feedback
@@ -803,6 +804,10 @@ class FeedbackSerializer(serializers.HyperlinkedModelSerializer):
     issue_key = serializers.ReadOnlyField(source="issue.key")
     user_full_name = serializers.ReadOnlyField(source="issue.caller.full_name")
     issue_summary = serializers.ReadOnlyField(source="issue.summary")
+    state = serializers.SerializerMethodField()
+
+    def get_state(self, obj) -> CoreStateType:
+        return obj.get_state_display()
 
     class Meta:
         model = models.Feedback
@@ -818,3 +823,9 @@ class FeedbackSerializer(serializers.HyperlinkedModelSerializer):
             "issue_key",
             "issue_summary",
         )
+
+
+class SupportStatsSerializer(serializers.Serializer):
+    open_issues_count = serializers.IntegerField(read_only=True)
+    closed_this_month_count = serializers.IntegerField(read_only=True)
+    recent_broadcasts_count = serializers.IntegerField(read_only=True)

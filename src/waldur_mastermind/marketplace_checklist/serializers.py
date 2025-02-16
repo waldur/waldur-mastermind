@@ -87,3 +87,20 @@ class CustomerChecklistStatSerializer(serializers.Serializer):
     name = serializers.CharField(read_only=True)
     uuid = serializers.CharField(read_only=True)
     score = serializers.FloatField(read_only=True)
+
+
+class UserStatsSerializer(serializers.Serializer):
+    score = serializers.FloatField(read_only=True)
+
+
+class ProjectStatsItemSerializer(serializers.Serializer):
+    name = serializers.CharField(read_only=True)
+    uuid = serializers.UUIDField(read_only=True)
+    positive_count = serializers.IntegerField(read_only=True)
+    negative_count = serializers.IntegerField(read_only=True)
+    unknown_count = serializers.IntegerField(read_only=True)
+    score = serializers.FloatField(read_only=True)
+
+
+class ChecklistProjectStatsSerializer(serializers.ListSerializer):
+    child = ProjectStatsItemSerializer()

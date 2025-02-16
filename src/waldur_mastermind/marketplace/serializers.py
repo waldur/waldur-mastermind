@@ -25,6 +25,7 @@ from waldur_core.core import signals as core_signals
 from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
 from waldur_core.core.clean_html import clean_html
+from waldur_core.core.enums import CoreStateType
 from waldur_core.core.fields import NaturalChoiceField
 from waldur_core.core.mixins import GetValueMixin
 from waldur_core.core.models import User, get_ssh_key_fingerprints
@@ -721,18 +722,13 @@ FIELD_TYPES = (
 )
 
 
-class DefaultField(serializers.Field):
-    def to_internal_value(self, data):
-        return data
-
-
 class OptionFieldSerializer(serializers.Serializer):
     type = serializers.ChoiceField(choices=FIELD_TYPES)
     label = serializers.CharField()
     help_text = serializers.CharField(required=False)
     required = serializers.BooleanField(default=False)
     choices = serializers.ListField(child=serializers.CharField(), required=False)
-    default = DefaultField(required=False)
+    default = serializers.CharField(required=False)
     min = serializers.IntegerField(required=False)
     max = serializers.IntegerField(required=False)
 
@@ -1267,18 +1263,7 @@ class ProviderOfferingDetailsSerializer(
     ) -> Literal["Draft", "Active", "Paused", "Archived"]:
         return offering.get_state_display()
 
-    def get_scope_state(
-        self, offering: models.Offering
-    ) -> Literal[
-        "Creation Scheduled",
-        "Creating",
-        "Update Scheduled",
-        "Updating",
-        "Deletion Scheduled",
-        "Deleting",
-        "OK",
-        "Erred",
-    ]:
+    def get_scope_state(self, offering: models.Offering) -> CoreStateType:
         try:
             return offering.scope.get_state_display()
         except AttributeError:

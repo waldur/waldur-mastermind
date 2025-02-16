@@ -10,9 +10,17 @@ import warnings
 from datetime import timedelta
 
 from waldur_core.core import WaldurExtension
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.metadata import WaldurConfiguration
-from waldur_core.server.admin.settings import *  # noqa: F403
+from waldur_core.server.admin.settings import *
 
+from waldur_mastermind.common.enums import Units
+from waldur_mastermind.marketplace.enums import OfferingStates, RequestTypes
+from waldur_mastermind.proposal.enums import (
+    CallStates,
+    ProposalStates,
+    RequestedOfferingStates,
+)
 
 encoding = locale.getpreferredencoding()
 if encoding.lower() != "utf-8":
@@ -947,4 +955,13 @@ SPECTACULAR_SETTINGS = {
     ],
     "COMPONENT_SPLIT_REQUEST": True,
     "SCHEMA_PATH_PREFIX": "/api/",
+    "ENUM_NAME_OVERRIDES": {
+        "BillingUnit": Units.CHOICES,
+        "CoreStates": CoreStates.VALUES,
+        "OfferingStates": OfferingStates.VALUES,
+        "CallStates": CallStates.CHOICES,
+        "ProposalStates": ProposalStates.CHOICES,
+        "RequestedOfferingStates": RequestedOfferingStates.CHOICES,
+        "RequestTypes": RequestTypes.VALUES,
+    },
 }

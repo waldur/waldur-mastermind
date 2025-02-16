@@ -231,6 +231,42 @@ class EventStatsSerializer(serializers.Serializer):
     count = serializers.IntegerField(read_only=True)
 
 
+class RmqConnectionSerializer(serializers.Serializer):
+    source_ip = serializers.IPAddressField(read_only=True)
+    vhost = serializers.CharField(read_only=True)
+
+
+class RmqUserStatsItemSerializer(serializers.Serializer):
+    username = serializers.CharField(read_only=True)
+    connections = RmqConnectionSerializer(many=True, read_only=True)
+
+
+class RmqUserStatsSerializer(serializers.ListSerializer):
+    child = RmqUserStatsItemSerializer()
+
+
+class RmqWaldurUserSerializer(serializers.Serializer):
+    full_name = serializers.CharField(read_only=True)
+    username = serializers.CharField(read_only=True)
+    email = serializers.EmailField(read_only=True)
+
+
+class RmqSubscriptionSerializer(serializers.Serializer):
+    created = serializers.DateTimeField(read_only=True)
+    uuid = serializers.UUIDField(read_only=True)
+    source_ip = serializers.IPAddressField(read_only=True)
+
+
+class RmqVHostStatsItemSerializer(serializers.Serializer):
+    name = serializers.CharField(read_only=True)
+    waldur_user = RmqWaldurUserSerializer(read_only=True)
+    subscriptions = RmqSubscriptionSerializer(many=True, read_only=True)
+
+
+class RmqVHostStatsSerializer(serializers.ListSerializer):
+    child = RmqVHostStatsItemSerializer()
+
+
 class EmailLogSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = models.EmailLog

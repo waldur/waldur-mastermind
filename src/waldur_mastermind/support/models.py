@@ -4,6 +4,7 @@ import re
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from django.core import validators
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django_fsm import FSMIntegerField
@@ -532,22 +533,13 @@ class Feedback(
     TimeStampedModel,
     core_models.StateMixin,
 ):
-    class Evaluation:
-        CHOICES = (
-            (1, "1"),
-            (2, "2"),
-            (3, "3"),
-            (4, "4"),
-            (5, "5"),
-            (6, "6"),
-            (7, "7"),
-            (8, "8"),
-            (9, "9"),
-            (10, "10"),
-        )
-
     issue = models.OneToOneField(Issue, on_delete=models.CASCADE)
-    evaluation = models.SmallIntegerField(choices=Evaluation.CHOICES)
+    evaluation = models.SmallIntegerField(
+        validators=[
+            validators.MinValueValidator(1),
+            validators.MaxValueValidator(10),
+        ]
+    )
     comment = models.TextField(blank=True)
 
     def __str__(self):

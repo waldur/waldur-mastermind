@@ -21,6 +21,7 @@ from waldur_core.core import fields as core_fields
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core.clean_html import clean_html
+from waldur_core.core.enums import CoreStateType
 from waldur_core.core.fields import MappedChoiceField
 from waldur_core.permissions.enums import PermissionEnum, get_old_role_name
 from waldur_core.permissions.fixtures import CustomerRole
@@ -560,6 +561,8 @@ class AccessSubnetSerializer(serializers.HyperlinkedModelSerializer):
         extra_kwargs = {
             "customer": {"lookup_field": "uuid"},
         }
+
+    inet = serializers.CharField()
 
     def validate(self, validated_data):
         if not self.instance:
@@ -1174,7 +1177,7 @@ class BaseResourceSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
-    state = serializers.ReadOnlyField(source="get_state_display")
+    state = serializers.SerializerMethodField()
 
     project = serializers.HyperlinkedRelatedField(
         queryset=models.Project.objects.all(),
@@ -1260,6 +1263,9 @@ class BaseResourceSerializer(
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},
         }
+
+    def get_state(self, obj) -> CoreStateType:
+        return obj.get_state_display()
 
     def get_filtered_field_names(self):
         return ("project", "service_settings")

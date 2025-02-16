@@ -30,6 +30,7 @@ from waldur_core.quotas import fields as quotas_fields
 from waldur_core.quotas import models as quotas_models
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.mixins import CoordinatesMixin
+from waldur_mastermind.marketplace.enums import OfferingStates, RequestTypes
 from waldur_mastermind.marketplace.exceptions import PolicyException
 from waldur_pid import mixins as pid_mixins
 
@@ -374,18 +375,8 @@ class Offering(
     waldur_core.media.mixins.ImageModelMixin,
     common_mixins.BackendMetadataMixin,
 ):
-    class States:
-        DRAFT = 1
-        ACTIVE = 2
-        PAUSED = 3
-        ARCHIVED = 4
-
-        CHOICES = (
-            (DRAFT, "Draft"),
-            (ACTIVE, "Active"),
-            (PAUSED, "Paused"),
-            (ARCHIVED, "Archived"),
-        )
+    class States(OfferingStates):
+        pass
 
     thumbnail = models.FileField(
         upload_to="marketplace_service_offering_thumbnails",
@@ -912,16 +903,8 @@ class CostEstimateMixin(models.Model):
 
 
 class RequestTypeMixin(CostEstimateMixin):
-    class Types:
-        CREATE = 1
-        UPDATE = 2
-        TERMINATE = 3
-
-        CHOICES = (
-            (CREATE, "Create"),
-            (UPDATE, "Update"),
-            (TERMINATE, "Terminate"),
-        )
+    class Types(RequestTypes):
+        pass
 
     type = models.PositiveSmallIntegerField(choices=Types.CHOICES, default=Types.CREATE)
 

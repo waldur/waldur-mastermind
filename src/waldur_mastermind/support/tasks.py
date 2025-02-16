@@ -241,10 +241,10 @@ def send_issue_feedback_notification(serialized_issue):
         "feedback_link": get_feedback_link(token),
         "feedback_links": [
             {
-                "label": value,
-                "link": get_feedback_link(token, key),
+                "label": str(index),
+                "link": get_feedback_link(token, str(index)),
             }
-            for (key, value) in models.Feedback.Evaluation.CHOICES
+            for index in range(1, 11)
         ],
     }
     _send_issue_feedback(

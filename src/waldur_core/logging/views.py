@@ -6,11 +6,11 @@ from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema
 from rest_framework import (
     decorators,
+    generics,
     mixins,
     permissions,
     response,
     status,
-    views,
     viewsets,
 )
 
@@ -251,8 +251,10 @@ class EventSubscriptionViewSet(
         super().perform_destroy(instance)
 
 
-class RabbitMQVhostStats(views.APIView):
+class RabbitMQVhostStats(generics.GenericAPIView):
     permission_classes = [permissions.IsAuthenticated, core_permissions.IsSupport]
+    serializer_class = serializers.RmqVHostStatsSerializer
+    queryset = models.EventSubscription.objects.none()
 
     def get(self, request, *args, **kwargs):
         rmq_backend = backend.RabbitMQManagementBackend()
@@ -286,17 +288,13 @@ class RabbitMQVhostStats(views.APIView):
 
             output.append(vhost_record)
 
-        return response.Response(
-            output,
-            status=status.HTTP_200_OK,
-        )
+        return response.Response(output, status=status.HTTP_200_OK)
 
 
-class RabbitMQUserStats(views.APIView):
+class RabbitMQUserStats(generics.GenericAPIView):
     permission_classes = [permissions.IsAuthenticated, core_permissions.IsSupport]
-    from waldur_core.core import pagination
-
-    pagination_class = pagination.LinkHeaderPagination
+    serializer_class = serializers.RmqUserStatsSerializer
+    queryset = models.EventSubscription.objects.none()
 
     def get(self, request, *args, **kwargs):
         rmq_backend = backend.RabbitMQManagementBackend()
