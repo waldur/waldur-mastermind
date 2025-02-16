@@ -49,6 +49,9 @@ def get_project_backend_id(project):
 def pull_fields(fields, local_object, remote_object):
     changed_fields = set()
     for field in fields:
+        if field not in remote_object:
+            logger.warning(f'Remote offering does not expose field "{field}"')
+            continue
         if remote_object[field] != getattr(local_object, field):
             setattr(local_object, field, remote_object[field])
             changed_fields.add(field)
