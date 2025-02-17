@@ -63,7 +63,7 @@ class GetComponentUserUsageLimitTest(test.APITransactionTestCase):
             PermissionEnum.RESOURCE_CONSUMPTION_LIMITATION
         )
 
-    @data("staff", "owner", "manager", "admin")
+    @data("staff", "owner", "manager", "admin", "provider_owner", "provider_manager")
     def test_user_can_get_limits(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)

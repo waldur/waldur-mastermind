@@ -1451,7 +1451,7 @@ class ComponentUserUsageLimit(
         unique_together = ("resource", "component", "user")
 
     class Permissions:
-        customer_path = "resource__project__customer"
+        customer_path = ["resource__project__customer", "resource__offering__customer"]
         project_path = "resource__project"
 
 
