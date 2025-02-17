@@ -1340,14 +1340,15 @@ class SshPublicKeySerializerMixin(serializers.HyperlinkedModelSerializer):
 
     def get_fields(self):
         fields = super().get_fields()
-        if "request" in self.context:
-            user = self.context["request"].user
-            ssh_public_key = fields.get("ssh_public_key")
-            if ssh_public_key:
-                if not user.is_staff:
-                    visible_users = list(filter_visible_users(User.objects.all(), user))
-                    subquery = Q(user__in=visible_users) | Q(is_shared=True)
-                    ssh_public_key.queryset = ssh_public_key.queryset.filter(subquery)
+        request = self.context.get("request")
+        if not request or request.user.is_anonymous or request.user.is_staff:
+            return fields
+        ssh_public_key = fields.get("ssh_public_key")
+        if ssh_public_key:
+            visible_users = list(filter_visible_users(User.objects.all(), request.user))
+            ssh_public_key.queryset = ssh_public_key.queryset.filter(
+                Q(user__in=visible_users) | Q(is_shared=True)
+            )
         return fields
 
 
