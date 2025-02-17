@@ -3,18 +3,16 @@ import logging
 from celery import shared_task
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Q
 from django.utils import timezone
 
 from waldur_core.core import models as core_models
 from waldur_core.core import tasks as core_tasks
 from waldur_core.core import utils as core_utils
-from waldur_core.quotas import exceptions as quotas_exceptions
 from waldur_core.structure import tasks as structure_tasks
 from waldur_core.structure.registry import get_resource_type
 from waldur_openstack.backend import OpenStackBackend
 
-from . import log, models, serializers, signals
+from . import models, signals
 
 logger = logging.getLogger(__name__)
 
@@ -152,13 +150,6 @@ class SetBackupErredTask(core_tasks.ErrorStateTransitionTask):
                 snapshot.set_erred()
                 snapshot.save(update_fields=["state"])
 
-        # Deactivate schedule if its backup become erred.
-        schedule = backup.backup_schedule
-        if schedule:
-            schedule.error_message = f"Failed to execute backup schedule for {backup.instance}. Error: {backup.error_message}"
-            schedule.is_active = False
-            schedule.save()
-
 
 class DeleteIncompleteInstanceTask(core_tasks.Task):
     def execute(self, instance):
@@ -184,198 +175,6 @@ class VolumeExtendErredTask(core_tasks.ErrorStateTransitionTask):
         super().execute(volume)
         if volume.instance is not None:
             super().execute(volume.instance)
-
-
-class BaseScheduleTask(core_tasks.BackgroundTask):
-    """
-    This task has several important caveats to consider.
-
-    1. If user has decreased value of maximal_number_of_resources attribute,
-       but exceeding resources have been already created, we would try to automatically delete
-       exceeding resources before creating new resources.
-       However, if new resource creation fails, old resources cannot be restored.
-
-       Therefore, it is strongly advised to modify value of maximal_number_of_resources attribute very carefully.
-       Also it is better to delete exceeding resources manually instead of relying on automatic deletion
-       so that it is easier to explicitly select resources to be removed.
-
-    2. _remove_exceeding_resources method orders resources by value of kept_until attribute in ASC order.
-       It assumes that NULL values come *last* with ascending sort order.
-       Therefore it would work correctly only in PostgreSQL.
-       It would not work correctly in MySQL because in MySQL NULL values come *first*.
-
-    3. Value of kept_until attribute is ignored as long as there are exceeding resources.
-       It means that existing resources are deleted even if it is requested to be kept forever.
-       Essentially, retention_time and maximal_number_of_resources attributes are mutually exclusive.
-
-       Consider, for example, case when value of maximal_number_of_resources is 3 and there are 6 resources,
-       out of which 2 with non-null value of kept_until attribute and 4 resources to be kept forever.
-       As you can see, there are 3 exceeding resources, which should be removed.
-
-       Then, both 2 first resources would be deleted, and 1 resource to be kept forever is deleted as well.
-       Please note that last resource for deletion is chosen by value of *created* attribute.
-       It means that oldest resource is selected for deletion.
-
-    4. Database records for resources are created and deleted synchronously,
-       but actual backend API task are scheduled asynchronously.
-       Therefore, next iteration of schedule task does not wait
-       until previous iteration tasks are completed.
-       That's why there may several concurrent execution of the same schedule.
-
-    5. Actual execution of schedule depends on number of Celery workers and their load.
-       For example, even if schedule is expected to create new resources each hour,
-       but all Celery workers have been overloaded for 2 hours, only one resource would be created.
-
-    6. Schedule is disabled as long as resource quota is exceeded.
-       Schedule is not reactivated automatically whenever quota limit
-       is increased or quota usage is decreased.
-       Instead it is expected that user would manually reactivate schedule in this case.
-
-    7. Schedule is skipped and new resources are not created as long as schedule is disabled.
-    """
-
-    model = NotImplemented
-    resource_attribute = NotImplemented
-
-    def is_equal(self, other_task):
-        return self.name == other_task.get("name")
-
-    @transaction.atomic()
-    def run(self):
-        schedules = self.model.objects.filter(
-            is_active=True, next_trigger_at__lt=timezone.now()
-        )
-        for schedule in schedules:
-            existing_resources = self._get_resources(schedule)
-            if (
-                schedule.maximal_number_of_resources > 0
-                and existing_resources.count() >= schedule.maximal_number_of_resources
-            ):
-                self._schedule_exceeding_resources_deletion(
-                    schedule, existing_resources
-                )
-                logger.debug(
-                    "Skipping schedule %s because number of resources %s has reached limit %s.",
-                    schedule,
-                    existing_resources,
-                    schedule.maximal_number_of_resources,
-                )
-                continue
-
-            kept_until = None
-            if schedule.retention_time:
-                kept_until = timezone.now() + timezone.timedelta(
-                    days=schedule.retention_time
-                )
-
-            try:
-                # Value of call_count attribute is used as suffix of new resource name
-                schedule.call_count += 1
-                schedule.save()
-                resource = self._create_resource(schedule, kept_until=kept_until)
-            except quotas_exceptions.QuotaValidationError as e:
-                message = (
-                    f'Failed to schedule "{self.model.__name__}" creation. Error: {e}'
-                )
-                logger.debug(
-                    f"Resource schedule (PK: {schedule.pk}), (Name: {schedule.name}) execution failed. {message}"
-                )
-                schedule.is_active = False
-                schedule.error_message = message
-                schedule.save()
-            else:
-                executor = self._get_create_executor()
-                executor.execute(resource, is_heavy_task=True)
-                schedule.update_next_trigger_at()
-                schedule.save()
-
-    def _schedule_exceeding_resources_deletion(self, schedule, existing_resources):
-        deleting_states = Q(state=core_models.StateMixin.States.DELETION_SCHEDULED) | Q(
-            state=core_models.StateMixin.States.DELETING
-        )
-
-        terminal_states = Q(state=core_models.StateMixin.States.OK) | Q(
-            state=core_models.StateMixin.States.ERRED
-        )
-
-        if existing_resources.filter(deleting_states).exists():
-            logger.debug(
-                "Deletion of exceeding resources for schedule %s is pending.", schedule
-            )
-            return
-
-        total = existing_resources.count()
-        amount_to_remove = max(1, total - schedule.maximal_number_of_resources)
-        self._log_backup_cleanup(schedule, amount_to_remove, total)
-
-        resources = existing_resources.filter(terminal_states).order_by(
-            "kept_until", "created"
-        )
-        resources_to_remove = resources[:amount_to_remove]
-        executor = self._get_delete_executor()
-        for resource in resources_to_remove:
-            executor.execute(resource)
-
-    def _log_backup_cleanup(self, schedule, amount_to_remove, resources_count):
-        raise NotImplementedError()
-
-    def _create_resource(self, schedule, kept_until):
-        raise NotImplementedError()
-
-    def _get_create_executor(self):
-        raise NotImplementedError()
-
-    def _get_delete_executor(self):
-        raise NotImplementedError()
-
-    def _get_resources(self, schedule):
-        return getattr(schedule, self.resource_attribute)
-
-
-class ScheduleBackups(BaseScheduleTask):
-    name = "openstack.ScheduleBackups"
-    model = models.BackupSchedule
-    resource_attribute = "backups"
-
-    @transaction.atomic()
-    def _create_resource(self, schedule, kept_until):
-        backup = models.Backup.objects.create(
-            name=f"Backup#{schedule.call_count} of {schedule.instance.name}",
-            description='Scheduled backup of instance "%s"' % schedule.instance,
-            service_settings=schedule.instance.service_settings,
-            tenant=schedule.instance.tenant,
-            project=schedule.instance.project,
-            instance=schedule.instance,
-            backup_schedule=schedule,
-            metadata=serializers.BackupSerializer.get_backup_metadata(
-                schedule.instance
-            ),
-            kept_until=kept_until,
-        )
-        serializers.BackupSerializer.create_backup_snapshots(backup)
-        return backup
-
-    def _get_create_executor(self):
-        from . import executors
-
-        return executors.BackupCreateExecutor
-
-    def _get_delete_executor(self):
-        from . import executors
-
-        return executors.BackupDeleteExecutor
-
-    def _log_backup_cleanup(self, schedule, amount_to_remove, resources_count):
-        message_template = (
-            'Maximum resource count "%s" has been reached.'
-            '"%s" from "%s" resources are going to be removed.'
-        )
-        log.event_logger.openstack_backup_schedule.info(
-            message_template
-            % (schedule.maximal_number_of_resources, amount_to_remove, resources_count),
-            event_type="resource_backup_schedule_cleaned_up",
-            event_context={"resource": schedule.instance, "backup_schedule": schedule},
-        )
 
 
 class BaseDeleteExpiredResourcesTask(core_tasks.BackgroundTask):
@@ -405,55 +204,6 @@ class DeleteExpiredBackups(BaseDeleteExpiredResourcesTask):
         from . import executors
 
         return executors.BackupDeleteExecutor
-
-
-class ScheduleSnapshots(BaseScheduleTask):
-    name = "openstack.ScheduleSnapshots"
-    model = models.SnapshotSchedule
-    resource_attribute = "snapshots"
-
-    @transaction.atomic()
-    def _create_resource(self, schedule: models.SnapshotSchedule, kept_until):
-        snapshot = models.Snapshot.objects.create(
-            name=f"Snapshot#{schedule.call_count} of {schedule.source_volume.name}",
-            description='Scheduled snapshot of volume "%s"' % schedule.source_volume,
-            service_settings=schedule.source_volume.service_settings,
-            tenant=schedule.source_volume.tenant,
-            project=schedule.source_volume.project,
-            source_volume=schedule.source_volume,
-            snapshot_schedule=schedule,
-            size=schedule.source_volume.size,
-            kept_until=kept_until,
-        )
-        snapshot.increase_backend_quotas_usage(validate=True)
-        return snapshot
-
-    def _get_create_executor(self):
-        from . import executors
-
-        return executors.SnapshotCreateExecutor
-
-    def _get_delete_executor(self):
-        from . import executors
-
-        return executors.SnapshotDeleteExecutor
-
-    def _log_backup_cleanup(
-        self, schedule: models.SnapshotSchedule, amount_to_remove, resources_count
-    ):
-        message_template = (
-            'Maximum resource count "%s" has been reached.'
-            '"%s" from "%s" resources are going to be removed.'
-        )
-        log.event_logger.openstack_snapshot_schedule.info(
-            message_template
-            % (schedule.maximal_number_of_resources, amount_to_remove, resources_count),
-            event_type="resource_snapshot_schedule_cleaned_up",
-            event_context={
-                "resource": schedule.source_volume,
-                "snapshot_schedule": schedule,
-            },
-        )
 
 
 class DeleteExpiredSnapshots(BaseDeleteExpiredResourcesTask):

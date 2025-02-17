@@ -1,15 +1,13 @@
 import logging
 import re
 
-from croniter import croniter
 from cryptography import x509
 from cryptography.exceptions import UnsupportedAlgorithm
 from cryptography.hazmat import backends as hazmat_backends
 from cryptography.hazmat.primitives import serialization as hazmat_serialization
 from django import template
 from django.core.exceptions import ValidationError
-from django.core.validators import BaseValidator, URLValidator
-from django.utils import timezone
+from django.core.validators import URLValidator
 from django.utils.deconstruct import deconstructible
 from django.utils.translation import gettext_lazy as _
 from iptools.ipv4 import validate_cidr as is_valid_ipv4_cidr
@@ -26,39 +24,6 @@ PHONE_REGEX = re.compile(r"^\+?[\d \-\(\)]+$")
 def validate_phone_number(value):
     if not PHONE_REGEX.search(value):
         raise ValidationError("Invalid phone number format.")
-
-
-def validate_cron_schedule(value):
-    try:
-        base_time = timezone.now()
-        croniter(value, base_time)
-    except (KeyError, ValueError) as e:
-        raise ValidationError(str(e))
-
-
-@deconstructible
-class MinCronValueValidator(BaseValidator):
-    """
-    Validate that the period of cron schedule is greater than or equal to provided limit_value in hours,
-    otherwise raise ValidationError.
-    """
-
-    message = _(
-        "Ensure schedule period is greater than or equal to %(limit_value)s hour(s)."
-    )
-    code = "min_cron_value"
-
-    def compare(self, cleaned, limit_value):
-        validate_cron_schedule(cleaned)
-
-        now = timezone.now()
-        schedule = croniter(cleaned, now)
-        closest_schedule = schedule.get_next(timezone.datetime)
-        next_schedule = schedule.get_next(timezone.datetime)
-        schedule_interval_in_hours = (
-            next_schedule - closest_schedule
-        ).total_seconds() / 3600
-        return schedule_interval_in_hours < limit_value
 
 
 def validate_name(value):

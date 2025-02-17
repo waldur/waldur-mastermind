@@ -12,8 +12,6 @@ def copy_resources(apps, schema_editor):
     Volume = apps.get_model("openstack", "Volume")
     Backup = apps.get_model("openstack", "Backup")
     Snapshot = apps.get_model("openstack", "Backup")
-    BackupSchedule = apps.get_model("openstack", "BackupSchedule")
-    SnapshotSchedule = apps.get_model("openstack", "BackupSchedule")
     tenant_content_type = ContentType.objects.get_for_model(Tenant)
 
     for offering in Offering.objects.exclude(state=ARCHIVED).filter(
@@ -37,7 +35,7 @@ def copy_resources(apps, schema_editor):
         offering.content_type = tenant_content_type
         offering.save(update_fields=["object_id", "content_type"])
 
-    for model in (Instance, Volume, Backup, Snapshot, BackupSchedule, SnapshotSchedule):
+    for model in (Instance, Volume, Backup, Snapshot):
         for row in model.objects.all():
             row.service_settings = row.tenant.service_settings
             row.save(update_fields=["service_settings"])

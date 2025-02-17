@@ -624,10 +624,7 @@ class Migration(migrations.Migration):
                     "schedule",
                     models.CharField(
                         max_length=15,
-                        validators=[
-                            waldur_core.core.validators.validate_cron_schedule,
-                            waldur_core.core.validators.MinCronValueValidator(1),
-                        ],
+                        validators=[],
                     ),
                 ),
                 ("next_trigger_at", models.DateTimeField(null=True)),
@@ -941,10 +938,7 @@ class Migration(migrations.Migration):
                     "schedule",
                     models.CharField(
                         max_length=15,
-                        validators=[
-                            waldur_core.core.validators.validate_cron_schedule,
-                            waldur_core.core.validators.MinCronValueValidator(1),
-                        ],
+                        validators=[],
                     ),
                 ),
                 ("next_trigger_at", models.DateTimeField(null=True)),

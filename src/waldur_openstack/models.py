@@ -705,13 +705,6 @@ class Snapshot(core_models.ActionMixin, TenantQuotaMixin, structure_models.Stora
         Volume, related_name="snapshots", null=True, on_delete=models.CASCADE
     )
     metadata = JSONField(blank=True)
-    snapshot_schedule = models.ForeignKey(
-        "SnapshotSchedule",
-        blank=True,
-        null=True,
-        on_delete=models.SET_NULL,
-        related_name="snapshots",
-    )
 
     tracker = FieldTracker()
 
@@ -919,13 +912,6 @@ class Backup(structure_models.BaseResource):
     instance = models.ForeignKey(
         Instance, related_name="backups", on_delete=models.CASCADE
     )
-    backup_schedule = models.ForeignKey(
-        "BackupSchedule",
-        blank=True,
-        null=True,
-        on_delete=models.SET_NULL,
-        related_name="backups",
-    )
     kept_until = models.DateTimeField(
         null=True,
         blank=True,
@@ -960,52 +946,3 @@ class BackupRestoration(core_models.UuidMixin, TimeStampedModel):
     class Permissions:
         customer_path = "backup__project__customer"
         project_path = "backup__project"
-
-
-class BaseSchedule(structure_models.BaseResource, core_models.ScheduleMixin):
-    retention_time = models.PositiveIntegerField(
-        help_text=_("Retention time in days, if 0 - resource will be kept forever")
-    )
-    maximal_number_of_resources = models.PositiveSmallIntegerField()
-    call_count = models.PositiveSmallIntegerField(
-        default=0, help_text=_("How many times a resource schedule was called.")
-    )
-
-    class Meta:
-        abstract = True
-
-
-class BackupSchedule(BaseSchedule):
-    tenant = models.ForeignKey(
-        on_delete=models.CASCADE, to=Tenant, related_name="backup_schedules"
-    )
-    instance = models.ForeignKey(
-        on_delete=models.CASCADE, to=Instance, related_name="backup_schedules"
-    )
-
-    tracker = FieldTracker()
-
-    def __str__(self):
-        return f"BackupSchedule of {self.instance}. Active: {self.is_active}"
-
-    @classmethod
-    def get_url_name(cls):
-        return "openstack-backup-schedule"
-
-
-class SnapshotSchedule(BaseSchedule):
-    tenant = models.ForeignKey(
-        on_delete=models.CASCADE, to=Tenant, related_name="snapshot_schedules"
-    )
-    source_volume = models.ForeignKey(
-        on_delete=models.CASCADE, to=Volume, related_name="snapshot_schedules"
-    )
-
-    tracker = FieldTracker()
-
-    def __str__(self):
-        return f"SnapshotSchedule of {self.source_volume}. Active: {self.is_active}"
-
-    @classmethod
-    def get_url_name(cls):
-        return "openstack-snapshot-schedule"

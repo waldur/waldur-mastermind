@@ -2,7 +2,6 @@ import collections
 import copy
 import logging
 import re
-import zoneinfo
 from ipaddress import AddressValueError, IPv4Network, NetmaskValueError
 
 from django.conf import settings
@@ -12,7 +11,6 @@ from django.core.validators import validate_ipv46_address
 from django.db import transaction
 from django.db.models import Q
 from django.template.defaultfilters import slugify
-from django.utils import timezone
 from django.utils.translation import gettext
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import extend_schema_field
@@ -1975,7 +1973,6 @@ class OpenStackSnapshotSerializer(structure_serializers.BaseResourceActionSerial
     action_details = serializers.JSONField(read_only=True)
     metadata = serializers.JSONField(required=False)
     restorations = OpenStackSnapshotRestorationSerializer(many=True, read_only=True)
-    snapshot_schedule_uuid = serializers.ReadOnlyField(source="snapshot_schedule.uuid")
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Snapshot
@@ -1990,8 +1987,6 @@ class OpenStackSnapshotSerializer(structure_serializers.BaseResourceActionSerial
             "action_details",
             "restorations",
             "kept_until",
-            "snapshot_schedule",
-            "snapshot_schedule_uuid",
         )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
@@ -2001,7 +1996,6 @@ class OpenStackSnapshotSerializer(structure_serializers.BaseResourceActionSerial
                 "metadata",
                 "runtime_state",
                 "action",
-                "snapshot_schedule",
                 "service_settings",
                 "project",
             )
@@ -2010,10 +2004,6 @@ class OpenStackSnapshotSerializer(structure_serializers.BaseResourceActionSerial
             source_volume={
                 "lookup_field": "uuid",
                 "view_name": "openstack-volume-detail",
-            },
-            snapshot_schedule={
-                "lookup_field": "uuid",
-                "view_name": "openstack-snapshot-schedule-detail",
             },
             **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs,
         )
@@ -3077,7 +3067,6 @@ class BackupSerializer(structure_serializers.BaseResourceActionSerializer):
     )
 
     restorations = OpenStackBackupRestorationSerializer(many=True, read_only=True)
-    backup_schedule_uuid = serializers.ReadOnlyField(source="backup_schedule.uuid")
     tenant_uuid = serializers.ReadOnlyField(source="tenant.uuid")
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
@@ -3089,8 +3078,6 @@ class BackupSerializer(structure_serializers.BaseResourceActionSerializer):
             "instance_name",
             "instance_marketplace_uuid",
             "restorations",
-            "backup_schedule",
-            "backup_schedule_uuid",
             "instance_security_groups",
             "instance_ports",
             "instance_floating_ips",
@@ -3100,7 +3087,6 @@ class BackupSerializer(structure_serializers.BaseResourceActionSerializer):
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
             + (
                 "instance",
-                "backup_schedule",
                 "service_settings",
                 "project",
             )
@@ -3110,10 +3096,6 @@ class BackupSerializer(structure_serializers.BaseResourceActionSerializer):
             "instance": {
                 "lookup_field": "uuid",
                 "view_name": "openstack-instance-detail",
-            },
-            "backup_schedule": {
-                "lookup_field": "uuid",
-                "view_name": "openstack-backup-schedule-detail",
             },
         }
 
@@ -3164,111 +3146,6 @@ class BackupSerializer(structure_serializers.BaseResourceActionSerializer):
             )
             snapshot.increase_backend_quotas_usage(validate=True)
             backup.snapshots.add(snapshot)
-
-
-class OpenStackBaseScheduleSerializer(
-    structure_serializers.BaseResourceActionSerializer
-):
-    timezone = serializers.ChoiceField(
-        choices=[(t, t) for t in zoneinfo.available_timezones()],
-        initial=timezone.get_current_timezone_name(),
-        default=timezone.get_current_timezone_name(),
-    )
-
-    class Meta(structure_serializers.BaseResourceSerializer.Meta):
-        fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
-            "retention_time",
-            "timezone",
-            "maximal_number_of_resources",
-            "schedule",
-            "is_active",
-            "next_trigger_at",
-        )
-        read_only_fields = (
-            structure_serializers.BaseResourceSerializer.Meta.read_only_fields
-            + (
-                "is_active",
-                "next_trigger_at",
-                "service_settings",
-                "project",
-            )
-        )
-
-
-class OpenStackBackupScheduleSerializer(OpenStackBaseScheduleSerializer):
-    class Meta(OpenStackBaseScheduleSerializer.Meta):
-        model = models.BackupSchedule
-        fields = OpenStackBaseScheduleSerializer.Meta.fields + (
-            "instance",
-            "instance_name",
-        )
-        read_only_fields = OpenStackBaseScheduleSerializer.Meta.read_only_fields + (
-            "backups",
-            "instance",
-        )
-        extra_kwargs = {
-            "url": {"lookup_field": "uuid"},
-            "instance": {
-                "lookup_field": "uuid",
-                "view_name": "openstack-instance-detail",
-            },
-        }
-        related_paths = {
-            "instance": ("name",),
-        }
-
-    def validate(self, attrs):
-        # Skip validation on update
-        if self.instance:
-            return attrs
-
-        instance = self.context["view"].get_object()
-        if not instance.volumes.filter(bootable=True).exists():
-            raise serializers.ValidationError(
-                _("OpenStack instance should have bootable volume.")
-            )
-        attrs["instance"] = instance
-        attrs["service_settings"] = instance.service_settings
-        attrs["tenant"] = instance.tenant
-        attrs["project"] = instance.project
-        attrs["state"] = instance.States.OK
-        return super().validate(attrs)
-
-
-class OpenStackSnapshotScheduleSerializer(OpenStackBaseScheduleSerializer):
-    class Meta(OpenStackBaseScheduleSerializer.Meta):
-        model = models.SnapshotSchedule
-        fields = OpenStackBaseScheduleSerializer.Meta.fields + (
-            "source_volume",
-            "source_volume_name",
-        )
-        read_only_fields = OpenStackBaseScheduleSerializer.Meta.read_only_fields + (
-            "snapshots",
-            "source_volume",
-        )
-        extra_kwargs = {
-            "url": {"lookup_field": "uuid"},
-            "source_volume": {
-                "lookup_field": "uuid",
-                "view_name": "openstack-volume-detail",
-            },
-        }
-        related_paths = {
-            "source_volume": ("name",),
-        }
-
-    def validate(self, attrs):
-        # Skip validation on update
-        if self.instance:
-            return attrs
-
-        volume = self.context["view"].get_object()
-        attrs["source_volume"] = volume
-        attrs["tenant"] = volume.tenant
-        attrs["service_settings"] = volume.service_settings
-        attrs["project"] = volume.project
-        attrs["state"] = volume.States.OK
-        return super().validate(attrs)
 
 
 def get_instance(openstack_floating_ip) -> models.Instance:

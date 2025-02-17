@@ -33,8 +33,6 @@ class OpenStackConfig(AppConfig):
         Instance = self.get_model("Instance")
         Volume = self.get_model("Volume")
         Snapshot = self.get_model("Snapshot")
-        BackupSchedule = self.get_model("BackupSchedule")
-        SnapshotSchedule = self.get_model("SnapshotSchedule")
 
         # structure
         from .backend import OpenStackBackend
@@ -178,39 +176,3 @@ class OpenStackConfig(AppConfig):
                 sender=Resource,
                 dispatch_uid="openstack.handlers.log_%s_action" % name,
             )
-
-        signals.post_save.connect(
-            handlers.log_backup_schedule_creation,
-            sender=BackupSchedule,
-            dispatch_uid="openstack.handlers.log_backup_schedule_creation",
-        )
-
-        signals.post_save.connect(
-            handlers.log_backup_schedule_action,
-            sender=BackupSchedule,
-            dispatch_uid="openstack.handlers.log_backup_schedule_action",
-        )
-
-        signals.pre_delete.connect(
-            handlers.log_backup_schedule_deletion,
-            sender=BackupSchedule,
-            dispatch_uid="openstack.handlers.log_backup_schedule_deletion",
-        )
-
-        signals.post_save.connect(
-            handlers.log_snapshot_schedule_creation,
-            sender=SnapshotSchedule,
-            dispatch_uid="openstack.handlers.log_snapshot_schedule_creation",
-        )
-
-        signals.post_save.connect(
-            handlers.log_snapshot_schedule_action,
-            sender=SnapshotSchedule,
-            dispatch_uid="openstack.handlers.log_snapshot_schedule_action",
-        )
-
-        signals.pre_delete.connect(
-            handlers.log_snapshot_schedule_deletion,
-            sender=SnapshotSchedule,
-            dispatch_uid="openstack.handlers.log_snapshot_schedule_deletion",
-        )

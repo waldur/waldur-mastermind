@@ -1857,11 +1857,6 @@ class SnapshotRestorationExecutor(core_executors.CreateExecutor):
 
 
 class OpenStackCleanupExecutor(structure_executors.BaseCleanupExecutor):
-    pre_models = (
-        models.SnapshotSchedule,
-        models.BackupSchedule,
-    )
-
     executors = (
         (models.SecurityGroup, SecurityGroupDeleteExecutor),
         (models.FloatingIP, FloatingIPDeleteExecutor),

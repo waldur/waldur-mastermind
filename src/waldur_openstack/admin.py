@@ -1,5 +1,3 @@
-import zoneinfo
-
 from django import forms
 from django.contrib import admin
 from django.core.exceptions import ValidationError
@@ -317,36 +315,6 @@ class BackupAdmin(MetadataMixin, admin.ModelAdmin):
     project.short_description = _("Project")
 
 
-class BaseScheduleForm(forms.ModelForm):
-    def clean_timezone(self):
-        tz = self.cleaned_data["timezone"]
-        if tz not in zoneinfo.available_timezones():
-            raise ValidationError(_("Invalid timezone"), code="invalid")
-
-        return self.cleaned_data["timezone"]
-
-
-class BaseScheduleAdmin(structure_admin.ResourceAdmin):
-    form = BaseScheduleForm
-    readonly_fields = ("next_trigger_at",)
-    list_filter = ("is_active",) + structure_admin.ResourceAdmin.list_filter
-    list_display = (
-        "uuid",
-        "next_trigger_at",
-        "is_active",
-        "timezone",
-    ) + structure_admin.ResourceAdmin.list_display
-
-
-class BackupScheduleAdmin(BaseScheduleAdmin):
-    list_display = BaseScheduleAdmin.list_display + ("instance",)
-    list_filter = ("instance",) + BaseScheduleAdmin.list_filter
-
-
-class SnapshotScheduleAdmin(BaseScheduleAdmin):
-    list_display = BaseScheduleAdmin.list_display + ("source_volume",)
-
-
 admin.site.register(models.Network, NetworkAdmin)
 admin.site.register(models.SubNet, SubNetAdmin)
 admin.site.register(models.SecurityGroup, structure_admin.ResourceAdmin)
@@ -367,7 +335,5 @@ admin.site.register(
 )
 admin.site.register(models.Instance, InstanceAdmin)
 admin.site.register(models.Backup, BackupAdmin)
-admin.site.register(models.BackupSchedule, BackupScheduleAdmin)
-admin.site.register(models.SnapshotSchedule, SnapshotScheduleAdmin)
 
 structure_admin.CustomerAdmin.inlines += [CustomerOpenStackInline]

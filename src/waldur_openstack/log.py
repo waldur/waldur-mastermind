@@ -275,44 +275,6 @@ class ResourceActionEventLogger(EventLogger):
         return {resource, project, project.customer}
 
 
-class BackupScheduleEventLogger(EventLogger):
-    resource = openstack_models.Instance
-    backup_schedule = openstack_models.BackupSchedule
-
-    class Meta:
-        event_types = (
-            "resource_backup_schedule_created",
-            "resource_backup_schedule_deleted",
-            "resource_backup_schedule_activated",
-            "resource_backup_schedule_deactivated",
-            "resource_backup_schedule_cleaned_up",
-        )
-        event_groups = {"resources": event_types}
-
-    @staticmethod
-    def get_scopes(event_context):
-        return ResourceActionEventLogger.get_scopes(event_context)
-
-
-class SnapshotScheduleEventLogger(EventLogger):
-    resource = openstack_models.Volume
-    snapshot_schedule = openstack_models.SnapshotSchedule
-
-    class Meta:
-        event_types = (
-            "resource_snapshot_schedule_created",
-            "resource_snapshot_schedule_deleted",
-            "resource_snapshot_schedule_activated",
-            "resource_snapshot_schedule_deactivated",
-            "resource_snapshot_schedule_cleaned_up",
-        )
-        event_groups = {"resources": event_types}
-
-    @staticmethod
-    def get_scopes(event_context):
-        return ResourceActionEventLogger.get_scopes(event_context)
-
-
 class BackupEventLogger(EventLogger):
     resource = openstack_models.Instance
 
@@ -327,11 +289,6 @@ class BackupEventLogger(EventLogger):
             "resource_backup_deletion_scheduled",
             "resource_backup_deletion_succeeded",
             "resource_backup_deletion_failed",
-            "resource_backup_schedule_creation_succeeded",
-            "resource_backup_schedule_update_succeeded",
-            "resource_backup_schedule_deletion_succeeded",
-            "resource_backup_schedule_activated",
-            "resource_backup_schedule_deactivated",
         )
 
     @staticmethod
@@ -370,7 +327,5 @@ event_logger.register("openstack_server_group", ServerGroupLogger)
 event_logger.register("openstack_port", PortLogger)
 event_logger.register("openstack_floating_ip", FloatingIPLogger)
 event_logger.register("openstack_resource_action", ResourceActionEventLogger)
-event_logger.register("openstack_backup_schedule", BackupScheduleEventLogger)
-event_logger.register("openstack_snapshot_schedule", SnapshotScheduleEventLogger)
 event_logger.register("openstack_backup", BackupEventLogger)
 event_logger.register("openstack_tenant_floating_ip", FloatingIPEventLogger)
