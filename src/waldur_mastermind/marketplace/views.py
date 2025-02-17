@@ -2694,6 +2694,7 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
 
         return Response(status=status.HTTP_200_OK)
 
+    @extend_schema(request=serializers.ResourceEndDateByProviderSerializer)
     @action(detail=True, methods=["post"])
     def set_end_date_by_staff(self, request, uuid=None):
         return self._set_end_date(request, True)
@@ -2899,6 +2900,7 @@ class ProviderResourceViewSet(BaseResourceViewSet):
     def get_queryset(self):
         return self.queryset.filter_for_service_provider(self.request.user)
 
+    @extend_schema(request=serializers.ResourceEndDateByProviderSerializer)
     @action(detail=True, methods=["post"])
     def set_end_date_by_provider(self, request, uuid=None):
         return self._set_end_date(request, False)

@@ -829,3 +829,7 @@ class SupportStatsSerializer(serializers.Serializer):
     open_issues_count = serializers.IntegerField(read_only=True)
     closed_this_month_count = serializers.IntegerField(read_only=True)
     recent_broadcasts_count = serializers.IntegerField(read_only=True)
+
+
+class DeleteAttachmentsSerializer(serializers.Serializer):
+    attachment_ids = serializers.ListField(child=serializers.UUIDField())
