@@ -1,6 +1,6 @@
 from django.conf import settings
 from django.core.checks import Error, register
-from pydantic import ValidationError
+from pydantic.v1 import ValidationError
 
 from waldur_core.core.metadata import WaldurConfiguration
 

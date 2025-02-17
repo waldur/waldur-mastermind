@@ -2,7 +2,7 @@ import datetime
 from datetime import timedelta
 
 import saml2
-from pydantic import BaseModel, Field
+from pydantic.v1 import BaseModel, Field
 from saml2.entity_category.edugain import COC
 
 
