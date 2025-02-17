@@ -401,7 +401,9 @@ Upload TypeScript SDK:
   interruptible: true
   rules:
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
-  image: registry.hpc.ut.ee/mirror/alpine/git:latest
+  image:
+    name: registry.hpc.ut.ee/mirror/alpine/git:latest
+    entrypoint: [""]
   needs:
     - Generate TypeScript SDK
   script:
