@@ -362,3 +362,56 @@ Lint MD links:
     - touch docs/core_structure.png
     - touch docs/core_permissions.png
     - touch docs/marketplace.png
+
+Generate OpenAPI schema:
+  stage: deploy
+  interruptible: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
+  image: registry.hpc.ut.ee/mirror/$WALDUR_MASTERMIND_TEST_IMAGE
+  variables:
+    DJANGO_SETTINGS_MODULE: waldur_core.server.doc_settings
+  script:
+    - poetry install
+    - waldur spectacular --file waldur-openapi-schema.yaml
+  artifacts:
+    paths:
+      - waldur-openapi-schema.yaml
+    expire_in: 1 day
+  before_script: []
+
+Generate TypeScript SDK:
+  stage: deploy
+  interruptible: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
+  image: registry.hpc.ut.ee/mirror/library/node:lts-alpine
+  needs:
+    - Generate OpenAPI schema
+  script:
+    - npx --yes @hey-api/openapi-ts -c @hey-api/client-fetch -i waldur-openapi-schema.yaml -o waldur-typescript-sdk
+    - ls -l waldur-typescript-sdk
+  artifacts:
+    paths:
+      - waldur-typescript-sdk/
+    expire_in: 1 day
+
+Upload TypeScript SDK:
+  stage: deploy
+  interruptible: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
+  image: registry.hpc.ut.ee/mirror/alpine/git:latest
+  needs:
+    - Generate TypeScript SDK
+  script:
+    - git clone "https://homeport-updates:$HOMEPORT_ACCESS_TOKEN@$CI_SERVER_HOST/waldur/waldur-homeport.git"
+    - git config --global user.name "$GITLAB_USER_NAME"
+    - git config --global user.email "$GITLAB_USER_EMAIL"
+    - cd waldur-homeport
+    - git checkout develop
+    - mv waldur-typescript-sdk src/api
+    - git add src/
+    - git commit -m "Update Waldur TypeScript SDK" || exit 0
+    - git branch new-sdk
+    - git push --set-upstream origin new-sdk:develop
