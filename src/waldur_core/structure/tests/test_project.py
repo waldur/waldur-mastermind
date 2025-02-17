@@ -598,7 +598,7 @@ class ProjectMoveTest(test.APITransactionTestCase):
 
     def get_response(self, role, customer):
         self.client.force_authenticate(role)
-        payload = {"customer": {"url": factories.CustomerFactory.get_url(customer)}}
+        payload = {"customer": factories.CustomerFactory.get_url(customer)}
         return self.client.post(self.url, payload)
 
     def test_move_project_rest(self):

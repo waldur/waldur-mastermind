@@ -1023,15 +1023,6 @@ class PlanComponentSerializer(serializers.ModelSerializer):
         )
 
 
-class NestedCustomerSerializer(serializers.HyperlinkedModelSerializer):
-    class Meta:
-        model = structure_models.Customer
-        fields = ("uuid", "name", "url")
-        extra_kwargs = {
-            "url": {"lookup_field": "uuid"},
-        }
-
-
 class NestedEndpointSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.OfferingAccessEndpoint

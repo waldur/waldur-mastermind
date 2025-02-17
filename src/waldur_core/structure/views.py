@@ -459,7 +459,7 @@ class ProjectViewSet(
     @action(detail=True, methods=["post"])
     def move_project(self, request, uuid=None):
         project = self.get_object()
-        serializer = self.get_serializer(project, data=request.data)
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         customer = serializer.validated_data["customer"]

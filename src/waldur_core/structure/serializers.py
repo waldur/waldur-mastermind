@@ -575,18 +575,6 @@ class AccessSubnetSerializer(serializers.HyperlinkedModelSerializer):
         return validated_data
 
 
-class NestedCustomerSerializer(
-    core_serializers.AugmentedSerializerMixin,
-    core_serializers.HyperlinkedRelatedModelSerializer,
-):
-    class Meta:
-        model = models.Customer
-        fields = ("uuid", "url")
-        extra_kwargs = {
-            "url": {"lookup_field": "uuid"},
-        }
-
-
 class BasicCustomerSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Customer
@@ -1053,8 +1041,10 @@ class SshKeySerializer(
 
 
 class MoveProjectSerializer(serializers.Serializer):
-    customer = NestedCustomerSerializer(
-        queryset=models.Customer.objects.all(), required=True, many=False
+    customer = serializers.HyperlinkedRelatedField(
+        queryset=models.Customer.objects.all(),
+        view_name="customer-detail",
+        lookup_field="uuid",
     )
 
 
@@ -1161,14 +1151,6 @@ class BasicResourceSerializer(serializers.Serializer):
 
     def get_resource_type(self, resource) -> str:
         return get_resource_type(resource)
-
-
-class ManagedResourceSerializer(BasicResourceSerializer):
-    project_name = serializers.ReadOnlyField(source="project.name")
-    project_uuid = serializers.ReadOnlyField(source="project.uuid")
-
-    customer_uuid = serializers.ReadOnlyField(source="project.customer.uuid")
-    customer_name = serializers.ReadOnlyField(source="project.customer.name")
 
 
 class BaseResourceSerializer(
