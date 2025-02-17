@@ -497,36 +497,6 @@ class InstanceFactory(
                 self.security_groups.add(group)
 
 
-class BackupScheduleFactory(
-    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.BackupSchedule]
-):
-    class Meta:
-        model = models.BackupSchedule
-
-    instance = factory.SubFactory(InstanceFactory)
-    state = models.BackupSchedule.States.OK
-    service_settings = factory.LazyAttribute(lambda o: o.tenant.service_settings)
-    tenant = factory.SubFactory(TenantFactory)
-    project = factory.SelfAttribute("instance.project")
-    retention_time = 10
-    is_active = True
-    maximal_number_of_resources = 3
-    schedule = "0 * * * *"
-
-    @classmethod
-    def get_url(cls, schedule, action=None):
-        if schedule is None:
-            schedule = BackupScheduleFactory()
-        url = "http://testserver" + reverse(
-            "openstack-backup-schedule-detail", kwargs={"uuid": schedule.uuid.hex}
-        )
-        return url if action is None else url + action + "/"
-
-    @classmethod
-    def get_list_url(cls):
-        return "http://testserver" + reverse("openstack-backup-schedule-list")
-
-
 class BackupFactory(
     factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Backup]
 ):
@@ -536,8 +506,7 @@ class BackupFactory(
     service_settings = factory.LazyAttribute(lambda o: o.tenant.service_settings)
     tenant = factory.SubFactory(TenantFactory)
     project = factory.SubFactory(structure_factories.ProjectFactory)
-    backup_schedule = factory.SubFactory(BackupScheduleFactory)
-    instance = factory.LazyAttribute(lambda b: b.backup_schedule.instance)
+    instance = factory.SubFactory(InstanceFactory)
     state = models.Backup.States.OK
     kept_until = fuzzy.FuzzyDateTime(
         timezone.datetime(2017, 6, 6, tzinfo=ZoneInfo("UTC"))
@@ -592,38 +561,6 @@ class SnapshotRestorationFactory(factory.django.DjangoModelFactory):
 
     snapshot = factory.SubFactory(SnapshotFactory)
     volume = factory.SubFactory(VolumeFactory)
-
-
-class SnapshotScheduleFactory(
-    factory.django.DjangoModelFactory,
-    metaclass=BaseMetaFactory[models.SnapshotSchedule],
-):
-    class Meta:
-        model = models.SnapshotSchedule
-
-    source_volume = factory.SubFactory(VolumeFactory)
-    state = models.SnapshotSchedule.States.OK
-    service_settings = factory.LazyAttribute(lambda o: o.tenant.service_settings)
-    tenant = factory.SubFactory(TenantFactory)
-    project = factory.SelfAttribute("source_volume.project")
-    retention_time = 10
-    is_active = True
-    maximal_number_of_resources = 3
-    schedule = "0 * * * *"
-
-    @classmethod
-    def get_url(cls, schedule, action=None):
-        if schedule is None:
-            schedule = SnapshotScheduleFactory()
-        url = "http://testserver" + reverse(
-            "openstack-snapshot-schedule-detail",
-            kwargs={"uuid": schedule.uuid.hex},
-        )
-        return url if action is None else url + action + "/"
-
-    @classmethod
-    def get_list_url(cls):
-        return "http://testserver" + reverse("openstack-snapshot-schedule-list")
 
 
 class VolumeAvailabilityZoneFactory(

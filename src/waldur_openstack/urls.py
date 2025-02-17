@@ -65,16 +65,6 @@ def register_in(router):
         basename="openstack-backup",
     )
     router.register(
-        r"openstack-backup-schedules",
-        views.BackupScheduleViewSet,
-        basename="openstack-backup-schedule",
-    )
-    router.register(
-        r"openstack-snapshot-schedules",
-        views.SnapshotScheduleViewSet,
-        basename="openstack-snapshot-schedule",
-    )
-    router.register(
         r"openstack-volume-availability-zones",
         views.VolumeAvailabilityZoneViewSet,
         basename="openstack-volume-availability-zone",

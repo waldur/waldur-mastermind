@@ -76,10 +76,6 @@ class BaseCleanupExecutor(core_executors.BaseExecutor):
     class OpenStackTenantCleanupExecutor(structure_executors.BaseCleanupExecutor):
         related_executor = openstack_executors.OpenStackCleanupExecutor
 
-        pre_models = (
-            models.SnapshotSchedule,
-            models.BackupSchedule,
-        )
 
         executors = (
             (models.Snapshot, SnapshotDeleteExecutor),

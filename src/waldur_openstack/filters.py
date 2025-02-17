@@ -198,14 +198,6 @@ class SnapshotFilter(TenantFilterSet, structure_filters.BaseResourceFilter):
         view_name="openstack-backup-detail", field_name="backups__uuid"
     )
 
-    snapshot_schedule = core_filters.URLFilter(
-        view_name="openstack-snapshot-schedule-detail",
-        field_name="snapshot_schedule__uuid",
-    )
-    snapshot_schedule_uuid = django_filters.UUIDFilter(
-        field_name="snapshot_schedule__uuid"
-    )
-
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.Snapshot
         fields = structure_filters.BaseResourceFilter.Meta.fields + ("runtime_state",)
@@ -275,34 +267,9 @@ class BackupFilter(TenantFilterSet, structure_filters.BaseResourceFilter):
         view_name="openstack-instance-detail", field_name="instance__uuid"
     )
     instance_uuid = django_filters.UUIDFilter(field_name="instance__uuid")
-    backup_schedule = core_filters.URLFilter(
-        view_name="openstack-backup-schedule-detail",
-        field_name="backup_schedule__uuid",
-    )
-    backup_schedule_uuid = django_filters.UUIDFilter(field_name="backup_schedule__uuid")
 
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.Backup
-
-
-class BackupScheduleFilter(TenantFilterSet, structure_filters.BaseResourceFilter):
-    instance = core_filters.URLFilter(
-        view_name="openstack-instance-detail", field_name="instance__uuid"
-    )
-    instance_uuid = django_filters.UUIDFilter(field_name="instance__uuid")
-
-    class Meta(structure_filters.BaseResourceFilter.Meta):
-        model = models.BackupSchedule
-
-
-class SnapshotScheduleFilter(TenantFilterSet, structure_filters.BaseResourceFilter):
-    source_volume = core_filters.URLFilter(
-        view_name="openstack-volume-detail", field_name="source_volume__uuid"
-    )
-    source_volume_uuid = django_filters.UUIDFilter(field_name="source_volume__uuid")
-
-    class Meta(structure_filters.BaseResourceFilter.Meta):
-        model = models.SnapshotSchedule
 
 
 class VolumeAvailabilityZoneFilter(

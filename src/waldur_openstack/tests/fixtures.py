@@ -134,25 +134,6 @@ class OpenStackFixture(ProjectFixture):
             project=self.project,
             tenant=self.tenant,
             instance=self.instance,
-            backup_schedule=self.backup_schedule,
-        )
-
-    @cached_property
-    def backup_schedule(self):
-        return factories.BackupScheduleFactory(
-            project=self.project,
-            tenant=self.tenant,
-            state=models.BackupSchedule.States.OK,
-            instance=self.instance,
-        )
-
-    @cached_property
-    def snapshot_schedule(self):
-        return factories.SnapshotScheduleFactory(
-            project=self.project,
-            tenant=self.tenant,
-            state=models.SnapshotSchedule.States.OK,
-            source_volume=self.volume,
         )
 
     @cached_property

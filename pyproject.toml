@@ -27,7 +27,6 @@ azure-mgmt-storage = "18.0.0"
 msrestazure = "0.6.4"
 azure-identity= "1.16.1"
 celery = "5.4.0"
-croniter = "3.0.3"
 django-admin-tools = "0.9.2"
 django-auth-ldap = "4.1.0"
 django-filter = "24.3"
@@ -179,7 +178,6 @@ known-first-party = [
   "celery",
   "cinderclient",
   "constance",
-  "croniter",
   "cryptography",
   "dateutil",
   "dbtemplates",

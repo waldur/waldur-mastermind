@@ -48,18 +48,8 @@ class OpenStackExtension(WaldurExtension):
                 "schedule": timedelta(hours=24),
                 "args": (),
             },
-            "openstack-schedule-backups": {
-                "task": "openstack.ScheduleBackups",
-                "schedule": timedelta(minutes=10),
-                "args": (),
-            },
             "openstack-delete-expired-backups": {
                 "task": "openstack.DeleteExpiredBackups",
-                "schedule": timedelta(minutes=10),
-                "args": (),
-            },
-            "openstack-schedule-snapshots": {
-                "task": "openstack.ScheduleSnapshots",
                 "schedule": timedelta(minutes=10),
                 "args": (),
             },

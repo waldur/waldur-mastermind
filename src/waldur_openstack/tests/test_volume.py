@@ -1,7 +1,6 @@
 import unittest
 
 from ddt import data, ddt
-from django.conf import settings
 from rest_framework import status, test
 
 from waldur_core.structure.tests.factories import ProjectFactory, ServiceSettingsFactory
@@ -277,97 +276,6 @@ class VolumeSnapshotTestCase(test.APITransactionTestCase):
         new_usage = self.fixture.tenant.get_quota_usage(key)
 
         self.assertEqual(old_usage, new_usage)
-
-
-@ddt
-class VolumeCreateSnapshotScheduleTest(test.APITransactionTestCase):
-    action_name = "create_snapshot_schedule"
-
-    def setUp(self):
-        self.fixture = fixtures.OpenStackFixture()
-        self.url = factories.VolumeFactory.get_url(
-            self.fixture.volume, self.action_name
-        )
-        self.snapshot_schedule_data = {
-            "name": "test schedule",
-            "retention_time": 3,
-            "schedule": "0 * * * *",
-            "maximal_number_of_resources": 3,
-        }
-
-    @data("owner", "staff", "admin", "manager")
-    def test_user_can_create_snapshot_schedule(self, user):
-        self.client.force_authenticate(getattr(self.fixture, user))
-
-        response = self.client.post(self.url, self.snapshot_schedule_data)
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(
-            response.data["retention_time"],
-            self.snapshot_schedule_data["retention_time"],
-        )
-        self.assertEqual(
-            response.data["maximal_number_of_resources"],
-            self.snapshot_schedule_data["maximal_number_of_resources"],
-        )
-        self.assertEqual(
-            response.data["schedule"], self.snapshot_schedule_data["schedule"]
-        )
-
-    def test_snapshot_schedule_cannot_be_created_if_schedule_is_less_than_1_hours(self):
-        self.client.force_authenticate(self.fixture.owner)
-        payload = self.snapshot_schedule_data
-        payload["schedule"] = "*/5 * * * *"
-
-        response = self.client.post(self.url, self.snapshot_schedule_data)
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("schedule", response.data)
-
-    def test_snapshot_schedule_default_state_is_OK(self):
-        self.client.force_authenticate(self.fixture.owner)
-
-        response = self.client.post(self.url, self.snapshot_schedule_data)
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        snapshot_schedule = models.SnapshotSchedule.objects.first()
-        self.assertIsNotNone(snapshot_schedule)
-        self.assertEqual(snapshot_schedule.state, snapshot_schedule.States.OK)
-
-    def test_snapshot_schedule_can_not_be_created_with_wrong_schedule(self):
-        self.client.force_authenticate(self.fixture.owner)
-
-        # wrong schedule:
-        self.snapshot_schedule_data["schedule"] = "wrong schedule"
-
-        response = self.client.post(self.url, self.snapshot_schedule_data)
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn(b"schedule", response.content)
-
-    def test_snapshot_schedule_creation_with_correct_timezone(self):
-        self.client.force_authenticate(self.fixture.owner)
-        expected_timezone = "Europe/London"
-        self.snapshot_schedule_data["timezone"] = expected_timezone
-        response = self.client.post(self.url, self.snapshot_schedule_data)
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data["timezone"], expected_timezone)
-
-    def test_snapshot_schedule_creation_with_incorrect_timezone(self):
-        self.client.force_authenticate(self.fixture.owner)
-        self.snapshot_schedule_data["timezone"] = "incorrect"
-        response = self.client.post(self.url, self.snapshot_schedule_data)
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("timezone", response.data)
-
-    def test_snapshot_schedule_creation_with_default_timezone(self):
-        self.client.force_authenticate(self.fixture.owner)
-        response = self.client.post(self.url, self.snapshot_schedule_data)
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data["timezone"], settings.TIME_ZONE)
 
 
 class BaseVolumeCreateTest(test.APITransactionTestCase):

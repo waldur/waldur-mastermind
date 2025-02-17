@@ -7,7 +7,6 @@ from django.db import migrations
 OPENSTACK_TABLES = (
     "openstack_backup",
     "openstack_backuprestoration",
-    "openstack_backupschedule",
     "openstack_flavor",
     "openstack_image",
     "openstack_instance",
@@ -16,7 +15,6 @@ OPENSTACK_TABLES = (
     "openstack_servergroup",
     "openstack_snapshot",
     "openstack_snapshotrestoration",
-    "openstack_snapshotschedule",
     "openstack_volume",
     "openstack_volumeavailabilityzone",
     "openstack_volumetype",

@@ -1,10 +1,7 @@
 import logging
 import re
-from datetime import datetime
 from functools import lru_cache
-from zoneinfo import ZoneInfo
 
-from croniter.croniter import croniter
 from django.apps import apps
 from django.conf import settings
 from django.contrib.auth.models import PermissionsMixin, UserManager
@@ -23,8 +20,6 @@ from waldur_core.core.enums import CoreStates
 from waldur_core.core.fields import JSONField, UUIDField
 from waldur_core.core.utils import normalize_unicode, send_mail
 from waldur_core.core.validators import (
-    MinCronValueValidator,
-    validate_cron_schedule,
     validate_name,
     validate_phone_number,
     validate_ssh_public_key,
@@ -150,51 +145,6 @@ class LastSyncMixin(models.Model):
         abstract = True
 
     last_sync = models.DateTimeField(default=django_timezone.now, editable=False)
-
-
-class ScheduleMixin(models.Model):
-    """
-    Mixin to add a standardized "schedule" fields.
-    """
-
-    class Meta:
-        abstract = True
-
-    schedule = models.CharField(
-        max_length=15, validators=[validate_cron_schedule, MinCronValueValidator(1)]
-    )
-    next_trigger_at = models.DateTimeField(null=True)
-    timezone = models.CharField(
-        max_length=50, default=django_timezone.get_current_timezone_name
-    )
-    is_active = models.BooleanField(default=False)
-
-    def update_next_trigger_at(self):
-        tz = ZoneInfo(self.timezone)
-        dt = datetime.now(tz)
-        self.next_trigger_at = croniter(self.schedule, dt).get_next(datetime)
-
-    def save(self, *args, **kwargs):
-        """
-        Updates next_trigger_at field if:
-         - instance become active
-         - instance.schedule changed
-         - instance is new
-        """
-        try:
-            prev_instance = self.__class__.objects.get(pk=self.pk)
-        except self.DoesNotExist:
-            prev_instance = None
-
-        if prev_instance is None or (
-            not prev_instance.is_active
-            and self.is_active
-            or self.schedule != prev_instance.schedule
-            or self.timezone != prev_instance.timezone
-        ):
-            self.update_next_trigger_at()
-
-        super().save(*args, **kwargs)
 
 
 class UserDetailsMixin(models.Model):
