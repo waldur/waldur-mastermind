@@ -13,6 +13,9 @@ waldur override_constance_settings /etc/waldur/languages.yaml
 echo "INFO: Override marketplace script settings..."
 waldur override_constance_settings /etc/waldur/marketplace-script.yaml
 
+echo "INFO: Override freeipa settings..."
+waldur override_constance_settings /etc/waldur/freeipa.yaml
+
 echo "INFO: Override marketplace settings..."
 waldur override_constance_settings /etc/waldur/marketplace.yaml
 

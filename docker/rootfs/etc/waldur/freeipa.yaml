@@ -1,0 +1,8 @@
+# freeipa_enabled: True
+# freeipa_groupname_prefix:
+# freeipa_hostname:
+# freeipa_password:
+# freeipa_username:
+# freeipa_username_prefix:
+# freeipa_verify_ssl:
+# freeipa_group_synchronization_enabled: False
