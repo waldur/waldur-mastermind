@@ -412,7 +412,7 @@ Upload TypeScript SDK:
     - git config --global user.email "$GITLAB_USER_EMAIL"
     - cd waldur-homeport
     - git checkout develop
-    - mv waldur-typescript-sdk src/api
+    - mv $CI_PROJECT_DIR/waldur-typescript-sdk src/api
     - git add src/
     - git commit -m "Update Waldur TypeScript SDK" || exit 0
     - git branch new-sdk
