@@ -151,7 +151,6 @@ class ProjectStatsView(GenericAPIView):
 
 class CustomerStatsView(APIView):
     @extend_schema(
-        operation_id="checklist_customer_stats_retrieve",
         responses=serializers.CustomerChecklistStatSerializer(many=True),
     )
     def get(self, request, customer_uuid, checklist_uuid, format=None):
@@ -189,7 +188,6 @@ class CustomerStatsView(APIView):
 
 class CustomerChecklistUpdateView(APIView):
     @extend_schema(
-        operation_id="checklist_customer_retrieve",
         responses=serializers.CustomerChecklistUpdateSerializer,
     )
     def get(self, request, customer_uuid, format=None):
@@ -204,7 +202,6 @@ class CustomerChecklistUpdateView(APIView):
         return Response(serializer.data)
 
     @extend_schema(
-        operation_id="checklist_customer_update",
         request=serializers.CustomerChecklistUpdateSerializer,
     )
     def post(self, request, customer_uuid, format=None):

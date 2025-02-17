@@ -637,7 +637,6 @@ class ReviewViewSet(ActionsViewSet):
 
         raise exceptions.PermissionDenied()
 
-    @extend_schema(operation_id="proposal_review_accept")
     @decorators.action(detail=True, methods=["post"])
     def accept(self, request, uuid=None):
         review = self.get_object()
@@ -652,7 +651,6 @@ class ReviewViewSet(ActionsViewSet):
         core_validators.StateValidator(models.Review.States.CREATED),
     ]
 
-    @extend_schema(operation_id="proposal_review_reject")
     @decorators.action(detail=True, methods=["post"])
     def reject(self, request, uuid=None):
         review = self.get_object()
@@ -669,7 +667,6 @@ class ReviewViewSet(ActionsViewSet):
         ),
     ]
 
-    @extend_schema(operation_id="proposal_review_submit")
     @decorators.action(detail=True, methods=["post"])
     def submit(self, request, uuid=None):
         review = self.get_object()

@@ -206,7 +206,6 @@ class ProjectUpdateRequestViewSet(ActionsViewSet):
     @extend_schema(
         request=ReviewCommentSerializer,
         responses=EmptySerializer,
-        operation_id="project_update_request_approve",
     )
     @action(detail=True, methods=["post"])
     def approve(self, request, **kwargs):
@@ -220,7 +219,6 @@ class ProjectUpdateRequestViewSet(ActionsViewSet):
     @extend_schema(
         request=ReviewCommentSerializer,
         responses=EmptySerializer,
-        operation_id="project_update_request_reject",
     )
     @action(detail=True, methods=["post"])
     def reject(self, request, **kwargs):

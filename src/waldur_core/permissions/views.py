@@ -72,7 +72,6 @@ class RoleViewSet(ActionsViewSet):
     @extend_schema(
         request=serializers.RoleDescriptionSerializer,
         responses=serializers.RoleDescriptionSerializer,
-        operation_id="role_descriptions_update",
     )
     @action(detail=True, methods=["PUT"])
     def update_descriptions(self, request, uuid=None):
@@ -85,7 +84,6 @@ class RoleViewSet(ActionsViewSet):
     @extend_schema(
         request=EmptySerializer,
         responses=EmptySerializer,
-        operation_id="role_enable",
     )
     @action(detail=True, methods=["post"])
     def enable(self, request, uuid=None):
@@ -103,7 +101,6 @@ class RoleViewSet(ActionsViewSet):
     @extend_schema(
         request=EmptySerializer,
         responses=EmptySerializer,
-        operation_id="role_disable",
     )
     @action(detail=True, methods=["post"])
     def disable(self, request, uuid=None):

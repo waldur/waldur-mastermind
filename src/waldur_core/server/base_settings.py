@@ -122,7 +122,7 @@ REST_FRAMEWORK = {
         "oauth": "10/s",
     },
     "DEFAULT_PAGINATION_CLASS": "waldur_core.core.pagination.LinkHeaderPagination",
-    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_SCHEMA_CLASS": "waldur_core.core.openapi_inspector.WaldurOpenApiInspector",
     "PAGE_SIZE": 10,
     "EXCEPTION_HANDLER": "waldur_core.core.views.exception_handler",
     # Return native `Date` and `Time` objects in `serializer.data`

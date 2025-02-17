@@ -395,7 +395,6 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
 
     @extend_schema(
         request=serializers.SetOfferingsUsernameSerializer,
-        operation_id="marketplace_service_provider_set_offerings_username",
     )
     @action(detail=True, methods=["POST"])
     def set_offerings_username(self, request, uuid=None):
@@ -860,7 +859,6 @@ class ProviderOfferingViewSet(
 
     @extend_schema(
         responses=serializers.DetailStateSerializer,
-        operation_id="marketplace_offering_activate",
     )
     @action(detail=True, methods=["post"])
     def activate(self, request, uuid=None):
@@ -868,7 +866,6 @@ class ProviderOfferingViewSet(
 
     @extend_schema(
         responses=serializers.DetailStateSerializer,
-        operation_id="marketplace_offering_draft",
     )
     @action(detail=True, methods=["post"])
     def draft(self, request, uuid=None):
@@ -877,7 +874,6 @@ class ProviderOfferingViewSet(
     @extend_schema(
         responses=serializers.DetailStateSerializer,
         request=serializers.OfferingPauseSerializer,
-        operation_id="marketplace_offering_pause",
     )
     @action(detail=True, methods=["post"])
     def pause(self, request, uuid=None):
@@ -887,7 +883,6 @@ class ProviderOfferingViewSet(
 
     @extend_schema(
         responses=serializers.DetailStateSerializer,
-        operation_id="marketplace_offering_unpause",
     )
     @action(detail=True, methods=["post"])
     def unpause(self, request, uuid=None):
@@ -895,7 +890,6 @@ class ProviderOfferingViewSet(
 
     @extend_schema(
         responses=serializers.DetailStateSerializer,
-        operation_id="marketplace_offering_archive",
     )
     @action(detail=True, methods=["post"])
     def archive(self, request, uuid=None):
@@ -1012,7 +1006,6 @@ class ProviderOfferingViewSet(
     @extend_schema(
         request=serializers.ImportResourceSerializer,
         responses=serializers.ResourceSerializer,
-        operation_id="marketplace_offering_import_resource",
     )
     @action(detail=True, methods=["post"])
     def import_resource(self, request, uuid=None):
@@ -1077,7 +1070,6 @@ class ProviderOfferingViewSet(
 
         return Response(data=resource_serializer.data, status=status.HTTP_201_CREATED)
 
-    @extend_schema(operation_id="marketplace_offering_update_attributes")
     @action(detail=True, methods=["post"])
     def update_attributes(self, request, uuid=None):
         offering = self.get_object()
@@ -1108,7 +1100,6 @@ class ProviderOfferingViewSet(
 
     @extend_schema(
         request=serializers.OfferingLocationUpdateSerializer,
-        operation_id="marketplace_offering_update_location",
     )
     @action(detail=True, methods=["post"])
     def update_location(self, request, uuid=None):
@@ -1125,7 +1116,6 @@ class ProviderOfferingViewSet(
 
     @extend_schema(
         request=serializers.OfferingDescriptionUpdateSerializer,
-        operation_id="marketplace_offering_update_description",
     )
     @action(detail=True, methods=["post"])
     def update_description(self, request, uuid=None):
@@ -1144,7 +1134,6 @@ class ProviderOfferingViewSet(
 
     @extend_schema(
         request=serializers.OfferingOverviewUpdateSerializer,
-        operation_id="marketplace_offering_update_overview",
     )
     @action(detail=True, methods=["post"])
     def update_overview(self, request, uuid=None):
@@ -1156,7 +1145,6 @@ class ProviderOfferingViewSet(
 
     @extend_schema(
         request=serializers.OfferingOptionsUpdateSerializer,
-        operation_id="marketplace_offering_update_options",
     )
     @action(detail=True, methods=["post"])
     def update_options(self, request, uuid=None):
@@ -1173,7 +1161,6 @@ class ProviderOfferingViewSet(
 
     @extend_schema(
         request=serializers.OfferingResourceOptionsUpdateSerializer,
-        operation_id="marketplace_offering_update_resource_options",
     )
     @action(detail=True, methods=["post"])
     def update_resource_options(self, request, uuid=None):
@@ -1192,7 +1179,6 @@ class ProviderOfferingViewSet(
 
     @extend_schema(
         request=serializers.OfferingIntegrationUpdateSerializer,
-        operation_id="marketplace_offering_update_integration",
     )
     @action(detail=True, methods=["post"])
     def update_integration(self, request, uuid=None):
@@ -1211,7 +1197,6 @@ class ProviderOfferingViewSet(
 
     @extend_schema(
         request=serializers.OfferingThumbnailSerializer,
-        operation_id="marketplace_offering_update_thumbnail",
     )
     @action(detail=True, methods=["post"])
     def update_thumbnail(self, request, uuid=None):
@@ -1228,7 +1213,6 @@ class ProviderOfferingViewSet(
     @extend_schema(
         request=EmptySerializer,
         responses=EmptySerializer,
-        operation_id="marketplace_offering_delete_thumbnail",
     )
     @action(detail=True, methods=["post"])
     def delete_thumbnail(self, request, uuid=None):
@@ -1342,7 +1326,6 @@ class ProviderOfferingViewSet(
 
     @extend_schema(
         request=serializers.OrganizationGroupsSerializer,
-        operation_id="marketplace_offering_update_organization_groups",
     )
     @action(detail=True, methods=["post"])
     def update_organization_groups(self, request, uuid):
@@ -1360,7 +1343,6 @@ class ProviderOfferingViewSet(
     @extend_schema(
         request=EmptySerializer,
         responses=EmptySerializer,
-        operation_id="marketplace_offering_delete_organization_groups",
     )
     @action(detail=True, methods=["post"])
     def delete_organization_groups(self, request, uuid=None):
@@ -1372,7 +1354,6 @@ class ProviderOfferingViewSet(
     delete_organization_groups_validators = update_validators
 
     @extend_schema(
-        operation_id="marketplace_offering_endpoint_create",
         request=serializers.NestedEndpointSerializer,
     )
     @action(detail=True, methods=["post"])
@@ -1401,7 +1382,6 @@ class ProviderOfferingViewSet(
     add_endpoint_validators = update_validators
 
     @extend_schema(
-        operation_id="marketplace_offering_endpoint_delete",
         request=serializers.EndpointDeleteSerializer,
     )
     @action(detail=True, methods=["post"])
@@ -1548,7 +1528,6 @@ class ProviderOfferingViewSet(
         )
 
     @extend_schema(
-        operation_id="marketplace_offering_update_component",
         request=serializers.OfferingComponentSerializer,
         responses=EmptySerializer,
     )
@@ -1588,7 +1567,6 @@ class ProviderOfferingViewSet(
     update_offering_component_validators = update_validators
 
     @extend_schema(
-        operation_id="marketplace_offering_remove_component",
         request=serializers.OfferingComponentSerializer,
         responses=EmptySerializer,
     )
@@ -1654,7 +1632,6 @@ class ProviderOfferingViewSet(
     @extend_schema(
         request=serializers.OfferingComponentSerializer,
         responses=EmptySerializer,
-        operation_id="marketplace_offering_create_component",
     )
     @action(detail=True, methods=["post"])
     def create_offering_component(self, request, uuid=None):
@@ -1677,7 +1654,6 @@ class ProviderOfferingViewSet(
     create_offering_component_validators = update_validators
 
     @extend_schema(
-        operation_id="marketplace_offering_sync",
         responses=EmptySerializer,
         request=EmptySerializer,
     )
@@ -1719,7 +1695,6 @@ class ProviderOfferingViewSet(
     ]
 
     @extend_schema(
-        operation_id="marketplace_offering_set_backend_metadata",
         request=serializers.OfferingBackendMetadataSerializer,
         responses=EmptySerializer,
     )
@@ -1750,7 +1725,6 @@ class ProviderOfferingViewSet(
     @extend_schema(
         request=EmptySerializer,
         responses=structure_serializers.ProjectSerializer(many=True),
-        operation_id="marketplace_offering_list_customer_projects",
     )
     @action(detail=True, methods=["GET"])
     def list_customer_projects(self, request, uuid=None):
@@ -1772,7 +1746,6 @@ class ProviderOfferingViewSet(
     @extend_schema(
         responses=structure_serializers.UserSerializer(many=True),
         request=EmptySerializer,
-        operation_id="marketplace_offering_list_customer_users",
     )
     @action(detail=True, methods=["GET"])
     def list_customer_users(self, request, uuid=None):
@@ -2046,7 +2019,6 @@ class ProviderPlanViewSet(core_views.UpdateReversionMixin, core_views.ActionsVie
     @extend_schema(
         request=serializers.PricesUpdateSerializer,
         responses=EmptySerializer,
-        operation_id="marketplace_plan_update_prices",
     )
     @action(detail=True, methods=["post"])
     def update_prices(self, request, uuid):
@@ -2064,7 +2036,6 @@ class ProviderPlanViewSet(core_views.UpdateReversionMixin, core_views.ActionsVie
     @extend_schema(
         request=serializers.QuotasUpdateSerializer,
         responses=EmptySerializer,
-        operation_id="marketplace_plan_update_quotas",
     )
     @action(detail=True, methods=["post"])
     def update_quotas(self, request, uuid):
@@ -2091,7 +2062,6 @@ class ProviderPlanViewSet(core_views.UpdateReversionMixin, core_views.ActionsVie
     @extend_schema(
         request=EmptySerializer,
         responses=EmptySerializer,
-        operation_id="marketplace_plan_archive",
     )
     @action(detail=True, methods=["post"])
     def archive(self, request, uuid=None):
@@ -2124,7 +2094,6 @@ class ProviderPlanViewSet(core_views.UpdateReversionMixin, core_views.ActionsVie
     @extend_schema(
         request=serializers.OrganizationGroupsSerializer,
         responses=EmptySerializer,
-        operation_id="marketplace_plan_update_organization_groups",
     )
     @action(detail=True, methods=["post"])
     def update_organization_groups(self, request, uuid):
@@ -2141,7 +2110,6 @@ class ProviderPlanViewSet(core_views.UpdateReversionMixin, core_views.ActionsVie
     @extend_schema(
         request=EmptySerializer,
         responses=EmptySerializer,
-        operation_id="marketplace_plan_delete_organization_groups",
     )
     @action(detail=True, methods=["post"])
     def delete_organization_groups(self, request, uuid=None):
@@ -2287,7 +2255,6 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
         return super().list(request, *args, **kwargs)
 
     @extend_schema(
-        operation_id="marketplace_order_approve_by_consumer",
         request=EmptySerializer,
         responses=EmptySerializer,
     )
@@ -2330,7 +2297,6 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     ]
 
     @extend_schema(
-        operation_id="marketplace_order_approve_by_provider",
         request=EmptySerializer,
         responses=EmptySerializer,
     )
@@ -2357,7 +2323,6 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     reject_by_consumer_permissions = [permissions.user_can_reject_order_as_consumer]
 
     @extend_schema(
-        operation_id="marketplace_order_reject_by_consumer",
         request=EmptySerializer,
         responses=EmptySerializer,
     )
@@ -2390,7 +2355,6 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     ]
 
     @extend_schema(
-        operation_id="marketplace_order_reject_by_provider",
         request=EmptySerializer,
         responses=EmptySerializer,
     )
@@ -2419,7 +2383,6 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     ]
 
     @extend_schema(
-        operation_id="marketplace_order_cancel",
         request=EmptySerializer,
         responses=EmptySerializer,
     )
@@ -2447,7 +2410,6 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     ]
 
     @extend_schema(
-        operation_id="marketplace_order_set_state_executing",
         request=EmptySerializer,
         responses=EmptySerializer,
     )
@@ -2475,7 +2437,6 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     ]
 
     @extend_schema(
-        operation_id="marketplace_order_set_state_done",
         request=EmptySerializer,
         responses=EmptySerializer,
     )
@@ -2497,7 +2458,6 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     ]
 
     @extend_schema(
-        operation_id="marketplace_order_set_state_erred",
         request=serializers.OrderSetStateErredSerializer,
         responses=EmptySerializer,
     )
@@ -2534,7 +2494,6 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     ]
 
     @extend_schema(
-        operation_id="marketplace_order_unlink",
         request=EmptySerializer,
         responses=EmptySerializer,
     )

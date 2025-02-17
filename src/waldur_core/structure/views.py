@@ -278,7 +278,6 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
 
     @extend_schema(
         request=marketplace_serializers.OrganizationGroupsSerializer,
-        operation_id="customer_update_organization_groups",
     )
     @action(detail=True, methods=["post"])
     def update_organization_groups(self, request, uuid):
@@ -456,7 +455,6 @@ class ProjectViewSet(
     @extend_schema(
         request=serializers.MoveProjectSerializer,
         responses=serializers.ProjectSerializer,
-        operation_id="move_project",
     )
     @action(detail=True, methods=["post"])
     def move_project(self, request, uuid=None):
@@ -609,7 +607,6 @@ class UserViewSet(core_views.ActionsViewSet):
     @extend_schema(
         request=EmptySerializer,
         responses=EmptySerializer,
-        operation_id="user_cancel_change_email",
     )
     @action(detail=True, methods=["post"])
     def cancel_change_email(self, request, uuid=None):
@@ -662,7 +659,6 @@ class UserViewSet(core_views.ActionsViewSet):
             status=status.HTTP_200_OK,
         )
 
-    @extend_schema(operation_id="user_pull_remote")
     @action(detail=True, methods=["post"])
     def pull_remote_user(self, request, uuid=None):
         user = self.get_object()
@@ -678,7 +674,6 @@ class UserViewSet(core_views.ActionsViewSet):
         pull_remote_eduteams_user(user.username)
         return Response(status=status.HTTP_200_OK)
 
-    @extend_schema(operation_id="user_change_password")
     @action(detail=True, methods=["post"])
     def change_password(self, request, uuid=None):
         user = self.get_object()
@@ -716,7 +711,6 @@ class UserViewSet(core_views.ActionsViewSet):
     @extend_schema(
         request=serializers.UserAuthTokenSerializer,
         responses=serializers.UserAuthTokenSerializer,
-        operation_id="user_refresh_token",
     )
     @action(detail=True, methods=["post"])
     def refresh_token(self, request, uuid=None):
@@ -757,7 +751,6 @@ class CustomerPermissionReviewViewSet(
     @extend_schema(
         request=EmptySerializer,
         responses=EmptySerializer,
-        operation_id="customer_permission_review_close",
     )
     @action(detail=True, methods=["post"])
     def close(self, request, uuid=None):

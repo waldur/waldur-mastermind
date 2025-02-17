@@ -254,7 +254,7 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
     set_backend_id_serializer_class = serializers.BackendIdSerializer
 
     @extend_schema(
-        request=serializers.PaymentURLSerializer, operation_id="invoice_set_payment_url"
+        request=serializers.PaymentURLSerializer,
     )
     @action(detail=True, methods=["post"])
     def set_payment_url(self, request, uuid=None):
@@ -268,7 +268,6 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
 
     @extend_schema(
         request=serializers.ReferenceNumberSerializer,
-        operation_id="invoice_set_reference_number",
     )
     @action(detail=True, methods=["post"])
     def set_reference_number(self, request, uuid=None):
@@ -290,7 +289,6 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
     filterset_class = filters.InvoiceItemFilter
 
     @extend_schema(
-        operation_id="invoice_item_create_compensation",
         request=serializers.InvoiceItemCompensationSerializer,
     )
     @transaction.atomic
