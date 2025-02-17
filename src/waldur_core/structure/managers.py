@@ -24,6 +24,24 @@ T = TypeVar("T")
 
 
 def filter_queryset_for_user(queryset: QuerySet[T], user) -> QuerySet[T]:
+    def get_customer_subquery(path):
+        if list_permission:
+            connected_customers = get_connected_customers_by_permission(
+                user, list_permission
+            )
+        else:
+            connected_customers = get_connected_customers(user)
+        return build_filter(path, connected_customers)
+
+    def get_project_subquery(path):
+        if list_permission:
+            connected_projects = get_connected_projects_by_permission(
+                user, list_permission
+            )
+        else:
+            connected_projects = get_connected_projects(user)
+        return build_filter(path, connected_projects)
+
     if user is None or not user.is_authenticated or user.is_staff or user.is_support:
         return queryset
 
@@ -43,18 +61,18 @@ def filter_queryset_for_user(queryset: QuerySet[T], user) -> QuerySet[T]:
     project_path = getattr(permissions, "project_path", None)
 
     if customer_path:
-        if list_permission:
-            customers = get_connected_customers_by_permission(user, list_permission)
+        if isinstance(customer_path, list | tuple):
+            for p in customer_path:
+                subquery |= get_customer_subquery(p)
         else:
-            customers = get_connected_customers(user)
-        subquery |= build_filter(customer_path, customers)
+            subquery |= get_customer_subquery(customer_path)
 
     if project_path:
-        if list_permission:
-            projects = get_connected_projects_by_permission(user, list_permission)
+        if isinstance(project_path, list | tuple):
+            for p in project_path:
+                subquery |= get_project_subquery(p)
         else:
-            projects = get_connected_projects(user)
-        subquery |= build_filter(project_path, projects)
+            subquery |= get_project_subquery(project_path)
 
     build_query = getattr(permissions, "build_query", None)
     if build_query:
@@ -89,15 +107,25 @@ def filter_queryset_by_user_ip(queryset, request):
     if not customer_path:
         return queryset
 
-    if customer_path == "self":
-        path = "id__in"
-        none_path = "id"
-    else:
-        path = customer_path + "__id__in"
-        none_path = customer_path + "_id"
+    subquery = models.Q()
 
-    customers_ids = filter_customer_by_ip_address(user_ip)
-    subquery = models.Q(**{path: customers_ids}) | models.Q(**{none_path: None})
+    def get_subquery(c_path):
+        if c_path == "self":
+            path = "id__in"
+            none_path = "id"
+        else:
+            path = c_path + "__id__in"
+            none_path = c_path + "_id"
+
+        customers_ids = filter_customer_by_ip_address(user_ip)
+        return models.Q(**{path: customers_ids}) | models.Q(**{none_path: None})
+
+    if isinstance(customer_path, list | tuple):
+        for p in customer_path:
+            subquery |= get_subquery(p)
+    else:
+        subquery |= get_subquery(customer_path)
+
     return queryset.filter(subquery)
 
 
