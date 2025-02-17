@@ -872,7 +872,7 @@ class MarketplaceInvoiceItemsFilter(django_filters.FilterSet):
 
 
 class IntegrationStatusFilter(OfferingFilterMixin, django_filters.FilterSet):
-    o = django_filters.OrderingFilter(fields=("last_request_timestamp"))
+    o = django_filters.OrderingFilter(fields=["last_request_timestamp"])
     agent_type = django_filters.CharFilter(field_name="agent_type")
     status = core_filters.MappedMultipleChoiceFilter(
         models.IntegrationStatus.States.CHOICES
