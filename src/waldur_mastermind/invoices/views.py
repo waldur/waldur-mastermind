@@ -584,6 +584,7 @@ class PaymentViewSet(core_views.ActionsViewSet):
 
     link_to_invoice_validators = [_link_to_invoice_exists]
     link_to_invoice_serializer_class = serializers.LinkToInvoiceSerializer
+    unlink_from_invoice_serializer_class = EmptySerializer
 
     def _link_to_invoice_does_not_exist(payment):
         if not payment.invoice:
