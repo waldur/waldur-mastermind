@@ -357,6 +357,7 @@ class RemoteSynchronisationViewSet(core_views.ActionsViewSet):
     )
     permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
 
+    @extend_schema(request=EmptySerializer)
     @action(detail=True, methods=["post"])
     def run_synchronisation(self, request, **kwargs):
         sync = self.get_object()

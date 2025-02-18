@@ -8,7 +8,7 @@ from django.db import transaction
 from django.db.models import F, Q, QuerySet, Sum
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import exceptions, status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
@@ -61,7 +61,9 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
 
     send_notification_permissions = [structure_permissions.is_staff]
     send_notification_validators = [_is_invoice_created]
+    send_notification_serializer_class = EmptySerializer
 
+    @extend_schema(request=serializers.PaidSerializer)
     @transaction.atomic
     @action(detail=True, methods=["post"])
     def paid(self, request, uuid=None):
@@ -111,6 +113,10 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
     paid_permissions = [structure_permissions.is_staff]
     paid_validators = [core_validators.StateValidator(models.Invoice.States.CREATED)]
 
+    @extend_schema(
+        responses=serializers.InvoiceStatsSerializer,
+        parameters=[OpenApiParameter("provider_uuid", str, OpenApiParameter.QUERY)],
+    )
     @action(detail=True)
     def stats(self, request, uuid=None):
         invoice = self.get_object()
@@ -166,6 +172,14 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
         page = self.paginate_queryset(queryset)
         return self.get_paginated_response(page)
 
+    @extend_schema(
+        responses=serializers.InvoiceGrowthSerializer,
+        parameters=[
+            OpenApiParameter("accounting_is_running", bool, OpenApiParameter.QUERY),
+            OpenApiParameter("customers_count", int, OpenApiParameter.QUERY),
+            OpenApiParameter("accounting_mode", str, OpenApiParameter.QUERY),
+        ],
+    )
     @action(detail=False)
     def growth(self, request):
         queryset = structure_models.Customer.objects.all()
@@ -243,6 +257,7 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
 
         return Response(result, status=status.HTTP_200_OK)
 
+    @extend_schema(responses=EmptySerializer)
     @action(detail=True, methods=["post"])
     def set_backend_id(self, request, uuid=None):
         serializer = self.get_serializer(instance=self.get_object(), data=request.data)
@@ -268,6 +283,7 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
 
     @extend_schema(
         request=serializers.ReferenceNumberSerializer,
+        responses=EmptySerializer,
     )
     @action(detail=True, methods=["post"])
     def set_reference_number(self, request, uuid=None):

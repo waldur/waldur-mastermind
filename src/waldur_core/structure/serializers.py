@@ -1538,3 +1538,7 @@ class ComponentStatsSerializer(serializers.Serializer):
 
 class ComponentsUsageStatsSerializer(serializers.Serializer):
     components = ComponentStatsSerializer(many=True, read_only=True)
+
+
+class ConfirmEmailRequestSerializer(serializers.Serializer):
+    code = serializers.CharField()

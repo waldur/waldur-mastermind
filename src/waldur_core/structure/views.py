@@ -620,6 +620,9 @@ class UserViewSet(core_views.ActionsViewSet):
 
         return Response({"detail": msg}, status=status.HTTP_200_OK)
 
+    @extend_schema(
+        request=serializers.ConfirmEmailRequestSerializer, responses=EmptySerializer
+    )
     @action(detail=False, methods=["post"])
     def confirm_email(self, request):
         code = request.data.get("code")
@@ -659,6 +662,7 @@ class UserViewSet(core_views.ActionsViewSet):
             status=status.HTTP_200_OK,
         )
 
+    @extend_schema(request=EmptySerializer, responses=EmptySerializer)
     @action(detail=True, methods=["post"])
     def pull_remote_user(self, request, uuid=None):
         user = self.get_object()

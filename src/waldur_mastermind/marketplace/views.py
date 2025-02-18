@@ -3391,6 +3391,10 @@ class OfferingUsersViewSet(
         ).distinct()
         return queryset
 
+    @extend_schema(
+        request=serializers.OfferingUserUpdateRestrictionSerializer,
+        responses=EmptySerializer,
+    )
     @action(detail=True, methods=["post"])
     def update_restricted(self, request, uuid=None):
         offering_user = self.get_object()

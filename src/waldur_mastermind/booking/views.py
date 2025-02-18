@@ -77,6 +77,7 @@ class OfferingViewSet(core_views.ReadOnlyActionsViewSet):
     lookup_field = "uuid"
     serializer_class = serializers.OfferingSerializer
 
+    @extend_schema(request=EmptySerializer, responses=EmptySerializer)
     @action(detail=True, methods=["post"])
     def google_calendar_sync(self, request, uuid=None):
         offering = self.get_object()
@@ -88,6 +89,7 @@ class OfferingViewSet(core_views.ReadOnlyActionsViewSet):
         )
         return Response("OK", status=status.HTTP_202_ACCEPTED)
 
+    @extend_schema(request=EmptySerializer, responses=EmptySerializer)
     @action(detail=True, methods=["post"])
     def share_google_calendar(self, request, uuid=None):
         offering = self.get_object()
@@ -99,6 +101,7 @@ class OfferingViewSet(core_views.ReadOnlyActionsViewSet):
         )
         return Response("OK", status=status.HTTP_202_ACCEPTED)
 
+    @extend_schema(request=EmptySerializer, responses=EmptySerializer)
     @action(detail=True, methods=["post"])
     def unshare_google_calendar(self, request, uuid=None):
         offering = self.get_object()

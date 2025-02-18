@@ -1064,3 +1064,33 @@ core_signals.pre_serializer_fields.connect(
     sender=structure_serializers.CustomerSerializer,
     receiver=add_customer_credit,
 )
+
+
+class InvoiceStatsOfferingSerializer(serializers.Serializer):
+    offering_name = serializers.CharField(read_only=True)
+    aggregated_price = serializers.FloatField(read_only=True)
+    aggregated_tax = serializers.FloatField(read_only=True)
+    aggregated_total = serializers.FloatField(read_only=True)
+    service_category_title = serializers.CharField(read_only=True)
+    service_provider_name = serializers.CharField(read_only=True)
+    service_provider_uuid = serializers.UUIDField(read_only=True)
+
+
+class InvoiceStatsSerializer(serializers.ListSerializer):
+    child = InvoiceStatsOfferingSerializer(read_only=True)
+
+
+class InvoiceGrowthCustomerPeriodSerializer(serializers.Serializer):
+    name = serializers.CharField(read_only=True)
+    periods = serializers.ListField(read_only=True, child=serializers.FloatField())
+
+
+class InvoiceGrowthSerializer(serializers.Serializer):
+    periods = serializers.ListField(read_only=True, child=serializers.CharField())
+    total_periods = serializers.ListField(
+        read_only=True, child=serializers.FloatField()
+    )
+    other_periods = serializers.ListField(
+        read_only=True, child=serializers.FloatField()
+    )
+    customer_periods = InvoiceGrowthCustomerPeriodSerializer(many=True)
