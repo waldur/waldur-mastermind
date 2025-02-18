@@ -980,7 +980,6 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         structure_filters.StartTimeFilter,
     )
     pull_executor = executors.InstancePullExecutor
-    pull_serializer_class = EmptySerializer
 
     update_executor = executors.InstanceUpdateExecutor
     update_validators = partial_update_validators = [

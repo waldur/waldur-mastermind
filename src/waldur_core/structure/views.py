@@ -879,6 +879,8 @@ class ResourceViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
         )
     ]
 
+    pull_serializer_class = EmptySerializer
+
     @action(detail=True, methods=["post"])
     def pull(self, request, uuid=None):
         if self.pull_executor == NotImplemented:
@@ -899,6 +901,8 @@ class ResourceViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
         ),
         check_resource_backend_id,
     ]
+
+    unlink_serializer_class = EmptySerializer
 
     @action(detail=True, methods=["post"])
     def unlink(self, request, uuid=None):
