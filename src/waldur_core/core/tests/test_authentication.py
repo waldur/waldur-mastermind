@@ -8,6 +8,8 @@ from freezegun import freeze_time
 from rest_framework import status, test
 from rest_framework.authtoken.models import Token
 
+from waldur_core.core.views import RefreshTokenMixin
+
 from . import helpers
 
 
@@ -18,7 +20,7 @@ class TokenAuthenticationTest(test.APITransactionTestCase):
         self.auth_url = reverse("auth-password")
         self.logout_url = reverse("auth-logout")
         self.test_url = "http://testserver/api/"
-        get_user_model().objects.create_user(
+        self.user = get_user_model().objects.create_user(
             self.username, "admin@example.com", self.password
         )
 
@@ -118,22 +120,19 @@ class TokenAuthenticationTest(test.APITransactionTestCase):
             token2 = response.data["token"]
             self.assertNotEqual(token1, token2)
 
-    def test_not_expired_token_creation_time_is_updated_on_authentication(self):
-        response = self.client.post(
-            self.auth_url, data={"username": self.username, "password": self.password}
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        token1 = response.data["token"]
-        created1 = Token.objects.values_list("created", flat=True).get(key=token1)
+    def test_refresh_token_positive(self):
+        next_time = timezone.now() + timezone.timedelta(hours=1)
+        token, _ = Token.objects.get_or_create(user=self.user)
+        with freeze_time(next_time):
+            token = RefreshTokenMixin().refresh_token(self.user)
+        self.assertGreater(token.created, timezone.now())
 
-        response = self.client.post(
-            self.auth_url, data={"username": self.username, "password": self.password}
-        )
-        token2 = response.data["token"]
-        created2 = Token.objects.values_list("created", flat=True).get(key=token2)
-
-        self.assertEqual(token1, token2)
-        self.assertTrue(created1 < created2)
+    def test_refresh_token_negative(self):
+        next_time = timezone.now() + timezone.timedelta(seconds=10)
+        token, _ = Token.objects.get_or_create(user=self.user)
+        with freeze_time(next_time):
+            token = RefreshTokenMixin().refresh_token(self.user)
+        self.assertLess(token.created, timezone.now())
 
     def test_token_never_expires_if_token_lifetime_is_none(self):
         user = get_user_model().objects.get(username=self.username)
