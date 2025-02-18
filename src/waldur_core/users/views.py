@@ -5,6 +5,7 @@ from django.db import transaction
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.utils import extend_schema
 from rest_framework import permissions as rf_permissions
 from rest_framework import status
 from rest_framework.decorators import action
@@ -66,6 +67,7 @@ class InvitationViewSet(ProtectedViewSet):
                 lambda: tasks.process_invitation.delay(invitation.uuid.hex, sender)
             )
 
+    @extend_schema(request=serializers.TokenSerializer)
     @action(detail=False, methods=["post"], permission_classes=[])
     def approve(self, request):
         """
@@ -90,6 +92,7 @@ class InvitationViewSet(ProtectedViewSet):
             {"detail": _("Invitation has been approved.")}, status=status.HTTP_200_OK
         )
 
+    @extend_schema(request=serializers.TokenSerializer)
     @action(detail=False, methods=["post"], permission_classes=[])
     def reject(self, request):
         """

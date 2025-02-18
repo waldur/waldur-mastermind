@@ -211,3 +211,7 @@ class PermissionRequestSerializer(serializers.HyperlinkedModelSerializer):
                 "view_name": "user-group-invitation-detail",
             },
         }
+
+
+class TokenSerializer(serializers.Serializer):
+    token = serializers.CharField()
