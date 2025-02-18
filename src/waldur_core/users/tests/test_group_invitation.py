@@ -391,7 +391,7 @@ class RequestCreateTest(BaseInvitationTest):
             scope=self.customer
         )
         self.url = factories.CustomerGroupInvitationFactory.get_url(
-            self.group_invitation, "request"
+            self.group_invitation, "submit_request"
         )
 
     @data("staff", "customer_owner", "project_admin", "project_manager", "user")
