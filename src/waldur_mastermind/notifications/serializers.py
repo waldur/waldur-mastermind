@@ -58,6 +58,12 @@ class BroadcastMessageSerializer(
             "send_at",
         )
 
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        if attrs.get("send_at"):
+            attrs["state"] = models.BroadcastMessage.States.SCHEDULED
+        return attrs
+
     def validate_query(self, query):
         serializer = QuerySerializer(data=query)
         serializer.is_valid()
