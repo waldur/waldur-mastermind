@@ -12,6 +12,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.core.files.storage import default_storage
 from django.db import connection, connections
 from django.db.models import ForeignKey, ProtectedError
+from django.db.models.functions import Now
 from django.http import FileResponse, HttpResponse, HttpResponseRedirect, JsonResponse
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -80,6 +81,8 @@ class RefreshTokenMixin:
     Token is refreshed if it has not expired yet.
     """
 
+    MIN_TOKEN_UPDATE_INTERVAL = timezone.timedelta(seconds=60)
+
     def refresh_token(self, user):
         token, created = Token.objects.get_or_create(user=user)
 
@@ -92,9 +95,11 @@ class RefreshTokenMixin:
                 created = True
 
         if not created:
-            token.created = timezone.now()
-            token.save(update_fields=["created"])
-
+            # Token is updated for each request therefore it may become bottleneck.
+            # To avoid race-conditions if token is updated simulteneously,
+            # and to reduce DB load, we use debouncing.
+            if token.created < timezone.now() - self.MIN_TOKEN_UPDATE_INTERVAL:
+                Token.objects.filter(key=token.key).update(created=Now())
         return token
 
 
