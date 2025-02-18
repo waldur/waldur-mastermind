@@ -7,6 +7,7 @@ from waldur_core.permissions.models import Role
 from waldur_core.permissions.utils import get_valid_models
 from waldur_core.structure.permissions import _get_customer
 from waldur_core.users import models
+from waldur_core.users.enums import InvitationStateType
 
 User = get_user_model()
 
@@ -138,6 +139,8 @@ class InvitationSerializer(BaseInvitationSerializer):
 
 
 class VisibleInvitationDetailsSerializer(BaseInvitationDetailsSerializer):
+    state = serializers.SerializerMethodField()
+
     class Meta:
         model = models.Invitation
         fields = BaseInvitationDetailsSerializer.Meta.fields + (
@@ -150,6 +153,9 @@ class VisibleInvitationDetailsSerializer(BaseInvitationDetailsSerializer):
             "error_message",
             "execution_state",
         )
+
+    def get_state(self, obj) -> InvitationStateType:
+        return obj.state
 
 
 class PermissionRequestSerializer(serializers.HyperlinkedModelSerializer):
@@ -215,3 +221,8 @@ class PermissionRequestSerializer(serializers.HyperlinkedModelSerializer):
 
 class TokenSerializer(serializers.Serializer):
     token = serializers.CharField()
+
+
+class InvitationCheckSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    civil_number_required = serializers.BooleanField(required=False)

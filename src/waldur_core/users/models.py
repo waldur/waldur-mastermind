@@ -12,6 +12,7 @@ from waldur_core.permissions.models import Role
 from waldur_core.permissions.utils import add_user
 from waldur_core.structure.models import Customer
 from waldur_core.structure.signals import permissions_request_approved
+from waldur_core.users.enums import InvitationState
 
 
 class BaseInvitation(core_models.UuidMixin, core_mixins.ScopeMixin, TimeStampedModel):
@@ -61,24 +62,8 @@ class Invitation(
     class Permissions:
         customer_path = "customer"
 
-    class State:
-        PENDING_PROJECT = "project"
-        REQUESTED = "requested"
-        REJECTED = "rejected"
-        PENDING = "pending"
-        ACCEPTED = "accepted"
-        CANCELED = "canceled"
-        EXPIRED = "expired"
-
-        CHOICES = (
-            (PENDING_PROJECT, "Pending project"),
-            (REQUESTED, "Requested"),
-            (REJECTED, "Rejected"),
-            (PENDING, "Pending"),
-            (ACCEPTED, "Accepted"),
-            (CANCELED, "Canceled"),
-            (EXPIRED, "Expired"),
-        )
+    class State(InvitationState):
+        pass
 
     class ExecutionState:
         SCHEDULED = "Scheduled"

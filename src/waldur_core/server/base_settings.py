@@ -14,6 +14,7 @@ from waldur_core.core.enums import CoreStates
 from waldur_core.core.metadata import WaldurConfiguration
 from waldur_core.server.admin.settings import *
 
+from waldur_core.users.enums import InvitationState
 from waldur_mastermind.common.enums import Units
 from waldur_mastermind.marketplace.enums import OfferingStates, RequestTypes
 from waldur_mastermind.proposal.enums import (
@@ -956,6 +957,7 @@ SPECTACULAR_SETTINGS = {
     "COMPONENT_SPLIT_REQUEST": True,
     "SCHEMA_PATH_PREFIX": "/api/",
     "ENUM_NAME_OVERRIDES": {
+        "InvitationState": InvitationState.VALUES,
         "BillingUnit": Units.CHOICES,
         "CoreStates": CoreStates.VALUES,
         "OfferingStates": OfferingStates.VALUES,
