@@ -3028,6 +3028,7 @@ class ComponentUserUsageSerializer(serializers.HyperlinkedModelSerializer):
             "customer_uuid",
             "component_type",
             "date",
+            "billing_period",
         )
         model = models.ComponentUserUsage
 
