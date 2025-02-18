@@ -524,6 +524,55 @@ PERMISSION_DESCRIPTION = [
             },
         ],
     },
+    {
+        "label": "Call management",
+        "options": [
+            {
+                "label": "List calls",
+                "value": "CALL.LIST",
+            },
+            {
+                "label": "List rounds",
+                "value": "ROUND.LIST",
+            },
+            {
+                "label": "List proposals",
+                "value": "PROPOSAL.LIST",
+            },
+            {
+                "label": "Approve and reject proposals",
+                "value": "CALL.APPROVE_AND_REJECT_PROPOSALS",
+            },
+            {
+                "label": "Close rounds",
+                "value": "CALL.CLOSE_ROUNDS",
+            },
+            {
+                "label": "Create call permission",
+                "value": "CALL.CREATE_PERMISSION",
+            },
+            {
+                "label": "Update call permission",
+                "value": "CALL.UPDATE_PERMISSION",
+            },
+            {
+                "label": "Delete call permission",
+                "value": "CALL.DELETE_PERMISSION",
+            },
+            {
+                "label": "Manage proposal",
+                "value": "PROPOSAL.MANAGE",
+            },
+            {
+                "label": "Update proposal permission",
+                "value": "PROPOSAL.UPDATE_PERMISSION",
+            },
+            {
+                "label": "Delete proposal permission",
+                "value": "PROPOSAL.DELETE_PERMISSION",
+            },
+        ],
+    },
 ]
 
 ROLE_MAP = {
