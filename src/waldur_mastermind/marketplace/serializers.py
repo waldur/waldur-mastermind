@@ -2978,6 +2978,7 @@ class ComponentUserUsageSerializer(serializers.HyperlinkedModelSerializer):
     )
     component_type = serializers.ReadOnlyField(source="component_usage.component.type")
     date = serializers.ReadOnlyField(source="component_usage.date")
+    billing_period = serializers.ReadOnlyField(source="component_usage.billing_period")
 
     resource_name = serializers.ReadOnlyField(source="component_usage.resource.name")
     resource_uuid = serializers.ReadOnlyField(source="component_usage.resource.uuid")
