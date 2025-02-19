@@ -35,6 +35,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
     filterset_class = filters.BookingResourceFilter
     lookup_field = "uuid"
     serializer_class = serializers.BookingResourceSerializer
+    accept_serializer_class = reject_serializer_class = EmptySerializer
 
     @action(detail=True, methods=["post"])
     def reject(self, request, uuid=None):

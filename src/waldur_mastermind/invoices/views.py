@@ -393,6 +393,19 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
             result_list.append(data)
         return result_list
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter("page", int, OpenApiParameter.QUERY),
+            OpenApiParameter("page_size", int, OpenApiParameter.QUERY),
+            OpenApiParameter("year", int, OpenApiParameter.QUERY),
+            OpenApiParameter("month", int, OpenApiParameter.QUERY),
+            OpenApiParameter("resource_uuid", str, OpenApiParameter.QUERY),
+            OpenApiParameter("project_uuid", str, OpenApiParameter.QUERY),
+            OpenApiParameter("customer_uuid", str, OpenApiParameter.QUERY),
+            OpenApiParameter("credit_uuid", str, OpenApiParameter.QUERY),
+        ],
+        responses=serializers.InvoiceCostSerializer(many=True),
+    )
     @action(detail=False, methods=["get"], filterset_class=filters.InvoiceItemFilter)
     def costs(self, request, *args, **kwargs):
         project_uuid = request.GET.get("project_uuid", "")

@@ -1094,3 +1094,9 @@ class InvoiceGrowthSerializer(serializers.Serializer):
         read_only=True, child=serializers.FloatField()
     )
     customer_periods = InvoiceGrowthCustomerPeriodSerializer(many=True)
+
+
+class InvoiceCostSerializer(serializers.Serializer):
+    price = serializers.FloatField(read_only=True)
+    year = serializers.IntegerField(read_only=True)
+    month = serializers.IntegerField(read_only=True)
