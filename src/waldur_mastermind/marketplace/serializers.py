@@ -4270,8 +4270,8 @@ class RobotAccountDetailsSerializer(RobotAccountSerializer):
 
 class ServiceProviderRevenues(serializers.Serializer):
     total = serializers.IntegerField(read_only=True)
-    year = serializers.CharField(read_only=True, source="invoice__year")
-    month = serializers.CharField(read_only=True, source="invoice__month")
+    year = serializers.IntegerField(read_only=True, source="invoice__year")
+    month = serializers.IntegerField(read_only=True, source="invoice__month")
 
 
 class SectionSerializer(serializers.HyperlinkedModelSerializer):
