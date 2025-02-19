@@ -549,7 +549,9 @@ class CustomerSerializer(
         return count_customer_users(customer)
 
 
-class AccessSubnetSerializer(serializers.HyperlinkedModelSerializer):
+class AccessSubnetSerializer(
+    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
+):
     class Meta:
         model = models.AccessSubnet
         fields = (
@@ -561,6 +563,7 @@ class AccessSubnetSerializer(serializers.HyperlinkedModelSerializer):
         extra_kwargs = {
             "customer": {"lookup_field": "uuid"},
         }
+        protected_fields = ["customer"]
 
     inet = serializers.CharField()
 
