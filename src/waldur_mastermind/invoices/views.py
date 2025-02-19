@@ -535,6 +535,7 @@ class PaymentProfileViewSet(core_views.ActionsViewSet):
     ) = enable_permissions = [structure_permissions.is_staff]
     queryset = models.PaymentProfile.objects.all().order_by("name")
     serializer_class = serializers.PaymentProfileSerializer
+    enable_serializer_class = EmptySerializer
 
     @action(detail=True, methods=["post"])
     def enable(self, request, uuid=None):
