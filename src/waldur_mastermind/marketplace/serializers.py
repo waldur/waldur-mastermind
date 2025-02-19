@@ -4460,3 +4460,7 @@ class NameUUIDSerializer(serializers.Serializer):
 class DetailStateSerializer(serializers.Serializer):
     detail = serializers.CharField(read_only=True)
     state = serializers.CharField(read_only=True)
+
+
+class PlanPeriodsListSerializer(serializers.ListSerializer):
+    child = ResourcePlanPeriodSerializer(read_only=True)

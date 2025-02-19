@@ -1,6 +1,7 @@
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from django.utils.translation import gettext_lazy as _
+from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -95,6 +96,7 @@ class DryRunView(ActionsViewSet):
         output = executor.send_request(request.user, dry_run=True)
         return Response({"output": output})
 
+    @extend_schema(request=DryRunSerializer)
     @action(detail=True, methods=["post"])
     def async_run(self, request, *args, **kwargs):
         serializer = DryRunSerializer(data=request.data)

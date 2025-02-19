@@ -1,9 +1,11 @@
 from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.utils import extend_schema
 from rest_framework import decorators, permissions, status
 from rest_framework.response import Response
 
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import validators as core_validators
+from waldur_core.core.serializers import EmptySerializer
 from waldur_core.core.views import ActionsViewSet
 
 from . import filters, models, serializers, tasks, utils
@@ -23,12 +25,14 @@ class BroadcastMessageViewSet(ActionsViewSet):
     ]
     lookup_field = "uuid"
 
+    @extend_schema(request=EmptySerializer, responses=EmptySerializer)
     @decorators.action(detail=True, methods=["post"])
     def send(self, request, *args, **kwargs):
         broadcast_message = self.get_object()
         tasks.send_broadcast_message_email.delay(broadcast_message.uuid)
         return Response(status=status.HTTP_202_ACCEPTED)
 
+    @extend_schema(request=serializers.QuerySerializer)
     @decorators.action(detail=False)
     def recipients(self, request, *args, **kwargs):
         serializer = serializers.QuerySerializer(

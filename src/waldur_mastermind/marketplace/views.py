@@ -2545,6 +2545,10 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         )
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    @extend_schema(
+        request=EmptySerializer,
+        responses=EmptySerializer,
+    )
     @action(detail=True, methods=["post"])
     def unlink(self, request, uuid=None):
         """
@@ -2610,7 +2614,11 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         ),
     ]
 
-    @action(detail=True, methods=["get"])
+    @extend_schema(
+        request=EmptySerializer,
+        responses=serializers.PlanPeriodsListSerializer,
+    )
+    @action(detail=True, methods=["get"], filter_backends=[])
     def plan_periods(self, request, uuid=None):
         resource = self.get_object()
         qs = models.ResourcePlanPeriod.objects.filter(resource=resource)
