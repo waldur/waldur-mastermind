@@ -833,7 +833,7 @@ class UserSerializer(
     def get_identity_provider_management_url(self, user: core_models.User) -> str:
         return utils.get_identity_provider_management_url(user.registration_method)
 
-    def get_identity_provider_fields(self, user: core_models.User) -> str:
+    def get_identity_provider_fields(self, user: core_models.User) -> list[str]:
         return utils.get_identity_provider_fields(user.registration_method)
 
     class Meta:

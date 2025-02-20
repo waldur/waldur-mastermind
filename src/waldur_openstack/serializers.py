@@ -2779,9 +2779,11 @@ class OpenStackInstanceDeleteSerializer(serializers.Serializer):
 
 
 class OpenStackInstanceSecurityGroupsUpdateSerializer(serializers.Serializer):
-    security_groups = OpenStackNestedSecurityGroupSerializer(
-        queryset=models.SecurityGroup.objects.all(),
+    security_groups = serializers.HyperlinkedRelatedField(
         many=True,
+        view_name="openstack-sgp-detail",
+        lookup_field="uuid",
+        queryset=models.SecurityGroup.objects.all(),
     )
 
     def validate_security_groups(self, security_groups):

@@ -858,6 +858,7 @@ class VolumeViewSet(structure_views.ResourceViewSet):
 
     snapshot_serializer_class = serializers.OpenStackSnapshotSerializer
 
+    @extend_schema(responses=EmptySerializer)
     @decorators.action(detail=True, methods=["post"])
     def attach(self, request, uuid=None):
         """Attach volume to instance"""

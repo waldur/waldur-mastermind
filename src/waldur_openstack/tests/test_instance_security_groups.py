@@ -40,7 +40,10 @@ class InstanceSecurityGroupsTest(test.APITransactionTestCase):
     def test_add_instance_with_security_groups(self):
         data = get_instance_data(self.fixture)
         data["security_groups"] = [
-            self._get_valid_security_group_payload(sg) for sg in self.security_groups
+            {
+                "url": self._get_valid_security_group_payload(sg)
+                for sg in self.security_groups
+            }
         ]
 
         response = self.create_instance(data)
@@ -113,4 +116,4 @@ class InstanceSecurityGroupsTest(test.APITransactionTestCase):
 
     # Helper methods
     def _get_valid_security_group_payload(self, security_group=None):
-        return {"url": factories.SecurityGroupFactory.get_url(security_group)}
+        return factories.SecurityGroupFactory.get_url(security_group)
