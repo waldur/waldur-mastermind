@@ -81,18 +81,26 @@ def get_int_or_none(options, key):
 
 
 class VmwareLimitSerializer(serializers.Serializer):
-    def to_representation(self, service_settings):
-        fields = (
-            "max_cpu",
-            "max_cores_per_socket",
-            "max_ram",
-            "max_disk",
-            "max_disk_total",
-        )
-        result = dict()
-        for field in fields:
-            result[field] = get_int_or_none(service_settings.options, field)
-        return result
+    max_cpu = serializers.SerializerMethodField()
+    max_cores_per_socket = serializers.SerializerMethodField()
+    max_ram = serializers.SerializerMethodField()
+    max_disk = serializers.SerializerMethodField()
+    max_disk_total = serializers.SerializerMethodField()
+
+    def get_max_cpu(self, service_settings) -> int:
+        return get_int_or_none(service_settings.options, "max_cpu")
+
+    def get_max_cores_per_socket(self, service_settings) -> int:
+        return get_int_or_none(service_settings.options, "max_cores_per_socket")
+
+    def get_max_ram(self, service_settings) -> int:
+        return get_int_or_none(service_settings.options, "max_ram")
+
+    def get_max_disk(self, service_settings) -> int:
+        return get_int_or_none(service_settings.options, "max_disk")
+
+    def get_max_disk_total(self, service_settings) -> int:
+        return get_int_or_none(service_settings.options, "max_disk_total")
 
 
 class VmwareNestedPortSerializer(serializers.HyperlinkedModelSerializer):
