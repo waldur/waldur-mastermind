@@ -5,10 +5,10 @@ from django.db.models import Count, OuterRef, Value
 from django.db.models.functions import Coalesce
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from keystoneauth1.exceptions.connection import ConnectFailure
 from rest_framework import decorators, exceptions, generics, response, status
 
-import waldur_openstack.serializers
 from waldur_core.core import exceptions as core_exceptions
 from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
@@ -1024,6 +1024,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
             _("Instance should be shutoff and OK or erred. Please contact support.")
         )
 
+    @extend_schema(responses=EmptySerializer)
     @decorators.action(detail=True, methods=["post"])
     def change_flavor(self, request, uuid=None):
         instance = self.get_object()
@@ -1129,6 +1130,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     ]
     restart_serializer_class = EmptySerializer
 
+    @extend_schema(responses=EmptySerializer)
     @decorators.action(detail=True, methods=["post"])
     def update_security_groups(self, request, uuid=None):
         instance = self.get_object()
@@ -1161,6 +1163,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     backup_validators = [core_validators.StateValidator(models.Instance.States.OK)]
     backup_serializer_class = serializers.BackupSerializer
 
+    @extend_schema(responses=EmptySerializer)
     @decorators.action(detail=True, methods=["post"])
     def update_allowed_address_pairs(self, request, uuid=None):
         instance = self.get_object()
@@ -1199,6 +1202,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         serializers.OpenStackInstanceAllowedAddressPairsUpdateSerializer
     )
 
+    @extend_schema(responses=EmptySerializer)
     @decorators.action(detail=True, methods=["post"])
     def update_ports(self, request, uuid=None):
         instance = self.get_object()
@@ -1223,7 +1227,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         serializer = self.get_serializer(instance.ports.all(), many=True)
         return response.Response(serializer.data, status=status.HTTP_200_OK)
 
-    ports_serializer_class = waldur_openstack.serializers.OpenStackNestedPortSerializer
+    ports_serializer_class = serializers.OpenStackNestedPortSerializer
 
     @decorators.action(detail=True, methods=["post"])
     def update_floating_ips(self, request, uuid=None):
@@ -1245,20 +1249,26 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         serializers.OpenStackInstanceFloatingIPsUpdateSerializer
     )
 
-    @decorators.action(detail=True, methods=["get"])
+    @extend_schema(
+        request=EmptySerializer,
+        responses=serializers.OpenStackInstanceFloatingIpsSerializer,
+        parameters=[],
+    )
+    @decorators.action(detail=True, methods=["get"], filter_backends=[])
     def floating_ips(self, request, uuid=None):
         instance = self.get_object()
-        serializer = self.get_serializer(
+        serializer = serializers.OpenStackNestedFloatingIPSerializer(
             instance=instance.floating_ips.all(),
             queryset=models.FloatingIP.objects.all(),
             many=True,
+            context=self.get_serializer_context(),
         )
         return response.Response(serializer.data, status=status.HTTP_200_OK)
 
-    floating_ips_serializer_class = (
-        waldur_openstack.serializers.OpenStackNestedFloatingIPSerializer
+    @extend_schema(
+        request=EmptySerializer,
+        responses=serializers.OpenStackInstanceConsoleSerializer,
     )
-
     @decorators.action(detail=True, methods=["get"])
     def console(self, request, uuid=None):
         instance = self.get_object()
@@ -1286,6 +1296,11 @@ class InstanceViewSet(structure_views.ResourceViewSet):
 
     console_permissions = [check_permissions_for_console]
 
+    @extend_schema(
+        parameters=[OpenApiParameter("length", int, OpenApiParameter.QUERY)],
+        request=EmptySerializer,
+        responses=str,
+    )
     @decorators.action(detail=True, methods=["get"])
     def console_log(self, request, uuid=None):
         instance = self.get_object()

@@ -3255,3 +3255,11 @@ class OpenStackBackendVolumesSerializer(serializers.ModelSerializer):
             "state",
             "availability_zone",
         )
+
+
+class OpenStackInstanceFloatingIpsSerializer(serializers.ListSerializer):
+    child = OpenStackNestedFloatingIPSerializer(read_only=True)
+
+
+class OpenStackInstanceConsoleSerializer(serializers.Serializer):
+    url = serializers.URLField(read_only=True)
