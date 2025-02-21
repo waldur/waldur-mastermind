@@ -1,5 +1,6 @@
 - role: CUSTOMER.OWNER
   description: Organization owner
+  scope: service_provider
   permissions:
     - OFFERING.CREATE
     - OFFERING.DELETE
@@ -154,6 +155,7 @@
 
 - role: PROJECT.ADMIN
   description: Project administrator
+  scope: project
   permissions:
     - PROJECT.LIST
     - INVITATION.LIST
@@ -169,6 +171,7 @@
 
 - role: PROJECT.MANAGER
   description: Project manager
+  scope: project
   permissions:
     - PROJECT.LIST
     - INVITATION.LIST
@@ -188,6 +191,7 @@
 
 - role: OFFERING.MANAGER
   description: Offering manager
+  scope: offering
   permissions:
     - OFFERING.UPDATE
     - OFFERING.UPDATE_ATTRIBUTES
@@ -212,15 +216,18 @@
 
 - role: CALL.REVIEWER
   description: Call reviewer
+  scope: call
   permissions:
     - PROPOSAL.LIST
 
 - role: CUSTOMER.SUPPORT
   is_active: false
   description: Organization support
+  scope: service_provider
 
 - role: CALL.MANAGER
   description: Call manager
+  scope: call
   permissions:
     - CALL.APPROVE_AND_REJECT_PROPOSALS
     - CALL.CLOSE_ROUNDS
@@ -233,11 +240,13 @@
 
 - role: PROPOSAL.MANAGER
   description: Proposal manager
+  scope: proposal
   permissions:
     - PROPOSAL.MANAGE
 
 - role: PROJECT.MEMBER
   description: Project member
+  scope: project
   is_active: false
   permissions:
     - RESOURCE.LIST
