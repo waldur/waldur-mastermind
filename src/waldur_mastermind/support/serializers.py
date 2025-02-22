@@ -22,6 +22,7 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure.registry import get_resource_type
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
+from waldur_mastermind.support.enums import SupportWebhookEvent
 
 from . import backend, models, utils
 
@@ -408,7 +409,7 @@ class CommentSerializer(
         read_only=True,
     )
 
-    author_uuid = serializers.ReadOnlyField(source="author.user.uuid")
+    author_uuid = serializers.UUIDField(read_only=True, source="author.user.uuid")
     author_email = serializers.ReadOnlyField(source="author.user.email")
     update_is_available = serializers.SerializerMethodField()
     destroy_is_available = serializers.SerializerMethodField()
@@ -519,23 +520,8 @@ class JiraIssueSerializer(serializers.Serializer):
 
 
 class WebHookReceiverSerializer(serializers.Serializer):
-    class Event:
-        ISSUE_UPDATE = 2
-        ISSUE_DELETE = 4
-        COMMENT_CREATE = 5
-        COMMENT_UPDATE = 6
-        COMMENT_DELETE = 7
-
-        ISSUE_ACTIONS = (ISSUE_UPDATE, ISSUE_DELETE)
-        COMMENT_ACTIONS = (COMMENT_CREATE, COMMENT_UPDATE, COMMENT_DELETE)
-
-        CHOICES = {
-            ("jira:issue_updated", ISSUE_UPDATE),
-            ("jira:issue_deleted", ISSUE_DELETE),
-            ("comment_created", COMMENT_CREATE),
-            ("comment_updated", COMMENT_UPDATE),
-            ("comment_deleted", COMMENT_DELETE),
-        }
+    class Event(SupportWebhookEvent):
+        pass
 
     webhookEvent = serializers.ChoiceField(choices=Event.CHOICES)
     issue = JiraIssueSerializer()
@@ -800,7 +786,7 @@ class CreateFeedbackSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class FeedbackSerializer(serializers.HyperlinkedModelSerializer):
-    issue_uuid = serializers.ReadOnlyField(source="issue.uuid")
+    issue_uuid = serializers.UUIDField(read_only=True, source="issue.uuid")
     issue_key = serializers.ReadOnlyField(source="issue.key")
     user_full_name = serializers.ReadOnlyField(source="issue.caller.full_name")
     issue_summary = serializers.ReadOnlyField(source="issue.summary")
@@ -833,3 +819,7 @@ class SupportStatsSerializer(serializers.Serializer):
 
 class DeleteAttachmentsSerializer(serializers.Serializer):
     attachment_ids = serializers.ListField(child=serializers.UUIDField())
+
+
+class SmaxWebHookReceiverSerializer(serializers.Serializer):
+    id = serializers.CharField()

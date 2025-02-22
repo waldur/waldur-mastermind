@@ -21,7 +21,7 @@ class EventSerializer(RestrictedSerializerMixin, serializers.ModelSerializer):
 
 
 class BaseHookSerializer(serializers.HyperlinkedModelSerializer):
-    author_uuid = serializers.CharField(read_only=True, source="user.uuid")
+    author_uuid = serializers.UUIDField(read_only=True, source="user.uuid")
     author_fullname = serializers.CharField(read_only=True, source="user.full_name")
     author_username = serializers.CharField(read_only=True, source="user.username")
     author_email = serializers.CharField(read_only=True, source="user.email")
@@ -131,7 +131,7 @@ class EmailHookSerializer(BaseHookSerializer):
 
 class EventSubscriptionSerializer(serializers.HyperlinkedModelSerializer):
     observable_objects = serializers.JSONField(default=list)
-    user_uuid = serializers.ReadOnlyField(source="user.uuid")
+    user_uuid = serializers.UUIDField(read_only=True, source="user.uuid")
     user_username = serializers.ReadOnlyField(source="user.username")
     user_full_name = serializers.ReadOnlyField(source="user.full_name")
 

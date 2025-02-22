@@ -1,4 +1,5 @@
 from django.utils.translation import gettext_lazy as _
+from drf_spectacular.utils import OpenApiExample, extend_schema
 from rest_framework import decorators, response, status
 
 from waldur_core.core import executors as core_executors
@@ -109,6 +110,17 @@ class DropletViewSet(structure_views.ResourceViewSet):
     ]
     restart_serializer_class = EmptySerializer
 
+    @extend_schema(
+        examples=[
+            OpenApiExample(
+                request_only=True,
+                name="digitalocean-droplet-resize",
+                value={
+                    "size": "http://example.com/api/digitalocean-sizes/1ee385bc043249498cfeb8c7e3e079f0/"
+                },
+            )
+        ]
+    )
     @decorators.action(detail=True, methods=["post"])
     def resize(self, request, uuid=None):
         """
@@ -121,19 +133,7 @@ class DropletViewSet(structure_views.ResourceViewSet):
         Pass {'disk': false} along with target size in order to perform flexible resizing,
         which only upgrades your CPU and RAM. This option is reversible.
 
-        Note that instance must be OFFLINE. Example of a valid request:
-
-        .. code-block:: http
-
-            POST /api/digitalocean-droplets/6c9b01c251c24174a6691a1f894fae31/resize/ HTTP/1.1
-            Content-Type: application/json
-            Accept: application/json
-            Authorization: Token c84d653b9ec92c6cbac41c706593e66f567a7fa4
-            Host: example.com
-
-            {
-                "size": "http://example.com/api/digitalocean-sizes/1ee385bc043249498cfeb8c7e3e079f0/"
-            }
+        Note that instance must be OFFLINE.
         """
         droplet = self.get_object()
         serializer = self.get_serializer(droplet, data=request.data)

@@ -6,10 +6,10 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.generics import GenericAPIView, get_object_or_404
 from rest_framework.mixins import CreateModelMixin, ListModelMixin, RetrieveModelMixin
 from rest_framework.response import Response
-from rest_framework.views import APIView
 from rest_framework.viewsets import GenericViewSet
 
 from waldur_core.core.models import User
+from waldur_core.core.serializers import EmptySerializer
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.models import UserRole
@@ -80,7 +80,16 @@ class QuestionsView(ListModelMixin, GenericViewSet):
         )
 
 
-class StatsView(APIView):
+class StatsView(GenericAPIView):
+    filter_backends = []
+    serializer_class = EmptySerializer
+    pagination_class = None
+
+    @extend_schema(
+        description="Checklist stats per customer",
+        request=EmptySerializer,
+        responses=serializers.ChecklistCustomerStatsSerializer(many=True),
+    )
     def get(self, request, checklist_uuid, format=None):
         if not request.user.is_staff and not request.user.is_support:
             raise PermissionDenied()
@@ -111,6 +120,8 @@ class StatsView(APIView):
 
 class ProjectStatsView(GenericAPIView):
     serializer_class = serializers.ChecklistProjectStatsSerializer
+    filter_backends = []
+    pagination_class = None
 
     def get(self, request, project_uuid, format=None):
         try:
@@ -149,8 +160,13 @@ class ProjectStatsView(GenericAPIView):
         return Response(checklists)
 
 
-class CustomerStatsView(APIView):
+class CustomerStatsView(GenericAPIView):
+    filter_backends = []
+    serializer_class = EmptySerializer
+    pagination_class = None
+
     @extend_schema(
+        operation_id="marketplace-checklists-customer-stats",
         responses=serializers.CustomerChecklistStatSerializer(many=True),
     )
     def get(self, request, customer_uuid, checklist_uuid, format=None):
@@ -186,7 +202,11 @@ class CustomerStatsView(APIView):
         return Response(points)
 
 
-class CustomerChecklistUpdateView(APIView):
+class CustomerChecklistUpdateView(GenericAPIView):
+    filter_backends = []
+    serializer_class = EmptySerializer
+    pagination_class = None
+
     @extend_schema(
         responses=serializers.CustomerChecklistUpdateSerializer,
     )
@@ -299,6 +319,7 @@ class AnswersSubmitView(CreateModelMixin, GenericViewSet):
 
 class UserStatsView(GenericAPIView):
     serializer_class = serializers.UserStatsSerializer
+    pagination_class = None
 
     def get(self, request, user_uuid, format=None):
         visible_users = filter_visible_users(User.objects.all(), self.request.user)

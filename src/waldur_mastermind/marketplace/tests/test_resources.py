@@ -109,10 +109,10 @@ class ResourceGetTest(test.APITransactionTestCase):
     def test_resource_contains_project_and_customer_data_after_project_deletion(self):
         expected_data = {
             "project_name": self.project.name,
-            "project_uuid": self.project.uuid,
+            "project_uuid": self.project.uuid.hex,
             "project_description": self.project.description,
             "customer_name": self.project.customer.name,
-            "customer_uuid": self.project.customer.uuid,
+            "customer_uuid": self.project.customer.uuid.hex,
         }
 
         self.project.delete()

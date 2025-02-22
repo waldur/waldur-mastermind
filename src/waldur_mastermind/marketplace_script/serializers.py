@@ -8,21 +8,23 @@ from waldur_mastermind.marketplace_script import models as marketplace_script_mo
 class CommonSerializer(serializers.Serializer):
     attributes = serializers.ReadOnlyField()
     limits = serializers.ReadOnlyField()
-    customer_uuid = serializers.ReadOnlyField(source="project.customer.uuid")
+    customer_uuid = serializers.UUIDField(
+        read_only=True, source="project.customer.uuid"
+    )
     customer_name = serializers.ReadOnlyField(source="project.customer.name")
-    project_uuid = serializers.ReadOnlyField(source="project.uuid")
+    project_uuid = serializers.UUIDField(read_only=True, source="project.uuid")
     project_name = serializers.ReadOnlyField(source="project.name")
-    offering_uuid = serializers.ReadOnlyField(source="offering.uuid")
+    offering_uuid = serializers.UUIDField(read_only=True, source="offering.uuid")
     offering_name = serializers.ReadOnlyField(source="offering.name")
-    plan_uuid = serializers.ReadOnlyField(source="plan.uuid")
+    plan_uuid = serializers.UUIDField(read_only=True, source="plan.uuid")
     plan_name = serializers.ReadOnlyField(source="plan.name")
 
 
 class OrderSerializer(CommonSerializer):
-    order_uuid = serializers.ReadOnlyField(source="uuid")
+    order_uuid = serializers.UUIDField(read_only=True, source="uuid")
     creator_email = serializers.ReadOnlyField(source="created_by.email")
     creator_username = serializers.ReadOnlyField(source="created_by.username")
-    resource_uuid = serializers.ReadOnlyField(source="resource.uuid")
+    resource_uuid = serializers.UUIDField(read_only=True, source="resource.uuid")
     resource_name = serializers.ReadOnlyField(source="resource.name")
     resource_backend_id = serializers.ReadOnlyField(source="resource.backend_id")
     resource_backend_metadata = serializers.ReadOnlyField(
@@ -32,7 +34,7 @@ class OrderSerializer(CommonSerializer):
 
 
 class ResourceSerializer(CommonSerializer):
-    resource_uuid = serializers.ReadOnlyField(source="uuid")
+    resource_uuid = serializers.UUIDField(read_only=True, source="uuid")
     resource_name = serializers.ReadOnlyField(source="name")
     resource_backend_id = serializers.ReadOnlyField(source="backend_id")
     resource_backend_metadata = serializers.ReadOnlyField(source="backend_metadata")

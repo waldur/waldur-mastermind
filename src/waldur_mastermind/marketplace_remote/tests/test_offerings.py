@@ -74,8 +74,8 @@ class OfferingDetailsPullTest(test.APITransactionTestCase):
         self.offering.backend_id = "offering-backend-id"
         self.offering.secret_options = {
             "api_url": "https://remote-waldur.com/",
-            "token": "123",
-            "customer_uuid": "456",
+            "token": uuid4().hex,
+            "customer_uuid": uuid4().hex,
         }
         self.task = OfferingPullTask()
         self.remote_plan_uuid = uuid4().hex
@@ -392,7 +392,7 @@ class OfferingCreateTest(test.APITransactionTestCase):
         ).start()
         mock.patch("waldur_mastermind.marketplace_remote.utils.import_plans").start()
         client_mock().get_marketplace_public_offering.return_value = {
-            "uuid": "456",
+            "uuid": uuid4().hex,
             "name": "Offering",
             "description": "Description",
             "full_description": "",
@@ -413,8 +413,8 @@ class OfferingCreateTest(test.APITransactionTestCase):
         self.customer.add_user(self.user, CustomerRole.OWNER)
         self.payload = {
             "api_url": "https://remote-waldur.com/",
-            "token": "123",
-            "remote_offering_uuid": "456",
+            "token": uuid4().hex,
+            "remote_offering_uuid": uuid4().hex,
             "remote_customer_uuid": self.customer.uuid.hex,
             "local_customer_uuid": self.customer.uuid.hex,
             "local_category_uuid": factories.CategoryFactory().uuid.hex,
@@ -433,5 +433,5 @@ class OfferingCreateTest(test.APITransactionTestCase):
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_OFFERING)
 
         response = self.client.post(self.url, self.payload)
-        self.client_mock().get_marketplace_public_offering.assert_called_once()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.client_mock().get_marketplace_public_offering.assert_called_once()

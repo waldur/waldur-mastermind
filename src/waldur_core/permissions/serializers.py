@@ -137,14 +137,14 @@ class RoleDescriptionSerializer(TranslatedModelSerializerMixin):
 
 class UserRoleDetailsSerializer(serializers.ModelSerializer):
     role_name = serializers.ReadOnlyField(source="role.name")
-    role_uuid = serializers.ReadOnlyField(source="role.uuid")
-    user_uuid = serializers.ReadOnlyField(source="user.uuid")
+    role_uuid = serializers.UUIDField(read_only=True, source="role.uuid")
+    user_uuid = serializers.UUIDField(read_only=True, source="user.uuid")
     user_email = serializers.ReadOnlyField(source="user.email")
     user_full_name = serializers.ReadOnlyField(source="user.full_name")
     user_username = serializers.ReadOnlyField(source="user.username")
     user_image = serializers.ImageField(source="user.image", read_only=True)
     created_by_full_name = serializers.ReadOnlyField(source="created_by.full_name")
-    created_by_uuid = serializers.ReadOnlyField(source="created_by.uuid")
+    created_by_uuid = serializers.UUIDField(read_only=True, source="created_by.uuid")
 
     class Meta:
         model = models.UserRole
@@ -166,7 +166,7 @@ class UserRoleDetailsSerializer(serializers.ModelSerializer):
 
 
 class PermissionSerializer(serializers.ModelSerializer):
-    user_uuid = serializers.CharField(read_only=True, source="user.uuid")
+    user_uuid = serializers.UUIDField(read_only=True, source="user.uuid")
     user_name = serializers.CharField(read_only=True, source="user.full_name")
     user_slug = serializers.CharField(read_only=True, source="user.slug")
     created_by_full_name = serializers.CharField(
@@ -177,11 +177,11 @@ class PermissionSerializer(serializers.ModelSerializer):
     )
     role_name = serializers.CharField(read_only=True, source="role.name")
     role_description = serializers.CharField(read_only=True, source="role.description")
-    role_uuid = serializers.CharField(read_only=True, source="role.uuid")
+    role_uuid = serializers.UUIDField(read_only=True, source="role.uuid")
     scope_type = serializers.CharField(read_only=True, source="scope._meta.model_name")
-    scope_uuid = serializers.CharField(read_only=True, source="scope.uuid")
+    scope_uuid = serializers.UUIDField(read_only=True, source="scope.uuid")
     scope_name = serializers.CharField(read_only=True, source="scope.name")
-    customer_uuid = serializers.CharField(read_only=True, source="scope.customer.uuid")
+    customer_uuid = serializers.UUIDField(read_only=True, source="scope.customer.uuid")
     customer_name = serializers.CharField(read_only=True, source="scope.customer.name")
 
     class Meta:

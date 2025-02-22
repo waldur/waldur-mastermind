@@ -685,7 +685,9 @@ class ScreenshotSerializer(
             },
         }
 
-    customer_uuid = serializers.ReadOnlyField(source="offering.customer.uuid")
+    customer_uuid = serializers.UUIDField(
+        read_only=True, source="offering.customer.uuid"
+    )
 
     def validate(self, attrs):
         if self.instance:
@@ -1076,7 +1078,7 @@ class ProviderOfferingDetailsSerializer(
     state = serializers.SerializerMethodField()
     state_code = serializers.ReadOnlyField(source="state")
     scope = core_serializers.GenericRelatedField(read_only=True)
-    scope_uuid = serializers.CharField(read_only=True, source="scope.uuid")
+    scope_uuid = serializers.UUIDField(read_only=True, source="scope.uuid")
     scope_state = serializers.SerializerMethodField()
     files = NestedOfferingFileSerializer(many=True, read_only=True)
     quotas = serializers.SerializerMethodField()
@@ -1810,7 +1812,7 @@ class ScriptSecretOptionsSerializer(serializers.Serializer):
 class RemoteServiceSecretOptionsSerializer(serializers.Serializer):
     api_url = serializers.CharField(required=False, help_text="API URL")
     token = serializers.CharField(required=False, help_text="Waldur access token")
-    customer_uuid = serializers.CharField(required=False, help_text="Organization UUID")
+    customer_uuid = serializers.UUIDField(required=False, help_text="Organization UUID")
 
 
 class GenericSecretOptionsSerializer(serializers.Serializer):
@@ -1911,7 +1913,7 @@ class OfferingPermissionSerializer(
     )
     offering_name = serializers.CharField(read_only=True, source="scope.name")
     offering_slug = serializers.CharField(read_only=True, source="scope.slug")
-    offering_uuid = serializers.CharField(read_only=True, source="scope.uuid")
+    offering_uuid = serializers.UUIDField(read_only=True, source="scope.uuid")
 
     class Meta(structure_serializers.BasePermissionSerializer.Meta):
         model = UserRole
@@ -2021,12 +2023,16 @@ class BaseItemSerializer(
         }
 
     provider_name = serializers.ReadOnlyField(source="offering.customer.name")
-    provider_uuid = serializers.ReadOnlyField(source="offering.customer.uuid")
+    provider_uuid = serializers.UUIDField(
+        read_only=True, source="offering.customer.uuid"
+    )
     category_title = serializers.ReadOnlyField(source="offering.category.title")
     category_icon = serializers.ImageField(
         source="offering.category.icon", read_only=True
     )
-    category_uuid = serializers.ReadOnlyField(source="offering.category.uuid")
+    category_uuid = serializers.UUIDField(
+        read_only=True, source="offering.category.uuid"
+    )
     offering_thumbnail = serializers.ImageField(
         source="offering.thumbnail", read_only=True
     )
@@ -2112,10 +2118,16 @@ class BaseOrderSerializer(BaseRequestSerializer):
         )
         protected_fields = ("offering", "plan", "callback_url")
 
-    marketplace_resource_uuid = serializers.ReadOnlyField(source="resource.uuid")
-    resource_name = serializers.ReadOnlyField(source="resource.name")
-    resource_uuid = serializers.ReadOnlyField(source="resource.backend_uuid")
-    resource_type = serializers.ReadOnlyField(source="resource.backend_type")
+    marketplace_resource_uuid = serializers.UUIDField(
+        read_only=True, source="resource.uuid"
+    )
+    resource_name = serializers.CharField(read_only=True, source="resource.name")
+    resource_uuid = serializers.UUIDField(
+        read_only=True, source="resource.backend_uuid"
+    )
+    resource_type = serializers.CharField(
+        read_only=True, source="resource.backend_type"
+    )
     state = serializers.ReadOnlyField(source="get_state_display")
     limits = serializers.DictField(child=serializers.IntegerField(), required=False)
     accepting_terms_of_service = serializers.BooleanField(
@@ -2185,19 +2197,21 @@ class OrderDetailsSerializer(BaseOrderSerializer):
     )
 
     customer_name = serializers.ReadOnlyField(source="project.customer.name")
-    customer_uuid = serializers.ReadOnlyField(source="project.customer.uuid")
+    customer_uuid = serializers.UUIDField(
+        read_only=True, source="project.customer.uuid"
+    )
     customer_slug = serializers.ReadOnlyField(source="project.customer.slug")
 
     project_name = serializers.ReadOnlyField(source="project.name")
-    project_uuid = serializers.ReadOnlyField(source="project.uuid")
+    project_uuid = serializers.UUIDField(read_only=True, source="project.uuid")
     project_description = serializers.ReadOnlyField(source="project.description")
     project_slug = serializers.ReadOnlyField(source="project.slug")
 
     old_plan_name = serializers.ReadOnlyField(source="old_plan.name")
     new_plan_name = serializers.ReadOnlyField(source="plan.name")
 
-    old_plan_uuid = serializers.ReadOnlyField(source="old_plan.uuid")
-    new_plan_uuid = serializers.ReadOnlyField(source="plan.uuid")
+    old_plan_uuid = serializers.UUIDField(read_only=True, source="old_plan.uuid")
+    new_plan_uuid = serializers.UUIDField(read_only=True, source="plan.uuid")
 
     old_cost_estimate = serializers.ReadOnlyField(source="resource.cost")
     new_cost_estimate = serializers.ReadOnlyField(source="cost")
@@ -2302,7 +2316,9 @@ class OrderCreateSerializer(
     serializers.HyperlinkedModelSerializer,
 ):
     state = serializers.ReadOnlyField(source="get_state_display")
-    customer_uuid = serializers.ReadOnlyField(source="project.customer.uuid")
+    customer_uuid = serializers.UUIDField(
+        read_only=True, source="project.customer.uuid"
+    )
     project_name = serializers.ReadOnlyField(source="project.name")
     project_description = serializers.ReadOnlyField(source="project.description")
     customer_name = serializers.ReadOnlyField(source="project.customer.name")
@@ -2441,6 +2457,13 @@ class OrderCreateSerializer(
         return attrs
 
 
+class BackendMetadataSerializer(serializers.Serializer):
+    state = serializers.CharField(read_only=True)
+    runtime_state = serializers.CharField(read_only=True)
+    action = serializers.CharField(read_only=True)
+    instance_name = serializers.CharField(read_only=True, allow_null=True)
+
+
 class ResourceSuggestNameSerializer(serializers.ModelSerializer):
     project = serializers.SlugRelatedField(
         queryset=structure_models.Project.objects.all(), slug_field="uuid"
@@ -2515,6 +2538,8 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "options",
             "available_actions",
             "last_sync",
+            "order_in_progress",
+            "creation_order",
         )
         read_only_fields = (
             "backend_metadata",
@@ -2541,14 +2566,14 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
 
     state = serializers.ReadOnlyField(source="get_state_display")
     scope = core_serializers.GenericRelatedField(read_only=True)
-    resource_uuid = serializers.ReadOnlyField(source="backend_uuid")
+    resource_uuid = serializers.UUIDField(read_only=True, source="backend_uuid")
     resource_type = serializers.ReadOnlyField(source="backend_type")
     project = serializers.HyperlinkedRelatedField(
         lookup_field="uuid",
         view_name="project-detail",
         read_only=True,
     )
-    project_uuid = serializers.ReadOnlyField(source="project.uuid")
+    project_uuid = serializers.UUIDField(read_only=True, source="project.uuid")
     project_name = serializers.ReadOnlyField(source="project.name")
     project_end_date = serializers.ReadOnlyField(source="project.end_date")
     project_end_date_requested_by = serializers.HyperlinkedRelatedField(
@@ -2559,12 +2584,16 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
     )
     project_description = serializers.ReadOnlyField(source="project.description")
     customer_name = serializers.ReadOnlyField(source="project.customer.name")
-    customer_uuid = serializers.ReadOnlyField(source="project.customer.uuid")
-    offering_uuid = serializers.ReadOnlyField(source="offering.uuid")
+    customer_uuid = serializers.UUIDField(
+        read_only=True, source="project.customer.uuid"
+    )
+    offering_uuid = serializers.UUIDField(read_only=True, source="offering.uuid")
     offering_name = serializers.ReadOnlyField(source="offering.name")
-    parent_offering_uuid = serializers.ReadOnlyField(source="offering.parent.uuid")
+    parent_offering_uuid = serializers.UUIDField(
+        read_only=True, source="offering.parent.uuid"
+    )
     parent_offering_name = serializers.ReadOnlyField(source="offering.parent.name")
-    parent_uuid = serializers.ReadOnlyField(source="parent.uuid")
+    parent_uuid = serializers.UUIDField(read_only=True, source="parent.uuid")
     parent_name = serializers.ReadOnlyField(source="parent.name")
     # If resource is usage-based, frontend would render button to show and report usage
     is_usage_based = serializers.ReadOnlyField(source="offering.is_usage_based")
@@ -2574,8 +2603,16 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
     username = serializers.SerializerMethodField()
     limit_usage = serializers.SerializerMethodField()
     endpoints = NestedEndpointSerializer(many=True, read_only=True)
-    offering_customer_uuid = serializers.ReadOnlyField(source="offering.customer.uuid")
+    offering_customer_uuid = serializers.UUIDField(
+        read_only=True, source="offering.customer.uuid"
+    )
     available_actions = serializers.SerializerMethodField()
+    limits = serializers.SerializerMethodField()
+    attributes = serializers.SerializerMethodField()
+    current_usages = serializers.SerializerMethodField()
+    order_in_progress = serializers.SerializerMethodField()
+    creation_order = serializers.SerializerMethodField()
+    backend_metadata = serializers.SerializerMethodField()
 
     def get_can_terminate(self, resource) -> bool:
         view = self.context["view"]
@@ -2641,27 +2678,44 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
     def get_available_actions(self, resource: models.Resource) -> list[str]:
         return plugins.manager.get_available_resource_actions(resource)
 
+    def get_limits(self, resource: models.Resource) -> dict[str, int]:
+        return resource.limits
+
+    def get_attributes(self, resource: models.Resource) -> dict:
+        return resource.safe_attributes
+
+    def get_current_usages(self, resource: models.Resource) -> dict[str, int]:
+        return resource.current_usages
+
+    @extend_schema_field(BackendMetadataSerializer)
+    def get_backend_metadata(self, resource: models.Resource):
+        return resource.backend_metadata
+
+    def get_order_in_progress(
+        self, resource: models.Resource
+    ) -> OrderDetailsSerializer | None:
+        if resource.order_in_progress:
+            return OrderDetailsSerializer(
+                instance=resource.order_in_progress, context=self.context
+            ).data
+
+    def get_creation_order(
+        self, resource: models.Resource
+    ) -> OrderDetailsSerializer | None:
+        if resource.creation_order:
+            return OrderDetailsSerializer(
+                instance=resource.creation_order, context=self.context
+            ).data
+
     def get_fields(self):
         fields = super().get_fields()
-        try:
-            action = self.context["view"].action
-        except (KeyError, AttributeError):
-            return fields
-
+        if "attributes" in fields:
+            fields["attributes"] = serializers.SerializerMethodField()
         query_params = self.context["request"].query_params
         keys = query_params.getlist(self.FIELDS_PARAM_NAME)
-        keys = set(key for key in keys if key in fields.keys())
-
-        if action == "retrieve":
-            if keys:
-                if "order_in_progress" in keys:
-                    fields["order_in_progress"] = OrderDetailsSerializer(read_only=True)
-                if "creation_order" in keys:
-                    fields["creation_order"] = OrderDetailsSerializer(read_only=True)
-            else:
-                fields["order_in_progress"] = OrderDetailsSerializer(read_only=True)
-                fields["creation_order"] = OrderDetailsSerializer(read_only=True)
-
+        for key in ("order_in_progress", "creation_order"):
+            if keys and key not in keys and key in fields:
+                del fields[key]
         return fields
 
 
@@ -2846,7 +2900,9 @@ class CategoryComponentUsageSerializer(
     serializers.ModelSerializer,
 ):
     category_title = serializers.ReadOnlyField(source="component.category.title")
-    category_uuid = serializers.ReadOnlyField(source="component.category.uuid")
+    category_uuid = serializers.UUIDField(
+        read_only=True, source="component.category.uuid"
+    )
     scope = core_serializers.GenericRelatedField(
         related_models=(structure_models.Project, structure_models.Customer)
     )
@@ -2886,10 +2942,12 @@ class BaseComponentUsageSerializer(
 
 class ComponentUsageSerializer(BaseComponentUsageSerializer):
     resource_name = serializers.ReadOnlyField(source="resource.name")
-    resource_uuid = serializers.ReadOnlyField(source="resource.uuid")
+    resource_uuid = serializers.UUIDField(read_only=True, source="resource.uuid")
 
     offering_name = serializers.ReadOnlyField(source="resource.offering.name")
-    offering_uuid = serializers.ReadOnlyField(source="resource.offering.uuid")
+    offering_uuid = serializers.UUIDField(
+        read_only=True, source="resource.offering.uuid"
+    )
 
     project_uuid = serializers.SerializerMethodField()
     project_name = serializers.SerializerMethodField()
@@ -2981,17 +3039,19 @@ class ComponentUserUsageSerializer(serializers.HyperlinkedModelSerializer):
     billing_period = serializers.ReadOnlyField(source="component_usage.billing_period")
 
     resource_name = serializers.ReadOnlyField(source="component_usage.resource.name")
-    resource_uuid = serializers.ReadOnlyField(source="component_usage.resource.uuid")
+    resource_uuid = serializers.UUIDField(
+        read_only=True, source="component_usage.resource.uuid"
+    )
 
     offering_name = serializers.ReadOnlyField(
         source="component_usage.resource.offering.name"
     )
-    offering_uuid = serializers.ReadOnlyField(
-        source="component_usage.resource.offering.uuid"
+    offering_uuid = serializers.UUIDField(
+        read_only=True, source="component_usage.resource.offering.uuid"
     )
 
-    project_uuid = serializers.ReadOnlyField(
-        source="component_usage.resource.project.uuid"
+    project_uuid = serializers.UUIDField(
+        read_only=True, source="component_usage.resource.project.uuid"
     )
     project_name = serializers.ReadOnlyField(
         source="component_usage.resource.project.name"
@@ -3000,8 +3060,8 @@ class ComponentUserUsageSerializer(serializers.HyperlinkedModelSerializer):
     customer_name = serializers.ReadOnlyField(
         source="component_usage.resource.project.customer.name"
     )
-    customer_uuid = serializers.ReadOnlyField(
-        source="component_usage.resource.project.customer.uuid"
+    customer_uuid = serializers.UUIDField(
+        read_only=True, source="component_usage.resource.project.customer.uuid"
     )
     # TODO: temporary functionality, remove after full migration to the new SLURM plugin
     usage = serializers.SerializerMethodField()
@@ -3098,7 +3158,7 @@ class ResourcePlanPeriodSerializer(serializers.ModelSerializer):
         fields = ("uuid", "plan_name", "plan_uuid", "start", "end", "components")
 
     plan_name = serializers.ReadOnlyField(source="plan.name")
-    plan_uuid = serializers.ReadOnlyField(source="plan.uuid")
+    plan_uuid = serializers.UUIDField(read_only=True, source="plan.uuid")
     components = BaseComponentUsageSerializer(source="current_components", many=True)
 
 
@@ -3292,7 +3352,7 @@ class OfferingReferralSerializer(
     core_serializers.AugmentedSerializerMixin,
 ):
     scope = core_serializers.GenericRelatedField(read_only=True)
-    scope_uuid = serializers.CharField(read_only=True, source="scope.uuid")
+    scope_uuid = serializers.UUIDField(read_only=True, source="scope.uuid")
 
     class Meta:
         model = pid_models.DataciteReferral
@@ -3325,12 +3385,14 @@ class OfferingReferralSerializer(
 class OfferingUserSerializer(
     core_serializers.RestrictedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
-    offering_uuid = serializers.ReadOnlyField(source="offering.uuid")
+    offering_uuid = serializers.UUIDField(read_only=True, source="offering.uuid")
     offering_name = serializers.ReadOnlyField(source="offering.name")
-    user_uuid = serializers.ReadOnlyField(source="user.uuid")
+    user_uuid = serializers.UUIDField(read_only=True, source="user.uuid")
     user_username = serializers.ReadOnlyField(source="user.username")
     user_full_name = serializers.ReadOnlyField(source="user.full_name")
-    customer_uuid = serializers.ReadOnlyField(source="offering.customer.uuid")
+    customer_uuid = serializers.UUIDField(
+        read_only=True, source="offering.customer.uuid"
+    )
     customer_name = serializers.ReadOnlyField(source="offering.customer.name")
     is_restricted = serializers.ReadOnlyField()
 
@@ -3420,7 +3482,7 @@ class OfferingUserRoleSerializer(serializers.HyperlinkedModelSerializer):
         view_name="marketplace-provider-offering-detail",
         queryset=models.Offering.objects.all(),
     )
-    offering_uuid = serializers.ReadOnlyField(source="offering.uuid")
+    offering_uuid = serializers.UUIDField(read_only=True, source="offering.uuid")
     offering_name = serializers.ReadOnlyField(source="offering.name")
 
     class Meta:
@@ -3440,9 +3502,9 @@ class ResourceUserSerializer(serializers.HyperlinkedModelSerializer):
         view_name="marketplace-resource-detail",
         queryset=models.Resource.objects.all(),
     )
-    resource_uuid = serializers.ReadOnlyField(source="resource.uuid")
-    role_uuid = serializers.ReadOnlyField(source="role.uuid")
-    user_uuid = serializers.ReadOnlyField(source="user.uuid")
+    resource_uuid = serializers.UUIDField(read_only=True, source="resource.uuid")
+    role_uuid = serializers.UUIDField(read_only=True, source="role.uuid")
+    user_uuid = serializers.UUIDField(read_only=True, source="user.uuid")
     resource_name = serializers.ReadOnlyField(source="resource.name")
     role_name = serializers.ReadOnlyField(source="role.name")
     user_username = serializers.ReadOnlyField(source="user.username")
@@ -3489,7 +3551,7 @@ class ResourceUserSerializer(serializers.HyperlinkedModelSerializer):
 class OfferingUserGroupDetailsSerializer(
     core_serializers.RestrictedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
-    offering_uuid = serializers.ReadOnlyField(source="offering.uuid")
+    offering_uuid = serializers.UUIDField(read_only=True, source="offering.uuid")
     offering_name = serializers.ReadOnlyField(source="offering.name")
     projects = structure_serializers.ProjectSerializer(many=True, read_only=True)
 
@@ -3790,18 +3852,18 @@ class OfferingStatsCounterSerializer(serializers.Serializer):
     count = serializers.IntegerField()
 
 
-class CustomerStatsSerializer(CountStatsSerializer):
+class MarketplaceCustomerStatsSerializer(CountStatsSerializer):
     abbreviation = serializers.SerializerMethodField()
 
     def get_abbreviation(self, record) -> str:
         return self._get_value(record, "abbreviation")
 
 
-class CustomerOecdCodeStatsSerializer(CustomerStatsSerializer):
+class CustomerOecdCodeStatsSerializer(MarketplaceCustomerStatsSerializer):
     oecd = serializers.CharField(source="oecd_fos_2007_name")
 
 
-class CustomerIndustryFlagStatsSerializer(CustomerStatsSerializer):
+class CustomerIndustryFlagStatsSerializer(MarketplaceCustomerStatsSerializer):
     is_industry = serializers.CharField()
 
 
@@ -3812,7 +3874,7 @@ class OfferingCountryStatsSerializer(serializers.Serializer):
 
 class ComponentUsagesStatsSerializer(serializers.Serializer):
     usage = serializers.DecimalField(decimal_places=2, max_digits=20)
-    offering_uuid = serializers.CharField(source="resource__offering__uuid")
+    offering_uuid = serializers.UUIDField(source="resource__offering__uuid")
     component_type = serializers.CharField(source="component__type")
 
 
@@ -3887,8 +3949,8 @@ class ProviderUserSerializer(serializers.ModelSerializer):
 
 
 class ProjectUserSerializer(serializers.ModelSerializer):
-    role = serializers.ReadOnlyField()
-    expiration_time = serializers.ReadOnlyField(source="perm.expiration_time")
+    role = serializers.SerializerMethodField()
+    expiration_time = serializers.SerializerMethodField()
     offering_user_username = serializers.SerializerMethodField()
 
     class Meta:
@@ -3907,23 +3969,22 @@ class ProjectUserSerializer(serializers.ModelSerializer):
             "url": {"lookup_field": "uuid"},
         }
 
-    def get_offering_user_username(self, user):
+    def get_offering_user_username(self, user) -> str | None:
         offering = self.context["offering"]
         offering_user = models.OfferingUser.objects.filter(
             user=user, offering=offering
         ).first()
         return offering_user.username if offering_user else None
 
-    def to_representation(self, user):
+    def get_role(self, user: User) -> str:
         project = self.context["project"]
         permission = get_permissions(project, user).first()
-        setattr(user, "perm", permission)
-        setattr(
-            user,
-            "role",
-            permission and permission.role.name,
-        )
-        return super().to_representation(user)
+        return permission and permission.role.name
+
+    def get_expiration_time(self, user: User) -> datetime.datetime | None:
+        project = self.context["project"]
+        permission = get_permissions(project, user).first()
+        return permission and permission.expiration_time
 
 
 class DetailedProviderUserSerializer(
@@ -4063,7 +4124,7 @@ class ProviderOfferingSerializer(
     core_serializers.RestrictedSerializerMixin,
     serializers.ModelSerializer,
 ):
-    customer_uuid = serializers.ReadOnlyField(source="customer.uuid")
+    customer_uuid = serializers.UUIDField(read_only=True, source="customer.uuid")
 
     class Meta:
         model = models.Offering
@@ -4229,17 +4290,17 @@ class RobotAccountDetailsSerializer(RobotAccountSerializer):
     users = structure_serializers.BasicUserSerializer(many=True, read_only=True)
     responsible_user = structure_serializers.BasicUserSerializer(read_only=True)
     user_keys = serializers.SerializerMethodField()
-    resource_uuid = serializers.CharField(read_only=True, source="resource.uuid")
+    resource_uuid = serializers.UUIDField(read_only=True, source="resource.uuid")
     resource_name = serializers.CharField(read_only=True, source="resource.name")
-    project_uuid = serializers.CharField(read_only=True, source="resource.project.uuid")
+    project_uuid = serializers.UUIDField(read_only=True, source="resource.project.uuid")
     project_name = serializers.CharField(read_only=True, source="resource.project.name")
-    customer_uuid = serializers.CharField(
+    customer_uuid = serializers.UUIDField(
         read_only=True, source="resource.project.customer.uuid"
     )
     customer_name = serializers.CharField(
         read_only=True, source="resource.project.customer.name"
     )
-    offering_customer_uuid = serializers.CharField(
+    offering_customer_uuid = serializers.UUIDField(
         read_only=True, source="resource.offering.customer.uuid"
     )
     offering_plugin_options = serializers.CharField(
@@ -4464,3 +4525,20 @@ class DetailStateSerializer(serializers.Serializer):
 
 class PlanPeriodsListSerializer(serializers.ListSerializer):
     child = ResourcePlanPeriodSerializer(read_only=True)
+
+
+class RemoveOfferingComponentSerializer(serializers.Serializer):
+    uuid = serializers.UUIDField()
+
+
+class RuntimeStatesSerializer(serializers.Serializer):
+    value = serializers.CharField(read_only=True)
+    label = serializers.CharField(read_only=True)
+
+
+class CustomerMemberCountSerializer(serializers.Serializer):
+    uuid = serializers.UUIDField(read_only=True)
+    name = serializers.CharField(read_only=True)
+    abbreviation = serializers.CharField(read_only=True)
+    count = serializers.IntegerField(read_only=True)
+    has_resources = serializers.BooleanField(read_only=True)

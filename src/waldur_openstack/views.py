@@ -5,7 +5,7 @@ from django.db.models import Count, OuterRef, Value
 from django.db.models.functions import Coalesce
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.utils import OpenApiParameter, extend_schema
+from drf_spectacular.utils import OpenApiExample, OpenApiParameter, extend_schema
 from keystoneauth1.exceptions.connection import ConnectFailure
 from rest_framework import decorators, exceptions, generics, response, status
 
@@ -380,6 +380,24 @@ class TenantViewSet(structure_views.ResourceViewSet):
     delete_executor = executors.TenantDeleteExecutor
     destroy_permissions = [delete_permission_check]
 
+    @extend_schema(
+        examples=[
+            OpenApiExample(
+                request_only=True,
+                name="openstack-tenant-set-quotas",
+                value={
+                    "instances": 30,
+                    "ram": 100000,
+                    "storage": 1000000,
+                    "vcpu": 30,
+                    "security_group_count": 100,
+                    "security_group_rule_count": 100,
+                    "volumes": 10,
+                    "snapshots": 20,
+                },
+            )
+        ]
+    )
     @decorators.action(detail=True, methods=["post"])
     def set_quotas(self, request, uuid=None):
         """
@@ -404,26 +422,6 @@ class TenantViewSet(structure_views.ResourceViewSet):
         some quotas might not be applied.
 
         .. _MiB: http://en.wikipedia.org/wiki/Mebibyte
-
-        Example of a valid request (token is user specific):
-
-        .. code-block:: http
-
-            POST /api/openstack-tenants/c84d653b9ec92c6cbac41c706593e66f567a7fa4/set_quotas/ HTTP/1.1
-            Content-Type: application/json
-            Accept: application/json
-            Host: example.com
-
-            {
-                "instances": 30,
-                "ram": 100000,
-                "storage": 1000000,
-                "vcpu": 30,
-                "security_group_count": 100,
-                "security_group_rule_count": 100,
-                "volumes": 10,
-                "snapshots": 20
-            }
 
         Response code of a successful request is **202 ACCEPTED**.
         In case tenant is in a non-stable status, the response would be **409 CONFLICT**.
@@ -498,32 +496,35 @@ class TenantViewSet(structure_views.ResourceViewSet):
     ]
     pull_floating_ips_serializer_class = EmptySerializer
 
+    @extend_schema(
+        examples=[
+            OpenApiExample(
+                request_only=True,
+                name="openstack-tenant-create-security-group",
+                description="Example of creating a security group with rules",
+                value={
+                    "name": "Security group name",
+                    "description": "description",
+                    "rules": [
+                        {
+                            "protocol": "tcp",
+                            "from_port": 1,
+                            "to_port": 10,
+                            "cidr": "10.1.1.0/24",
+                        },
+                        {
+                            "protocol": "udp",
+                            "from_port": 10,
+                            "to_port": 8000,
+                            "cidr": "10.1.1.0/24",
+                        },
+                    ],
+                },
+            )
+        ]
+    )
     @decorators.action(detail=True, methods=["post"])
     def create_security_group(self, request, uuid=None):
-        """
-        Example of a request:
-
-        .. code-block:: http
-
-            {
-                "name": "Security group name",
-                "description": "description",
-                "rules": [
-                    {
-                        "protocol": "tcp",
-                        "from_port": 1,
-                        "to_port": 10,
-                        "cidr": "10.1.1.0/24"
-                    },
-                    {
-                        "protocol": "udp",
-                        "from_port": 10,
-                        "to_port": 8000,
-                        "cidr": "10.1.1.0/24"
-                    }
-                ]
-            }
-        """
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         security_group = serializer.save()
@@ -562,18 +563,17 @@ class TenantViewSet(structure_views.ResourceViewSet):
         core_validators.StateValidator(models.Tenant.States.OK)
     ]
 
+    @extend_schema(
+        examples=[
+            OpenApiExample(
+                request_only=True,
+                name="openstack-tenant-create-server-group",
+                value={"name": "Server group name", "policy": "affinity"},
+            )
+        ]
+    )
     @decorators.action(detail=True, methods=["post"])
     def create_server_group(self, request, uuid=None):
-        """
-        Example of a request:
-
-        .. code-block:: http
-
-            {
-                "name": "Server group name",
-                "policy": "affinity"
-            }
-        """
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         server_group = serializer.save()
@@ -607,6 +607,9 @@ class TenantViewSet(structure_views.ResourceViewSet):
         core_validators.StateValidator(models.Tenant.States.OK)
     ]
 
+    @extend_schema(
+        description="It triggers celery job to pull quotas from remote VPC",
+    )
     @decorators.action(detail=True, methods=["post"])
     def pull_quotas(self, request, uuid=None):
         executors.TenantPullQuotasExecutor.execute(self.get_object())
@@ -617,6 +620,10 @@ class TenantViewSet(structure_views.ResourceViewSet):
 
     pull_quotas_validators = [core_validators.StateValidator(models.Tenant.States.OK)]
 
+    @extend_schema(
+        description="Return a list of volumes from backend",
+        responses=serializers.OpenStackBackendInstanceSerializer(many=True),
+    )
     @decorators.action(detail=True)
     def backend_instances(self, request, uuid=None):
         tenant: models.Tenant = self.get_object()
@@ -629,6 +636,10 @@ class TenantViewSet(structure_views.ResourceViewSet):
             raise exceptions.ValidationError(e)
         return response.Response(serializer.data, status=status.HTTP_200_OK)
 
+    @extend_schema(
+        description="Return a list of volumes from backend",
+        responses=serializers.OpenStackBackendVolumesSerializer(many=True),
+    )
     @decorators.action(detail=True)
     def backend_volumes(self, request, uuid=None):
         tenant: models.Tenant = self.get_object()
@@ -858,7 +869,7 @@ class VolumeViewSet(structure_views.ResourceViewSet):
 
     snapshot_serializer_class = serializers.OpenStackSnapshotSerializer
 
-    @extend_schema(responses=EmptySerializer)
+    @extend_schema(responses=None)
     @decorators.action(detail=True, methods=["post"])
     def attach(self, request, uuid=None):
         """Attach volume to instance"""
@@ -1025,7 +1036,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
             _("Instance should be shutoff and OK or erred. Please contact support.")
         )
 
-    @extend_schema(responses=EmptySerializer)
+    @extend_schema(responses=None)
     @decorators.action(detail=True, methods=["post"])
     def change_flavor(self, request, uuid=None):
         instance = self.get_object()
@@ -1131,7 +1142,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     ]
     restart_serializer_class = EmptySerializer
 
-    @extend_schema(responses=EmptySerializer)
+    @extend_schema(responses=None)
     @decorators.action(detail=True, methods=["post"])
     def update_security_groups(self, request, uuid=None):
         instance = self.get_object()
@@ -1164,7 +1175,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     backup_validators = [core_validators.StateValidator(models.Instance.States.OK)]
     backup_serializer_class = serializers.BackupSerializer
 
-    @extend_schema(responses=EmptySerializer)
+    @extend_schema(responses=None)
     @decorators.action(detail=True, methods=["post"])
     def update_allowed_address_pairs(self, request, uuid=None):
         instance = self.get_object()
@@ -1203,7 +1214,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         serializers.OpenStackInstanceAllowedAddressPairsUpdateSerializer
     )
 
-    @extend_schema(responses=EmptySerializer)
+    @extend_schema(responses=None)
     @decorators.action(detail=True, methods=["post"])
     def update_ports(self, request, uuid=None):
         instance = self.get_object()
@@ -1251,7 +1262,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     )
 
     @extend_schema(
-        request=EmptySerializer,
+        request=None,
         responses=serializers.OpenStackInstanceFloatingIpsSerializer,
         parameters=[],
     )
@@ -1267,7 +1278,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         return response.Response(serializer.data, status=status.HTTP_200_OK)
 
     @extend_schema(
-        request=EmptySerializer,
+        request=None,
         responses=serializers.OpenStackInstanceConsoleSerializer,
     )
     @decorators.action(detail=True, methods=["get"])
@@ -1299,7 +1310,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
 
     @extend_schema(
         parameters=[OpenApiParameter("length", int, OpenApiParameter.QUERY)],
-        request=EmptySerializer,
+        request=None,
         responses=str,
     )
     @decorators.action(detail=True, methods=["get"])

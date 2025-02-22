@@ -352,7 +352,9 @@ class OpenStackFloatingIPDescriptionUpdateSerializer(serializers.Serializer):
 
 class BaseSecurityGroupRuleSerializer(serializers.ModelSerializer):
     remote_group_name = serializers.ReadOnlyField(source="remote_group.name")
-    remote_group_uuid = serializers.ReadOnlyField(source="remote_group.uuid")
+    remote_group_uuid = serializers.UUIDField(
+        read_only=True, source="remote_group.uuid"
+    )
 
     class Meta:
         fields = (
@@ -1090,7 +1092,7 @@ class OpenStackRouterSetRoutesSerializer(serializers.Serializer):
 class OpenStackRouterSerializer(structure_serializers.BaseResourceSerializer):
     routes = OpenStackStaticRouteSerializer(many=True)
     tenant_name = serializers.CharField(source="tenant.name", read_only=True)
-    tenant_uuid = serializers.CharField(source="tenant.uuid", read_only=True)
+    tenant_uuid = serializers.UUIDField(source="tenant.uuid", read_only=True)
     fixed_ips = serializers.JSONField(read_only=True)
 
     class Meta:
@@ -1116,9 +1118,9 @@ class OpenStackPortNestedSecurityGroupSerializer(serializers.ModelSerializer):
 
 class OpenStackPortSerializer(structure_serializers.BaseResourceActionSerializer):
     tenant_name = serializers.CharField(source="tenant.name", read_only=True)
-    tenant_uuid = serializers.CharField(source="tenant.uuid", read_only=True)
+    tenant_uuid = serializers.UUIDField(source="tenant.uuid", read_only=True)
     network_name = serializers.CharField(source="network.name", read_only=True)
-    network_uuid = serializers.CharField(source="network.uuid", read_only=True)
+    network_uuid = serializers.UUIDField(source="network.uuid", read_only=True)
     allowed_address_pairs = serializers.JSONField(read_only=True)
     floating_ips = serializers.HyperlinkedRelatedField(
         view_name="openstack-fip-detail",
@@ -1234,7 +1236,7 @@ class OpenStackNetworkSerializer(
 ):
     subnets = OpenStackNestedSubNetSerializer(many=True, read_only=True)
     tenant_name = serializers.CharField(source="tenant.name", read_only=True)
-    tenant_uuid = serializers.CharField(source="tenant.uuid", read_only=True)
+    tenant_uuid = serializers.UUIDField(source="tenant.uuid", read_only=True)
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Network
@@ -1514,7 +1516,7 @@ class OpenStackNestedFloatingIPSerializer(
         view_name="openstack-subnet-detail",
         lookup_field="uuid",
     )
-    subnet_uuid = serializers.ReadOnlyField(source="port.subnet.uuid")
+    subnet_uuid = serializers.UUIDField(read_only=True, source="port.subnet.uuid")
     subnet_name = serializers.ReadOnlyField(source="port.subnet.name")
     subnet_description = serializers.ReadOnlyField(source="port.subnet.description")
     subnet_cidr = serializers.ReadOnlyField(source="port.subnet.cidr")
@@ -1618,8 +1620,8 @@ class OpenStackVolumeSerializer(structure_serializers.BaseResourceSerializer):
     action_details = serializers.JSONField(read_only=True)
     metadata = serializers.JSONField(read_only=True)
     instance_name = serializers.ReadOnlyField(source="instance.name")
-    instance_marketplace_uuid = serializers.ReadOnlyField(
-        source="instance.marketplace_uuid"
+    instance_marketplace_uuid = serializers.UUIDField(
+        read_only=True, source="instance.marketplace_uuid"
     )
     type_name = serializers.CharField(source="type.name", read_only=True)
     availability_zone_name = serializers.CharField(
@@ -1635,7 +1637,7 @@ class OpenStackVolumeSerializer(structure_serializers.BaseResourceSerializer):
         view_name="servicesettings-detail",
         lookup_field="uuid",
     )
-    tenant_uuid = serializers.ReadOnlyField(source="tenant.uuid")
+    tenant_uuid = serializers.UUIDField(read_only=True, source="tenant.uuid")
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Volume
@@ -1967,8 +1969,8 @@ class OpenStackSnapshotRestorationSerializer(
 
 class OpenStackSnapshotSerializer(structure_serializers.BaseResourceActionSerializer):
     source_volume_name = serializers.ReadOnlyField(source="source_volume.name")
-    source_volume_marketplace_uuid = serializers.ReadOnlyField(
-        source="source_volume.marketplace_uuid"
+    source_volume_marketplace_uuid = serializers.UUIDField(
+        read_only=True, source="source_volume.marketplace_uuid"
     )
     action_details = serializers.JSONField(read_only=True)
     metadata = serializers.JSONField(required=False)
@@ -2359,7 +2361,7 @@ class OpenStackInstanceSerializer(structure_serializers.VirtualMachineSerializer
     availability_zone_name = serializers.CharField(
         source="availability_zone.name", read_only=True
     )
-    tenant_uuid = serializers.ReadOnlyField(source="tenant.uuid")
+    tenant_uuid = serializers.UUIDField(read_only=True, source="tenant.uuid")
 
     class Meta(structure_serializers.VirtualMachineSerializer.Meta):
         model = models.Instance
@@ -3055,8 +3057,8 @@ class OpenStackBackupRestorationSerializer(serializers.HyperlinkedModelSerialize
 class BackupSerializer(structure_serializers.BaseResourceActionSerializer):
     metadata = serializers.JSONField(read_only=True)
     instance_name = serializers.ReadOnlyField(source="instance.name")
-    instance_marketplace_uuid = serializers.ReadOnlyField(
-        source="instance.marketplace_uuid"
+    instance_marketplace_uuid = serializers.UUIDField(
+        read_only=True, source="instance.marketplace_uuid"
     )
     instance_security_groups = OpenStackNestedSecurityGroupSerializer(
         read_only=True, many=True, source="instance.security_groups"
@@ -3069,7 +3071,7 @@ class BackupSerializer(structure_serializers.BaseResourceActionSerializer):
     )
 
     restorations = OpenStackBackupRestorationSerializer(many=True, read_only=True)
-    tenant_uuid = serializers.ReadOnlyField(source="tenant.uuid")
+    tenant_uuid = serializers.UUIDField(read_only=True, source="tenant.uuid")
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Backup

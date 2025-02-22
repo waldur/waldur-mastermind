@@ -38,7 +38,7 @@ class LexisLinkSerializer(serializers.HyperlinkedModelSerializer):
             },
         )
 
-    resource_uuid = serializers.CharField(
+    resource_uuid = serializers.UUIDField(
         read_only=True, source="robot_account.resource.uuid"
     )
     resource_name = serializers.CharField(
@@ -53,13 +53,13 @@ class LexisLinkSerializer(serializers.HyperlinkedModelSerializer):
     resource_end_date = serializers.DateTimeField(
         read_only=True, source="robot_account.resource.end_date"
     )
-    project_uuid = serializers.CharField(
+    project_uuid = serializers.UUIDField(
         read_only=True, source="robot_account.resource.project.uuid"
     )
     project_name = serializers.CharField(
         read_only=True, source="robot_account.resource.project.name"
     )
-    customer_uuid = serializers.CharField(
+    customer_uuid = serializers.UUIDField(
         read_only=True, source="robot_account.resource.project.customer.uuid"
     )
     customer_name = serializers.CharField(

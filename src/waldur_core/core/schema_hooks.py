@@ -5,9 +5,6 @@ def postprocess_drop_description(result, generator, **kwargs):
     """
     Remove descriptions from OpenAPI schema paths and components.
     """
-    for methods in result.get("paths", {}).values():
-        for operation in methods.values():
-            operation["description"] = ""
     for methods in result.get("components", {}).values():
         for operation in methods.values():
             operation["description"] = ""

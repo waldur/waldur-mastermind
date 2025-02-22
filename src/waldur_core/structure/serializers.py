@@ -369,7 +369,7 @@ class CountrySerializerMixin(serializers.Serializer):
 
 
 class OrganizationGroupSerializer(serializers.HyperlinkedModelSerializer):
-    parent_uuid = serializers.CharField(read_only=True, source="parent.uuid")
+    parent_uuid = serializers.UUIDField(read_only=True, source="parent.uuid")
     parent_name = serializers.CharField(read_only=True, source="parent.name")
     customers_count = serializers.SerializerMethodField()
 
@@ -737,9 +737,9 @@ class CustomerPermissionReviewSerializer(
 class ProjectPermissionLogSerializer(
     core_serializers.RestrictedSerializerMixin, BasePermissionSerializer
 ):
-    customer_uuid = serializers.CharField(read_only=True, source="scope.customer.uuid")
+    customer_uuid = serializers.UUIDField(read_only=True, source="scope.customer.uuid")
     customer_name = serializers.CharField(read_only=True, source="scope.customer.name")
-    project_uuid = serializers.CharField(read_only=True, source="scope.uuid")
+    project_uuid = serializers.UUIDField(read_only=True, source="scope.uuid")
     project_name = serializers.CharField(read_only=True, source="scope.name")
     project_created = serializers.DateTimeField(read_only=True, source="scope.created")
     project_end_date = serializers.DateTimeField(
@@ -998,7 +998,7 @@ class UserEmailChangeSerializer(serializers.Serializer):
 class SshKeySerializer(
     core_serializers.RestrictedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
-    user_uuid = serializers.ReadOnlyField(source="user.uuid")
+    user_uuid = serializers.UUIDField(read_only=True, source="user.uuid")
 
     class Meta:
         model = core_models.SshPublicKey
@@ -1081,7 +1081,7 @@ class ServiceSettingsSerializer(
         required=False,
         allow_null=True,
     )
-    scope_uuid = serializers.CharField(read_only=True, source="scope.uuid")
+    scope_uuid = serializers.UUIDField(read_only=True, source="scope.uuid")
     options = serializers.DictField()
 
     class Meta:
@@ -1171,7 +1171,7 @@ class BaseResourceSerializer(
     )
 
     project_name = serializers.CharField(read_only=True, source="project.name")
-    project_uuid = serializers.CharField(read_only=True, source="project.uuid")
+    project_uuid = serializers.UUIDField(read_only=True, source="project.uuid")
 
     service_name = serializers.CharField(read_only=True, source="service_settings.name")
 
@@ -1180,7 +1180,7 @@ class BaseResourceSerializer(
         view_name="servicesettings-detail",
         lookup_field="uuid",
     )
-    service_settings_uuid = serializers.CharField(
+    service_settings_uuid = serializers.UUIDField(
         read_only=True, source="service_settings.uuid"
     )
     service_settings_state = serializers.CharField(
@@ -1536,7 +1536,7 @@ class ComponentStatsSerializer(serializers.Serializer):
     limit_usage = serializers.IntegerField(read_only=True)
     limit = serializers.IntegerField(read_only=True)
     offering_name = serializers.CharField(read_only=True)
-    offering_uuid = serializers.CharField(read_only=True)
+    offering_uuid = serializers.UUIDField(read_only=True)
 
 
 class ComponentsUsageStatsSerializer(serializers.Serializer):

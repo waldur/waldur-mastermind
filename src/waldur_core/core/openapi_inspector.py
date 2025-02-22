@@ -1,7 +1,14 @@
 from drf_spectacular.openapi import AutoSchema
+from drf_spectacular.plumbing import get_doc
 
 
 class WaldurOpenApiInspector(AutoSchema):
+    def get_description(self) -> str:
+        action_or_method = getattr(
+            self.view, getattr(self.view, "action", self.method.lower()), None
+        )
+        return get_doc(action_or_method)
+
     def get_operation_id(self) -> str:
         path = self._tokenize_path()
 

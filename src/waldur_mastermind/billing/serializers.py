@@ -131,3 +131,8 @@ class FinancialReportSerializer(serializers.ModelSerializer):
     @extend_schema_field(PaymentProfileSerializer(many=True))
     def get_payment_profiles(self, customer):
         return get_payment_profiles(self, customer)
+
+
+class TotalCustomerCostSerializer(serializers.Serializer):
+    total = serializers.FloatField(read_only=True)
+    price = serializers.FloatField(read_only=True)

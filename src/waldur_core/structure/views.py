@@ -11,7 +11,12 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.utils import OpenApiParameter, extend_schema
+from drf_spectacular.utils import (
+    OpenApiExample,
+    OpenApiParameter,
+    extend_schema,
+    extend_schema_view,
+)
 from rest_framework import filters as rf_filters
 from rest_framework import mixins, status, viewsets
 from rest_framework import permissions as rf_permissions
@@ -118,43 +123,28 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
         """
         return super().retrieve(request, *args, **kwargs)
 
+    @extend_schema(
+        description="A new customer can only be created by users with staff privilege",
+        request=serializers.CustomerSerializer,
+        examples=[
+            OpenApiExample(
+                name="Create customer",
+                value={
+                    "name": "Customer A",
+                    "native_name": "Customer A",
+                    "abbreviation": "CA",
+                    "contact_details": "Luhamaa 28, 10128 Tallinn",
+                },
+                request_only=True,
+            ),
+        ],
+    )
     def create(self, request, *args, **kwargs):
-        """
-        A new customer can only be created:
-
-         - by users with staff privilege (is_staff=True);
-
-        Example of a valid request:
-
-        .. code-block:: http
-
-            POST /api/customers/ HTTP/1.1
-            Content-Type: application/json
-            Accept: application/json
-            Authorization: Token c84d653b9ec92c6cbac41c706593e66f567a7fa4
-            Host: example.com
-
-            {
-                "name": "Customer A",
-                "native_name": "Customer A",
-                "abbreviation": "CA",
-                "contact_details": "Luhamaa 28, 10128 Tallinn",
-            }
-        """
         return super().create(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
         """
-        Deletion of a customer is done through sending a **DELETE** request to the customer instance URI. Please note,
-        that if a customer has connected projects, deletion request will fail with 409 response code.
-
-        Valid request example (token is user specific):
-
-        .. code-block:: http
-
-            DELETE /api/customers/6c9b01c251c24174a6691a1f894fae31/ HTTP/1.1
-            Authorization: Token c84d653b9ec92c6cbac41c706593e66f567a7fa4
-            Host: example.com
+        If a customer has connected projects, deletion request will fail with 409 response code.
         """
         return super().destroy(request, *args, **kwargs)
 
@@ -387,38 +377,29 @@ class ProjectViewSet(
         """
         return super().retrieve(request, *args, **kwargs)
 
+    @extend_schema(
+        request=serializers.ProjectSerializer,
+        examples=[
+            OpenApiExample(
+                name="Create project",
+                value={
+                    "name": "Project A",
+                    "customer": "http://example.com/api/customers/6c9b01c251c24174a6691a1f894fae31/",
+                },
+                request_only=True,
+            ),
+        ],
+    )
     def create(self, request, *args, **kwargs):
         """
         A new project can be created by users with staff privilege (is_staff=True) or customer owners.
-        Project resource quota is optional. Example of a valid request:
-
-        .. code-block:: http
-
-            POST /api/projects/ HTTP/1.1
-            Content-Type: application/json
-            Accept: application/json
-            Authorization: Token c84d653b9ec92c6cbac41c706593e66f567a7fa4
-            Host: example.com
-
-            {
-                "name": "Project A",
-                "customer": "http://example.com/api/customers/6c9b01c251c24174a6691a1f894fae31/",
-            }
+        Project resource quota is optional.
         """
         return super().create(request, *args, **kwargs)
 
     def destroy(self, request, *args, **kwargs):
         """
-        Deletion of a project is done through sending a **DELETE** request to the project instance URI.
-        Please note, that if a project has connected instances, deletion request will fail with 409 response code.
-
-        Valid request example (token is user specific):
-
-        .. code-block:: http
-
-            DELETE /api/projects/6c9b01c251c24174a6691a1f894fae31/ HTTP/1.1
-            Authorization: Token c84d653b9ec92c6cbac41c706593e66f567a7fa4
-            Host: example.com
+        If a project has connected instances, deletion request will fail with 409 response code.
         """
         return super().destroy(request, *args, **kwargs)
 
@@ -518,47 +499,6 @@ class UserViewSet(core_views.ActionsViewSet):
         return qs.filter(is_active=True)
 
     def list(self, request, *args, **kwargs):
-        """
-        User list is available to all authenticated users. To get a list,
-        issue authenticated **GET** request against */api/users/*.
-
-        User list supports several filters. All filters are set in HTTP query section.
-        Field filters are listed below. All of the filters apart from ?organization are
-        using case insensitive partial matching.
-
-        Several custom filters are supported:
-
-        - ?current - filters out user making a request. Useful for getting information about a currently logged in user.
-        - ?civil_number=XXX - filters out users with a specified civil number
-        - ?is_active=True|False - show only active (non-active) users
-
-        The user can be created either through automated process on login with SAML token, or through a REST call by a user
-        with staff privilege.
-
-        Example of a creation request is below.
-
-        .. code-block:: http
-
-            POST /api/users/ HTTP/1.1
-            Content-Type: application/json
-            Accept: application/json
-            Authorization: Token c84d653b9ec92c6cbac41c706593e66f567a7fa4
-            Host: example.com
-
-            {
-                "username": "sample-user",
-                "full_name": "full name",
-                "native_name": "taisnimi",
-                "job_title": "senior cleaning manager",
-                "email": "example@example.com",
-                "civil_number": "12121212",
-                "phone_number": "",
-                "description": "",
-                "organization": "",
-            }
-
-        NB! Username field is case-insensitive. So "John" and "john" will be treated as the same user.
-        """
         if request.user.is_identity_manager and not (
             request.user.is_staff or request.user.is_support
         ):
@@ -569,7 +509,9 @@ class UserViewSet(core_views.ActionsViewSet):
         return super().list(request, *args, **kwargs)
 
     @extend_schema(
-        request=serializers.UserEmailChangeSerializer, responses=EmptySerializer
+        request=serializers.UserEmailChangeSerializer,
+        responses=None,
+        description="Allows to change email for user.",
     )
     @action(detail=True, methods=["post"])
     def change_email(self, request, uuid=None):
@@ -605,8 +547,9 @@ class UserViewSet(core_views.ActionsViewSet):
     change_email_serializer_class = serializers.UserEmailChangeSerializer
 
     @extend_schema(
-        request=EmptySerializer,
-        responses=EmptySerializer,
+        request=None,
+        responses=None,
+        description="Cancel email update request",
     )
     @action(detail=True, methods=["post"])
     def cancel_change_email(self, request, uuid=None):
@@ -621,7 +564,9 @@ class UserViewSet(core_views.ActionsViewSet):
         return Response({"detail": msg}, status=status.HTTP_200_OK)
 
     @extend_schema(
-        request=serializers.ConfirmEmailRequestSerializer, responses=EmptySerializer
+        request=serializers.ConfirmEmailRequestSerializer,
+        responses=None,
+        description="Confirm email update using code",
     )
     @action(detail=False, methods=["post"])
     def confirm_email(self, request):
@@ -653,6 +598,9 @@ class UserViewSet(core_views.ActionsViewSet):
             return
         super().check_permissions(request)
 
+    @extend_schema(
+        description="Get current user details, including authentication token."
+    )
     @action(detail=False, methods=["get"])
     def me(self, request):
         serializer = self.get_serializer(request.user)
@@ -662,7 +610,11 @@ class UserViewSet(core_views.ActionsViewSet):
             status=status.HTTP_200_OK,
         )
 
-    @extend_schema(request=EmptySerializer, responses=EmptySerializer)
+    @extend_schema(
+        request=None,
+        responses=None,
+        description="Pulls remote user data from eduTEAMS.",
+    )
     @action(detail=True, methods=["post"])
     def pull_remote_user(self, request, uuid=None):
         user = self.get_object()
@@ -678,6 +630,11 @@ class UserViewSet(core_views.ActionsViewSet):
         pull_remote_eduteams_user(user.username)
         return Response(status=status.HTTP_200_OK)
 
+    @extend_schema(
+        request=serializers.PasswordChangeSerializer,
+        responses=None,
+        description="Allows staff user to change password for any user.",
+    )
     @action(detail=True, methods=["post"])
     def change_password(self, request, uuid=None):
         user = self.get_object()
@@ -715,6 +672,7 @@ class UserViewSet(core_views.ActionsViewSet):
     @extend_schema(
         request=serializers.UserAuthTokenSerializer,
         responses=serializers.UserAuthTokenSerializer,
+        description="Allows to refresh user auth token.",
     )
     @action(detail=True, methods=["post"])
     def refresh_token(self, request, uuid=None):
@@ -753,8 +711,9 @@ class CustomerPermissionReviewViewSet(
     lookup_field = "uuid"
 
     @extend_schema(
-        request=EmptySerializer,
-        responses=EmptySerializer,
+        request=None,
+        responses=None,
+        description="Close customer permission review.",
     )
     @action(detail=True, methods=["post"])
     def close(self, request, uuid=None):
@@ -765,6 +724,20 @@ class CustomerPermissionReviewViewSet(
         return Response(status=status.HTTP_200_OK)
 
 
+@extend_schema_view(
+    create=extend_schema(
+        examples=[
+            OpenApiExample(
+                request_only=True,
+                name="ssh-key-create",
+                value={
+                    "name": "ssh_public_key1",
+                    "public_key": """ssh-rsa ... jhon@example.com""",
+                },
+            )
+        ]
+    )
+)
 class SshKeyViewSet(
     mixins.CreateModelMixin,
     mixins.RetrieveModelMixin,
@@ -806,25 +779,7 @@ class SshKeyViewSet(
         """
         To get a list of SSH keys, run **GET** against */api/keys/* as authenticated user.
 
-        A new SSH key can be created by any active users. Example of a valid request:
-
-        .. code-block:: http
-
-            POST /api/keys/ HTTP/1.1
-            Content-Type: application/json
-            Accept: application/json
-            Authorization: Token c84d653b9ec92c6cbac41c706593e66f567a7fa4
-            Host: example.com
-
-            {
-                "name": "ssh_public_key1",
-                "public_key": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDDURXDP5YhOQUYoDuTxJ84DuzqMJYJqJ8+SZT28
-                               TtLm5yBDRLKAERqtlbH2gkrQ3US58gd2r8H9jAmQOydfvgwauxuJUE4eDpaMWupqquMYsYLB5f+vVGhdZbbzfc6DTQ2rY
-                               dknWoMoArlG7MvRMA/xQ0ye1muTv+mYMipnd7Z+WH0uVArYI9QBpqC/gpZRRIouQ4VIQIVWGoT6M4Kat5ZBXEa9yP+9du
-                               D2C05GX3gumoSAVyAcDHn/xgej9pYRXGha4l+LKkFdGwAoXdV1z79EG1+9ns7wXuqMJFHM2KDpxAizV0GkZcojISvDwuh
-                               vEAFdOJcqjyyH4FOGYa8usP1 jhon@example.com",
-            }
-        """
+        A new SSH key can be created by any active users."""
         return super().list(request, *args, **kwargs)
 
     def perform_create(self, serializer):
@@ -958,8 +913,8 @@ class NotificationViewSet(ActionsViewSet):
     lookup_field = "uuid"
 
     @extend_schema(
-        request=EmptySerializer,
-        responses=EmptySerializer,
+        request=None,
+        responses=None,
     )
     @action(detail=True, methods=["post"])
     def enable(self, request, uuid=None):
@@ -975,8 +930,8 @@ class NotificationViewSet(ActionsViewSet):
         )
 
     @extend_schema(
-        request=EmptySerializer,
-        responses=EmptySerializer,
+        request=None,
+        responses=None,
     )
     @action(detail=True, methods=["post"])
     def disable(self, request, uuid=None):
@@ -1001,7 +956,7 @@ class NotificationTemplateViewSet(ActionsViewSet):
 
     @extend_schema(
         request=serializers.NotificationTemplateUpdateSerializers,
-        responses=EmptySerializer,
+        responses=None,
     )
     @action(detail=True, methods=["post"])
     def override(self, request, uuid=None):

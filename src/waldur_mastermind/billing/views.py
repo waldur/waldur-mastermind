@@ -1,5 +1,8 @@
+import uuid
+
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import exceptions, response, status, views
+from drf_spectacular.utils import OpenApiParameter, extend_schema
+from rest_framework import exceptions, generics, response, status
 from rest_framework import filters as rf_filters
 
 from waldur_core.core import views as core_views
@@ -11,7 +14,20 @@ from waldur_mastermind.invoices import utils as invoice_utils
 from . import filters, serializers
 
 
-class TotalCustomerCostView(views.APIView):
+class TotalCustomerCostView(generics.GenericAPIView):
+    filter_backends = []
+    serializer_class = serializers.TotalCustomerCostSerializer
+    pagination_class = None
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter("name", str, OpenApiParameter.QUERY),
+            OpenApiParameter("customer_uuid", uuid.UUID, OpenApiParameter.QUERY),
+            OpenApiParameter("accounting_is_running", bool, OpenApiParameter.QUERY),
+            OpenApiParameter("year", int, OpenApiParameter.QUERY),
+            OpenApiParameter("month", int, OpenApiParameter.QUERY),
+        ]
+    )
     def get(self, request, format=None):
         if not self.request.user.is_staff and not request.user.is_support:
             raise exceptions.PermissionDenied()

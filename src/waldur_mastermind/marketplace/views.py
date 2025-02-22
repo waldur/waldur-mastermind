@@ -2,6 +2,7 @@ import copy
 import datetime
 import logging
 import textwrap
+import uuid
 
 import reversion
 from constance import config
@@ -33,7 +34,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from django_fsm import TransitionNotAllowed
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import exceptions as rf_exceptions
-from rest_framework import mixins, status, views
+from rest_framework import generics, mixins, status, views
 from rest_framework import permissions as rf_permissions
 from rest_framework import viewsets as rf_viewsets
 from rest_framework.decorators import action
@@ -1211,8 +1212,8 @@ class ProviderOfferingViewSet(
     update_thumbnail_permissions = [permissions.user_can_update_thumbnail]
 
     @extend_schema(
-        request=EmptySerializer,
-        responses=EmptySerializer,
+        request=None,
+        responses=None,
     )
     @action(detail=True, methods=["post"])
     def delete_thumbnail(self, request, uuid=None):
@@ -1341,8 +1342,8 @@ class ProviderOfferingViewSet(
     update_organization_groups_validators = update_validators
 
     @extend_schema(
-        request=EmptySerializer,
-        responses=EmptySerializer,
+        request=None,
+        responses=None,
     )
     @action(detail=True, methods=["post"])
     def delete_organization_groups(self, request, uuid=None):
@@ -1529,7 +1530,7 @@ class ProviderOfferingViewSet(
 
     @extend_schema(
         request=serializers.OfferingComponentSerializer,
-        responses=EmptySerializer,
+        responses=None,
     )
     @action(detail=True, methods=["post"])
     def update_offering_component(self, request, uuid=None):
@@ -1567,8 +1568,8 @@ class ProviderOfferingViewSet(
     update_offering_component_validators = update_validators
 
     @extend_schema(
-        request=serializers.OfferingComponentSerializer,
-        responses=EmptySerializer,
+        request=serializers.RemoveOfferingComponentSerializer,
+        responses=None,
     )
     @action(detail=True, methods=["post"])
     def remove_offering_component(self, request, uuid=None):
@@ -1620,7 +1621,6 @@ class ProviderOfferingViewSet(
         offering_component.delete()
         return Response(status=status.HTTP_200_OK)
 
-    remove_offering_component_serializer_class = serializers.OfferingComponentSerializer
     remove_offering_component_permissions = [
         permission_factory(
             PermissionEnum.UPDATE_OFFERING_COMPONENTS,
@@ -1631,7 +1631,7 @@ class ProviderOfferingViewSet(
 
     @extend_schema(
         request=serializers.OfferingComponentSerializer,
-        responses=EmptySerializer,
+        responses=None,
     )
     @action(detail=True, methods=["post"])
     def create_offering_component(self, request, uuid=None):
@@ -1654,8 +1654,8 @@ class ProviderOfferingViewSet(
     create_offering_component_validators = update_validators
 
     @extend_schema(
-        responses=EmptySerializer,
-        request=EmptySerializer,
+        responses=None,
+        request=None,
     )
     @action(detail=True, methods=["post"])
     def sync(self, request, uuid=None):
@@ -1696,7 +1696,7 @@ class ProviderOfferingViewSet(
 
     @extend_schema(
         request=serializers.OfferingBackendMetadataSerializer,
-        responses=EmptySerializer,
+        responses=None,
     )
     @action(detail=True, methods=["POST"])
     def set_backend_metadata(self, request, uuid=None):
@@ -1723,7 +1723,7 @@ class ProviderOfferingViewSet(
     ]
 
     @extend_schema(
-        request=EmptySerializer,
+        request=None,
         responses=structure_serializers.ProjectSerializer(many=True),
     )
     @action(detail=True, methods=["GET"])
@@ -1745,7 +1745,7 @@ class ProviderOfferingViewSet(
 
     @extend_schema(
         responses=structure_serializers.UserSerializer(many=True),
-        request=EmptySerializer,
+        request=None,
     )
     @action(detail=True, methods=["GET"])
     def list_customer_users(self, request, uuid=None):
@@ -2018,7 +2018,7 @@ class ProviderPlanViewSet(core_views.UpdateReversionMixin, core_views.ActionsVie
 
     @extend_schema(
         request=serializers.PricesUpdateSerializer,
-        responses=EmptySerializer,
+        responses=None,
     )
     @action(detail=True, methods=["post"])
     def update_prices(self, request, uuid):
@@ -2035,7 +2035,7 @@ class ProviderPlanViewSet(core_views.UpdateReversionMixin, core_views.ActionsVie
 
     @extend_schema(
         request=serializers.QuotasUpdateSerializer,
-        responses=EmptySerializer,
+        responses=None,
     )
     @action(detail=True, methods=["post"])
     def update_quotas(self, request, uuid):
@@ -2060,8 +2060,8 @@ class ProviderPlanViewSet(core_views.UpdateReversionMixin, core_views.ActionsVie
     archive_validators = [validate_plan_archive]
 
     @extend_schema(
-        request=EmptySerializer,
-        responses=EmptySerializer,
+        request=None,
+        responses=None,
     )
     @action(detail=True, methods=["post"])
     def archive(self, request, uuid=None):
@@ -2093,7 +2093,7 @@ class ProviderPlanViewSet(core_views.UpdateReversionMixin, core_views.ActionsVie
 
     @extend_schema(
         request=serializers.OrganizationGroupsSerializer,
-        responses=EmptySerializer,
+        responses=None,
     )
     @action(detail=True, methods=["post"])
     def update_organization_groups(self, request, uuid):
@@ -2108,8 +2108,8 @@ class ProviderPlanViewSet(core_views.UpdateReversionMixin, core_views.ActionsVie
     update_organization_groups_permissions = update_permissions
 
     @extend_schema(
-        request=EmptySerializer,
-        responses=EmptySerializer,
+        request=None,
+        responses=None,
     )
     @action(detail=True, methods=["post"])
     def delete_organization_groups(self, request, uuid=None):
@@ -2255,8 +2255,8 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
         return super().list(request, *args, **kwargs)
 
     @extend_schema(
-        request=EmptySerializer,
-        responses=EmptySerializer,
+        request=None,
+        responses=None,
     )
     @action(detail=True, methods=["post"])
     def approve_by_consumer(self, request, uuid=None):
@@ -2297,8 +2297,8 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     ]
 
     @extend_schema(
-        request=EmptySerializer,
-        responses=EmptySerializer,
+        request=None,
+        responses=None,
     )
     @action(detail=True, methods=["post"])
     def approve_by_provider(self, request, uuid=None):
@@ -2323,8 +2323,8 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     reject_by_consumer_permissions = [permissions.user_can_reject_order_as_consumer]
 
     @extend_schema(
-        request=EmptySerializer,
-        responses=EmptySerializer,
+        request=None,
+        responses=None,
     )
     @action(detail=True, methods=["post"])
     def reject_by_consumer(self, request, uuid=None):
@@ -2355,8 +2355,8 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     ]
 
     @extend_schema(
-        request=EmptySerializer,
-        responses=EmptySerializer,
+        request=None,
+        responses=None,
     )
     @action(detail=True, methods=["post"])
     def reject_by_provider(self, request, uuid=None):
@@ -2383,8 +2383,8 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     ]
 
     @extend_schema(
-        request=EmptySerializer,
-        responses=EmptySerializer,
+        request=None,
+        responses=None,
     )
     @action(detail=True, methods=["post"])
     def cancel(self, request, uuid=None):
@@ -2410,8 +2410,8 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     ]
 
     @extend_schema(
-        request=EmptySerializer,
-        responses=EmptySerializer,
+        request=None,
+        responses=None,
     )
     @action(detail=True, methods=["post"])
     def set_state_executing(self, request, uuid=None):
@@ -2437,8 +2437,8 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     ]
 
     @extend_schema(
-        request=EmptySerializer,
-        responses=EmptySerializer,
+        request=None,
+        responses=None,
     )
     @action(detail=True, methods=["post"])
     def set_state_done(self, request, uuid=None):
@@ -2459,7 +2459,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
 
     @extend_schema(
         request=serializers.OrderSetStateErredSerializer,
-        responses=EmptySerializer,
+        responses=None,
     )
     @action(detail=True, methods=["post"])
     def set_state_erred(self, request, uuid=None):
@@ -2494,8 +2494,8 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     ]
 
     @extend_schema(
-        request=EmptySerializer,
-        responses=EmptySerializer,
+        request=None,
+        responses={403: None, 204: None},
     )
     @action(detail=True, methods=["post"])
     def unlink(self, request, uuid=None):
@@ -2546,8 +2546,8 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @extend_schema(
-        request=EmptySerializer,
-        responses=EmptySerializer,
+        request=None,
+        responses=None,
     )
     @action(detail=True, methods=["post"])
     def unlink(self, request, uuid=None):
@@ -2615,7 +2615,7 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
     ]
 
     @extend_schema(
-        request=EmptySerializer,
+        request=None,
         responses=serializers.PlanPeriodsListSerializer,
     )
     @action(detail=True, methods=["get"], filter_backends=[])
@@ -2626,6 +2626,11 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         serializer = serializers.ResourcePlanPeriodSerializer(qs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    @extend_schema(
+        description="Move resource to another project.",
+        request=serializers.MoveResourceSerializer,
+        responses={status.HTTP_200_OK: serializers.ResourceSerializer},
+    )
     @action(detail=True, methods=["post"])
     def move_resource(self, request, uuid=None):
         resource = self.get_object()
@@ -2647,6 +2652,11 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
     move_resource_serializer_class = serializers.MoveResourceSerializer
     move_resource_permissions = [structure_permissions.is_staff]
 
+    @extend_schema(
+        description="Set slug for resource.",
+        request=serializers.ResourceSlugSerializer,
+        responses={status.HTTP_200_OK: None},
+    )
     @action(detail=True, methods=["post"])
     def set_slug(self, request, uuid=None):
         resource = self.get_object()
@@ -2702,13 +2712,27 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
 
         return Response(status=status.HTTP_200_OK)
 
-    @extend_schema(request=serializers.ResourceEndDateByProviderSerializer)
+    @extend_schema(
+        description="Set end date of the resource by staff.",
+        request=serializers.ResourceEndDateByProviderSerializer,
+        responses={status.HTTP_200_OK: None},
+    )
     @action(detail=True, methods=["post"])
     def set_end_date_by_staff(self, request, uuid=None):
         return self._set_end_date(request, True)
 
     set_end_date_by_staff_permissions = [structure_permissions.is_staff]
 
+    @extend_schema(
+        description="""
+        This endpoint provides a config file for GLauth.
+        Example: https://github.com/glauth/glauth/blob/master/v2/sample-simple.cfg
+        It is assumed that the config is used by an external agent,
+        which synchronizes data from Waldur to GLauth.
+        """,
+        request=None,
+        responses={status.HTTP_200_OK: str},
+    )
     @action(detail=True, methods=["get"], renderer_classes=[PlainTextRenderer])
     def glauth_users_config(self, request, uuid=None):
         resource: models.Resource = self.get_object()
@@ -2790,7 +2814,12 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         ]
         return Response(result)
 
-    @action(detail=True, methods=["get"])
+    @extend_schema(
+        description="Return users connected to the project.",
+        request=None,
+        responses=serializers.ProjectUserSerializer(many=True),
+    )
+    @action(detail=True, methods=["get"], filter_backends=[], pagination_class=None)
     def team(self, request, uuid=None):
         resource = self.get_object()
         project = resource.project
@@ -3131,7 +3160,29 @@ class ResourceOfferingsViewSet(ListAPIView):
         return models.Offering.objects.filter(pk__in=offerings)
 
 
-class RuntimeStatesViewSet(views.APIView):
+class RuntimeStatesViewSet(generics.GenericAPIView):
+    filter_backends = []
+    pagination_class = None
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="project_uuid",
+                type=uuid.UUID,
+                location=OpenApiParameter.QUERY,
+                description="UUID of the project to filter runtime states by.",
+            ),
+            OpenApiParameter(
+                name="category_uuid",
+                type=uuid.UUID,
+                location=OpenApiParameter.QUERY,
+                description="UUID of the category to filter runtime states by.",
+            ),
+        ],
+        request=None,
+        responses=serializers.RuntimeStatesSerializer(many=True),
+        description="Retrieve available runtime states for resources, optionally filtered by project and category.",
+    )
     def get(self, request, project_uuid=None):
         projects = filter_queryset_for_user(
             structure_models.Project.objects.all(), request.user
@@ -3401,7 +3452,7 @@ class OfferingUsersViewSet(
 
     @extend_schema(
         request=serializers.OfferingUserUpdateRestrictionSerializer,
-        responses=EmptySerializer,
+        responses=None,
     )
     @action(detail=True, methods=["post"])
     def update_restricted(self, request, uuid=None):
@@ -3471,17 +3522,27 @@ class OfferingUserGroupViewSet(core_views.ActionsViewSet):
         offering_group.save(update_fields=["backend_metadata"])
 
 
-class StatsViewSet(rf_viewsets.ViewSet):
+class StatsViewSet(rf_viewsets.GenericViewSet):
+    filter_backends = []
     permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsSupport]
+    serializer_class = EmptySerializer
 
+    @extend_schema(
+        responses=serializers.MarketplaceCustomerStatsSerializer(many=True),
+        description="Return project count per organization.",
+    )
     @action(detail=False, methods=["get"])
     def organization_project_count(self, request, *args, **kwargs):
         data = structure_models.Project.available_objects.values(
             "customer__abbreviation", "customer__name", "customer__uuid"
         ).annotate(count=Count("customer__uuid"))
-        serializer = serializers.CustomerStatsSerializer(data, many=True)
+        serializer = serializers.MarketplaceCustomerStatsSerializer(data, many=True)
         return Response(status=status.HTTP_200_OK, data=serializer.data)
 
+    @extend_schema(
+        description="Retrieve statistics about the number of offerings, grouped by category and service provider.",
+        responses=serializers.OfferingStatsCounterSerializer(many=True),
+    )
     @action(detail=False, methods=["get"])
     def offerings_counter_stats(self, request):
         excluded_states = (
@@ -3521,6 +3582,10 @@ class StatsViewSet(rf_viewsets.ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+    @extend_schema(
+        description="Return resource count per organization.",
+        responses=serializers.MarketplaceCustomerStatsSerializer(many=True),
+    )
     @action(detail=False, methods=["get"])
     def organization_resource_count(self, request, *args, **kwargs):
         data = (
@@ -3532,9 +3597,14 @@ class StatsViewSet(rf_viewsets.ViewSet):
             )
             .annotate(count=Count("project__customer__uuid"))
         )
-        serializer = serializers.CustomerStatsSerializer(data, many=True)
+        serializer = serializers.MarketplaceCustomerStatsSerializer(data, many=True)
         return Response(status=status.HTTP_200_OK, data=serializer.data)
 
+    @extend_schema(
+        description="Return count of customer members.",
+        request=None,
+        responses=serializers.CustomerMemberCountSerializer(many=True),
+    )
     @action(detail=False, methods=["get"])
     def customer_member_count(self, request, *args, **kwargs):
         has_resources = models.Resource.objects.filter(
