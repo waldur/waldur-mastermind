@@ -656,7 +656,7 @@ class VmwarePortSerializer(structure_serializers.BaseResourceSerializer):
     )
 
     vm_name = serializers.ReadOnlyField(source="vm.name")
-    vm_uuid = serializers.ReadOnlyField(source="vm.uuid")
+    vm_uuid = serializers.UUIDField(read_only=True, source="vm.uuid")
     network_name = serializers.ReadOnlyField(source="network.name")
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
@@ -734,7 +734,7 @@ class VmwareDiskSerializer(structure_serializers.BaseResourceSerializer):
         read_only=True,
     )
 
-    vm_uuid = serializers.ReadOnlyField(source="vm.uuid")
+    vm_uuid = serializers.UUIDField(read_only=True, source="vm.uuid")
     vm_name = serializers.ReadOnlyField(source="vm.name")
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):

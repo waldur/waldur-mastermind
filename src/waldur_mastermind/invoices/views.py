@@ -257,7 +257,7 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
 
         return Response(result, status=status.HTTP_200_OK)
 
-    @extend_schema(responses=EmptySerializer)
+    @extend_schema(responses=None)
     @action(detail=True, methods=["post"])
     def set_backend_id(self, request, uuid=None):
         serializer = self.get_serializer(instance=self.get_object(), data=request.data)
@@ -283,7 +283,7 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
 
     @extend_schema(
         request=serializers.ReferenceNumberSerializer,
-        responses=EmptySerializer,
+        responses=None,
     )
     @action(detail=True, methods=["post"])
     def set_reference_number(self, request, uuid=None):
@@ -674,9 +674,7 @@ class PaymentViewSet(core_views.ActionsViewSet):
         )
 
 
-@extend_schema(
-    request=serializers.FinancialReportEmailSerializer, responses=EmptySerializer
-)
+@extend_schema(request=serializers.FinancialReportEmailSerializer, responses=None)
 @api_view(["POST"])
 @permission_classes((IsStaffOrSupportUser,))
 def send_financial_report_by_mail(request):

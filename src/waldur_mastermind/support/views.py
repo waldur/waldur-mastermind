@@ -217,6 +217,7 @@ class SupportUserViewSet(CheckExtensionMixin, viewsets.ReadOnlyModelViewSet):
 
 class SupportStatsViewSet(CheckExtensionMixin, generics.GenericAPIView):
     serializer_class = serializers.SupportStatsSerializer
+    pagination_class = None
 
     def get(self, request, format=None):
         today = date.today()
@@ -298,6 +299,11 @@ class TemplateViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     lookup_field = "uuid"
     serializer_class = serializers.TemplateSerializer
 
+    @extend_schema(
+        description="This view attaches documents to template.",
+        request=serializers.TemplateAttachmentSerializer,
+        responses={201: None, 400: None},
+    )
     @decorators.action(detail=True, methods=["post"])
     def create_attachments(self, request, uuid=None):
         template = self.get_object()
@@ -321,9 +327,7 @@ class TemplateViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
     attach_documents_serializer_class = serializers.TemplateAttachmentSerializer
 
-    @extend_schema(
-        request=serializers.DeleteAttachmentsSerializer, responses=EmptySerializer
-    )
+    @extend_schema(request=serializers.DeleteAttachmentsSerializer, responses=None)
     @decorators.action(detail=True, methods=["post"])
     def delete_attachments(self, request, uuid=None):
         template = self.get_object()
@@ -354,8 +358,11 @@ class FeedbackViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     list_permissions = retrieve_permissions = [is_staff_or_support]
 
 
-class FeedbackReportViewSet(views.APIView):
+class FeedbackReportViewSet(generics.GenericAPIView):
     permission_classes = [permissions.IsAuthenticated, core_permissions.IsSupport]
+    filter_backends = []
+    serializer_class = EmptySerializer
+    pagination_class = None
 
     def get(self, request, format=None):
         result = {
@@ -367,8 +374,11 @@ class FeedbackReportViewSet(views.APIView):
         return response.Response(result, status=status.HTTP_200_OK)
 
 
-class FeedbackAverageReportViewSet(views.APIView):
+class FeedbackAverageReportViewSet(generics.GenericAPIView):
     permission_classes = [permissions.IsAuthenticated, core_permissions.IsSupport]
+    filter_backends = []
+    serializer_class = EmptySerializer
+    pagination_class = None
 
     def get(self, request, format=None):
         avg = models.Feedback.objects.aggregate(Avg("evaluation"))["evaluation__avg"]
@@ -380,9 +390,12 @@ class FeedbackAverageReportViewSet(views.APIView):
         return response.Response(result, status=status.HTTP_200_OK)
 
 
-class ZammadWebHookReceiverView(CheckExtensionMixin, views.APIView):
+class ZammadWebHookReceiverView(CheckExtensionMixin, generics.GenericAPIView):
     authentication_classes = ()
     permission_classes = ()
+    filter_backends = []
+    serializer_class = EmptySerializer
+    pagination_class = None
 
     def post(self, request):
         ticket_id = request.data.get("ticket", {}).get("id")
@@ -399,9 +412,11 @@ class ZammadWebHookReceiverView(CheckExtensionMixin, views.APIView):
         return response.Response(status=status.HTTP_200_OK)
 
 
-class SmaxWebHookReceiverView(CheckExtensionMixin, views.APIView):
+class SmaxWebHookReceiverView(CheckExtensionMixin, generics.GenericAPIView):
     authentication_classes = ()
     permission_classes = ()
+    filter_backends = ()
+    serializer_class = serializers.SmaxWebHookReceiverSerializer
 
     def post(self, request):
         issue_id = request.data.get("id")
@@ -421,6 +436,11 @@ class SmaxWebHookReceiverView(CheckExtensionMixin, views.APIView):
         return response.Response(status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    request=None,
+    responses={202: None, 403: None},
+    description="This view triggers synchronization of issues from backend.",
+)
 @decorators.api_view(["GET", "POST"])
 def sync_issues(request):
     if not request.user.is_active or not (

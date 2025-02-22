@@ -46,6 +46,7 @@ from waldur_core.core.serializers import (
     ConstanceSettingsSerializer,
     EmptySerializer,
     ObtainAuthTokenSerializer,
+    QuerySerializer,
     TableSizeSerializer,
 )
 from waldur_core.core.utils import format_homeport_link
@@ -515,13 +516,18 @@ def get_public_settings(request=None):
     return public_settings
 
 
+@extend_schema(
+    description="Retrieve public settings",
+    request=None,
+    responses={status.HTTP_200_OK: dict},
+)
 @api_view(["GET"])
 @permission_classes((rf_permissions.AllowAny,))
 def configuration_detail(request):
     return Response(get_public_settings(request))
 
 
-@extend_schema(request=ConstanceSettingsSerializer)
+@extend_schema(request=ConstanceSettingsSerializer, responses=None)
 @api_view(["POST", "GET"])
 @permission_classes((rf_permissions.IsAdminUser,))
 def override_db_settings(request):
@@ -536,6 +542,11 @@ def override_db_settings(request):
     return Response(status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    description="Override feature values",
+    request=dict,
+    responses={status.HTTP_200_OK: str},
+)
 @api_view(["POST"])
 @permission_classes((rf_permissions.IsAdminUser,))
 def feature_values(request):
@@ -637,8 +648,10 @@ class UpdateReversionMixin:
             reversion.set_comment("Updated via REST API")
 
 
-class CeleryStatsViewSet(APIView):
+class CeleryStatsViewSet(generics.GenericAPIView):
     permission_classes = [rf_permissions.IsAuthenticated, permissions.IsSupport]
+    filter_backends = []
+    serializer_class = EmptySerializer
 
     def get(self, request, *args, **kwargs):
         from waldur_core.server.celery import app
@@ -685,7 +698,7 @@ def dictfetchall(cursor):
 class DatabaseStatsViewSet(APIView):
     permission_classes = [rf_permissions.IsAuthenticated, permissions.IsSupport]
 
-    @extend_schema(request=EmptySerializer, responses=TableSizeSerializer(many=True))
+    @extend_schema(request=None, responses=TableSizeSerializer(many=True))
     def get(self, request, *args, **kwargs):
         data = []
         with connection.cursor() as cursor:
@@ -695,8 +708,9 @@ class DatabaseStatsViewSet(APIView):
         return Response(data, status=status.HTTP_200_OK)
 
 
-class QueryViewSet(APIView):
+class QueryViewSet(generics.GenericAPIView):
     permission_classes = [rf_permissions.IsAuthenticated, permissions.IsSupport]
+    serializer_class = QuerySerializer
 
     def post(self, request, *args, **kwargs):
         data = []
@@ -725,6 +739,14 @@ class QueryViewSet(APIView):
         return Response(data, status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    description="Retrieve whitelabeling logo",
+    request=None,
+    responses={
+        200: {"type": "image/png", "description": "Logo image"},
+        404: None,
+    },
+)
 @api_view(["GET"])
 @permission_classes((rf_permissions.AllowAny,))
 def get_whitelabeling_logo(request, logo_type, default_image=None):
@@ -750,6 +772,11 @@ def get_whitelabeling_logo(request, logo_type, default_image=None):
     )
 
 
+@extend_schema(
+    description="Retrieve version of the application",
+    request=None,
+    responses={status.HTTP_200_OK: dict},
+)
 @api_view(["GET"])
 @permission_classes(
     (

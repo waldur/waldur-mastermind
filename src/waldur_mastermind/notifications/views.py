@@ -5,7 +5,6 @@ from rest_framework.response import Response
 
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import validators as core_validators
-from waldur_core.core.serializers import EmptySerializer
 from waldur_core.core.views import ActionsViewSet
 
 from . import filters, models, serializers, tasks, utils
@@ -25,7 +24,7 @@ class BroadcastMessageViewSet(ActionsViewSet):
     ]
     lookup_field = "uuid"
 
-    @extend_schema(request=EmptySerializer, responses=EmptySerializer)
+    @extend_schema(request=None, responses=None)
     @decorators.action(detail=True, methods=["post"])
     def send(self, request, *args, **kwargs):
         broadcast_message = self.get_object()

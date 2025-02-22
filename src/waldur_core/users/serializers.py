@@ -19,10 +19,10 @@ class BaseInvitationDetailsSerializer(serializers.HyperlinkedModelSerializer):
     created_by_username = serializers.CharField(
         read_only=True, source="created_by.username"
     )
-    scope_uuid = serializers.CharField(read_only=True, source="scope.uuid")
+    scope_uuid = serializers.UUIDField(read_only=True, source="scope.uuid")
     scope_name = serializers.CharField(read_only=True, source="scope.name")
     scope_type = serializers.SerializerMethodField()
-    customer_uuid = serializers.CharField(read_only=True, source="customer.uuid")
+    customer_uuid = serializers.UUIDField(read_only=True, source="customer.uuid")
     customer_name = serializers.CharField(read_only=True, source="customer.name")
     role_name = serializers.CharField(read_only=True, source="role.name")
     role_description = serializers.CharField(read_only=True, source="role.description")
@@ -172,9 +172,9 @@ class PermissionRequestSerializer(serializers.HyperlinkedModelSerializer):
         read_only=True, source="reviewed_by.username"
     )
     state = serializers.CharField(read_only=True, source="get_state_display")
-    scope_uuid = serializers.CharField(read_only=True, source="invitation.scope.uuid")
+    scope_uuid = serializers.UUIDField(read_only=True, source="invitation.scope.uuid")
     scope_name = serializers.CharField(read_only=True, source="invitation.scope.name")
-    customer_uuid = serializers.CharField(
+    customer_uuid = serializers.UUIDField(
         read_only=True, source="invitation.customer.uuid"
     )
     customer_name = serializers.CharField(

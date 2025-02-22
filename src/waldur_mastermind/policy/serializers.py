@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 class PolicySerializer(serializers.HyperlinkedModelSerializer):
     scope_name = serializers.CharField(read_only=True, source="scope.name")
-    scope_uuid = serializers.CharField(read_only=True, source="scope.uuid")
+    scope_uuid = serializers.UUIDField(read_only=True, source="scope.uuid")
     created_by_full_name = serializers.CharField(
         read_only=True, source="created_by.full_name"
     )

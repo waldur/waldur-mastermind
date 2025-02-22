@@ -252,7 +252,7 @@ class RancherClusterSerializer(
         lookup_field="uuid",
     )
 
-    tenant_uuid = serializers.ReadOnlyField(source="tenant.uuid")
+    tenant_uuid = serializers.UUIDField(read_only=True, source="tenant.uuid")
 
     name = serializers.CharField(
         max_length=150, validators=[validators.ClusterNameValidator]
@@ -379,15 +379,15 @@ class RancherNodeSerializer(serializers.HyperlinkedModelSerializer):
     service_settings_name = serializers.CharField(
         read_only=True, source="service_settings.name"
     )
-    service_settings_uuid = serializers.CharField(
+    service_settings_uuid = serializers.UUIDField(
         read_only=True, source="service_settings.uuid"
     )
-    project_uuid = serializers.CharField(read_only=True, source="project.uuid")
+    project_uuid = serializers.UUIDField(read_only=True, source="project.uuid")
     cluster_name = serializers.CharField(read_only=True, source="cluster.name")
-    cluster_uuid = serializers.CharField(read_only=True, source="cluster.uuid")
+    cluster_uuid = serializers.UUIDField(read_only=True, source="cluster.uuid")
     instance_name = serializers.CharField(read_only=True, source="instance.name")
-    instance_uuid = serializers.CharField(read_only=True, source="instance.uuid")
-    instance_marketplace_uuid = serializers.CharField(
+    instance_uuid = serializers.UUIDField(read_only=True, source="instance.uuid")
+    instance_marketplace_uuid = serializers.UUIDField(
         read_only=True, source="instance.marketplace_uuid"
     )
 
@@ -727,11 +727,11 @@ class RancherApplicationSerializer(structure_serializers.BaseResourceSerializer)
 
 
 class RancherWorkloadSerializer(serializers.HyperlinkedModelSerializer):
-    cluster_uuid = serializers.ReadOnlyField(source="cluster.uuid")
+    cluster_uuid = serializers.UUIDField(read_only=True, source="cluster.uuid")
     cluster_name = serializers.ReadOnlyField(source="cluster.name")
-    project_uuid = serializers.ReadOnlyField(source="project.uuid")
+    project_uuid = serializers.UUIDField(read_only=True, source="project.uuid")
     project_name = serializers.ReadOnlyField(source="project.name")
-    namespace_uuid = serializers.ReadOnlyField(source="namespace.uuid")
+    namespace_uuid = serializers.UUIDField(read_only=True, source="namespace.uuid")
     namespace_name = serializers.ReadOnlyField(source="namespace.name")
 
     class Meta:
@@ -766,13 +766,13 @@ class RancherWorkloadSerializer(serializers.HyperlinkedModelSerializer):
 
 
 class RancherHPASerializer(serializers.HyperlinkedModelSerializer):
-    cluster_uuid = serializers.ReadOnlyField(source="cluster.uuid")
+    cluster_uuid = serializers.UUIDField(read_only=True, source="cluster.uuid")
     cluster_name = serializers.ReadOnlyField(source="cluster.name")
-    project_uuid = serializers.ReadOnlyField(source="project.uuid")
+    project_uuid = serializers.UUIDField(read_only=True, source="project.uuid")
     project_name = serializers.ReadOnlyField(source="project.name")
-    namespace_uuid = serializers.ReadOnlyField(source="namespace.uuid")
+    namespace_uuid = serializers.UUIDField(read_only=True, source="namespace.uuid")
     namespace_name = serializers.ReadOnlyField(source="namespace.name")
-    workload_uuid = serializers.ReadOnlyField(source="workload.uuid")
+    workload_uuid = serializers.UUIDField(read_only=True, source="workload.uuid")
     workload_name = serializers.ReadOnlyField(source="workload.name")
 
     class Meta:
@@ -841,7 +841,7 @@ class RancherConsoleLogSerializer(serializers.Serializer):
 
 class RancherUserClusterLinkSerializer(serializers.HyperlinkedModelSerializer):
     cluster_name = serializers.ReadOnlyField(source="cluster.name")
-    cluster_uuid = serializers.ReadOnlyField(source="cluster.uuid")
+    cluster_uuid = serializers.UUIDField(read_only=True, source="cluster.uuid")
 
     class Meta:
         model = models.RancherUserClusterLink
@@ -853,7 +853,7 @@ class RancherUserClusterLinkSerializer(serializers.HyperlinkedModelSerializer):
 
 class RancherUserProjectLinkSerializer(serializers.HyperlinkedModelSerializer):
     project_name = serializers.ReadOnlyField(source="project.name")
-    project_uuid = serializers.ReadOnlyField(source="project.uuid")
+    project_uuid = serializers.UUIDField(read_only=True, source="project.uuid")
 
     class Meta:
         model = models.RancherUserProjectLink

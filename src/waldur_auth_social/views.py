@@ -11,7 +11,7 @@ from django.contrib.auth import get_user_model
 from django.shortcuts import redirect
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiParameter, extend_schema
-from rest_framework import generics, status, views, viewsets
+from rest_framework import generics, status, viewsets
 from rest_framework.exceptions import AuthenticationFailed, NotFound, ValidationError
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
@@ -273,8 +273,15 @@ class IdentityProvidersViewSet(viewsets.ModelViewSet):
         return qs
 
 
-class RemoteEduteamsView(views.APIView):
-    @extend_schema(request=RemoteEduteamsRequestSerializer)
+class RemoteEduteamsView(generics.GenericAPIView):
+    filter_backends = []
+    pagination_class = None
+
+    @extend_schema(
+        description="Allows to pull user details from remote eduTEAMS instance.",
+        request=RemoteEduteamsRequestSerializer,
+        responses={200: {"type": "application/json", "example": {"uuid": "string"}}},
+    )
     def post(self, request, *args, **kwargs):
         if not request.user.is_staff and not request.user.is_identity_manager:
             return Response(

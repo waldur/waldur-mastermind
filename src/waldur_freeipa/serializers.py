@@ -15,7 +15,7 @@ class ProfileSerializer(
         lookup_field="uuid",
         read_only=True,
     )
-    user_uuid = serializers.ReadOnlyField(source="user.uuid")
+    user_uuid = serializers.UUIDField(read_only=True, source="user.uuid")
     user_username = serializers.ReadOnlyField(source="user.username")
     user_full_name = serializers.ReadOnlyField(source="user.full_name")
 

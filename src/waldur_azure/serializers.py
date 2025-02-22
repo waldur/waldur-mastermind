@@ -351,9 +351,9 @@ class AzureSqlDatabaseSerializer(BaseResourceSerializer):
         source="server.resource_group.location.name"
     )
     server_name = serializers.ReadOnlyField(source="server.name")
-    server_uuid = serializers.ReadOnlyField(source="server.uuid")
-    server_marketplace_uuid = serializers.ReadOnlyField(
-        source="server.marketplace_uuid"
+    server_uuid = serializers.UUIDField(read_only=True, source="server.uuid")
+    server_marketplace_uuid = serializers.UUIDField(
+        read_only=True, source="server.marketplace_uuid"
     )
 
     server = serializers.HyperlinkedRelatedField(

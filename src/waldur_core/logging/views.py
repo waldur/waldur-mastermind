@@ -3,7 +3,7 @@ import logging
 import rest_framework
 from django.db.models import Count
 from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiExample, extend_schema, extend_schema_view
 from rest_framework import (
     decorators,
     generics,
@@ -81,27 +81,22 @@ class WebHookViewSet(BaseHookViewSet):
     filterset_class = filters.WebHookFilter
     serializer_class = serializers.WebHookSerializer
 
+    @extend_schema(
+        examples=[
+            OpenApiExample(
+                request_only=True,
+                name="webhook-create",
+                value={
+                    "event_types": ["resource_start_succeeded"],
+                    "event_groups": ["users"],
+                    "destination_url": "http://example.com/",
+                },
+                description="You should specify list of event_types or event_groups.",
+            )
+        ]
+    )
     def create(self, request, *args, **kwargs):
         """
-        To create new web hook issue **POST** against */api/hooks-web/* as an authenticated user.
-        You should specify list of event_types or event_groups.
-
-        Example of a request:
-
-        .. code-block:: http
-
-            POST /api/hooks-web/ HTTP/1.1
-            Content-Type: application/json
-            Accept: application/json
-            Authorization: Token c84d653b9ec92c6cbac41c706593e66f567a7fa4
-            Host: example.com
-
-            {
-                "event_types": ["resource_start_succeeded"],
-                "event_groups": ["users"],
-                "destination_url": "http://example.com/"
-            }
-
         When hook is activated, **POST** request is issued against destination URL with the following data:
 
         .. code-block:: javascript
@@ -129,41 +124,36 @@ class WebHookViewSet(BaseHookViewSet):
         return super().create(request, *args, **kwargs)
 
 
+@extend_schema_view(
+    create=extend_schema(
+        examples=[
+            OpenApiExample(
+                request_only=True,
+                name="email-hook-create",
+                value={
+                    "event_types": ["openstack_instance_start_succeeded"],
+                    "event_groups": ["users"],
+                    "email": "test@example.com",
+                },
+                description="You should specify list of event_types or event_groups.",
+            )
+        ]
+    ),
+    partial_update=extend_schema(
+        examples=[
+            OpenApiExample(
+                request_only=True,
+                name="email-hook-update",
+                value={"is_active": "false"},
+                description="temporarily disable hook without deleting it.",
+            )
+        ]
+    ),
+)
 class EmailHookViewSet(BaseHookViewSet):
     queryset = models.EmailHook.objects.all()
     filterset_class = filters.EmailHookFilter
     serializer_class = serializers.EmailHookSerializer
-
-    def create(self, request, *args, **kwargs):
-        """
-        To create new email hook issue **POST** against */api/hooks-email/* as an authenticated user.
-        You should specify list of event_types or event_groups.
-
-        Example of a request:
-
-        .. code-block:: http
-
-            POST /api/hooks-email/ HTTP/1.1
-            Content-Type: application/json
-            Accept: application/json
-            Authorization: Token c84d653b9ec92c6cbac41c706593e66f567a7fa4
-            Host: example.com
-
-            {
-                "event_types": ["openstack_instance_start_succeeded"],
-                "event_groups": ["users"],
-                "email": "test@example.com"
-            }
-
-        You may temporarily disable hook without deleting it by issuing following **PATCH** request against hook URL:
-
-        .. code-block:: javascript
-
-            {
-                "is_active": "false"
-            }
-        """
-        return super().create(request, *args, **kwargs)
 
 
 class HookSummary(mixins.ListModelMixin, viewsets.GenericViewSet):
@@ -254,7 +244,8 @@ class EventSubscriptionViewSet(
 class RabbitMQVhostStats(generics.GenericAPIView):
     permission_classes = [permissions.IsAuthenticated, core_permissions.IsSupport]
     serializer_class = serializers.RmqVHostStatsSerializer
-    queryset = models.EventSubscription.objects.none()
+    filter_backends = []
+    pagination_class = None
 
     def get(self, request, *args, **kwargs):
         rmq_backend = backend.RabbitMQManagementBackend()
@@ -294,7 +285,7 @@ class RabbitMQVhostStats(generics.GenericAPIView):
 class RabbitMQUserStats(generics.GenericAPIView):
     permission_classes = [permissions.IsAuthenticated, core_permissions.IsSupport]
     serializer_class = serializers.RmqUserStatsSerializer
-    queryset = models.EventSubscription.objects.none()
+    filter_backends = []
 
     def get(self, request, *args, **kwargs):
         rmq_backend = backend.RabbitMQManagementBackend()

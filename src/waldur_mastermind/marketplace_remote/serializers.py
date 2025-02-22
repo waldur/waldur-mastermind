@@ -15,10 +15,10 @@ class RemoteCredentialsSerializer(serializers.Serializer):
 
 
 class RemoteOfferingCreateSerializer(RemoteCredentialsSerializer):
-    remote_offering_uuid = serializers.CharField()
-    local_category_uuid = serializers.CharField()
-    local_customer_uuid = serializers.CharField()
-    remote_customer_uuid = serializers.CharField()
+    remote_offering_uuid = serializers.UUIDField()
+    local_category_uuid = serializers.UUIDField()
+    local_customer_uuid = serializers.UUIDField()
+    remote_customer_uuid = serializers.UUIDField()
 
 
 class RemoteOfferingCreateResponseSerializer(serializers.Serializer):
@@ -31,12 +31,12 @@ class RemoteProjectUpdateRequestSerializer(serializers.ModelSerializer):
         read_only=True, source="project.customer.name"
     )
     offering_name = serializers.CharField(read_only=True, source="offering.name")
-    offering_uuid = serializers.CharField(read_only=True, source="offering.uuid")
+    offering_uuid = serializers.UUIDField(read_only=True, source="offering.uuid")
 
     reviewed_by_full_name = serializers.CharField(
         read_only=True, source="reviewed_by.full_name"
     )
-    reviewed_by_uuid = serializers.CharField(read_only=True, source="reviewed_by.uuid")
+    reviewed_by_uuid = serializers.UUIDField(read_only=True, source="reviewed_by.uuid")
 
     old_oecd_fos_2007_label = serializers.CharField(
         read_only=True, source="get_old_oecd_fos_2007_code_display"
@@ -79,7 +79,7 @@ class NestedRemoteLocalCategorySerializer(serializers.HyperlinkedModelSerializer
     local_category_name = serializers.CharField(
         read_only=True, source="local_category.title"
     )
-    local_category_uuid = serializers.CharField(
+    local_category_uuid = serializers.UUIDField(
         read_only=True, source="local_category.uuid"
     )
 
@@ -250,3 +250,19 @@ core_signals.pre_serializer_fields.connect(
     mark_synced_fields_as_read_only,
     sender=marketplace_serializers.OfferingOverviewUpdateSerializer,
 )
+
+
+class RemoteCustomerSerializer(serializers.Serializer):
+    uuid = serializers.UUIDField(read_only=True)
+    name = serializers.CharField(read_only=True)
+    abbreviation = serializers.CharField(read_only=True)
+    phone_number = serializers.CharField(read_only=True)
+    email = serializers.CharField(read_only=True)
+
+
+class RemoteOfferingSerializer(serializers.Serializer):
+    uuid = serializers.UUIDField(read_only=True)
+    name = serializers.CharField(read_only=True)
+    type = serializers.CharField(read_only=True)
+    state = serializers.CharField(read_only=True)
+    category_title = serializers.CharField(read_only=True)

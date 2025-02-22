@@ -2,7 +2,8 @@ import os
 
 from django.http import Http404, HttpResponse
 from django.utils.http import content_disposition_header
-from rest_framework.views import APIView
+from drf_spectacular.utils import extend_schema
+from rest_framework.generics import GenericAPIView
 
 from waldur_core.core.models import User
 
@@ -25,9 +26,14 @@ def check_file_permissions(file: models.File, user: User):
         raise Http404
 
 
-class MediaView(APIView):
+class MediaView(GenericAPIView):
     permission_classes = ()
+    filter_backends = ()
 
+    @extend_schema(
+        description="Get media file",
+        responses={200: bytes},
+    )
     def get(self, request, uuid):
         try:
             file = models.File.objects.get(uuid=uuid)

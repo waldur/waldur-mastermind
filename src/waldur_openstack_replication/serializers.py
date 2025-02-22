@@ -80,17 +80,25 @@ class MigrationDetailsSerializer(serializers.ModelSerializer):
     mappings = MappingSerializer()
     state = serializers.ReadOnlyField(source="get_state_display")
 
-    created_by_uuid = serializers.ReadOnlyField(source="created_by.uuid")
+    created_by_uuid = serializers.UUIDField(read_only=True, source="created_by.uuid")
     created_by_full_name = serializers.ReadOnlyField(source="created_by.full_name")
 
-    src_offering_uuid = serializers.ReadOnlyField(source="src_resource.offering.uuid")
+    src_offering_uuid = serializers.UUIDField(
+        read_only=True, source="src_resource.offering.uuid"
+    )
     src_offering_name = serializers.ReadOnlyField(source="src_resource.offering.name")
-    dst_offering_uuid = serializers.ReadOnlyField(source="dst_resource.offering.uuid")
+    dst_offering_uuid = serializers.UUIDField(
+        read_only=True, source="dst_resource.offering.uuid"
+    )
     dst_offering_name = serializers.ReadOnlyField(source="dst_resource.offering.name")
 
-    src_resource_uuid = serializers.ReadOnlyField(source="src_resource.uuid")
+    src_resource_uuid = serializers.UUIDField(
+        read_only=True, source="src_resource.uuid"
+    )
     src_resource_name = serializers.ReadOnlyField(source="src_resource.name")
-    dst_resource_uuid = serializers.ReadOnlyField(source="dst_resource.uuid")
+    dst_resource_uuid = serializers.UUIDField(
+        read_only=True, source="dst_resource.uuid"
+    )
     dst_resource_name = serializers.ReadOnlyField(source="dst_resource.name")
     dst_resource_state = serializers.ReadOnlyField(
         source="dst_resource.get_state_display"

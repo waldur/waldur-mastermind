@@ -277,7 +277,8 @@ class ResourceGetTest(test.APITransactionTestCase):
         self.assertEqual(1, len(response.data))
         self.assertEqual(self.resource_1.uuid.hex, response.data[0]["uuid"])
         self.assertEqual(
-            self.resource_1.offering.customer.uuid, response.data[0]["provider_uuid"]
+            self.resource_1.offering.customer.uuid.hex,
+            response.data[0]["provider_uuid"],
         )
 
         response = self.client.get(
@@ -287,5 +288,5 @@ class ResourceGetTest(test.APITransactionTestCase):
         self.assertEqual(1, len(response.data))
         self.assertEqual(self.resource_3.uuid.hex, response.data[0]["uuid"])
         self.assertEqual(
-            self.resource_3.project.customer.uuid, response.data[0]["customer_uuid"]
+            self.resource_3.project.customer.uuid.hex, response.data[0]["customer_uuid"]
         )

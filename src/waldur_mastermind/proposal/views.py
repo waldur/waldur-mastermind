@@ -159,6 +159,18 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
 
     get_queryset = permissions_utils.queryset_factory(models.Call, ordering=["created"])
 
+    @extend_schema(
+        methods=["get"],
+        operation_id="proposal_protected_calls_offerings_list",
+        request=None,
+        responses=serializers.RequestedOfferingSerializer(many=True),
+    )
+    @extend_schema(
+        methods=["post"],
+        operation_id="proposal_protected_calls_offerings_set",
+        request=serializers.RequestedOfferingSerializer,
+        responses=serializers.RequestedOfferingSerializer,
+    )
     @decorators.action(detail=True, methods=["get", "post"])
     def offerings(self, request, uuid=None):
         return self.action_list_method("requestedoffering_set")(self, request, uuid)
@@ -198,6 +210,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         )
     ]
 
+    @extend_schema(responses=None)
     @decorators.action(detail=True, methods=["post"])
     def archive(self, request, uuid=None):
         call = self.get_object()
@@ -214,6 +227,18 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         )
     ]
 
+    @extend_schema(
+        methods=["get"],
+        operation_id="proposal_protected_calls_rounds_list",
+        request=None,
+        responses=serializers.ProtectedRoundSerializer(many=True),
+    )
+    @extend_schema(
+        methods=["post"],
+        operation_id="proposal_protected_calls_rounds_set",
+        request=serializers.ProtectedRoundSerializer,
+        responses=serializers.ProtectedRoundSerializer,
+    )
     @decorators.action(detail=True, methods=["get", "post"])
     def rounds(self, request, uuid=None):
         # TODO: Will be better move this to method of serializer and add tests.
@@ -484,6 +509,18 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
                 created_by=self.request.user,
             )
 
+    @extend_schema(
+        methods=["get"],
+        operation_id="proposal_proposals_resources_list",
+        request=None,
+        responses=serializers.RequestedResourceSerializer(many=True),
+    )
+    @extend_schema(
+        methods=["post"],
+        operation_id="proposal_proposals_resources_set",
+        request=serializers.RequestedResourceSerializer,
+        responses=serializers.RequestedResourceSerializer,
+    )
     @decorators.action(detail=True, methods=["get", "post"])
     def resources(self, request, uuid=None):
         return self.action_list_method("requestedresource_set")(self, request, uuid)
@@ -505,6 +542,7 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
 
     resource_detail_serializer_class = serializers.RequestedResourceSerializer
 
+    @extend_schema(responses=None)
     @decorators.action(detail=True, methods=["post"])
     def attach_document(self, request, uuid=None):
         proposal = self.get_object()
@@ -524,6 +562,7 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
 
     attach_document_serializer_class = serializers.ProposalDocumentationSerializer
 
+    @extend_schema(responses=None)
     @decorators.action(detail=True, methods=["post"])
     def allocate(self, request, uuid=None):
         proposal = self.get_object()
@@ -540,6 +579,7 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             status=status.HTTP_200_OK,
         )
 
+    @extend_schema(responses=None)
     @decorators.action(detail=True, methods=["post"])
     def reject(self, request, uuid=None):
         proposal = self.get_object()
@@ -569,6 +609,7 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         force_approve_serializer_class
     ) = serializers.ProposalAllocateSerializer
 
+    @extend_schema(responses=None)
     @decorators.action(detail=True, methods=["post"])
     def force_approve(self, request, uuid=None):
         proposal = self.get_object()
@@ -602,6 +643,7 @@ class ReviewViewSet(ActionsViewSet):
     lookup_field = "uuid"
     serializer_class = serializers.ReviewSerializer
     filterset_class = filters.ReviewFilter
+    queryset = models.Review.objects.all()
     create_permissions = destroy_permissions = [permissions.is_staff]
 
     update_validators = partial_update_validators = [
@@ -637,6 +679,11 @@ class ReviewViewSet(ActionsViewSet):
 
         raise exceptions.PermissionDenied()
 
+    @extend_schema(
+        description="Accept a review, changing its state to IN_REVIEW.",
+        request=None,
+        responses={status.HTTP_200_OK: None},
+    )
     @decorators.action(detail=True, methods=["post"])
     def accept(self, request, uuid=None):
         review = self.get_object()
@@ -651,6 +698,11 @@ class ReviewViewSet(ActionsViewSet):
         core_validators.StateValidator(models.Review.States.CREATED),
     ]
 
+    @extend_schema(
+        description="Reject a review, changing its state to REJECTED.",
+        request=None,
+        responses={status.HTTP_200_OK: None},
+    )
     @decorators.action(detail=True, methods=["post"])
     def reject(self, request, uuid=None):
         review = self.get_object()
@@ -667,6 +719,11 @@ class ReviewViewSet(ActionsViewSet):
         ),
     ]
 
+    @extend_schema(
+        description="Submit a review, changing its state to SUBMITTED.",
+        request=None,
+        responses={status.HTTP_200_OK: None},
+    )
     @decorators.action(detail=True, methods=["post"])
     def submit(self, request, uuid=None):
         review = self.get_object()

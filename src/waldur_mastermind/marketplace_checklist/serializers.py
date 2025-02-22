@@ -22,7 +22,7 @@ class ChecklistCategorySerializer(serializers.HyperlinkedModelSerializer):
 class ChecklistSerializer(serializers.ModelSerializer):
     questions_count = serializers.IntegerField(source="questions.count", read_only=True)
     category_name = serializers.ReadOnlyField(source="category.name")
-    category_uuid = serializers.ReadOnlyField(source="category.uuid")
+    category_uuid = serializers.UUIDField(read_only=True, source="category.uuid")
     roles = serializers.SerializerMethodField()
 
     def get_roles(self, checklist) -> list[str]:
@@ -42,7 +42,7 @@ class ChecklistSerializer(serializers.ModelSerializer):
 
 
 class ChecklistQuestionSerializer(serializers.ModelSerializer):
-    category_uuid = serializers.ReadOnlyField(source="category.uuid")
+    category_uuid = serializers.UUIDField(read_only=True, source="category.uuid")
 
     class Meta:
         model = models.Question
@@ -63,7 +63,7 @@ class ImportExportQuestionSerializer(serializers.ModelSerializer):
 
 
 class AnswerListSerializer(serializers.ModelSerializer):
-    question_uuid = serializers.ReadOnlyField(source="question.uuid")
+    question_uuid = serializers.UUIDField(read_only=True, source="question.uuid")
 
     class Meta:
         model = models.Answer
@@ -104,3 +104,11 @@ class ProjectStatsItemSerializer(serializers.Serializer):
 
 class ChecklistProjectStatsSerializer(serializers.ListSerializer):
     child = ProjectStatsItemSerializer()
+
+
+class ChecklistCustomerStatsSerializer(serializers.Serializer):
+    name = serializers.CharField(read_only=True)
+    uuid = serializers.UUIDField(read_only=True)
+    latitude = serializers.FloatField(read_only=True)
+    longitude = serializers.FloatField(read_only=True)
+    score = serializers.FloatField(read_only=True)

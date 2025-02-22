@@ -14,7 +14,6 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ReadOnlyModelViewSet
 
 from waldur_core.core.permissions import IsAdminOrReadOnly
-from waldur_core.core.serializers import EmptySerializer
 from waldur_core.core.utils import get_ip_address, is_uuid_like
 from waldur_core.core.views import ActionsViewSet
 from waldur_core.permissions.filters import UserPermissionFilter
@@ -82,8 +81,8 @@ class RoleViewSet(ActionsViewSet):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @extend_schema(
-        request=EmptySerializer,
-        responses=EmptySerializer,
+        request=None,
+        responses=None,
     )
     @action(detail=True, methods=["post"])
     def enable(self, request, uuid=None):
@@ -99,8 +98,8 @@ class RoleViewSet(ActionsViewSet):
         )
 
     @extend_schema(
-        request=EmptySerializer,
-        responses=EmptySerializer,
+        request=None,
+        responses=None,
     )
     @action(detail=True, methods=["post"])
     def disable(self, request, uuid=None):
@@ -171,7 +170,7 @@ class UserRoleMixin:
 
     @extend_schema(
         request=serializers.UserRoleCreateSerializer,
-        responses=EmptySerializer,
+        responses=None,
     )
     @action(detail=True, methods=["POST"])
     def add_user(self, request, uuid=None):
@@ -198,7 +197,7 @@ class UserRoleMixin:
 
     @extend_schema(
         request=serializers.UserRoleUpdateSerializer,
-        responses=EmptySerializer,
+        responses=None,
     )
     @action(detail=True, methods=["POST"])
     def update_user(self, request, uuid=None):
@@ -224,7 +223,7 @@ class UserRoleMixin:
 
     @extend_schema(
         request=serializers.UserRoleDeleteSerializer,
-        responses=EmptySerializer,
+        responses=None,
     )
     @action(detail=True, methods=["POST"])
     def delete_user(self, request, uuid=None):

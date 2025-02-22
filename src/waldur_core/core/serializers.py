@@ -278,7 +278,7 @@ class AugmentedSerializerMixin:
 
             class ProjectSerializer(AugmentedSerializerMixin,
                                     serializers.HyperlinkedModelSerializer):
-                customer_uuid = serializers.ReadOnlyField(source='customer.uuid')
+                customer_uuid = serializers.UUIDField(read_only=True, source='customer.uuid')
                 customer_name = serializers.ReadOnlyField(source='customer.name')
                 class Meta:
                     model = models.Project
@@ -622,3 +622,7 @@ class TableSizeSerializer(serializers.Serializer):
     total_size = serializers.IntegerField(read_only=True)
     data_size = serializers.IntegerField(read_only=True)
     external_size = serializers.IntegerField(read_only=True)
+
+
+class QuerySerializer(serializers.Serializer):
+    query = serializers.CharField()

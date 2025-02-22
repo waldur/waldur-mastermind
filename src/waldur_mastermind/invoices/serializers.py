@@ -28,9 +28,9 @@ class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
     total = serializers.DecimalField(max_digits=PRICE_MAX_DIGITS, decimal_places=2)
     factor = serializers.IntegerField(read_only=True, source="get_factor")
     measured_unit = serializers.CharField(read_only=True, source="get_measured_unit")
-    resource_uuid = serializers.CharField(read_only=True, source="resource.uuid")
+    resource_uuid = serializers.UUIDField(read_only=True, source="resource.uuid")
     resource_name = serializers.CharField(read_only=True, source="resource.name")
-    project_uuid = serializers.CharField(read_only=True, source="get_project_uuid")
+    project_uuid = serializers.UUIDField(read_only=True, source="get_project_uuid")
     project_name = serializers.CharField(read_only=True, source="get_project_name")
     details = serializers.JSONField()
     billing_type = serializers.SerializerMethodField()
@@ -305,12 +305,14 @@ class InvoiceItemCustomerCostsForPeriodSerializer(InvoiceItemCostsForPeriodSeria
 
 class InvoiceItemReportSerializer(serializers.ModelSerializer):
     invoice_number = serializers.ReadOnlyField(source="invoice.number")
-    invoice_uuid = serializers.ReadOnlyField(source="invoice.uuid")
+    invoice_uuid = serializers.UUIDField(read_only=True, source="invoice.uuid")
     invoice_year = serializers.ReadOnlyField(source="invoice.year")
     invoice_month = serializers.ReadOnlyField(source="invoice.month")
     invoice_date = serializers.ReadOnlyField(source="invoice.invoice_date")
     due_date = serializers.ReadOnlyField(source="invoice.due_date")
-    customer_uuid = serializers.ReadOnlyField(source="invoice.customer.uuid")
+    customer_uuid = serializers.UUIDField(
+        read_only=True, source="invoice.customer.uuid"
+    )
     customer_name = serializers.ReadOnlyField(source="invoice.customer.name")
 
     class Meta:
@@ -683,7 +685,9 @@ class SAFReportSerializer(serializers.Serializer):
 
 
 class PaymentProfileSerializer(serializers.HyperlinkedModelSerializer):
-    organization_uuid = serializers.ReadOnlyField(source="organization.uuid")
+    organization_uuid = serializers.UUIDField(
+        read_only=True, source="organization.uuid"
+    )
     payment_type_display = serializers.ReadOnlyField(source="get_payment_type_display")
 
     class Meta:
@@ -724,9 +728,11 @@ class PaymentSerializer(
         lookup_field="uuid",
         read_only=True,
     )
-    invoice_uuid = serializers.ReadOnlyField(source="invoice.uuid")
+    invoice_uuid = serializers.UUIDField(read_only=True, source="invoice.uuid")
     invoice_period = serializers.SerializerMethodField(method_name="get_invoice_period")
-    customer_uuid = serializers.ReadOnlyField(source="profile.organization.uuid")
+    customer_uuid = serializers.UUIDField(
+        read_only=True, source="profile.organization.uuid"
+    )
 
     def get_invoice_period(self, payment: models.Payment) -> str | None:
         if payment.invoice:
@@ -852,7 +858,7 @@ class CustomerCreditSerializer(serializers.HyperlinkedModelSerializer):
         many=True,
     )
     customer_name = serializers.ReadOnlyField(source="customer.name")
-    customer_uuid = serializers.ReadOnlyField(source="customer.uuid")
+    customer_uuid = serializers.UUIDField(read_only=True, source="customer.uuid")
     customer_slug = serializers.ReadOnlyField(source="customer.slug")
 
     class Meta:
@@ -965,10 +971,12 @@ class CreateCustomerCreditSerializer(CustomerCreditSerializer):
 
 class ProjectCreditSerializer(serializers.HyperlinkedModelSerializer):
     project_name = serializers.ReadOnlyField(source="project.name")
-    project_uuid = serializers.ReadOnlyField(source="project.uuid")
+    project_uuid = serializers.UUIDField(read_only=True, source="project.uuid")
     project_slug = serializers.ReadOnlyField(source="project.slug")
     customer_name = serializers.ReadOnlyField(source="project.customer.name")
-    customer_uuid = serializers.ReadOnlyField(source="project.customer.uuid")
+    customer_uuid = serializers.UUIDField(
+        read_only=True, source="project.customer.uuid"
+    )
     customer_slug = serializers.ReadOnlyField(source="project.customer.slug")
     customer_credit = serializers.ReadOnlyField(
         source="project.customer.customercredit.value"

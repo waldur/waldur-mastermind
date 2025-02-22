@@ -9,13 +9,13 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import decorators, response, status
+from rest_framework import decorators, generics, response, status
 from rest_framework.exceptions import MethodNotAllowed, ValidationError
 from rest_framework.permissions import SAFE_METHODS
-from rest_framework.views import APIView
 
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
+from waldur_core.core.serializers import EmptySerializer
 from waldur_core.structure import exceptions as structure_exceptions
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
@@ -467,7 +467,10 @@ class TemplateViewSet(structure_views.BaseServicePropertyViewSet):
     lookup_field = "uuid"
 
 
-class TemplateVersionView(APIView):
+class TemplateVersionView(generics.GenericAPIView):
+    filter_backends = []
+    serializer_class = EmptySerializer
+
     def get(self, request, template_uuid, version):
         queryset = models.Template.objects.all()
         queryset = filter_queryset_for_user(queryset, request.user)

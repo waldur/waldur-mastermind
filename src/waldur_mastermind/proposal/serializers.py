@@ -70,8 +70,10 @@ class CallManagingOrganisationSerializer(
 class NestedRequestedOfferingSerializer(serializers.HyperlinkedModelSerializer):
     state = serializers.ReadOnlyField()
     offering_name = serializers.ReadOnlyField(source="offering.name")
-    offering_uuid = serializers.ReadOnlyField(source="offering.uuid")
-    category_uuid = serializers.ReadOnlyField(source="offering.category.uuid")
+    offering_uuid = serializers.UUIDField(read_only=True, source="offering.uuid")
+    category_uuid = serializers.UUIDField(
+        read_only=True, source="offering.category.uuid"
+    )
     category_name = serializers.ReadOnlyField(source="offering.category.title")
     provider_name = serializers.ReadOnlyField(source="offering.customer.name")
     call_managing_organisation = serializers.ReadOnlyField(
@@ -184,7 +186,7 @@ class ReviewSerializer(
     call_uuid = serializers.UUIDField(source="proposal.round.call.uuid", read_only=True)
     call_name = serializers.ReadOnlyField(source="proposal.round.call.name")
     reviewer_full_name = serializers.ReadOnlyField(source="reviewer.full_name")
-    reviewer_uuid = serializers.ReadOnlyField(source="reviewer.uuid")
+    reviewer_uuid = serializers.UUIDField(read_only=True, source="reviewer.uuid")
 
     proposal_name = serializers.ReadOnlyField(source="proposal.name")
 
@@ -333,7 +335,9 @@ class PublicCallSerializer(
 ):
     state = serializers.ReadOnlyField()
     customer_name = serializers.ReadOnlyField(source="manager.customer.name")
-    customer_uuid = serializers.ReadOnlyField(source="manager.customer.uuid")
+    customer_uuid = serializers.UUIDField(
+        read_only=True, source="manager.customer.uuid"
+    )
     offerings = serializers.SerializerMethodField(method_name="get_offerings")
     rounds = serializers.SerializerMethodField()
     start_date = serializers.SerializerMethodField()

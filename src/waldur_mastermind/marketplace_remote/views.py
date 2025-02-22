@@ -3,7 +3,6 @@ from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import permissions as rf_permissions
-from rest_framework import serializers as rf_serializers
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -36,23 +35,12 @@ from waldur_mastermind.marketplace_remote.models import (
 from . import filters, serializers, tasks, utils, utils_sync_remote_offerings
 
 
-class RemoteCustomerSerializer(rf_serializers.Serializer):
-    uuid = rf_serializers.CharField(read_only=True)
-    name = rf_serializers.CharField(read_only=True)
-    abbreviation = rf_serializers.CharField(read_only=True)
-    phone_number = rf_serializers.CharField(read_only=True)
-    email = rf_serializers.CharField(read_only=True)
-
-
-class RemoteOfferingSerializer(rf_serializers.Serializer):
-    uuid = rf_serializers.CharField(read_only=True)
-    name = rf_serializers.CharField(read_only=True)
-    type = rf_serializers.CharField(read_only=True)
-    state = rf_serializers.CharField(read_only=True)
-    category_title = rf_serializers.CharField(read_only=True)
-
-
 class RemoteView(GenericAPIView):
+    """View for handling remote credentials for waldur client."""
+
+    serializer_class = serializers.RemoteCredentialsSerializer
+    filter_backends = []
+
     def get_client(self, request):
         serializer = serializers.RemoteCredentialsSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -64,7 +52,8 @@ class RemoteView(GenericAPIView):
 class CustomersView(RemoteView):
     @extend_schema(
         request=serializers.RemoteCredentialsSerializer,
-        responses=RemoteCustomerSerializer(many=True),
+        responses=serializers.RemoteCustomerSerializer(many=True),
+        description="List remote customers owned by current user",
     )
     def post(self, request, *args, **kwargs):
         client = self.get_client(request)
@@ -83,6 +72,7 @@ class СategoriesView(RemoteView):
     @extend_schema(
         request=serializers.RemoteCredentialsSerializer,
         responses=MarketplaceCategorySerializer(many=True),
+        description="List remote marketplace categories",
     )
     def post(self, request, *args, **kwargs):
         client = self.get_client(request)
@@ -96,12 +86,13 @@ class СategoriesView(RemoteView):
 class OfferingsListView(RemoteView):
     @extend_schema(
         request=serializers.RemoteCredentialsSerializer,
-        responses=RemoteOfferingSerializer(many=True),
+        responses=serializers.RemoteOfferingSerializer(many=True),
         parameters=[
             OpenApiParameter(
                 name="customer_uuid", type=str, location=OpenApiParameter.QUERY
             )
         ],
+        description="List remote importable offerings for particular customer",
     )
     def post(self, request, *args, **kwargs):
         client = self.get_client(request)
@@ -138,6 +129,7 @@ class OfferingCreateView(RemoteView):
     @extend_schema(
         request=serializers.RemoteOfferingCreateSerializer,
         responses=serializers.RemoteOfferingCreateResponseSerializer,
+        description="Create local offering from remote",
     )
     def post(self, request, *args, **kwargs):
         serializer = serializers.RemoteOfferingCreateSerializer(data=request.data)
@@ -167,7 +159,7 @@ class OfferingCreateView(RemoteView):
         secret_options = {
             "api_url": api_url,
             "token": token,
-            "customer_uuid": remote_customer_uuid,
+            "customer_uuid": remote_customer_uuid.hex,
         }
         local_offering = utils.import_offering(
             remote_offering, local_customer, local_category, secret_options
@@ -205,7 +197,8 @@ class ProjectUpdateRequestViewSet(ActionsViewSet):
 
     @extend_schema(
         request=ReviewCommentSerializer,
-        responses=EmptySerializer,
+        responses=None,
+        description="Approve project update request",
     )
     @action(detail=True, methods=["post"])
     def approve(self, request, **kwargs):
@@ -218,7 +211,8 @@ class ProjectUpdateRequestViewSet(ActionsViewSet):
 
     @extend_schema(
         request=ReviewCommentSerializer,
-        responses=EmptySerializer,
+        responses=None,
+        description="Reject project update request",
     )
     @action(detail=True, methods=["post"])
     def reject(self, request, **kwargs):
@@ -237,6 +231,8 @@ class ProjectUpdateRequestViewSet(ActionsViewSet):
 
 class PullOrderView(GenericAPIView):
     permission_classes = []
+    filter_backends = []
+    serializer_class = EmptySerializer
 
     def get_order(self):
         item_uuid = self.kwargs["uuid"]
@@ -247,8 +243,7 @@ class PullOrderView(GenericAPIView):
         )
         return get_object_or_404(qs, uuid=item_uuid)
 
-    serializer_class = EmptySerializer
-
+    @extend_schema(description="Schedule order pull task")
     def post(self, *args, **kwargs):
         order = self.get_order()
         tasks.OrderPullTask.apply_async(args=[serialize_instance(order)])
@@ -256,6 +251,9 @@ class PullOrderView(GenericAPIView):
 
 
 class CancelTerminationOrderView(GenericAPIView):
+    serializer_class = EmptySerializer
+    filter_backends = []
+
     def get_order(self):
         item_uuid = self.kwargs["uuid"]
         if not is_uuid_like(item_uuid):
@@ -267,8 +265,7 @@ class CancelTerminationOrderView(GenericAPIView):
         )
         return get_object_or_404(qs, uuid=item_uuid)
 
-    serializer_class = EmptySerializer
-
+    @extend_schema(description="Cancel termination order")
     def post(self, request, *args, **kwargs):
         order = self.get_order()
         if not has_permission(
@@ -289,6 +286,7 @@ class CancelTerminationOrderView(GenericAPIView):
 
 class OfferingActionView(GenericAPIView):
     serializer_class = EmptySerializer
+    filter_backends = []
 
     def post(self, request, uuid):
         qs = models.Offering.objects.filter(type=PLUGIN_NAME)
@@ -357,7 +355,7 @@ class RemoteSynchronisationViewSet(core_views.ActionsViewSet):
     )
     permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
 
-    @extend_schema(request=EmptySerializer)
+    @extend_schema(request=None)
     @action(detail=True, methods=["post"])
     def run_synchronisation(self, request, **kwargs):
         sync = self.get_object()

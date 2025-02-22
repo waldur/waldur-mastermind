@@ -1,12 +1,12 @@
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from django.utils.translation import gettext_lazy as _
-from drf_spectacular.utils import extend_schema
-from rest_framework import status
+from drf_spectacular.utils import OpenApiExample, extend_schema
+from rest_framework import generics, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from waldur_core.core.views import ActionsViewSet, APIView, ReadOnlyActionsViewSet
+from waldur_core.core.views import ActionsViewSet, ReadOnlyActionsViewSet
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import permission_factory
 from waldur_core.structure import filters as structure_filters
@@ -40,22 +40,20 @@ class DryRunView(ActionsViewSet):
         "destroy",
     ]
 
-    """
-    Example of usage is below. "type" field can have of the following values: Create, Update, Terminate
-
-    .. code-block:: http
-
-        POST http://127.0.0.1:8000/api/marketplace-script-dry-run/5329a7bef29a44d29c5f4230dc1ed00e/run/
-        Content-Type: application/json
-        Authorization: Token 154f2c6984b5992928b62f87950ac529f1f906ca
-        Accept: application/json
-
-        {
-            "plan": "http://127.0.0.1:8000/api/marketplace-plans/ed80e1047eeb4c9eb67f6e61b98977bc/",
-            "type": "Update"
-        }
-    """
-
+    @extend_schema(
+        request=DryRunSerializer,
+        examples=[
+            OpenApiExample(
+                "Dry-run order example",
+                summary="Create",
+                value={
+                    "plan": "http://127.0.0.1:8000/api/marketplace-plans/ed80e1047eeb4c9eb67f6e61b98977bc/",
+                    "type": "Update",
+                },
+                request_only=True,
+            )
+        ],
+    )
     @action(detail=True, methods=["post"])
     def run(self, request, *args, **kwargs):
         serializer = DryRunSerializer(data=request.data)
@@ -148,7 +146,17 @@ class AsyncDryRunView(ReadOnlyActionsViewSet):
     serializer_class = DryRunSerializer
 
 
-class PullMarketplaceScriptResourceView(APIView):
+class PullMarketplaceScriptResourceView(generics.GenericAPIView):
+    filter_backends = []
+
+    @extend_schema(
+        request=marketplace_script_serializers.PullMarketplaceScriptResourceSerializer,
+        responses={202: None, 404: None},
+        description="Pull a marketplace script resource.",
+        summary="""This view allows a user to trigger a pull operation for a marketplace script resource.
+        The user must be a service consumer and have access to the resource.
+        The pull operation is performed asynchronously using Celery.""",
+    )
     def post(self, request, *args, **kwargs):
         serializer = (
             marketplace_script_serializers.PullMarketplaceScriptResourceSerializer(
