@@ -336,6 +336,7 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
         "shared",
         "billable",
         "type",
+        ("customer", RelatedOnlyDropdownFilter),
         ("category", RelatedOnlyDropdownFilter),
     )
     date_hierarchy = "created"

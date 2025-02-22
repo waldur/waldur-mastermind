@@ -151,7 +151,9 @@ class RemoteSynchronisationSerializer(
             )
         return attrs
 
-    def _create_or_update_category_mapping(self, remote_synchronisation, categories):
+    def _create_or_update_category_mapping(
+        self, remote_synchronisation: models.RemoteSynchronisation, categories
+    ):
         if not categories:
             raise serializers.ValidationError(
                 _("At least one category must be specified.")
@@ -171,12 +173,50 @@ class RemoteSynchronisationSerializer(
                 _("Duplicate remote categories are not allowed.")
             )
 
-        remote_synchronisation.remotelocalcategory_set.all().delete()
+        # Create a lookup dictionary for new categories, use "Unknown" as default name
+        new_categories_dict = {
+            (c["local_category"].id, str(c["remote_category"])): c.get(
+                "remote_category_name", "Unknown"
+            )
+            for c in categories
+        }
 
-        for c in categories:
+        # Get existing categories
+        existing_categories = remote_synchronisation.remotelocalcategory_set.all()
+
+        # Update or delete existing categories
+        for existing_category in existing_categories:
+            key = (
+                existing_category.local_category_id,
+                str(existing_category.remote_category),
+            )
+            if key in new_categories_dict:
+                # Update name if different
+                new_name = new_categories_dict[key]
+                if existing_category.remote_category_name != new_name:
+                    existing_category.remote_category_name = new_name
+                    existing_category.save()
+                # Remove from dict to track what needs to be created
+                del new_categories_dict[key]
+            else:
+                # Remove if not in new categories
+                existing_category.delete()
+
+        # Create new categories
+        for (
+            local_category_id,
+            remote_category,
+        ), remote_category_name in new_categories_dict.items():
+            category_data = next(
+                c
+                for c in categories
+                if c["local_category"].id == local_category_id
+                and str(c["remote_category"]) == remote_category
+            )
             models.RemoteLocalCategory.objects.create(
-                local_category=c["local_category"],
-                remote_category=c["remote_category"],
+                local_category=category_data["local_category"],
+                remote_category=category_data["remote_category"],
+                remote_category_name=remote_category_name,  # This will be "Unknown" if not provided
                 remote_synchronisation=remote_synchronisation,
             )
 
