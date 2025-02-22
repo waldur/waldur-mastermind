@@ -19,6 +19,7 @@ from waldur_core.permissions.utils import get_permissions
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import plugins
+from waldur_mastermind.marketplace.enums import OfferingStates
 from waldur_mastermind.marketplace_remote.constants import (
     OFFERING_COMPONENT_FIELDS,
     OFFERING_FIELDS,
@@ -544,7 +545,31 @@ def get_remote_offerings(client, remote_customer_uuid, category_uuid=None, field
     return client.list_marketplace_public_offerings(params)
 
 
-def import_offering(remote_offering, local_customer, local_category, secret_options):
+def import_offering(
+    remote_offering: dict,
+    local_customer: structure_models.Customer,
+    local_category: marketplace_models.Category,
+    secret_options: dict,
+):
+    # Create mapping from OfferingStates.CHOICES
+    STATE_MAPPING = {
+        state_name: state_id for state_id, state_name in OfferingStates.CHOICES
+    }
+
+    # Extract only the fields that exist in remote_offering
+    offering_fields = {
+        key: remote_offering[key] for key in OFFERING_FIELDS if key in remote_offering
+    }
+
+    # Map the state if it exists in remote_offering
+    if "state" in remote_offering:
+        remote_state = remote_offering["state"].title()  # Normalize state string
+        state = STATE_MAPPING.get(
+            remote_state, OfferingStates.DRAFT
+        )  # Default to DRAFT if unknown state
+    else:
+        state = OfferingStates.DRAFT  # Default state if not provided
+
     local_offering = marketplace_models.Offering.objects.create(
         type=PLUGIN_NAME,
         billable=True,
@@ -552,8 +577,10 @@ def import_offering(remote_offering, local_customer, local_category, secret_opti
         customer=local_customer,
         category=local_category,
         secret_options=secret_options,
-        **{key: remote_offering[key] for key in OFFERING_FIELDS},
+        state=state,
+        **offering_fields,
     )
+
     import_offering_thumbnail(local_offering, remote_offering)
     local_components_map = import_offering_components(local_offering, remote_offering)
     import_plans(local_offering, remote_offering, local_components_map)

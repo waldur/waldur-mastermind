@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class RemoteSynchronisationRunner:
-    def __init__(self, sync):
+    def __init__(self, sync: remote_models.RemoteSynchronisation):
         self.sync: remote_models.RemoteSynchronisation = sync
 
     def run(self) -> None:
@@ -61,13 +61,18 @@ class RemoteSynchronisationRunner:
             remote_category_name = remote_categories_mapping.get(
                 category_mapping.remote_category.hex
             )
+            self.sync.last_output += (
+                f"Processing remote category {remote_category_name}...\n"
+            )
+
             if not remote_category_name:
-                logger.warning(
-                    f"Category {category_mapping.remote_category.hex} not found in the remote Waldur"
-                )
+                message = f"Category {category_mapping.remote_category.hex} not found in the remote Waldur"
+                logger.warning(message)
+                self.sync.last_output += f"\n{message}"
                 continue
             if remote_category_name != category_mapping.remote_category_name:
                 category_mapping.remote_category_name = remote_category_name
+                self.sync.last_output += f"\nRemote category name has changed, updating. New name: {remote_category_name}"
                 mappings_to_update.append(category_mapping)
 
             # retrieve remote offerings
@@ -78,6 +83,7 @@ class RemoteSynchronisationRunner:
             )
 
             for remote_offering in remote_offerings:
+                self.sync.last_output += f'\tProcessing {remote_offering["name"]}...'
                 local_offering = existing_offerings.filter(
                     backend_id=remote_offering["uuid"],
                 ).first()
@@ -134,7 +140,7 @@ class RemoteSynchronisationRunner:
             local_category,
             secret_options,
         )
-        self.sync.last_output += f"Creation of offering {local_offering} / {local_category.title} completed successfully. \n"
+        self.sync.last_output += f"\t\nCreation of offering {local_offering} / {local_category.title} completed successfully. \n"
         logger.info(
             "Creation of offering %s completed successfully.",
             local_offering,
