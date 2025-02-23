@@ -1741,6 +1741,7 @@ class AgentPluginOptionsSerializer(serializers.Serializer):
         choices=[None, "project_slug"],
         help_text="Slurm account name generation policy",
         default=None,
+        allow_null=True,
     )
 
 
