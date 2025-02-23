@@ -35,11 +35,23 @@ class CreateComponentUserUsageLimitTest(test.APITransactionTestCase):
         response = self.create_component_user_usage_limit(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def create_component_user_usage_limit(self, user):
+    def test_offering_user_validate(self):
+        response = self.create_component_user_usage_limit(
+            "staff", offering_user_is_admin=False
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def create_component_user_usage_limit(self, user, offering_user_is_admin=True):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         url = factories.ComponentUserUsageLimitFactory.get_list_url()
         offering_user = factories.OfferingUserFactory(offering=self.offering)
+
+        if offering_user_is_admin:
+            self.fixture.resource.project.add_user(
+                offering_user.user, ProjectRole.ADMIN
+            )
+
         payload = {
             "resource": factories.ResourceFactory.get_url(self.fixture.resource),
             "component": self.fixture.offering_component.uuid.hex,

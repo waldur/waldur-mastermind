@@ -8,6 +8,7 @@ from rest_framework.reverse import reverse
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.tests.types import BaseMetaFactory
+from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.marketplace import models
@@ -585,7 +586,7 @@ class OfferingUserFactory(factory.django.DjangoModelFactory):
 
 class ComponentUserUsageLimitFactory(factory.django.DjangoModelFactory):
     resource = factory.SubFactory(ResourceFactory)
-    component = factory.SubFactory(OfferingComponentFactory)
+    component = factory.LazyAttribute(lambda o: o.resource.offering.components.first())
     user = factory.SubFactory(OfferingUserFactory)
     limit = 100
 
@@ -606,3 +607,10 @@ class ComponentUserUsageLimitFactory(factory.django.DjangoModelFactory):
     def get_list_url(cls, action=None):
         url = "http://testserver" + reverse("component-user-usage-limit-list")
         return url if action is None else url + action + "/"
+
+    @factory.post_generation
+    def add_user_to_project(self, create, extracted, **kwargs):
+        if not create:
+            return
+
+        self.resource.project.add_user(self.user.user, ProjectRole.ADMIN)

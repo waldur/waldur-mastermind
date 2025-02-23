@@ -4385,6 +4385,12 @@ class ComponentUserUsageLimitSerializer(
     def validate(self, attrs):
         component = self.get_from_attrs_or_instance(attrs, "component")
         resource = self.get_from_attrs_or_instance(attrs, "resource")
+        offering_user = self.get_from_attrs_or_instance(attrs, "user")
+
+        if not resource.project.has_user(offering_user.user):
+            raise serializers.ValidationError(
+                {"user": "The specified user is not part of the resource's project."}
+            )
 
         if not self.instance:
             if not has_permission(
@@ -4399,7 +4405,7 @@ class ComponentUserUsageLimitSerializer(
                 raise PermissionDenied()
 
         if not resource.offering.components.filter(uuid=component.uuid).exists():
-            serializers.ValidationError("Component is wrong.")
+            raise serializers.ValidationError({"component": "Component is wrong."})
 
         return attrs
 
