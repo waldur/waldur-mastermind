@@ -1816,7 +1816,7 @@ class PublicOfferingViewSet(rf_viewsets.ReadOnlyModelViewSet):
         return self.queryset.filter_by_ordering_availability_for_user(user)
 
     @extend_schema(responses=serializers.BasePublicPlanSerializer(many=True))
-    @action(detail=True, methods=["get"])
+    @action(detail=True, methods=["get"], filter_backends=[], pagination_class=None)
     def plans(self, request, uuid=None):
         offering = self.get_object()
         return Response(
