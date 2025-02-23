@@ -2610,8 +2610,8 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
     limits = serializers.SerializerMethodField()
     attributes = serializers.SerializerMethodField()
     current_usages = serializers.SerializerMethodField()
-    order_in_progress = serializers.SerializerMethodField()
-    creation_order = serializers.SerializerMethodField()
+    order_in_progress = serializers.SerializerMethodField(allow_null=True)
+    creation_order = serializers.SerializerMethodField(allow_null=True)
     backend_metadata = serializers.SerializerMethodField()
 
     def get_can_terminate(self, resource) -> bool:
@@ -2691,17 +2691,15 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
     def get_backend_metadata(self, resource: models.Resource):
         return resource.backend_metadata
 
-    def get_order_in_progress(
-        self, resource: models.Resource
-    ) -> OrderDetailsSerializer | None:
+    @extend_schema_field(OrderDetailsSerializer)
+    def get_order_in_progress(self, resource: models.Resource):
         if resource.order_in_progress:
             return OrderDetailsSerializer(
                 instance=resource.order_in_progress, context=self.context
             ).data
 
-    def get_creation_order(
-        self, resource: models.Resource
-    ) -> OrderDetailsSerializer | None:
+    @extend_schema_field(OrderDetailsSerializer)
+    def get_creation_order(self, resource: models.Resource):
         if resource.creation_order:
             return OrderDetailsSerializer(
                 instance=resource.creation_order, context=self.context

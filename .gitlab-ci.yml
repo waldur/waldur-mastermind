@@ -373,7 +373,7 @@ Generate OpenAPI schema:
     DJANGO_SETTINGS_MODULE: waldur_core.server.doc_settings
   script:
     - poetry install
-    - waldur spectacular --file waldur-openapi-schema.yaml
+    - waldur spectacular --file waldur-openapi-schema.yaml --fail-on-warn
   artifacts:
     paths:
       - waldur-openapi-schema.yaml
