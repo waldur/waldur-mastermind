@@ -228,6 +228,9 @@ def queryset_factory(model, role=None, path=None, ordering=None, created_by=Fals
     def get_queryset(view):
         user = view.request.user
 
+        if user.is_anonymous:
+            return model.objects.none()
+
         if user.is_staff:
             return model.objects.all()
 
