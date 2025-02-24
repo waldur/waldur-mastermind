@@ -388,9 +388,11 @@ Generate TypeScript SDK:
   image: registry.hpc.ut.ee/mirror/library/node:lts-alpine
   needs:
     - Generate OpenAPI schema
-  script:
-    - npx --yes @hey-api/openapi-ts -c @hey-api/client-fetch -i waldur-openapi-schema.yaml -o waldur-typescript-sdk
-    - ls -l waldur-typescript-sdk
+  script: |
+    npx --yes @hey-api/openapi-ts -c @hey-api/client-fetch -i waldur-openapi-schema.yaml -o waldur-typescript-sdk
+    # drop querySerializer because it is producing explode: false for multiple choice filter
+    sed -i '/querySerializer: {/,/},/d' waldur-typescript-sdk/sdk.gen.ts
+    ls -l waldur-typescript-sdk
   artifacts:
     paths:
       - waldur-typescript-sdk/
