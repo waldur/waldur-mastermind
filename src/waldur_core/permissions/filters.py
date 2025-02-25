@@ -12,6 +12,8 @@ from . import models
 
 class RoleFilter(django_filters.FilterSet):
     is_active = django_filters.BooleanFilter(widget=BooleanWidget)
+    name = django_filters.CharFilter(lookup_expr="icontains")
+    description = django_filters.CharFilter(lookup_expr="icontains")
 
     class Meta:
         model = models.Role
