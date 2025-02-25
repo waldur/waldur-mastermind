@@ -1440,6 +1440,7 @@ class ProviderOfferingViewSet(
             ]
         )
 
+    @extend_schema(request=None, responses=str)
     @action(detail=True, methods=["GET"], renderer_classes=[PlainTextRenderer])
     def glauth_users_config(self, request, uuid=None):
         """
