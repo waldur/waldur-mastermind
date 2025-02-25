@@ -417,7 +417,7 @@ CONSTANCE_CONFIG = {
     ),
     "ENABLE_STRICT_CHECK_ACCEPTING_INVITATION": (
         False,
-        "If this is true and user email is pre-validated then accepting invitation to only do that if user’s email and email of the invitation fully match.",
+        "If this is true and user email is pre-validated then accepting invitation to only do that if user's email and email of the invitation fully match.",
     ),
     "INVITATION_DISABLE_MULTIPLE_ROLES": (
         False,
@@ -690,6 +690,11 @@ CONSTANCE_CONFIG = {
         True,
         "Optionally disable creation of user groups in FreeIPA matching Waldur structure",
     ),
+    "KEYCLOAK_ICON": (
+        "",
+        "A custom PNG icon for Keycloak login button",
+        "image_field",
+    ),
 }
 
 CONSTANCE_CONFIG_FIELDSETS = {
@@ -759,6 +764,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "LOGIN_LOGO",
         "FAVICON",
         "OFFERING_LOGO_PLACEHOLDER",
+        "KEYCLOAK_ICON",
     ),
     "Service desk integration settings": (
         "WALDUR_SUPPORT_ENABLED",
@@ -890,6 +896,7 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "FREEIPA_USERNAME_PREFIX",
     "DEFAULT_IDP",
     "HOMEPORT_URL",
+    "KEYCLOAK_ICON",
 )
 
 for ext in WaldurExtension.get_extensions():
