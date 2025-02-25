@@ -109,20 +109,6 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
         """
         return super().list(request, *args, **kwargs)
 
-    def retrieve(self, request, *args, **kwargs):
-        """
-        Optional `field` query parameter (can be list) allows to limit what fields are returned.
-        For example, given request /api/customers/<uuid>/?field=uuid&field=name you get response like this:
-
-        .. code-block:: javascript
-
-            {
-                "uuid": "90bcfe38b0124c9bbdadd617b5d739f5",
-                "name": "Ministry of Bells"
-            }
-        """
-        return super().retrieve(request, *args, **kwargs)
-
     @extend_schema(
         description="A new customer can only be created by users with staff privilege",
         request=serializers.CustomerSerializer,

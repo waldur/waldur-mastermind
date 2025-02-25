@@ -1,5 +1,14 @@
 from drf_spectacular.openapi import AutoSchema
-from drf_spectacular.plumbing import get_doc
+from drf_spectacular.plumbing import (
+    OpenApiTypes,
+    build_array_type,
+    build_basic_type,
+    get_doc,
+)
+from drf_spectacular.utils import OpenApiParameter
+from rest_framework import serializers
+
+from waldur_core.core.serializers import RestrictedSerializerMixin
 
 
 class WaldurOpenApiInspector(AutoSchema):
@@ -24,3 +33,26 @@ class WaldurOpenApiInspector(AutoSchema):
                 path.append(self.method_mapping[self.method.lower()])
 
         return "_".join([t.replace("-", "_") for t in path])
+
+    def get_override_parameters(self):
+        if self.method != "GET":
+            return []
+        serializer = self.get_response_serializers()
+        if not isinstance(serializer, RestrictedSerializerMixin):
+            return []
+        if isinstance(serializer, serializers.ListSerializer):
+            serializer = serializer.child
+        try:
+            fields = serializer.fields.keys()
+        except (KeyError, AttributeError):
+            return []
+        if not fields or len(fields) == 1:
+            return []
+        return [
+            OpenApiParameter(
+                name=RestrictedSerializerMixin.FIELDS_PARAM_NAME,
+                type=build_array_type(build_basic_type(OpenApiTypes.STR)),
+                location=OpenApiParameter.QUERY,
+                enum=sorted(fields),
+            )
+        ]
