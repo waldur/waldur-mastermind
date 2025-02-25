@@ -24,7 +24,6 @@ class RequestedOfferingStates:
 
 class ProposalStates:
     DRAFT = "draft"
-    TEAM_VERIFICATION = "team_verification"
     SUBMITTED = "submitted"
     IN_REVIEW = "in_review"
     IN_REVISION = "in_revision"
@@ -34,7 +33,6 @@ class ProposalStates:
 
     CHOICES = (
         (DRAFT, "Draft"),
-        (TEAM_VERIFICATION, "Team verification"),
         (SUBMITTED, "Submitted"),
         (IN_REVIEW, "In review"),
         (IN_REVISION, "In revision"),
