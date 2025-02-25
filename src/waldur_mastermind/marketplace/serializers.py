@@ -1079,6 +1079,7 @@ class ProviderOfferingDetailsSerializer(
     state_code = serializers.ReadOnlyField(source="state")
     scope = core_serializers.GenericRelatedField(read_only=True)
     scope_uuid = serializers.UUIDField(read_only=True, source="scope.uuid")
+    scope_name = serializers.UUIDField(read_only=True, source="scope.name")
     scope_state = serializers.SerializerMethodField()
     files = NestedOfferingFileSerializer(many=True, read_only=True)
     quotas = serializers.SerializerMethodField()
@@ -1139,6 +1140,7 @@ class ProviderOfferingDetailsSerializer(
             "billable",
             "scope",
             "scope_uuid",
+            "scope_name",
             "scope_state",
             "files",
             "quotas",
