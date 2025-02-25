@@ -437,6 +437,7 @@ Upload Waldur OpenAPI schema to docs:
     - git config --global user.email "$GITLAB_USER_EMAIL"
     - cd waldur-docs
     - cp $CI_PROJECT_DIR/waldur-openapi-schema.yaml docs/API/
+    - git add docs/API/waldur-openapi-schema.yaml
     - git commit -m "Update Waldur OpenAPI schema" || exit 0
     - git branch new-api
     - git push --set-upstream origin new-api:master
