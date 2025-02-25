@@ -3693,8 +3693,8 @@ def get_marketplace_resource_count(
 ) -> dict[str, int]:
     counts = (
         models.Resource.objects.order_by()
+        .exclude(state__in=(models.Resource.States.TERMINATED,))
         .filter(
-            state__in=(models.Resource.States.OK, models.Resource.States.UPDATING),
             project=project,
         )
         .values("offering__category__uuid")
