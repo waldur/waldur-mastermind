@@ -431,7 +431,7 @@ Upload Waldur OpenAPI schema to docs:
     entrypoint: [""]
   needs:
     - Generate OpenAPI schema
-  script: |
+  script:
     - git clone "https://gitlab-ci-token:$GITLAB_TOKEN@$CI_SERVER_HOST/waldur/waldur-docs.git"
     - git config --global user.name "$GITLAB_USER_NAME"
     - git config --global user.email "$GITLAB_USER_EMAIL"
