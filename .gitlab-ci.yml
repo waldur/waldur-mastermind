@@ -420,3 +420,23 @@ Upload TypeScript SDK:
     - git commit -m "Update Waldur TypeScript SDK" || exit 0
     - git branch new-sdk
     - git push --set-upstream origin new-sdk:develop
+
+Upload Waldur OpenAPI schema to docs:
+  stage: deploy
+  interruptible: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
+  image:
+    name: registry.hpc.ut.ee/mirror/alpine/git:latest
+    entrypoint: [""]
+  needs:
+    - Generate OpenAPI schema
+  script: |
+    - git clone "https://gitlab-ci-token:$GITLAB_TOKEN@$CI_SERVER_HOST/waldur/waldur-docs.git"
+    - git config --global user.name "$GITLAB_USER_NAME"
+    - git config --global user.email "$GITLAB_USER_EMAIL"
+    - cd waldur-docs
+    - cp waldur-openapi-schema.yaml docs/API/
+    - git commit -m "Update Waldur OpenAPI schema" || exit 0
+    - git branch new-api
+    - git push --set-upstream origin new-api:master

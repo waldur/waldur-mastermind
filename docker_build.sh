@@ -30,7 +30,6 @@ INSTALLED_APPS = (
     'rest_framework',
     'django_filters',
     'drf_spectacular',
-    'drf_spectacular_sidecar',
 )
 SECRET_KEY = 'tmp'
 STATIC_ROOT = '/usr/share/waldur/static'
