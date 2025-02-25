@@ -56,7 +56,7 @@ LOGICAL_LOCAL_ORDER_STATES_MAP = {
     "done": models.Order.States.DONE,
     "erred": models.Order.States.ERRED,
     "canceled": models.Order.States.CANCELED,
-    "rejected": models.Order.States.REJECTED,
+    "rejected": models.Order.States.CANCELED,  # If a remote order is rejected, the local one should switch from "executing" to "canceled"
 }
 
 
@@ -395,8 +395,9 @@ class OrderPullTask(BackgroundPullTask):
 
         if local_order.state != correct_local_order_state:
             logger.info(
-                "Local order state %s is different from remote order state %s. Updating local order state.",
+                "Local order state %s is different from remote order state %s. Setting local order state to %s.",
                 local_order.get_state_display(),
+                remote_order["state"],
                 ORDER_STATES_MAP[correct_local_order_state],
             )
             sync_order_state(local_order, correct_local_order_state)
