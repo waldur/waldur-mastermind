@@ -735,6 +735,11 @@ class ProviderRequestedOfferingViewSet(ReadOnlyActionsViewSet):
     filterset_class = filters.RequestedOfferingFilter
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
 
+    @extend_schema(
+        description="Accept a requested offering.",
+        request=None,
+        responses={status.HTTP_200_OK: None},
+    )
     @decorators.action(detail=True, methods=["post"])
     def accept(self, request, uuid=None):
         requested_offering = self.get_object()
@@ -750,6 +755,11 @@ class ProviderRequestedOfferingViewSet(ReadOnlyActionsViewSet):
         core_validators.StateValidator(models.RequestedOffering.States.REQUESTED)
     ]
 
+    @extend_schema(
+        description="Cancel a requested offering.",
+        request=None,
+        responses={status.HTTP_200_OK: None},
+    )
     @decorators.action(detail=True, methods=["post"])
     def cancel(self, request, uuid=None):
         requested_offering = self.get_object()
@@ -802,6 +812,11 @@ class RoundViewSet(ReadOnlyActionsViewSet):
 
     get_queryset = permissions_utils.queryset_factory(models.Round, path="call")
 
+    @extend_schema(
+        description="Return list of reviewers for round.",
+        request=None,
+        responses=serializers.ReviewerSerializer(many=True),
+    )
     @decorators.action(detail=True)
     def reviewers(self, request, uuid=None):
         round_obj = self.get_object()
