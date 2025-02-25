@@ -85,7 +85,6 @@ INSTALLED_APPS = (
     "constance",
     "constance.backends.database",
     "drf_spectacular",
-    "drf_spectacular_sidecar",
 )
 INSTALLED_APPS += ADMIN_INSTALLED_APPS  # noqa: F405
 

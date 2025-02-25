@@ -3,7 +3,6 @@ from django.conf import settings
 from django.conf.urls import include
 from django.contrib import admin
 from django.urls import path, re_path
-from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 from waldur_core.core import WaldurExtension
 from waldur_core.core import views as core_views
@@ -44,12 +43,6 @@ urlpatterns += [
     re_path(r"^api/override-settings/", core_views.override_db_settings),
     re_path(r"^api/version/", core_views.version_detail),
     re_path(r"^api/feature-values/", core_views.feature_values),
-    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
-    path(
-        "api/schema/swagger-ui/",
-        SpectacularSwaggerView.as_view(url_name="schema"),
-        name="swagger-ui",
-    ),
     re_path(
         r"^api-auth/password/",
         core_views.ObtainAuthToken.as_view(),
