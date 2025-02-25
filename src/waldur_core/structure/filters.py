@@ -616,6 +616,14 @@ class OrganizationGroupFilter(NameFilterSet):
         ]
 
 
+class UserAgreementsFilter(django_filters.FilterSet):
+    class Meta:
+        model = models.UserAgreement
+        fields = [
+            "agreement_type",
+        ]
+
+
 class UserRolesFilter(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
         customer = view.get_object()

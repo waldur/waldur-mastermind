@@ -895,14 +895,9 @@ class UserAgreementsViewSet(ActionsViewSet):
     serializer_class = serializers.UserAgreementSerializer
     permission_classes = (core_permissions.ActionsPermission,)
     unsafe_methods_permissions = [permissions.is_staff]
+    filterset_class = filters.UserAgreementsFilter
     lookup_field = "uuid"
-
-    def get_queryset(self):
-        queryset = models.UserAgreement.objects.all()
-        agreement_type = self.request.query_params.get("agreement_type")
-        if agreement_type is not None:
-            queryset = queryset.filter(agreement_type=agreement_type)
-        return queryset
+    queryset = models.UserAgreement.objects.all()
 
 
 class NotificationViewSet(ActionsViewSet):
