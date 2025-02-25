@@ -22,6 +22,7 @@ LOGO_MAP = {
     "HERO_IMAGE": "api/icons/hero_image/",
     "FAVICON": "api/icons/favicon/",
     "OFFERING_LOGO_PLACEHOLDER": "api/icons/offering_logo_placeholder/",
+    "KEYCLOAK_ICON": "api/icons/keycloak_icon/",
 }
 
 DEFAULT_LOGOS = {
