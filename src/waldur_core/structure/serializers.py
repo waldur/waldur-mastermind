@@ -618,7 +618,9 @@ class NestedProjectPermissionSerializer(serializers.ModelSerializer):
         ]
 
 
-class CustomerUserSerializer(serializers.ModelSerializer):
+class CustomerUserSerializer(
+    core_serializers.RestrictedSerializerMixin, serializers.ModelSerializer
+):
     expiration_time = serializers.SerializerMethodField()
     projects = serializers.SerializerMethodField()
     # role is old, role_name is new

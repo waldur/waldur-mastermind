@@ -11,6 +11,11 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.plumbing import (
+    OpenApiTypes,
+    build_array_type,
+    build_basic_type,
+)
 from drf_spectacular.utils import (
     OpenApiExample,
     OpenApiParameter,
@@ -196,6 +201,23 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
             OpenApiParameter("project_role", str, OpenApiParameter.QUERY),
             OpenApiParameter("organization_role", str, OpenApiParameter.QUERY),
             OpenApiParameter("o", str, OpenApiParameter.QUERY),
+            OpenApiParameter(
+                "field",
+                build_array_type(build_basic_type(OpenApiTypes.STR)),
+                OpenApiParameter.QUERY,
+                enum=[
+                    "url",
+                    "uuid",
+                    "username",
+                    "full_name",
+                    "email",
+                    "role",
+                    "role_name",
+                    "projects",
+                    "expiration_time",
+                    "image",
+                ],
+            ),
         ],
     )
     @action(

@@ -330,6 +330,7 @@ class CallDocumentSerializer(serializers.ModelSerializer):
 
 
 class PublicCallSerializer(
+    core_serializers.RestrictedSerializerMixin,
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
