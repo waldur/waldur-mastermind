@@ -74,7 +74,9 @@ BillingTypes = models.OfferingComponent.BillingTypes
 
 
 class ServiceProviderSerializer(
-    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
+    core_serializers.RestrictedSerializerMixin,
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
 ):
     class Meta:
         model = models.ServiceProvider

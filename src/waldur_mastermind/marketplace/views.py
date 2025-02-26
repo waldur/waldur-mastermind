@@ -3151,6 +3151,7 @@ class ProviderResourceViewSet(BaseResourceViewSet):
 class ResourceOfferingsViewSet(ListAPIView):
     serializer_class = serializers.ResourceOfferingSerializer
     queryset = models.Offering.objects.all()  # used by OpenAPI introspector
+    filterset_class = structure_filters.NameFilterSet
 
     def get_category(self):
         if "category_uuid" not in self.kwargs:
