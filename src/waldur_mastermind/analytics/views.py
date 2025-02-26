@@ -5,10 +5,17 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models import F, OuterRef, Subquery, Value
 from django.db.models.functions import Coalesce
 from django.db.models.query import QuerySet
+from drf_spectacular.openapi import OpenApiParameter
+from drf_spectacular.plumbing import (
+    OpenApiTypes,
+    build_array_type,
+    build_basic_type,
+)
 from drf_spectacular.utils import extend_schema, extend_schema_view
-from rest_framework import permissions, status, viewsets
+from rest_framework import generics, permissions, status, viewsets
 from rest_framework.response import Response
 
+from waldur_core.core.serializers import EmptySerializer
 from waldur_core.core.utils import SubquerySum, get_ordering
 from waldur_core.quotas.models import QuotaUsage
 from waldur_core.structure.managers import filter_queryset_for_user
@@ -18,15 +25,42 @@ from waldur_mastermind.billing.models import PriceEstimate
 from . import models, serializers
 
 
-class DailyQuotaHistoryViewSet(viewsets.GenericViewSet):
+class DailyQuotaHistoryViewSet(generics.GenericAPIView):
     filter_backends = []
-    serializer_class = serializers.DailyHistoryQuotaSerializer
+    pagination_class = None
+    serializer_class = EmptySerializer
 
-    def list(self, request):
-        serializer = self.serializer_class(
-            data=request.query_params,
-            context={"request": request},
-        )
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="scope",
+                description="UUID of the scope object",
+                type=OpenApiTypes.UUID,
+                location=OpenApiParameter.QUERY,
+            ),
+            OpenApiParameter(
+                name="quota_names",
+                description="List of quota names",
+                type=build_array_type(build_basic_type(OpenApiTypes.STR)),
+                location=OpenApiParameter.QUERY,
+            ),
+            OpenApiParameter(
+                name="start",
+                description="Start date in format YYYY-MM-DD",
+                type=OpenApiTypes.DATE,
+                location=OpenApiParameter.QUERY,
+            ),
+            OpenApiParameter(
+                name="end",
+                description="End date in format YYYY-MM-DD",
+                type=OpenApiTypes.DATE,
+                location=OpenApiParameter.QUERY,
+            ),
+        ],
+        responses={200: dict[str, list[int]]},
+    )
+    def get(self, request):
+        serializer = serializers.DailyHistoryQuotaSerializer(data=request.query_params)
         serializer.is_valid(raise_exception=True)
         result = self.get_result(serializer.validated_data)
         return Response(result)

@@ -1108,3 +1108,9 @@ class InvoiceCostSerializer(serializers.Serializer):
     price = serializers.FloatField(read_only=True)
     year = serializers.IntegerField(read_only=True)
     month = serializers.IntegerField(read_only=True)
+
+
+class CostsForPeriodSerializer(serializers.Serializer):
+    total_price = serializers.CharField(read_only=True)
+    start_date = serializers.DateField(read_only=True)
+    end_date = serializers.DateField(read_only=True)

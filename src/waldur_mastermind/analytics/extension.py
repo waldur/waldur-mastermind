@@ -25,6 +25,12 @@ class AnalyticsExtension(WaldurExtension):
         return register_in
 
     @staticmethod
+    def django_urls():
+        from .urls import urlpatterns
+
+        return urlpatterns
+
+    @staticmethod
     def celery_tasks():
         return {
             "waldur-sync-daily-quotas": {

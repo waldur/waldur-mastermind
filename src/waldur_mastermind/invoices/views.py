@@ -473,6 +473,23 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
 
         return self._get_costs_for_periods_data(invoices, period, month_start)
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="period",
+                type=int,
+                location=OpenApiParameter.QUERY,
+                description="Period for which statistics should be calculated.",
+            ),
+            OpenApiParameter(
+                name="project_uuid",
+                type=uuid.UUID,
+                location=OpenApiParameter.QUERY,
+                description="UUID of the project for which statistics should be calculated.",
+            ),
+        ],
+        responses=serializers.CostsForPeriodSerializer,
+    )
     @action(detail=False, methods=["get"], filterset_class=filters.InvoiceItemFilter)
     def project_costs_for_period(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.GET, context={"request": request})
@@ -494,6 +511,23 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
         data = self._get_costs_for_entity(invoices, period, month_start)
         return Response(data)
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="period",
+                type=int,
+                location=OpenApiParameter.QUERY,
+                description="Period for which statistics should be calculated.",
+            ),
+            OpenApiParameter(
+                name="customer_uuid",
+                type=uuid.UUID,
+                location=OpenApiParameter.QUERY,
+                description="UUID of the project for which statistics should be calculated.",
+            ),
+        ],
+        responses=serializers.CostsForPeriodSerializer,
+    )
     @action(detail=False, methods=["get"], filterset_class=filters.InvoiceItemFilter)
     def customer_costs_for_period(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.GET, context={"request": request})
