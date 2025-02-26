@@ -573,7 +573,14 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         )
     ]
 
-    @extend_schema(responses=serializers.NameUUIDSerializer(many=True))
+    @extend_schema(
+        responses=serializers.NameUUIDSerializer(many=True),
+        parameters=[
+            OpenApiParameter(
+                name="customer_name", type=str, location=OpenApiParameter.QUERY
+            ),
+        ],
+    )
     @action(detail=True, methods=["GET"])
     def robot_account_customers(self, request, uuid=None):
         service_provider = self.get_object()
@@ -598,7 +605,14 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         )
     ]
 
-    @extend_schema(responses=serializers.NameUUIDSerializer(many=True))
+    @extend_schema(
+        responses=serializers.NameUUIDSerializer(many=True),
+        parameters=[
+            OpenApiParameter(
+                name="project_name", type=str, location=OpenApiParameter.QUERY
+            ),
+        ],
+    )
     @action(detail=True, methods=["GET"])
     def robot_account_projects(self, request, uuid=None):
         service_provider = self.get_object()

@@ -6,6 +6,11 @@ from django.db.models import Q, QuerySet
 from django.utils.translation import gettext_lazy as _
 from django_filters import utils as django_filters_utils
 from django_filters.rest_framework.backends import DjangoFilterBackend
+from drf_spectacular.plumbing import (
+    OpenApiTypes,
+    build_array_type,
+    build_basic_type,
+)
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.decorators import action
@@ -119,11 +124,45 @@ class UserRoleMixin:
     @extend_schema(
         parameters=[
             OpenApiParameter(name="user", type=str, location=OpenApiParameter.QUERY),
+            OpenApiParameter(
+                name="user_url", type=str, location=OpenApiParameter.QUERY
+            ),
+            OpenApiParameter(
+                name="username", type=str, location=OpenApiParameter.QUERY
+            ),
+            OpenApiParameter(
+                name="full_name", type=str, location=OpenApiParameter.QUERY
+            ),
+            OpenApiParameter(
+                name="native_name", type=str, location=OpenApiParameter.QUERY
+            ),
+            OpenApiParameter(
+                name="user_slug", type=str, location=OpenApiParameter.QUERY
+            ),
             OpenApiParameter(name="role", type=str, location=OpenApiParameter.QUERY),
             OpenApiParameter(
                 name="search_string", type=str, location=OpenApiParameter.QUERY
             ),
-            # TODO: add UserPermissionFilter parameters
+            OpenApiParameter(
+                "field",
+                build_array_type(build_basic_type(OpenApiTypes.STR)),
+                OpenApiParameter.QUERY,
+                enum=serializers.UserRoleDetailsSerializer.Meta.fields,
+            ),
+            OpenApiParameter(
+                "o",
+                build_array_type(build_basic_type(OpenApiTypes.STR)),
+                OpenApiParameter.QUERY,
+                enum=[
+                    "username",
+                    "full_name",
+                    "native_name",
+                    "email",
+                    "expiration_time",
+                    "created",
+                    "role",
+                ],
+            ),
         ],
         responses=serializers.UserRoleDetailsSerializer(many=True),
     )
