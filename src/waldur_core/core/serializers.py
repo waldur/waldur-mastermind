@@ -626,3 +626,12 @@ class TableSizeSerializer(serializers.Serializer):
 
 class QuerySerializer(serializers.Serializer):
     query = serializers.CharField()
+
+
+class VersionSerializer(serializers.Serializer):
+    version = serializers.CharField(
+        help_text="Current installed version of the application"
+    )
+    latest_version = serializers.CharField(
+        help_text="Latest available version from GitHub, if available.", required=False
+    )
