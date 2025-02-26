@@ -4,7 +4,10 @@ from django.utils import timezone
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
-from waldur_core.core.serializers import TranslatedModelSerializerMixin
+from waldur_core.core.serializers import (
+    RestrictedSerializerMixin,
+    TranslatedModelSerializerMixin,
+)
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.permissions.enums import TYPE_MAP, PermissionEnum
 from waldur_core.permissions.utils import (
@@ -21,7 +24,7 @@ from . import models
 User = get_user_model()
 
 
-class RoleDetailsSerializer(TranslatedModelSerializerMixin):
+class RoleDetailsSerializer(RestrictedSerializerMixin, TranslatedModelSerializerMixin):
     class Meta:
         model = models.Role
         fields = (
