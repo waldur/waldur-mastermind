@@ -1,13 +1,21 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the
 // README at: https://github.com/devcontainers/templates/tree/main/src/postgres
 {
-    "name": "Python 3 & PostgreSQL",
+    "name": "Python 3 & PostgreSQL & RabbitMQ",
     "dockerComposeFile": "docker-compose.yml",
     "service": "app",
     "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}/",
     "forwardPorts": [
+        // Waldur MasterMind REST API
         8000,
-        5432
+        // PostgeSQL
+        5432,
+        // RabbitMQ
+        5672,
+        // RabbitMQ management
+        15672,
+        // RabbitMQ MQTT WebSocket
+        1883
     ],
     "postCreateCommand": "bash ./.devcontainer/postCreateCommand.sh",
     "remoteUser": "root",

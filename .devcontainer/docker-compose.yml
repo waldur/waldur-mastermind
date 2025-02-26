@@ -22,6 +22,19 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_DB: postgres
       POSTGRES_PASSWORD: postgres
+      RABBITMQ_USERNAME: rabbimq
+      RABBITMQ_PASSWORD: rabbimq
+
+  queue:
+    image: bitnami/rabbitmq:latest
+    environment:
+      RABBITMQ_USERNAME: rabbimq
+      RABBITMQ_PASSWORD: rabbimq
+    command: "/bin/bash -c \"rabbitmq-plugins enable --offline rabbitmq_mqtt rabbitmq_web_mqtt rabbitmq_management; /opt/bitnami/scripts/rabbitmq/run.sh\""
+    volumes:
+      - rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
+    restart: unless-stopped
 
 volumes:
   postgres-data:
+  rabbitmq.conf:
