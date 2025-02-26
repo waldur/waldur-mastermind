@@ -383,8 +383,9 @@ class ResourceFilter(
     )
     o = django_filters.OrderingFilter(
         fields=(
-            "name",
-            "created",
+            ("name", "name"),
+            ("created", "created"),
+            ("project__name", "project_name"),
         )
     )
 

@@ -67,9 +67,7 @@ class InvitationViewSet(ProtectedViewSet):
                 lambda: tasks.process_invitation.delay(invitation.uuid.hex, sender)
             )
 
-    @extend_schema(
-        request=serializers.TokenSerializer, responses=core_serializers.EmptySerializer
-    )
+    @extend_schema(request=serializers.TokenSerializer, responses=None)
     @action(detail=False, methods=["post"], permission_classes=[])
     def approve(self, request):
         """
@@ -94,9 +92,7 @@ class InvitationViewSet(ProtectedViewSet):
             {"detail": _("Invitation has been approved.")}, status=status.HTTP_200_OK
         )
 
-    @extend_schema(
-        request=serializers.TokenSerializer, responses=core_serializers.EmptySerializer
-    )
+    @extend_schema(request=serializers.TokenSerializer, responses=None)
     @action(detail=False, methods=["post"], permission_classes=[])
     def reject(self, request):
         """
@@ -120,10 +116,7 @@ class InvitationViewSet(ProtectedViewSet):
             {"detail": _("Invitation has been rejected.")}, status=status.HTTP_200_OK
         )
 
-    @extend_schema(
-        request=core_serializers.EmptySerializer,
-        responses=core_serializers.EmptySerializer,
-    )
+    @extend_schema(request=None, responses=None)
     @action(detail=True, methods=["post"])
     def send(self, request, uuid=None):
         invitation: models.Invitation = self.get_object()
@@ -154,10 +147,7 @@ class InvitationViewSet(ProtectedViewSet):
             status=status.HTTP_200_OK,
         )
 
-    @extend_schema(
-        request=core_serializers.EmptySerializer,
-        responses=core_serializers.EmptySerializer,
-    )
+    @extend_schema(request=None, responses=None)
     @action(detail=True, methods=["post"])
     def cancel(self, request, uuid=None):
         invitation: models.Invitation = self.get_object()
@@ -178,10 +168,7 @@ class InvitationViewSet(ProtectedViewSet):
             status=status.HTTP_200_OK,
         )
 
-    @extend_schema(
-        request=core_serializers.EmptySerializer,
-        responses=core_serializers.EmptySerializer,
-    )
+    @extend_schema(request=None, responses=None)
     @action(detail=True, methods=["post"])
     def delete(self, request, uuid=None):
         invitation: models.Invitation = self.get_object()
@@ -195,10 +182,7 @@ class InvitationViewSet(ProtectedViewSet):
             status=status.HTTP_200_OK,
         )
 
-    @extend_schema(
-        request=core_serializers.EmptySerializer,
-        responses=core_serializers.EmptySerializer,
-    )
+    @extend_schema(request=None, responses=None)
     @action(
         detail=True, methods=["post"], filter_backends=[filters.PendingInvitationFilter]
     )
@@ -227,7 +211,7 @@ class InvitationViewSet(ProtectedViewSet):
         )
 
     @extend_schema(
-        request=core_serializers.EmptySerializer,
+        request=None,
         responses=serializers.InvitationCheckSerializer,
     )
     @action(detail=True, methods=["post"], filter_backends=[], permission_classes=[])
@@ -245,7 +229,7 @@ class InvitationViewSet(ProtectedViewSet):
             return Response({"email": invitation.email}, status=status.HTTP_200_OK)
 
     @extend_schema(
-        request=core_serializers.EmptySerializer,
+        request=None,
         responses=serializers.VisibleInvitationDetailsSerializer,
     )
     @action(detail=True, filter_backends=[filters.VisibleInvitationFilter])
@@ -282,6 +266,11 @@ class GroupInvitationViewSet(ProtectedViewSet):
         )
         return Response(projects.data, status=status.HTTP_200_OK)
 
+    @extend_schema(
+        request=None,
+        responses=None,
+        description="Cancel group invitation",
+    )
     @action(detail=True, methods=["post"], filter_backends=[])
     def cancel(self, request, uuid=None):
         invitation: models.GroupInvitation = self.get_object()
@@ -297,7 +286,7 @@ class GroupInvitationViewSet(ProtectedViewSet):
             status=status.HTTP_200_OK,
         )
 
-    @extend_schema(request=core_serializers.EmptySerializer)
+    @extend_schema(request=None)
     @action(detail=True, methods=["post"], filter_backends=[])
     def submit_request(self, request, uuid=None):
         invitation: models.GroupInvitation = self.get_object()
