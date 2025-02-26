@@ -3,6 +3,7 @@ import logging
 import mimetypes
 from urllib.parse import urlencode
 
+import requests
 import reversion
 from constance import config
 from django.conf import settings
@@ -28,6 +29,7 @@ from rest_framework.reverse import reverse
 from rest_framework.views import APIView
 from rest_framework.views import exception_handler as rf_exception_handler
 
+from packaging import version
 from waldur_auth_social.models import IdentityProvider
 from waldur_core import __version__
 from waldur_core.core import WaldurExtension, models, permissions
@@ -48,6 +50,7 @@ from waldur_core.core.serializers import (
     ObtainAuthTokenSerializer,
     QuerySerializer,
     TableSizeSerializer,
+    VersionSerializer,
 )
 from waldur_core.core.utils import format_homeport_link
 from waldur_core.logging.loggers import event_logger
@@ -772,10 +775,46 @@ def get_whitelabeling_logo(request, logo_type, default_image=None):
     )
 
 
+def get_latest_github_tag(timeout=5):
+    """
+    Fetch the latest tag from GitHub with caching.
+    Cache timeout is 1 hour to avoid hitting GitHub API too frequently.
+    """
+    cache_key = "waldur_latest_github_tag"
+    cached_version = cache.get(cache_key)
+    if cached_version:
+        return cached_version
+
+    try:
+        response = requests.get(
+            "https://api.github.com/repos/waldur/waldur-docs/git/refs/tags",
+            timeout=timeout,
+        )
+        response.raise_for_status()
+
+        tags = response.json()
+        if not tags:
+            return None
+
+        # Get the last tag (most recent one)
+        latest_tag = tags[-1]["ref"].replace("refs/tags/", "")
+
+        # Check if the tag is a valid version
+        version.parse(latest_tag)
+
+        # Cache for 1 hour
+        cache.set(cache_key, latest_tag, timeout=3600)
+        return latest_tag
+
+    except (requests.RequestException, KeyError, ValueError) as e:
+        logger.error(f"Failed to fetch latest GitHub tag: {str(e)}")
+        return None
+
+
 @extend_schema(
-    description="Retrieve version of the application",
+    description="Retrieve current version of the application and the latest available version from GitHub (if available).",
     request=None,
-    responses={status.HTTP_200_OK: dict},
+    responses=VersionSerializer,
 )
 @api_view(["GET"])
 @permission_classes(
@@ -786,8 +825,15 @@ def get_whitelabeling_logo(request, logo_type, default_image=None):
 )
 def version_detail(request):
     """Retrieve version of the application"""
+    response_data = {
+        "version": __version__,
+    }
 
-    return Response({"version": __version__})
+    latest_version = get_latest_github_tag()
+    if latest_version:
+        response_data["latest_version"] = latest_version
+    serializer = VersionSerializer(response_data)
+    return Response(serializer.data)
 
 
 class ActionMethodMixin:
