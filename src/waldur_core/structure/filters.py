@@ -236,42 +236,6 @@ class ProjectFilter(NameFilterSet):
         return queryset.distinct()
 
 
-class CustomerUserFilter(BaseFilterBackend):
-    def filter_queryset(self, request, queryset, view):
-        customer_uuid = request.query_params.get("customer_uuid")
-        if not customer_uuid:
-            return queryset
-
-        if not is_uuid_like(customer_uuid):
-            return queryset.none()
-
-        try:
-            customer = models.Customer.objects.get(uuid=customer_uuid)
-        except models.Customer.DoesNotExist:
-            return queryset.none()
-
-        return queryset.filter(id__in=get_nested_customer_users(customer)).distinct()
-
-
-class ProjectUserFilter(BaseFilterBackend):
-    def filter_queryset(self, request, queryset, view):
-        project_uuid = request.query_params.get("project_uuid")
-        if not project_uuid:
-            return queryset
-
-        if not is_uuid_like(project_uuid):
-            return queryset.none()
-
-        try:
-            project = models.Project.objects.get(uuid=project_uuid)
-        except models.Project.DoesNotExist:
-            return queryset.none()
-
-        project_users = get_project_users(project.id)
-
-        return queryset.filter(id__in=project_users).distinct()
-
-
 def filter_visible_users(queryset, user, extra=None):
     if user is None or not user.is_authenticated or user.is_staff or user.is_support:
         return queryset
@@ -367,6 +331,8 @@ class UserFilter(BaseUserFilter):
         method="filter_project_roles", label="Project roles"
     )
     query = django_filters.CharFilter(method="filter_query")
+    customer_uuid = django_filters.UUIDFilter(method="filter_by_customer")
+    project_uuid = django_filters.UUIDFilter(method="filter_by_project")
 
     o = core_filters.ExtendedOrderingFilter(
         fields=(
@@ -384,6 +350,23 @@ class UserFilter(BaseUserFilter):
             "is_support",
         )
     )
+
+    def filter_by_customer(self, queryset, name, value):
+        try:
+            customer = models.Customer.objects.get(uuid=value)
+        except models.Customer.DoesNotExist:
+            return queryset.none()
+
+        return queryset.filter(id__in=get_nested_customer_users(customer)).distinct()
+
+    def filter_by_project(self, queryset, name, value):
+        try:
+            project = models.Project.objects.get(uuid=value)
+        except models.Project.DoesNotExist:
+            return queryset.none()
+
+        project_users = get_project_users(project.id)
+        return queryset.filter(id__in=project_users).distinct()
 
     def filter_organization_roles(self, queryset, name, value):
         roles = self.request.GET.getlist("organization_roles")

@@ -482,8 +482,6 @@ class UserViewSet(core_views.ActionsViewSet):
         core_permissions.ActionsPermission,
     )
     filter_backends = (
-        filters.CustomerUserFilter,
-        filters.ProjectUserFilter,
         filters.UserFilterBackend,
         DjangoFilterBackend,
     )

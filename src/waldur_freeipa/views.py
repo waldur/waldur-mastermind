@@ -1,5 +1,6 @@
 from django.db import transaction
 from django.utils.translation import gettext_lazy as _
+from drf_spectacular.utils import extend_schema
 from python_freeipa import exceptions as freeipa_exceptions
 from rest_framework import decorators, exceptions, response, status
 
@@ -36,6 +37,11 @@ class ProfileViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
                 {"username": _("Profile with such name already exists.")}
             )
 
+    @extend_schema(
+        description="Update SSH keys for profile.",
+        request=None,
+        responses={status.HTTP_200_OK: None},
+    )
     @decorators.action(detail=True, methods=["post"])
     def update_ssh_keys(self, request, uuid=None):
         profile = self.get_object()
