@@ -32,7 +32,7 @@ class MarketplaceSlurmConfig(AppConfig):
         )
 
         signals.post_save.connect(
-            handlers.send_order_created_to_mqtt,
+            handlers.send_pending_order_to_mqtt,
             sender=marketplace_models.Order,
             dispatch_uid="waldur_mastermind.marketplace_slurm_remote.send_order_created_to_mqtt",
         )

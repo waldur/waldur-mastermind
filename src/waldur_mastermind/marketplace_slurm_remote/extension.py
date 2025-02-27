@@ -30,4 +30,9 @@ class MarketplaceSlurmRemoteExtension(WaldurExtension):
                 "schedule": timedelta(hours=1),
                 "args": (),
             },
+            "send-messages-about-pending-orders": {
+                "task": "waldur_mastermind.marketplace_slurm_remote.send_messages_about_pending_orders",
+                "schedule": timedelta(hours=1),
+                "args": (),
+            },
         }
