@@ -233,7 +233,7 @@ def map_limits_to_quotas(limits, offering: marketplace_models.Offering, is_creat
         quotas["storage"] = ServiceBackend.gb2mb(sum(list(volume_type_quotas.values())))
 
     # Convert quota value from float to integer because OpenStack API fails otherwise
-    quotas = {k: int(v) for k, v in quotas.items()}
+    quotas = {k: isinstance(v, float) and int(v) or v for k, v in quotas.items()}
 
     return quotas
 
