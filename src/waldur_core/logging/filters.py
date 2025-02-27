@@ -155,7 +155,7 @@ class EmailLogFilter(django_filters.FilterSet):
     body = django_filters.CharFilter(lookup_expr="icontains")
     emails = django_filters.CharFilter(lookup_expr="icontains")
     sent_at = django_filters.DateFilter(field_name="sent_at", lookup_expr="date")
-    o = django_filters.OrderingFilter(fields=("sent_at",))
+    o = django_filters.OrderingFilter(fields=["sent_at", "subject"])
 
     class Meta:
         model = models.EmailLog
