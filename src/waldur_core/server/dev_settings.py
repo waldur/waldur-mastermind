@@ -15,7 +15,7 @@ DATABASES = {
     }
 }
 
-CELERY_BROKER_URL = "amqp://rabbit:rabbit@queue:5672"
+CELERY_BROKER_URL = "amqp://rabbimq:rabbimq@queue:5672"
 
 CELERY_RESULT_BACKEND = "db+postgresql://waldur:postgres@db:5423/postgres"
 
