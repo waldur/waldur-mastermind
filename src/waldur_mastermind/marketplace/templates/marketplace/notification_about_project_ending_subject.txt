@@ -1,1 +1,1 @@
-Project {{ project.name }} will be deleted.
+{% if count_projects > 1 %}Your {{ count_projects }} projects{% else %} Project{% endif %} will be deleted on {{ end_date|date:'d/m/Y' }}.
