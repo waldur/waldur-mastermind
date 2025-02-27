@@ -11,6 +11,7 @@ from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
+from waldur_core.logging import models as logging_models
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole, ProposalRole
 from waldur_core.permissions.models import Role
@@ -709,6 +710,26 @@ class InvitationSendTest(BaseInvitationTest):
             customer_expired_invitation.state, models.Invitation.State.PENDING
         )
         self.assertEqual(customer_expired_invitation.created, timezone.now())
+
+    @override_settings(task_always_eager=True)
+    def test_creating_of_email_log(self):
+        structure_factories.NotificationFactory(key="users.invitation_created")
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
+        self.client.force_authenticate(user=self.staff)
+        response = self.client.post(
+            factories.CustomerInvitationFactory.get_url(
+                self.customer_invitation, action="send"
+            )
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.customer_invitation.refresh_from_db()
+        self.assertTrue(
+            logging_models.EmailLog.objects.filter(
+                emails=[self.customer_invitation.email],
+                subject=f"Invitation to {self.customer_invitation.customer.name} organization",
+            ).exists()
+        )
 
 
 class InvitationAcceptTest(BaseInvitationTest):
