@@ -13,5 +13,9 @@ def register_in(router):
 
 
 urlpatterns = [
-    re_path(r"^daily-quotas/", views.DailyQuotaHistoryViewSet.as_view()),
+    re_path(
+        r"^daily-quotas/",
+        views.DailyQuotaHistoryViewSet.as_view(),
+        name="daily-quotas-list",
+    ),
 ]

@@ -60,7 +60,9 @@ class DailyQuotaHistoryViewSet(generics.GenericAPIView):
         responses={200: dict[str, list[int]]},
     )
     def get(self, request):
-        serializer = serializers.DailyHistoryQuotaSerializer(data=request.query_params)
+        serializer = serializers.DailyHistoryQuotaSerializer(
+            data=request.query_params, context=self.get_serializer_context()
+        )
         serializer.is_valid(raise_exception=True)
         result = self.get_result(serializer.validated_data)
         return Response(result)
