@@ -10,7 +10,7 @@ from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME, utils
 logger = logging.getLogger(__name__)
 
 
-def send_order_created_to_mqtt(sender, instance, created=False, **kwargs):
+def send_pending_order_to_mqtt(sender, instance, created=False, **kwargs):
     order: marketplace_models.Order = instance
     if created:
         return
