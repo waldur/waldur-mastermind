@@ -7,6 +7,7 @@ import re
 import textwrap
 import traceback
 import unicodedata
+from collections import defaultdict
 from enum import Enum
 from io import BytesIO
 
@@ -29,7 +30,7 @@ from rest_framework import serializers, status
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import utils as core_utils
-from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import get_users_with_permission, has_permission
 from waldur_core.structure import filters as structure_filters
@@ -1592,3 +1593,44 @@ def generate_resource_name(
     ]
     result = "-".join(parts) + "-" + str(resource_count + 1)
     return core_utils.remove_duplicate_hyphens(result)
+
+
+def notification_about_project_ending(end_date):
+    projects_by_recipient = defaultdict(list)
+    expired_projects = structure_models.Project.available_objects.exclude(
+        end_date__isnull=True
+    ).filter(end_date=end_date)
+
+    for project in expired_projects:
+        project_users = (
+            project.get_users().exclude(email="").exclude(notifications_enabled=False)
+        )
+        owners = (
+            project.customer.get_users(RoleEnum.CUSTOMER_OWNER)
+            .exclude(email="")
+            .exclude(notifications_enabled=False)
+        )
+        users = set(project_users) | set(owners)
+
+        for user in users:
+            projects_by_recipient[user].append(project)
+
+    for user, projects in projects_by_recipient.items():
+        for project in projects:
+            project.url = core_utils.format_homeport_link(
+                "projects/{project_uuid}/", project_uuid=project.uuid.hex
+            )
+
+        context = {
+            "projects": projects,
+            "user": user,
+            "end_date": end_date,
+            "count_projects": len(projects),
+            "delta": (end_date - timezone.datetime.today().date()).days,
+        }
+        core_utils.broadcast_mail(
+            "marketplace",
+            "notification_about_project_ending",
+            context,
+            [user.email],
+        )

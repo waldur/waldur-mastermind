@@ -182,19 +182,34 @@ class ProjectEndDate(test.APITransactionTestCase):
             self.assertTrue(order.state, models.Order.States.EXECUTING)
 
     def test_notification_about_project_ending(self):
+        project_2 = structure_factories.ProjectFactory(
+            customer=self.fixture.customer,
+            end_date=datetime.datetime(day=1, month=1, year=2020),
+        )
+        project_2.add_user(self.fixture.manager, ProjectRole.MANAGER)
+
         with freeze_time("2019-12-25"):
             event_type = "notification_about_project_ending"
             structure_factories.NotificationFactory(key=f"marketplace.{event_type}")
             tasks.notification_about_project_ending()
 
-            self.assertEqual(len(mail.outbox), 2)
-            subject = "Project %s will be deleted." % self.fixture.project.name
+            self.assertEqual(
+                len(mail.outbox), 2
+            )  # we only have 2 emails, not 4, because batch sending is used
+
+            subject = "Your 2 projects will be deleted on 01/01/2020."
             self.assertEqual(mail.outbox[0].subject, subject)
+            self.assertEqual(mail.outbox[1].subject, subject)
+
             self.assertEqual(
                 {mail.outbox[0].to[0], mail.outbox[1].to[0]},
                 {self.fixture.manager.email, self.fixture.owner.email},
             )
+
             self.assertTrue(self.fixture.project.uuid.hex in mail.outbox[0].body)
+            self.assertTrue(project_2.uuid.hex in mail.outbox[0].body)
+            self.assertTrue(self.fixture.project.uuid.hex in mail.outbox[1].body)
+            self.assertTrue(project_2.uuid.hex in mail.outbox[1].body)
 
     def test_member_of_other_project_is_excluded(self):
         other_project = structure_factories.ProjectFactory(

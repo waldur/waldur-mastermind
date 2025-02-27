@@ -17,7 +17,6 @@ from rest_framework import status
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.logging import models as logging_models
-from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.log import event_logger
@@ -369,42 +368,10 @@ def notify_about_resource_termination(resource_uuid, user_uuid, is_staff_action=
 @shared_task(name="waldur_mastermind.marketplace.notification_about_project_ending")
 def notification_about_project_ending():
     date_1 = timezone.datetime.today().date() + datetime.timedelta(days=1)
+    utils.notification_about_project_ending(date_1)
+
     date_7 = timezone.datetime.today().date() + datetime.timedelta(days=7)
-    expired_projects = structure_models.Project.available_objects.exclude(
-        end_date__isnull=True
-    ).filter(Q(end_date=date_1) | Q(end_date=date_7))
-
-    for project in expired_projects:
-        managers = (
-            project.get_users(ProjectRole.MANAGER)
-            .exclude(email="")
-            .exclude(notifications_enabled=False)
-        )
-        owners = (
-            project.customer.get_users(RoleEnum.CUSTOMER_OWNER)
-            .exclude(email="")
-            .exclude(notifications_enabled=False)
-        )
-        users = set(managers) | set(owners)
-
-        project_url = core_utils.format_homeport_link(
-            "projects/{project_uuid}/",
-            project_uuid=project.uuid.hex,
-        )
-
-        for user in users:
-            context = {
-                "project_url": project_url,
-                "project": project,
-                "user": user,
-                "delta": (project.end_date - timezone.datetime.today().date()).days,
-            }
-            core_utils.broadcast_mail(
-                "marketplace",
-                "notification_about_project_ending",
-                context,
-                [user.email],
-            )
+    utils.notification_about_project_ending(date_7)
 
 
 @shared_task(name="waldur_mastermind.marketplace.notification_about_resource_ending")
