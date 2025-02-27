@@ -15,6 +15,10 @@ DATABASES = {
     }
 }
 
+CELERY_BROKER_URL = "amqp://rabbit:rabbit@queue:5672"
+
+CELERY_RESULT_BACKEND = "db+postgresql://waldur:postgres@db:5423/postgres"
+
 STATIC_ROOT = "static"
 
 LOGGING = {
