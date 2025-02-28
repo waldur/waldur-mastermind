@@ -12,8 +12,13 @@ from waldur_mastermind.marketplace_openstack import (
     RAM_TYPE,
     STORAGE_MODE_DYNAMIC,
 )
-from waldur_openstack.models import Tenant
-from waldur_openstack.tests.factories import VolumeTypeFactory
+from waldur_openstack.models import SubNet, Tenant
+from waldur_openstack.tests.factories import (
+    NetworkFactory,
+    RouterFactory,
+    SubNetFactory,
+    VolumeTypeFactory,
+)
 from waldur_openstack.tests.fixtures import OpenStackFixture
 from waldur_openstack.utils import volume_type_name_to_quota_name
 from waldur_openstack_replication.models import Migration
@@ -149,3 +154,102 @@ class MigrationTest(test.APITransactionTestCase):
                 resource=dst_resource, state=Order.States.ERRED
             ).exists()
         )
+
+    def test_migration_with_selected_networks(self):
+        plan = PlanFactory(offering=self.offering)
+        resource = ResourceFactory(offering=self.offering, scope=self.fixture.tenant)
+
+        # Create two networks and subnets in the source tenant
+        network1 = NetworkFactory(tenant=self.fixture.tenant)
+        SubNetFactory(network=network1, cidr="192.168.1.0/24")
+        network2 = NetworkFactory(tenant=self.fixture.tenant)
+        SubNetFactory(network=network2, cidr="10.0.0.0/24")
+
+        # Create a router and add static routes
+        RouterFactory(
+            tenant=self.fixture.tenant,
+            routes=[
+                {"destination": "192.168.1.0/24", "nexthop": "172.17.8.100"},
+                {"destination": "10.0.0.0/24", "nexthop": "172.17.8.100"},
+            ],
+        )
+
+        self.client.force_login(self.fixture.staff)
+        response = self.client.post(
+            reverse("openstack-migrations-list"),
+            {
+                "src_resource": resource.uuid.hex,
+                "dst_offering": self.offering.uuid.hex,
+                "dst_plan": plan.uuid.hex,
+                "mappings": {
+                    "networks": [network1.uuid.hex],  # Select only network1
+                },
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        dst_resource_uuid = response.data["dst_resource_uuid"]
+        dst_resource = Resource.objects.get(uuid=dst_resource_uuid)
+        dst_tenant: Tenant = dst_resource.scope
+
+        # Assert that only the selected network is created in the destination tenant
+        self.assertEqual(dst_tenant.networks.count(), 1)
+        self.assertEqual(dst_tenant.networks.first().name, network1.name)
+
+        # Assert that the subnet is also created
+        self.assertEqual(SubNet.objects.filter(tenant=dst_tenant).count(), 1)
+
+        # Assert that only the static route associated with the selected network is created
+        dst_router = dst_tenant.routers.first()
+        self.assertEqual(len(dst_router.routes), 1)
+        self.assertEqual(dst_router.routes[0]["destination"], "192.168.1.0/24")
+
+    def test_migration_with_all_networks(self):
+        plan = PlanFactory(offering=self.offering)
+        resource = ResourceFactory(offering=self.offering, scope=self.fixture.tenant)
+
+        # Create two networks and subnets in the source tenant
+        network1 = NetworkFactory(tenant=self.fixture.tenant)
+        SubNetFactory(network=network1, cidr="192.168.1.0/24")
+        network2 = NetworkFactory(tenant=self.fixture.tenant)
+        SubNetFactory(network=network2, cidr="10.0.0.0/24")
+
+        # Create a router and add static routes
+        RouterFactory(
+            tenant=self.fixture.tenant,
+            routes=[
+                {"destination": "192.168.1.0/24", "nexthop": "172.17.8.100"},
+                {"destination": "10.0.0.0/24", "nexthop": "172.17.8.100"},
+            ],
+        )
+
+        self.client.force_login(self.fixture.staff)
+        response = self.client.post(
+            reverse("openstack-migrations-list"),
+            {
+                "src_resource": resource.uuid.hex,
+                "dst_offering": self.offering.uuid.hex,
+                "dst_plan": plan.uuid.hex,
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        dst_resource_uuid = response.data["dst_resource_uuid"]
+        dst_resource = Resource.objects.get(uuid=dst_resource_uuid)
+        dst_tenant: Tenant = dst_resource.scope
+
+        # Assert that both networks are created in the destination tenant
+        self.assertEqual(dst_tenant.networks.count(), 2)
+        network_names = [network.name for network in dst_tenant.networks.all()]
+        self.assertIn(network1.name, network_names)
+        self.assertIn(network2.name, network_names)
+
+        # Assert that both subnets are also created
+        self.assertEqual(SubNet.objects.filter(tenant=dst_tenant).count(), 2)
+
+        # Assert that both static routes are created
+        dst_router = dst_tenant.routers.first()
+        self.assertEqual(len(dst_router.routes), 2)
+        routes = [route["destination"] for route in dst_router.routes]
+        self.assertIn("192.168.1.0/24", routes)
+        self.assertIn("10.0.0.0/24", routes)
