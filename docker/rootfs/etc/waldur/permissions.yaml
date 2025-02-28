@@ -1,6 +1,6 @@
 - role: CUSTOMER.OWNER
   description: Organization owner
-  scope: service_provider
+  scope: customer
   permissions:
     - OFFERING.CREATE
     - OFFERING.DELETE
@@ -223,7 +223,7 @@
 - role: CUSTOMER.SUPPORT
   is_active: false
   description: Organization support
-  scope: service_provider
+  scope: customer
 
 - role: CALL.MANAGER
   description: Call manager
