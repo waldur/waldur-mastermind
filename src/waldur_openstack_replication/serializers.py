@@ -1,6 +1,7 @@
 from collections import defaultdict
 
 from django.db.models import QuerySet
+from netaddr import IPNetwork
 from rest_framework import serializers
 
 from waldur_core.core.utils import pwgen
@@ -53,6 +54,9 @@ class MappingSerializer(serializers.Serializer):
     volume_types = VolumeTypeMappingSerializer(many=True, required=False)
     subnets = SubNetMappingSerializer(many=True, required=False)
     skip_connection_extnet = serializers.BooleanField(required=False, default=False)
+    networks = serializers.SlugRelatedField(
+        queryset=Network.objects.all(), slug_field="uuid", required=False, many=True
+    )
 
 
 class MigrationDetailsSerializer(serializers.ModelSerializer):
@@ -203,12 +207,18 @@ class MigrationCreateSerializer(serializers.ModelSerializer):
         dst_settings: ServiceSettings,
         dst_project: Project,
     ):
+        network_uuids = [
+            network.uuid.hex
+            for network in validated_data.get("mappings", {}).pop("networks", [])
+        ]
+        src_networks: QuerySet[Network] = Network.objects.filter(tenant=src_tenant)
+        if network_uuids:
+            src_networks = src_networks.filter(uuid__in=network_uuids)
         subnet_mappings = {}
         for subnet in validated_data.get("mappings", {}).get("subnets", []):
             src_cidr = subnet["src_cidr"]
             dst_cidr = subnet["dst_cidr"]
             subnet_mappings[src_cidr] = dst_cidr
-        src_networks: QuerySet[Network] = src_tenant.networks.all()
         for src_network in src_networks:
             dst_network = Network.objects.create(
                 name=src_network.name,
@@ -265,15 +275,26 @@ class MigrationCreateSerializer(serializers.ModelSerializer):
                 if dst_group:
                     dst_rule.remote_group = dst_group
                     dst_rule.save(update_fields=["remote_group"])
+        valid_subnet_cidrs = [
+            IPNetwork(cidr)
+            for cidr in SubNet.objects.filter(tenant=dst_tenant).values_list(
+                "cidr", flat=True
+            )
+        ]
         src_routers: QuerySet[Router] = src_tenant.routers.all()
         for src_router in src_routers:
+            routes = []
+            for route in src_router.routes:
+                destination = IPNetwork(route["destination"])
+                if any(destination in cidr for cidr in valid_subnet_cidrs):
+                    routes.append(route)
             Router.objects.create(
                 name=src_router.name,
                 description=src_router.description,
                 service_settings=dst_settings,
                 project=dst_project,
                 tenant=dst_tenant,
-                routes=src_router.routes,
+                routes=routes,
             )
 
     def get_limits(self, validated_data, src_resource: Resource):
