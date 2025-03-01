@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from freezegun import freeze_time
 from rest_framework import test
 
@@ -33,9 +35,10 @@ class PriceCurrentTest(test.APITransactionTestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         data = response.json()
-        self.assertEqual(data["billing_price_estimate"]["current"], 100 + 9 * 3)
-        diff = (
-            data["billing_price_estimate"]["total"]
-            - data["billing_price_estimate"]["current"]
+        # 127 = 100 + 9 * 3
+        # Decimals are serialized as strings as there is no native decimal in JSON and float's precision is worse
+        self.assertEqual(data["billing_price_estimate"]["current"], "127.00")
+        diff = Decimal(data["billing_price_estimate"]["total"]) - Decimal(
+            data["billing_price_estimate"]["current"]
         )
-        self.assertEqual(diff, 22 * 3)
+        self.assertEqual(diff, Decimal(22 * 3))

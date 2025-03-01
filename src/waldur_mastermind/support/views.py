@@ -366,7 +366,7 @@ class FeedbackReportViewSet(generics.GenericAPIView):
 
     def get(self, request, format=None):
         result = {
-            count["evaluation"]: count["id__count"]
+            str(count["evaluation"]): count["id__count"]
             for count in models.Feedback.objects.values("evaluation").annotate(
                 Count("id")
             )

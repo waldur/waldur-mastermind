@@ -33,8 +33,10 @@ TEMPLATES[0]["DIRS"].insert(0, templates_dir)
 
 # For security reason disable browsable API rendering in production
 if not DEBUG:
-    REST_FRAMEWORK["DEFAULT_RENDERER_CLASSES"] = (
-        "rest_framework.renderers.JSONRenderer",
+    REST_FRAMEWORK["DEFAULT_RENDERER_CLASSES"] = tuple(
+        renderer
+        for renderer in REST_FRAMEWORK["DEFAULT_RENDERER_CLASSES"]
+        if renderer != "waldur_core.core.renderers.BrowsableAPIRenderer"
     )
 
 MEDIA_ROOT = media_root
