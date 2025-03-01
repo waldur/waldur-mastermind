@@ -881,3 +881,12 @@ class CallManagingOrganisationStatSerializer(serializers.Serializer):
     rounds_closing_in_one_week = serializers.IntegerField(read_only=True)
     calls_closing_in_one_week = serializers.IntegerField(read_only=True)
     offering_requests_pending = serializers.IntegerField(read_only=True)
+
+
+class CallAttachDocumentsSerializer(serializers.Serializer):
+    documents = serializers.ListField(child=serializers.FileField())
+    description = serializers.CharField(required=False)
+
+
+class CallDetachDocumentsSerializer(serializers.Serializer):
+    documents = serializers.ListField(child=serializers.UUIDField())

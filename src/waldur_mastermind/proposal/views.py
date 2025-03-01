@@ -68,7 +68,11 @@ class CallManagingOrganisationViewSet(
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-    @extend_schema(responses=serializers.CallManagingOrganisationStatSerializer)
+    @extend_schema(
+        description="Return statistics for call managing organisation.",
+        request=None,
+        responses=serializers.CallManagingOrganisationStatSerializer,
+    )
     @decorators.action(detail=True)
     def stats(self, request, uuid=None):
         instance = self.get_object()
@@ -164,12 +168,14 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         operation_id="proposal_protected_calls_offerings_list",
         request=None,
         responses=serializers.RequestedOfferingSerializer(many=True),
+        description="List offerings for a call.",
     )
     @extend_schema(
         methods=["post"],
         operation_id="proposal_protected_calls_offerings_set",
         request=serializers.RequestedOfferingSerializer,
         responses=serializers.RequestedOfferingSerializer,
+        description="Create offering for a call.",
     )
     @decorators.action(detail=True, methods=["get", "post"])
     def offerings(self, request, uuid=None):
@@ -190,6 +196,11 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
 
     offering_detail_serializer_class = serializers.RequestedOfferingSerializer
 
+    @extend_schema(
+        description="Activate a call.",
+        request=None,
+        responses={status.HTTP_200_OK: None},
+    )
     @decorators.action(detail=True, methods=["post"])
     def activate(self, request, uuid=None):
         call = self.get_object()
@@ -210,7 +221,11 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         )
     ]
 
-    @extend_schema(responses=None)
+    @extend_schema(
+        description="Archive a call.",
+        request=None,
+        responses={status.HTTP_200_OK: None},
+    )
     @decorators.action(detail=True, methods=["post"])
     def archive(self, request, uuid=None):
         call = self.get_object()
@@ -232,12 +247,14 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         operation_id="proposal_protected_calls_rounds_list",
         request=None,
         responses=serializers.ProtectedRoundSerializer(many=True),
+        description="List rounds for a call.",
     )
     @extend_schema(
         methods=["post"],
         operation_id="proposal_protected_calls_rounds_set",
         request=serializers.ProtectedRoundSerializer,
         responses=serializers.ProtectedRoundSerializer,
+        description="Create a round for a call.",
     )
     @decorators.action(detail=True, methods=["get", "post"])
     def rounds(self, request, uuid=None):
@@ -357,6 +374,11 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             status=status.HTTP_200_OK,
         )
 
+    @extend_schema(
+        request=serializers.CallAttachDocumentsSerializer,
+        responses=None,
+        description="Attach documents to call.",
+    )
     @decorators.action(detail=True, methods=["post"])
     def attach_documents(self, request, uuid=None):
         instance = self.get_object()
@@ -384,8 +406,11 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             status=status.HTTP_200_OK,
         )
 
-    attach_documents_serializer_class = serializers.CallDocumentSerializer
-
+    @extend_schema(
+        request=serializers.CallDetachDocumentsSerializer,
+        responses=None,
+        description="Detach documents from call.",
+    )
     @decorators.action(detail=True, methods=["post"])
     def detach_documents(self, request, uuid=None):
         instance = self.get_object()
