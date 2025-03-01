@@ -110,9 +110,14 @@ REST_FRAMEWORK = {
         "waldur_core.core.authentication.SessionAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
+    "DEFAULT_PARSER_CLASSES": [
+        "drf_orjson_renderer.parsers.ORJSONParser",
+        "rest_framework.parsers.FormParser",
+        "rest_framework.parsers.MultiPartParser",
+    ],
     "DEFAULT_FILTER_BACKENDS": ("django_filters.rest_framework.DjangoFilterBackend",),
     "DEFAULT_RENDERER_CLASSES": (
-        "rest_framework.renderers.JSONRenderer",
+        "drf_orjson_renderer.renderers.ORJSONRenderer",
         "waldur_core.core.renderers.BrowsableAPIRenderer",
     ),
     "DEFAULT_THROTTLE_CLASSES": [
