@@ -26,7 +26,6 @@ class ProposalStates:
     DRAFT = "draft"
     SUBMITTED = "submitted"
     IN_REVIEW = "in_review"
-    IN_REVISION = "in_revision"
     ACCEPTED = "accepted"
     REJECTED = "rejected"
     CANCELED = "canceled"
@@ -35,7 +34,6 @@ class ProposalStates:
         (DRAFT, "Draft"),
         (SUBMITTED, "Submitted"),
         (IN_REVIEW, "In review"),
-        (IN_REVISION, "In revision"),
         (ACCEPTED, "Accepted"),
         (REJECTED, "Rejected"),
         (CANCELED, "Canceled"),
