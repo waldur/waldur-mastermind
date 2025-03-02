@@ -92,7 +92,6 @@ class CallManagingOrganisationViewSet(
         ).count()
         pending_proposals = models.Proposal.objects.filter(
             state__in=[
-                models.Proposal.States.IN_REVISION,
                 models.Proposal.States.IN_REVIEW,
                 models.Proposal.States.SUBMITTED,
             ],
@@ -573,9 +572,8 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
 
     approve_validators = [
         core_validators.StateValidator(
-            models.Proposal.States.IN_REVISION,
-            models.Proposal.States.IN_REVIEW,
             models.Proposal.States.SUBMITTED,
+            models.Proposal.States.IN_REVIEW,
             models.Proposal.States.REJECTED,
         )
     ]
@@ -598,9 +596,8 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
 
     reject_validators = [
         core_validators.StateValidator(
-            models.Proposal.States.IN_REVISION,
-            models.Proposal.States.IN_REVIEW,
             models.Proposal.States.SUBMITTED,
+            models.Proposal.States.IN_REVIEW,
         )
     ]
     reject_permissions = approve_permissions = [
