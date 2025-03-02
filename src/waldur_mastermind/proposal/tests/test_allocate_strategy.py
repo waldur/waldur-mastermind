@@ -12,23 +12,23 @@ from . import factories
 
 
 @ddt
-class ManualAllocateTest(test.APITransactionTestCase):
+class ManualApproveTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.proposal = self.fixture.proposal
         self.proposal.state = models.Proposal.States.IN_REVISION
         self.proposal.save()
-        self.allocate_url = factories.ProposalFactory.get_url(self.proposal, "allocate")
+        self.approve_url = factories.ProposalFactory.get_url(self.proposal, "approve")
         self.reject_url = factories.ProposalFactory.get_url(self.proposal, "reject")
 
     @data(
         "staff",
         "call_manager",
     )
-    def test_user_can_allocate_proposal(self, user):
+    def test_user_can_approve_proposal(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
-        response = self.client.post(self.allocate_url, {"allocation_comment": "done"})
+        response = self.client.post(self.approve_url, {"allocation_comment": "done"})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.proposal.refresh_from_db()
         self.assertEqual(self.proposal.state, models.Proposal.States.ACCEPTED)
@@ -39,35 +39,36 @@ class ManualAllocateTest(test.APITransactionTestCase):
             marketplace_models.Order.objects.filter(resource=resource).exists()
         )
 
-    def test_when_proposal_allocated_users_are_added(self):
+    def test_when_proposal_approved_users_are_added(self):
         user = UserFactory()
         self.fixture.call.default_project_role = ProjectRole.MEMBER
         self.fixture.call.save()
         add_user(self.proposal, user, ProposalRole.MEMBER)
 
         self.client.force_authenticate(self.fixture.staff)
-        response = self.client.post(self.allocate_url, {"allocation_comment": "done"})
+        response = self.client.post(self.approve_url, {"allocation_comment": "done"})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.proposal.refresh_from_db()
         self.assertTrue(has_user(self.proposal.project, user, ProjectRole.MEMBER))
 
     @data(
         "proposal_creator",
     )
-    def test_user_can_not_allocate_proposal(self, user):
+    def test_user_can_not_approve_proposal(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
-        response = self.client.post(self.allocate_url)
+        response = self.client.post(self.approve_url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     @data(
         "owner",
         "customer_support",
     )
-    def test_customer_user_can_not_allocate_proposal(self, user):
+    def test_customer_user_can_not_approve_proposal(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
-        response = self.client.post(self.allocate_url)
+        response = self.client.post(self.approve_url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
     @data(

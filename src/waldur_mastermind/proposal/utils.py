@@ -1,11 +1,16 @@
+import logging
+
 from django.db import transaction
 from django.db.models import OuterRef, QuerySet
 
 from waldur_core.core.utils import SubqueryCount, get_system_robot
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.utils import get_users
+from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.proposal import models as proposal_models
+
+logger = logging.getLogger(__name__)
 
 
 def get_available_reviewer(proposal: proposal_models.Proposal):
@@ -36,6 +41,44 @@ def process_proposals_pending_reviewers(proposal: proposal_models.Proposal):
 
 
 def allocate_proposal(proposal: proposal_models.Proposal):
+    proposal_round = proposal.round
+    name = proposal.name
+    start_date = None
+    call_prefix = proposal_round.call.backend_id or proposal_round.call.slug
+    project_name = " - ".join(
+        [call_prefix, proposal_round.start_time.strftime("%Y-%m-%d"), name]
+    )[: structure_models.PROJECT_NAME_LENGTH]
+
+    if (
+        proposal.round.allocation_time
+        == proposal_models.Round.AllocationTimes.FIXED_DATE
+    ):
+        start_date = proposal.round.allocation_date
+
+    project = structure_models.Project.objects.create(
+        customer=proposal_round.call.manager.customer,
+        name=project_name,
+        start_date=start_date,
+    )
+
+    if start_date:
+        logger.info(
+            f"Field start_date of {project} has been changed to {proposal.round.allocation_date}."
+        )
+
+    if (
+        proposal.round.allocation_time
+        == proposal_models.Round.AllocationTimes.FIXED_DATE
+    ):
+        project.start_date = proposal.round.allocation_date
+        project.save()
+        logger.info(
+            f"Field start_date of {project} has been changed to {proposal.round.allocation_date}."
+        )
+
+    proposal.project = project
+    proposal.save()
+
     requested_resources: QuerySet[proposal_models.RequestedResource] = (
         proposal.requestedresource_set.filter(
             requested_offering__state=proposal_models.RequestedOffering.States.ACCEPTED

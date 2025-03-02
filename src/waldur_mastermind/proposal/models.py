@@ -78,6 +78,7 @@ class Call(
     core_models.DescribableMixin,
     structure_models.StructureLoggableMixin,
     core_models.BackendMixin,
+    core_models.SlugMixin,
 ):
     class States(CallStates):
         pass
@@ -275,7 +276,7 @@ class Proposal(
         default=States.DRAFT, choices=States.CHOICES, db_index=True
     )
     project = models.ForeignKey(
-        structure_models.Project, on_delete=models.PROTECT, editable=False
+        structure_models.Project, on_delete=models.PROTECT, editable=False, null=True
     )
     duration_in_days = models.PositiveIntegerField(
         null=True,
