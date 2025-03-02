@@ -840,7 +840,7 @@ class ReviewerSerializer(serializers.Serializer):
         return f"{obj.first_name} {obj.last_name}"
 
 
-class ProposalAllocateSerializer(serializers.Serializer):
+class ProposalApproveSerializer(serializers.Serializer):
     allocation_comment = serializers.CharField(required=False)
 
 

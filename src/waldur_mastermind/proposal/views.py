@@ -25,10 +25,8 @@ from waldur_core.permissions.fixtures import ProposalRole
 from waldur_core.permissions.utils import add_user, permission_factory
 from waldur_core.permissions.views import UserRoleMixin
 from waldur_core.structure import filters as structure_filters
-from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions
 from waldur_core.structure.managers import get_connected_customers
-from waldur_core.structure.models import PROJECT_NAME_LENGTH
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.views import BaseMarketplaceView, PublicViewsetMixin
 from waldur_mastermind.proposal import (
@@ -470,28 +468,13 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     submit_permissions = [is_creator]
 
     def perform_create(self, serializer):
-        proposal_round = serializer.validated_data.get("round")
-        name = serializer.validated_data.get("name")
-        call_prefix = (
-            proposal_round.call.backend_id
-            if proposal_round.call.backend_id
-            else proposal_round.call.name
+        proposal = serializer.save()
+        add_user(
+            proposal,
+            self.request.user,
+            ProposalRole.MANAGER,
+            created_by=self.request.user,
         )
-        project_name = " - ".join(
-            [call_prefix, proposal_round.start_time.strftime("%Y-%m-%d"), name]
-        )[:PROJECT_NAME_LENGTH]
-        project = structure_models.Project.objects.create(
-            customer=proposal_round.call.manager.customer,
-            name=project_name,
-        )
-        proposal = serializer.save(project=project)
-        if proposal:
-            add_user(
-                proposal,
-                self.request.user,
-                ProposalRole.MANAGER,
-                created_by=self.request.user,
-            )
 
     @extend_schema(
         methods=["get"],
@@ -548,7 +531,7 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
 
     @extend_schema(responses=None)
     @decorators.action(detail=True, methods=["post"])
-    def allocate(self, request, uuid=None):
+    def approve(self, request, uuid=None):
         proposal = self.get_object()
         utils.allocate_proposal(proposal)
         proposal.state = models.Proposal.States.ACCEPTED
@@ -559,9 +542,18 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         )
         proposal.save()
         return response.Response(
-            "Proposal has been allocated.",
+            "Proposal has been approved.",
             status=status.HTTP_200_OK,
         )
+
+    approve_validators = [
+        core_validators.StateValidator(
+            models.Proposal.States.IN_REVISION,
+            models.Proposal.States.IN_REVIEW,
+            models.Proposal.States.SUBMITTED,
+            models.Proposal.States.REJECTED,
+        )
+    ]
 
     @extend_schema(responses=None)
     @decorators.action(detail=True, methods=["post"])
@@ -579,48 +571,19 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             status=status.HTTP_200_OK,
         )
 
-    reject_validators = allocate_validators = [
+    reject_validators = [
         core_validators.StateValidator(
             models.Proposal.States.IN_REVISION,
             models.Proposal.States.IN_REVIEW,
             models.Proposal.States.SUBMITTED,
         )
     ]
-    reject_permissions = allocate_permissions = [
+    reject_permissions = approve_permissions = [
         permission_factory(PermissionEnum.APPROVE_AND_REJECT_PROPOSALS, ["round.call"])
     ]
-    reject_serializer_class = allocate_serializer_class = (
-        force_approve_serializer_class
-    ) = serializers.ProposalAllocateSerializer
-
-    @extend_schema(responses=None)
-    @decorators.action(detail=True, methods=["post"])
-    def force_approve(self, request, uuid=None):
-        proposal = self.get_object()
-        utils.allocate_proposal(proposal)
-        proposal.state = models.Proposal.States.ACCEPTED
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        proposal.allocation_comment = serializer.validated_data.get(
-            "allocation_comment", ""
-        )
-        proposal.save()
-        return response.Response(
-            "Proposal has been allocated.",
-            status=status.HTTP_200_OK,
-        )
-
-    force_approve_validators = [
-        core_validators.StateValidator(
-            models.Proposal.States.SUBMITTED,
-            models.Proposal.States.IN_REVIEW,
-            models.Proposal.States.REJECTED,
-        )
-    ]
-
-    force_approve_permissions = [
-        permission_factory(PermissionEnum.APPROVE_AND_REJECT_PROPOSALS, ["round.call"])
-    ]
+    reject_serializer_class = approve_serializer_class = (
+        serializers.ProposalApproveSerializer
+    )
 
 
 class ReviewViewSet(ActionsViewSet):
