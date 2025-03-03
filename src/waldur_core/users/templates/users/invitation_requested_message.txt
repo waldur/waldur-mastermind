@@ -7,10 +7,6 @@ to join {{ name }} {{ type }} in {{ role }} role.
 Civil number: {{ invitation.civil_number }}
 {% endif %}
 
-{% if invitation.tax_number %}
-Tax number: {{ invitation.tax_number }}
-{% endif %}
-
 {% if invitation.phone_number %}
 Phone number: {{ invitation.phone_number }}
 {% endif %}

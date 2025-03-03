@@ -113,7 +113,6 @@ class InvitationSerializer(BaseInvitationSerializer):
         fields = BaseInvitationSerializer.Meta.fields + (
             "full_name",
             "native_name",
-            "tax_number",
             "phone_number",
             "organization",
             "job_title",
