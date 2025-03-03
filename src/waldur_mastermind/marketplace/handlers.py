@@ -1048,6 +1048,24 @@ def update_offering_user_username_after_freeipa_profile_update(
         offering_user.save(update_fields=["username"])
 
 
+def set_order_completion_timestamp(sender, instance, created=False, **kwargs):
+    if created:
+        return
+
+    order = instance
+
+    if order.completed_at is not None:
+        return
+
+    if (
+        order.tracker.has_changed("state")
+        and order.state in models.Order.States.TERMINAL_STATES
+    ):
+        logger.debug("Setting order %s completion time", order)
+        order.completed_at = now()
+        order.save(update_fields=["completed_at"])
+
+
 def log_offering_role_created_or_updated(sender, instance, created=False, **kwargs):
     if created:
         event_logger.marketplace_offering_role.info(

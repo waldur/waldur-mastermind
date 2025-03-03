@@ -1,4 +1,7 @@
+from unittest import mock
+
 from django.db import transaction
+from django.utils import timezone
 from rest_framework.test import APITransactionTestCase
 
 from waldur_core.logging.models import Event
@@ -266,3 +269,54 @@ class UpdateOfferingUserUsernameAfterUserChangeTest(APITransactionTestCase):
 
         offering_user.refresh_from_db()
         self.assertEqual(offering_user.username, "old_username")
+
+
+class SetOrderCompletionTimestampTest(APITransactionTestCase):
+    def setUp(self):
+        self.order = factories.OrderFactory(
+            state=marketplace_models.Order.States.PENDING_PROVIDER
+        )
+        self.order.save()
+
+    def set_order_executing(self):
+        self.order.state = marketplace_models.Order.States.EXECUTING
+        self.order.save()
+
+    def test_set_order_completion_timestamp_created(self):
+        self.set_order_executing()
+        self.assertIsNone(self.order.completed_at)
+
+    @mock.patch("waldur_mastermind.marketplace.handlers.now")
+    def test_set_order_completion_timestamp_completed(self, mock_now):
+        mock_now.return_value = timezone.now()
+        self.set_order_executing()
+        self.order.complete()
+        self.order.save()
+        self.assertIsNotNone(self.order.completed_at)
+        self.assertEqual(mock_now.return_value, self.order.completed_at)
+
+    @mock.patch("waldur_mastermind.marketplace.handlers.now")
+    def test_set_order_completion_timestamp_failed(self, mock_now):
+        mock_now.return_value = timezone.now()
+        self.set_order_executing()
+        self.order.fail()
+        self.order.save()
+        self.assertIsNotNone(self.order.completed_at)
+        self.assertEqual(mock_now.return_value, self.order.completed_at)
+
+    @mock.patch("waldur_mastermind.marketplace.handlers.now")
+    def test_set_order_completion_timestamp_cancelled(self, mock_now):
+        mock_now.return_value = timezone.now()
+        self.set_order_executing()
+        self.order.cancel()
+        self.order.save()
+        self.assertIsNotNone(self.order.completed_at)
+        self.assertEqual(mock_now.return_value, self.order.completed_at)
+
+    @mock.patch("waldur_mastermind.marketplace.handlers.now")
+    def test_set_order_completion_timestamp_rejected(self, mock_now):
+        mock_now.return_value = timezone.now()
+        self.order.reject()
+        self.order.save()
+        self.assertIsNotNone(self.order.completed_at)
+        self.assertEqual(mock_now.return_value, self.order.completed_at)
