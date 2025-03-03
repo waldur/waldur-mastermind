@@ -38,8 +38,6 @@
   },
   "state": "Active",
   "state_code": 2,
-  "native_name": "",
-  "native_description": "",
   "vendor_details": "",
   "type": "Marketplace.Rancher",
   "shared": true,
