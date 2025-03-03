@@ -796,12 +796,7 @@ class VolumeViewSet(structure_views.ResourceViewSet):
 
     update_executor = executors.VolumeUpdateExecutor
     pull_executor = executors.VolumePullExecutor
-
-    def create(self, request, *args, **kwargs):
-        return response.Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
-
-    def destroy(self, request, *args, **kwargs):
-        return response.Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
+    disabled_actions = ["create", "destroy"]
 
     def _is_volume_bootable(volume):
         if volume.bootable:
@@ -830,9 +825,13 @@ class VolumeViewSet(structure_views.ResourceViewSet):
                 _("Volume instance should be in OK state.")
             )
 
+    @extend_schema(
+        description="Increase volume size",
+        request=serializers.OpenStackVolumeExtendSerializer,
+        responses=None,
+    )
     @decorators.action(detail=True, methods=["post"])
     def extend(self, request, uuid=None):
-        """Increase volume size"""
         volume = self.get_object()
         old_size = volume.size
         serializer = self.get_serializer(volume, data=request.data)
@@ -856,9 +855,13 @@ class VolumeViewSet(structure_views.ResourceViewSet):
     ]
     extend_serializer_class = serializers.OpenStackVolumeExtendSerializer
 
+    @extend_schema(
+        description="Create snapshot from volume",
+        request=serializers.OpenStackSnapshotSerializer,
+        responses=serializers.OpenStackSnapshotSerializer,
+    )
     @decorators.action(detail=True, methods=["post"])
     def snapshot(self, request, uuid=None):
-        """Create snapshot from volume"""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         snapshot = serializer.save()
@@ -868,10 +871,13 @@ class VolumeViewSet(structure_views.ResourceViewSet):
 
     snapshot_serializer_class = serializers.OpenStackSnapshotSerializer
 
-    @extend_schema(responses=None)
+    @extend_schema(
+        description="Attach volume to instance",
+        request=serializers.VolumeAttachSerializer,
+        responses=None,
+    )
     @decorators.action(detail=True, methods=["post"])
     def attach(self, request, uuid=None):
-        """Attach volume to instance"""
         volume = self.get_object()
         serializer = self.get_serializer(volume, data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -888,9 +894,13 @@ class VolumeViewSet(structure_views.ResourceViewSet):
     ]
     attach_serializer_class = serializers.VolumeAttachSerializer
 
+    @extend_schema(
+        description="Detach instance from volume",
+        request=None,
+        responses=None,
+    )
     @decorators.action(detail=True, methods=["post"])
     def detach(self, request, uuid=None):
-        """Detach instance from volume"""
         volume = self.get_object()
         executors.VolumeDetachExecutor().execute(volume)
         return response.Response(
@@ -904,9 +914,13 @@ class VolumeViewSet(structure_views.ResourceViewSet):
         core_validators.StateValidator(models.Volume.States.OK),
     ]
 
+    @extend_schema(
+        description="Retype detached volume",
+        request=serializers.OpenStackVolumeRetypeSerializer,
+        responses=None,
+    )
     @decorators.action(detail=True, methods=["post"])
     def retype(self, request, uuid=None):
-        """Retype detached volume"""
         volume = self.get_object()
         serializer = self.get_serializer(volume, data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -934,6 +948,11 @@ class SnapshotViewSet(structure_views.ResourceViewSet):
     filterset_class = filters.SnapshotFilter
     disabled_actions = ["create"]
 
+    @extend_schema(
+        description="Restore volume from snapshot",
+        request=serializers.OpenStackSnapshotRestorationSerializer,
+        responses=serializers.OpenStackVolumeSerializer,
+    )
     @decorators.action(detail=True, methods=["post"])
     def restore(self, request, uuid=None):
         serializer = self.get_serializer(data=request.data)
@@ -953,6 +972,11 @@ class SnapshotViewSet(structure_views.ResourceViewSet):
     restore_serializer_class = serializers.OpenStackSnapshotRestorationSerializer
     restore_validators = [core_validators.StateValidator(models.Snapshot.States.OK)]
 
+    @extend_schema(
+        description="Get a list of snapshot restorations",
+        request=None,
+        responses=serializers.OpenStackSnapshotRestorationSerializer(many=True),
+    )
     @decorators.action(detail=True, methods=["get"])
     def restorations(self, request, uuid=None):
         snapshot = self.get_object()
@@ -996,12 +1020,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     update_validators = partial_update_validators = [
         core_validators.StateValidator(models.Instance.States.OK)
     ]
-
-    def create(self, request, *args, **kwargs):
-        return response.Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
-
-    def destroy(self, request, *args, **kwargs):
-        return response.Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
+    disabled_actions = ["create", "destroy"]
 
     def _has_backups(instance):
         if instance.backups.exists():
@@ -1035,7 +1054,11 @@ class InstanceViewSet(structure_views.ResourceViewSet):
             _("Instance should be shutoff and OK or erred. Please contact support.")
         )
 
-    @extend_schema(responses=None)
+    @extend_schema(
+        description="Change flavor of the instance",
+        request=serializers.InstanceFlavorChangeSerializer,
+        responses=None,
+    )
     @decorators.action(detail=True, methods=["post"])
     def change_flavor(self, request, uuid=None):
         instance = self.get_object()
@@ -1069,6 +1092,11 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         core_validators.RuntimeStateValidator(models.Instance.RuntimeStates.SHUTOFF),
     ]
 
+    @extend_schema(
+        description="Start the instance",
+        request=None,
+        responses=None,
+    )
     @decorators.action(detail=True, methods=["post"])
     def start(self, request, uuid=None):
         instance = self.get_object()
@@ -1093,6 +1121,11 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     ]
     start_serializer_class = EmptySerializer
 
+    @extend_schema(
+        description="Stop the instance",
+        request=None,
+        responses=None,
+    )
     @decorators.action(detail=True, methods=["post"])
     def stop(self, request, uuid=None):
         instance = self.get_object()
@@ -1117,6 +1150,11 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     ]
     stop_serializer_class = EmptySerializer
 
+    @extend_schema(
+        description="Restart the instance",
+        request=None,
+        responses=None,
+    )
     @decorators.action(detail=True, methods=["post"])
     def restart(self, request, uuid=None):
         instance = self.get_object()
@@ -1141,7 +1179,11 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     ]
     restart_serializer_class = EmptySerializer
 
-    @extend_schema(responses=None)
+    @extend_schema(
+        description="Update security groups of the instance",
+        request=serializers.OpenStackInstanceSecurityGroupsUpdateSerializer,
+        responses=None,
+    )
     @decorators.action(detail=True, methods=["post"])
     def update_security_groups(self, request, uuid=None):
         instance = self.get_object()
@@ -1162,6 +1204,11 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         serializers.OpenStackInstanceSecurityGroupsUpdateSerializer
     )
 
+    @extend_schema(
+        description="Create backup from instance",
+        request=serializers.BackupSerializer,
+        responses=serializers.BackupSerializer,
+    )
     @decorators.action(detail=True, methods=["post"])
     def backup(self, request, uuid=None):
         serializer = self.get_serializer(data=request.data)
@@ -1174,7 +1221,11 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     backup_validators = [core_validators.StateValidator(models.Instance.States.OK)]
     backup_serializer_class = serializers.BackupSerializer
 
-    @extend_schema(responses=None)
+    @extend_schema(
+        description="Update allowed address pairs of the instance",
+        request=serializers.OpenStackInstanceAllowedAddressPairsUpdateSerializer,
+        responses=None,
+    )
     @decorators.action(detail=True, methods=["post"])
     def update_allowed_address_pairs(self, request, uuid=None):
         instance = self.get_object()
@@ -1213,7 +1264,11 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         serializers.OpenStackInstanceAllowedAddressPairsUpdateSerializer
     )
 
-    @extend_schema(responses=None)
+    @extend_schema(
+        description="Update ports of the instance",
+        request=serializers.OpenStackInstancePortsUpdateSerializer,
+        responses=None,
+    )
     @decorators.action(detail=True, methods=["post"])
     def update_ports(self, request, uuid=None):
         instance = self.get_object()
@@ -1232,6 +1287,11 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     ]
     update_ports_serializer_class = serializers.OpenStackInstancePortsUpdateSerializer
 
+    @extend_schema(
+        description="Get a list of instance ports",
+        request=None,
+        responses=serializers.OpenStackNestedPortSerializer(many=True),
+    )
     @decorators.action(detail=True, methods=["get"])
     def ports(self, request, uuid=None):
         instance = self.get_object()
@@ -1240,6 +1300,11 @@ class InstanceViewSet(structure_views.ResourceViewSet):
 
     ports_serializer_class = serializers.OpenStackNestedPortSerializer
 
+    @extend_schema(
+        description="Update floating IPs of the instance",
+        request=serializers.OpenStackInstanceFloatingIPsUpdateSerializer,
+        responses=None,
+    )
     @decorators.action(detail=True, methods=["post"])
     def update_floating_ips(self, request, uuid=None):
         instance = self.get_object()
@@ -1261,6 +1326,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     )
 
     @extend_schema(
+        description="Get a list of instance floating IPs",
         request=None,
         responses=serializers.OpenStackInstanceFloatingIpsSerializer,
         parameters=[],
@@ -1277,6 +1343,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         return response.Response(serializer.data, status=status.HTTP_200_OK)
 
     @extend_schema(
+        description="Get console url for the instance",
         request=None,
         responses=serializers.OpenStackInstanceConsoleSerializer,
     )
@@ -1308,9 +1375,10 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     console_permissions = [check_permissions_for_console]
 
     @extend_schema(
+        description="Get console log for the instance",
         parameters=[OpenApiParameter("length", int, OpenApiParameter.QUERY)],
         request=None,
-        responses=str,
+        responses={200: str},
     )
     @decorators.action(detail=True, methods=["get"])
     def console_log(self, request, uuid=None):
