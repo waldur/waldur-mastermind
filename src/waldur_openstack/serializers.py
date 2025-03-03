@@ -3213,14 +3213,6 @@ class OpenStackConsoleLogSerializer(serializers.Serializer):
     length = serializers.IntegerField(required=False)
 
 
-class OpenStackSharedSettingsCustomerSerializer(serializers.Serializer):
-    name = serializers.CharField(read_only=True)
-    uuid = serializers.CharField(read_only=True)
-    created = serializers.DateField(read_only=True)
-    abbreviation = serializers.CharField(read_only=True)
-    vm_count = serializers.IntegerField(read_only=True)
-
-
 class OpenStackBackendInstanceSerializer(serializers.ModelSerializer):
     availability_zone = serializers.ReadOnlyField(source="availability_zone.name")
     state = serializers.ReadOnlyField(source="get_state_display")
