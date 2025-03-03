@@ -268,6 +268,11 @@ class FloatingIPViewSet(structure_views.ResourceViewSet):
 
         return super().list(request, *args, **kwargs)
 
+    @extend_schema(
+        description="Attach floating IP to port",
+        request=serializers.OpenStackFloatingIPAttachSerializer,
+        responses=None,
+    )
     @decorators.action(detail=True, methods=["post"])
     def attach_to_port(self, request, uuid=None):
         floating_ip: models.FloatingIP = self.get_object()
@@ -307,6 +312,11 @@ class FloatingIPViewSet(structure_views.ResourceViewSet):
         core_validators.StateValidator(models.FloatingIP.States.OK)
     ]
 
+    @extend_schema(
+        description="Detach floating IP from port",
+        request=None,
+        responses=None,
+    )
     @decorators.action(detail=True, methods=["post"])
     def detach_from_port(self, request=None, uuid=None):
         floating_ip: models.FloatingIP = self.get_object()
@@ -326,6 +336,11 @@ class FloatingIPViewSet(structure_views.ResourceViewSet):
         core_validators.StateValidator(models.FloatingIP.States.OK)
     ]
 
+    @extend_schema(
+        description="Update description of the floating IP",
+        request=serializers.OpenStackFloatingIPDescriptionUpdateSerializer,
+        responses=None,
+    )
     @decorators.action(detail=True, methods=["post"])
     def update_description(self, request=None, uuid=None):
         floating_ip: models.FloatingIP = self.get_object()
@@ -446,6 +461,9 @@ class TenantViewSet(structure_views.ResourceViewSet):
     set_quotas_validators = [core_validators.StateValidator(models.Tenant.States.OK)]
     set_quotas_serializer_class = serializers.OpenStackTenantQuotaSerializer
 
+    @extend_schema(
+        description="Create network for tenant",
+    )
     @decorators.action(detail=True, methods=["post"])
     def create_network(self, request, uuid=None):
         serializer = self.get_serializer(data=request.data)
@@ -468,6 +486,11 @@ class TenantViewSet(structure_views.ResourceViewSet):
                 )
             )
 
+    @extend_schema(
+        description="Create floating IP for tenant",
+        request=serializers.OpenStackFloatingIPSerializer,
+        responses=serializers.OpenStackFloatingIPSerializer,
+    )
     @decorators.action(detail=True, methods=["post"])
     def create_floating_ip(self, request, uuid=None):
         serializer = self.get_serializer(data=request.data)
@@ -483,6 +506,11 @@ class TenantViewSet(structure_views.ResourceViewSet):
     ]
     create_floating_ip_serializer_class = serializers.OpenStackFloatingIPSerializer
 
+    @extend_schema(
+        description="Trigger job to pull floating IPs from remote VPC",
+        request=None,
+        responses={202: None},
+    )
     @decorators.action(detail=True, methods=["post"])
     def pull_floating_ips(self, request, uuid=None):
         tenant = self.get_object()
@@ -538,6 +566,10 @@ class TenantViewSet(structure_views.ResourceViewSet):
         serializers.OpenStackSecurityGroupSerializer
     )
 
+    @extend_schema(
+        description="Trigger job to pull security groups from remote VPC",
+        request=None,
+    )
     @decorators.action(detail=True, methods=["post"])
     def pull_security_groups(self, request, uuid=None):
         executors.TenantPullSecurityGroupsExecutor.execute(self.get_object())
@@ -550,6 +582,10 @@ class TenantViewSet(structure_views.ResourceViewSet):
         core_validators.StateValidator(models.Tenant.States.OK)
     ]
 
+    @extend_schema(
+        description="Trigger job to pull server groups from remote VPC",
+        request=None,
+    )
     @decorators.action(detail=True, methods=["post"])
     def pull_server_groups(self, request, uuid=None):
         executors.TenantPullServerGroupsExecutor.execute(self.get_object())
@@ -587,6 +623,11 @@ class TenantViewSet(structure_views.ResourceViewSet):
         serializers.OpenStackCreateServerGroupSerializer
     )
 
+    @extend_schema(
+        description="Change password for tenant user",
+        request=serializers.OpenStackTenantChangePasswordSerializer,
+        responses=None,
+    )
     @decorators.action(detail=True, methods=["post"])
     def change_password(self, request, uuid=None):
         serializer = self.get_serializer(instance=self.get_object(), data=request.data)
@@ -608,6 +649,8 @@ class TenantViewSet(structure_views.ResourceViewSet):
 
     @extend_schema(
         description="It triggers celery job to pull quotas from remote VPC",
+        request=None,
+        responses=None,
     )
     @decorators.action(detail=True, methods=["post"])
     def pull_quotas(self, request, uuid=None):
@@ -622,6 +665,7 @@ class TenantViewSet(structure_views.ResourceViewSet):
     @extend_schema(
         description="Return a list of volumes from backend",
         responses=serializers.OpenStackBackendInstanceSerializer(many=True),
+        request=None,
     )
     @decorators.action(detail=True)
     def backend_instances(self, request, uuid=None):
@@ -637,6 +681,7 @@ class TenantViewSet(structure_views.ResourceViewSet):
 
     @extend_schema(
         description="Return a list of volumes from backend",
+        request=None,
         responses=serializers.OpenStackBackendVolumesSerializer(many=True),
     )
     @decorators.action(detail=True)
