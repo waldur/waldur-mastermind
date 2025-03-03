@@ -16,7 +16,7 @@ class ManualApproveTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.proposal = self.fixture.proposal
-        self.proposal.state = models.Proposal.States.DRAFT
+        self.proposal.state = models.Proposal.States.SUBMITTED
         self.proposal.save()
         self.approve_url = factories.ProposalFactory.get_url(self.proposal, "approve")
         self.reject_url = factories.ProposalFactory.get_url(self.proposal, "reject")
