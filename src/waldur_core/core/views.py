@@ -47,6 +47,7 @@ from waldur_core.core.mixins import ensure_atomic_transaction
 from waldur_core.core.serializers import (
     ConstanceSettingsSerializer,
     EmptySerializer,
+    LogoutSerializer,
     ObtainAuthTokenSerializer,
     QuerySerializer,
     TableSizeSerializer,
@@ -240,8 +241,16 @@ class ObtainAuthToken(RefreshTokenMixin, APIView):
 
 class LogoutView(generics.GenericAPIView):
     permission_classes = (rf_permissions.IsAuthenticated,)
-    serializer_class = EmptySerializer
+    filter_backends = []
 
+    @extend_schema(
+        description="Logout from the system. If single logout is supported, returns logout URL.",
+        request=None,
+        responses={
+            200: LogoutSerializer,
+            204: None,
+        },
+    )
     def post(self, request, format=None):
         request.user.auth_token.delete()
         event_logger.auth.info(

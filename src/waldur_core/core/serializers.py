@@ -635,3 +635,7 @@ class VersionSerializer(serializers.Serializer):
     latest_version = serializers.CharField(
         help_text="Latest available version from GitHub, if available.", required=False
     )
+
+
+class LogoutSerializer(serializers.Serializer):
+    logout_url = serializers.URLField(read_only=True)
