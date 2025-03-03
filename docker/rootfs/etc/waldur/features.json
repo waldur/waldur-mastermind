@@ -12,7 +12,6 @@
   "project.team": true,
   "support.pricelist": true,
   "support.resources_treemap": false,
-  "support.shared_providers": true,
   "support.users": true,
   "telemetry.send_metrics": true,
   "user.notifications": true,

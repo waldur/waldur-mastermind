@@ -1,5 +1,3 @@
-from django.urls import re_path
-
 from . import views
 
 
@@ -71,13 +69,4 @@ def register_in(router):
     )
 
 
-urlpatterns = [
-    re_path(
-        r"^api/openstack-shared-settings-instances/$",
-        views.SharedSettingsInstances.as_view(),
-    ),
-    re_path(
-        r"^api/openstack-shared-settings-customers/$",
-        views.SharedSettingsCustomers.as_view(),
-    ),
-]
+urlpatterns = []

@@ -1,8 +1,7 @@
 import logging
 
 from django.conf import settings
-from django.db.models import Count, OuterRef, Value
-from django.db.models.functions import Coalesce
+from django.db.models import Count
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import OpenApiExample, OpenApiParameter, extend_schema
@@ -1524,31 +1523,6 @@ class SharedSettingsBaseView(generics.GenericAPIView):
         page = self.paginate_queryset(self.get_queryset())
         serializer = self.get_serializer(page, many=True)
         return self.get_paginated_response(serializer.data)
-
-
-class SharedSettingsInstances(SharedSettingsBaseView):
-    serializer_class = serializers.OpenStackInstanceSerializer
-
-    def get_queryset(self):
-        tenants = self.get_tenants()
-        return models.Instance.objects.order_by("project__customer__name").filter(
-            tenant__in=tenants
-        )
-
-
-class SharedSettingsCustomers(SharedSettingsBaseView):
-    serializer_class = serializers.OpenStackSharedSettingsCustomerSerializer
-
-    def get_queryset(self):
-        tenants = self.get_tenants()
-        vms = models.Instance.objects.filter(
-            tenant__in=tenants,
-            project__customer=OuterRef("pk"),
-        )
-        vm_count = Coalesce(core_utils.SubqueryCount(vms), Value(0))
-        return structure_models.Customer.objects.filter(
-            pk__in=tenants.values("customer")
-        ).annotate(vm_count=vm_count)
 
 
 class VolumeAvailabilityZoneViewSet(structure_views.BaseServicePropertyViewSet):
