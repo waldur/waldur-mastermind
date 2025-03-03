@@ -66,16 +66,6 @@ def allocate_proposal(proposal: proposal_models.Proposal):
             f"Field start_date of {project} has been changed to {proposal.round.allocation_date}."
         )
 
-    if (
-        proposal.round.allocation_time
-        == proposal_models.Round.AllocationTimes.FIXED_DATE
-    ):
-        project.start_date = proposal.round.allocation_date
-        project.save()
-        logger.info(
-            f"Field start_date of {project} has been changed to {proposal.round.allocation_date}."
-        )
-
     proposal.project = project
     proposal.save()
 
