@@ -2112,6 +2112,7 @@ class BaseOrderSerializer(BaseRequestSerializer):
             "error_traceback",
             "accepting_terms_of_service",
             "callback_url",
+            "completed_at",
         )
 
         read_only_fields = (
@@ -2120,6 +2121,7 @@ class BaseOrderSerializer(BaseRequestSerializer):
             "error_message",
             "error_traceback",
             "output",
+            "completed_at",
         )
         protected_fields = ("offering", "plan", "callback_url")
 

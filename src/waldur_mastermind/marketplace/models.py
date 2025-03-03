@@ -1257,6 +1257,9 @@ class Order(
     provider_reviewed_at = models.DateTimeField(editable=False, null=True, blank=True)
     callback_url = models.URLField(null=True, blank=True)
     termination_comment = models.CharField(blank=True, null=True, max_length=255)
+    completed_at = models.DateTimeField(
+        _("completion time"), null=True, blank=True, editable=False
+    )
 
     class Permissions:
         customer_path = "project__customer"

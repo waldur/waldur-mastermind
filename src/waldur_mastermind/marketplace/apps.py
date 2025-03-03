@@ -52,6 +52,12 @@ class MarketplaceConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.set_order_completion_timestamp,
+            sender=models.Order,
+            dispatch_uid="waldur_mastermind.marketplace.set_order_completion_timestamp",
+        )
+
+        signals.post_save.connect(
             handlers.log_resource_events,
             sender=models.Resource,
             dispatch_uid="waldur_mastermind.marketplace.log_resource_events",
