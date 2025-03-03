@@ -108,7 +108,6 @@ waldur = "waldur_core.server.manage:main"
 
 [tool.poetry.plugins.waldur_extensions]
 waldur_analytics = "waldur_mastermind.analytics.extension:AnalyticsExtension"
-waldur_auth_bcc = "waldur_auth_bcc.extension:AuthBCCExtension"
 waldur_auth_saml2 = "waldur_auth_saml2.extension:SAML2Extension"
 waldur_auth_social = "waldur_auth_social.extension:AuthSocialExtension"
 waldur_auth_valimo = "waldur_auth_valimo.extension:AuthValimoExtension"

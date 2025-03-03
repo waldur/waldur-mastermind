@@ -105,7 +105,6 @@ class Invitation(
             "Civil number of invited user. If civil number is not defined any user can accept invitation."
         ),
     )
-    tax_number = models.CharField(_("tax number"), max_length=50, blank=True)
     full_name = models.CharField(_("full name"), max_length=100, blank=True)
     extra_invitation_text = models.TextField(blank=True)
 

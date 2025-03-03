@@ -223,11 +223,6 @@ class WaldurCore(BaseModel):
         description="Custom label for civil number field in invitation creation dialog.",
     )
 
-    INVITATION_TAX_NUMBER_LABEL = Field(
-        "",
-        description="Custom label for tax number field in invitation creation dialog.",
-    )
-
     HOMEPORT_SENTRY_DSN: str | None = Field(
         description="Sentry Data Source Name for Waldur HomePort project."
     )
@@ -276,7 +271,6 @@ class WaldurCore(BaseModel):
             "USER_MANDATORY_FIELDS",
             "USER_REGISTRATION_HIDDEN_FIELDS",
             "INVITATION_CIVIL_NUMBER_LABEL",
-            "INVITATION_TAX_NUMBER_LABEL",
             "HOMEPORT_SENTRY_DSN",
             "HOMEPORT_SENTRY_ENVIRONMENT",
             "HOMEPORT_SENTRY_TRACES_SAMPLE_RATE",
