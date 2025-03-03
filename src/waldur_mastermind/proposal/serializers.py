@@ -174,7 +174,7 @@ class NestedRequestedResourceSerializer(serializers.HyperlinkedModelSerializer):
         }
 
 
-class ReviewSerializer(
+class ProposalReviewSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
@@ -283,7 +283,7 @@ class ProtectedProposalListSerializer(serializers.HyperlinkedModelSerializer):
     state = serializers.ReadOnlyField()
     created_by_name = serializers.ReadOnlyField(source="created_by.full_name")
     approved_by_name = serializers.ReadOnlyField(source="approved_by.full_name")
-    reviews = ReviewSerializer(many=True, read_only=True, source="review_set")
+    reviews = ProposalReviewSerializer(many=True, read_only=True, source="review_set")
 
     class Meta:
         model = models.Proposal
@@ -829,7 +829,7 @@ class ProposalSerializer(
         return super().create(validated_data)
 
 
-class ReviewerSerializer(serializers.Serializer):
+class RoundReviewerSerializer(serializers.Serializer):
     full_name = serializers.SerializerMethodField()
     email = serializers.EmailField()
     accepted_proposals = serializers.IntegerField()
@@ -844,7 +844,7 @@ class ProposalApproveSerializer(serializers.Serializer):
     allocation_comment = serializers.CharField(required=False)
 
 
-class RoundSerializer(serializers.HyperlinkedModelSerializer):
+class CallRoundSerializer(serializers.HyperlinkedModelSerializer):
     call_uuid = serializers.UUIDField(source="call.uuid", read_only=True)
     call_name = serializers.ReadOnlyField(source="call.name")
 

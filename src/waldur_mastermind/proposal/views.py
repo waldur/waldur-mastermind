@@ -610,7 +610,7 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
 
 class ReviewViewSet(ActionsViewSet):
     lookup_field = "uuid"
-    serializer_class = serializers.ReviewSerializer
+    serializer_class = serializers.ProposalReviewSerializer
     filterset_class = filters.ReviewFilter
     queryset = models.Review.objects.all()
     create_permissions = destroy_permissions = [permissions.is_staff]
@@ -791,7 +791,7 @@ class ProviderRequestedResourceViewSet(ReadOnlyActionsViewSet):
 
 class RoundViewSet(ReadOnlyActionsViewSet):
     lookup_field = "uuid"
-    serializer_class = serializers.RoundSerializer
+    serializer_class = serializers.CallRoundSerializer
     filterset_class = []
     filter_backends = (DjangoFilterBackend,)
 
@@ -800,7 +800,7 @@ class RoundViewSet(ReadOnlyActionsViewSet):
     @extend_schema(
         description="Return list of reviewers for round.",
         request=None,
-        responses=serializers.ReviewerSerializer(many=True),
+        responses=serializers.RoundReviewerSerializer(many=True),
     )
     @decorators.action(detail=True)
     def reviewers(self, request, uuid=None):
@@ -838,7 +838,7 @@ class RoundViewSet(ReadOnlyActionsViewSet):
         )
 
         page = self.paginate_queryset(users)
-        serializer = serializers.ReviewerSerializer(
+        serializer = serializers.RoundReviewerSerializer(
             page, many=True, context={"round_obj": round_obj}
         )
         return self.get_paginated_response(serializer.data)
