@@ -4,7 +4,7 @@ import django.db.models.deletion
 from django.db import migrations, models
 
 
-def del_team_status(apps, schema_editor):
+def remove_team_verification_state(apps, schema_editor):
     Proposal = apps.get_model("proposal", "Proposal")
 
     Proposal.objects.filter(state="team_verification").update(state="draft")
@@ -42,7 +42,7 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.RunPython(
-            code=del_team_status,
+            code=remove_team_verification_state,
         ),
         migrations.AlterField(
             model_name="proposal",
