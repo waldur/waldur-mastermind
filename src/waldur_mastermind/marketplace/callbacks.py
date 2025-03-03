@@ -172,8 +172,11 @@ def resource_update_failed(resource: models.Resource, validate=False):
         models.Order.States.ERRED,
         validate,
     )
-    resource.set_state_erred()
-    resource.save(update_fields=["state"])
+    if resource.state != resource.States.ERRED:
+        resource.set_state_erred()
+        resource.save(update_fields=["state"])
+    else:
+        logger.info("Resource %s is already in erred state, skip transition", resource)
 
     log.log_resource_update_failed(resource)
     return order
@@ -190,6 +193,8 @@ def resource_update_canceled(resource: models.Resource, validate=False):
     if resource.state != resource.States.OK:
         resource.set_state_ok()
         resource.save(update_fields=["state"])
+    else:
+        logger.info("Resource %s is already in OK state, skip transition", resource)
 
     log.log_resource_update_canceled(resource)
     return order
@@ -202,8 +207,13 @@ def resource_deletion_succeeded(resource: models.Resource, validate=False):
         models.Order.States.DONE,
         validate,
     )
-    resource.set_state_terminated()
-    resource.save(update_fields=["state"])
+    if resource.state != resource.States.TERMINATED:
+        resource.set_state_terminated()
+        resource.save(update_fields=["state"])
+    else:
+        logger.info(
+            "Resource %s is already in terminated state, skip transition", resource
+        )
 
     signals.resource_deletion_succeeded.send(models.Resource, instance=resource)
     log.log_resource_terminate_succeeded(resource)
@@ -217,8 +227,11 @@ def resource_deletion_failed(resource: models.Resource, validate=False):
         models.Order.States.ERRED,
         validate,
     )
-    resource.set_state_ok()
-    resource.save(update_fields=["state"])
+    if resource.state != resource.States.OK:
+        resource.set_state_ok()
+        resource.save(update_fields=["state"])
+    else:
+        logger.info("Resource %s is already in OK state, skip transition", resource)
 
     log.log_resource_terminate_failed(resource)
     return order
