@@ -198,20 +198,27 @@ class SecurityGroupViewSet(structure_views.ResourceViewSet):
     ]
     delete_executor = executors.SecurityGroupDeleteExecutor
 
+    @extend_schema(
+        description="Update security group rules",
+        request=serializers.OpenStackSecurityGroupRuleListUpdateSerializer,
+        responses=None,
+        examples=[
+            OpenApiExample(
+                request_only=True,
+                name="openstack-security-group-set-rules",
+                value=[
+                    {
+                        "protocol": "tcp",
+                        "from_port": 1,
+                        "to_port": 10,
+                        "cidr": "10.1.1.0/24",
+                    }
+                ],
+            )
+        ],
+    )
     @decorators.action(detail=True, methods=["POST"])
     def set_rules(self, request, uuid=None):
-        """WARNING! Auto-generated HTML form is wrong for this endpoint. List should be defined as input.
-
-        Example:
-        [
-            {
-                "protocol": "tcp",
-                "from_port": 1,
-                "to_port": 10,
-                "cidr": "10.1.1.0/24"
-            }
-        ]
-        """
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -260,12 +267,8 @@ class FloatingIPViewSet(structure_views.ResourceViewSet):
 
     def list(self, request, *args, **kwargs):
         """
-        To get a list of all available floating IPs, issue **GET** against */api/floating-ips/*.
-        Floating IPs are read only. Each floating IP has fields: 'address', 'status'.
-
         Status *DOWN* means that floating IP is not linked to a VM, status *ACTIVE* means that it is in use.
         """
-
         return super().list(request, *args, **kwargs)
 
     @extend_schema(
