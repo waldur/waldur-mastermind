@@ -154,12 +154,27 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
     serializer_class = serializers.ServiceProviderSerializer
     filterset_class = filters.ServiceProviderFilter
 
+    @extend_schema(
+        operation_id="service_provider_api_secret_code_retrieve",
+        description="Return service provider API secret code.",
+        request=None,
+        responses={
+            status.HTTP_200_OK: serializers.ServiceProviderApiSecretCodeSerializer
+        },
+        methods=["GET"],
+    )
+    @extend_schema(
+        operation_id="service_provider_api_secret_code_generate",
+        description="Generate new service provider API secret code.",
+        request=None,
+        responses={
+            status.HTTP_200_OK: serializers.ServiceProviderApiSecretCodeSerializer
+        },
+        methods=["POST"],
+    )
     @action(detail=True, methods=["GET", "POST"])
     def api_secret_code(self, request, uuid=None):
-        """On GET request - return service provider api_secret_code.
-        On POST - generate new service provider api_secret_code.
-        """
-        service_provider = self.get_object()
+        service_provider: models.ServiceProvider = self.get_object()
         if request.method == "GET":
             if not has_permission(
                 request,
@@ -203,7 +218,11 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         )
     ]
 
-    @extend_schema(responses=serializers.ProviderCustomerSerializer(many=True))
+    @extend_schema(
+        description="Return customers of service provider.",
+        request=None,
+        responses=serializers.ProviderCustomerSerializer(many=True),
+    )
     @action(detail=True, methods=["GET"])
     def customers(self, request, uuid=None):
         service_provider = self.get_object()

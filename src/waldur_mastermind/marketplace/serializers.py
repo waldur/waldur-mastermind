@@ -131,6 +131,10 @@ class ServiceProviderSerializer(
         return attrs
 
 
+class ServiceProviderApiSecretCodeSerializer(serializers.Serializer):
+    api_secret_code = serializers.CharField(read_only=True)
+
+
 class SetOfferingsUsernameSerializer(serializers.Serializer):
     user_uuid = serializers.UUIDField()
     username = serializers.CharField()
