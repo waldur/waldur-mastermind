@@ -330,6 +330,7 @@ class CallDocumentSerializer(serializers.ModelSerializer):
 
 
 class PublicCallSerializer(
+    core_serializers.SlugSerializerMixin,
     core_serializers.RestrictedSerializerMixin,
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
@@ -353,6 +354,7 @@ class PublicCallSerializer(
             "created",
             "start_date",
             "end_date",
+            "slug",
             "name",
             "description",
             "state",
