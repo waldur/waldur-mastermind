@@ -3,12 +3,14 @@ import logging
 from django.db import transaction
 
 from waldur_core.logging import models, tasks, utils
+from waldur_core.logging.tasks import get_matching_hooks
 
 logger = logging.getLogger(__name__)
 
 
 def process_hook(sender, instance, created=False, **kwargs):
-    transaction.on_commit(lambda: tasks.process_event.delay(instance.pk))
+    if get_matching_hooks(instance):
+        transaction.on_commit(lambda: tasks.process_event.delay(instance.pk))
 
 
 def delete_stale_event_subscriptions(sender, instance, **kwargs):
