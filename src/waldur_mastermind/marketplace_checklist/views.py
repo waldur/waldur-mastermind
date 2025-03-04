@@ -1,6 +1,8 @@
+import uuid
+
 from django.db.models import Count, F, Q
 from django.utils.translation import gettext_lazy as _
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.generics import GenericAPIView, get_object_or_404
@@ -279,7 +281,21 @@ class UserAnswersListView(ListModelMixin, GenericViewSet):
 
 class AnswersSubmitView(CreateModelMixin, GenericViewSet):
     serializer_class = serializers.AnswerSubmitSerializer
+    filter_backends = []
 
+    @extend_schema(
+        description="Submit answer to checklist question",
+        request=serializers.AnswerSubmitSerializer(many=True),
+        responses=serializers.AnswerSubmitSerializer(many=True),
+        parameters=[
+            OpenApiParameter(
+                "on_behalf_user_uuid",
+                uuid.UUID,
+                OpenApiParameter.QUERY,
+                description="User UUID to submit answer on behalf of. Required staff permission.",
+            )
+        ],
+    )
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data, many=True)
         serializer.is_valid(raise_exception=True)
