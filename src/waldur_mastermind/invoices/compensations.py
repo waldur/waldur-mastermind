@@ -104,6 +104,7 @@ class MonthlyCompensation:
                         name=f"Credit compensation. {item}",
                         resource=item.resource,
                         project=item.resource.project,
+                        details=item.details,
                     )
                 )
 
