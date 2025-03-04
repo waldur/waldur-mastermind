@@ -184,6 +184,7 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
         return super().perform_destroy(instance)
 
     @extend_schema(
+        description="A list of users connected to the customer.",
         responses=serializers.CustomerUserSerializer(many=True),
         parameters=[
             OpenApiParameter("full_name", str, OpenApiParameter.QUERY),
@@ -214,7 +215,6 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
         filter_backends=[filters.GenericRoleFilter],
     )
     def users(self, request, uuid=None):
-        """A list of users connected to the customer."""
         customer: models.Customer = self.get_object()
         user = request.user
         queryset = customer.get_users()
@@ -235,6 +235,11 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
         serializer = self.get_serializer(queryset, many=True)
         return self.get_paginated_response(serializer.data)
 
+    @extend_schema(
+        description="Return list of countries",
+        request=None,
+        responses=serializers.CountrySerializer(many=True),
+    )
     @action(detail=False)
     def countries(self, request):
         return Response(
@@ -244,7 +249,10 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
             ]
         )
 
-    @extend_schema(responses=serializers.ComponentsUsageStatsSerializer)
+    @extend_schema(
+        description="Return statistics about customer resources usage",
+        responses=serializers.ComponentsUsageStatsSerializer,
+    )
     @action(detail=True)
     def stats(self, request, *args, **kwargs):
         customer = self.get_object()
@@ -264,7 +272,9 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
         )
 
     @extend_schema(
+        description="Update organization groups for customer",
         request=marketplace_serializers.OrganizationGroupsSerializer,
+        responses=None,
     )
     @action(detail=True, methods=["post"])
     def update_organization_groups(self, request, uuid):
@@ -359,20 +369,6 @@ class ProjectViewSet(
         - ?can_admin - return a list of projects where current user is admin;
         """
         return super().list(request, *args, **kwargs)
-
-    def retrieve(self, request, *args, **kwargs):
-        """
-        Optional `field` query parameter (can be list) allows to limit what fields are returned.
-        For example, given request /api/projects/<uuid>/?field=uuid&field=name you get response like this:
-
-        .. code-block:: javascript
-
-            {
-                "uuid": "90bcfe38b0124c9bbdadd617b5d739f5",
-                "name": "Default"
-            }
-        """
-        return super().retrieve(request, *args, **kwargs)
 
     @extend_schema(
         request=serializers.ProjectSerializer,

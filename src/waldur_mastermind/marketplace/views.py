@@ -4276,11 +4276,24 @@ class CategoryComponentViewSet(rf_viewsets.ModelViewSet):
 
 
 class GlobalCategoriesViewSet(views.APIView):
-    """
-    Returns count of resource categories for all resources accessible by user.
-    """
-
-    @extend_schema(responses=dict[str, int])
+    @extend_schema(
+        description="Count of resource categories for all resources accessible by user.",
+        parameters=[
+            OpenApiParameter(
+                name="project_uuid",
+                type=uuid.UUID,
+                location=OpenApiParameter.QUERY,
+                description="UUID of the project to filter resources by.",
+            ),
+            OpenApiParameter(
+                name="customer_uuid",
+                type=uuid.UUID,
+                location=OpenApiParameter.QUERY,
+                description="UUID of the customer to filter resources by.",
+            ),
+        ],
+        responses=dict[str, int],
+    )
     def get(self, request):
         # We need to reset ordering to avoid extra GROUP BY created field.
         qs: ResourceQuerySet = models.Resource.objects.all()

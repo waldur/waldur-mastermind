@@ -1547,3 +1547,8 @@ class ComponentsUsageStatsSerializer(serializers.Serializer):
 
 class ConfirmEmailRequestSerializer(serializers.Serializer):
     code = serializers.CharField()
+
+
+class CountrySerializer(serializers.Serializer):
+    label = serializers.CharField(read_only=True)
+    value = serializers.CharField(read_only=True)
