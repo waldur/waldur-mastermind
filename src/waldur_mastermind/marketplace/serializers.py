@@ -3788,6 +3788,7 @@ class OfferingCostSerializer(serializers.Serializer):
 
 class OfferingComponentStatSerializer(serializers.Serializer):
     period = serializers.SerializerMethodField()
+    billing_period = serializers.SerializerMethodField()
     date = serializers.SerializerMethodField()
     usage = serializers.SerializerMethodField()
     description = serializers.SerializerMethodField()
@@ -3809,6 +3810,9 @@ class OfferingComponentStatSerializer(serializers.Serializer):
 
     def get_period(self, record) -> str:
         return "%s-%02d" % (record["invoice__year"], record["invoice__month"])
+
+    def get_billing_period(self, record) -> str:
+        return "%s-%02d-01" % (record["invoice__year"], record["invoice__month"])
 
     def get_component_attr(self, record, attrname) -> str:
         component = self.context["offering_components_map"].get(
