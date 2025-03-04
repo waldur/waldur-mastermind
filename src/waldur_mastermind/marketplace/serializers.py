@@ -3812,7 +3812,7 @@ class OfferingComponentStatSerializer(serializers.Serializer):
         return "%s-%02d" % (record["invoice__year"], record["invoice__month"])
 
     def get_billing_period(self, record) -> str:
-        return "%s-%02d-01" % (record["invoice__year"], record["invoice__month"])
+        return "%s-%02d-%02d" % (record["invoice__year"], record["invoice__month"], 1)
 
     def get_component_attr(self, record, attrname) -> str:
         component = self.context["offering_components_map"].get(
