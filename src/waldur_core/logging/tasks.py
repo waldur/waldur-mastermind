@@ -14,9 +14,8 @@ logger = logging.getLogger(__name__)
 @shared_task(name="waldur_core.logging.process_event")
 def process_event(event_id):
     event = Event.objects.get(id=event_id)
-    for hook in BaseHook.get_active_hooks():
-        if check_event(event, hook):
-            hook.process(event)
+    for hook in get_matching_hooks(event):
+        hook.process(event)
 
     process_system_notification(event)
 
@@ -35,6 +34,14 @@ def process_system_notification(event):
     ):
         if check_event(event, hook):
             hook.process(event)
+
+
+def get_matching_hooks(event):
+    """
+    Returns a list of hooks that match the event.
+    """
+    active_hooks = BaseHook.get_active_hooks()
+    return [hook for hook in active_hooks if check_event(event, hook)]
 
 
 def check_event(event, hook):
