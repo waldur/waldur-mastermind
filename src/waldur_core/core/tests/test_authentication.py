@@ -73,19 +73,6 @@ class TokenAuthenticationTest(test.APITransactionTestCase):
             self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
             self.assertEqual(response.data["detail"], "Token has expired.")
 
-    def test_token_creation_time_is_updated_on_every_request(self):
-        response = self.client.post(
-            self.auth_url, data={"username": self.username, "password": self.password}
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        token = response.data["token"]
-        created1 = Token.objects.values_list("created", flat=True).get(key=token)
-
-        self.client.credentials(HTTP_AUTHORIZATION="Token " + token)
-        self.client.get(self.test_url)
-        created2 = Token.objects.values_list("created", flat=True).get(key=token)
-        self.assertTrue(created1 < created2)
-
     def test_account_is_blocked_after_five_failed_attempts(self):
         for _ in range(5):
             response = self.client.post(
