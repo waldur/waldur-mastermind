@@ -466,7 +466,7 @@ class ProjectViewSet(
 
 
 class UserViewSet(core_views.ActionsViewSet):
-    queryset = User.all_objects.all()
+    queryset = User.all_objects.select_related("auth_token")
     serializer_class = serializers.UserSerializer
     lookup_field = "uuid"
     permission_classes = (
