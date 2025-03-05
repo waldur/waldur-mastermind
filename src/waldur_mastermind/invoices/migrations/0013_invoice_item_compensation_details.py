@@ -9,7 +9,7 @@ def fill_invoice_item_compensation_details(apps, schema_editor):
         invoice_item = InvoiceItem.objects.filter(name=invoice_item_name).first()
         if invoice_item:
             compensation.details = invoice_item.details
-            compensation.save(update_fileds=["details"])
+            compensation.save()
 
 
 class Migration(migrations.Migration):
