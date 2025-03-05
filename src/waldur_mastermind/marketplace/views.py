@@ -135,7 +135,7 @@ class PublicViewsetMixin:
 
 
 class ConnectedOfferingDetailsMixin:
-    @extend_schema(responses=serializers.PublicOfferingDetailsSerializer)
+    @extend_schema(responses=serializers.PublicOfferingDetailsSerializer, parameters=[])
     @action(detail=True, methods=["get"])
     def offering(self, request, *args, **kwargs):
         requested_object = self.get_object()
@@ -161,6 +161,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         responses={
             status.HTTP_200_OK: serializers.ServiceProviderApiSecretCodeSerializer
         },
+        parameters=[],
         methods=["GET"],
     )
     @extend_schema(
@@ -222,6 +223,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         description="Return customers of service provider.",
         request=None,
         responses=serializers.ProviderCustomerSerializer(many=True),
+        parameters=[],
     )
     @action(detail=True, methods=["GET"])
     def customers(self, request, uuid=None):
@@ -246,7 +248,10 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         )
     ]
 
-    @extend_schema(responses=serializers.ProviderCustomerProjectSerializer(many=True))
+    @extend_schema(
+        responses=serializers.ProviderCustomerProjectSerializer(many=True),
+        parameters=[],
+    )
     @action(detail=True, methods=["GET"])
     def customer_projects(self, request, uuid=None):
         service_provider = self.get_object()
@@ -274,7 +279,12 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         )
     ]
 
-    @extend_schema(responses=structure_serializers.ProjectSerializer(many=True))
+    @extend_schema(
+        description="Return projects of service provider.",
+        request=None,
+        responses=structure_serializers.ProjectSerializer(many=True),
+        parameters=[],
+    )
     @action(detail=True, methods=["GET"])
     def projects(self, request, uuid=None):
         project_ids = self.get_customer_project_ids()
@@ -293,7 +303,9 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
     ]
 
     @extend_schema(
-        responses=structure_serializers.ProjectPermissionLogSerializer(many=True)
+        request=None,
+        responses=structure_serializers.ProjectPermissionLogSerializer(many=True),
+        parameters=[],
     )
     @action(detail=True, methods=["GET"])
     def project_permissions(self, request, uuid=None):
@@ -318,7 +330,9 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         )
     ]
 
-    @extend_schema(responses=structure_serializers.SshKeySerializer(many=True))
+    @extend_schema(
+        responses=structure_serializers.SshKeySerializer(many=True), parameters=[]
+    )
     @action(detail=True, methods=["GET"])
     def keys(self, request, uuid=None):
         user_ids = self.get_customer_user_ids()
@@ -336,7 +350,9 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         )
     ]
 
-    @extend_schema(responses=serializers.DetailedProviderUserSerializer(many=True))
+    @extend_schema(
+        responses=serializers.DetailedProviderUserSerializer(many=True), parameters=[]
+    )
     @action(detail=True, methods=["GET"])
     def users(self, request, uuid=None):
         service_provider = self.get_object()
@@ -358,7 +374,9 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         )
     ]
 
-    @extend_schema(responses=serializers.ProviderCustomerSerializer(many=True))
+    @extend_schema(
+        responses=serializers.ProviderCustomerSerializer(many=True), parameters=[]
+    )
     @action(detail=True, methods=["GET"])
     def user_customers(self, request, uuid=None):
         service_provider = self.get_object()
@@ -453,7 +471,9 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
 
     set_offerings_username_serializer_class = serializers.SetOfferingsUsernameSerializer
 
-    @extend_schema(responses=serializers.ProviderOfferingSerializer(many=True))
+    @extend_schema(
+        responses=serializers.ProviderOfferingSerializer(many=True), parameters=[]
+    )
     @action(detail=True, methods=["GET"])
     def offerings(self, request, uuid=None):
         service_provider = self.get_object()
@@ -478,7 +498,9 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         )
     ]
 
-    @extend_schema(responses=serializers.ServiceProviderStatisticsSerializer)
+    @extend_schema(
+        responses=serializers.ServiceProviderStatisticsSerializer, parameters=[]
+    )
     @action(detail=True, methods=["GET"])
     def stat(self, request, uuid=None):
         to_day = timezone.datetime.today().date()
@@ -563,7 +585,9 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         )
     ]
 
-    @extend_schema(responses=serializers.ServiceProviderRevenues(many=True))
+    @extend_schema(
+        responses=serializers.ServiceProviderRevenues(many=True), parameters=[]
+    )
     @action(detail=True, methods=["GET"])
     def revenue(self, request, uuid=None):
         start = month_start(timezone.datetime.today()) - relativedelta(years=1)
@@ -1001,6 +1025,7 @@ class ProviderOfferingViewSet(
 
         super().perform_create(serializer)
 
+    @extend_schema(parameters=[])
     @action(detail=True, methods=["get"])
     def importable_resources(self, request, uuid=None):
         offering = self.get_object()
@@ -1473,8 +1498,12 @@ class ProviderOfferingViewSet(
             ]
         )
 
-    @extend_schema(request=None, responses=str)
-    @action(detail=True, methods=["GET"], renderer_classes=[PlainTextRenderer])
+    @extend_schema(request=None, responses=str, parameters=[])
+    @action(
+        detail=True,
+        methods=["GET"],
+        renderer_classes=[PlainTextRenderer],
+    )
     def glauth_users_config(self, request, uuid=None):
         """
         This endpoint provides a config file for GLauth
@@ -1537,6 +1566,19 @@ class ProviderOfferingViewSet(
 
         return Response(response_text)
 
+    @extend_schema(
+        description="Check if user has access to offering.",
+        request=None,
+        parameters=[
+            OpenApiParameter(
+                name="username",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Username of the user to check.",
+                required=True,
+            ),
+        ],
+    )
     @action(detail=True, methods=["GET"])
     def user_has_resource_access(self, request, uuid=None):
         offering = self.get_object()
@@ -1757,6 +1799,7 @@ class ProviderOfferingViewSet(
     @extend_schema(
         request=None,
         responses=structure_serializers.ProjectSerializer(many=True),
+        parameters=[],
     )
     @action(detail=True, methods=["GET"])
     def list_customer_projects(self, request, uuid=None):
@@ -1778,6 +1821,7 @@ class ProviderOfferingViewSet(
     @extend_schema(
         responses=structure_serializers.UserSerializer(many=True),
         request=None,
+        parameters=[],
     )
     @action(detail=True, methods=["GET"])
     def list_customer_users(self, request, uuid=None):
@@ -1847,7 +1891,9 @@ class PublicOfferingViewSet(rf_viewsets.ReadOnlyModelViewSet):
         user = self.request.user
         return self.queryset.filter_by_ordering_availability_for_user(user)
 
-    @extend_schema(responses=serializers.BasePublicPlanSerializer(many=True))
+    @extend_schema(
+        responses=serializers.BasePublicPlanSerializer(many=True), parameters=[]
+    )
     @action(detail=True, methods=["get"], filter_backends=[], pagination_class=None)
     def plans(self, request, uuid=None):
         offering = self.get_object()
@@ -2563,6 +2609,7 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         )
         return super().list(request, *args, **kwargs)
 
+    @extend_schema(parameters=[])
     @action(detail=True, methods=["get"])
     def details(self, request, uuid=None):
         resource = self.get_object()
@@ -2649,6 +2696,7 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
     @extend_schema(
         request=None,
         responses=serializers.PlanPeriodsListSerializer,
+        parameters=[],
     )
     @action(detail=True, methods=["get"], filter_backends=[])
     def plan_periods(self, request, uuid=None):
@@ -2764,8 +2812,13 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         """,
         request=None,
         responses={status.HTTP_200_OK: str},
+        parameters=[],
     )
-    @action(detail=True, methods=["get"], renderer_classes=[PlainTextRenderer])
+    @action(
+        detail=True,
+        methods=["get"],
+        renderer_classes=[PlainTextRenderer],
+    )
     def glauth_users_config(self, request, uuid=None):
         resource: models.Resource = self.get_object()
         project = resource.project
@@ -2827,6 +2880,7 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
 
         return Response(response_text)
 
+    @extend_schema(parameters=[])
     @action(detail=True, methods=["get"])
     def offering_for_subresources(self, request, uuid=None):
         resource = self.get_object()
@@ -2848,6 +2902,7 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         description="Return users connected to the project.",
         request=None,
         responses=serializers.ProjectUserSerializer(many=True),
+        parameters=[],
     )
     @action(detail=True, methods=["get"], filter_backends=[], pagination_class=None)
     def team(self, request, uuid=None):
@@ -3656,6 +3711,7 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
 
         return Response(customers)
 
+    @extend_schema(description="Return resources limits per offering.")
     @action(detail=False, methods=["get"])
     def resources_limits(self, request, *args, **kwargs):
         data = []
@@ -3697,6 +3753,9 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
             status=status.HTTP_200_OK,
         )
 
+    @extend_schema(
+        description="Return component usages for current month.",
+    )
     @action(detail=False, methods=["get"])
     def component_usages(self, request, *args, **kwargs):
         now = timezone.now()
@@ -3715,6 +3774,9 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
             status=status.HTTP_200_OK,
         )
 
+    @extend_schema(
+        description="Return component usages per project.",
+    )
     @action(detail=False, methods=["get"])
     def component_usages_per_project(self, request, *args, **kwargs):
         now = timezone.now()
@@ -3736,6 +3798,9 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
 
     # cache for 1 hour
     @method_decorator(cache_page(60 * 60))
+    @extend_schema(
+        description="Return component usages per month.",
+    )
     @action(detail=False, methods=["get"])
     def component_usages_per_month(self, request, *args, **kwargs):
         start, end = utils.get_start_and_end_dates_from_request(self.request)
@@ -3780,6 +3845,9 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
 
         return data_with_organization_groups
 
+    @extend_schema(
+        description="Count users of service providers.",
+    )
     @action(detail=False, methods=["get"])
     def count_users_of_service_providers(self, request, *args, **kwargs):
         result = []
@@ -3800,6 +3868,9 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
 
         return Response(result, status=status.HTTP_200_OK)
 
+    @extend_schema(
+        description="Count projects of service providers.",
+    )
     @action(detail=False, methods=["get"])
     def count_projects_of_service_providers(self, request, *args, **kwargs):
         result = []
@@ -3818,6 +3889,9 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
 
         return Response(result, status=status.HTTP_200_OK)
 
+    @extend_schema(
+        description="Count projects of service providers grouped by OECD.",
+    )
     @action(detail=False, methods=["get"])
     def count_projects_of_service_providers_grouped_by_oecd(
         self, request, *args, **kwargs
@@ -3882,6 +3956,7 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
 
         return results
 
+    @extend_schema(description="Group project usages by OECD code.")
     @action(detail=False, methods=["get"])
     def projects_usages_grouped_by_oecd(self, request, *args, **kwargs):
         return Response(
@@ -3891,6 +3966,7 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
             status=status.HTTP_200_OK,
         )
 
+    @extend_schema(description="Group project usages by industry flag.")
     @action(detail=False, methods=["get"])
     def projects_usages_grouped_by_industry_flag(self, request, *args, **kwargs):
         return Response(
@@ -3931,6 +4007,9 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
 
         return results
 
+    @extend_schema(
+        description="Group project limits by OECD code.",
+    )
     @action(detail=False, methods=["get"])
     def projects_limits_grouped_by_oecd(self, request, *args, **kwargs):
         return Response(
@@ -3940,6 +4019,9 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
             status=status.HTTP_200_OK,
         )
 
+    @extend_schema(
+        description="Group project limits by industry flag.",
+    )
     @action(detail=False, methods=["get"])
     def projects_limits_grouped_by_industry_flag(self, request, *args, **kwargs):
         return Response(
@@ -3947,6 +4029,9 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
             status=status.HTTP_200_OK,
         )
 
+    @extend_schema(
+        description="Total cost of active resources per offering.",
+    )
     @action(detail=False, methods=["get"])
     def total_cost_of_active_resources_per_offering(self, request, *args, **kwargs):
         start, end = utils.get_start_and_end_dates_from_request(self.request)
@@ -4026,6 +4111,9 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
 
         return results
 
+    @extend_schema(
+        description="Count unique users connected with active resources of service provider.",
+    )
     @action(detail=False, methods=["get"])
     def count_unique_users_connected_with_active_resources_of_service_provider(
         self, request, *args, **kwargs
@@ -4092,7 +4180,10 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
             )
         )
 
-    @extend_schema(responses=serializers.OfferingStatsSerializer(many=True))
+    @extend_schema(
+        description="Count active resources grouped by offering.",
+        responses=serializers.OfferingStatsSerializer(many=True),
+    )
     @action(detail=False, methods=["get"])
     def count_active_resources_grouped_by_offering(self, request, *args, **kwargs):
         result = (
@@ -4107,7 +4198,10 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
             status=status.HTTP_200_OK,
         )
 
-    @extend_schema(responses=serializers.OfferingCountryStatsSerializer(many=True))
+    @extend_schema(
+        responses=serializers.OfferingCountryStatsSerializer(many=True),
+        description="Count active resources grouped by offering country.",
+    )
     @action(detail=False, methods=["get"])
     def count_active_resources_grouped_by_offering_country(
         self, request, *args, **kwargs
@@ -4124,7 +4218,10 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
             status=status.HTTP_200_OK,
         )
 
-    @extend_schema(responses=serializers.CountStatsSerializer(many=True))
+    @extend_schema(
+        responses=serializers.CountStatsSerializer(many=True),
+        description="Count active resources grouped by organization group.",
+    )
     @action(detail=False, methods=["get"])
     def count_active_resources_grouped_by_organization_group(
         self, request, *args, **kwargs
@@ -4180,7 +4277,10 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
             .order_by("resource__offering__customer__name")
         )
 
-    @extend_schema(responses=serializers.CustomerOecdCodeStatsSerializer(many=True))
+    @extend_schema(
+        responses=serializers.CustomerOecdCodeStatsSerializer(many=True),
+        description="Count projects grouped by provider and OECD code",
+    )
     @action(detail=False, methods=["get"])
     def count_projects_grouped_by_provider_and_oecd(self, request, *args, **kwargs):
         result = self._get_count_projects_with_active_resources_grouped_by_provider_and_field(
@@ -4192,7 +4292,10 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
             status=status.HTTP_200_OK,
         )
 
-    @extend_schema(responses=serializers.CustomerIndustryFlagStatsSerializer(many=True))
+    @extend_schema(
+        responses=serializers.CustomerIndustryFlagStatsSerializer(many=True),
+        description="Count projects grouped by provider and industry flag",
+    )
     @action(detail=False, methods=["get"])
     def count_projects_grouped_by_provider_and_industry_flag(
         self, request, *args, **kwargs

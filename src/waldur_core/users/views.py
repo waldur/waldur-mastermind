@@ -211,8 +211,7 @@ class InvitationViewSet(ProtectedViewSet):
         )
 
     @extend_schema(
-        request=None,
-        responses=serializers.InvitationCheckSerializer,
+        request=None, responses=serializers.InvitationCheckSerializer, parameters=[]
     )
     @action(detail=True, methods=["post"], filter_backends=[], permission_classes=[])
     def check(self, request, uuid=None):
@@ -251,6 +250,14 @@ class GroupInvitationViewSet(ProtectedViewSet):
     filterset_class = filters.GroupInvitationFilter
     lookup_field = "uuid"
 
+    @extend_schema(
+        request=None,
+        responses=structure_serializers.NestedProjectSerializer(
+            many=True, read_only=True
+        ),
+        description="Return projects for group invitation",
+        parameters=[],
+    )
     @action(detail=True, methods=["get"], filter_backends=[])
     def projects(self, request, uuid=None):
         invitation: models.GroupInvitation = self.get_object()
@@ -270,6 +277,7 @@ class GroupInvitationViewSet(ProtectedViewSet):
         request=None,
         responses=None,
         description="Cancel group invitation",
+        parameters=[],
     )
     @action(detail=True, methods=["post"], filter_backends=[])
     def cancel(self, request, uuid=None):

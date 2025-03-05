@@ -22,6 +22,7 @@ from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import signals as structure_signals
 from waldur_core.structure import views as structure_views
 from waldur_core.structure.managers import filter_queryset_for_user
+from waldur_core.structure.serializers import ConsoleUrlSerializer
 from waldur_core.structure.signals import resource_imported
 from waldur_openstack.apps import OpenStackConfig
 from waldur_openstack.backend import OpenStackBackend
@@ -1024,6 +1025,7 @@ class SnapshotViewSet(structure_views.ResourceViewSet):
         description="Get a list of snapshot restorations",
         request=None,
         responses=serializers.OpenStackSnapshotRestorationSerializer(many=True),
+        parameters=[],
     )
     @decorators.action(detail=True, methods=["get"])
     def restorations(self, request, uuid=None):
@@ -1339,6 +1341,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         description="Get a list of instance ports",
         request=None,
         responses=serializers.OpenStackNestedPortSerializer(many=True),
+        parameters=[],
     )
     @decorators.action(detail=True, methods=["get"])
     def ports(self, request, uuid=None):
@@ -1379,7 +1382,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         responses=serializers.OpenStackInstanceFloatingIpsSerializer,
         parameters=[],
     )
-    @decorators.action(detail=True, methods=["get"], filter_backends=[])
+    @decorators.action(detail=True, methods=["get"])
     def floating_ips(self, request, uuid=None):
         instance = self.get_object()
         serializer = serializers.OpenStackNestedFloatingIPSerializer(
@@ -1393,7 +1396,8 @@ class InstanceViewSet(structure_views.ResourceViewSet):
     @extend_schema(
         description="Get console url for the instance",
         request=None,
-        responses=serializers.OpenStackInstanceConsoleSerializer,
+        responses=ConsoleUrlSerializer,
+        parameters=[],
     )
     @decorators.action(detail=True, methods=["get"])
     def console(self, request, uuid=None):
