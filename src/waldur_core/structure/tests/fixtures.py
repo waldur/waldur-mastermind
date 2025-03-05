@@ -37,6 +37,7 @@ class CustomerFixture(UserFixture):
         CustomerRole.OWNER.add_permission(PermissionEnum.LIST_ORDERS)
         CustomerRole.OWNER.add_permission(PermissionEnum.LIST_RESOURCES)
         CustomerRole.OWNER.add_permission(PermissionEnum.LIST_INVITATIONS)
+        CustomerRole.OWNER.add_permission(PermissionEnum.LIST_CUSTOMER_USERS)
         return user
 
     @cached_property
@@ -46,6 +47,7 @@ class CustomerFixture(UserFixture):
         CustomerRole.SUPPORT.add_permission(PermissionEnum.LIST_PROJECTS)
         CustomerRole.SUPPORT.add_permission(PermissionEnum.LIST_ORDERS)
         CustomerRole.SUPPORT.add_permission(PermissionEnum.LIST_RESOURCES)
+        CustomerRole.SUPPORT.add_permission(PermissionEnum.LIST_CUSTOMER_USERS)
         return user
 
     @cached_property

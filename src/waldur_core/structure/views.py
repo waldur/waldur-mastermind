@@ -43,7 +43,6 @@ from waldur_core.core.serializers import EmptySerializer
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.core.views import ActionsViewSet
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
-from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.permissions.utils import (
     has_permission,
     permission_factory,
@@ -56,7 +55,6 @@ from waldur_core.structure.managers import (
     get_connected_customers,
     get_connected_projects,
 )
-from waldur_core.structure.permissions import _has_owner_access
 from waldur_core.structure.utils import get_components_usage_data_from_resources
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
@@ -220,11 +218,10 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
         queryset = customer.get_users()
 
         if not (
-            _has_owner_access(user, customer)
+            has_permission(request, PermissionEnum.LIST_CUSTOMER_USERS, customer)
             or user.is_support
-            or customer.has_user(user, CustomerRole.SUPPORT)
         ):
-            return Response(status=status.HTTP_403_FORBIDDEN)
+            raise PermissionDenied()
 
         # we need to handle filtration manually because we want to filter only customer users, not customers.
         name_filter_backend = filters.UserConcatenatedNameOrderingBackend()
