@@ -9,7 +9,6 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.utils import extend_schema
 from rest_framework import decorators, generics, response, status
 from rest_framework.exceptions import MethodNotAllowed, ValidationError
 from rest_framework.permissions import SAFE_METHODS
@@ -24,7 +23,6 @@ from waldur_core.structure import views as structure_views
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.models import ServiceSettings
 from waldur_core.structure.permissions import is_administrator
-from waldur_core.structure.serializers import ConsoleUrlSerializer
 from waldur_mastermind.common import utils as common_utils
 from waldur_openstack import models as openstack_models
 from waldur_openstack import views as openstack_views
@@ -99,7 +97,7 @@ class ClusterViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
     ]
     pull_executor = executors.ClusterPullExecutor
 
-    @decorators.action(detail=True, methods=["get"], filter_backends=[])
+    @decorators.action(detail=True, methods=["get"])
     def kubeconfig_file(self, request, uuid=None):
         cluster = self.get_object()
         backend = cluster.get_backend()
@@ -273,10 +271,7 @@ class NodeViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
 
     unlink_openstack_permissions = [structure_permissions.is_staff]
 
-    @extend_schema(
-        description="Returns console URL for the node.", responses=ConsoleUrlSerializer
-    )
-    @decorators.action(detail=True, methods=["get"], filter_backends=[])
+    @decorators.action(detail=True, methods=["get"])
     def console(self, request, uuid=None):
         node = self.get_object()
 
@@ -299,10 +294,7 @@ class NodeViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
     console_validators = [validators.console_validator]
     console_permissions = [utils.check_permissions_for_console()]
 
-    @extend_schema(
-        description="Returns console log for the node.", responses={200: str, 404: None}
-    )
-    @decorators.action(detail=True, methods=["get"], filter_backends=[])
+    @decorators.action(detail=True, methods=["get"])
     def console_log(self, request, uuid=None):
         node = self.get_object()
 
@@ -450,7 +442,7 @@ class ProjectViewSet(structure_views.BaseServicePropertyViewSet):
     filterset_class = filters.ProjectFilter
     lookup_field = "uuid"
 
-    @decorators.action(detail=True, methods=["get"], filter_backends=[])
+    @decorators.action(detail=True, methods=["get"])
     def secrets(self, request, uuid=None):
         project = self.get_object()
         backend = project.get_backend()

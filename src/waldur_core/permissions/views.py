@@ -1,5 +1,4 @@
 import logging
-import uuid
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
@@ -124,60 +123,31 @@ class RoleViewSet(ActionsViewSet):
 class UserRoleMixin:
     @extend_schema(
         parameters=[
+            OpenApiParameter(name="user", type=str, location=OpenApiParameter.QUERY),
             OpenApiParameter(
-                name="user",
-                type=uuid.UUID,
-                location=OpenApiParameter.QUERY,
-                description="User UUID",
+                name="user_url", type=str, location=OpenApiParameter.QUERY
             ),
             OpenApiParameter(
-                name="user_url",
-                type=str,
-                location=OpenApiParameter.QUERY,
-                description="User URL",
+                name="username", type=str, location=OpenApiParameter.QUERY
             ),
             OpenApiParameter(
-                name="username",
-                type=str,
-                location=OpenApiParameter.QUERY,
-                description="User username",
+                name="full_name", type=str, location=OpenApiParameter.QUERY
             ),
             OpenApiParameter(
-                name="full_name",
-                type=str,
-                location=OpenApiParameter.QUERY,
-                description="User full name",
+                name="native_name", type=str, location=OpenApiParameter.QUERY
             ),
             OpenApiParameter(
-                name="native_name",
-                type=str,
-                location=OpenApiParameter.QUERY,
-                description="User native name",
+                name="user_slug", type=str, location=OpenApiParameter.QUERY
             ),
+            OpenApiParameter(name="role", type=str, location=OpenApiParameter.QUERY),
             OpenApiParameter(
-                name="user_slug",
-                type=str,
-                location=OpenApiParameter.QUERY,
-                description="User slug",
-            ),
-            OpenApiParameter(
-                name="role",
-                type=uuid.UUID,
-                location=OpenApiParameter.QUERY,
-                description="Role UUID or name",
-            ),
-            OpenApiParameter(
-                name="search_string",
-                type=str,
-                location=OpenApiParameter.QUERY,
-                description="Search string for user",
+                name="search_string", type=str, location=OpenApiParameter.QUERY
             ),
             OpenApiParameter(
                 "field",
                 build_array_type(build_basic_type(OpenApiTypes.STR)),
                 OpenApiParameter.QUERY,
                 enum=serializers.UserRoleDetailsSerializer.Meta.fields,
-                description="Fields to include in response",
             ),
             OpenApiParameter(
                 "o",
@@ -192,12 +162,11 @@ class UserRoleMixin:
                     "created",
                     "role",
                 ],
-                description="Ordering fields",
             ),
         ],
         responses=serializers.UserRoleDetailsSerializer(many=True),
     )
-    @action(detail=True, methods=["GET"], filter_backends=[])
+    @action(detail=True, methods=["GET"])
     def list_users(self, request, uuid=None):
         scope = self.get_object()
         user_uuid = request.query_params.get("user")

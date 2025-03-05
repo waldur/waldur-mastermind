@@ -251,13 +251,6 @@ class GroupInvitationViewSet(ProtectedViewSet):
     filterset_class = filters.GroupInvitationFilter
     lookup_field = "uuid"
 
-    @extend_schema(
-        request=None,
-        responses=structure_serializers.NestedProjectSerializer(
-            many=True, read_only=True
-        ),
-        description="Return projects for group invitation",
-    )
     @action(detail=True, methods=["get"], filter_backends=[])
     def projects(self, request, uuid=None):
         invitation: models.GroupInvitation = self.get_object()

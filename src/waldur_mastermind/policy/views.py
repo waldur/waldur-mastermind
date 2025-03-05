@@ -23,7 +23,7 @@ class ProjectEstimatedCostPolicyViewSet(ActionsViewSet):
         structure_permissions.is_owner
     ]
 
-    @action(detail=False, methods=["get"], filter_backends=[])
+    @action(detail=False, methods=["get"])
     def actions(self, request, *args, **kwargs):
         data = list(models.ProjectEstimatedCostPolicy.available_actions)
         return Response(data, status=status.HTTP_200_OK)
@@ -42,7 +42,7 @@ class CustomerEstimatedCostPolicyViewSet(ActionsViewSet):
         structure_permissions.is_staff
     ]
 
-    @action(detail=False, methods=["get"], filter_backends=[])
+    @action(detail=False, methods=["get"])
     def actions(self, request, *args, **kwargs):
         data = list(models.CustomerEstimatedCostPolicy.available_actions)
         return Response(data, status=status.HTTP_200_OK)
@@ -61,7 +61,7 @@ class OfferingEstimatedCostPolicyViewSet(ActionsViewSet):
         structure_permissions.is_owner
     ]
 
-    @action(detail=False, methods=["get"], filter_backends=[])
+    @action(detail=False, methods=["get"])
     def actions(self, request, *args, **kwargs):
         data = list(action in models.OfferingEstimatedCostPolicy.available_actions)
         return Response(data, status=status.HTTP_200_OK)
@@ -80,7 +80,7 @@ class OfferingUsagePolicyViewSet(ActionsViewSet):
         structure_permissions.is_owner
     ]
 
-    @action(detail=False, methods=["get"], filter_backends=[])
+    @action(detail=False, methods=["get"])
     def actions(self, request, *args, **kwargs):
         data = list(models.OfferingUsagePolicy.available_actions)
         return Response(data, status=status.HTTP_200_OK)
