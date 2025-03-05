@@ -6,7 +6,7 @@ from dateutil import parser
 from django.utils.timezone import get_current_timezone
 from rest_framework.test import APIRequestFactory
 
-from waldur_core.core.views import RefreshTokenMixin
+from waldur_core.core.authentication import refresh_token
 from waldur_mastermind.common import mixins as common_mixins
 
 
@@ -23,7 +23,7 @@ def get_headers(user):
     It is assumed that localhost is specified in ALLOWED_HOSTS Django setting
     so that internal API requests are allowed.
     """
-    token = RefreshTokenMixin().refresh_token(user)
+    token = refresh_token(user)
     return dict(
         content_type="application/json",
         HTTP_AUTHORIZATION="Token %s" % token.key,

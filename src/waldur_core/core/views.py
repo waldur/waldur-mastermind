@@ -13,16 +13,14 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.core.files.storage import default_storage
 from django.db import connection, connections
 from django.db.models import ForeignKey, ProtectedError
-from django.db.models.functions import Now
 from django.http import FileResponse, HttpResponse, HttpResponseRedirect, JsonResponse
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import TemplateView
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiExample, extend_schema
 from rest_framework import exceptions, generics, serializers, status, viewsets
 from rest_framework import mixins as rf_mixins
 from rest_framework import permissions as rf_permissions
-from rest_framework.authtoken.models import Token
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
@@ -37,6 +35,7 @@ from waldur_core.core.authentication import (
     OIDC_AUTHENTICATION_METHODS,
     AuthenticationMethod,
     get_authentication_method,
+    refresh_token,
     set_authentication_method,
 )
 from waldur_core.core.exceptions import ExtensionDisabled, IncorrectStateException
@@ -46,6 +45,7 @@ from waldur_core.core.metadata import WaldurConfiguration
 from waldur_core.core.mixins import ensure_atomic_transaction
 from waldur_core.core.serializers import (
     ConstanceSettingsSerializer,
+    CoreAuthTokenSerializer,
     EmptySerializer,
     LogoutSerializer,
     ObtainAuthTokenSerializer,
@@ -79,96 +79,56 @@ def validate_authentication_method(method):
     return wrapper
 
 
-class RefreshTokenMixin:
+class ObtainAuthToken(APIView):
     """
-    This mixin is used in both password and social auth (implemented via plugin).
-    Mixin allows to create new token if it does not exist yet or if it has already expired.
-    Token is refreshed if it has not expired yet.
-    """
-
-    MIN_TOKEN_UPDATE_INTERVAL = timezone.timedelta(seconds=60)
-
-    def refresh_token(self, user):
-        token, created = Token.objects.get_or_create(user=user)
-
-        if user.token_lifetime:
-            lifetime = timezone.timedelta(seconds=user.token_lifetime)
-
-            if token.created < timezone.now() - lifetime:
-                token.delete()
-                token = Token.objects.create(user=user)
-                created = True
-
-        if not created:
-            # Token is updated for each request therefore it may become bottleneck.
-            # To avoid race-conditions if token is updated simulteneously,
-            # and to reduce DB load, we use debouncing.
-            if token.created < timezone.now() - self.MIN_TOKEN_UPDATE_INTERVAL:
-                Token.objects.filter(key=token.key).update(created=Now())
-        return token
-
-
-class ObtainAuthToken(RefreshTokenMixin, APIView):
-    """
-    Api view loosely based on DRF's default ObtainAuthToken,
+    API view loosely based on DRF's default ObtainAuthToken,
     but with the responses formats and status codes aligned with BasicAuthentication behavior.
-
-    Valid request example:
-
-    .. code-block:: http
-
-        POST /api-auth/password/ HTTP/1.1
-        Accept: application/json
-        Content-Type: application/json
-        Host: example.com
-
-        {
-            "username": "alice",
-            "password": "$ecr3t"
-        }
-
-    Success response example:
-
-    .. code-block:: http
-
-        HTTP/1.0 200 OK
-        Allow: POST, OPTIONS
-        Content-Type: application/json
-        Vary: Accept, Cookie
-
-        {
-            "token": "c84d653b9ec92c6cbac41c706593e66f567a7fa4"
-        }
-
-    Field validation failure response example:
-
-    .. code-block:: http
-
-        HTTP/1.0 401 UNAUTHORIZED
-        Allow: POST, OPTIONS
-        Content-Type: application/json
-
-        {
-            "password": ["This field is required."]
-        }
-
-    Invalid credentials failure response example:
-
-    .. code-block:: http
-
-        HTTP/1.0 401 UNAUTHORIZED
-        Allow: POST, OPTIONS
-        Content-Type: application/json
-
-        {
-            "detail": "Invalid username/password"
-        }
     """
 
     throttle_classes = ()
     permission_classes = ()
     serializer_class = ObtainAuthTokenSerializer
 
+    @extend_schema(
+        request=ObtainAuthTokenSerializer,
+        responses={
+            200: CoreAuthTokenSerializer,
+            401: None,
+        },
+        examples=[
+            OpenApiExample(
+                "Valid request",
+                summary="Valid request example",
+                description="Example of a valid request to obtain an authentication token.",
+                value={"username": "alice", "password": "$ecr3t"},
+                request_only=True,
+            ),
+            OpenApiExample(
+                "Success response",
+                summary="Success response example",
+                description="Example of a successful response with the authentication token.",
+                value={"token": "c84d653b9ec92c6cbac41c706593e66f567a7fa4"},
+                response_only=True,
+                status_codes=[200],
+            ),
+            OpenApiExample(
+                "Field validation failure response",
+                summary="Field validation failure response example",
+                description="Example of a response when field validation fails.",
+                value={"password": ["This field is required."]},
+                response_only=True,
+                status_codes=[401],
+            ),
+            OpenApiExample(
+                "Invalid credentials failure response",
+                summary="Invalid credentials failure response example",
+                description="Example of a response when invalid credentials are provided.",
+                value={"detail": "Invalid username/password"},
+                response_only=True,
+                status_codes=[401],
+            ),
+        ],
+    )
     @validate_authentication_method("LOCAL_SIGNIN")
     def post(self, request):
         serializer = self.serializer_class(data=request.data)
@@ -222,7 +182,7 @@ class ObtainAuthToken(RefreshTokenMixin, APIView):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
-        token = self.refresh_token(user)
+        token = refresh_token(user)
         user.last_login = timezone.now()
         user.save(update_fields=["last_login"])
         set_authentication_method(request, AuthenticationMethod.LOCAL)

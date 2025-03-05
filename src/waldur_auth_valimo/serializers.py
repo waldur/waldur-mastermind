@@ -3,6 +3,10 @@ from rest_framework import serializers
 from . import models
 
 
+class AuthResultUUIDSerializer(serializers.Serializer):
+    uuid = serializers.UUIDField(help_text="UUID of the authentication result.")
+
+
 class AuthResultSerializer(serializers.ModelSerializer):
     token = serializers.SerializerMethodField()
 

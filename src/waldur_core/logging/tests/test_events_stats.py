@@ -2,6 +2,7 @@ from freezegun import freeze_time
 from rest_framework import test
 
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.invoices.utils import get_current_month, get_current_year
 
 from . import factories
 
@@ -26,9 +27,10 @@ class EventsStatsGetTest(test.APITransactionTestCase):
         )
 
         self.assertEqual(200, response.status_code)
-        self.assertEqual(2, len(response.data))
+        self.assertEqual(3, len(response.data))
         self.assertEqual(
             [
+                {"year": get_current_year(), "month": get_current_month(), "count": 1},
                 {"year": 2021, "month": 2, "count": 1},
                 {"year": 2021, "month": 1, "count": 2},
             ],

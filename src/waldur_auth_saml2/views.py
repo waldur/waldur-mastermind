@@ -23,11 +23,11 @@ from six import text_type
 
 from waldur_core.core.authentication import (
     AuthenticationMethod,
+    refresh_token,
     set_authentication_method,
 )
 from waldur_core.core.serializers import EmptySerializer
 from waldur_core.core.views import (
-    RefreshTokenMixin,
     login_completed,
     login_failed,
     logout_completed,
@@ -160,7 +160,7 @@ class Saml2LoginView(BaseSaml2View):
         return JsonResponse(data)
 
 
-class Saml2LoginCompleteView(RefreshTokenMixin, BaseSaml2View):
+class Saml2LoginCompleteView(BaseSaml2View):
     """
     SAML Authorization Response endpoint
 
@@ -256,7 +256,7 @@ class Saml2LoginCompleteView(RefreshTokenMixin, BaseSaml2View):
 
         logger.debug("Sending the post_authenticated signal")
         post_authenticated.send_robust(sender=user, session_info=session_info)
-        token = self.refresh_token(user)
+        token = refresh_token(user)
 
         logger.info(
             "Authenticated with SAML token. Returning token for successful login of user %s",
