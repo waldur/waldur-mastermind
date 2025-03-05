@@ -1564,3 +1564,7 @@ class ConfirmEmailRequestSerializer(serializers.Serializer):
 class CountrySerializer(serializers.Serializer):
     label = serializers.CharField(read_only=True)
     value = serializers.CharField(read_only=True)
+
+
+class ConsoleUrlSerializer(serializers.Serializer):
+    url = serializers.URLField(read_only=True)

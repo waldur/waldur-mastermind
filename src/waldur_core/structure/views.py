@@ -587,7 +587,8 @@ class UserViewSet(core_views.ActionsViewSet):
         super().check_permissions(request)
 
     @extend_schema(
-        description="Get current user details, including authentication token."
+        description="Get current user details, including authentication token.",
+        parameters=[],
     )
     @action(detail=False, methods=["get"])
     def me(self, request):
@@ -649,6 +650,7 @@ class UserViewSet(core_views.ActionsViewSet):
     @extend_schema(
         request=serializers.UserAuthTokenSerializer,
         responses=serializers.UserAuthTokenSerializer,
+        parameters=[],
     )
     @action(detail=True, methods=["get"])
     def token(self, request, uuid=None):

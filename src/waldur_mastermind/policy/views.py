@@ -1,4 +1,5 @@
 from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -23,6 +24,7 @@ class ProjectEstimatedCostPolicyViewSet(ActionsViewSet):
         structure_permissions.is_owner
     ]
 
+    @extend_schema(parameters=[])
     @action(detail=False, methods=["get"])
     def actions(self, request, *args, **kwargs):
         data = list(models.ProjectEstimatedCostPolicy.available_actions)
@@ -42,6 +44,7 @@ class CustomerEstimatedCostPolicyViewSet(ActionsViewSet):
         structure_permissions.is_staff
     ]
 
+    @extend_schema(parameters=[])
     @action(detail=False, methods=["get"])
     def actions(self, request, *args, **kwargs):
         data = list(models.CustomerEstimatedCostPolicy.available_actions)
@@ -61,9 +64,13 @@ class OfferingEstimatedCostPolicyViewSet(ActionsViewSet):
         structure_permissions.is_owner
     ]
 
+    @extend_schema(
+        parameters=[],
+        description="List available actions for OfferingEstimatedCostPolicy",
+    )
     @action(detail=False, methods=["get"])
     def actions(self, request, *args, **kwargs):
-        data = list(action in models.OfferingEstimatedCostPolicy.available_actions)
+        data = list(models.OfferingEstimatedCostPolicy.available_actions)
         return Response(data, status=status.HTTP_200_OK)
 
 
@@ -80,6 +87,7 @@ class OfferingUsagePolicyViewSet(ActionsViewSet):
         structure_permissions.is_owner
     ]
 
+    @extend_schema(parameters=[])
     @action(detail=False, methods=["get"])
     def actions(self, request, *args, **kwargs):
         data = list(models.OfferingUsagePolicy.available_actions)
