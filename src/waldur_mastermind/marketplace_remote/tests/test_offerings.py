@@ -359,6 +359,8 @@ class OfferingRemoteVersionTest(test.APITransactionTestCase):
             "token": "0b67edfecdda37fe4b6e7d6c3e6360acb3a1f2bf",
             "api_url": "http://localhost/api/",
             "customer_uuid": remote_offering.customer.uuid.hex,
+        }
+        self.offering.options = {
             "service_provider_can_create_offering_user": False,
         }
         self.offering.backend_id = remote_offering.uuid.hex

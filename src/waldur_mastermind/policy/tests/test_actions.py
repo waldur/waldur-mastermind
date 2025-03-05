@@ -199,7 +199,7 @@ class ActionsTest(test.APITransactionTestCase):
 
         resource = self.fixture.resource
         offering = resource.offering
-        offering.secret_options["service_provider_can_create_offering_user"] = True
+        offering.options["service_provider_can_create_offering_user"] = True
         offering.save()
 
         self.create_invoice_item(self.policy.limit_cost + 1)

@@ -1494,9 +1494,7 @@ class ProviderOfferingViewSet(
         """
         offering = self.get_object()
 
-        if not offering.secret_options.get(
-            "service_provider_can_create_offering_user", False
-        ):
+        if not offering.options.get("service_provider_can_create_offering_user", False):
             logger.warning(
                 "Offering %s doesn't have feature service_provider_can_create_offering_user enabled, skipping GLauth config generation",
                 offering,
@@ -2801,9 +2799,7 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         project = resource.project
         offering = resource.offering
 
-        if not offering.secret_options.get(
-            "service_provider_can_create_offering_user", False
-        ):
+        if not offering.options.get("service_provider_can_create_offering_user", False):
             logger.warning(
                 "Offering %s doesn't have feature service_provider_can_create_offering_user enabled, skipping GLauth config generation",
                 offering,
@@ -3490,7 +3486,7 @@ class OfferingUsersViewSet(
 
         queryset = queryset.filter(
             # Exclude offerings with disabled OfferingUsers feature
-            Q(offering__secret_options__service_provider_can_create_offering_user=True)
+            Q(offering__options__service_provider_can_create_offering_user=True)
             &
             # user can see own remote offering user
             (

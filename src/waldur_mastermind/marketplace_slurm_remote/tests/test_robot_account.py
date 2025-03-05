@@ -20,9 +20,7 @@ class RobotAccountGlauthConfigTest(test.APITransactionTestCase):
             "initial_uidnumber": 1000,
             "initial_primarygroup_number": 2000,
         }
-        self.offering.secret_options = {
-            "service_provider_can_create_offering_user": True
-        }
+        self.offering.options = {"service_provider_can_create_offering_user": True}
         self.offering.save()
 
         self.resource = self.fixture.resource

@@ -41,7 +41,7 @@ def sync_offering_users():
             marketplace_models.Offering.States.ACTIVE,
             marketplace_models.Offering.States.PAUSED,
         ],
-        secret_options__service_provider_can_create_offering_user=True,
+        options__service_provider_can_create_offering_user=True,
     ).exclude(
         plugin_options__username_generation_policy=marketplace_utils.UsernameGenerationPolicy.SERVICE_PROVIDER.value
     )
