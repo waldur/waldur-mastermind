@@ -110,6 +110,10 @@ class ObtainAuthTokenSerializer(serializers.Serializer):
     password = serializers.CharField(max_length=128)
 
 
+class CoreAuthTokenSerializer(serializers.Serializer):
+    token = serializers.CharField(read_only=True)
+
+
 class Base64Field(serializers.CharField):
     def to_internal_value(self, data):
         value = super().to_internal_value(data)

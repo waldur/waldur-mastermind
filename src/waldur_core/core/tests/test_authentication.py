@@ -8,7 +8,7 @@ from freezegun import freeze_time
 from rest_framework import status, test
 from rest_framework.authtoken.models import Token
 
-from waldur_core.core.views import RefreshTokenMixin
+from waldur_core.core.authentication import refresh_token
 
 from . import helpers
 
@@ -111,14 +111,14 @@ class TokenAuthenticationTest(test.APITransactionTestCase):
         next_time = timezone.now() + timezone.timedelta(hours=1)
         token, _ = Token.objects.get_or_create(user=self.user)
         with freeze_time(next_time):
-            token = RefreshTokenMixin().refresh_token(self.user)
+            token = refresh_token(self.user)
         self.assertGreater(token.created, timezone.now())
 
     def test_refresh_token_negative(self):
         next_time = timezone.now() + timezone.timedelta(seconds=10)
         token, _ = Token.objects.get_or_create(user=self.user)
         with freeze_time(next_time):
-            token = RefreshTokenMixin().refresh_token(self.user)
+            token = refresh_token(self.user)
         self.assertLess(token.created, timezone.now())
 
     def test_token_never_expires_if_token_lifetime_is_none(self):

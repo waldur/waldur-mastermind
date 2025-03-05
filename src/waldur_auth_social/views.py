@@ -23,10 +23,9 @@ from waldur_auth_social.utils import (
     pull_remote_eduteams_user,
 )
 from waldur_core.core import permissions as core_permissions
-from waldur_core.core.authentication import set_authentication_method
+from waldur_core.core.authentication import refresh_token, set_authentication_method
 from waldur_core.core.serializers import EmptySerializer
 from waldur_core.core.utils import format_homeport_link
-from waldur_core.core.views import RefreshTokenMixin
 
 from . import models
 from .log import event_logger
@@ -53,7 +52,7 @@ def generate_code_challenge(code_verifier):
     return base64.urlsafe_b64encode(code_challenge).decode("utf-8").replace("=", "")
 
 
-class BaseOAuthView(RefreshTokenMixin, generics.GenericAPIView):
+class BaseOAuthView(generics.GenericAPIView):
     permission_classes = []
     authentication_classes = []
     throttle_scope = "oauth"
@@ -137,7 +136,7 @@ class OAuthViewComplete(BaseOAuthView):
         serializer.is_valid(raise_exception=True)
 
         user, created = self.authenticate_user(serializer.validated_data)
-        token = self.refresh_token(user)
+        token = refresh_token(user)
         user.last_login = timezone.now()
         user.save(update_fields=["last_login"])
         set_authentication_method(request, provider)
