@@ -421,23 +421,26 @@ Upload TypeScript SDK:
     - git branch new-sdk
     - git push --set-upstream origin new-sdk:develop
 
-Upload Waldur OpenAPI schema to docs:
+Upload OpenAPI schema to docs:
   stage: deploy
   interruptible: true
+  needs:
+    - Generate OpenAPI schema
   rules:
-    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
   image:
     name: registry.hpc.ut.ee/mirror/alpine/git:latest
     entrypoint: [""]
-  needs:
-    - Generate OpenAPI schema
   script:
+    - cd /tmp/
     - git clone "https://gitlab-ci-token:$GITLAB_TOKEN@$CI_SERVER_HOST/waldur/waldur-docs.git"
     - git config --global user.name "$GITLAB_USER_NAME"
     - git config --global user.email "$GITLAB_USER_EMAIL"
     - cd waldur-docs
-    - cp $CI_PROJECT_DIR/waldur-openapi-schema.yaml docs/API/
-    - git add docs/API/waldur-openapi-schema.yaml
-    - git commit -m "Update Waldur OpenAPI schema" || exit 0
-    - git branch new-api
-    - git push --set-upstream origin new-api:master
+    - mkdir -p docs/API
+    - cp $CI_PROJECT_DIR/waldur-openapi-schema.yaml docs/API/waldur-openapi-schema-${CI_COMMIT_TAG}.yaml
+    - git add docs/API
+    - git commit -m "Add Waldur OpenAPI schema for ${CI_COMMIT_TAG}" || exit 0
+    - git branch new-api-schema-${CI_COMMIT_TAG}
+    - git push --set-upstream origin new-api-schema-${CI_COMMIT_TAG}:master
+  before_script: []
