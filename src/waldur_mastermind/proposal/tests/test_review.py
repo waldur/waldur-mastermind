@@ -172,6 +172,42 @@ class ActionTest(test.APITransactionTestCase):
         response = self.client.post(self.url_accept)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    @data(
+        "staff",
+        "reviewer_1",
+    )
+    def test_user_can_submit(self, user):
+        url = factories.ReviewFactory.get_url(self.review, "submit")
+        self.review.state = models.Review.States.IN_REVIEW
+        self.review.save()
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.post(
+            url,
+            {
+                "summary_score": "4",
+                "summary_public_comment": "summary public",
+                "summary_private_comment": "summary private",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.review.refresh_from_db()
+        self.assertTrue(self.review.state, models.Review.States.SUBMITTED)
+        self.assertTrue(self.review.summary_score, 4)
+        self.assertTrue(self.review.summary_public_comment, "summary public")
+        self.assertTrue(self.review.summary_private_comment, "summary private")
+
+    @data(
+        "owner",
+        "customer_support",
+    )
+    def test_user_can_not_submit(self, user):
+        url = factories.ReviewFactory.get_url(self.review, "submit")
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
 
 @ddt
 class ReviewerGetTest(test.APITransactionTestCase):
