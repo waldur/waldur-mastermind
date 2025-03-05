@@ -40,6 +40,7 @@ from waldur_mastermind.proposal import (
 )
 
 from . import log
+from .serializers import ReviewSubmitSerializer
 
 User = auth.get_user_model()
 logger = logging.getLogger(__name__)
@@ -692,14 +693,17 @@ class ReviewViewSet(ActionsViewSet):
 
     @extend_schema(
         description="Submit a review, changing its state to SUBMITTED.",
-        request=None,
+        request=ReviewSubmitSerializer,
         responses={status.HTTP_200_OK: None},
     )
     @decorators.action(detail=True, methods=["post"])
     def submit(self, request, uuid=None):
         review = self.get_object()
-        review.state = models.Review.States.SUBMITTED
-        review.save()
+        serializer = ReviewSubmitSerializer(
+            instance=review, data=request.data, partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save(state=models.Review.States.SUBMITTED)
         return response.Response(
             "Review has been submitted.",
             status=status.HTTP_200_OK,

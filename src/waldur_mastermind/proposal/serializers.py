@@ -279,6 +279,16 @@ class ProposalReviewSerializer(
         return fields
 
 
+class ReviewSubmitSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Review
+        fields = (
+            "summary_score",
+            "summary_public_comment",
+            "summary_private_comment",
+        )
+
+
 class ProtectedProposalListSerializer(serializers.HyperlinkedModelSerializer):
     state = serializers.ReadOnlyField()
     created_by_name = serializers.ReadOnlyField(source="created_by.full_name")
