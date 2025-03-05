@@ -37,6 +37,25 @@ class ImpersonationTest(test.APITransactionTestCase):
             response.headers[IMPERSONATOR_HEADER.lower()], impersonator.uuid.hex
         )
 
+    @data("staff")
+    def test_impersonating_user_without_active_session_not_available(self, user):
+        impersonator = getattr(self.fixture, user)
+        impersonator_token = (
+            TokenAuthentication().get_model().objects.get(user=impersonator)
+        )
+        token = (
+            TokenAuthentication().get_model().objects.get(user=self.impersonated_user)
+        )
+        token.delete()
+        self.client.credentials(
+            **{
+                "HTTP_AUTHORIZATION": "Token " + impersonator_token.key,
+                IMPERSONATED_USER_HEADER: self.impersonated_user.uuid.hex,
+            }
+        )
+        response = self.client.get("http://testserver/api/users/me/")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
     @data("user", "global_support")
     def test_impersonation_is_not_available_for_user(self, user):
         impersonator = getattr(self.fixture, user)

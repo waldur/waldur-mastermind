@@ -142,6 +142,7 @@ class TokenAuthentication(rest_framework.authentication.TokenAuthentication):
             ).first()
 
             if impersonated_user:
+                set_user_context(impersonated_user)
                 impersonated_user.impersonator = token.user
                 return impersonated_user, token
             else:
