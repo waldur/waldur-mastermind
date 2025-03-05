@@ -592,7 +592,7 @@ class UserViewSet(core_views.ActionsViewSet):
     @extend_schema(
         description="Get current user details, including authentication token."
     )
-    @action(detail=False, methods=["get"])
+    @action(detail=False, methods=["get"], filter_backends=[])
     def me(self, request):
         serializer = self.get_serializer(request.user)
 
@@ -653,7 +653,7 @@ class UserViewSet(core_views.ActionsViewSet):
         request=serializers.UserAuthTokenSerializer,
         responses=serializers.UserAuthTokenSerializer,
     )
-    @action(detail=True, methods=["get"])
+    @action(detail=True, methods=["get"], filter_backends=[])
     def token(self, request, uuid=None):
         user = self.get_object()
         token = user.auth_token

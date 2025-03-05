@@ -2,6 +2,7 @@ import logging
 
 from django.db import transaction
 from django.utils.translation import gettext_lazy as _
+from drf_spectacular.utils import extend_schema
 from rest_framework import serializers as rf_serializers
 from rest_framework import status
 from rest_framework.decorators import action
@@ -13,6 +14,7 @@ from waldur_core.core import validators as core_validators
 from waldur_core.core.serializers import EmptySerializer
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import views as structure_views
+from waldur_core.structure.serializers import ConsoleUrlSerializer
 from waldur_vmware.apps import VMwareConfig
 
 from . import executors, filters, models, serializers
@@ -202,11 +204,13 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
     ]
     create_disk_serializer_class = serializers.VmwareDiskSerializer
 
-    @action(detail=True, methods=["get"])
+    @extend_schema(
+        request=None,
+        description="This endpoint provides access to Virtual Machine Remote Console aka VMRC.",
+        responses=ConsoleUrlSerializer,
+    )
+    @action(detail=True, methods=["get"], filter_backends=[])
     def console(self, request, uuid=None):
-        """
-        This endpoint provides access to Virtual Machine Remote Console aka VMRC.
-        """
         instance = self.get_object()
         backend = instance.get_backend()
         try:
@@ -220,11 +224,13 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
         core_validators.StateValidator(models.VirtualMachine.States.OK)
     ]
 
-    @action(detail=True, methods=["get"])
+    @extend_schema(
+        request=None,
+        responses=ConsoleUrlSerializer,
+        description="This endpoint provides access to HTML Console aka WMKS.",
+    )
+    @action(detail=True, methods=["get"], filter_backends=[])
     def web_console(self, request, uuid=None):
-        """
-        This endpoint provides access to HTML Console aka WMKS.
-        """
         instance = self.get_object()
         backend = instance.get_backend()
         try:

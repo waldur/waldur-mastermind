@@ -1,5 +1,6 @@
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from oauthlib.oauth2.rfc6749.errors import OAuth2Error
 from rest_framework import exceptions, status
 from rest_framework.decorators import action
@@ -23,7 +24,7 @@ class GoogleAuthViewSet(core_views.ReadOnlyActionsViewSet):
     serializer_class = serializers.GoogleCredentialsSerializer
     lookup_field = "uuid"
 
-    @action(detail=True, methods=["get"])
+    @action(detail=True, methods=["get"], filter_backends=[])
     def authorize(self, request, uuid=None):
         service_provider = self.get_object()
         redirect_uri = request.build_absolute_uri("../../") + "callback/"
@@ -34,6 +35,26 @@ class GoogleAuthViewSet(core_views.ReadOnlyActionsViewSet):
             status=status.HTTP_200_OK,
         )
 
+    @extend_schema(
+        description="Callback endpoint for Google authorization.",
+        parameters=[
+            OpenApiParameter(
+                name="state",
+                description="Service provider UUID",
+                required=True,
+                type=str,
+                location=OpenApiParameter.QUERY,
+            ),
+            OpenApiParameter(
+                name="code",
+                description="Authorization code",
+                required=True,
+                type=str,
+                location=OpenApiParameter.QUERY,
+            ),
+        ],
+        responses={200: None},
+    )
     @action(detail=False, methods=["get"])
     def callback(self, request):
         service_provider_uuid = request.query_params.get("state")

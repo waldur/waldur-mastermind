@@ -36,7 +36,11 @@ class CampaignViewSet(core_views.ActionsViewSet):
     ]
     disabled_actions = ["partial_update"]
 
-    @extend_schema(request=None, responses={200: None, 409: None})
+    @extend_schema(
+        request=None,
+        responses={200: None, 409: None},
+        description="Activate campaign.",
+    )
     @action(detail=True, methods=["post"])
     def activate(self, request, uuid=None):
         campaign = self.get_object()
@@ -46,7 +50,11 @@ class CampaignViewSet(core_views.ActionsViewSet):
 
     activate_validators = [core_validators.StateValidator(models.Campaign.States.DRAFT)]
 
-    @extend_schema(request=None, responses={200: None, 409: None})
+    @extend_schema(
+        request=None,
+        responses={200: None, 409: None},
+        description="Terminate campaign.",
+    )
     @action(detail=True, methods=["post"])
     def terminate(self, request, uuid=None):
         campaign = self.get_object()
@@ -63,8 +71,9 @@ class CampaignViewSet(core_views.ActionsViewSet):
     @extend_schema(
         request=None,
         responses=marketplace_serializers.OrderDetailsSerializer(many=True),
+        description="Return a list of orders for which the campaign is applied.",
     )
-    @action(detail=True, methods=["get"])
+    @action(detail=True, methods=["get"], filter_backends=[])
     def orders(self, request, uuid=None):
         campaign = self.get_object()
         resources = models.DiscountedResource.objects.filter(
@@ -77,9 +86,11 @@ class CampaignViewSet(core_views.ActionsViewSet):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @extend_schema(
-        request=None, responses=marketplace_serializers.ResourceSerializer(many=True)
+        request=None,
+        responses=marketplace_serializers.ResourceSerializer(many=True),
+        description="Return a list of resources for which the campaign is applied.",
     )
-    @action(detail=True, methods=["get"])
+    @action(detail=True, methods=["get"], filter_backends=[])
     def resources(self, request, uuid=None):
         campaign = self.get_object()
         discounted_resources = models.DiscountedResource.objects.filter(

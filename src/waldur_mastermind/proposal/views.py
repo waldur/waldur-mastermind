@@ -253,7 +253,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         responses=serializers.ProtectedRoundSerializer,
         description="Create a round for a call.",
     )
-    @decorators.action(detail=True, methods=["get", "post"])
+    @decorators.action(detail=True, methods=["get", "post"], filter_backends=[])
     def rounds(self, request, uuid=None):
         # TODO: Will be better move this to method of serializer and add tests.
         call = self.get_object()
@@ -512,7 +512,7 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         request=serializers.RequestedResourceSerializer,
         responses=serializers.RequestedResourceSerializer,
     )
-    @decorators.action(detail=True, methods=["get", "post"])
+    @decorators.action(detail=True, methods=["get", "post"], filter_backends=[])
     def resources(self, request, uuid=None):
         return self.action_list_method("requestedresource_set")(self, request, uuid)
 
