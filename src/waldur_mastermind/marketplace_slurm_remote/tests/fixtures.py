@@ -46,9 +46,7 @@ class GlauthUserFixture(marketplace_fixtures.MarketplaceFixture):
             "initial_primarygroup_number": 2000,
             "homedir_prefix": "/tmp/",
         }
-        self.offering.secret_options = {
-            "service_provider_can_create_offering_user": True
-        }
+        self.offering.options = {"service_provider_can_create_offering_user": True}
         self.offering.save()
 
         # Set up resource and offering user
@@ -92,7 +90,7 @@ class GlauthUserFixture(marketplace_fixtures.MarketplaceFixture):
                 "initial_primarygroup_number": 2000,
                 "homedir_prefix": "/tmp/",
             },
-            secret_options={"service_provider_can_create_offering_user": True},
+            options={"service_provider_can_create_offering_user": True},
         )
         offering_user = marketplace_models.OfferingUser.objects.create(
             offering=offering,
@@ -115,7 +113,7 @@ class GlauthUserFixture(marketplace_fixtures.MarketplaceFixture):
                 "initial_primarygroup_number": 2000,
                 "homedir_prefix": "/tmp/",
             },
-            secret_options={"service_provider_can_create_offering_user": True},
+            options={"service_provider_can_create_offering_user": True},
         )
 
         # Create a project and resource

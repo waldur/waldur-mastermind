@@ -195,7 +195,7 @@ def restrict_members(policy):
     project = structure_permissions._get_project(policy.scope)
 
     resources = marketplace_models.Resource.objects.filter(
-        offering__secret_options__service_provider_can_create_offering_user=True
+        offering__options__service_provider_can_create_offering_user=True
     ).exclude(state__in=(marketplace_models.Resource.States.TERMINATED,))
 
     if project:
@@ -223,7 +223,7 @@ def reset_member_restriction(policy):
     project = structure_permissions._get_project(policy.scope)
 
     resources = marketplace_models.Resource.objects.filter(
-        offering__secret_options__service_provider_can_create_offering_user=True
+        offering__options__service_provider_can_create_offering_user=True
     ).exclude(state__in=(marketplace_models.Resource.States.TERMINATED,))
 
     if project:

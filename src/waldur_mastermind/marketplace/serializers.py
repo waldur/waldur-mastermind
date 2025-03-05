@@ -1817,9 +1817,7 @@ class RemoteServiceSecretOptionsSerializer(serializers.Serializer):
 
 
 class GenericSecretOptionsSerializer(serializers.Serializer):
-    service_provider_can_create_offering_user = serializers.BooleanField(
-        required=False, help_text="Service provider can create offering user"
-    )
+    pass
 
 
 class MergedSecretOptionsSerializer(
@@ -3438,7 +3436,7 @@ class OfferingUserSerializer(
         ):
             raise rf_exceptions.PermissionDenied()
 
-        if not offering.secret_options.get("service_provider_can_create_offering_user"):
+        if not offering.options.get("service_provider_can_create_offering_user"):
             raise rf_exceptions.ValidationError(
                 _("It is not allowed to create users for current offering.")
             )

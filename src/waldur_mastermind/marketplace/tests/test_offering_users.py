@@ -23,9 +23,7 @@ class ListOfferingUsersTest(test.APITransactionTestCase):
         self.offering = factories.OfferingFactory(
             shared=True, customer=self.fixture.customer
         )
-        self.offering.secret_options = {
-            "service_provider_can_create_offering_user": True
-        }
+        self.offering.options = {"service_provider_can_create_offering_user": True}
         self.offering.save()
         user = UserFactory()
         self.fixture.project.add_user(user, ProjectRole.ADMIN)
@@ -107,7 +105,7 @@ class CreateOfferingUsersTest(test.APITransactionTestCase):
         self.offering = factories.OfferingFactory(
             shared=True, customer=self.fixture.customer
         )
-        self.offering.secret_options["service_provider_can_create_offering_user"] = True
+        self.offering.options["service_provider_can_create_offering_user"] = True
         self.offering.save()
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_OFFERING_USER)
 
@@ -125,9 +123,7 @@ class CreateOfferingUsersTest(test.APITransactionTestCase):
 
     @data("staff", "owner")
     def test_offering_does_not_allow_to_create_user(self, user):
-        self.offering.secret_options["service_provider_can_create_offering_user"] = (
-            False
-        )
+        self.offering.options["service_provider_can_create_offering_user"] = False
         self.offering.save()
         response = self.create_offering_user(user)
         self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
@@ -189,9 +185,7 @@ class OfferingUsersUpdateTest(test.APITransactionTestCase):
         self.offering = factories.OfferingFactory(
             shared=True, customer=self.fixture.customer
         )
-        self.offering.secret_options = {
-            "service_provider_can_create_offering_user": True
-        }
+        self.offering.options = {"service_provider_can_create_offering_user": True}
         self.offering.save()
         user = UserFactory()
 
@@ -233,9 +227,7 @@ class OfferingUsersDeleteTest(test.APITransactionTestCase):
         self.offering = factories.OfferingFactory(
             shared=True, customer=self.fixture.customer
         )
-        self.offering.secret_options = {
-            "service_provider_can_create_offering_user": True
-        }
+        self.offering.options = {"service_provider_can_create_offering_user": True}
         self.offering.save()
         user = UserFactory()
 
@@ -304,9 +296,7 @@ class OferingUserRestrictedUpdateTest(test.APITransactionTestCase):
         self.offering = factories.OfferingFactory(
             shared=True, customer=self.fixture.customer
         )
-        self.offering.secret_options = {
-            "service_provider_can_create_offering_user": True
-        }
+        self.offering.options = {"service_provider_can_create_offering_user": True}
         self.offering.save()
         user = UserFactory()
 
