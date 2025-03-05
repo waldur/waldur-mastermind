@@ -811,6 +811,7 @@ class UserSerializer(
     identity_provider_label = serializers.SerializerMethodField()
     identity_provider_management_url = serializers.SerializerMethodField()
     identity_provider_fields = serializers.SerializerMethodField()
+    has_active_session = serializers.SerializerMethodField()
 
     @extend_schema_field(PermissionSerializer(many=True))
     def get_permissions(self, user: core_models.User):
@@ -837,6 +838,9 @@ class UserSerializer(
 
     def get_identity_provider_fields(self, user: core_models.User) -> list[str]:
         return utils.get_identity_provider_fields(user.registration_method)
+
+    def get_has_active_session(self, user: core_models.User) -> bool:
+        return hasattr(user, "auth_token") and user.auth_token is not None
 
     class Meta:
         model = User
@@ -874,6 +878,7 @@ class UserSerializer(
             "identity_provider_fields",
             "image",
             "identity_source",
+            "has_active_session",
         )
         read_only_fields = (
             "uuid",
@@ -883,6 +888,7 @@ class UserSerializer(
             "agreement_date",
             "affiliations",
             "identity_source",
+            "has_active_session",
         )
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},
@@ -902,7 +908,13 @@ class UserSerializer(
             return fields
 
         if not user.is_staff:
-            protected_fields = ("is_active", "is_staff", "is_support", "description")
+            protected_fields = (
+                "is_active",
+                "is_staff",
+                "is_support",
+                "description",
+                "has_active_session",
+            )
             if user.is_support:
                 for field in protected_fields:
                     if field in fields:
