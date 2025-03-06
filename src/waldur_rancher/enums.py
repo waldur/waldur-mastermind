@@ -102,3 +102,6 @@ LONGHORN_NAME = "longhorn"
 
 
 LONGHORN_NAMESPACE = "longhorn-system"
+
+
+RANCHER_TEMPLATE_QUESTION_TYPE = ["boolean", "string", "enum", "secret"]

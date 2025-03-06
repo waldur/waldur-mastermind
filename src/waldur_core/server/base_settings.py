@@ -12,6 +12,7 @@ from datetime import timedelta
 from waldur_core.core import WaldurExtension
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.metadata import WaldurConfiguration
+from waldur_core.permissions.enums import TYPE_MAP
 from waldur_core.server.admin.settings import *
 
 from waldur_core.users.enums import InvitationState
@@ -22,6 +23,7 @@ from waldur_mastermind.proposal.enums import (
     ProposalStates,
     RequestedOfferingStates,
 )
+from waldur_rancher.enums import RANCHER_TEMPLATE_QUESTION_TYPE
 
 encoding = locale.getpreferredencoding()
 if encoding.lower() != "utf-8":
@@ -968,6 +970,7 @@ SPECTACULAR_SETTINGS = {
     "COMPONENT_SPLIT_REQUEST": True,
     "SCHEMA_PATH_PREFIX": "/api/",
     "ENUM_NAME_OVERRIDES": {
+        "RoleType": TYPE_MAP.keys(),
         "InvitationState": InvitationState.VALUES,
         "BillingUnit": Units.CHOICES,
         "CoreStates": CoreStates.VALUES,
@@ -976,5 +979,6 @@ SPECTACULAR_SETTINGS = {
         "ProposalStates": ProposalStates.CHOICES,
         "RequestedOfferingStates": RequestedOfferingStates.CHOICES,
         "RequestTypes": RequestTypes.VALUES,
+        "RancherTemplateQuestionType": RANCHER_TEMPLATE_QUESTION_TYPE,
     },
 }

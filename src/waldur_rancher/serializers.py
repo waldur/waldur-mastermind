@@ -18,6 +18,7 @@ from waldur_core.structure.models import VirtualMachine
 from waldur_openstack import models as openstack_models
 from waldur_openstack import serializers as openstack_serializers
 from waldur_openstack.serializers import _validate_instance_security_groups
+from waldur_rancher.enums import RANCHER_TEMPLATE_QUESTION_TYPE
 
 from . import models, utils, validators
 
@@ -1131,3 +1132,29 @@ core_signals.pre_serializer_fields.connect(
     sender=openstack_serializers.OpenStackInstanceSerializer,
     receiver=add_rancher_cluster_to_openstack_instance,
 )
+
+
+class RancherFieldPropsSerializer(serializers.Serializer):
+    label = serializers.CharField()
+    description = serializers.CharField(required=False)
+    variable = serializers.CharField()
+    required = serializers.BooleanField(required=False)
+    validate = serializers.JSONField(required=False)
+
+
+class RancherTemplateBaseQuestionSerializer(RancherFieldPropsSerializer):
+    type = serializers.ChoiceField(choices=RANCHER_TEMPLATE_QUESTION_TYPE)
+    default = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    group = serializers.CharField(required=False)
+    showIf = serializers.CharField(required=False)
+
+
+class RancherTemplateQuestionSerializer(RancherTemplateBaseQuestionSerializer):
+    subquestions = RancherTemplateBaseQuestionSerializer(many=True, required=False)
+    showSubquestionIf = serializers.CharField(required=False)
+
+
+class TemplateVersionSerializer(serializers.Serializer):
+    readme = serializers.CharField(read_only=True)
+    app_readme = serializers.CharField(read_only=True)
+    questions = RancherTemplateQuestionSerializer(many=True, read_only=True)

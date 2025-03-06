@@ -217,7 +217,10 @@ class OpenStackServiceSerializer(structure_serializers.ServiceOptionsSerializer)
     )
 
 
-class OpenStackFlavorSerializer(structure_serializers.BasePropertySerializer):
+class OpenStackFlavorSerializer(
+    core_serializers.RestrictedSerializerMixin,
+    structure_serializers.BasePropertySerializer,
+):
     display_name = serializers.SerializerMethodField()
 
     class Meta(structure_serializers.BasePropertySerializer.Meta):

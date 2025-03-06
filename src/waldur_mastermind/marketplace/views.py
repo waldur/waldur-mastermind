@@ -1025,7 +1025,10 @@ class ProviderOfferingViewSet(
 
         super().perform_create(serializer)
 
-    @extend_schema(parameters=[])
+    @extend_schema(
+        parameters=[],
+        description="List importable resources for offering.",
+    )
     @action(detail=True, methods=["get"])
     def importable_resources(self, request, uuid=None):
         offering = self.get_object()
@@ -1129,6 +1132,11 @@ class ProviderOfferingViewSet(
 
         return Response(data=resource_serializer.data, status=status.HTTP_201_CREATED)
 
+    @extend_schema(
+        request=dict,
+        responses=None,
+        description="Update offering attributes.",
+    )
     @action(detail=True, methods=["post"])
     def update_attributes(self, request, uuid=None):
         offering = self.get_object()
@@ -1256,6 +1264,7 @@ class ProviderOfferingViewSet(
 
     @extend_schema(
         request=serializers.OfferingThumbnailSerializer,
+        description="Update offering thumbnail.",
     )
     @action(detail=True, methods=["post"])
     def update_thumbnail(self, request, uuid=None):
@@ -1272,6 +1281,7 @@ class ProviderOfferingViewSet(
     @extend_schema(
         request=None,
         responses=None,
+        description="Delete offering thumbnail.",
     )
     @action(detail=True, methods=["post"])
     def delete_thumbnail(self, request, uuid=None):
@@ -1282,7 +1292,10 @@ class ProviderOfferingViewSet(
 
     delete_thumbnail_permissions = update_thumbnail_permissions
 
-    @extend_schema(request=serializers.ProviderOfferingCustomerSerializer(many=True))
+    @extend_schema(
+        responses=serializers.ProviderOfferingCustomerSerializer(many=True),
+        description="Get customers for offering.",
+    )
     @action(detail=True)
     def customers(self, request, uuid):
         offering = self.get_object()
@@ -1314,14 +1327,53 @@ class ProviderOfferingViewSet(
         page = self.paginate_queryset(serializer.data)
         return self.get_paginated_response(page)
 
-    @extend_schema(request=serializers.CostsSerializer(many=True))
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="start",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Start date in format YYYY-MM.",
+            ),
+            OpenApiParameter(
+                name="end",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="End date in format YYYY-MM.",
+            ),
+            OpenApiParameter(
+                name="accounting_is_running",
+                type=bool,
+                location=OpenApiParameter.QUERY,
+            ),
+        ],
+        responses=serializers.CostsSerializer(many=True),
+        description="Get costs for offering.",
+    )
     @action(detail=True)
     def costs(self, *args, **kwargs):
         return self.get_stats(utils.get_offering_costs, serializers.CostsSerializer)
 
     costs_permissions = [structure_permissions.is_owner]
 
-    @extend_schema(request=serializers.OfferingComponentStatSerializer(many=True))
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="start",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Start date in format YYYY-MM.",
+            ),
+            OpenApiParameter(
+                name="end",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="End date in format YYYY-MM.",
+            ),
+        ],
+        responses=serializers.OfferingComponentStatSerializer(many=True),
+        description="Get statistics for offering components.",
+    )
     @action(detail=True)
     def component_stats(self, *args, **kwargs):
         offering = self.get_object()
@@ -1385,6 +1437,7 @@ class ProviderOfferingViewSet(
 
     @extend_schema(
         request=serializers.OrganizationGroupsSerializer,
+        description="Update organization groups for offering.",
     )
     @action(detail=True, methods=["post"])
     def update_organization_groups(self, request, uuid):
@@ -1402,6 +1455,7 @@ class ProviderOfferingViewSet(
     @extend_schema(
         request=None,
         responses=None,
+        description="Delete organization groups for offering.",
     )
     @action(detail=True, methods=["post"])
     def delete_organization_groups(self, request, uuid=None):
@@ -1414,6 +1468,7 @@ class ProviderOfferingViewSet(
 
     @extend_schema(
         request=serializers.NestedEndpointSerializer,
+        description="Add endpoint to offering.",
     )
     @action(detail=True, methods=["post"])
     def add_endpoint(self, request, uuid=None):
@@ -1442,6 +1497,8 @@ class ProviderOfferingViewSet(
 
     @extend_schema(
         request=serializers.EndpointDeleteSerializer,
+        responses={204: None},
+        description="Delete endpoint from offering.",
     )
     @action(detail=True, methods=["post"])
     def delete_endpoint(self, request, uuid=None):

@@ -9,14 +9,13 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import decorators, generics, response, status
 from rest_framework.exceptions import MethodNotAllowed, ValidationError
 from rest_framework.permissions import SAFE_METHODS
 
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
-from waldur_core.core.serializers import EmptySerializer
 from waldur_core.structure import exceptions as structure_exceptions
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
@@ -237,6 +236,11 @@ class NodeViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
         )
         return response.Response(status=status.HTTP_202_ACCEPTED)
 
+    @extend_schema(
+        request=serializers.LinkOpenstackSerializer,
+        responses=None,
+        description="Links node to OpenStack instance.",
+    )
     @decorators.action(detail=True, methods=["post"])
     def link_openstack(self, request, uuid=None):
         node = self.get_object()
@@ -264,6 +268,11 @@ class NodeViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
     link_openstack_permissions = [structure_permissions.is_staff]
     link_openstack_serializer_class = serializers.LinkOpenstackSerializer
 
+    @extend_schema(
+        request=None,
+        responses=None,
+        description="Unlinks node from OpenStack instance.",
+    )
     @decorators.action(detail=True, methods=["post"])
     def unlink_openstack(self, request, uuid=None):
         node = self.get_object()
@@ -309,7 +318,7 @@ class NodeViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
     @extend_schema(
         description="Returns console log for the node.",
         responses={200: str, 404: None},
-        parameters=[],
+        parameters=[OpenApiParameter("length", int, OpenApiParameter.QUERY)],
     )
     @decorators.action(detail=True, methods=["get"])
     def console_log(self, request, uuid=None):
@@ -487,7 +496,7 @@ class TemplateViewSet(structure_views.BaseServicePropertyViewSet):
 
 class TemplateVersionView(generics.GenericAPIView):
     filter_backends = []
-    serializer_class = EmptySerializer
+    serializer_class = serializers.TemplateVersionSerializer
 
     def get(self, request, template_uuid, version):
         queryset = models.Template.objects.all()
@@ -574,6 +583,7 @@ class WorkloadViewSet(
     put_yaml_method = "put_workload_yaml"
     delete_scope_method = "delete_workload"
 
+    @extend_schema(request=None, responses=None)
     @decorators.action(detail=True, methods=["post"])
     def redeploy(self, request, *args, **kwargs):
         workload = self.get_object()
