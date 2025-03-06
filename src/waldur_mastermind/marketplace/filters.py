@@ -386,6 +386,7 @@ class ResourceFilter(
             ("name", "name"),
             ("created", "created"),
             ("project__name", "project_name"),
+            ("state", "state"),
         )
     )
 
