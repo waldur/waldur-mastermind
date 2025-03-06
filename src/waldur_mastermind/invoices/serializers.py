@@ -23,61 +23,6 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from . import log, models, utils
 
 
-class NestedProviderOfferingSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = marketplace_models.Offering
-        fields = ("uuid", "url", "type", "name")
-        extra_kwargs = {
-            "url": {
-                "view_name": "marketplace-provider-offering-detail",
-                "lookup_field": "uuid",
-            },
-        }
-
-
-class CustomerCreditSerializer(serializers.HyperlinkedModelSerializer):
-    offerings = NestedProviderOfferingSerializer(
-        read_only=True,
-        many=True,
-    )
-    customer_name = serializers.ReadOnlyField(source="customer.name")
-    customer_uuid = serializers.UUIDField(read_only=True, source="customer.uuid")
-    customer_slug = serializers.ReadOnlyField(source="customer.slug")
-
-    class Meta:
-        model = models.CustomerCredit
-        fields = (
-            "uuid",
-            "url",
-            "value",
-            "customer",
-            "customer_name",
-            "customer_uuid",
-            "customer_slug",
-            "offerings",
-            "end_date",
-            "expected_consumption",
-            "minimal_consumption",
-            "minimal_consumption_logic",
-            "grace_coefficient",
-            "apply_as_minimal_consumption",
-            "allocated_to_projects",
-            "consumption_last_month",
-        )
-        protected_fields = ("customer",)
-
-        extra_kwargs = {
-            "url": {
-                "view_name": "customer-credit-detail",
-                "lookup_field": "uuid",
-            },
-            "customer": {
-                "view_name": "customer-detail",
-                "lookup_field": "uuid",
-            },
-        }
-
-
 class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
     tax = serializers.DecimalField(max_digits=PRICE_DECIMAL_PLACES, decimal_places=2)
     total = serializers.DecimalField(max_digits=PRICE_MAX_DIGITS, decimal_places=2)
@@ -89,12 +34,15 @@ class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
     project_name = serializers.CharField(read_only=True, source="get_project_name")
     details = serializers.JSONField()
     billing_type = serializers.SerializerMethodField()
-    credit = CustomerCreditSerializer(read_only=True)
+    credit = serializers.SerializerMethodField()
 
     def get_billing_type(self, item: models.InvoiceItem) -> str:
         plan_component = item.get_plan_component()
         if plan_component:
             return plan_component.component.billing_type
+
+    def get_credit(self, item: models.InvoiceItem) -> bool:
+        return item.credit is not None
 
     class Meta:
         model = models.InvoiceItem
@@ -885,6 +833,18 @@ class FinancialReportEmailSerializer(serializers.Serializer):
         return value
 
 
+class NestedProviderOfferingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = marketplace_models.Offering
+        fields = ("uuid", "url", "type", "name")
+        extra_kwargs = {
+            "url": {
+                "view_name": "marketplace-provider-offering-detail",
+                "lookup_field": "uuid",
+            },
+        }
+
+
 class NestedPublicOfferingSerializer(serializers.ModelSerializer):
     class Meta:
         model = marketplace_models.Offering
@@ -892,6 +852,49 @@ class NestedPublicOfferingSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             "url": {
                 "view_name": "marketplace-public-offering-detail",
+                "lookup_field": "uuid",
+            },
+        }
+
+
+class CustomerCreditSerializer(serializers.HyperlinkedModelSerializer):
+    offerings = NestedProviderOfferingSerializer(
+        read_only=True,
+        many=True,
+    )
+    customer_name = serializers.ReadOnlyField(source="customer.name")
+    customer_uuid = serializers.UUIDField(read_only=True, source="customer.uuid")
+    customer_slug = serializers.ReadOnlyField(source="customer.slug")
+
+    class Meta:
+        model = models.CustomerCredit
+        fields = (
+            "uuid",
+            "url",
+            "value",
+            "customer",
+            "customer_name",
+            "customer_uuid",
+            "customer_slug",
+            "offerings",
+            "end_date",
+            "expected_consumption",
+            "minimal_consumption",
+            "minimal_consumption_logic",
+            "grace_coefficient",
+            "apply_as_minimal_consumption",
+            "allocated_to_projects",
+            "consumption_last_month",
+        )
+        protected_fields = ("customer",)
+
+        extra_kwargs = {
+            "url": {
+                "view_name": "customer-credit-detail",
+                "lookup_field": "uuid",
+            },
+            "customer": {
+                "view_name": "customer-detail",
                 "lookup_field": "uuid",
             },
         }
