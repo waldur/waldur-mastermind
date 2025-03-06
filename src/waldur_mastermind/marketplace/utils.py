@@ -1591,7 +1591,11 @@ def generate_resource_name(
         project.slug,
         offering.slug,
     ]
-    result = "-".join(parts) + "-" + str(resource_count + 1)
+    result = "-".join(parts)
+
+    if resource_count:
+        result += "-" + str(resource_count + 1)
+
     return core_utils.remove_duplicate_hyphens(result)
 
 
