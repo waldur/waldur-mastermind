@@ -43,6 +43,25 @@ class InvoiceRetrieveTest(test.APITransactionTestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
+    def test_invoice_item_contains_credit(self):
+        self.client.force_authenticate(self.fixture.owner)
+        credit = factories.CustomerCreditFactory(
+            customer=self.fixture.customer, value=100.0
+        )
+        invoice_item = self.fixture.invoice_item
+        invoice_item.credit = credit
+        invoice_item.save()
+
+        invoice_data = self.client.get(
+            factories.InvoiceFactory.get_url(self.fixture.invoice)
+        )
+
+        self.assertIn(
+            "credit", invoice_data.data["items"][0], invoice_data.data["items"]
+        )
+        credit_data = invoice_data.data["items"][0]["credit"]
+        self.assertEqual(float(credit_data["value"]), credit.value)
+
 
 @ddt
 class InvoiceSendNotificationTest(test.APITransactionTestCase):
