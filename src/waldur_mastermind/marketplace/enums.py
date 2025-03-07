@@ -26,3 +26,11 @@ class RequestTypes:
     )
 
     VALUES = [val for (_, val) in CHOICES]
+
+
+class CategoryColumnWidget:
+    CHOICES = (
+        ("csv", "csv"),
+        ("filesize", "filesize"),
+        ("attached_instance", "attached_instance"),
+    )

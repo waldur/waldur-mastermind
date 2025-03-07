@@ -1,4 +1,5 @@
 from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -18,6 +19,7 @@ class MigrationViewSet(ActionsViewSet):
     filter_backends = [GenericRoleFilter, DjangoFilterBackend]
     lookup_field = "uuid"
 
+    @extend_schema(request=None, responses=None)
     @action(detail=True, methods=["post"])
     def run(self, request, uuid=None):
         migration = self.get_object()

@@ -30,7 +30,11 @@ from waldur_core.quotas import fields as quotas_fields
 from waldur_core.quotas import models as quotas_models
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.mixins import CoordinatesMixin
-from waldur_mastermind.marketplace.enums import OfferingStates, RequestTypes
+from waldur_mastermind.marketplace.enums import (
+    CategoryColumnWidget,
+    OfferingStates,
+    RequestTypes,
+)
 from waldur_mastermind.marketplace.exceptions import PolicyException
 from waldur_pid import mixins as pid_mixins
 
@@ -244,6 +248,7 @@ class CategoryColumn(
         null=True,
         max_length=255,
         help_text=_("Widget field allows to customise table cell rendering."),
+        choices=CategoryColumnWidget.CHOICES,
     )
 
     def __str__(self):

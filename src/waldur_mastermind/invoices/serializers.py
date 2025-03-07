@@ -23,6 +23,26 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from . import log, models, utils
 
 
+class InvoiceItemDetailsSerializer(serializers.Serializer):
+    resource_name = serializers.CharField()
+    resource_uuid = serializers.UUIDField()
+    plan_name = serializers.CharField()
+    plan_uuid = serializers.UUIDField()
+    offering_type = serializers.CharField()
+    offering_name = serializers.CharField()
+    offering_uuid = serializers.UUIDField()
+    service_provider_name = serializers.CharField()
+    service_provider_uuid = serializers.UUIDField()
+    plan_component_id = serializers.IntegerField()
+    offering_component_type = serializers.CharField()
+    offering_component_name = serializers.CharField()
+
+
+@extend_schema_field(InvoiceItemDetailsSerializer)
+class InvoiceItemDetailsField(serializers.JSONField):
+    pass
+
+
 class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
     tax = serializers.DecimalField(max_digits=PRICE_DECIMAL_PLACES, decimal_places=2)
     total = serializers.DecimalField(max_digits=PRICE_MAX_DIGITS, decimal_places=2)
@@ -32,7 +52,7 @@ class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
     resource_name = serializers.CharField(read_only=True, source="resource.name")
     project_uuid = serializers.UUIDField(read_only=True, source="get_project_uuid")
     project_name = serializers.CharField(read_only=True, source="get_project_name")
-    details = serializers.JSONField()
+    details = InvoiceItemDetailsField()
     billing_type = serializers.SerializerMethodField()
     credit = serializers.SerializerMethodField()
 

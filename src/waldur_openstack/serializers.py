@@ -1092,11 +1092,38 @@ class OpenStackRouterSetRoutesSerializer(serializers.Serializer):
         return attrs
 
 
+class OpenStackAllowedAddressPairSerializer(serializers.Serializer):
+    ip_address = serializers.CharField(
+        default="192.168.42.0/24",
+        initial="192.168.42.0/24",
+        write_only=True,
+    )
+    mac_address = serializers.CharField(required=False)
+
+    def validate_ip_address(self, value):
+        return validate_private_cidr(value)
+
+
+@extend_schema_field(OpenStackAllowedAddressPairSerializer(many=True))
+class OpenStackAllowedAddressPairField(serializers.JSONField):
+    pass
+
+
+class OpenStackFixedIpSerializer(serializers.Serializer):
+    ip_address = serializers.IPAddressField()
+    subnet_id = serializers.CharField()
+
+
+@extend_schema_field(OpenStackFixedIpSerializer(many=True))
+class OpenStackFixedIpField(serializers.JSONField):
+    pass
+
+
 class OpenStackRouterSerializer(structure_serializers.BaseResourceSerializer):
     routes = OpenStackStaticRouteSerializer(many=True)
     tenant_name = serializers.CharField(source="tenant.name", read_only=True)
     tenant_uuid = serializers.UUIDField(source="tenant.uuid", read_only=True)
-    fixed_ips = serializers.JSONField(read_only=True)
+    fixed_ips = OpenStackFixedIpField(read_only=True)
 
     class Meta:
         model = models.Router
@@ -1124,14 +1151,14 @@ class OpenStackPortSerializer(structure_serializers.BaseResourceActionSerializer
     tenant_uuid = serializers.UUIDField(source="tenant.uuid", read_only=True)
     network_name = serializers.CharField(source="network.name", read_only=True)
     network_uuid = serializers.UUIDField(source="network.uuid", read_only=True)
-    allowed_address_pairs = serializers.JSONField(read_only=True)
+    allowed_address_pairs = OpenStackAllowedAddressPairField(read_only=True)
     floating_ips = serializers.HyperlinkedRelatedField(
         view_name="openstack-fip-detail",
         lookup_field="uuid",
         read_only=True,
         many=True,
     )
-    fixed_ips = serializers.JSONField(required=False)
+    fixed_ips = OpenStackFixedIpField(required=False)
     security_groups = OpenStackPortNestedSecurityGroupSerializer(
         many=True, read_only=True
     )
@@ -1459,8 +1486,8 @@ class OpenStackTenantChangePasswordSerializer(serializers.Serializer):
 class OpenStackNestedPortSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
-    allowed_address_pairs = serializers.JSONField(read_only=True)
-    fixed_ips = serializers.JSONField(read_only=True)
+    allowed_address_pairs = OpenStackAllowedAddressPairField(read_only=True)
+    fixed_ips = OpenStackFixedIpField(read_only=True)
 
     class Meta:
         model = models.Port
@@ -2811,18 +2838,6 @@ class OpenStackInstanceSecurityGroupsUpdateSerializer(serializers.Serializer):
         return instance
 
 
-class OpenStackAllowedAddressPairSerializer(serializers.Serializer):
-    ip_address = serializers.CharField(
-        default="192.168.42.0/24",
-        initial="192.168.42.0/24",
-        write_only=True,
-    )
-    mac_address = serializers.CharField(required=False)
-
-    def validate_ip_address(self, value):
-        return validate_private_cidr(value)
-
-
 class OpenStackInstanceAllowedAddressPairsUpdateSerializer(serializers.Serializer):
     subnet = serializers.HyperlinkedRelatedField(
         queryset=models.SubNet.objects.all(),
@@ -2831,7 +2846,7 @@ class OpenStackInstanceAllowedAddressPairsUpdateSerializer(serializers.Serialize
         write_only=True,
     )
 
-    allowed_address_pairs = OpenStackAllowedAddressPairSerializer(many=True)
+    allowed_address_pairs = OpenStackAllowedAddressPairField()
 
     @transaction.atomic
     def update(self, instance, validated_data):
@@ -3057,7 +3072,7 @@ class OpenStackBackupRestorationSerializer(serializers.HyperlinkedModelSerialize
         return backup_restoration
 
 
-class BackupSerializer(structure_serializers.BaseResourceActionSerializer):
+class OpenStackBackupSerializer(structure_serializers.BaseResourceActionSerializer):
     metadata = serializers.JSONField(read_only=True)
     instance_name = serializers.ReadOnlyField(source="instance.name")
     instance_marketplace_uuid = serializers.UUIDField(
