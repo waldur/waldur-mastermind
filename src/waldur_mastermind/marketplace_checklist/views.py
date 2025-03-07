@@ -211,6 +211,7 @@ class CustomerChecklistUpdateView(GenericAPIView):
 
     @extend_schema(
         responses=serializers.CustomerChecklistUpdateSerializer,
+        operation_id="marketplace-checklists-customer-retrieve",
     )
     def get(self, request, customer_uuid, format=None):
         customer = get_object_or_404(Customer, uuid=customer_uuid)
@@ -225,6 +226,8 @@ class CustomerChecklistUpdateView(GenericAPIView):
 
     @extend_schema(
         request=serializers.CustomerChecklistUpdateSerializer,
+        responses=serializers.CustomerChecklistUpdateSerializer,
+        operation_id="marketplace-checklists-customer-update",
     )
     def post(self, request, customer_uuid, format=None):
         customer = get_object_or_404(Customer, uuid=customer_uuid)

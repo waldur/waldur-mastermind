@@ -35,9 +35,7 @@ from waldur_mastermind.proposal import (
     serializers,
     utils,
 )
-from waldur_mastermind.proposal import (
-    permissions as proposal_permissions,
-)
+from waldur_mastermind.proposal import permissions as proposal_permissions
 
 from . import log
 from .serializers import ReviewSubmitSerializer
@@ -461,6 +459,11 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         serializers.ProposalUpdateProjectDetailsSerializer
     )
 
+    @extend_schema(
+        description="Update project details of a proposal.",
+        request=serializers.ProposalUpdateProjectDetailsSerializer,
+        responses={status.HTTP_200_OK: None},
+    )
     @decorators.action(detail=True, methods=["post"])
     def update_project_details(self, request, uuid=None):
         proposal = self.get_object()
@@ -479,6 +482,11 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
                 )
             )
 
+    @extend_schema(
+        description="Submit a proposal.",
+        request=None,
+        responses={status.HTTP_200_OK: None},
+    )
     @decorators.action(detail=True, methods=["post"])
     def submit(self, request, uuid=None):
         proposal = self.get_object()
@@ -507,6 +515,7 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         operation_id="proposal_proposals_resources_list",
         request=None,
         responses=serializers.RequestedResourceSerializer(many=True),
+        description="List resources for a proposal.",
         parameters=[],
     )
     @extend_schema(
@@ -514,6 +523,7 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         operation_id="proposal_proposals_resources_set",
         request=serializers.RequestedResourceSerializer,
         responses=serializers.RequestedResourceSerializer,
+        description="Create resource for a proposal.",
     )
     @decorators.action(detail=True, methods=["get", "post"])
     def resources(self, request, uuid=None):
@@ -536,7 +546,11 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
 
     resource_detail_serializer_class = serializers.RequestedResourceSerializer
 
-    @extend_schema(responses=None)
+    @extend_schema(
+        description="Attach document to proposal.",
+        request=serializers.ProposalDocumentationSerializer,
+        responses=None,
+    )
     @decorators.action(detail=True, methods=["post"])
     def attach_document(self, request, uuid=None):
         proposal = self.get_object()
@@ -556,7 +570,11 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
 
     attach_document_serializer_class = serializers.ProposalDocumentationSerializer
 
-    @extend_schema(responses=None)
+    @extend_schema(
+        description="Approve a proposal.",
+        request=serializers.ProposalApproveSerializer,
+        responses={status.HTTP_200_OK: None},
+    )
     @decorators.action(detail=True, methods=["post"])
     def approve(self, request, uuid=None):
         proposal = self.get_object()
@@ -581,7 +599,11 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         )
     ]
 
-    @extend_schema(responses=None)
+    @extend_schema(
+        description="Reject a proposal.",
+        request=serializers.ProposalApproveSerializer,
+        responses={status.HTTP_200_OK: None},
+    )
     @decorators.action(detail=True, methods=["post"])
     def reject(self, request, uuid=None):
         proposal = self.get_object()
