@@ -2155,10 +2155,13 @@ class OrderDetailsSerializer(BaseOrderSerializer):
         fields = BaseOrderSerializer.Meta.fields + (
             "consumer_reviewed_by",
             "consumer_reviewed_by_full_name",
+            "consumer_reviewed_by_username",
             "consumer_reviewed_at",
             "provider_reviewed_by",
             "provider_reviewed_by_full_name",
+            "provider_reviewed_by_username",
             "provider_reviewed_at",
+            "created_by_username",
             "created_by_full_name",
             "created_by_civil_number",
             "customer_name",
@@ -2187,6 +2190,9 @@ class OrderDetailsSerializer(BaseOrderSerializer):
     consumer_reviewed_by_full_name = serializers.ReadOnlyField(
         source="consumer_reviewed_by.full_name"
     )
+    consumer_reviewed_by_username = serializers.ReadOnlyField(
+        source="consumer_reviewed_by.username"
+    )
     consumer_reviewed_at = serializers.ReadOnlyField()
     provider_reviewed_by = serializers.ReadOnlyField(
         source="provider_reviewed_by.username"
@@ -2194,8 +2200,12 @@ class OrderDetailsSerializer(BaseOrderSerializer):
     provider_reviewed_by_full_name = serializers.ReadOnlyField(
         source="provider_reviewed_by.full_name"
     )
+    provider_reviewed_by_username = serializers.ReadOnlyField(
+        source="provider_reviewed_by.username"
+    )
     provider_reviewed_at = serializers.ReadOnlyField()
 
+    created_by_username = serializers.ReadOnlyField(source="created_by.username")
     created_by_full_name = serializers.ReadOnlyField(source="created_by.full_name")
     created_by_civil_number = serializers.ReadOnlyField(
         source="created_by.civil_number"
@@ -2891,14 +2901,15 @@ class ResourceOfferingSerializer(serializers.ModelSerializer):
         fields = ("name", "uuid")
 
 
-class BaseComponentSerializer(serializers.Serializer):
+class BaseComponentSerializer(
+    core_serializers.RestrictedSerializerMixin, serializers.Serializer
+):
     type = serializers.ReadOnlyField(source="component.type")
     name = serializers.ReadOnlyField(source="component.name")
     measured_unit = serializers.ReadOnlyField(source="component.measured_unit")
 
 
 class CategoryComponentUsageSerializer(
-    core_serializers.RestrictedSerializerMixin,
     BaseComponentSerializer,
     serializers.ModelSerializer,
 ):
