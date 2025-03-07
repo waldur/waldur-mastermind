@@ -1256,8 +1256,8 @@ class InstanceViewSet(structure_views.ResourceViewSet):
 
     @extend_schema(
         description="Create backup from instance",
-        request=serializers.BackupSerializer,
-        responses=serializers.BackupSerializer,
+        request=serializers.OpenStackBackupSerializer,
+        responses=serializers.OpenStackBackupSerializer,
     )
     @decorators.action(detail=True, methods=["post"])
     def backup(self, request, uuid=None):
@@ -1269,7 +1269,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         return response.Response(serializer.data, status=status.HTTP_201_CREATED)
 
     backup_validators = [core_validators.StateValidator(models.Instance.States.OK)]
-    backup_serializer_class = serializers.BackupSerializer
+    backup_serializer_class = serializers.OpenStackBackupSerializer
 
     @extend_schema(
         description="Update allowed address pairs of the instance",
@@ -1575,7 +1575,7 @@ class MarketplaceVolumeViewSet(structure_views.ResourceViewSet):
 
 class BackupViewSet(structure_views.ResourceViewSet):
     queryset = models.Backup.objects.all().order_by("name")
-    serializer_class = serializers.BackupSerializer
+    serializer_class = serializers.OpenStackBackupSerializer
     filterset_class = filters.BackupFilter
     disabled_actions = ["create"]
 
@@ -1586,6 +1586,11 @@ class BackupViewSet(structure_views.ResourceViewSet):
     def perform_update(self, serializer):
         serializer.save()
 
+    @extend_schema(
+        description="Restore instance from backup",
+        request=serializers.OpenStackBackupRestorationSerializer,
+        responses=serializers.OpenStackInstanceSerializer,
+    )
     @decorators.action(detail=True, methods=["post"])
     def restore(self, request, uuid=None):
         instance = self.get_object()

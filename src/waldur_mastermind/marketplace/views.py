@@ -1347,12 +1347,14 @@ class ProviderOfferingViewSet(
                 location=OpenApiParameter.QUERY,
             ),
         ],
-        responses=serializers.CostsSerializer(many=True),
+        responses=serializers.ProviderOfferingCostsSerializer(many=True),
         description="Get costs for offering.",
     )
     @action(detail=True)
     def costs(self, *args, **kwargs):
-        return self.get_stats(utils.get_offering_costs, serializers.CostsSerializer)
+        return self.get_stats(
+            utils.get_offering_costs, serializers.ProviderOfferingCostsSerializer
+        )
 
     costs_permissions = [structure_permissions.is_owner]
 
@@ -2220,7 +2222,7 @@ class ProviderPlanViewSet(core_views.UpdateReversionMixin, core_views.ActionsVie
             ),
             OpenApiParameter(name="o", type=str, location=OpenApiParameter.QUERY),
         ],
-        responses=serializers.PlanUsageResponseSerializer,
+        responses=serializers.PlanUsageResponseSerializer(many=True),
     )
     @action(detail=False)
     def usage_stats(self, request):
@@ -2752,10 +2754,10 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
 
     @extend_schema(
         request=None,
-        responses=serializers.PlanPeriodsListSerializer,
+        responses=serializers.ResourcePlanPeriodSerializer(many=True),
         parameters=[],
     )
-    @action(detail=True, methods=["get"], filter_backends=[])
+    @action(detail=True, methods=["get"], pagination_class=None)
     def plan_periods(self, request, uuid=None):
         resource = self.get_object()
         qs = models.ResourcePlanPeriod.objects.filter(resource=resource)
@@ -2937,8 +2939,10 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
 
         return Response(response_text)
 
-    @extend_schema(parameters=[])
-    @action(detail=True, methods=["get"])
+    @extend_schema(
+        parameters=[], responses=serializers.SubresourceOfferingSerializer(many=True)
+    )
+    @action(detail=True, methods=["get"], pagination_class=None)
     def offering_for_subresources(self, request, uuid=None):
         resource = self.get_object()
 

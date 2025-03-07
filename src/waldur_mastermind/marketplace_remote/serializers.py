@@ -30,6 +30,9 @@ class RemoteProjectUpdateRequestSerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(
         read_only=True, source="project.customer.name"
     )
+    customer_uuid = serializers.CharField(
+        read_only=True, source="project.customer.uuid"
+    )
     offering_name = serializers.CharField(read_only=True, source="offering.name")
     offering_uuid = serializers.UUIDField(read_only=True, source="offering.uuid")
 
@@ -52,6 +55,7 @@ class RemoteProjectUpdateRequestSerializer(serializers.ModelSerializer):
             "uuid",
             "state",
             "customer_name",
+            "customer_uuid",
             "offering_name",
             "offering_uuid",
             "created",

@@ -3760,7 +3760,7 @@ class OrganizationGroupsSerializer(serializers.Serializer):
                 customer.organization_groups.add(*organization_groups)
 
 
-class CostsSerializer(serializers.Serializer):
+class ProviderOfferingCostsSerializer(serializers.Serializer):
     period = serializers.SerializerMethodField()
     price = serializers.SerializerMethodField()
     tax = serializers.SerializerMethodField()
@@ -4536,10 +4536,6 @@ class DetailStateSerializer(serializers.Serializer):
     state = serializers.CharField(read_only=True)
 
 
-class PlanPeriodsListSerializer(serializers.ListSerializer):
-    child = ResourcePlanPeriodSerializer(read_only=True)
-
-
 class RemoveOfferingComponentSerializer(serializers.Serializer):
     uuid = serializers.UUIDField()
 
@@ -4555,3 +4551,8 @@ class CustomerMemberCountSerializer(serializers.Serializer):
     abbreviation = serializers.CharField(read_only=True)
     count = serializers.IntegerField(read_only=True)
     has_resources = serializers.BooleanField(read_only=True)
+
+
+class SubresourceOfferingSerializer(serializers.Serializer):
+    uuid = serializers.UUIDField(read_only=True)
+    type = serializers.CharField(read_only=True)
