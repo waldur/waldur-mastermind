@@ -163,13 +163,6 @@ class RemoteSynchronisationSerializer(
                 _("At least one category must be specified.")
             )
 
-        # Check for duplicate local categories
-        local_categories = [c["local_category"] for c in categories]
-        if len(local_categories) != len(set(local_categories)):
-            raise serializers.ValidationError(
-                _("Duplicate local categories are not allowed.")
-            )
-
         # Check for duplicate remote categories
         remote_categories = [c["remote_category"] for c in categories]
         if len(remote_categories) != len(set(remote_categories)):
