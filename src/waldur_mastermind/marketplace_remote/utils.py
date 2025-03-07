@@ -545,7 +545,7 @@ def get_remote_offerings(client, remote_customer_uuid, category_uuid=None, field
     return client.list_marketplace_public_offerings(params)
 
 
-def import_offering(
+def upsert_offering(
     remote_offering: dict,
     local_customer: structure_models.Customer,
     local_category: marketplace_models.Category,
@@ -570,18 +570,26 @@ def import_offering(
     else:
         state = OfferingStates.DRAFT  # Default state if not provided
 
-    local_offering = marketplace_models.Offering.objects.create(
+    local_offering, _ = marketplace_models.Offering.objects.update_or_create(
         type=PLUGIN_NAME,
-        billable=True,
         backend_id=remote_offering["uuid"],
         customer=local_customer,
-        category=local_category,
-        secret_options=secret_options,
-        state=state,
-        **offering_fields,
+        defaults={
+            "state": state,
+            **offering_fields,
+            "category": local_category,
+            "secret_options": secret_options,
+            "billable": True,
+        },
     )
-
-    import_offering_thumbnail(local_offering, remote_offering)
-    local_components_map = import_offering_components(local_offering, remote_offering)
-    import_plans(local_offering, remote_offering, local_components_map)
+    # Update related data
+    update_offering_related_data(local_offering, remote_offering)
     return local_offering
+
+
+def update_offering_related_data(existing_offering, remote_offering):
+    import_offering_thumbnail(existing_offering, remote_offering)
+    local_components_map = import_offering_components(
+        existing_offering, remote_offering
+    )
+    import_plans(existing_offering, remote_offering, local_components_map)

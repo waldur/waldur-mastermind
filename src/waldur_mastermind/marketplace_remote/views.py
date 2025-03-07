@@ -161,7 +161,7 @@ class OfferingCreateView(RemoteView):
             "token": token,
             "customer_uuid": remote_customer_uuid.hex,
         }
-        local_offering = utils.import_offering(
+        local_offering = utils.upsert_offering(
             remote_offering, local_customer, local_category, secret_options
         )
 
