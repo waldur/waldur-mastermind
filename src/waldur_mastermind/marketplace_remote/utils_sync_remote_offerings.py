@@ -134,7 +134,7 @@ class RemoteSynchronisationRunner:
             "token": self.sync.token,
             "customer_uuid": self.sync.remote_organization_uuid.hex,
         }
-        local_offering = utils.import_offering(
+        local_offering = utils.upsert_offering(
             remote_offering,
             self.sync.local_service_provider.customer,
             local_category,
