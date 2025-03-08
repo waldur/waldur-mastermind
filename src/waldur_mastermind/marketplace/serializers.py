@@ -52,6 +52,7 @@ from waldur_mastermind.common.utils import prices_are_equal
 from waldur_mastermind.invoices.models import InvoiceItem
 from waldur_mastermind.invoices.serializers import PaymentProfileSerializer
 from waldur_mastermind.invoices.utils import get_billing_price_estimate_for_resources
+from waldur_mastermind.marketplace.enums import OrderStatesType, ResourceStatesType
 from waldur_mastermind.marketplace.fields import PublicPlanField
 from waldur_mastermind.marketplace.managers import ResourceQuerySet
 from waldur_mastermind.marketplace.plugins import manager
@@ -2133,11 +2134,14 @@ class BaseOrderSerializer(BaseRequestSerializer):
     resource_type = serializers.CharField(
         read_only=True, source="resource.backend_type"
     )
-    state = serializers.ReadOnlyField(source="get_state_display")
+    state = serializers.SerializerMethodField()
     limits = serializers.DictField(child=serializers.IntegerField(), required=False)
     accepting_terms_of_service = serializers.BooleanField(
         required=False, write_only=True
     )
+
+    def get_state(self, obj) -> OrderStatesType:
+        return obj.get_state_display()
 
     def get_fields(self):
         fields = super().get_fields()
@@ -2330,7 +2334,6 @@ class OrderCreateSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
 ):
-    state = serializers.ReadOnlyField(source="get_state_display")
     customer_uuid = serializers.UUIDField(
         read_only=True, source="project.customer.uuid"
     )
@@ -2579,7 +2582,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             end_date_requested_by={"lookup_field": "uuid", "view_name": "user-detail"},
         )
 
-    state = serializers.ReadOnlyField(source="get_state_display")
+    state = serializers.SerializerMethodField()
     scope = core_serializers.GenericRelatedField(read_only=True)
     resource_uuid = serializers.UUIDField(read_only=True, source="backend_uuid")
     resource_type = serializers.ReadOnlyField(source="backend_type")
@@ -2719,6 +2722,9 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             return OrderDetailsSerializer(
                 instance=resource.creation_order, context=self.context
             ).data
+
+    def get_state(self, resource: models.Resource) -> ResourceStatesType:
+        return resource.get_state_display()
 
     def get_fields(self):
         fields = super().get_fields()
@@ -3034,7 +3040,9 @@ class ComponentUsageSerializer(BaseComponentUsageSerializer):
         return fields
 
 
-class ComponentUserUsageSerializer(serializers.HyperlinkedModelSerializer):
+class ComponentUserUsageSerializer(
+    core_serializers.RestrictedSerializerMixin, serializers.HyperlinkedModelSerializer
+):
     user = serializers.HyperlinkedRelatedField(
         queryset=models.OfferingUser.objects.all(),
         view_name="marketplace-offering-user-detail",

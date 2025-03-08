@@ -23,7 +23,7 @@ from waldur_rancher.enums import RANCHER_TEMPLATE_QUESTION_TYPE
 from . import models, utils, validators
 
 
-class RancherServiceSerializer(structure_serializers.ServiceOptionsSerializer):
+class RancherServiceSettingsSerializer(structure_serializers.ServiceOptionsSerializer):
     class Meta:
         secret_fields = (
             "backend_url",
@@ -1013,7 +1013,7 @@ class RancherNestedWorkloadSerializer(
         }
 
 
-class ServiceSerializer(structure_serializers.BaseResourceSerializer):
+class RancherServiceSerializer(structure_serializers.BaseResourceSerializer):
     namespace_name = serializers.ReadOnlyField(source="namespace.name")
     target_workloads = RancherNestedWorkloadSerializer(
         queryset=models.Workload.objects.all(), many=True, required=False

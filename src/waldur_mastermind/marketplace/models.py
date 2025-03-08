@@ -33,7 +33,9 @@ from waldur_core.structure.mixins import CoordinatesMixin
 from waldur_mastermind.marketplace.enums import (
     CategoryColumnWidget,
     OfferingStates,
+    OrderStates,
     RequestTypes,
+    ResourceStates,
 )
 from waldur_mastermind.marketplace.exceptions import PolicyException
 from waldur_pid import mixins as pid_mixins
@@ -1009,22 +1011,8 @@ class Resource(
     marketplace resource model as a primary mean.
     """
 
-    class States:
-        CREATING = 1
-        OK = 2
-        ERRED = 3
-        UPDATING = 4
-        TERMINATING = 5
-        TERMINATED = 6
-
-        CHOICES = (
-            (CREATING, "Creating"),
-            (OK, "OK"),
-            (ERRED, "Erred"),
-            (UPDATING, "Updating"),
-            (TERMINATING, "Terminating"),
-            (TERMINATED, "Terminated"),
-        )
+    class States(ResourceStates):
+        pass
 
     class Permissions:
         customer_path = "project__customer"
@@ -1204,28 +1192,8 @@ class Order(
     SafeAttributesMixin,
     TimeStampedModel,
 ):
-    class States:
-        PENDING_PROJECT = 8
-        PENDING_CONSUMER = 1
-        PENDING_PROVIDER = 7
-        EXECUTING = 2
-        DONE = 3
-        ERRED = 4
-        CANCELED = 5
-        REJECTED = 6
-
-        CHOICES = (
-            (PENDING_CONSUMER, "pending-consumer"),
-            (PENDING_PROVIDER, "pending-provider"),
-            (PENDING_PROJECT, "pending-project"),
-            (EXECUTING, "executing"),
-            (DONE, "done"),
-            (ERRED, "erred"),
-            (CANCELED, "canceled"),
-            (REJECTED, "rejected"),
-        )
-
-        TERMINAL_STATES = {DONE, ERRED, CANCELED, REJECTED}
+    class States(OrderStates):
+        pass
 
     old_plan = models.ForeignKey(
         on_delete=models.CASCADE, to=Plan, related_name="+", null=True, blank=True

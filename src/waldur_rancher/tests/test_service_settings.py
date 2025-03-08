@@ -11,20 +11,20 @@ class ServiceSettingsValidationTest(test.APITransactionTestCase):
 
     def test_validate_management_tenant_uuid(self):
         payload = self.get_payload()
-        serializer = rancher_serializers.RancherServiceSerializer(
+        serializer = rancher_serializers.RancherServiceSettingsSerializer(
             data=payload, context=self.get_context(self.fixture.owner)
         )
         self.assertTrue(serializer.is_valid())
 
         payload.pop("management_tenant_uuid")
-        serializer = rancher_serializers.RancherServiceSerializer(
+        serializer = rancher_serializers.RancherServiceSettingsSerializer(
             data=payload, context=self.get_context(self.fixture.owner)
         )
         self.assertTrue(serializer.is_valid())
 
         tenant = openstack_factories.TenantFactory()
         payload["management_tenant_uuid"] = tenant.uuid.hex
-        serializer = rancher_serializers.RancherServiceSerializer(
+        serializer = rancher_serializers.RancherServiceSettingsSerializer(
             data=payload, context=self.get_context(self.fixture.owner)
         )
         self.assertFalse(serializer.is_valid())

@@ -17,7 +17,12 @@ from waldur_core.server.admin.settings import *
 
 from waldur_core.users.enums import InvitationState
 from waldur_mastermind.common.enums import Units
-from waldur_mastermind.marketplace.enums import OfferingStates, RequestTypes
+from waldur_mastermind.marketplace.enums import (
+    OfferingStates,
+    OrderStates,
+    RequestTypes,
+    ResourceStates,
+)
 from waldur_mastermind.proposal.enums import (
     CallStates,
     ProposalStates,
@@ -974,7 +979,9 @@ SPECTACULAR_SETTINGS = {
         "InvitationState": InvitationState.VALUES,
         "BillingUnit": Units.CHOICES,
         "CoreStates": CoreStates.VALUES,
-        "OfferingStates": OfferingStates.VALUES,
+        "OfferingState": OfferingStates.VALUES,
+        "OrderState": OrderStates.VALUES,
+        "ResourceState": ResourceStates.VALUES,
         "CallStates": CallStates.CHOICES,
         "ProposalStates": ProposalStates.CHOICES,
         "RequestedOfferingStates": RequestedOfferingStates.CHOICES,
