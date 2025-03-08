@@ -166,7 +166,7 @@ urlpatterns = [
         views.ResourceOfferingsViewSet.as_view(),
     ),
     re_path(
-        r"^api/marketplace-runtime-states/(?:(?P<project_uuid>[a-f0-9]+)/)?$",
+        r"^api/marketplace-runtime-states/$",
         views.RuntimeStatesViewSet.as_view(),
         name="marketplace-runtime-states-list",
     ),

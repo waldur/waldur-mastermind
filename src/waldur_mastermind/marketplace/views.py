@@ -32,6 +32,7 @@ from django.views.decorators.cache import cache_page
 from django.views.decorators.csrf import csrf_exempt
 from django_filters.rest_framework import DjangoFilterBackend
 from django_fsm import TransitionNotAllowed
+from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import generics, mixins, status, views
@@ -472,7 +473,143 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
     set_offerings_username_serializer_class = serializers.SetOfferingsUsernameSerializer
 
     @extend_schema(
-        responses=serializers.ProviderOfferingSerializer(many=True), parameters=[]
+        responses=serializers.ProviderOfferingSerializer(many=True),
+        parameters=[
+            OpenApiParameter(
+                name="customer",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description="Filter by customer URL",
+            ),
+            OpenApiParameter(
+                name="customer_uuid",
+                type=OpenApiTypes.UUID,
+                location=OpenApiParameter.QUERY,
+                description="Filter by customer UUID",
+            ),
+            OpenApiParameter(
+                name="allowed_customer_uuid",
+                type=OpenApiTypes.UUID,
+                location=OpenApiParameter.QUERY,
+                description="Allowed customer UUID",
+            ),
+            OpenApiParameter(
+                name="service_manager_uuid",
+                type=OpenApiTypes.UUID,
+                location=OpenApiParameter.QUERY,
+                description="Service manager UUID",
+            ),
+            OpenApiParameter(
+                name="project_uuid",
+                type=OpenApiTypes.UUID,
+                location=OpenApiParameter.QUERY,
+                description="Project UUID",
+            ),
+            OpenApiParameter(
+                name="parent_uuid",
+                type=OpenApiTypes.UUID,
+                location=OpenApiParameter.QUERY,
+                description="Filter by parent UUID",
+            ),
+            OpenApiParameter(
+                name="attributes",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description="Filter by attributes",
+            ),
+            OpenApiParameter(
+                name="state",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description="Filter by state",
+                enum=models.Offering.States.VALUES,
+                many=True,
+            ),
+            OpenApiParameter(
+                name="organization_group_uuid",
+                type=OpenApiTypes.UUID,
+                location=OpenApiParameter.QUERY,
+                description="Filter by organization group UUID",
+                many=True,
+            ),
+            OpenApiParameter(
+                name="category_uuid",
+                type=OpenApiTypes.UUID,
+                location=OpenApiParameter.QUERY,
+                description="Filter by category UUID",
+            ),
+            OpenApiParameter(
+                name="category_group_uuid",
+                type=OpenApiTypes.UUID,
+                location=OpenApiParameter.QUERY,
+                description="Filter by category group UUID",
+            ),
+            OpenApiParameter(
+                name="billable",
+                type=OpenApiTypes.BOOL,
+                location=OpenApiParameter.QUERY,
+                description="Filter by billable status",
+            ),
+            OpenApiParameter(
+                name="shared",
+                type=OpenApiTypes.BOOL,
+                location=OpenApiParameter.QUERY,
+                description="Filter by shared status",
+            ),
+            OpenApiParameter(
+                name="description",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description="Filter by description (case-insensitive contains)",
+            ),
+            OpenApiParameter(
+                name="keyword",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description="Filter by keyword",
+            ),
+            OpenApiParameter(
+                name="scope_uuid",
+                type=OpenApiTypes.UUID,
+                location=OpenApiParameter.QUERY,
+                description="Scope UUID",
+            ),
+            OpenApiParameter(
+                name="accessible_via_calls",
+                type=OpenApiTypes.BOOL,
+                location=OpenApiParameter.QUERY,
+                description="Filter by accessibility via calls",
+            ),
+            OpenApiParameter(
+                name="o",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description="Ordering field",
+                enum=[
+                    "name",
+                    "-name",
+                    "created",
+                    "-created",
+                    "type",
+                    "-type",
+                    "total_customers",
+                    "-total_customers",
+                    "total_cost",
+                    "-total_cost",
+                    "total_cost_estimated",
+                    "-total_cost_estimated",
+                    "state",
+                    "-state",
+                ],
+            ),
+            OpenApiParameter(
+                name="type",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description="Filter by type",
+                many=True,
+            ),
+        ],
     )
     @action(detail=True, methods=["GET"])
     def offerings(self, request, uuid=None):
@@ -3330,10 +3467,11 @@ class RuntimeStatesViewSet(generics.GenericAPIView):
         responses=serializers.RuntimeStatesSerializer(many=True),
         description="Retrieve available runtime states for resources, optionally filtered by project and category.",
     )
-    def get(self, request, project_uuid=None):
+    def get(self, request, **kwargs):
         projects = filter_queryset_for_user(
             structure_models.Project.objects.all(), request.user
         )
+        project_uuid = request.query_params.get("project_uuid")
         if project_uuid and is_uuid_like(project_uuid):
             project = get_object_or_404(projects, uuid=project_uuid)
             resources = models.Resource.objects.filter(project=project)
