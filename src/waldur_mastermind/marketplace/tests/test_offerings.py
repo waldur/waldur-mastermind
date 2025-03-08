@@ -1761,12 +1761,6 @@ class OfferingPublicGetTest(test.APITransactionTestCase):
         for offering in response.data:
             self.assertNotEqual(models.Offering.States.DRAFT, offering["state"])
 
-    def test_anonymous_cannot_view_offering_scope(self):
-        url = factories.OfferingFactory.get_public_list_url()
-        response = self.client.get(url)
-        for offering in response.data:
-            self.assertNotIn("scope", offering)
-
     def test_anonymous_can_view_offering_scope(self):
         url = factories.OfferingFactory.get_public_url(self.offerings[0])
         response = self.client.get(url)

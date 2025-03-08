@@ -1060,6 +1060,11 @@ class OfferingBackendMetadataSerializer(serializers.ModelSerializer):
         fields = ("backend_metadata",)
 
 
+@extend_schema_field(OfferingOptionsSerializer)
+class OfferingOptionsField(serializers.JSONField):
+    pass
+
+
 class ProviderOfferingDetailsSerializer(
     core_serializers.SlugSerializerMixin,
     core_serializers.RestrictedSerializerMixin,
@@ -1068,12 +1073,8 @@ class ProviderOfferingDetailsSerializer(
     serializers.HyperlinkedModelSerializer,
 ):
     attributes = serializers.JSONField(required=False)
-    options = extend_schema_field(
-        OfferingOptionsSerializer, serializers.JSONField(read_only=True)
-    )
-    resource_options = extend_schema_field(
-        OfferingOptionsSerializer, serializers.JSONField(read_only=True)
-    )
+    options = OfferingOptionsField(read_only=True)
+    resource_options = OfferingOptionsField(read_only=True)
     secret_options = serializers.JSONField(required=False)
     service_attributes = serializers.SerializerMethodField()
     components = OfferingComponentSerializer(required=False, many=True)
@@ -1223,11 +1224,6 @@ class ProviderOfferingDetailsSerializer(
                 fields["plugin_options"] = serializers.ReadOnlyField(
                     source="parent.plugin_options"
                 )
-
-        user = self.context["view"].request.user
-        if not user.is_authenticated:
-            fields.pop("scope", None)
-            fields.pop("scope_uuid", None)
 
         return fields
 
