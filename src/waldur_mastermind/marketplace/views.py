@@ -1165,6 +1165,8 @@ class ProviderOfferingViewSet(
     @extend_schema(
         parameters=[],
         description="List importable resources for offering.",
+        request=None,
+        responses=serializers.ImportableResourceSerializer(many=True),
     )
     @action(detail=True, methods=["get"])
     def importable_resources(self, request, uuid=None):

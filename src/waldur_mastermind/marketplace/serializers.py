@@ -4575,3 +4575,10 @@ class CustomerMemberCountSerializer(serializers.Serializer):
 class SubresourceOfferingSerializer(serializers.Serializer):
     uuid = serializers.UUIDField(read_only=True)
     type = serializers.CharField(read_only=True)
+
+
+class ImportableResourceSerializer(serializers.Serializer):
+    backend_id = serializers.CharField()
+    name = serializers.CharField()
+    type = serializers.CharField()
+    description = serializers.CharField(allow_blank=True)
