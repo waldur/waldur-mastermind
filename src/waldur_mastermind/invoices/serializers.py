@@ -709,11 +709,23 @@ class SAFReportSerializer(serializers.Serializer):
         return f"{self.format_date(first_day)}-{self.format_date(last_day)}"
 
 
+class PaymentProfileAttributesSerializer(serializers.Serializer):
+    end_date = serializers.CharField(required=False)
+    agreement_number = serializers.CharField(required=False)
+    contract_sum = serializers.IntegerField(required=False)
+
+
+@extend_schema_field(PaymentProfileAttributesSerializer)
+class PaymentProfileAttributesField(serializers.JSONField):
+    pass
+
+
 class PaymentProfileSerializer(serializers.HyperlinkedModelSerializer):
     organization_uuid = serializers.UUIDField(
         read_only=True, source="organization.uuid"
     )
     payment_type_display = serializers.ReadOnlyField(source="get_payment_type_display")
+    attributes = PaymentProfileAttributesField(required=False)
 
     class Meta:
         model = models.PaymentProfile
