@@ -23,6 +23,14 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from . import log, models, utils
 
 
+class ResourceLimitPeriod(serializers.Serializer):
+    start = serializers.CharField()
+    end = serializers.CharField()
+    quantity = serializers.IntegerField()
+    billing_periods = serializers.IntegerField()
+    total = serializers.CharField()
+
+
 class InvoiceItemDetailsSerializer(serializers.Serializer):
     resource_name = serializers.CharField()
     resource_uuid = serializers.UUIDField()
@@ -36,6 +44,7 @@ class InvoiceItemDetailsSerializer(serializers.Serializer):
     plan_component_id = serializers.IntegerField()
     offering_component_type = serializers.CharField()
     offering_component_name = serializers.CharField()
+    resource_limit_periods = ResourceLimitPeriod(many=True)
 
 
 @extend_schema_field(InvoiceItemDetailsSerializer)
@@ -229,6 +238,7 @@ class CustomerDetailsSerializer(serializers.ModelSerializer):
             "phone_number",
             "bank_name",
             "bank_account",
+            "vat_code",
         )
 
 
@@ -277,7 +287,8 @@ class InvoiceSerializer(
             "customer": {"lookup_field": "uuid"},
         }
 
-    def get_issuer_details(self, invoice) -> dict:
+    @extend_schema_field(CustomerDetailsSerializer)
+    def get_issuer_details(self, invoice):
         return settings.WALDUR_INVOICES["ISSUER_DETAILS"]
 
     @extend_schema_field(InvoiceItemSerializer(many=True))
