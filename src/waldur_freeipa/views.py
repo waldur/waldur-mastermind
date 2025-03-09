@@ -16,7 +16,7 @@ class CheckExtensionMixin(core_views.ConstanceCheckExtensionMixin):
 class ProfileViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     queryset = models.Profile.objects.all()
     filterset_class = filters.ProfileFilter
-    serializer_class = serializers.ProfileSerializer
+    serializer_class = serializers.FreeipaProfileSerializer
     disabled_actions = ["destroy"]
     lookup_field = "uuid"
 

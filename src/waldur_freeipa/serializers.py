@@ -6,7 +6,7 @@ from waldur_core.core import serializers as core_serializers
 from . import models, utils
 
 
-class ProfileSerializer(
+class FreeipaProfileSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
     user = serializers.HyperlinkedRelatedField(
