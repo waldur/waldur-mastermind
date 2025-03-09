@@ -688,7 +688,7 @@ class OpenStackNestedInstanceSerializer(serializers.ModelSerializer):
         fields = ("backend_id", "name", "uuid")
 
 
-class OpenStackCreateServerGroupSerializer(
+class OpenStackServerGroupSerializer(
     structure_serializers.BaseResourceActionSerializer
 ):
     class Meta:
@@ -1619,25 +1619,6 @@ class BaseAvailabilityZoneSerializer(structure_serializers.BasePropertySerialize
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},
             "settings": {"lookup_field": "uuid"},
-        }
-
-
-class OpenStackServerGroupSerializer(structure_serializers.BasePropertySerializer):
-    class Meta(structure_serializers.BasePropertySerializer.Meta):
-        model = models.ServerGroup
-        fields = (
-            "url",
-            "uuid",
-            "name",
-            "policy",
-        )
-        extra_kwargs = {
-            "url": {"lookup_field": "uuid"},
-            "settings": {"lookup_field": "uuid"},
-            "server-groups": {
-                "lookup_field": "uuid",
-                "view_name": "openstack-server-group-detail",
-            },
         }
 
 

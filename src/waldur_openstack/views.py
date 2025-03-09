@@ -252,7 +252,7 @@ class SecurityGroupViewSet(structure_views.ResourceViewSet):
 
 class ServerGroupViewSet(structure_views.ResourceViewSet):
     queryset = models.ServerGroup.objects.all().order_by("tenant__name")
-    serializer_class = serializers.OpenStackCreateServerGroupSerializer
+    serializer_class = serializers.OpenStackServerGroupSerializer
     filterset_class = filters.ServerGroupFilter
     pull_executor = executors.ServerGroupPullExecutor
     delete_executor = executors.ServerGroupDeleteExecutor
@@ -623,9 +623,7 @@ class TenantViewSet(structure_views.ResourceViewSet):
     create_server_group_validators = [
         core_validators.StateValidator(models.Tenant.States.OK)
     ]
-    create_server_group_serializer_class = (
-        serializers.OpenStackCreateServerGroupSerializer
-    )
+    create_server_group_serializer_class = serializers.OpenStackServerGroupSerializer
 
     @extend_schema(
         description="Change password for tenant user",
