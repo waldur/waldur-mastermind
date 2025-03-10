@@ -27,7 +27,7 @@ class MarketplaceSlurmRemoteExtension(WaldurExtension):
             },
             "sync-resources": {
                 "task": "waldur_mastermind.marketplace_slurm_remote.sync_resources",
-                "schedule": timedelta(hours=1),
+                "schedule": timedelta(minutes=10),
                 "args": (),
             },
             "send-messages-about-pending-orders": {
