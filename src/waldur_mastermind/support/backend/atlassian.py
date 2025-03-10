@@ -787,7 +787,10 @@ class ServiceDeskBackend(SupportBackend):
     def get_or_create_support_user(self, user):
         user_id = self.get_user_id(user)
         if user_id:
-            author, _ = models.SupportUser.objects.get_or_create(backend_id=user_id)
+            author, _ = models.SupportUser.objects.get_or_create(
+                backend_id=user_id,
+                backend_name=self.backend_name,
+            )
             return author
 
     def get_user_id(self, user):
