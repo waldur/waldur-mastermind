@@ -546,7 +546,7 @@ CONSTANCE_CONFIG = {
     ),
     "ATLASSIAN_STRANGE_SETTING": (1, "A constant in the API path, sometimes differs"),
     "ATLASSIAN_API_URL": (
-        "http://example.com/",
+        "https://example.com/",
         "Atlassian API server URL",
         "url_field",
     ),
@@ -555,7 +555,7 @@ CONSTANCE_CONFIG = {
     "ATLASSIAN_EMAIL": ("", "Email for access user", "email_field"),
     "ATLASSIAN_TOKEN": ("", "Token for access user", "secret_field"),
     "ATLASSIAN_VERIFY_SSL": (
-        False,
+        True,
         "Toggler for SSL verification",
     ),
     "ATLASSIAN_PROJECT_ID": ("", "Service desk ID or key"),
@@ -606,7 +606,7 @@ CONSTANCE_CONFIG = {
     # Zammad settings
     "ZAMMAD_API_URL": (
         "",
-        "Zammad API server URL. For example <http://localhost:8080/>",
+        "Zammad API server URL. For example <https://localhost:8080/>",
         "url_field",
     ),
     "ZAMMAD_TOKEN": ("", "Authorization token.", "secret_field"),
@@ -638,7 +638,7 @@ CONSTANCE_CONFIG = {
     # SMAX settings
     "SMAX_API_URL": (
         "",
-        "SMAX API server URL. For example <http://localhost:8080/>",
+        "SMAX API server URL. For example <https://localhost:8080/>",
         "url_field",
     ),
     "SMAX_TENANT_ID": ("", "User tenant ID."),
