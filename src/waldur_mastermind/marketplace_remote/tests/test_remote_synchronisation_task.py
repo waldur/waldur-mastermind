@@ -1,5 +1,6 @@
 import json
 import os
+import uuid
 from unittest import mock
 
 from rest_framework import test
@@ -22,9 +23,9 @@ class RemoteOfferingsSyncTest(test.APITransactionTestCase):
 
         self.fixture.remote_local_category.remote_category
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        offering_file_path = os.path.join(current_dir, "offering.json")
+        self.offering_file_path = os.path.join(current_dir, "offering.json")
 
-        with open(offering_file_path, encoding="utf-8") as file:
+        with open(self.offering_file_path, encoding="utf-8") as file:
             self.remote_offering = json.load(file)
 
         self.remote_categories = [
@@ -199,4 +200,49 @@ class RemoteOfferingsSyncTest(test.APITransactionTestCase):
                 secret_options__customer_uuid=remote_organization_uuid.hex,
             ).count(),
             2,
+        )
+
+    def test_imports_multiple_offerings_into_same_local_category(
+        self, mock_get_remote_offerings
+    ):
+        with open(self.offering_file_path, encoding="utf-8") as file:
+            second_remote_offering = json.load(file)
+
+        second_remote_offering["name"] = "offering_name_2"
+        second_remote_offering["uuid"] = uuid.uuid4().hex
+        second_remote_offering["category_uuid"] = uuid.uuid4().hex
+
+        mock_get_remote_offerings.return_value = [
+            self.remote_offering,
+            second_remote_offering,
+        ]
+
+        tasks.remote_offerings_sync()
+
+        self.fixture.remote_synchronisation.refresh_from_db()
+        self.assertEqual(
+            self.fixture.remote_synchronisation.state,
+            models.RemoteSynchronisation.States.OK,
+        )
+        self.assertTrue(
+            marketplace_models.Offering.objects.filter(
+                backend_id=self.remote_offering["uuid"]
+            ).exists()
+        )
+        self.assertTrue(
+            marketplace_models.Offering.objects.filter(
+                backend_id=second_remote_offering["uuid"]
+            ).exists()
+        )
+
+        local_category = self.fixture.remote_local_category.local_category
+        self.assertTrue(
+            marketplace_models.Offering.objects.filter(
+                backend_id=self.remote_offering["uuid"], category=local_category
+            ).exists()
+        )
+        self.assertTrue(
+            marketplace_models.Offering.objects.filter(
+                backend_id=second_remote_offering["uuid"], category=local_category
+            ).exists()
         )

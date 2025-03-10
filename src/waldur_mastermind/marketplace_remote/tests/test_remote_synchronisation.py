@@ -1,3 +1,5 @@
+import uuid
+
 from ddt import data, ddt
 from rest_framework import status
 from rest_framework.test import APITransactionTestCase
@@ -8,6 +10,7 @@ from waldur_mastermind.marketplace.tests import (
 from waldur_mastermind.marketplace.tests import (
     fixtures as marketplace_fixtures,
 )
+from waldur_mastermind.marketplace_remote import models as remote_models
 from waldur_mastermind.marketplace_remote.tests import (
     factories as marketplace_remote_factories,
 )
@@ -28,6 +31,7 @@ class BaseRemoteSynchronisationTest(APITransactionTestCase):
         self.list_url = (
             marketplace_remote_factories.RemoteSynchronisationFactory.get_list_url()
         )
+        self.local_category = marketplace_factories.CategoryFactory()
 
 
 @ddt
@@ -43,8 +47,10 @@ class RemoteSynchronisationCreateTest(BaseRemoteSynchronisationTest):
             ),
             "remotelocalcategory_set": [
                 {
-                    "local_category": marketplace_factories.CategoryFactory.get_url(),
-                    "remote_category": "ffc2a795-589b-4dc6-bcc1-71fc0b0a0a78",
+                    "local_category": marketplace_factories.CategoryFactory.get_url(
+                        self.local_category
+                    ),
+                    "remote_category": uuid.uuid4().hex,
                 }
             ],
         }
@@ -72,6 +78,33 @@ class RemoteSynchronisationCreateTest(BaseRemoteSynchronisationTest):
         self.assertEqual(
             response.data["non_field_errors"][0],
             "Synchronization cannot reference the same Waldur instance.",
+        )
+
+    def test_imports_multiple_offerings_into_same_local_category(self):
+        self.client.force_authenticate(user=self.fixture.staff)
+        payload = self._get_payload()
+        payload["remotelocalcategory_set"].append(
+            {
+                "local_category": marketplace_factories.CategoryFactory.get_url(
+                    self.local_category
+                ),
+                "remote_category": uuid.uuid4().hex,
+            }
+        )
+        response = self.client.post(self.list_url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        remote_synchronisation = remote_models.RemoteSynchronisation.objects.get(
+            uuid=response.data["uuid"]
+        )
+        self.assertEqual(
+            len(
+                set(
+                    remote_synchronisation.remotelocalcategory_set.values_list(
+                        "local_category_id", flat=True
+                    )
+                )
+            ),
+            1,
         )
 
 
