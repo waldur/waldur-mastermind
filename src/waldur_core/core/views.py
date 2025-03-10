@@ -715,7 +715,7 @@ class QueryViewSet(generics.GenericAPIView):
     description="Retrieve whitelabeling logo",
     request=None,
     responses={
-        200: {"type": "image/png", "description": "Logo image"},
+        200: bytes,
         404: None,
     },
 )
