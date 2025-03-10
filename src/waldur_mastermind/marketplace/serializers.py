@@ -3756,6 +3756,14 @@ class OfferingThumbnailSerializer(serializers.HyperlinkedModelSerializer):
         fields = ("thumbnail",)
 
 
+class OfferingImageSerializer(serializers.HyperlinkedModelSerializer):
+    image = serializers.ImageField(required=True)
+
+    class Meta:
+        model = models.Offering
+        fields = ("image",)
+
+
 class OrganizationGroupsSerializer(serializers.Serializer):
     organization_groups = serializers.HyperlinkedRelatedField(
         queryset=structure_models.OrganizationGroup.objects.all(),
