@@ -3,6 +3,7 @@ from datetime import datetime
 from functools import lru_cache
 
 import pyvat
+from constance import config
 from django.conf import settings
 from django.contrib import auth
 from django.contrib.contenttypes.models import ContentType
@@ -357,13 +358,28 @@ class ProjectSerializer(
 
 
 class CountrySerializerMixin(serializers.Serializer):
-    COUNTRIES = core_fields.COUNTRIES
-    if settings.WALDUR_CORE.get("COUNTRIES"):
-        COUNTRIES = [
-            item for item in COUNTRIES if item[0] in settings.WALDUR_CORE["COUNTRIES"]
-        ]
+    @staticmethod
+    def get_country_choices():
+        try:
+            if config.COUNTRIES:
+                if isinstance(config.COUNTRIES, list):
+                    if "," in config.COUNTRIES[0]:
+                        country_codes = config.COUNTRIES[0].split(",")
+                    else:
+                        country_codes = config.COUNTRIES
+                else:
+                    country_codes = config.COUNTRIES.split(",")
+                return [
+                    item for item in core_fields.COUNTRIES if item[0] in country_codes
+                ]
+        except (RuntimeError, AttributeError):
+            logger.exception(
+                "Failed to get country choices, using complete list of countries as fallback."
+            )
+            return core_fields.COUNTRIES
+
     country = serializers.ChoiceField(
-        required=False, choices=COUNTRIES, allow_blank=True
+        required=False, choices=get_country_choices(), allow_blank=True
     )
     country_name = serializers.CharField(read_only=True, source="get_country_display")
 

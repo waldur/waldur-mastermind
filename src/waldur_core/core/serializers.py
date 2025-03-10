@@ -532,6 +532,8 @@ class ConstanceSettingsSerializer(serializers.Serializer):
                 field_class = DictSerializerField
             if config_type == "list_field":
                 field_class = StringListSerializer
+            if config_type == "country_list_field":
+                field_class = StringListSerializer
             if config_type in (
                 "color_field",
                 "html_field",

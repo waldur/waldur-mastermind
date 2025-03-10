@@ -242,7 +242,7 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
         return Response(
             [
                 {"label": item[1], "value": item[0]}
-                for item in serializers.CountrySerializerMixin.COUNTRIES
+                for item in serializers.CountrySerializerMixin.get_country_choices()
             ]
         )
 
