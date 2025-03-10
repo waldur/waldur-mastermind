@@ -41,7 +41,9 @@ from rest_framework import viewsets as rf_viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.generics import ListAPIView
+from rest_framework.request import Request
 from rest_framework.response import Response
+from rest_framework.serializers import Serializer
 
 from waldur_core.core import models as core_models
 from waldur_core.core import permissions as core_permissions
@@ -1401,21 +1403,30 @@ class ProviderOfferingViewSet(
         serializers.OfferingIntegrationUpdateSerializer
     )
 
+    def _update_media(
+        self, request: Request, serializer_class: type[Serializer]
+    ) -> Response:
+        """Helper for updating offering media."""
+        offering = self.get_object()
+        serializer = serializer_class(instance=offering, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(status=status.HTTP_200_OK)
+
+    def _delete_media(self, media_field: str) -> Response:
+        """Helper for deleting offering media."""
+        offering = self.get_object()
+        getattr(offering, media_field).delete()
+        offering.save()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
     @extend_schema(
         request=serializers.OfferingThumbnailSerializer,
         description="Update offering thumbnail.",
     )
     @action(detail=True, methods=["post"])
     def update_thumbnail(self, request, uuid=None):
-        offering = self.get_object()
-        serializer = serializers.OfferingThumbnailSerializer(
-            instance=offering, data=request.data
-        )
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(status=status.HTTP_200_OK)
-
-    update_thumbnail_permissions = [permissions.user_can_update_thumbnail]
+        return self._update_media(request, serializers.OfferingThumbnailSerializer)
 
     @extend_schema(
         request=None,
@@ -1424,12 +1435,30 @@ class ProviderOfferingViewSet(
     )
     @action(detail=True, methods=["post"])
     def delete_thumbnail(self, request, uuid=None):
-        offering = self.get_object()
-        offering.thumbnail.delete()
-        offering.save()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return self._delete_media("thumbnail")
 
-    delete_thumbnail_permissions = update_thumbnail_permissions
+    @extend_schema(
+        request=serializers.OfferingImageSerializer,
+        description="Update offering image.",
+    )
+    @action(detail=True, methods=["post"])
+    def update_image(self, request, uuid=None):
+        return self._update_media(request, serializers.OfferingImageSerializer)
+
+    @extend_schema(
+        request=None,
+        responses=None,
+        description="Delete offering image.",
+    )
+    @action(detail=True, methods=["post"])
+    def delete_image(self, request, uuid=None):
+        return self._delete_media("image")
+
+    media_permissions = [permissions.user_can_update_thumbnail]
+    update_thumbnail_permissions = media_permissions
+    delete_thumbnail_permissions = media_permissions
+    update_image_permissions = media_permissions
+    delete_image_permissions = media_permissions
 
     @extend_schema(
         responses=serializers.ProviderOfferingCustomerSerializer(many=True),
