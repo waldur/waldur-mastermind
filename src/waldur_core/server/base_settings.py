@@ -450,11 +450,6 @@ CONSTANCE_CONFIG = {
         "Hex color definition is used in HomePort landing page for login button.",
         "color_field",
     ),
-    "BRAND_LABEL_COLOR": (
-        "#000000",
-        "Hex color definition is used in HomePort landing page for font color of login button.",
-        "color_field",
-    ),
     "HERO_LINK_LABEL": (
         "",
         "Label for link in hero section of HomePort landing page. It can be lead to support site or blog post.",
@@ -812,7 +807,6 @@ CONSTANCE_CONFIG_FIELDSETS = {
     "Theme": (
         "SIDEBAR_STYLE",
         "BRAND_COLOR",
-        "BRAND_LABEL_COLOR",
         "DISABLE_DARK_THEME",
     ),
     "Images": (
@@ -925,7 +919,6 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "SHORT_PAGE_TITLE",
     "FULL_PAGE_TITLE",
     "BRAND_COLOR",
-    "BRAND_LABEL_COLOR",
     "HERO_LINK_LABEL",
     "HERO_LINK_URL",
     "SUPPORT_PORTAL_URL",
