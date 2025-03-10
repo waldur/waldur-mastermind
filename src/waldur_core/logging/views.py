@@ -34,19 +34,17 @@ class EventViewSet(viewsets.ReadOnlyModelViewSet):
     filter_backends = (DjangoFilterBackend, filters.EventFilterBackend)
     filterset_class = filters.EventFilter
 
+    @extend_schema(
+        examples=[
+            OpenApiExample(
+                name="Valid example",
+                value={"count": 12321},
+                response_only=True,
+            )
+        ],
+    )
     @decorators.action(detail=False)
     def count(self, request, *args, **kwargs):
-        """
-        To get a count of events - run **GET** against */api/events/count/* as authenticated user.
-        Endpoint support same filters as events list.
-
-        Response example:
-
-        .. code-block:: javascript
-
-            {"count": 12321}
-        """
-
         self.queryset = self.filter_queryset(self.get_queryset())
         return response.Response(
             {"count": self.queryset.count()}, status=status.HTTP_200_OK
@@ -69,7 +67,6 @@ class EventViewSet(viewsets.ReadOnlyModelViewSet):
 class BaseHookViewSet(viewsets.ModelViewSet):
     """
     Hooks API allows user to receive event notifications via different channel, like email or webhook.
-    To get a list of all your hooks, run **GET** against */api/hooks/* as an authenticated user.
     """
 
     filter_backends = (core_filters.StaffOrUserFilter, DjangoFilterBackend)
@@ -97,7 +94,7 @@ class WebHookViewSet(BaseHookViewSet):
     )
     def create(self, request, *args, **kwargs):
         """
-        When hook is activated, **POST** request is issued against destination URL with the following data:
+        When hook is activated, POST request is issued against destination URL with the following data:
 
         .. code-block:: javascript
 
@@ -158,7 +155,7 @@ class EmailHookViewSet(BaseHookViewSet):
 
 class HookSummary(mixins.ListModelMixin, viewsets.GenericViewSet):
     """
-    Use */api/hooks/* to get a list of all the hooks of any type that a user can see.
+    Use /api/hooks/ to get a list of all the hooks of any type that a user can see.
     """
 
     serializer_class = serializers.SummaryHookSerializer

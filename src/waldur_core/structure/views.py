@@ -42,7 +42,7 @@ from waldur_core.core.log import event_logger
 from waldur_core.core.serializers import EmptySerializer
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.core.views import ActionsViewSet
-from waldur_core.permissions.enums import PermissionEnum, RoleEnum
+from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import (
     has_permission,
     permission_factory,
@@ -53,7 +53,6 @@ from waldur_core.structure.managers import (
     filter_queryset_for_user,
     get_active_tokens,
     get_connected_customers,
-    get_connected_projects,
 )
 from waldur_core.structure.utils import get_components_usage_data_from_resources
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -91,7 +90,7 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
 
     def list(self, request, *args, **kwargs):
         """
-        To get a list of customers, run GET against */api/customers/* as authenticated user. Note that a user can
+        To get a list of customers, run GET against /api/customers/ as authenticated user. Note that a user can
         only see connected customers:
 
         - customers that the user owns
@@ -350,23 +349,6 @@ class ProjectViewSet(
             context["project"] = self.get_object()
         return context
 
-    def list(self, request, *args, **kwargs):
-        """
-        To get a list of projects, run **GET** against */api/projects/* as authenticated user.
-        Here you can also check actual value for project quotas and project usage
-
-        Note that a user can only see connected projects:
-
-        - projects that the user owns as a customer
-        - projects where user has any role
-
-        Supported logic filters:
-
-        - ?can_manage - return a list of projects where current user is manager or a customer owner;
-        - ?can_admin - return a list of projects where current user is admin;
-        """
-        return super().list(request, *args, **kwargs)
-
     @extend_schema(
         request=serializers.ProjectSerializer,
         examples=[
@@ -392,26 +374,6 @@ class ProjectViewSet(
         If a project has connected instances, deletion request will fail with 409 response code.
         """
         return super().destroy(request, *args, **kwargs)
-
-    def get_queryset(self):
-        user = self.request.user
-        queryset = super().get_queryset()
-
-        can_manage = self.request.query_params.get("can_manage", None)
-        if can_manage is not None:
-            connected_customers = get_connected_customers(user, RoleEnum.CUSTOMER_OWNER)
-            connected_projects = get_connected_projects(user, RoleEnum.PROJECT_MANAGER)
-            queryset = queryset.filter(
-                Q(customer__in=connected_customers) | Q(id__in=connected_projects)
-            ).distinct()
-
-        can_admin = self.request.query_params.get("can_admin", None)
-
-        if can_admin is not None:
-            connected_projects = get_connected_projects(user, RoleEnum.PROJECT_ADMIN)
-            queryset = queryset.filter(id__in=connected_projects)
-
-        return queryset
 
     def perform_create(self, serializer):
         customer = serializer.validated_data["customer"]
@@ -764,13 +726,6 @@ class SshKeyViewSet(
             )
         else:
             instance.delete()
-
-    def list(self, request, *args, **kwargs):
-        """
-        To get a list of SSH keys, run **GET** against */api/keys/* as authenticated user.
-
-        A new SSH key can be created by any active users."""
-        return super().list(request, *args, **kwargs)
 
     def perform_create(self, serializer):
         user = self.request.user
