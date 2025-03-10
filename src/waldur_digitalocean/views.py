@@ -124,7 +124,7 @@ class DropletViewSet(structure_views.ResourceViewSet):
     @decorators.action(detail=True, methods=["post"])
     def resize(self, request, uuid=None):
         """
-        To resize droplet, submit a **POST** request to the instance URL, specifying URI of a target size.
+        To resize droplet, submit a POST request to the instance URL, specifying URI of a target size.
 
         Pass {'disk': true} along with target size in order to perform permanent resizing,
         which allows you to resize your disk space as well as CPU and RAM.

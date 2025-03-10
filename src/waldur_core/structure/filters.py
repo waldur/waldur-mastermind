@@ -21,6 +21,7 @@ from waldur_core.structure.managers import (
     filter_queryset_by_user_ip,
     filter_queryset_for_user,
     get_connected_customers,
+    get_connected_projects,
     get_customer_users,
     get_nested_customer_users,
     get_project_users,
@@ -192,6 +193,18 @@ class ProjectFilter(NameFilterSet):
 
     query = django_filters.CharFilter(method="filter_query")
 
+    can_manage = django_filters.BooleanFilter(
+        widget=BooleanWidget,
+        method="filter_can_manage",
+        label="Return a list of projects where current user is manager or a customer owner.",
+    )
+
+    can_admin = django_filters.BooleanFilter(
+        widget=BooleanWidget,
+        method="filter_can_admin",
+        label="Return a list of projects where current user is admin.",
+    )
+
     o = django_filters.OrderingFilter(
         fields=(
             ("name", "name"),
@@ -218,6 +231,25 @@ class ProjectFilter(NameFilterSet):
             "query",
             "backend_id",
         ]
+
+    def filter_can_manage(self, queryset, name, value):
+        user = self.request.user
+
+        if value is not None:
+            connected_customers = get_connected_customers(user, RoleEnum.CUSTOMER_OWNER)
+            connected_projects = get_connected_projects(user, RoleEnum.PROJECT_MANAGER)
+            queryset = queryset.filter(
+                Q(customer__in=connected_customers) | Q(id__in=connected_projects)
+            ).distinct()
+        return queryset
+
+    def filter_can_admin(self, queryset, name, value):
+        user = self.request.user
+
+        if value is not None:
+            connected_projects = get_connected_projects(user, RoleEnum.PROJECT_ADMIN)
+            queryset = queryset.filter(id__in=connected_projects)
+        return queryset
 
     def filter_query(self, queryset, name, value):
         if is_uuid_like(value):

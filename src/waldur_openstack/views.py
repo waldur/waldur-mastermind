@@ -420,7 +420,7 @@ class TenantViewSet(structure_views.ResourceViewSet):
     def set_quotas(self, request, uuid=None):
         """
         A quota can be set for a particular tenant. Only staff users can do that.
-        In order to set quota submit **POST** request to */api/openstack-tenants/<uuid>/set_quotas/*.
+        In order to set quota submit POST request to /api/openstack-tenants/<uuid>/set_quotas/.
         The quota values are propagated to the backend.
 
         The following quotas are supported. All values are expected to be integers:
@@ -1458,7 +1458,7 @@ class MarketplaceInstanceViewSet(structure_views.ResourceViewSet):
 
     def destroy(self, request, uuid=None):
         """
-        Deletion of an instance is done through sending a **DELETE** request to the instance URI.
+        Deletion of an instance is done through sending a DELETE request to the instance URI.
         Valid request example (token is user specific):
 
         .. code-block:: http
