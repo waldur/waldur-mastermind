@@ -408,7 +408,8 @@ Generate Go SDK:
   needs:
     - Generate OpenAPI schema
   script: |
-    go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen --package client --generate types,client -o client.go waldur-openapi-schema.yaml
+    go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
+    oapi-codegen --package client --generate types,client -o client.go waldur-openapi-schema.yaml
     ls -l client.go
   artifacts:
     paths:
