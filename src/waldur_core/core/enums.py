@@ -12,26 +12,26 @@ class CoreStates:
     ERRED = 4
 
     CHOICES = (
-        (CREATION_SCHEDULED, "Creation Scheduled"),
-        (CREATING, "Creating"),
-        (UPDATE_SCHEDULED, "Update Scheduled"),
-        (UPDATING, "Updating"),
-        (DELETION_SCHEDULED, "Deletion Scheduled"),
-        (DELETING, "Deleting"),
+        (CREATION_SCHEDULED, "CREATION_SCHEDULED"),
+        (CREATING, "CREATING"),
+        (UPDATE_SCHEDULED, "UPDATE_SCHEDULED"),
+        (UPDATING, "UPDATING"),
+        (DELETION_SCHEDULED, "DELETION_SCHEDULED"),
+        (DELETING, "DELETING"),
         (OK, "OK"),
-        (ERRED, "Erred"),
+        (ERRED, "ERRED"),
     )
 
     VALUES = [val for (_, val) in CHOICES]
 
 
 CoreStateType = Literal[
-    "Creation Scheduled",
-    "Creating",
-    "Update Scheduled",
-    "Updating",
-    "Deletion Scheduled",
-    "Deleting",
+    "CREATION_SCHEDULED",
+    "CREATING",
+    "UPDATE_SCHEDULED",
+    "UPDATING",
+    "DELETION_SCHEDULED",
+    "DELETING",
     "OK",
-    "Erred",
+    "ERRED",
 ]

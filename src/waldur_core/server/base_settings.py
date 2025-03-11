@@ -1014,7 +1014,9 @@ SPECTACULAR_SETTINGS = {
         "drf_spectacular.hooks.postprocess_schema_enums",
         "waldur_core.core.schema_hooks.postprocess_drop_description",
         "waldur_core.core.schema_hooks.postprocess_add_tag",
+        "waldur_core.core.schema_hooks.postprocess_fix_enum",
     ],
+    "DEFAULT_GENERATOR_CLASS": "waldur_core.core.openapi_generators.WaldurSchemaGenerator",
     "COMPONENT_SPLIT_REQUEST": True,
     "SCHEMA_PATH_PREFIX": "/api/",
     "ENUM_NAME_OVERRIDES": {
