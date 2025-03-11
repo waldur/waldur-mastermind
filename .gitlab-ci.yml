@@ -399,6 +399,22 @@ Generate TypeScript SDK:
       - waldur-typescript-sdk/
     expire_in: 1 day
 
+Generate Go SDK:
+  stage: deploy
+  interruptible: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
+  image: registry.hpc.ut.ee/mirror/library/golang:tip-alpine
+  needs:
+    - Generate OpenAPI schema
+  script: |
+    go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen --package client --generate types,client -o client.go waldur-openapi-schema.yaml
+    ls -l client.go
+  artifacts:
+    paths:
+      - client.go
+    expire_in: 1 day
+
 Generate OpenAPI schema diff:
   stage: deploy
   interruptible: true
