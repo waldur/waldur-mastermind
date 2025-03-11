@@ -415,6 +415,37 @@ Generate Go SDK:
       - client.go
     expire_in: 1 day
 
+Upload Go SDK:
+  stage: deploy
+  interruptible: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
+  image:
+    name: registry.hpc.ut.ee/mirror/alpine/git:latest
+    entrypoint: [""]
+  needs:
+    - Generate Go SDK
+  script:
+    - git clone git@github.com:waldur/go-client.git
+    - cp client.go go-client/client.go
+    - cd go-client
+    - git checkout main
+    - git add client.go
+    - git commit -m "Update Waldur Go SDK" || exit 0
+    - git branch new-sdk
+    - git push --set-upstream origin new-sdk:main
+  before_script:
+    - echo "[+] Adding ssh keys to the home directory"
+    - mkdir -p ~/.ssh
+    - cat $SSH_JENKINS_GITHUB_PRIVATE_KEY | tr -d '\r' > ~/.ssh/id_rsa
+    - cat $SSH_JENKINS_GITHUB_PUBLIC_KEY | tr -d '\r' > ~/.ssh/id_rsa.pub
+    - chmod 600 ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa.pub
+    - ssh-keygen -lf ~/.ssh/id_rsa.pub
+    - ssh-keyscan -H "github.com" >> ~/.ssh/known_hosts
+    - git config --global user.email "ci@waldur.com"
+    - git config --global user.name "Waldur Gitlab Runner"
+
 Generate OpenAPI schema diff:
   stage: deploy
   interruptible: true
