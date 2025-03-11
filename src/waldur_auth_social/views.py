@@ -33,7 +33,7 @@ from .serializers import (
     AuthSerializer,
     IdentityProviderSerializer,
     RemoteEduteamsRequestSerializer,
-    RemoteEduteamsResponse,
+    RemoteEduteamsUUIDSerializer,
 )
 
 logger = logging.getLogger(__name__)
@@ -280,7 +280,7 @@ class RemoteEduteamsView(generics.GenericAPIView):
     @extend_schema(
         description="Allows to pull user details from remote eduTEAMS instance.",
         request=RemoteEduteamsRequestSerializer,
-        responses={200: RemoteEduteamsResponse},
+        responses={200: RemoteEduteamsUUIDSerializer},
     )
     def post(self, request, *args, **kwargs):
         if not request.user.is_staff and not request.user.is_identity_manager:

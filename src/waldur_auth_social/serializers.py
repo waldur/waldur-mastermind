@@ -116,5 +116,5 @@ class IdentityProviderSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 
-class RemoteEduteamsResponse(serializers.Serializer):
+class RemoteEduteamsUUIDSerializer(serializers.Serializer):
     uuid = serializers.UUIDField()
