@@ -22,3 +22,15 @@ def postprocess_add_tag(result, generator, **kwargs):
                     for operation in methods.values():
                         operation["tags"] = [api_group]
     return result
+
+
+def postprocess_fix_enum(result, generator, **kwargs):
+    for methods in result["paths"].values():
+        for operation in methods.values():
+            for parameter in operation.get("parameters", []):
+                if (
+                    parameter["schema"]["type"] == "array"
+                    and parameter["schema"]["items"]["type"] == "integer"
+                ):
+                    parameter["schema"]["items"]["type"] = "string"
+    return result

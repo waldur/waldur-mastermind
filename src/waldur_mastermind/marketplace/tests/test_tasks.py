@@ -423,7 +423,7 @@ class MarkResourcesAsErredAfterTimeoutTest(test.APITransactionTestCase):
         self.assertEqual(self.order.state, models.Order.States.ERRED)
         self.assertEqual(self.order.error_message, "Execution has timed out.")
         self.assertEqual(self.resource.state, models.Resource.States.ERRED)
-        self.assertEqual(self.resource.backend_metadata["state"], "Erred")
+        self.assertEqual(self.resource.backend_metadata["state"], "ERRED")
         self.assertEqual(
             self.fixture.instance.state, self.fixture.instance.States.ERRED
         )

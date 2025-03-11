@@ -229,7 +229,12 @@ class RancherNestedNodeSerializer(RancherBaseNodeSerializer):
             "url": {"lookup_field": "uuid", "view_name": "rancher-node-detail"},
             "cluster": {"lookup_field": "uuid", "view_name": "rancher-cluster-detail"},
         }
-        exclude = ("cluster", "object_id", "content_type", "name")
+        exclude = RancherBaseNodeSerializer.Meta.exclude + (
+            "cluster",
+            "object_id",
+            "content_type",
+            "name",
+        )
 
 
 class RancherNestedSecurityGroupSerializer(
