@@ -499,7 +499,16 @@ def configuration_detail(request):
     return Response(get_public_settings(request))
 
 
-@extend_schema(request=ConstanceSettingsSerializer, responses=None)
+@extend_schema(
+    methods=["GET"],
+    request=ConstanceSettingsSerializer,
+    responses={status.HTTP_200_OK: ConstanceSettingsSerializer},
+)
+@extend_schema(
+    methods=["POST"],
+    request=ConstanceSettingsSerializer,
+    responses={status.HTTP_200_OK: None},
+)
 @api_view(["POST", "GET"])
 @permission_classes((rf_permissions.IsAdminUser,))
 def override_db_settings(request):
