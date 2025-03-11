@@ -478,7 +478,7 @@ CONSTANCE_CONFIG = {
         ",".join(LANGUAGE_CHOICES),
         "List of enabled languages",
     ),
-    "DISABLE_DARK_THEME": (False, "Toggler for dark theme."),
+    "DISABLE_DARK_THEME": (False, "Toggler to disable dark theme."),
     # images, logos, favicons
     "POWERED_BY_LOGO": (
         "",
