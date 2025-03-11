@@ -2235,9 +2235,11 @@ class OpenStackBackend(ServiceBackend):
 
     @log_backend_action()
     def update_network(self, network: models.Network):
-        self._update_network(network, {"name": network.name})
+        self._update_network(
+            network, {"name": network.name, "description": network.description}
+        )
         event_logger.openstack_network.info(
-            "Network name %s has been updated." % network.name,
+            f"Network name {network.name} and description {network.description} have been updated.",
             event_type="openstack_network_updated",
             event_context={"network": network},
         )
