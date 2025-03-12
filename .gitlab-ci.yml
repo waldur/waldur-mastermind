@@ -445,9 +445,9 @@ Upload Go SDK:
   script:
     - cd /tmp/
     - git clone git@github.com:waldur/go-client.git
+    - cd go-client
     - git pull
     - cp $CI_PROJECT_DIR/client.go go-client/client.go
-    - cd go-client
     - git checkout main
     - git add client.go
     - git commit -m "Update Waldur Go SDK" || exit 0
@@ -478,9 +478,9 @@ Upload Python SDK:
   script:
     - cd /tmp/
     - git clone --branch main git@github.com:waldur/py-client.git
+    - cd py-client
     - git pull
     - rm -rf py-client/waldur_api_client && cp -a "$CI_PROJECT_DIR/py-client/waldur_api_client" py-client/waldur_api_client
-    - cd py-client
     - git checkout -b new-sdk
     - git add waldur_api_client
     - git commit -m "Update Waldur Go SDK" || exit 0
@@ -576,10 +576,10 @@ Upload TypeScript SDK to GitHub:
   script:
     - cd /tmp/
     - git clone --branch main git@github.com:waldur/js-client.git
+    - cd js-client
     - git pull
     - rm -rf js-client/src/
     - mv $CI_PROJECT_DIR/waldur-typescript-sdk js-client/src
-    - cd js-client
     - git checkout -b new-sdk
     - git add src
     - git commit -m "Update Waldur TypeScript SDK" || exit 0
