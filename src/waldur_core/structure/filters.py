@@ -725,6 +725,7 @@ class AccessSubnetFilter(django_filters.FilterSet):
     )
     customer_uuid = django_filters.UUIDFilter(field_name="customer__uuid")
     inet = django_filters.CharFilter(lookup_expr="icontains")
+    description = django_filters.CharFilter(lookup_expr="icontains")
 
     class Meta:
         model = models.AccessSubnet
@@ -732,4 +733,5 @@ class AccessSubnetFilter(django_filters.FilterSet):
             "customer",
             "customer_uuid",
             "inet",
+            "description",
         ]

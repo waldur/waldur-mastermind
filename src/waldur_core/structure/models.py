@@ -7,6 +7,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ValidationError
 from django.core.validators import (
     MaxLengthValidator,
     MaxValueValidator,
@@ -55,8 +56,6 @@ from waldur_core.structure.registry import SupportedServices, get_resource_type
 
 
 def validate_service_type(service_type):
-    from django.core.exceptions import ValidationError
-
     if not SupportedServices.has_service_type(service_type):
         raise ValidationError(_("Invalid service type."))
 
@@ -211,11 +210,16 @@ CUSTOMER_DETAILS_FIELDS = (
 )
 
 
+def validate_cidr_32(value):
+    if not value.endswith("/32"):
+        raise ValidationError("Only /32 mask is allowed.")
+
+
 class AccessSubnet(core_models.UuidMixin, core_models.DescribableMixin, LoggableMixin):
     customer = models.ForeignKey(
         on_delete=models.CASCADE, to="Customer", related_name="access_subnet_set"
     )
-    inet = CidrAddressField(null=True, blank=True)
+    inet = CidrAddressField(null=True, blank=True, validators=[validate_cidr_32])
     tracker = FieldTracker()
 
     class Meta:
