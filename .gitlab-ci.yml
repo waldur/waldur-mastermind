@@ -448,11 +448,9 @@ Upload Go SDK:
     - cd go-client
     - git pull
     - cp $CI_PROJECT_DIR/client.go client.go
-    - git checkout main
     - git add client.go
     - git commit -m "Update Waldur Go SDK" || exit 0
-    - git branch new-sdk
-    - git push --set-upstream origin new-sdk:main
+    - git push
   before_script:
     - echo "[+] Adding ssh keys to the home directory"
     - mkdir -p ~/.ssh
@@ -480,11 +478,10 @@ Upload Python SDK:
     - git clone --branch main git@github.com:waldur/py-client.git
     - cd py-client
     - git pull
-    - rm -rf py-client/waldur_api_client && cp -a "$CI_PROJECT_DIR/py-client/waldur_api_client" waldur_api_client
-    - git checkout -b new-sdk
+    - rm -rf waldur_api_client && cp -a "$CI_PROJECT_DIR/py-client/waldur_api_client" waldur_api_client
     - git add waldur_api_client
     - git commit -m "Update Waldur Go SDK" || exit 0
-    - git push --set-upstream origin new-sdk
+    - git push
   before_script:
     - echo "[+] Adding ssh keys to the home directory"
     - mkdir -p ~/.ssh
@@ -578,12 +575,11 @@ Upload TypeScript SDK to GitHub:
     - git clone --branch main git@github.com:waldur/js-client.git
     - cd js-client
     - git pull
-    - rm -rf js-client/src/
+    - rm -rf src/
     - mv $CI_PROJECT_DIR/waldur-typescript-sdk src
-    - git checkout -b new-sdk
     - git add src
     - git commit -m "Update Waldur TypeScript SDK" || exit 0
-    - git push --set-upstream origin new-sdk
+    - git push
   before_script:
     - echo "[+] Adding ssh keys to the home directory"
     - mkdir -p ~/.ssh
