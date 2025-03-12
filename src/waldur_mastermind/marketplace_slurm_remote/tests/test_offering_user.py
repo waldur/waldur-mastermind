@@ -20,8 +20,8 @@ class OfferingUserCreationTest(test.APITransactionTestCase):
 
         offering = self.resource.offering
         offering.type = PLUGIN_NAME
-        offering.options = {"service_provider_can_create_offering_user": True}
         offering.plugin_options = {
+            "service_provider_can_create_offering_user": True,
             "username_generation_policy": "waldur_username",
             "initial_uidnumber": 1000,
             "initial_primarygroup_number": 2000,
@@ -125,8 +125,8 @@ class OfferingUserUpdateTest(test.APITransactionTestCase):
 
         self.offering = self.resource.offering
         self.offering.type = PLUGIN_NAME
-        self.offering.options = {"service_provider_can_create_offering_user": True}
         self.offering.plugin_options = {
+            "service_provider_can_create_offering_user": True,
             "username_generation_policy": "waldur_username",
             "homedir_prefix": "/tmp/",
         }

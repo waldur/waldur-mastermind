@@ -905,7 +905,7 @@ def create_offering_users_when_project_role_granted(sender, instance, **kwargs):
     offerings = models.Offering.objects.filter(id__in=offering_ids)
 
     for offering in offerings:
-        if not offering.options.get("service_provider_can_create_offering_user"):
+        if not offering.plugin_options.get("service_provider_can_create_offering_user"):
             logger.info(
                 "It is not allowed to create users for current offering %s.", offering
             )
@@ -940,7 +940,7 @@ def create_offering_user_for_new_resource(sender, instance, **kwargs):
         )
         return
 
-    if not offering.options.get("service_provider_can_create_offering_user"):
+    if not offering.plugin_options.get("service_provider_can_create_offering_user"):
         logger.info(
             "It is not allowed to create users for current offering %s.", offering
         )
