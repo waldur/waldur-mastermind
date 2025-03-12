@@ -558,6 +558,36 @@ Upload OpenAPI schema diff to docs:
     - git push --set-upstream origin new-api-schema-diff-${CI_COMMIT_TAG}:master
   before_script: []
 
+Upload TypeScript SDK to GitHub:
+  stage: deploy
+  interruptible: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
+  image:
+    name: registry.hpc.ut.ee/mirror/alpine/git:latest
+    entrypoint: [""]
+  needs:
+    - Generate TypeScript SDK
+  script:
+    - git clone --branch main git@github.com:waldur/js-client.git
+    - rm -rf js-client/src/
+    - mv $CI_PROJECT_DIR/waldur-typescript-sdk js-client/src
+    - cd js-client
+    - git checkout -b new-sdk
+    - git add src
+    - git commit -m "Update Waldur TypeScript SDK" || exit 0
+    - git push --set-upstream origin new-sdk
+  before_script:
+    - echo "[+] Adding ssh keys to the home directory"
+    - mkdir -p ~/.ssh
+    - cat $SSH_JENKINS_GITHUB_PRIVATE_KEY | tr -d '\r' > ~/.ssh/id_rsa
+    - cat $SSH_JENKINS_GITHUB_PUBLIC_KEY | tr -d '\r' > ~/.ssh/id_rsa.pub
+    - chmod 600 ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa.pub
+    - ssh-keygen -lf ~/.ssh/id_rsa.pub
+    - ssh-keyscan -H "github.com" >> ~/.ssh/known_hosts
+    - git config --global user.email "ci@waldur.com"
+    - git config --global user.name "Waldur Gitlab Runner"
 
 Upload TypeScript SDK:
   stage: deploy
