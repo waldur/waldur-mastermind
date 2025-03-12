@@ -19,8 +19,8 @@ class RobotAccountGlauthConfigTest(test.APITransactionTestCase):
             "username_generation_policy": "waldur_username",
             "initial_uidnumber": 1000,
             "initial_primarygroup_number": 2000,
+            "service_provider_can_create_offering_user": True,
         }
-        self.offering.options = {"service_provider_can_create_offering_user": True}
         self.offering.save()
 
         self.resource = self.fixture.resource

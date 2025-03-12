@@ -1064,7 +1064,7 @@ def count_resources_number_change(service_provider):
     return created - terminated
 
 
-def generate_offering_password_hash(offering):
+def generate_offering_password_hash(offering: models.Offering):
     password = offering.secret_options.get("shared_user_password")
     if password:
         password_hash = hashlib.sha256()

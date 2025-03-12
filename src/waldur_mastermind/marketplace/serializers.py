@@ -79,6 +79,11 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
         required=False,
         help_text="If set to True, an order can be processed without approval",
     )
+
+    service_provider_can_create_offering_user = serializers.BooleanField(
+        required=False, help_text="Service provider can create offering user"
+    )
+
     max_resource_termination_offset_in_days = serializers.IntegerField(
         required=False,
         min_value=0,
@@ -168,6 +173,7 @@ class GLAuthPluginOptionsSerializer(serializers.Serializer):
         help_text="GLAuth initial primary group number",
         min_value=0,
     )
+
     initial_uidnumber = serializers.IntegerField(
         required=False, default=5000, help_text="GLAuth initial uidnumber", min_value=0
     )
@@ -3470,7 +3476,7 @@ class OfferingUserSerializer(
         ):
             raise rf_exceptions.PermissionDenied()
 
-        if not offering.options.get("service_provider_can_create_offering_user"):
+        if not offering.plugin_options.get("service_provider_can_create_offering_user"):
             raise rf_exceptions.ValidationError(
                 _("It is not allowed to create users for current offering.")
             )

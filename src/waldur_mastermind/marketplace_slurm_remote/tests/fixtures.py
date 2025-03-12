@@ -41,12 +41,12 @@ class GlauthUserFixture(marketplace_fixtures.MarketplaceFixture):
         super().__init__()
         self.offering.type = PLUGIN_NAME
         self.offering.plugin_options = {
+            "service_provider_can_create_offering_user": True,
             "username_generation_policy": "waldur_username",
             "initial_uidnumber": 1000,
             "initial_primarygroup_number": 2000,
             "homedir_prefix": "/tmp/",
         }
-        self.offering.options = {"service_provider_can_create_offering_user": True}
         self.offering.save()
 
         # Set up resource and offering user
@@ -85,12 +85,12 @@ class GlauthUserFixture(marketplace_fixtures.MarketplaceFixture):
             type=PLUGIN_NAME,
             customer=self.offering_customer,
             plugin_options={
+                "service_provider_can_create_offering_user": True,
                 "username_generation_policy": "waldur_username",
                 "initial_uidnumber": 1000,
                 "initial_primarygroup_number": 2000,
                 "homedir_prefix": "/tmp/",
             },
-            options={"service_provider_can_create_offering_user": True},
         )
         offering_user = marketplace_models.OfferingUser.objects.create(
             offering=offering,
@@ -108,12 +108,12 @@ class GlauthUserFixture(marketplace_fixtures.MarketplaceFixture):
             type=PLUGIN_NAME,
             customer=self.offering_customer,
             plugin_options={
+                "service_provider_can_create_offering_user": True,
                 "username_generation_policy": "waldur_username",
                 "initial_uidnumber": 1000,
                 "initial_primarygroup_number": 2000,
                 "homedir_prefix": "/tmp/",
             },
-            options={"service_provider_can_create_offering_user": True},
         )
 
         # Create a project and resource

@@ -360,7 +360,7 @@ class OfferingRemoteVersionTest(test.APITransactionTestCase):
             "api_url": "http://localhost/api/",
             "customer_uuid": remote_offering.customer.uuid.hex,
         }
-        self.offering.options = {
+        self.offering.plugin_options = {
             "service_provider_can_create_offering_user": False,
         }
         self.offering.backend_id = remote_offering.uuid.hex
