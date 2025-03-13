@@ -1611,12 +1611,8 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
     limits = serializers.DictField(
         child=OfferingComponentLimitSerializer(), write_only=True, required=False
     )
-    options = OfferingOptionsSerializer(
-        required=False, default={"options": {}, "order": []}
-    )
-    resource_options = OfferingOptionsSerializer(
-        required=False, default={"options": {}, "order": []}
-    )
+    options = OfferingOptionsSerializer(required=False)
+    resource_options = OfferingOptionsSerializer(required=False)
 
     def validate(self, attrs):
         if not self.instance:
@@ -1629,6 +1625,9 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
 
         self._validate_attributes(attrs)
         self._validate_plans(attrs)
+
+        attrs.setdefault("options", {"options": {}, "order": []})
+        attrs.setdefault("resource_options", {"options": {}, "order": []})
 
         return attrs
 
