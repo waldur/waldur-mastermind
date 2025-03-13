@@ -101,9 +101,12 @@ def transform_paginated_arrays(result, generator, **kwargs):
     """
     # Identify all paginated components
     paginated_components = {}
+    other_components = {}
     for name, component in result["components"]["schemas"].items():
         if name.startswith("Paginated") and component.get("type") == "array":
             paginated_components[name] = component
+        else:
+            other_components[name] = component
 
     # Function to recursively replace references to paginated components
     def replace_references(obj):
@@ -131,8 +134,6 @@ def transform_paginated_arrays(result, generator, **kwargs):
     # Process the entire schema
     replace_references(result)
 
-    for name, component in result["components"]["schemas"].items():
-        if name.startswith("Paginated") and component.get("type") == "array":
-            del paginated_components[name]
+    result["components"]["schemas"] = other_components
 
     return result
