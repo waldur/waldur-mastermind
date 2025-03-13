@@ -1,6 +1,7 @@
 import io
 import logging
 from collections import defaultdict
+from decimal import Decimal
 
 import requests
 from django.db.models import Q
@@ -53,8 +54,20 @@ def pull_fields(fields, local_object, remote_object):
         if field not in remote_object:
             logger.warning(f'Remote offering does not expose field "{field}"')
             continue
-        if remote_object[field] != getattr(local_object, field):
-            setattr(local_object, field, remote_object[field])
+        remote_value = remote_object[field]
+        local_value = getattr(local_object, field)
+
+        if isinstance(local_value, int | float | Decimal):
+            try:
+                remote_value = float(remote_value)
+            except (TypeError, ValueError):
+                logger.warning(
+                    f'Unable to convert remote value "{remote_value}" to float for field "{field}"'
+                )
+                continue
+
+        if remote_value != local_value:
+            setattr(local_object, field, remote_value)
             changed_fields.add(field)
     if changed_fields:
         local_object.save(update_fields=changed_fields)
