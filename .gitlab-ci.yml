@@ -560,7 +560,7 @@ Upload OpenAPI schema diff to docs:
     - git push --set-upstream origin new-api-schema-diff-${CI_COMMIT_TAG}:master
   before_script: []
 
-Upload TypeScript SDK to GitHub:
+Upload TypeScript SDK:
   stage: deploy
   interruptible: true
   rules:
@@ -591,29 +591,6 @@ Upload TypeScript SDK to GitHub:
     - ssh-keyscan -H "github.com" >> ~/.ssh/known_hosts
     - git config --global user.email "ci@waldur.com"
     - git config --global user.name "Waldur Gitlab Runner"
-
-Upload TypeScript SDK:
-  stage: deploy
-  interruptible: true
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
-  image:
-    name: registry.hpc.ut.ee/mirror/alpine/git:latest
-    entrypoint: [""]
-  needs:
-    - Generate TypeScript SDK
-  script:
-    - git clone "https://homeport-updates:$HOMEPORT_ACCESS_TOKEN@$CI_SERVER_HOST/waldur/waldur-homeport.git"
-    - git config --global user.name "$GITLAB_USER_NAME"
-    - git config --global user.email "$GITLAB_USER_EMAIL"
-    - cd waldur-homeport
-    - git checkout develop
-    - rm -rf src/api/
-    - mv $CI_PROJECT_DIR/waldur-typescript-sdk src/api/
-    - git add src/
-    - git commit -m "Update Waldur TypeScript SDK" || exit 0
-    - git branch new-sdk
-    - git push --set-upstream origin new-sdk:develop
 
 Upload OpenAPI schema to docs:
   stage: deploy
