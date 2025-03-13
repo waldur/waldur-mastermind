@@ -34,11 +34,32 @@ class InvoiceFilter(django_filters.FilterSet):
 
 class InvoiceItemFilter(django_filters.FilterSet):
     resource_uuid = django_filters.UUIDFilter(field_name="resource__uuid")
+    offering_uuid = django_filters.UUIDFilter(field_name="resource__offering__uuid")
     year = django_filters.NumberFilter(field_name="invoice__year")
     month = django_filters.NumberFilter(field_name="invoice__month")
     project_uuid = django_filters.UUIDFilter(field_name="project__uuid")
     customer_uuid = django_filters.UUIDFilter(field_name="project__customer__uuid")
     credit_uuid = django_filters.UUIDFilter(field_name="credit__uuid")
+    start_year = django_filters.NumberFilter(
+        field_name="start__year", lookup_expr="exact", label="Start year"
+    )
+    start_month = django_filters.NumberFilter(
+        field_name="start__month", lookup_expr="exact", label="Start month"
+    )
+
+    class Meta:
+        model = models.InvoiceItem
+        fields = [
+            "resource_uuid",
+            "offering_uuid",
+            "year",
+            "month",
+            "project_uuid",
+            "customer_uuid",
+            "credit_uuid",
+            "start_year",
+            "start_month",
+        ]
 
 
 class PaymentProfileFilter(django_filters.FilterSet):
