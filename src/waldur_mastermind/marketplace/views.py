@@ -1055,6 +1055,7 @@ class ProviderOfferingViewSet(
         return super().destroy(request, *args, **kwargs)
 
     @extend_schema(
+        request=None,
         responses=serializers.DetailStateSerializer,
     )
     @action(detail=True, methods=["post"])
@@ -1062,6 +1063,7 @@ class ProviderOfferingViewSet(
         return self._update_state("activate")
 
     @extend_schema(
+        request=None,
         responses=serializers.DetailStateSerializer,
     )
     @action(detail=True, methods=["post"])
@@ -1079,13 +1081,15 @@ class ProviderOfferingViewSet(
     pause_serializer_class = serializers.OfferingPauseSerializer
 
     @extend_schema(
+        request=None,
         responses=serializers.DetailStateSerializer,
     )
     @action(detail=True, methods=["post"])
     def unpause(self, request, uuid=None):
-        return self._update_state("unpause", request)
+        return self._update_state("unpause")
 
     @extend_schema(
+        request=None,
         responses=serializers.DetailStateSerializer,
     )
     @action(detail=True, methods=["post"])

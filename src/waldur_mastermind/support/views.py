@@ -301,7 +301,7 @@ class TemplateViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
     @extend_schema(
         description="This view attaches documents to template.",
-        request=serializers.TemplateAttachmentSerializer,
+        request=serializers.CreateAttachmentsSerializer,
         responses={201: None, 400: None},
     )
     @decorators.action(detail=True, methods=["post"])
@@ -324,8 +324,6 @@ class TemplateViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
             if created:
                 template.attachments.add(obj)
         return response.Response(status=status.HTTP_201_CREATED)
-
-    attach_documents_serializer_class = serializers.TemplateAttachmentSerializer
 
     @extend_schema(request=serializers.DeleteAttachmentsSerializer, responses=None)
     @decorators.action(detail=True, methods=["post"])

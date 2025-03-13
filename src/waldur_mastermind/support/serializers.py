@@ -715,6 +715,10 @@ class AttachmentSerializer(
         raise exceptions.PermissionDenied()
 
 
+class CreateAttachmentsSerializer(serializers.Serializer):
+    attachments = serializers.ListSerializer(child=serializers.FileField())
+
+
 class TemplateAttachmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.TemplateAttachment
