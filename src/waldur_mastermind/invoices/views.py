@@ -324,6 +324,7 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
     @extend_schema(
         description="Calculate total price for filtered invoice items.",
         responses=serializers.InvoiceItemTotalPriceSerializer,
+        filters=True,
     )
     @action(detail=False, methods=["get"], filterset_class=filters.InvoiceItemFilter)
     def total_price(self, request, *args, **kwargs):
