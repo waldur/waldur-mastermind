@@ -309,6 +309,28 @@ class MergedSecretOptionsField(serializers.JSONField):
     pass
 
 
+class ReportSectionSerializer(serializers.Serializer):
+    header = serializers.CharField()
+    body = serializers.CharField()
+
+
+class ResourceReportSerializer(serializers.Serializer):
+    report = ReportSectionSerializer(many=True)
+
+    def validate_report(self, report):
+        if len(report) == 0:
+            raise serializers.ValidationError(
+                "Report object should contain at least one section."
+            )
+
+        return report
+
+
+@extend_schema_field(serializers.ListField(child=ReportSectionSerializer()))
+class ResourceReportField(serializers.JSONField):
+    pass
+
+
 class ServiceProviderSerializer(
     core_serializers.RestrictedSerializerMixin,
     core_serializers.AugmentedSerializerMixin,
@@ -2633,7 +2655,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
     is_usage_based = serializers.ReadOnlyField(source="offering.is_usage_based")
     is_limit_based = serializers.ReadOnlyField(source="offering.is_limit_based")
     can_terminate = serializers.SerializerMethodField()
-    report = serializers.JSONField(read_only=True)
+    report = ResourceReportField(read_only=True)
     username = serializers.SerializerMethodField()
     limit_usage = serializers.SerializerMethodField()
     endpoints = NestedEndpointSerializer(many=True, read_only=True)
@@ -2879,23 +2901,6 @@ class ResourceSlugSerializer(serializers.ModelSerializer):
 
 class ResourceStateSerializer(serializers.Serializer):
     state = serializers.ChoiceField(["ok", "erred", "terminated"])
-
-
-class ReportSectionSerializer(serializers.Serializer):
-    header = serializers.CharField()
-    body = serializers.CharField()
-
-
-class ResourceReportSerializer(serializers.Serializer):
-    report = ReportSectionSerializer(many=True)
-
-    def validate_report(self, report):
-        if len(report) == 0:
-            raise serializers.ValidationError(
-                "Report object should contain at least one section."
-            )
-
-        return report
 
 
 class ResourceOptionsSerializer(serializers.ModelSerializer):
