@@ -1336,13 +1336,18 @@ class SetMtuSerializer(serializers.Serializer):
         return network
 
 
+@extend_schema_field(serializers.ListField(child=serializers.IPAddressField()))
+class DnsNameserversField(serializers.JSONField):
+    pass
+
+
 class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializer):
     cidr = serializers.CharField(
         required=False,
         initial="192.168.42.0/24",
         label="CIDR",
     )
-    allocation_pools = serializers.JSONField(read_only=True)
+    allocation_pools = OpenStackSubNetAllocationPoolField(read_only=True)
     network_name = serializers.CharField(source="network.name", read_only=True)
     tenant = serializers.HyperlinkedRelatedField(
         source="network.tenant",
@@ -1351,7 +1356,7 @@ class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializ
         lookup_field="uuid",
     )
     tenant_name = serializers.CharField(source="network.tenant.name", read_only=True)
-    dns_nameservers = serializers.JSONField(required=False)
+    dns_nameservers = DnsNameserversField(required=False)
     host_routes = OpenStackStaticRouteSerializer(many=True, required=False)
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
@@ -1560,7 +1565,7 @@ class OpenStackNestedFloatingIPSerializer(
     subnet_name = serializers.ReadOnlyField(source="port.subnet.name")
     subnet_description = serializers.ReadOnlyField(source="port.subnet.description")
     subnet_cidr = serializers.ReadOnlyField(source="port.subnet.cidr")
-    port_fixed_ips = serializers.JSONField(source="port.fixed_ips", read_only=True)
+    port_fixed_ips = OpenStackFixedIpField(source="port.fixed_ips", read_only=True)
 
     class Meta:
         model = models.FloatingIP

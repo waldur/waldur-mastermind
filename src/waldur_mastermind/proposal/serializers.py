@@ -20,6 +20,7 @@ from waldur_mastermind.marketplace import permissions as marketplace_permissions
 from waldur_mastermind.marketplace.serializers import (
     BasePublicPlanSerializer,
     OfferingComponentSerializer,
+    OfferingOptionsField,
 )
 
 from . import models
@@ -79,12 +80,7 @@ class NestedRequestedOfferingSerializer(serializers.HyperlinkedModelSerializer):
     call_managing_organisation = serializers.ReadOnlyField(
         source="call.manager.customer.name"
     )
-    options = serializers.JSONField(
-        required=False,
-        default={"options": {}, "order": []},
-        read_only=True,
-        source="offering.options",
-    )
+    options = OfferingOptionsField(read_only=True, source="offering.options")
     plan_details = BasePublicPlanSerializer(read_only=True, source="plan")
     components = OfferingComponentSerializer(
         source="offering.components", many=True, read_only=True
