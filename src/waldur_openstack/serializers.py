@@ -1051,8 +1051,18 @@ class OpenStackTenantSerializer(structure_serializers.BaseResourceSerializer):
         return tenant
 
 
+class OpenStackSubNetAllocationPoolSerializer(serializers.Serializer):
+    start = serializers.IPAddressField()
+    end = serializers.IPAddressField()
+
+
+@extend_schema_field(OpenStackSubNetAllocationPoolSerializer(many=True))
+class OpenStackSubNetAllocationPoolField(serializers.JSONField):
+    pass
+
+
 class OpenStackNestedSubNetSerializer(serializers.ModelSerializer):
-    allocation_pools = serializers.JSONField(read_only=True)
+    allocation_pools = OpenStackSubNetAllocationPoolField(read_only=True)
 
     class Meta:
         model = models.SubNet
