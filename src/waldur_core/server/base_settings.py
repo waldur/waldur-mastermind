@@ -432,7 +432,7 @@ CONSTANCE_CONFIG = {
     ),
     "ENABLE_STRICT_CHECK_ACCEPTING_INVITATION": (
         False,
-        "If true and user email in Waldur and in invitatation must strictly match.",
+        "If true, user email in Waldur database and in invitatation must strictly match.",
     ),
     "INVITATION_DISABLE_MULTIPLE_ROLES": (
         False,
