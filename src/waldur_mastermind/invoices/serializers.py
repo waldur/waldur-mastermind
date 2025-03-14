@@ -143,6 +143,12 @@ class InvoiceItemDetailSerializer(serializers.HyperlinkedModelSerializer):
         return super().create(validated_data)
 
 
+class InvoiceItemTotalPriceSerializer(serializers.Serializer):
+    total_price = serializers.DecimalField(
+        max_digits=PRICE_MAX_DIGITS, decimal_places=PRICE_DECIMAL_PLACES
+    )
+
+
 class InvoiceItemUpdateSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = models.InvoiceItem

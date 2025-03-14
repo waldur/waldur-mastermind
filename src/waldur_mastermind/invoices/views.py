@@ -305,6 +305,21 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
     filterset_class = filters.InvoiceItemFilter
 
     @extend_schema(
+        responses={200: serializers.InvoiceItemTotalPriceSerializer},
+    )
+    @action(detail=False, methods=["get"], filterset_class=filters.InvoiceItemFilter)
+    def total_price(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        total_price = queryset.aggregate(
+            total_price=Sum(F("unit_price") * F("quantity"))
+        )["total_price"]
+        total_price = total_price or 0
+        serializer = serializers.InvoiceItemTotalPriceSerializer(
+            {"total_price": total_price}
+        )
+        return Response(serializer.data)
+
+    @extend_schema(
         request=serializers.InvoiceItemCompensationSerializer,
     )
     @transaction.atomic
