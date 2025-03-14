@@ -432,7 +432,7 @@ CONSTANCE_CONFIG = {
     ),
     "ENABLE_STRICT_CHECK_ACCEPTING_INVITATION": (
         False,
-        "If this is true and user email is pre-validated then accepting invitation to only do that if user's email and email of the invitation fully match.",
+        "If true and user email in Waldur and in invitatation must strictly match.",
     ),
     "INVITATION_DISABLE_MULTIPLE_ROLES": (
         False,
