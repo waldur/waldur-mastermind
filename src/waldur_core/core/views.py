@@ -713,11 +713,13 @@ class QueryViewSet(generics.GenericAPIView):
             f"User {user.full_name} / {user.uuid} executing query '{query}'",
         )
 
-        with connections["readonly"].cursor() as cursor:
-            cursor.execute(query)
-            data = cursor.fetchall()
-
-        return Response(data, status=status.HTTP_200_OK)
+        try:
+            with connections["readonly"].cursor() as cursor:
+                cursor.execute(query)
+                data = cursor.fetchall()
+                return Response(data, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 @extend_schema(
