@@ -307,7 +307,7 @@ class ErrorMessageTask(Task):
                 error_message = instance.error_message or self.result.result or ""
                 error_traceback = str(self.result.traceback)
             except AttributeError as ex:
-                error_message = f"Internal error: {ex.message}"
+                error_message = f"Internal error: {ex}"
                 error_traceback = traceback.format_exc()
 
             instance.error_message = error_message

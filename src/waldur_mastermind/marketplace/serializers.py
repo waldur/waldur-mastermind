@@ -242,6 +242,9 @@ class OpenstackSecretOptionsSerializer(serializers.Serializer):
         help_text="OpenStack IPv4 external IP mapping",
         many=True,
     )
+    openstack_api_tls_certificate = serializers.CharField(
+        required=False, validators=[core_validators.validate_x509_certificate]
+    )
 
 
 class GLAuthSecretOptionsSerializer(serializers.Serializer):
@@ -1891,9 +1894,12 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
 
     def _update_service_attributes(self, instance, validated_data):
         service_attributes = validated_data.pop("service_attributes", {})
-        if not service_attributes:
-            return
+        certificate = validated_data.get("secret_options", {}).get(
+            "openstack_api_tls_certificate"
+        )
+
         service_type = plugins.manager.get_service_type(instance.type)
+
         if not service_type:
             return
 
@@ -1905,6 +1911,16 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
                 shared=instance.shared,
             )
             instance.save()
+
+        if certificate:
+            instance.scope.options["certificate"] = certificate
+        else:
+            instance.scope.options.pop("certificate", None)
+
+        instance.scope.save()
+
+        if not service_attributes:
+            return
 
         options_serializer_class = get_options_serializer_class(service_type)
         options_serializer = options_serializer_class(
@@ -1920,7 +1936,7 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
         instance.scope.password = options_serializer.validated_data.get("password")
         instance.scope.domain = options_serializer.validated_data.get("domain")
         instance.scope.token = options_serializer.validated_data.get("token")
-        instance.scope.options = options_serializer.validated_data.get("options")
+        instance.scope.options.update(options_serializer.validated_data.get("options"))
         instance.scope.console_type = options_serializer.validated_data.get(
             "console_type"
         )

@@ -1,4 +1,5 @@
 import base64
+import datetime
 import json
 import os
 import tempfile
@@ -7,6 +8,11 @@ from unittest import mock
 
 import pkg_resources
 from constance.test.pytest import override_config
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.x509.oid import NameOID
 from ddt import data, ddt, idata
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import exceptions as rest_exceptions
@@ -1278,6 +1284,71 @@ class OfferingPartialUpdateTest(test.APITransactionTestCase):
 
         self.offering.refresh_from_db()
         self.assertEqual(self.offering.scope.password, "new_password")
+
+    def test_update_openstack_tenant_certificate(self):
+        self.offering.type = "OpenStack.Tenant"
+        self.offering.save()
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.OfferingFactory.get_url(self.offering, "update_integration")
+
+        # Generate a private key
+        private_key = rsa.generate_private_key(
+            public_exponent=65537, key_size=2048, backend=default_backend()
+        )
+
+        # Create a self-signed certificate
+        subject = issuer = x509.Name(
+            [
+                x509.NameAttribute(NameOID.COUNTRY_NAME, "US"),
+                x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, "California"),
+                x509.NameAttribute(NameOID.LOCALITY_NAME, "Sunnyvale"),
+                x509.NameAttribute(NameOID.ORGANIZATION_NAME, "MyCompany"),
+                x509.NameAttribute(NameOID.COMMON_NAME, "mycompany.com"),
+            ]
+        )
+        certificate = (
+            x509.CertificateBuilder()
+            .subject_name(subject)
+            .issuer_name(issuer)
+            .public_key(private_key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(datetime.datetime.utcnow())
+            .not_valid_after(datetime.datetime.utcnow() + datetime.timedelta(days=365))
+            .add_extension(
+                x509.SubjectAlternativeName([x509.DNSName("localhost")]),
+                critical=False,
+            )
+            .sign(private_key, hashes.SHA256(), default_backend())
+        )
+
+        # Convert the certificate to PEM format
+        valid_certificate = certificate.public_bytes(serialization.Encoding.PEM).decode(
+            "utf-8"
+        )
+
+        response = self.client.post(
+            url,
+            {"secret_options": {"openstack_api_tls_certificate": valid_certificate}},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        self.offering.refresh_from_db()
+        self.assertTrue(
+            self.offering.secret_options.get("openstack_api_tls_certificate")
+        )
+        self.assertTrue(self.offering.scope.options["certificate"])
+
+        response = self.client.post(
+            url,
+            {"secret_options": {}},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        self.offering.refresh_from_db()
+        self.assertFalse(
+            self.offering.secret_options.get("openstack_api_tls_certificate")
+        )
+        self.assertFalse(self.offering.scope.options.get("certificate"))
 
     @data("staff", "owner")
     def test_update_location(self, user):
