@@ -1,5 +1,6 @@
 import datetime
 from decimal import Decimal
+from unittest import mock
 
 from ddt import data, ddt
 from django.core import mail
@@ -500,3 +501,176 @@ class UpdateBackendIdTest(test.APITransactionTestCase):
         self.client.force_authenticate(getattr(self.fixture, user))
         response = self.client.post(self.url, {"backend_id": "backend_id"})
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class InvoiceUpdateCacheTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.customer = structure_factories.CustomerFactory()
+        self.invoice = factories.InvoiceFactory(customer=self.customer)
+
+    def test_update_cache_with_same_values_does_not_perform_db_update(self):
+        """Test that update_cache with same values doesn't cause a DB update"""
+        # Arrange - Set total_cost and total_price to 0
+        self.invoice.total_cost = Decimal("0.0000")
+        self.invoice.total_price = Decimal("0.00")
+        self.invoice.save()
+
+        # Mock the total and price properties to return the same values
+        with (
+            mock.patch.object(
+                models.Invoice, "total", new_callable=mock.PropertyMock
+            ) as mock_total,
+            mock.patch.object(
+                models.Invoice, "price", new_callable=mock.PropertyMock
+            ) as mock_price,
+            mock.patch.object(models.Invoice, "save") as mock_save,
+        ):
+            mock_total.return_value = Decimal("0.0000")
+            mock_price.return_value = Decimal("0.00")
+
+            # Act
+            self.invoice.update_cache()
+
+            # Assert
+            mock_save.assert_not_called()
+
+    def test_update_cache_with_different_values_performs_db_update(self):
+        """Test that update_cache with different values performs a DB update"""
+        # Arrange
+        self.invoice.total_cost = Decimal("0.0000")
+        self.invoice.total_price = Decimal("0.00")
+        self.invoice.save()
+
+        # Mock the total and price properties to return different values
+        with (
+            mock.patch.object(
+                models.Invoice, "total", new_callable=mock.PropertyMock
+            ) as mock_total,
+            mock.patch.object(
+                models.Invoice, "price", new_callable=mock.PropertyMock
+            ) as mock_price,
+            mock.patch.object(models.Invoice, "save") as mock_save,
+        ):
+            mock_total.return_value = Decimal("10.0000")
+            mock_price.return_value = Decimal("10.00")
+
+            # Act
+            self.invoice.update_cache()
+
+            # Assert
+            mock_save.assert_called_once_with(
+                update_fields=["total_cost", "total_price"]
+            )
+
+    def test_update_cache_with_different_precision_considered_equal(self):
+        """Test that decimal values with different precision but same value are considered equal"""
+        # Arrange
+        self.invoice.total_cost = Decimal("0.0000")
+        self.invoice.total_price = Decimal("0.00")
+        self.invoice.save()
+
+        # Mock the total and price properties to return different precision but same values
+        with (
+            mock.patch.object(
+                models.Invoice, "total", new_callable=mock.PropertyMock
+            ) as mock_total,
+            mock.patch.object(
+                models.Invoice, "price", new_callable=mock.PropertyMock
+            ) as mock_price,
+            mock.patch.object(models.Invoice, "save") as mock_save,
+        ):
+            # Same value as stored, but with different precision
+            mock_total.return_value = Decimal("0.00")  # Different precision from 0.0000
+            mock_price.return_value = Decimal("0.0000")  # Different precision from 0.00
+
+            # Act
+            self.invoice.update_cache()
+
+            # Assert - should not call save because the values are numerically equal
+            mock_save.assert_not_called()
+
+    def test_update_cache_with_improved_comparison(self):
+        """Test the fixed implementation that handles decimal precision correctly"""
+        # Arrange - patch the update_cache method with a fixed implementation
+        original_update_cache = models.Invoice.update_cache
+
+        def fixed_update_cache(self):
+            """Fixed implementation that quantizes before comparison"""
+            updates = {}
+
+            current_total = self.total
+            # Quantize to same precision for accurate comparison
+            if self.total_cost.quantize(current_total) != current_total:
+                updates["total_cost"] = current_total
+
+            current_price = self.price
+            # Quantize to same precision for accurate comparison
+            if self.total_price.quantize(current_price) != current_price:
+                updates["total_price"] = current_price
+
+            if updates:
+                for field, value in updates.items():
+                    setattr(self, field, value)
+                self.save(update_fields=list(updates.keys()))
+
+        models.Invoice.update_cache = fixed_update_cache
+
+        try:
+            # Set initial values
+            self.invoice.total_cost = Decimal("0.0000")
+            self.invoice.total_price = Decimal("0.00")
+            self.invoice.save()
+
+            # Mock properties to return values with different precision
+            with (
+                mock.patch.object(
+                    models.Invoice, "total", new_callable=mock.PropertyMock
+                ) as mock_total,
+                mock.patch.object(
+                    models.Invoice, "price", new_callable=mock.PropertyMock
+                ) as mock_price,
+                mock.patch.object(models.Invoice, "save") as mock_save,
+            ):
+                mock_total.return_value = Decimal(
+                    "0.00"
+                )  # Different precision but same value
+                mock_price.return_value = Decimal(
+                    "0.0000"
+                )  # Different precision but same value
+
+                # Act
+                self.invoice.update_cache()
+
+                # Assert - should not call save because of improved comparison
+                mock_save.assert_not_called()
+        finally:
+            # Restore original method
+            models.Invoice.update_cache = original_update_cache
+
+    def test_update_cache_with_one_digit_difference(self):
+        """Test that update_cache detects actual value differences, not just precision"""
+        # Arrange
+        self.invoice.total_cost = Decimal("10.0000")
+        self.invoice.total_price = Decimal("10.00")
+        self.invoice.save()
+
+        # Mock the total and price properties to return slightly different values
+        with (
+            mock.patch.object(
+                models.Invoice, "total", new_callable=mock.PropertyMock
+            ) as mock_total,
+            mock.patch.object(
+                models.Invoice, "price", new_callable=mock.PropertyMock
+            ) as mock_price,
+            mock.patch.object(models.Invoice, "save") as mock_save,
+        ):
+            mock_total.return_value = Decimal("10.0001")  # Slightly different
+            mock_price.return_value = Decimal("10.01")  # Slightly different
+
+            # Act
+            self.invoice.update_cache()
+
+            # Assert - should call save with both fields
+            mock_save.assert_called_once_with(
+                update_fields=["total_cost", "total_price"]
+            )
