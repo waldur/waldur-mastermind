@@ -1,4 +1,5 @@
 import logging
+from decimal import Decimal
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
@@ -631,7 +632,9 @@ def plan_component_has_been_updated(sender, instance, created=False, **kwargs):
             event_context={
                 "plan_component": instance,
                 "old_value": instance.tracker.previous("price"),
-                "new_value": instance.price,
+                "new_value": Decimal(instance.price)
+                if isinstance(instance.price, str)
+                else instance.price,
             },
         )
     if instance.tracker.has_changed("future_price"):
@@ -641,7 +644,9 @@ def plan_component_has_been_updated(sender, instance, created=False, **kwargs):
             event_context={
                 "plan_component": instance,
                 "old_value": instance.tracker.previous("future_price"),
-                "new_value": instance.future_price,
+                "new_value": Decimal(instance.future_price)
+                if isinstance(instance.future_price, str)
+                else instance.future_price,
             },
         )
     if instance.tracker.has_changed("amount"):
@@ -651,7 +656,9 @@ def plan_component_has_been_updated(sender, instance, created=False, **kwargs):
             event_context={
                 "plan_component": instance,
                 "old_value": instance.tracker.previous("amount"),
-                "new_value": instance.amount,
+                "new_value": Decimal(instance.amount)
+                if isinstance(instance.amount, str)
+                else instance.amount,
             },
         )
 
