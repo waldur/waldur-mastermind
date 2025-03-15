@@ -122,11 +122,23 @@ class Invoice(
         updates = {}
 
         current_total = self.total
-        if self.total_cost != current_total:
+        # Convert to Decimal if not already and compare numeric values
+        stored_total = (
+            decimal.Decimal(self.total_cost)
+            if not isinstance(self.total_cost, decimal.Decimal)
+            else self.total_cost
+        )
+        if stored_total != current_total:
             updates["total_cost"] = current_total
 
         current_price = self.price
-        if self.total_price != current_price:
+        # Convert to Decimal if not already and compare numeric values
+        stored_price = (
+            decimal.Decimal(self.total_price)
+            if not isinstance(self.total_price, decimal.Decimal)
+            else self.total_price
+        )
+        if stored_price != current_price:
             updates["total_price"] = current_price
 
         if updates:
