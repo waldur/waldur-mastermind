@@ -13,7 +13,7 @@ def split_subnets(apps, schema_editor):
     subnets = AccessSubnet.objects.all()
 
     for subnet in subnets:
-        if subnet.inet.prefixlen != 32:
+        if subnet.inet is not None and subnet.inet.prefixlen != 32:
             network = ipaddress.ip_network(subnet.inet, strict=False)
 
             for ip in network.hosts():
