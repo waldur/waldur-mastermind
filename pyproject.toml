@@ -43,7 +43,6 @@ jira = "2.0.0"
 lxml = "^4.6.5"
 pbr = "4.0.4"
 Pillow = "^11.0.0"
-psycopg2-binary = "2.9.5"
 pycountry = "22.3.5"
 PyJWT = "^2.3.0"
 pysaml2 = "7.3.0"
@@ -88,6 +87,7 @@ paho-mqtt = "2.1.0"
 whitenoise = "^6.9.0"
 drf-spectacular = "^0.28.0"
 drf-orjson-renderer = "^1.7.3"
+psycopg = {extras = ["binary"], version = "^3.2.6"}
 
 [tool.poetry.group.dev.dependencies]
 djangorestframework-stubs = {extras = ["compatible-mypy"], version = "^3.14.5"}
