@@ -4,13 +4,9 @@ import logging.handlers
 from waldur_core.server.base_settings import *
 
 # Debugging
-# See also:
-#  - https://docs.djangoproject.com/en/1.11/ref/settings/#debug
-#  - https://docs.djangoproject.com/en/1.11/ref/settings/#template-debug
 DEBUG = False
 
 # Allowed hosts
-# See also: https://docs.djangoproject.com/en/1.11/ref/settings/#allowed-hosts
 ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
 
 # Secret key
@@ -19,14 +15,12 @@ ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
 #
 #   head -c32 /dev/urandom | base64
 #
-# See also: https://docs.djangoproject.com/en/1.11/ref/settings/#secret-key
 SECRET_KEY = '...'
 
 # Databases
-# See also: https://docs.djangoproject.com/en/1.11/ref/settings/#databases
 DATABASES = {
      'default': {
-        'ENGINE': 'django.db.backends.postgresql_psycopg2',
+        'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'waldur',
         'USER': 'waldur',
         'PASSWORD': 'waldur',
@@ -37,18 +31,15 @@ DATABASES = {
 
 
 # The absolute path to the directory where collectstatic will collect static files for deployment.
-# See also: https://docs.djangoproject.com/en/1.11/ref/settings/#static-root
 STATIC_ROOT = 'static'
 
 # Logging
-# See also: https://docs.djangoproject.com/en/1.11/ref/settings/#logging
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,  # fixes Celery beat logging
 
     # Filters
     # Filter provides additional control over which log records are passed from logger to handler.
-    # See also: https://docs.djangoproject.com/en/1.11/topics/logging/#filters
     'filters': {
         # Filter out only events (user-facing messages)
         'is-event': {
@@ -62,7 +53,6 @@ LOGGING = {
 
     # Formatters
     # Formatter describes the exact format of the log entry.
-    # See also: https://docs.djangoproject.com/en/1.11/topics/logging/#formatters
     'formatters': {
         'message-only': {
             'format': '%(message)s',
@@ -74,7 +64,6 @@ LOGGING = {
 
     # Handlers
     # Handler determines what happens to each message in a logger.
-    # See also: https://docs.djangoproject.com/en/1.11/topics/logging/#handlers
     'handlers': {
         # Write logs to file
         # See also: https://docs.python.org/3/library/logging.handlers.html#watchedfilehandler
@@ -114,7 +103,6 @@ LOGGING = {
     # Loggers
     # A logger is the entry point into the logging system.
     # Each logger is a named bucket to which messages can be written for processing.
-    # See also: https://docs.djangoproject.com/en/1.11/topics/logging/#loggers
     #
     # Default logger configuration
     'root': {
