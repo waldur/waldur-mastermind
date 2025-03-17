@@ -17,7 +17,7 @@ DATABASES = {
 
 CELERY_BROKER_URL = "amqp://rabbimq:rabbimq@queue:5672"
 
-CELERY_RESULT_BACKEND = "db+postgresql://waldur:postgres@db:5423/postgres"
+CELERY_RESULT_BACKEND = f"db+postgresql+psycopg://{DATABASES['default']['USER']}:{DATABASES['default']['PASSWORD']}@{DATABASES['default']['HOST']}:{DATABASES['default']['PORT']}/{DATABASES['default']['NAME']}"
 
 STATIC_ROOT = "static"
 

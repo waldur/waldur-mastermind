@@ -30,6 +30,8 @@ DATABASES = {
 }
 
 
+CELERY_RESULT_BACKEND = f"db+postgresql+psycopg://{DATABASES['default']['USER']}:{DATABASES['default']['PASSWORD']}@{DATABASES['default']['HOST']}:{DATABASES['default']['PORT']}/{DATABASES['default']['NAME']}"
+
 # The absolute path to the directory where collectstatic will collect static files for deployment.
 STATIC_ROOT = 'static'
 
