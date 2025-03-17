@@ -593,7 +593,7 @@ Upload TypeScript SDK:
     - git config --global user.name "Waldur Gitlab Runner"
 
 Upload OpenAPI schema to docs:
-  stage: deploy
+  stage: postdeploy
   interruptible: true
   needs:
     - Generate OpenAPI schema
