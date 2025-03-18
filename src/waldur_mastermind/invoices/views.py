@@ -47,6 +47,50 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
             )
 
     @extend_schema(
+        summary="Get invoice items",
+        description="Retrieve a list of invoice items for the specified invoice.",
+        responses=serializers.InvoiceItemSerializer,
+        parameters=[
+            OpenApiParameter("query", str, OpenApiParameter.QUERY),
+            OpenApiParameter("provider_uuid", str, OpenApiParameter.QUERY),
+            OpenApiParameter("project_uuid", str, OpenApiParameter.QUERY),
+            OpenApiParameter("offering_uuid", str, OpenApiParameter.QUERY),
+            OpenApiParameter(
+                "conceal_compensation_items",
+                bool,
+                OpenApiParameter.QUERY,
+                description="Conceal compensation items",
+            ),
+        ],
+    )
+    @action(detail=True)
+    def items(self, request, uuid=None):
+        invoice = self.get_object()
+        queryset = invoice.items.all()
+        query = request.query_params.get("query", "").strip()
+        provider_uuid = request.query_params.get("provider_uuid", None)
+        project_uuid = request.query_params.get("project_uuid", None)
+        offering_uuid = request.query_params.get("offering_uuid", None)
+        conceal_compensation_items = (
+            request.query_params.get("conceal_compensation_items") == "true"
+        )
+
+        items = utils.filter_invoice_items(
+            queryset,
+            query,
+            provider_uuid,
+            project_uuid,
+            offering_uuid,
+            conceal_compensation_items,
+        )
+        serializer = serializers.InvoiceItemSerializer(
+            items, many=True, context={"request": request}
+        )
+        paginated_data = self.paginate_queryset(serializer.data)
+
+        return self.get_paginated_response(paginated_data)
+
+    @extend_schema(
         summary="Send invoice notification",
         description="Schedule sending of a notification for the specified invoice.",
     )
