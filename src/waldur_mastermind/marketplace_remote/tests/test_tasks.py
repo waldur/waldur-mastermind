@@ -6,6 +6,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.test import override_settings
 from django.utils import timezone
 from rest_framework import test
+from waldur_client import WaldurClientException
 
 from waldur_auth_social.models import ProviderChoices
 from waldur_core.core.utils import format_text, serialize_instance
@@ -541,3 +542,113 @@ class NotificationAboutProjectUpdatesTest(test.APITransactionTestCase):
         NotificationFactory(key=f"marketplace_remote.{event_type}")
         tasks.notify_about_project_details_update(serialized_project)
         self.assertEqual(len(mail.outbox), 2)
+
+
+class OfferingListPullTaskTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.offering = self.fixture.offering
+        self.offering.type = PLUGIN_NAME
+        self.offering.secret_options = {
+            "api_url": "https://example.com/",
+            "token": "token",
+        }
+        self.offering.save()
+
+    @mock.patch("waldur_mastermind.marketplace_remote.utils.WaldurClient")
+    @mock.patch("waldur_mastermind.marketplace_remote.tasks.logger")
+    def test_archived_offering_does_not_raise_exception(self, mock_logger, mock_client):
+        """
+        Test that archived offerings do not raise an exception when pulled.
+        """
+        # Set offering to archived state
+        self.offering.state = models.Offering.States.ARCHIVED
+        self.offering.save()
+
+        # Setup mock client
+        mock_client_instance = mock_client.return_value
+        mock_client_instance.get_marketplace_public_offering.side_effect = WaldurClientException(
+            "Status: 404. Reason: Not Found. {'detail': 'No Offering matches the given query.'}."
+        )
+
+        # Pull offerings
+        pulled_objects = tasks.OfferingListPullTask().get_pulled_objects()
+
+        # Check that the offering was pulled
+        self.assertEqual(
+            list(pulled_objects),
+            [self.offering],
+            f"Offering {self.offering.id} should be pulled but got: {pulled_objects}",
+        )
+
+        # Check that the pull call was made
+        task = tasks.OfferingPullTask()
+        task.pull(self.offering)
+        mock_client_instance.get_marketplace_public_offering.assert_called_once()
+
+        # Check that the offering is still archived
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.state, models.Offering.States.ARCHIVED)
+
+        # Check that the logger was called with the correct arguments
+        mock_logger.debug.assert_called_once_with(
+            "Offering %s is archived: ", self.offering
+        )
+
+    @mock.patch("waldur_mastermind.marketplace_remote.utils.WaldurClient")
+    @mock.patch("waldur_mastermind.marketplace_remote.tasks.logger")
+    def test_active_offering_that_does_not_exist_raises_warning(
+        self, mock_logger, mock_client
+    ):
+        """
+        Test that active offerings that do not exist raise an exception when pulled.
+        """
+        # Set offering to active state
+        self.offering.state = models.Offering.States.ACTIVE
+        self.offering.save()
+
+        # Setup mock client
+        mock_client_instance = mock_client.return_value
+        mock_client_instance.get_marketplace_public_offering.side_effect = WaldurClientException(
+            "Status: 404. Reason: Not Found. {'detail': 'No Offering matches the given query.'}."
+        )
+
+        # Pull offerings
+        pulled_objects = tasks.OfferingListPullTask().get_pulled_objects()
+
+        # Check that the offering was pulled
+        self.assertEqual(
+            list(pulled_objects),
+            [self.offering],
+            f"Offering {self.offering.id} should be pulled but got: {pulled_objects}",
+        )
+
+        # Check that the pull call was made
+        task = tasks.OfferingPullTask()
+        task.pull(self.offering)
+        mock_client_instance.get_marketplace_public_offering.assert_called_once()
+
+        # Check that the offering is set to archived
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.state, models.Offering.States.ARCHIVED)
+
+        # Check that the logger was called with the correct arguments
+        mock_logger.warning.assert_called_once()
+
+    def test_active_offering_is_pulled(self):
+        """
+        Test that active offerings are pulled by remote pull task.
+        """
+        # Set offering to active state
+        self.offering.state = models.Offering.States.ACTIVE
+        self.offering.save()
+
+        # Pull offerings
+        pulled_objects = tasks.OfferingListPullTask().get_pulled_objects()
+
+        # Check that offering is pulled
+        self.assertEqual(
+            list(pulled_objects),
+            [self.offering],
+            f"{self.offering.id} should be pulled but got: {pulled_objects}",
+        )
