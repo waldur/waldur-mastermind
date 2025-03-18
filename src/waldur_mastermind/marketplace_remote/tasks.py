@@ -73,13 +73,15 @@ class OfferingPullTask(BackgroundPullTask):
             self.sync_plans(local_offering, remote_offering)
             self.sync_access_endpoints(local_offering, remote_offering)
         except WaldurClientException as exc:
-            logger.exception(exc)
-            if (
-                "Status: 404" in str(exc)
-                and local_offering.state == models.Offering.States.ACTIVE
-            ):
-                local_offering.archive()
-                local_offering.save(update_fields=["state"])
+            if "Status: 404" in str(exc):
+                if local_offering.state == models.Offering.States.ACTIVE:
+                    local_offering.archive()
+                    local_offering.save(update_fields=["state"])
+                    logger.warning(exc)
+                if local_offering.state == models.Offering.States.ARCHIVED:
+                    logger.debug("Offering %s is archived: ", local_offering)
+            else:
+                logger.exception(exc)
 
     def sync_access_endpoints(self, local_offering, remote_offering):
         if not remote_offering.get("endpoints"):
