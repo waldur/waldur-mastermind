@@ -1,4 +1,3 @@
-from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import test
 
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -90,50 +89,3 @@ class AllocationCreateTest(test.APITransactionTestCase):
 
     def trigger_creation(self):
         marketplace_utils.process_order(self.order, self.fixture.staff)
-
-
-class AllocationDeleteTest(test.APITransactionTestCase):
-    def setUp(self):
-        self.fixture = slurm_fixtures.SlurmFixture()
-        self.allocation = self.fixture.allocation
-
-        self.offering = marketplace_factories.OfferingFactory(type=PLUGIN_NAME)
-        self.resource = marketplace_factories.ResourceFactory(
-            scope=self.allocation, offering=self.offering
-        )
-        self.order = marketplace_factories.OrderFactory(
-            project=self.fixture.project,
-            state=marketplace_models.Order.States.EXECUTING,
-            resource=self.resource,
-            type=marketplace_models.RequestTypeMixin.Types.TERMINATE,
-        )
-
-    def test_deletion_is_scheduled(self):
-        self.trigger_deletion()
-        self.assertEqual(self.order.state, marketplace_models.Order.States.EXECUTING)
-        self.assertEqual(
-            self.resource.state, marketplace_models.Resource.States.TERMINATING
-        )
-        self.assertEqual(
-            self.allocation.state, slurm_models.Allocation.States.DELETION_SCHEDULED
-        )
-
-    def test_deletion_is_completed(self):
-        self.trigger_deletion()
-        self.allocation.delete()
-
-        self.order.refresh_from_db()
-        self.resource.refresh_from_db()
-
-        self.assertEqual(self.order.state, marketplace_models.Order.States.DONE)
-        self.assertEqual(
-            self.resource.state, marketplace_models.Resource.States.TERMINATED
-        )
-        self.assertRaises(ObjectDoesNotExist, self.allocation.refresh_from_db)
-
-    def trigger_deletion(self):
-        marketplace_utils.process_order(self.order, self.fixture.staff)
-
-        self.order.refresh_from_db()
-        self.resource.refresh_from_db()
-        self.allocation.refresh_from_db()

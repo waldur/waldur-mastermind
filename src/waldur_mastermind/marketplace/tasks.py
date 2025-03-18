@@ -259,6 +259,54 @@ def terminate_resources_if_project_end_date_has_been_reached():
         )
 
 
+@shared_task(
+    name="waldur_mastermind.marketplace.terminate_resources_in_state_erred_without_backend_id_and_failed_terminate_order"
+)
+def terminate_resources_in_state_erred_without_backend_id_and_failed_terminate_order():
+    termination_offerings_types = ["Marketplace.Slurm"]
+    resources = models.Resource.objects.filter(
+        state=models.Resource.States.ERRED,
+        backend_id="",
+        offering__type__in=termination_offerings_types,
+    )
+    # Get the uuids of resources that have a failed creation order
+    failed_creation_resources = (
+        models.Order.objects.filter(
+            resource__in=resources,
+            type=models.Order.Types.CREATE,
+            state=models.Order.States.ERRED,
+        )
+        .order_by("-created")
+        .values_list("resource__uuid", flat=True)
+    )
+
+    # Get the uuids of resources that have a failed latest termination order
+    resources_with_last_termination_order_erred = (
+        models.Order.objects.filter(
+            resource__in=resources,
+            type=models.Order.Types.TERMINATE,
+            state=models.Order.States.ERRED,
+        )
+        .order_by("-created")
+        .values_list("resource__uuid", flat=True)
+    )
+
+    # Get the uuids of resources that have a failed creation order and the latest termination order is in ERRED state
+    uuids_resources_to_terminate = list(
+        set(failed_creation_resources)
+        & set(resources_with_last_termination_order_erred)
+    )
+
+    # Get the resources that have a failed creation order and the latest termination order is in ERRED state
+    resources_to_terminate = models.Resource.objects.filter(
+        uuid__in=uuids_resources_to_terminate
+    )
+    logger.info(f"Resources to delete during daily cleanup: {resources_to_terminate}")
+    # Delete the resources, associated orders should be deleted automatically due to CASCADE delete
+    for resource in resources_to_terminate:
+        resource.delete()
+
+
 @shared_task(name="waldur_mastermind.marketplace.notify_about_stale_resource")
 def notify_about_stale_resource():
     if not config.ENABLE_STALE_RESOURCE_NOTIFICATIONS:
