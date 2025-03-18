@@ -221,10 +221,13 @@ class IssueSerializer(
         return fields
 
     def get_resource_type(self, obj) -> str:
-        if isinstance(obj.resource, structure_models.BaseResource):
-            return get_resource_type(obj.resource_content_type.model_class())
-        if isinstance(obj.resource, marketplace_models.Resource):
-            return "Marketplace.Resource"
+        try:
+            if isinstance(obj.resource, structure_models.BaseResource):
+                return get_resource_type(obj.resource_content_type.model_class())
+            if isinstance(obj.resource, marketplace_models.Resource):
+                return "Marketplace.Resource"
+        except AttributeError:
+            return ""
 
     def get_update_is_available(self, obj) -> bool:
         return backend.get_active_backend().update_is_available(obj)
