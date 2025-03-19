@@ -190,6 +190,11 @@ class ProjectFilter(NameFilterSet):
     )
 
     description = django_filters.CharFilter(lookup_expr="icontains")
+    conceal_ended_projects = django_filters.BooleanFilter(
+        widget=BooleanWidget,
+        method="filter_conceal_ended_projects",
+        label="Conceal ended projects",
+    )
 
     query = django_filters.CharFilter(method="filter_query")
 
@@ -266,6 +271,11 @@ class ProjectFilter(NameFilterSet):
                 | Q(resource__effective_id__iexact=value)
             )
         return queryset.distinct()
+
+    def filter_conceal_ended_projects(self, queryset, name, value):
+        if value:
+            return queryset.exclude(end_date__lt=timezone.now())
+        return queryset
 
 
 def filter_visible_users(queryset, user, extra=None):
