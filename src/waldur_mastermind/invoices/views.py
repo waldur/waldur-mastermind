@@ -86,9 +86,7 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
         serializer = serializers.InvoiceItemSerializer(
             items, many=True, context={"request": request}
         )
-        paginated_data = self.paginate_queryset(serializer.data)
-
-        return self.get_paginated_response(paginated_data)
+        return Response(serializer.data)
 
     @extend_schema(
         summary="Send invoice notification",
