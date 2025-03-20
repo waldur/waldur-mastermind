@@ -1,0 +1,1 @@
+Your order to {{ order_type }} a resource {{ order.resource.name }} has been rejected.

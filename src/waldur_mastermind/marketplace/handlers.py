@@ -1072,6 +1072,9 @@ def set_order_completion_timestamp(sender, instance, created=False, **kwargs):
         order.completed_at = now()
         order.save(update_fields=["completed_at"])
 
+        if order.state == models.Order.States.REJECTED:
+            tasks.notify_user_that_order_been_rejected.delay(order.uuid.hex)
+
 
 def log_offering_role_created_or_updated(sender, instance, created=False, **kwargs):
     if created:

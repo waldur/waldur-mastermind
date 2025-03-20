@@ -2518,3 +2518,16 @@ class RefreshOfferingUsernamesTest(test.APITransactionTestCase):
 
         response = self.client.post(url)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class OrderNotificationTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.order = factories.OrderFactory(state=models.Order.States.PENDING_PROVIDER)
+
+    @mock.patch(
+        "waldur_mastermind.marketplace.tasks.notify_user_that_order_been_rejected.delay"
+    )
+    def test_notify_user_when_order_rejected(self, mock_notify):
+        self.order.state = models.Order.States.REJECTED
+        self.order.save()
+        mock_notify.assert_called_once_with(self.order.uuid.hex)
