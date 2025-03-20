@@ -564,3 +564,39 @@ def mark_resources_as_erred_after_timeout():
         if scope:
             scope.set_erred()
             scope.save(update_fields=["state"])
+
+
+@shared_task
+def notify_user_that_order_been_rejected(order_uuid):
+    try:
+        order: models.Order = models.Order.objects.get(uuid=order_uuid)
+    except models.Order.DoesNotExist:
+        logger.warning(
+            f"Cannot send rejection notification: Order {order_uuid} not found."
+        )
+        return
+
+    if not order.created_by.email:
+        logger.warning(
+            f"Cannot send rejection notification: Order {order_uuid} has no valid user email."
+        )
+        return
+
+    link = core_utils.format_homeport_link(
+        "marketplace-order-details/{order_uuid}/",
+        order_uuid=order.uuid,
+    )
+
+    context = {
+        "order_url": link,
+        "order": order,
+        "site_name": config.SITE_NAME,
+        "order_type": order.get_type_display().lower(),
+    }
+
+    core_utils.broadcast_mail(
+        "marketplace",
+        "notification_to_user_that_order_been_rejected",
+        context,
+        [order.created_by.email],
+    )

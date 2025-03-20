@@ -82,6 +82,49 @@ class NotificationTest(test.APITransactionTestCase):
         self.assertTrue(resource.name in mail.outbox[0].body)
         self.assertTrue(resource.name in mail.outbox[0].subject)
 
+    @patch("waldur_mastermind.marketplace.tasks.core_utils.broadcast_mail")
+    def test_notify_user_that_order_been_rejected(self, mock_broadcast_mail):
+        """
+        Test that when an order is rejected, a notification is sent to the user who created the order.
+
+        This test verifies:
+        1. The notification task is called with the correct template
+        2. The email is sent to the user who created the order
+        3. The context contains the necessary information about the rejected order
+        """
+        fixture = fixtures.MarketplaceFixture()
+        order = fixture.order
+
+        # Call the task that sends the notification
+        tasks.notify_user_that_order_been_rejected(order.uuid.hex)
+
+        # Verify that broadcast_mail was called
+        mock_broadcast_mail.assert_called_once(), "Notification email was not sent"
+
+        # Verify the correct template was used
+        self.assertEqual(
+            mock_broadcast_mail.call_args[0][1],
+            "notification_to_user_that_order_been_rejected",
+            "Wrong email template was used for notification",
+        )
+
+        # Verify the email was sent to the user who created the order
+        recipients = mock_broadcast_mail.call_args[0][3]
+        self.assertEqual(len(recipients), 1, "There should be exactly one recipient")
+        self.assertEqual(
+            recipients[0],
+            order.created_by.email,
+            "Notification was not sent to the user who created the order",
+        )
+
+        # Verify the context contains the necessary information
+        context = mock_broadcast_mail.call_args[0][2]
+        self.assertIn("order", context, "Context is missing the order object")
+        self.assertEqual(context["order"], order, "Context contains wrong order object")
+        self.assertIn("order_url", context, "Context is missing the order URL")
+        self.assertIn("site_name", context, "Context is missing the site name")
+        self.assertIn("order_type", context, "Context is missing the order type")
+
 
 class ResourceEndDateTest(test.APITransactionTestCase):
     def test_notify_about_resource_scheduled_termination(self):
