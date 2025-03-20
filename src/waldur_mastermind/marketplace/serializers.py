@@ -3158,7 +3158,12 @@ class ComponentUserUsageSerializer(
             registrators as slurm_registrators,
         )
 
-        if instance.component_usage.plan_period.plan.offering.type != SLURM_PLUGIN_NAME:
+        # The first check ensures that the second one doesn't fail is the plan period is None
+        if (
+            instance.component_usage.plan_period is None
+            or instance.component_usage.plan_period.plan.offering.type
+            != SLURM_PLUGIN_NAME
+        ):
             return instance.usage
 
         converted_usage = slurm_registrators.SlurmRegistrator.convert_quantity(
