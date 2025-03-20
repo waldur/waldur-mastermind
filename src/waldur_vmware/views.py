@@ -208,7 +208,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
         request=None,
         description="This endpoint provides access to Virtual Machine Remote Console aka VMRC.",
         responses=ConsoleUrlSerializer,
-        parameters=[],
+        filters=False,
     )
     @action(detail=True, methods=["get"])
     def console(self, request, uuid=None):
@@ -229,7 +229,7 @@ class VirtualMachineViewSet(structure_views.ResourceViewSet):
         request=None,
         responses=ConsoleUrlSerializer,
         description="This endpoint provides access to HTML Console aka WMKS.",
-        parameters=[],
+        filters=False,
     )
     @action(detail=True, methods=["get"])
     def web_console(self, request, uuid=None):

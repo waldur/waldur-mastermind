@@ -100,7 +100,7 @@ class ClusterViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
 
     @extend_schema(
         request=None,
-        parameters=[],
+        filters=False,
         description="Returns kubeconfig file for the cluster.",
     )
     @decorators.action(detail=True, methods=["get"])
@@ -290,7 +290,7 @@ class NodeViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
     @extend_schema(
         description="Returns console URL for the node.",
         responses=ConsoleUrlSerializer,
-        parameters=[],
+        filters=False,
     )
     @decorators.action(detail=True, methods=["get"])
     def console(self, request, uuid=None):
@@ -319,6 +319,7 @@ class NodeViewSet(OptionalReadonlyViewset, structure_views.ResourceViewSet):
         description="Returns console log for the node.",
         responses={200: str, 404: None},
         parameters=[OpenApiParameter("length", int, OpenApiParameter.QUERY)],
+        filters=False,
     )
     @decorators.action(detail=True, methods=["get"])
     def console_log(self, request, uuid=None):
@@ -468,7 +469,7 @@ class ProjectViewSet(structure_views.BaseServicePropertyViewSet):
     filterset_class = filters.ProjectFilter
     lookup_field = "uuid"
 
-    @extend_schema(parameters=[])
+    @extend_schema(filters=False, description="Returns project's secrets.")
     @decorators.action(detail=True, methods=["get"])
     def secrets(self, request, uuid=None):
         project = self.get_object()

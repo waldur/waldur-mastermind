@@ -24,7 +24,7 @@ class GoogleAuthViewSet(core_views.ReadOnlyActionsViewSet):
     serializer_class = serializers.GoogleCredentialsSerializer
     lookup_field = "uuid"
 
-    @extend_schema(parameters=[])
+    @extend_schema(filters=False)
     @action(detail=True, methods=["get"])
     def authorize(self, request, uuid=None):
         service_provider = self.get_object()

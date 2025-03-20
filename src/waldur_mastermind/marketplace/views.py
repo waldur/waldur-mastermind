@@ -138,7 +138,7 @@ class PublicViewsetMixin:
 
 
 class ConnectedOfferingDetailsMixin:
-    @extend_schema(responses=serializers.PublicOfferingDetailsSerializer, parameters=[])
+    @extend_schema(responses=serializers.PublicOfferingDetailsSerializer, filters=False)
     @action(detail=True, methods=["get"])
     def offering(self, request, *args, **kwargs):
         requested_object = self.get_object()
@@ -164,7 +164,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         responses={
             status.HTTP_200_OK: serializers.ServiceProviderApiSecretCodeSerializer
         },
-        parameters=[],
+        filters=False,
         methods=["GET"],
     )
     @extend_schema(
@@ -226,7 +226,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         description="Return customers of service provider.",
         request=None,
         responses=serializers.ProviderCustomerSerializer(many=True),
-        parameters=[],
+        filters=False,
     )
     @action(detail=True, methods=["GET"])
     def customers(self, request, uuid=None):
@@ -253,7 +253,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
 
     @extend_schema(
         responses=serializers.ProviderCustomerProjectSerializer(many=True),
-        parameters=[],
+        filters=False,
     )
     @action(detail=True, methods=["GET"])
     def customer_projects(self, request, uuid=None):
@@ -286,7 +286,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         description="Return projects of service provider.",
         request=None,
         responses=structure_serializers.ProjectSerializer(many=True),
-        parameters=[],
+        filters=False,
     )
     @action(detail=True, methods=["GET"])
     def projects(self, request, uuid=None):
@@ -308,7 +308,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
     @extend_schema(
         request=None,
         responses=structure_serializers.ProjectPermissionLogSerializer(many=True),
-        parameters=[],
+        filters=False,
     )
     @action(detail=True, methods=["GET"])
     def project_permissions(self, request, uuid=None):
@@ -334,7 +334,8 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
     ]
 
     @extend_schema(
-        responses=structure_serializers.SshKeySerializer(many=True), parameters=[]
+        responses=structure_serializers.SshKeySerializer(many=True),
+        filters=False,
     )
     @action(detail=True, methods=["GET"])
     def keys(self, request, uuid=None):
@@ -354,7 +355,8 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
     ]
 
     @extend_schema(
-        responses=serializers.DetailedProviderUserSerializer(many=True), parameters=[]
+        responses=serializers.DetailedProviderUserSerializer(many=True),
+        filters=False,
     )
     @action(detail=True, methods=["GET"])
     def users(self, request, uuid=None):
@@ -378,7 +380,8 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
     ]
 
     @extend_schema(
-        responses=serializers.ProviderCustomerSerializer(many=True), parameters=[]
+        responses=serializers.ProviderCustomerSerializer(many=True),
+        filters=False,
     )
     @action(detail=True, methods=["GET"])
     def user_customers(self, request, uuid=None):
@@ -612,6 +615,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
                 many=True,
             ),
         ],
+        filters=False,
     )
     @action(detail=True, methods=["GET"])
     def offerings(self, request, uuid=None):
@@ -638,7 +642,8 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
     ]
 
     @extend_schema(
-        responses=serializers.ServiceProviderStatisticsSerializer, parameters=[]
+        responses=serializers.ServiceProviderStatisticsSerializer,
+        filters=False,
     )
     @action(detail=True, methods=["GET"])
     def stat(self, request, uuid=None):
@@ -725,7 +730,8 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
     ]
 
     @extend_schema(
-        responses=serializers.ServiceProviderRevenues(many=True), parameters=[]
+        responses=serializers.ServiceProviderRevenues(many=True),
+        filters=False,
     )
     @action(detail=True, methods=["GET"])
     def revenue(self, request, uuid=None):
@@ -762,6 +768,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
                 name="customer_name", type=str, location=OpenApiParameter.QUERY
             ),
         ],
+        filters=False,
     )
     @action(detail=True, methods=["GET"])
     def robot_account_customers(self, request, uuid=None):
@@ -794,6 +801,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
                 name="project_name", type=str, location=OpenApiParameter.QUERY
             ),
         ],
+        filters=False,
     )
     @action(detail=True, methods=["GET"])
     def robot_account_projects(self, request, uuid=None):
@@ -1169,7 +1177,7 @@ class ProviderOfferingViewSet(
         super().perform_create(serializer)
 
     @extend_schema(
-        parameters=[],
+        filters=False,
         description="List importable resources for offering.",
         request=None,
         responses=serializers.ImportableResourceSerializer(many=True),
@@ -1810,6 +1818,7 @@ class ProviderOfferingViewSet(
                 required=True,
             ),
         ],
+        filters=False,
     )
     @action(detail=True, methods=["GET"])
     def user_has_resource_access(self, request, uuid=None):
@@ -2031,7 +2040,7 @@ class ProviderOfferingViewSet(
     @extend_schema(
         request=None,
         responses=structure_serializers.ProjectSerializer(many=True),
-        parameters=[],
+        filters=False,
     )
     @action(detail=True, methods=["GET"])
     def list_customer_projects(self, request, uuid=None):
@@ -2053,7 +2062,7 @@ class ProviderOfferingViewSet(
     @extend_schema(
         responses=structure_serializers.UserSerializer(many=True),
         request=None,
-        parameters=[],
+        filters=False,
     )
     @action(detail=True, methods=["GET"])
     def list_customer_users(self, request, uuid=None):
@@ -2124,7 +2133,8 @@ class PublicOfferingViewSet(rf_viewsets.ReadOnlyModelViewSet):
         return self.queryset.filter_by_ordering_availability_for_user(user)
 
     @extend_schema(
-        responses=serializers.BasePublicPlanSerializer(many=True), parameters=[]
+        responses=serializers.BasePublicPlanSerializer(many=True),
+        filters=False,
     )
     @action(detail=True, methods=["get"], filter_backends=[], pagination_class=None)
     def plans(self, request, uuid=None):
@@ -2841,7 +2851,9 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         )
         return super().list(request, *args, **kwargs)
 
-    @extend_schema(parameters=[])
+    @extend_schema(
+        filters=False,
+    )
     @action(detail=True, methods=["get"])
     def details(self, request, uuid=None):
         resource = self.get_object()
@@ -2928,7 +2940,7 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
     @extend_schema(
         request=None,
         responses=serializers.ResourcePlanPeriodSerializer(many=True),
-        parameters=[],
+        filters=False,
     )
     @action(detail=True, methods=["get"], pagination_class=None)
     def plan_periods(self, request, uuid=None):
@@ -3115,7 +3127,7 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         return Response(response_text)
 
     @extend_schema(
-        parameters=[], responses=serializers.SubresourceOfferingSerializer(many=True)
+        filters=False, responses=serializers.SubresourceOfferingSerializer(many=True)
     )
     @action(detail=True, methods=["get"], pagination_class=None)
     def offering_for_subresources(self, request, uuid=None):
@@ -3138,7 +3150,7 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         description="Return users connected to the project.",
         request=None,
         responses=serializers.ProjectUserSerializer(many=True),
-        parameters=[],
+        filters=False,
     )
     @action(detail=True, methods=["get"], filter_backends=[], pagination_class=None)
     def team(self, request, uuid=None):

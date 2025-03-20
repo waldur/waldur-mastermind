@@ -196,6 +196,7 @@ class UserRoleMixin:
             ),
         ],
         responses=serializers.UserRoleDetailsSerializer(many=True),
+        filters=False,
     )
     @action(detail=True, methods=["GET"])
     def list_users(self, request, uuid=None):

@@ -165,6 +165,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         request=None,
         responses=serializers.RequestedOfferingSerializer(many=True),
         description="List offerings for a call.",
+        filters=False,
     )
     @extend_schema(
         methods=["post"],
@@ -244,7 +245,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         request=None,
         responses=serializers.ProtectedRoundSerializer(many=True),
         description="List rounds for a call.",
-        parameters=[],
+        filters=False,
     )
     @extend_schema(
         methods=["post"],
@@ -516,7 +517,7 @@ class ProposalViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         request=None,
         responses=serializers.RequestedResourceSerializer(many=True),
         description="List resources for a proposal.",
-        parameters=[],
+        filters=False,
     )
     @extend_schema(
         methods=["post"],

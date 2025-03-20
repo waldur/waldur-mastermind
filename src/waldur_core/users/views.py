@@ -256,7 +256,7 @@ class GroupInvitationViewSet(ProtectedViewSet):
             many=True, read_only=True
         ),
         description="Return projects for group invitation",
-        parameters=[],
+        filters=False,
     )
     @action(detail=True, methods=["get"], filter_backends=[])
     def projects(self, request, uuid=None):

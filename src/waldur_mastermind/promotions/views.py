@@ -72,7 +72,7 @@ class CampaignViewSet(core_views.ActionsViewSet):
         request=None,
         responses=marketplace_serializers.OrderDetailsSerializer(many=True),
         description="Return a list of orders for which the campaign is applied.",
-        parameters=[],
+        filters=False,
     )
     @action(detail=True, methods=["get"])
     def orders(self, request, uuid=None):
@@ -90,7 +90,7 @@ class CampaignViewSet(core_views.ActionsViewSet):
         request=None,
         responses=marketplace_serializers.ResourceSerializer(many=True),
         description="Return a list of resources for which the campaign is applied.",
-        parameters=[],
+        filters=False,
     )
     @action(detail=True, methods=["get"])
     def resources(self, request, uuid=None):

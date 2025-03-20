@@ -1023,7 +1023,7 @@ class SnapshotViewSet(structure_views.ResourceViewSet):
         description="Get a list of snapshot restorations",
         request=None,
         responses=serializers.OpenStackSnapshotRestorationSerializer(many=True),
-        parameters=[],
+        filters=False,
     )
     @decorators.action(detail=True, methods=["get"])
     def restorations(self, request, uuid=None):
@@ -1339,7 +1339,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         description="Get a list of instance ports",
         request=None,
         responses=serializers.OpenStackNestedPortSerializer(many=True),
-        parameters=[],
+        filters=False,
     )
     @decorators.action(detail=True, methods=["get"])
     def ports(self, request, uuid=None):
@@ -1378,7 +1378,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         description="Get a list of instance floating IPs",
         request=None,
         responses=serializers.OpenStackInstanceFloatingIpsSerializer,
-        parameters=[],
+        filters=False,
     )
     @decorators.action(detail=True, methods=["get"])
     def floating_ips(self, request, uuid=None):
@@ -1395,7 +1395,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         description="Get console url for the instance",
         request=None,
         responses=ConsoleUrlSerializer,
-        parameters=[],
+        filters=False,
     )
     @decorators.action(detail=True, methods=["get"])
     def console(self, request, uuid=None):
@@ -1429,6 +1429,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         parameters=[OpenApiParameter("length", int, OpenApiParameter.QUERY)],
         request=None,
         responses={200: str},
+        filters=False,
     )
     @decorators.action(detail=True, methods=["get"])
     def console_log(self, request, uuid=None):

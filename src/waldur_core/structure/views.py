@@ -612,7 +612,7 @@ class UserViewSet(core_views.ActionsViewSet):
     @extend_schema(
         request=serializers.UserAuthTokenSerializer,
         responses=serializers.UserAuthTokenSerializer,
-        parameters=[],
+        filters=False,
     )
     @action(detail=True, methods=["get"])
     def token(self, request, uuid=None):
