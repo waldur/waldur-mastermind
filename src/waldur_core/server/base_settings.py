@@ -446,8 +446,8 @@ CONSTANCE_CONFIG = {
         "It is used as default page title if it's not specified explicitly.",
     ),
     "BRAND_COLOR": (
-        "#3a8500",
-        "Hex color definition is used in HomePort landing page for login button.",
+        "#307300",
+        "Brand color is used for button background.",
         "color_field",
     ),
     "HERO_LINK_LABEL": (
