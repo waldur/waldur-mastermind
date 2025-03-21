@@ -766,6 +766,8 @@ class ProposalSerializer(
     oecd_fos_2007_label = serializers.ReadOnlyField(
         source="get_oecd_fos_2007_code_display"
     )
+    created_by_name = serializers.ReadOnlyField(source="created_by.full_name")
+    created_by_uuid = serializers.UUIDField(source="created_by.uuid", read_only=True)
 
     class Meta:
         model = models.Proposal
@@ -781,6 +783,8 @@ class ProposalSerializer(
             "state",
             "approved_by",
             "created_by",
+            "created_by_name",
+            "created_by_uuid",
             "duration_in_days",
             "project",
             "round",
