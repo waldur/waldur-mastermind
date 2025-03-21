@@ -1340,7 +1340,7 @@ class OfferingPartialUpdateTest(test.APITransactionTestCase):
 
         response = self.client.post(
             url,
-            {"secret_options": {}},
+            {"secret_options": {"openstack_api_tls_certificate": ""}},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 

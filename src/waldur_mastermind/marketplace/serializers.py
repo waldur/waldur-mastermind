@@ -243,7 +243,9 @@ class OpenstackSecretOptionsSerializer(serializers.Serializer):
         many=True,
     )
     openstack_api_tls_certificate = serializers.CharField(
-        required=False, validators=[core_validators.validate_x509_certificate]
+        allow_blank=True,
+        required=False,
+        validators=[core_validators.validate_x509_certificate],
     )
 
 
@@ -1953,9 +1955,23 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
                 lambda: ServiceSettingsCreateExecutor.execute(instance.scope)
             )
 
+    def _update_secret_options(self, instance, validated_data):
+        secret_options = validated_data.pop("secret_options", {})
+        for key, value in secret_options.items():
+            instance.secret_options[key] = value
+        instance.save()
+
+    def _update_plugin_options(self, instance, validated_data):
+        plugin_options = validated_data.pop("plugin_options", {})
+        for key, value in plugin_options.items():
+            instance.plugin_options[key] = value
+        instance.save()
+
     @transaction.atomic
     def update(self, instance, validated_data):
         self._update_service_attributes(instance, validated_data)
+        self._update_secret_options(instance, validated_data)
+        self._update_plugin_options(instance, validated_data)
         offering = super().update(instance, validated_data)
         return offering
 
