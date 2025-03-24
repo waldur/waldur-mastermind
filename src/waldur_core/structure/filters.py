@@ -170,7 +170,7 @@ class CustomerInFilter(django_filters.BaseInFilter, django_filters.UUIDFilter):
     pass
 
 
-class ProjectFilter(NameFilterSet):
+class ProjectFilter(core_filters.CreatedModifiedFilter, NameFilterSet):
     customer = CustomerInFilter(
         field_name="customer__uuid",
         lookup_expr="in",
@@ -233,6 +233,7 @@ class ProjectFilter(NameFilterSet):
             "customer_abbreviation",
             "description",
             "created",
+            "modified",
             "query",
             "backend_id",
         ]

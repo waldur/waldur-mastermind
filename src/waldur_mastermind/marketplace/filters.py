@@ -269,7 +269,9 @@ class ScreenshotFilter(OfferingFilterMixin, django_filters.FilterSet):
         fields = []
 
 
-class OrderFilter(OfferingFilterMixin, django_filters.FilterSet):
+class OrderFilter(
+    core_filters.CreatedModifiedFilter, OfferingFilterMixin, django_filters.FilterSet
+):
     query = django_filters.CharFilter(method="filter_query")
     project_uuid = django_filters.UUIDFilter(field_name="project__uuid")
     offering_uuid = django_filters.UUIDFilter(field_name="offering__uuid")
@@ -286,8 +288,6 @@ class OrderFilter(OfferingFilterMixin, django_filters.FilterSet):
         view_name="marketplace-resource-detail", field_name="resource__uuid"
     )
     resource_uuid = django_filters.UUIDFilter(field_name="resource__uuid")
-    created = django_filters.DateTimeFilter(lookup_expr="gte", label="Created after")
-    modified = django_filters.DateTimeFilter(lookup_expr="gte", label="Modified after")
     can_approve_as_consumer = django_filters.BooleanFilter(
         method="filter_can_approve_as_consumer",
     )
