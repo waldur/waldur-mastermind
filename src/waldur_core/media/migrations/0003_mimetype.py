@@ -6,7 +6,7 @@ def detect_mime_type(apps, schema_editor):
     File = apps.get_model("media", "File")
     for row in File.objects.all():
         if row.content:
-            row.mime_type = magic.from_buffer(row.content[:1024].tobytes(), mime=True)
+            row.mime_type = magic.from_buffer(row.content[:1024], mime=True)
             row.save(update_fields=["mime_type"])
 
 
