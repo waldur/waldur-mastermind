@@ -1605,7 +1605,18 @@ def notification_about_project_ending(end_date):
         end_date__isnull=True
     ).filter(end_date=end_date)
 
+    # If there are no expired projects, we don't need to send notifications
+    if not expired_projects.exists():
+        logger.info("No projects found with end_date=%s", end_date)
+        return
+
     for project in expired_projects:
+        logger.info(
+            "Project %s (uuid=%s) has end_date=%s",
+            project.name,
+            project.uuid,
+            project.end_date,
+        )
         project_users = (
             project.get_users().exclude(email="").exclude(notifications_enabled=False)
         )
@@ -1632,6 +1643,11 @@ def notification_about_project_ending(end_date):
             "count_projects": len(projects),
             "delta": (end_date - timezone.datetime.today().date()).days,
         }
+        logger.info(
+            "Sending notification to user %s about %d projects",
+            user.email,
+            len(projects),
+        )
         core_utils.broadcast_mail(
             "marketplace",
             "notification_about_project_ending",
