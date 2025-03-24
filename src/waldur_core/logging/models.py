@@ -285,4 +285,4 @@ class EmailLog(UuidMixin):
         return f"Email to {self.emails} at {self.sent_at}"
 
     class Meta:
-        ordering = ["sent_at"]
+        ordering = ["-sent_at"]
