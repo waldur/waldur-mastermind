@@ -1522,7 +1522,7 @@ class ProviderOfferingDetailsSerializer(
     ) -> Literal["Draft", "Active", "Paused", "Archived"]:
         return offering.get_state_display()
 
-    def get_scope_state(self, offering: models.Offering) -> CoreStateType:
+    def get_scope_state(self, offering: models.Offering) -> CoreStateType | None:
         try:
             return offering.scope.get_state_display()
         except AttributeError:
