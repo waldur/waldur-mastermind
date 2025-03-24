@@ -131,6 +131,8 @@ class UserPermissionFilter(django_filters.FilterSet):
     class Meta:
         model = models.UserRole
         fields = [
+            "created",
+            "expiration_time",
             "user",
             "user_url",
             "username",

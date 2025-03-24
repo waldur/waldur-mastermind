@@ -88,6 +88,7 @@ whitenoise = "^6.9.0"
 drf-spectacular = "^0.28.0"
 drf-orjson-renderer = "^1.7.3"
 psycopg = {extras = ["binary"], version = "^3.2.6"}
+drf-nested-routers = "^0.94.1"
 
 [tool.poetry.group.dev.dependencies]
 djangorestframework-stubs = {extras = ["compatible-mypy"], version = "^3.14.5"}
