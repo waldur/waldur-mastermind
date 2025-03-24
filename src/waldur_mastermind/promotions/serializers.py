@@ -225,7 +225,7 @@ class NestedCampaignSerializer(CampaignSerializer):
         return fields
 
 
-@extend_schema_field(NestedCampaignSerializer)
+@extend_schema_field(NestedCampaignSerializer(many=True))
 def get_promotion_campaigns(serializer, offering):
     campaigns = []
     today = datetime.date.today()
