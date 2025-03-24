@@ -3,10 +3,10 @@
 import django.db.models.deletion
 import django.utils.timezone
 import model_utils.fields
-import upload_validator
 from django.db import migrations, models
 
 import waldur_core.core.fields
+import waldur_core.media.validators
 
 
 class Migration(migrations.Migration):
@@ -64,7 +64,7 @@ class Migration(migrations.Migration):
                         null=True,
                         upload_to="marketplace_category_group_icons",
                         validators=[
-                            upload_validator.FileTypeValidator(
+                            waldur_core.media.validators.FileTypeValidator(
                                 allowed_types=[
                                     "image/png",
                                     "image/gif",

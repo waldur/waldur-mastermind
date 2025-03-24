@@ -5,7 +5,6 @@ import django.db.models.deletion
 import django.utils.timezone
 import django_fsm
 import model_utils.fields
-import upload_validator
 from django.conf import settings
 from django.db import migrations, models
 
@@ -13,6 +12,7 @@ import waldur_core.core.fields
 import waldur_core.core.validators
 import waldur_core.logging.loggers
 import waldur_core.media.models
+import waldur_core.media.validators
 import waldur_core.structure.models
 
 
@@ -63,7 +63,7 @@ class Migration(migrations.Migration):
                         null=True,
                         upload_to="marketplace_category_icons",
                         validators=[
-                            upload_validator.FileTypeValidator(
+                            waldur_core.media.validators.FileTypeValidator(
                                 allowed_types=[
                                     "image/png",
                                     "image/gif",
@@ -219,7 +219,7 @@ class Migration(migrations.Migration):
                         null=True,
                         upload_to="marketplace_service_offering_thumbnails",
                         validators=[
-                            upload_validator.FileTypeValidator(
+                            waldur_core.media.validators.FileTypeValidator(
                                 allowed_types=[
                                     "image/png",
                                     "image/gif",

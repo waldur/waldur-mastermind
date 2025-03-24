@@ -66,7 +66,6 @@ google-auth-httplib2 = "^0.1.0"
 google-auth-oauthlib = "^0.4.6"
 django-health-check = "^3.16.2"
 django-dbtemplates = "4.0"
-django-upload-validator = {git = "https://github.com/waldur/django-upload-validator", rev="master"}
 pydantic = "^2.10.6"
 cryptography = "44.0.1"
 python-waldur-client = "^0.5.5"
@@ -88,6 +87,7 @@ whitenoise = "^6.9.0"
 drf-spectacular = "^0.28.0"
 drf-orjson-renderer = "^1.7.3"
 psycopg = {extras = ["binary"], version = "^3.2.6"}
+python-magic = "^0.4.27"
 
 [tool.poetry.group.dev.dependencies]
 djangorestframework-stubs = {extras = ["compatible-mypy"], version = "^3.14.5"}
@@ -232,7 +232,6 @@ known-first-party = [
   "saml2",
   "six",
   "tablib",
-  "upload_validator",
   "urllib3",
   "waldur_client",
   "yaml",
