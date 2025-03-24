@@ -465,7 +465,7 @@ class ResourceScopeFilterBackend(core_filters.GenericKeyFilterBackend):
         return "scope"
 
 
-class RobotAccountFilter(django_filters.FilterSet):
+class RobotAccountFilter(core_filters.CreatedModifiedFilter, django_filters.FilterSet):
     resource = core_filters.URLFilter(
         view_name="marketplace-resource-detail", field_name="resource__uuid"
     )
