@@ -319,6 +319,23 @@ class OfferingUserPullTask(BackgroundPullTask):
 
         stale = set(local_offering_users.keys()) - set(remote_offering_users.keys())
         for local_username in stale:
+            if local_username not in user_map:
+                try:
+                    user = models.User.all_objects.get(username=local_username)
+                    if not user.is_active:
+                        logger.info(
+                            "Skipping offering user synchronization for deactivated user %s",
+                            local_username,
+                        )
+                        continue
+                except models.User.DoesNotExist:
+                    logger.debug(
+                        "Skipping missing offering user synchronization because user "
+                        "with username %s does not exist.",
+                        local_username,
+                    )
+                    continue
+            # Handle other stale users
             user = user_map[local_username]
             offering_user = models.OfferingUser.objects.get(
                 user=user, offering=local_offering
