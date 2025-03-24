@@ -59,7 +59,11 @@ class ServiceProviderFilter(django_filters.FilterSet):
         )
 
 
-class OfferingFilter(structure_filters.NameFilterSet, django_filters.FilterSet):
+class OfferingFilter(
+    core_filters.CreatedModifiedFilter,
+    structure_filters.NameFilterSet,
+    django_filters.FilterSet,
+):
     class Meta:
         model = models.Offering
         fields = []
