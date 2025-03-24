@@ -456,18 +456,18 @@ def get_ssh_key_fingerprints(ssh_key):
     # sha256
     sha256_digest = hashlib.sha256(key_body).digest()
     sha256_b64 = base64.b64encode(sha256_digest).rstrip(b"=")
-    sha256_fp = f'SHA256:{sha256_b64.decode("utf-8")}'
+    sha256_fp = f"SHA256:{sha256_b64.decode('utf-8')}"
 
     # sha512
     sha512_digest = hashlib.sha512(key_body).digest()
     sha512_b64 = base64.b64encode(sha512_digest).rstrip(b"=")
-    sha512_fp = f'SHA512:{sha512_b64.decode("utf-8")}'
+    sha512_fp = f"SHA512:{sha512_b64.decode('utf-8')}"
 
     return md5_fp, sha256_fp, sha512_fp
 
 
 @reversion.register()
-class SshPublicKey(LoggableMixin, UuidMixin, models.Model):
+class SshPublicKey(TimeStampedModel, LoggableMixin, UuidMixin, models.Model):
     """
     User public key.
 

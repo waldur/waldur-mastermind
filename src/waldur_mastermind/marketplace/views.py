@@ -33,7 +33,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django_filters.rest_framework import DjangoFilterBackend
 from django_fsm import TransitionNotAllowed
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import OpenApiParameter, extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import generics, mixins, status, views
 from rest_framework import permissions as rf_permissions
@@ -61,6 +61,7 @@ from waldur_core.core.utils import (
 )
 from waldur_core.logging.loggers import event_logger
 from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.filters import UserPermissionFilter
 from waldur_core.permissions.fixtures import CustomerRole, ServiceProviderRole
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import (
@@ -207,221 +208,6 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
                 status=status.HTTP_200_OK,
             )
 
-    def get_customer_project_ids(self):
-        service_provider = self.get_object()
-        return utils.get_service_provider_project_ids(service_provider)
-
-    def get_customer_user_ids(self):
-        service_provider = self.get_object()
-        return utils.get_service_provider_user_ids(self.request.user, service_provider)
-
-    customers_permissions = [
-        permission_factory(
-            PermissionEnum.LIST_SERVICE_PROVIDER_CUSTOMERS,
-            ["customer"],
-        )
-    ]
-
-    @extend_schema(
-        description="Return customers of service provider.",
-        request=None,
-        responses=serializers.ProviderCustomerSerializer(many=True),
-        filters=False,
-    )
-    @action(detail=True, methods=["GET"])
-    def customers(self, request, uuid=None):
-        service_provider = self.get_object()
-        customer_ids = utils.get_service_provider_customer_ids(service_provider)
-        customers = structure_models.Customer.objects.filter(id__in=customer_ids)
-        page = self.paginate_queryset(customers)
-        serializer = serializers.ProviderCustomerSerializer(
-            page,
-            many=True,
-            context={
-                "service_provider": service_provider,
-                **self.get_serializer_context(),
-            },
-        )
-        return self.get_paginated_response(serializer.data)
-
-    customer_projects_permissions = [
-        permission_factory(
-            PermissionEnum.LIST_SERVICE_PROVIDER_CUSTOMER_PROJECTS,
-            ["customer"],
-        )
-    ]
-
-    @extend_schema(
-        responses=serializers.ProviderCustomerProjectSerializer(many=True),
-        filters=False,
-    )
-    @action(detail=True, methods=["GET"])
-    def customer_projects(self, request, uuid=None):
-        service_provider = self.get_object()
-        customer_uuid = request.query_params.get("project_customer_uuid")
-        if not customer_uuid or not is_uuid_like(customer_uuid):
-            return self.get_paginated_response([])
-        project_ids = (
-            utils.get_service_provider_resources(service_provider)
-            .filter(project__customer__uuid=customer_uuid)
-            .values_list("project_id", flat=True)
-        )
-        projects = structure_models.Project.available_objects.filter(id__in=project_ids)
-        page = self.paginate_queryset(projects)
-        context = self.get_serializer_context()
-        context["service_provider"] = service_provider
-        serializer = serializers.ProviderCustomerProjectSerializer(
-            page, many=True, context=context
-        )
-        return self.get_paginated_response(serializer.data)
-
-    projects_permissions = [
-        permission_factory(
-            PermissionEnum.LIST_SERVICE_PROVIDER_PROJECTS,
-            ["customer"],
-        )
-    ]
-
-    @extend_schema(
-        description="Return projects of service provider.",
-        request=None,
-        responses=structure_serializers.ProjectSerializer(many=True),
-        filters=False,
-    )
-    @action(detail=True, methods=["GET"])
-    def projects(self, request, uuid=None):
-        project_ids = self.get_customer_project_ids()
-        projects = structure_models.Project.available_objects.filter(id__in=project_ids)
-        page = self.paginate_queryset(projects)
-        serializer = structure_serializers.ProjectSerializer(
-            page, many=True, context=self.get_serializer_context()
-        )
-        return self.get_paginated_response(serializer.data)
-
-    project_permissions_permissions = [
-        permission_factory(
-            PermissionEnum.LIST_SERVICE_PROVIDER_PROJECT_PERMISSIONS,
-            ["customer"],
-        )
-    ]
-
-    @extend_schema(
-        request=None,
-        responses=structure_serializers.ProjectPermissionLogSerializer(many=True),
-        filters=False,
-    )
-    @action(detail=True, methods=["GET"])
-    def project_permissions(self, request, uuid=None):
-        project_ids = self.get_customer_project_ids()
-        content_type = ContentType.objects.get_for_model(structure_models.Project)
-        permissions = UserRole.objects.filter(
-            content_type=content_type,
-            object_id__in=project_ids,
-            is_active=True,
-            user__is_active=True,
-        )
-        page = self.paginate_queryset(permissions)
-        serializer = structure_serializers.ProjectPermissionLogSerializer(
-            page, many=True, context=self.get_serializer_context()
-        )
-        return self.get_paginated_response(serializer.data)
-
-    keys_permissions = [
-        permission_factory(
-            PermissionEnum.LIST_SERVICE_PROVIDER_KEYS,
-            ["customer"],
-        )
-    ]
-
-    @extend_schema(
-        responses=structure_serializers.SshKeySerializer(many=True),
-        filters=False,
-    )
-    @action(detail=True, methods=["GET"])
-    def keys(self, request, uuid=None):
-        user_ids = self.get_customer_user_ids()
-        keys = core_models.SshPublicKey.objects.filter(user_id__in=user_ids)
-        page = self.paginate_queryset(keys)
-        serializer = structure_serializers.SshKeySerializer(
-            page, many=True, context=self.get_serializer_context()
-        )
-        return self.get_paginated_response(serializer.data)
-
-    users_permissions = [
-        permission_factory(
-            PermissionEnum.LIST_SERVICE_PROVIDER_USERS,
-            ["customer"],
-        )
-    ]
-
-    @extend_schema(
-        responses=serializers.DetailedProviderUserSerializer(many=True),
-        filters=False,
-    )
-    @action(detail=True, methods=["GET"])
-    def users(self, request, uuid=None):
-        service_provider = self.get_object()
-        user_ids = self.get_customer_user_ids()
-        users = core_models.User.objects.filter(id__in=user_ids)
-        filtered_users = structure_filters.UserFilter(request.GET, queryset=users)
-        page = self.paginate_queryset(filtered_users.qs)
-        context = self.get_serializer_context()
-        context["service_provider"] = service_provider
-        serializer = serializers.DetailedProviderUserSerializer(
-            page, many=True, context=context
-        )
-        return self.get_paginated_response(serializer.data)
-
-    user_customers_permissions = [
-        permission_factory(
-            PermissionEnum.LIST_SERVICE_PROVIDER_USER_CUSTOMERS,
-            ["customer"],
-        )
-    ]
-
-    @extend_schema(
-        responses=serializers.ProviderCustomerSerializer(many=True),
-        filters=False,
-    )
-    @action(detail=True, methods=["GET"])
-    def user_customers(self, request, uuid=None):
-        service_provider = self.get_object()
-        user_uuid = request.query_params.get("user_uuid")
-        if not user_uuid or not is_uuid_like(user_uuid):
-            self.paginate_queryset(structure_models.Customer.objects.none())
-            return self.get_paginated_response([])
-
-        try:
-            user = User.objects.get(uuid=user_uuid)
-        except User.DoesNotExist:
-            self.paginate_queryset(structure_models.Customer.objects.none())
-            return self.get_paginated_response([])
-
-        resources = utils.get_service_provider_resources(service_provider)
-        resource_projects = resources.values_list("project_id", flat=True)
-        connected_projects = get_connected_projects(user)
-
-        resource_customers = resources.values_list("project__customer_id", flat=True)
-        connected_customers = get_connected_customers(user)
-
-        valid_projects = resource_projects.intersection(connected_projects)
-        valid_customers = resource_customers.intersection(connected_customers)
-
-        project_customers = structure_models.Project.objects.filter(
-            id__in=valid_projects
-        ).values_list("customer_id", flat=True)
-
-        customers = structure_models.Customer.objects.filter(
-            id__in=project_customers.union(valid_customers)
-        )
-        page = self.paginate_queryset(customers)
-        context = self.get_serializer_context()
-        context["service_provider"] = service_provider
-        serializer = serializers.ProviderCustomerSerializer(
-            page, many=True, context=context
-        )
-        return self.get_paginated_response(serializer.data)
-
     def check_related_resources(request, view, obj=None):
         if obj and obj.has_active_offerings:
             raise rf_exceptions.ValidationError(
@@ -476,163 +262,6 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         )
 
     set_offerings_username_serializer_class = serializers.SetOfferingsUsernameSerializer
-
-    @extend_schema(
-        responses=serializers.ProviderOfferingSerializer(many=True),
-        parameters=[
-            OpenApiParameter(
-                name="customer",
-                type=OpenApiTypes.STR,
-                location=OpenApiParameter.QUERY,
-                description="Filter by customer URL",
-            ),
-            OpenApiParameter(
-                name="customer_uuid",
-                type=OpenApiTypes.UUID,
-                location=OpenApiParameter.QUERY,
-                description="Filter by customer UUID",
-            ),
-            OpenApiParameter(
-                name="allowed_customer_uuid",
-                type=OpenApiTypes.UUID,
-                location=OpenApiParameter.QUERY,
-                description="Allowed customer UUID",
-            ),
-            OpenApiParameter(
-                name="service_manager_uuid",
-                type=OpenApiTypes.UUID,
-                location=OpenApiParameter.QUERY,
-                description="Service manager UUID",
-            ),
-            OpenApiParameter(
-                name="project_uuid",
-                type=OpenApiTypes.UUID,
-                location=OpenApiParameter.QUERY,
-                description="Project UUID",
-            ),
-            OpenApiParameter(
-                name="parent_uuid",
-                type=OpenApiTypes.UUID,
-                location=OpenApiParameter.QUERY,
-                description="Filter by parent UUID",
-            ),
-            OpenApiParameter(
-                name="attributes",
-                type=OpenApiTypes.STR,
-                location=OpenApiParameter.QUERY,
-                description="Filter by attributes",
-            ),
-            OpenApiParameter(
-                name="state",
-                type=OpenApiTypes.STR,
-                location=OpenApiParameter.QUERY,
-                description="Filter by state",
-                enum=models.Offering.States.VALUES,
-                many=True,
-            ),
-            OpenApiParameter(
-                name="organization_group_uuid",
-                type=OpenApiTypes.UUID,
-                location=OpenApiParameter.QUERY,
-                description="Filter by organization group UUID",
-                many=True,
-            ),
-            OpenApiParameter(
-                name="category_uuid",
-                type=OpenApiTypes.UUID,
-                location=OpenApiParameter.QUERY,
-                description="Filter by category UUID",
-            ),
-            OpenApiParameter(
-                name="category_group_uuid",
-                type=OpenApiTypes.UUID,
-                location=OpenApiParameter.QUERY,
-                description="Filter by category group UUID",
-            ),
-            OpenApiParameter(
-                name="billable",
-                type=OpenApiTypes.BOOL,
-                location=OpenApiParameter.QUERY,
-                description="Filter by billable status",
-            ),
-            OpenApiParameter(
-                name="shared",
-                type=OpenApiTypes.BOOL,
-                location=OpenApiParameter.QUERY,
-                description="Filter by shared status",
-            ),
-            OpenApiParameter(
-                name="description",
-                type=OpenApiTypes.STR,
-                location=OpenApiParameter.QUERY,
-                description="Filter by description (case-insensitive contains)",
-            ),
-            OpenApiParameter(
-                name="keyword",
-                type=OpenApiTypes.STR,
-                location=OpenApiParameter.QUERY,
-                description="Filter by keyword",
-            ),
-            OpenApiParameter(
-                name="scope_uuid",
-                type=OpenApiTypes.UUID,
-                location=OpenApiParameter.QUERY,
-                description="Scope UUID",
-            ),
-            OpenApiParameter(
-                name="accessible_via_calls",
-                type=OpenApiTypes.BOOL,
-                location=OpenApiParameter.QUERY,
-                description="Filter by accessibility via calls",
-            ),
-            OpenApiParameter(
-                name="o",
-                type=OpenApiTypes.STR,
-                location=OpenApiParameter.QUERY,
-                description="Ordering field",
-                enum=[
-                    "name",
-                    "-name",
-                    "created",
-                    "-created",
-                    "type",
-                    "-type",
-                    "total_customers",
-                    "-total_customers",
-                    "total_cost",
-                    "-total_cost",
-                    "total_cost_estimated",
-                    "-total_cost_estimated",
-                    "state",
-                    "-state",
-                ],
-            ),
-            OpenApiParameter(
-                name="type",
-                type=OpenApiTypes.STR,
-                location=OpenApiParameter.QUERY,
-                description="Filter by type",
-                many=True,
-            ),
-        ],
-        filters=False,
-    )
-    @action(detail=True, methods=["GET"])
-    def offerings(self, request, uuid=None):
-        service_provider = self.get_object()
-
-        offerings = models.Offering.objects.filter(
-            customer=service_provider.customer,
-            billable=True,
-            shared=True,
-        )
-
-        filtered_offerings = filters.OfferingFilter(request.GET, queryset=offerings)
-        page = self.paginate_queryset(filtered_offerings.qs)
-        serializer = serializers.ProviderOfferingSerializer(
-            page, many=True, context=self.get_serializer_context()
-        )
-        return self.get_paginated_response(serializer.data)
 
     stat_permissions = [
         permission_factory(
@@ -819,6 +448,350 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         page = self.paginate_queryset(projects)
         data = serializers.NameUUIDSerializer(page, many=True).data
         return self.get_paginated_response(data)
+
+
+SERVICE_PROVIDER_UUID = OpenApiParameter(
+    name="service_provider_uuid",
+    type=OpenApiTypes.UUID,
+    location=OpenApiParameter.PATH,
+)
+
+
+@extend_schema_view(
+    list=extend_schema(
+        description="Return customers of service provider.",
+        parameters=[SERVICE_PROVIDER_UUID],
+    )
+)
+class ServiceProviderCustomersViewSet(
+    mixins.ListModelMixin, rf_viewsets.GenericViewSet
+):
+    serializer_class = serializers.MarketplaceProviderCustomerSerializer
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = structure_filters.CustomerFilter
+    queryset = structure_models.Customer.objects.all()
+
+    def get_service_provider(self):
+        service_provider = models.ServiceProvider.objects.get(
+            uuid=self.kwargs["service_provider_uuid"]
+        )
+        if not has_permission(
+            self.request,
+            PermissionEnum.LIST_SERVICE_PROVIDER_CUSTOMERS,
+            service_provider.customer,
+        ):
+            raise PermissionDenied()
+        return service_provider
+
+    def get_queryset(self):
+        customer_ids = utils.get_service_provider_customer_ids(
+            self.get_service_provider()
+        )
+        return self.queryset.filter(id__in=customer_ids)
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        return {
+            **context,
+            "service_provider": self.get_service_provider(),
+        }
+
+
+@extend_schema_view(
+    list=extend_schema(
+        description="Return customer projects of service provider.",
+        parameters=[SERVICE_PROVIDER_UUID],
+    )
+)
+class ServiceProviderCustomerProjectsViewSet(
+    mixins.ListModelMixin, rf_viewsets.GenericViewSet
+):
+    serializer_class = serializers.MarketplaceProviderCustomerProjectSerializer
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = structure_filters.ProjectFilter
+    queryset = structure_models.Project.available_objects.all()
+
+    def get_service_provider(self):
+        service_provider = models.ServiceProvider.objects.get(
+            uuid=self.kwargs["service_provider_uuid"]
+        )
+        if not has_permission(
+            self.request,
+            PermissionEnum.LIST_SERVICE_PROVIDER_CUSTOMER_PROJECTS,
+            service_provider.customer,
+        ):
+            raise PermissionDenied()
+        return service_provider
+
+    def get_queryset(self):
+        customer_uuid = self.request.query_params.get("project_customer_uuid")
+        if not customer_uuid or not is_uuid_like(customer_uuid):
+            return self.queryset.none()
+        project_ids = (
+            utils.get_service_provider_resources(self.get_service_provider())
+            .filter(project__customer__uuid=customer_uuid)
+            .values_list("project_id", flat=True)
+        )
+        return self.queryset.filter(id__in=project_ids)
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        return {
+            **context,
+            "service_provider": self.get_service_provider(),
+        }
+
+
+@extend_schema_view(
+    list=extend_schema(
+        description="Return projects of service provider.",
+        parameters=[SERVICE_PROVIDER_UUID],
+    )
+)
+class ServiceProviderProjectsViewSet(mixins.ListModelMixin, rf_viewsets.GenericViewSet):
+    serializer_class = structure_serializers.ProjectSerializer
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = structure_filters.ProjectFilter
+    queryset = structure_models.Project.available_objects.all()
+
+    def get_service_provider(self):
+        service_provider = models.ServiceProvider.objects.get(
+            uuid=self.kwargs["service_provider_uuid"]
+        )
+        if not has_permission(
+            self.request,
+            PermissionEnum.LIST_SERVICE_PROVIDER_PROJECTS,
+            service_provider.customer,
+        ):
+            raise PermissionDenied()
+        return service_provider
+
+    def get_queryset(self):
+        project_ids = utils.get_service_provider_project_ids(
+            self.get_service_provider()
+        )
+        return self.queryset.filter(id__in=project_ids)
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        return {
+            **context,
+            "service_provider": self.get_service_provider(),
+        }
+
+
+@extend_schema_view(
+    list=extend_schema(
+        description="Return project permissions of service provider.",
+        parameters=[SERVICE_PROVIDER_UUID],
+    )
+)
+class ServiceProviderProjectPermissionsViewSet(
+    mixins.ListModelMixin, rf_viewsets.GenericViewSet
+):
+    serializer_class = structure_serializers.ProjectPermissionLogSerializer
+    queryset = UserRole.objects.all()
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = UserPermissionFilter
+
+    def get_service_provider(self):
+        service_provider = models.ServiceProvider.objects.get(
+            uuid=self.kwargs["service_provider_uuid"]
+        )
+        if not has_permission(
+            self.request,
+            PermissionEnum.LIST_SERVICE_PROVIDER_PROJECT_PERMISSIONS,
+            service_provider.customer,
+        ):
+            raise PermissionDenied()
+        return service_provider
+
+    def get_queryset(self):
+        project_ids = utils.get_service_provider_project_ids(
+            self.get_service_provider()
+        )
+        content_type = ContentType.objects.get_for_model(structure_models.Project)
+        return self.queryset.filter(
+            content_type=content_type,
+            object_id__in=project_ids,
+            is_active=True,
+            user__is_active=True,
+        )
+
+
+@extend_schema_view(
+    list=extend_schema(
+        description="Return SSH keys of service provider.",
+        parameters=[SERVICE_PROVIDER_UUID],
+    )
+)
+class ServiceProviderKeysViewSet(mixins.ListModelMixin, rf_viewsets.GenericViewSet):
+    serializer_class = structure_serializers.SshKeySerializer
+    queryset = core_models.SshPublicKey.objects.all()
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = structure_filters.SshKeyFilter
+
+    def get_service_provider(self):
+        service_provider = models.ServiceProvider.objects.get(
+            uuid=self.kwargs["service_provider_uuid"]
+        )
+        if not has_permission(
+            self.request,
+            PermissionEnum.LIST_SERVICE_PROVIDER_KEYS,
+            service_provider.customer,
+        ):
+            raise PermissionDenied()
+        return service_provider
+
+    def get_queryset(self):
+        user_ids = utils.get_service_provider_user_ids(
+            self.request.user, self.get_service_provider()
+        )
+        return self.queryset.filter(user_id__in=user_ids)
+
+
+@extend_schema_view(
+    list=extend_schema(
+        description="Return users of service provider.",
+        parameters=[SERVICE_PROVIDER_UUID],
+    )
+)
+class ServiceProviderUsersViewSet(mixins.ListModelMixin, rf_viewsets.GenericViewSet):
+    serializer_class = serializers.MarketplaceServiceProviderUserSerializer
+    queryset = core_models.User.objects.all()
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = structure_filters.UserFilter
+
+    def get_service_provider(self):
+        service_provider = models.ServiceProvider.objects.get(
+            uuid=self.kwargs["service_provider_uuid"]
+        )
+        if not has_permission(
+            self.request,
+            PermissionEnum.LIST_SERVICE_PROVIDER_USERS,
+            service_provider.customer,
+        ):
+            raise PermissionDenied()
+        return service_provider
+
+    def get_queryset(self):
+        service_provider = self.get_service_provider()
+        user_ids = utils.get_service_provider_user_ids(
+            self.request.user, service_provider
+        )
+        return self.queryset.filter(id__in=user_ids)
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        return {
+            **context,
+            "service_provider": self.get_service_provider(),
+        }
+
+
+@extend_schema_view(
+    list=extend_schema(
+        description="Return offerings of service provider.",
+        parameters=[SERVICE_PROVIDER_UUID],
+    )
+)
+class ServiceProviderOfferingsViewSet(
+    mixins.ListModelMixin, rf_viewsets.GenericViewSet
+):
+    serializer_class = serializers.ProviderOfferingSerializer
+    queryset = models.Offering.objects.all()
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.OfferingFilter
+
+    def get_service_provider(self):
+        return models.ServiceProvider.objects.get(
+            uuid=self.kwargs["service_provider_uuid"]
+        )
+
+    def get_queryset(self):
+        return self.queryset.filter(
+            customer=self.get_service_provider().customer,
+            billable=True,
+            shared=True,
+        )
+
+
+@extend_schema_view(
+    list=extend_schema(
+        description="""Return customers that have access role for a specified user within service provider's scope.
+
+        Checks for:
+        - Customers where user has direct permissions
+        - Customers with projects where user has project roles
+        - Customers related to service provider's resources
+
+        If user UUID is invalid or missing, returns empty list.""",
+        parameters=[
+            SERVICE_PROVIDER_UUID,
+            OpenApiParameter(
+                name="user_uuid",
+                type=OpenApiTypes.UUID,
+                location=OpenApiParameter.QUERY,
+                required=True,
+                description="UUID of user to get related customers for",
+            ),
+        ],
+    )
+)
+class ServiceProviderUserCustomersViewSet(
+    mixins.ListModelMixin, rf_viewsets.GenericViewSet
+):
+    serializer_class = serializers.MarketplaceProviderCustomerSerializer
+    queryset = structure_models.Customer.objects.all()
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = structure_filters.CustomerFilter
+
+    def get_service_provider(self):
+        service_provider = models.ServiceProvider.objects.get(
+            uuid=self.kwargs["service_provider_uuid"]
+        )
+        if not has_permission(
+            self.request,
+            PermissionEnum.LIST_SERVICE_PROVIDER_USER_CUSTOMERS,
+            service_provider.customer,
+        ):
+            raise PermissionDenied()
+        return service_provider
+
+    def get_queryset(self):
+        service_provider = self.get_service_provider()
+
+        user_uuid = self.request.query_params.get("user_uuid")
+        if not user_uuid or not is_uuid_like(user_uuid):
+            return self.queryset.none()
+
+        try:
+            user = User.objects.get(uuid=user_uuid)
+        except User.DoesNotExist:
+            return self.queryset.none()
+
+        resources = utils.get_service_provider_resources(service_provider)
+        resource_projects = resources.values_list("project_id", flat=True)
+        connected_projects = get_connected_projects(user)
+
+        resource_customers = resources.values_list("project__customer_id", flat=True)
+        connected_customers = get_connected_customers(user)
+
+        valid_projects = resource_projects.intersection(connected_projects)
+        valid_customers = resource_customers.intersection(connected_customers)
+
+        project_customers = structure_models.Project.objects.filter(
+            id__in=valid_projects
+        ).values_list("customer_id", flat=True)
+
+        return self.queryset.filter(id__in=project_customers.union(valid_customers))
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        return {
+            **context,
+            "service_provider": self.get_service_provider(),
+        }
 
 
 class CategoryViewSet(PublicViewsetMixin, EagerLoadMixin, core_views.ActionsViewSet):

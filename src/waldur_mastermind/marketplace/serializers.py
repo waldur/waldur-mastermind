@@ -3984,7 +3984,7 @@ class OfferingStatsSerializer(serializers.Serializer):
     country = serializers.CharField(source="offering__country")
 
 
-class ProviderCustomerProjectSerializer(
+class MarketplaceProviderCustomerProjectSerializer(
     core_serializers.RestrictedSerializerMixin, serializers.ModelSerializer
 ):
     class Meta:
@@ -4081,7 +4081,7 @@ class ProjectUserSerializer(serializers.ModelSerializer):
         return permission and permission.expiration_time
 
 
-class DetailedProviderUserSerializer(
+class MarketplaceServiceProviderUserSerializer(
     core_serializers.RestrictedSerializerMixin, serializers.ModelSerializer
 ):
     class Meta:
@@ -4141,7 +4141,7 @@ class ProviderOfferingCustomerSerializer(
         )
 
 
-class ProviderCustomerSerializer(ProviderOfferingCustomerSerializer):
+class MarketplaceProviderCustomerSerializer(ProviderOfferingCustomerSerializer):
     class Meta:
         model = structure_models.Customer
         fields = ProviderOfferingCustomerSerializer.Meta.fields + (

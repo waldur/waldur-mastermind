@@ -4,6 +4,7 @@ from django.conf.urls import include
 from django.contrib import admin
 from django.urls import path, re_path
 
+from rest_framework_nested.routers import NestedSimpleRouter
 from waldur_core.core import WaldurExtension
 from waldur_core.core import views as core_views
 from waldur_core.core.logos import DEFAULT_LOGOS, LOGO_MAP
@@ -12,6 +13,16 @@ from waldur_core.logging import urls as logging_urls
 from waldur_core.permissions import urls as permissions_urls
 from waldur_core.structure import urls as structure_urls
 from waldur_core.users import urls as users_urls
+from waldur_mastermind.marketplace.views import (
+    ServiceProviderCustomerProjectsViewSet,
+    ServiceProviderCustomersViewSet,
+    ServiceProviderKeysViewSet,
+    ServiceProviderOfferingsViewSet,
+    ServiceProviderProjectPermissionsViewSet,
+    ServiceProviderProjectsViewSet,
+    ServiceProviderUserCustomersViewSet,
+    ServiceProviderUsersViewSet,
+)
 
 router = DefaultRouter()
 logging_urls.register_in(router)
@@ -34,8 +45,51 @@ if settings.WALDUR_CORE.get("EXTENSIONS_AUTOREGISTER"):
             urlpatterns += ext.django_urls()
             ext.rest_urls()(router)
 
+service_provider_router = NestedSimpleRouter(
+    router, r"marketplace-service-providers", lookup="service_provider"
+)
+service_provider_router.register(
+    r"customers", ServiceProviderCustomersViewSet, basename="service-provider-customers"
+)
+service_provider_router.register(
+    r"customer_projects",
+    ServiceProviderCustomerProjectsViewSet,
+    basename="service-provider-customer-projects",
+)
+service_provider_router.register(
+    r"projects",
+    ServiceProviderProjectsViewSet,
+    basename="service-provider-projects",
+)
+service_provider_router.register(
+    r"project_permissions",
+    ServiceProviderProjectPermissionsViewSet,
+    basename="service-provider-project-permissions",
+)
+service_provider_router.register(
+    r"keys",
+    ServiceProviderKeysViewSet,
+    basename="service-provider-keys",
+)
+service_provider_router.register(
+    r"users",
+    ServiceProviderUsersViewSet,
+    basename="service-provider-users",
+)
+service_provider_router.register(
+    r"user_customers",
+    ServiceProviderUserCustomersViewSet,
+    basename="service-provider-user-customers",
+)
+service_provider_router.register(
+    r"offerings",
+    ServiceProviderOfferingsViewSet,
+    basename="service-provider-offerings",
+)
+
 urlpatterns += [
     re_path(r"^api/", include(router.urls)),
+    re_path(r"^api/", include(service_provider_router.urls)),
     re_path(r"^api/", include("waldur_core.logging.urls")),
     re_path(r"^api/", include("waldur_core.media.urls")),
     re_path(r"^api/", include("waldur_core.structure.urls")),

@@ -338,6 +338,12 @@ class BaseUserFilter(django_filters.FilterSet):
     job_title = django_filters.CharFilter(lookup_expr="icontains")
     email = django_filters.CharFilter(lookup_expr="icontains")
     is_active = django_filters.BooleanFilter(widget=BooleanWidget)
+    date_joined = django_filters.DateTimeFilter(
+        lookup_expr="gte", label="Date joined after"
+    )
+    agreement_date = django_filters.DateTimeFilter(
+        lookup_expr="gte", label="Agreement date after"
+    )
 
     def filter_by_full_name(self, queryset, name, value):
         return core_filters.filter_by_full_name(queryset, value)
@@ -471,7 +477,7 @@ class CustomerPermissionReviewFilter(django_filters.FilterSet):
         ]
 
 
-class SshKeyFilter(NameFilterSet):
+class SshKeyFilter(core_filters.CreatedModifiedFilter, NameFilterSet):
     uuid = django_filters.UUIDFilter()
     user_uuid = django_filters.UUIDFilter(field_name="user__uuid")
 
