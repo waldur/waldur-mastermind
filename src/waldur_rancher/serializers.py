@@ -1111,7 +1111,7 @@ class RancherClusterReference(serializers.ModelSerializer):
         fields = ("uuid", "name", "marketplace_uuid")
 
 
-@extend_schema_field(RancherClusterReference)
+@extend_schema_field(RancherClusterReference(allow_null=True))
 def get_rancher_cluster_for_openstack_instance(serializer, scope):
     request = serializer.context["request"]
     queryset = filter_queryset_for_user(models.Cluster.objects.all(), request.user)

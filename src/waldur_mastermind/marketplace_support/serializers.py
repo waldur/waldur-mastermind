@@ -14,7 +14,7 @@ class IssueReferenceSerializer(serializers.Serializer):
     uuid = serializers.CharField(read_only=True)
 
 
-@extend_schema_field(IssueReferenceSerializer)
+@extend_schema_field(IssueReferenceSerializer(allow_null=True))
 def get_issue(serializer, scope):
     issues = support_models.Issue.objects.filter(
         resource_object_id=scope.id,

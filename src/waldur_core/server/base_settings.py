@@ -1016,6 +1016,7 @@ SPECTACULAR_SETTINGS = {
         "waldur_core.core.schema_hooks.postprocess_fix_enum",
         "waldur_core.core.schema_hooks.refactor_pagination_parameters",
         "waldur_core.core.schema_hooks.transform_paginated_arrays",
+        "waldur_core.core.schema_hooks.make_fields_optional",
     ],
     "DEFAULT_GENERATOR_CLASS": "waldur_core.core.openapi_generators.WaldurSchemaGenerator",
     "ENUM_GENERATE_CHOICE_DESCRIPTION": False,

@@ -2199,10 +2199,10 @@ class BaseOrderSerializer(BaseRequestSerializer):
     )
     resource_name = serializers.CharField(read_only=True, source="resource.name")
     resource_uuid = serializers.UUIDField(
-        read_only=True, source="resource.backend_uuid"
+        read_only=True, source="resource.backend_uuid", allow_null=True
     )
     resource_type = serializers.CharField(
-        read_only=True, source="resource.backend_type"
+        read_only=True, source="resource.backend_type", allow_null=True
     )
     state = serializers.SerializerMethodField()
     limits = serializers.DictField(child=serializers.IntegerField(), required=False)
@@ -2654,7 +2654,9 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
 
     state = serializers.SerializerMethodField()
     scope = core_serializers.GenericRelatedField(read_only=True)
-    resource_uuid = serializers.UUIDField(read_only=True, source="backend_uuid")
+    resource_uuid = serializers.UUIDField(
+        read_only=True, source="backend_uuid", allow_null=True
+    )
     resource_type = serializers.ReadOnlyField(source="backend_type")
     project = serializers.HyperlinkedRelatedField(
         lookup_field="uuid",

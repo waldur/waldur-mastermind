@@ -137,3 +137,67 @@ def transform_paginated_arrays(result, generator, **kwargs):
     result["components"]["schemas"] = other_components
 
     return result
+
+
+def make_fields_optional(result, generator, **kwargs):
+    """
+    Modifies an OpenAPI schema to make all fields optional in responses for
+    endpoints that have a "field" query parameter.
+    """
+    for path in result["paths"].values():
+        for operation in path.values():
+            has_field_param = any(
+                param.get("in") == "query" and param.get("name") == "field"
+                for param in operation.get("parameters", [])
+            )
+
+            if not has_field_param:
+                continue
+
+            for response in operation.get("responses", {}).values():
+                for content in response.get("content").values():
+                    if "schema" in content:
+                        _make_fields_optional(content["schema"], result)
+
+    return result
+
+
+def _make_fields_optional(schema_obj, full_schema):
+    """
+    Recursively makes all fields optional in a schema object.
+    """
+    # Handle schema reference
+    if "$ref" in schema_obj:
+        ref_path = schema_obj["$ref"]
+        if ref_path.startswith("#/components/schemas/"):
+            schema_name = ref_path.split("/")[-1]
+            if (
+                "components" in full_schema
+                and "schemas" in full_schema["components"]
+                and schema_name in full_schema["components"]["schemas"]
+            ):
+                referenced_schema = full_schema["components"]["schemas"][schema_name]
+                _make_fields_optional(referenced_schema, full_schema)
+        return
+
+    # Handle array items
+    if schema_obj.get("type") == "array" and "items" in schema_obj:
+        _make_fields_optional(schema_obj["items"], full_schema)
+        return
+
+    # Handle object properties
+    if schema_obj.get("type") == "object" or "properties" in schema_obj:
+        if "required" in schema_obj:
+            # Clear the required array to make all fields optional
+            schema_obj["required"] = []
+
+        # Recursively process properties
+        if "properties" in schema_obj:
+            for prop_schema in schema_obj["properties"].values():
+                _make_fields_optional(prop_schema, full_schema)
+
+    # Handle allOf, oneOf, anyOf
+    for key in ["allOf", "oneOf", "anyOf"]:
+        if key in schema_obj:
+            for sub_schema in schema_obj[key]:
+                _make_fields_optional(sub_schema, full_schema)
