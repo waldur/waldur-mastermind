@@ -1496,21 +1496,21 @@ class ProviderOfferingDetailsSerializer(
         request = self.context.get("request")
         return request and permissions.can_see_secret_options(request, self.instance)
 
-    def get_total_customers(self, offering: models.Offering) -> int:
+    def get_total_customers(self, offering: models.Offering) -> int | None:
         # Added via annotate in ProviderOfferingViewSet.get_queryset
         try:
             return offering.total_customers
         except AttributeError:
             return None
 
-    def get_total_cost(self, offering: models.Offering) -> int:
+    def get_total_cost(self, offering: models.Offering) -> int | None:
         # Added via annotate in ProviderOfferingViewSet.get_queryset
         try:
             return offering.total_cost
         except AttributeError:
             return None
 
-    def get_total_cost_estimated(self, offering: models.Offering) -> int:
+    def get_total_cost_estimated(self, offering: models.Offering) -> int | None:
         # Added via annotate in ProviderOfferingViewSet.get_queryset
         try:
             return offering.total_cost_estimated
