@@ -4,10 +4,10 @@ from django.conf.urls import include
 from django.contrib import admin
 from django.urls import path, re_path
 
-from rest_framework_nested.routers import NestedSimpleRouter
 from waldur_core.core import WaldurExtension
 from waldur_core.core import views as core_views
 from waldur_core.core.logos import DEFAULT_LOGOS, LOGO_MAP
+from waldur_core.core.nested_routers import NestedSimpleRouter
 from waldur_core.core.routers import SortedDefaultRouter as DefaultRouter
 from waldur_core.logging import urls as logging_urls
 from waldur_core.permissions import urls as permissions_urls
