@@ -3,7 +3,7 @@ ARG DOCKER_REGISTRY=docker.io/
 
 FROM ${DOCKER_REGISTRY}python:3.11-alpine
 
-ENV LANG C.UTF-8
+ENV LANG=C.UTF-8
 
 # Install necessary system packages.
 RUN apk update && \
