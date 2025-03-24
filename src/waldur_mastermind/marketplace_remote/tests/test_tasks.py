@@ -652,3 +652,76 @@ class OfferingListPullTaskTest(test.APITransactionTestCase):
             [self.offering],
             f"{self.offering.id} should be pulled but got: {pulled_objects}",
         )
+
+
+@override_settings(
+    WALDUR_AUTH_SOCIAL={"ENABLE_EDUTEAMS_SYNC": True},
+    task_always_eager=True,
+    task_eager_propagates=True,
+)
+class OfferingUserPullTaskTest(test.APITransactionTestCase):
+    def setUp(self):
+        # Create test data using MarketplaceFixture
+        self.fixture = fixtures.MarketplaceFixture()
+        self.offering = self.fixture.offering
+        self.offering.type = PLUGIN_NAME
+        self.offering.backend_id = "test-backend-id"
+        self.offering.secret_options = {
+            "api_url": "https://example.com/",
+            "token": "token",
+        }
+        self.offering.save()
+
+        # Create a deactivated user with offering user
+        self.deactivated_user = UserFactory(is_active=False)
+        self.offering_user = models.OfferingUser.objects.create(
+            user=self.deactivated_user,
+            offering=self.offering,
+            username=self.deactivated_user.username,
+        )
+
+        # Mock the client
+        self.patcher = mock.patch(
+            "waldur_mastermind.marketplace_remote.utils.WaldurClient"
+        )
+        self.client_mock = self.patcher.start()
+
+        # Simulate a case that the user does not exist in remote portal
+        self.client_mock().list_remote_offering_users.return_value = []
+
+    def tearDown(self):
+        self.patcher.stop()
+
+    def test_deactivated_user_handling_in_offering_user_pull(self):
+        """
+        Test that deactivated users are handled correctly during offering user pull,
+        specifically that no KeyError is raised when a deactivated user is not in user_map
+        """
+        # Pull offering users
+        task = tasks.OfferingUserPullTask()
+        task.pull(self.offering)
+
+        # Assert that the offering user still exists
+        offering_user = models.OfferingUser.objects.get(
+            user=self.deactivated_user, offering=self.offering
+        )
+        self.assertIsNotNone(
+            offering_user,
+            "Deactivated user's offering access should have been preserved but was not",
+        )
+
+        # Verify that we can handle deactivated users that are not in user_map
+        usernames = {self.deactivated_user.username}
+        user_map = {
+            user.username: user
+            for user in models.User.objects.filter(username__in=usernames)
+        }
+        # Verify user is not in regular user_map (because it's deactivated)
+        self.assertNotIn(
+            self.deactivated_user.username,
+            user_map,
+            "Deactivated user should not be in regular user map",
+        )
+        # Verify we can still access the user through all_objects
+        user = models.User.all_objects.get(username=self.deactivated_user.username)
+        self.assertFalse(user.is_active, "User should be deactivated")
