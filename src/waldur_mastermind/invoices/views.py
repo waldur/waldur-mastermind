@@ -468,6 +468,8 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
         for invoice in paginated_invoices:
             data = {
                 "price": "{:.2f}".format(invoice["price"]),
+                "compensation": "{:.2f}".format(invoice["compensation"]),
+                "incurred": "{:.2f}".format(invoice["incurred"]),
                 "year": invoice["invoice__year"],
                 "month": invoice["invoice__month"],
             }
@@ -494,8 +496,22 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
         invoices = (
             InvoiceItem.objects.filter(project_uuid=project_uuid)
             .values("invoice__year", "invoice__month")
-            .annotate(price=Sum(F("unit_price") * F("quantity")))
-            .values("invoice__year", "invoice__month", "price")
+            .annotate(
+                price=Sum(F("unit_price") * F("quantity")),
+                compensation=Sum(
+                    F("unit_price") * F("quantity"),
+                    filter=Q(unit_price__lt=0),
+                    default=0,
+                ),
+                incurred=Sum(
+                    F("unit_price") * F("quantity"),
+                    filter=Q(unit_price__gt=0),
+                    default=0,
+                ),
+            )
+            .values(
+                "invoice__year", "invoice__month", "price", "compensation", "incurred"
+            )
             .order_by("-invoice__year", "-invoice__month")
         )
         page = self.paginate_queryset(invoices)

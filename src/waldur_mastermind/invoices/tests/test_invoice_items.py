@@ -388,3 +388,94 @@ class InvoiceItemCostsForPeriodTest(test.APITransactionTestCase):
             self.customer_costs_url, {"customer_uuid": self.fixture.customer.uuid.hex}
         )
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class InvoiceItemCostsTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.url = factories.InvoiceItemFactory.get_list_url("costs")
+        self.project = structure_factories.ProjectFactory()
+        self.invoice = factories.InvoiceFactory()
+        self.user = structure_factories.UserFactory()
+
+    def test_costs_requires_project_uuid(self):
+        self.client.force_authenticate(self.user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_costs_validates_project_uuid_format(self):
+        self.client.force_authenticate(self.user)
+        response = self.client.get(self.url + "?project_uuid=invalid")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_costs_returns_empty_list_if_no_items(self):
+        self.client.force_authenticate(self.user)
+        response = self.client.get(self.url + f"?project_uuid={self.project.uuid.hex}")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
+
+    def test_costs_returns_aggregated_data(self):
+        # Create invoice items with both positive and negative prices
+        factories.InvoiceItemFactory(
+            invoice=self.invoice, project=self.project, unit_price=100, quantity=1
+        )
+        factories.InvoiceItemFactory(
+            invoice=self.invoice,
+            project=self.project,
+            unit_price=-50,  # Compensation
+            quantity=1,
+        )
+        factories.InvoiceItemFactory(
+            invoice=self.invoice, project=self.project, unit_price=75, quantity=2
+        )
+
+        self.client.force_authenticate(self.user)
+        response = self.client.get(self.url + f"?project_uuid={self.project.uuid.hex}")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+        item = response.data[0]
+        self.assertEqual(item["year"], self.invoice.year)
+        self.assertEqual(item["month"], self.invoice.month)
+        self.assertEqual(item["price"], "200.00")
+        self.assertEqual(item["compensation"], "-50.00")
+        self.assertEqual(item["incurred"], "250.00")
+
+    def test_costs_respects_order(self):
+        # Create items for different months
+        old_invoice = factories.InvoiceFactory(year=2023, month=1)
+        new_invoice = factories.InvoiceFactory(year=2023, month=2)
+
+        factories.InvoiceItemFactory(
+            invoice=old_invoice, project=self.project, unit_price=100, quantity=1
+        )
+        factories.InvoiceItemFactory(
+            invoice=new_invoice, project=self.project, unit_price=200, quantity=1
+        )
+
+        self.client.force_authenticate(self.user)
+        response = self.client.get(self.url + f"?project_uuid={self.project.uuid.hex}")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+        # Check if ordered by year and month in descending order
+        self.assertEqual(response.data[0]["year"], 2023)
+        self.assertEqual(response.data[0]["month"], 2)
+        self.assertEqual(response.data[1]["year"], 2023)
+        self.assertEqual(response.data[1]["month"], 1)
+
+    def test_costs_filters_by_project(self):
+        # Create items for different projects
+        other_project = structure_factories.ProjectFactory()
+
+        factories.InvoiceItemFactory(
+            invoice=self.invoice, project=self.project, unit_price=100, quantity=1
+        )
+        factories.InvoiceItemFactory(
+            invoice=self.invoice, project=other_project, unit_price=200, quantity=1
+        )
+
+        self.client.force_authenticate(self.user)
+        response = self.client.get(self.url + f"?project_uuid={self.project.uuid.hex}")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["price"], "100.00")
