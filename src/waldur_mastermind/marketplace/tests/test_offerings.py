@@ -2581,6 +2581,23 @@ class ProviderOfferingOrdersTest(test.APITransactionTestCase):
             f"Expected 2 orders, but got {len(response.json())}",
         )
 
+    def test_service_provider_can_get_orders(self):
+        """
+        This test is to check that the service provider can get the orders
+        """
+        self.client.force_authenticate(self.fixture.service_owner)
+        response = self.client.get(self.url)
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            f"Expected 200 OK, but got {response.status_code}",
+        )
+        self.assertEqual(
+            len(response.json()),
+            2,
+            f"Expected 2 orders, but got {len(response.json())}",
+        )
+
     def test_customer_support_cannot_get_orders(self):
         """
         This test is to check that the customer support role cannot get the orders

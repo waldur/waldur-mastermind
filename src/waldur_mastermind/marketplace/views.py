@@ -1066,7 +1066,10 @@ class ProviderOfferingViewSet(
         offering = self.get_object()
         # Only allow staff, support and offering managers
         if not (request.user.is_staff or request.user.is_support):
-            if not offering.has_user(request.user, OfferingRole.MANAGER):
+            if not (
+                offering.has_user(request.user, OfferingRole.MANAGER)
+                or offering.customer.has_user(request.user, CustomerRole.OWNER)
+            ):
                 raise PermissionDenied()
         queryset = models.Order.objects.filter(offering=offering)
         filterset = filters.OrderFilter(request.query_params, queryset=queryset)
@@ -1085,7 +1088,10 @@ class ProviderOfferingViewSet(
     def order_detail(self, request, uuid=None, order_uuid=None):
         offering = self.get_object()
         if not (request.user.is_staff or request.user.is_support):
-            if not offering.has_user(request.user, OfferingRole.MANAGER):
+            if not (
+                offering.has_user(request.user, OfferingRole.MANAGER)
+                or offering.customer.has_user(request.user, CustomerRole.OWNER)
+            ):
                 raise PermissionDenied()
         try:
             order = models.Order.objects.get(offering=offering, uuid=order_uuid)
