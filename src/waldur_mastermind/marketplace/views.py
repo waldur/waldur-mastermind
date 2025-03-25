@@ -62,7 +62,11 @@ from waldur_core.core.utils import (
 from waldur_core.logging.loggers import event_logger
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.filters import UserPermissionFilter
-from waldur_core.permissions.fixtures import CustomerRole, ServiceProviderRole
+from waldur_core.permissions.fixtures import (
+    CustomerRole,
+    OfferingRole,
+    ServiceProviderRole,
+)
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import (
     get_user_ids,
@@ -1050,6 +1054,49 @@ class ProviderOfferingViewSet(
     @action(detail=True, methods=["post"])
     def draft(self, request, uuid=None):
         return self._update_state("draft")
+
+    @extend_schema(responses=serializers.OrderDetailsSerializer, filters=True)
+    @action(
+        detail=True,
+        methods=["get"],
+        filter_backends=[DjangoFilterBackend],
+        filterset_class=filters.OrderFilter,
+    )
+    def orders(self, request, uuid=None):
+        offering = self.get_object()
+        # Only allow staff, support and offering managers
+        if not (request.user.is_staff or request.user.is_support):
+            if not offering.has_user(request.user, OfferingRole.MANAGER):
+                raise PermissionDenied()
+        queryset = models.Order.objects.filter(offering=offering)
+        filterset = filters.OrderFilter(request.query_params, queryset=queryset)
+        queryset = filterset.qs
+        # Paginate queryset
+        page = self.paginate_queryset(queryset)
+        serializer = serializers.OrderDetailsSerializer(
+            page, many=True, context=self.get_serializer_context()
+        )
+        return self.get_paginated_response(serializer.data)
+
+    @extend_schema(
+        responses=serializers.OrderDetailsSerializer,
+    )
+    @action(detail=True, methods=["get"], url_name="order-detail")
+    def order_detail(self, request, uuid=None, order_uuid=None):
+        offering = self.get_object()
+        if not (request.user.is_staff or request.user.is_support):
+            if not offering.has_user(request.user, OfferingRole.MANAGER):
+                raise PermissionDenied()
+        try:
+            order = models.Order.objects.get(offering=offering, uuid=order_uuid)
+        except models.Order.DoesNotExist:
+            error_message = _("The order with uuid %s does not exist!" % order_uuid)
+            logger.error(error_message)
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        serializer = serializers.OrderDetailsSerializer(
+            order, context=self.get_serializer_context()
+        )
+        return Response(serializer.data)
 
     @extend_schema(
         responses=serializers.DetailStateSerializer,
