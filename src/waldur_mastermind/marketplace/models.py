@@ -1597,15 +1597,19 @@ class IntegrationStatus(core_models.UuidMixin):
         ORDER_PROCESSING = 1
         USAGE_REPORTING = 2
         GLAUTH_SYNC = 3
+        RESOURCE_SYNC = 4
+        EVENT_PROCESSING = 5
 
         CHOICES = (
             (ORDER_PROCESSING, "Order processing"),
             (USAGE_REPORTING, "Usage reporting"),
             (GLAUTH_SYNC, "Glauth sync"),
+            (RESOURCE_SYNC, "Resource sync"),
+            (EVENT_PROCESSING, "Event processing"),
         )
 
     agent_type = models.CharField(
-        max_length=15, choices=AgentTypes.CHOICES, default=AgentTypes.ORDER_PROCESSING
+        max_length=20, choices=AgentTypes.CHOICES, default=AgentTypes.ORDER_PROCESSING
     )
     offering = models.ForeignKey(
         Offering,
@@ -1615,6 +1619,7 @@ class IntegrationStatus(core_models.UuidMixin):
     last_request_timestamp = models.DateTimeField(
         _("time of latest backend request"), null=True, blank=True, editable=False
     )
+    service_name = models.CharField(_("Service name"), max_length=150, default="")
 
     class Meta:
         unique_together = ("offering", "agent_type")
