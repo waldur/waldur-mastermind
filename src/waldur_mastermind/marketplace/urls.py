@@ -180,6 +180,11 @@ urlpatterns = [
         name="marketplace-public-offering-plan-detail",
     ),
     re_path(
+        r"^api/marketplace-provider-offerings/(?P<uuid>[a-f0-9]+)/orders/(?P<order_uuid>[a-f0-9]+)/$",
+        views.ProviderOfferingViewSet.as_view({"get": "order_detail"}),
+        name="marketplace-provider-offering-order-detail",
+    ),
+    re_path(
         r"^api/marketplace-global-categories/$",
         views.GlobalCategoriesViewSet.as_view(),
     ),

@@ -129,7 +129,9 @@ class MarketplaceFixture(structure_fixtures.ProjectFixture):
 
     @cached_property
     def offering_manager(self):
-        return self.offering_fixture.manager
+        manager = structure_factories.UserFactory()
+        self.offering.add_user(manager, OfferingRole.MANAGER)
+        return manager
 
     @cached_property
     def offering_project(self):

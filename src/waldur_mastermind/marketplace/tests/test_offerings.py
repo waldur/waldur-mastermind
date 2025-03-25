@@ -3,6 +3,7 @@ import datetime
 import json
 import os
 import tempfile
+import uuid
 from itertools import product
 from unittest import mock
 
@@ -2531,3 +2532,196 @@ class OrderNotificationTest(test.APITransactionTestCase):
         self.order.state = models.Order.States.REJECTED
         self.order.save()
         mock_notify.assert_called_once_with(self.order.uuid.hex)
+
+
+class ProviderOfferingOrdersTest(test.APITransactionTestCase):
+    """
+    This test is to check that the marketplace offering provider orders endpoint is working as expected
+    """
+
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.offering = self.fixture.offering
+        self.order = factories.OrderFactory(offering=self.offering)
+        self.url = factories.OfferingFactory.get_url(self.offering, "orders")
+        self.detail_url = self.url + str(self.order.uuid.hex) + "/"
+
+    def test_staff_can_get_orders(self):
+        """
+        This test is to check that the staff can get the orders
+        """
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            f"Response status code is {response.status_code}, expected {status.HTTP_200_OK}",
+        )
+        # There are two orders, one from the fixture and one from the setup
+        self.assertEqual(
+            len(response.json()),
+            2,
+            f"Expected 2 orders, but got {len(response.json())}",
+        )
+
+    def test_offering_manager_can_get_orders(self):
+        """
+        This test is to check that the offering manager can get the orders
+        """
+        self.client.force_authenticate(self.fixture.offering_manager)
+        response = self.client.get(self.url)
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            f"Response status code is {response.status_code}, expected {status.HTTP_200_OK}",
+        )
+        self.assertEqual(
+            len(response.json()),
+            2,
+            f"Expected 2 orders, but got {len(response.json())}",
+        )
+
+    def test_customer_support_cannot_get_orders(self):
+        """
+        This test is to check that the customer support role cannot get the orders
+        """
+        self.client.force_authenticate(self.fixture.customer_support)
+        response = self.client.get(self.url)
+        # Assert that the response is a 403 error
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+            f"Response status code is {response.status_code}, expected {status.HTTP_403_FORBIDDEN}",
+        )
+
+    def test_orders_are_filtered_by_state(self):
+        """
+        This test is to check that the orders are filtered by state
+        There are two orders, one in state done and one in state pending provider
+        """
+        self.client.force_authenticate(self.fixture.offering_manager)
+        response = self.client.get(self.url, {"state": "done"})
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            f"Response status code is {response.status_code}, expected {status.HTTP_200_OK}",
+        )
+        self.assertEqual(
+            len(response.json()), 1, f"Expected 1 order, but got {len(response.json())}"
+        )
+        response = self.client.get(self.url, {"state": "executing"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            len(response.json()),
+            0,
+            f"Expected 0 orders, but got {len(response.json())}",
+        )
+
+    def test_orders_are_filtered_by_type(self):
+        """
+        This test is to check that the orders are filtered by type
+        There are two orders, one in state done and one in state pending provider
+        """
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"type": "Create"})
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            f"Response status code is {response.status_code}, expected 200 OK",
+        )
+        self.assertEqual(
+            len(response.json()),
+            2,
+            f"Expected 2 orders, but got {len(response.json())}",
+        )
+
+        response = self.client.get(self.url, {"type": "Update"})
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            f"Response status code is {response.status_code}, expected 200 OK",
+        )
+        self.assertEqual(
+            len(response.json()),
+            0,
+            f"Expected 0 orders of type Update, but got {len(response.json())}",
+        )
+
+    def test_orders_are_filtered_by_resource_uuid(self):
+        """
+        This test is to check that the orders are filtered by resource uuid
+        """
+        self.client.force_authenticate(self.fixture.offering_manager)
+        response = self.client.get(
+            self.url, {"resource_uuid": self.order.resource.uuid.hex}
+        )
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            f"Response status code is {response.status_code}, expected 200 OK",
+        )
+        self.assertEqual(
+            len(response.json()), 1, f"Expected 1 order, but got {len(response.json())}"
+        )
+        response = self.client.get(self.url, {"resource_uuid": uuid.uuid4().hex})
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            f"Response status code is {response.status_code}, expected 200 OK",
+        )
+        self.assertEqual(
+            len(response.json()),
+            0,
+            f"Expected 0 orders, but got {len(response.json())}",
+        )
+
+    def test_order_detail(self):
+        """
+        This test is to check that the order detail view returns the correct order
+        """
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.detail_url)
+        # Assert that the response is OK and the values match
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            f"Response status code is {response.status_code}, expected {status.HTTP_200_OK}",
+        )
+        self.assertEqual(
+            response.json()["uuid"],
+            self.order.uuid.hex,
+            f"The order with uuid {self.order.uuid.hex} should be found, but the response is {response.json()}",
+        )
+        self.assertEqual(
+            response.json()["offering_name"],
+            self.order.offering.name,
+            f"The order with offering name {self.order.offering.name} should be found, but the response is {response.json()}",
+        )
+
+    def test_order_detail_not_found(self):
+        """
+        This test is to check that the order detail view returns a 404 error
+        when the order does not exist.
+        """
+        self.client.force_authenticate(self.fixture.staff)
+        url = self.url + uuid.uuid4().hex + "/"
+        response = self.client.get(url)
+        # Assert that the response is a 404 error
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_404_NOT_FOUND,
+            f"No order with uuid {uuid.uuid4().hex} should be found, but the response is {response.status_code}",
+        )
+
+    def test_unauthenticated_user_cannot_get_orders(self):
+        """
+        This test is to check that the unauthenticated user cannot get the orders
+        """
+        self.client.force_authenticate(None)
+        response = self.client.get(self.url)
+        # Assert that the response is a 401 error
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_401_UNAUTHORIZED,
+            f"Response status code is {response.status_code}, expected 401 Unauthorized",
+        )
