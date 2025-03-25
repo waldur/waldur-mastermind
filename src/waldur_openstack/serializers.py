@@ -2,7 +2,13 @@ import collections
 import copy
 import logging
 import re
-from ipaddress import AddressValueError, IPv4Network, NetmaskValueError
+from ipaddress import (
+    AddressValueError,
+    IPv4Network,
+    NetmaskValueError,
+    ip_address,
+    ip_network,
+)
 
 from django.conf import settings
 from django.contrib.auth import password_validation
@@ -840,9 +846,6 @@ class OpenStackTenantSerializer(structure_serializers.BaseResourceSerializer):
             **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs,
         )
 
-    def validate_subnet_cidr(self, value):
-        return validate_private_subnet_cidr(value)
-
     def get_fields(self):
         fields = super().get_fields()
         if not settings.WALDUR_OPENSTACK["TENANT_CREDENTIALS_VISIBLE"]:
@@ -1012,7 +1015,6 @@ class OpenStackTenantSerializer(structure_serializers.BaseResourceSerializer):
                 service_settings=tenant.service_settings,
                 project=tenant.project,
                 cidr=subnet_cidr,
-                allocation_pools=_generate_subnet_allocation_pool(subnet_cidr),
                 dns_nameservers=service_settings.options.get("dns_nameservers", []),
             )
 
@@ -1347,7 +1349,7 @@ class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializ
         initial="192.168.42.0/24",
         label="CIDR",
     )
-    allocation_pools = OpenStackSubNetAllocationPoolField(read_only=True)
+    allocation_pools = OpenStackSubNetAllocationPoolField(required=False)
     network_name = serializers.CharField(source="network.name", read_only=True)
     tenant = serializers.HyperlinkedRelatedField(
         source="network.tenant",
@@ -1376,10 +1378,6 @@ class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializ
             "host_routes",
             "is_connected",
         )
-        protected_fields = (
-            structure_serializers.BaseResourceSerializer.Meta.protected_fields
-            + ("cidr",)
-        )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
             + (
@@ -1397,10 +1395,6 @@ class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializ
             **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs,
         )
 
-    def validate_cidr(self, value):
-        if value:
-            return validate_private_subnet_cidr(value)
-
     def validate(self, attrs):
         if attrs.get("disable_gateway") and attrs.get("gateway_ip"):
             raise serializers.ValidationError(
@@ -1409,16 +1403,46 @@ class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializ
                 )
             )
 
+        if "cidr" not in attrs:
+            attrs["cidr"] = (
+                "192.168.42.0/24"
+                if not self.instance or not self.instance.cidr
+                else self.instance.cidr
+            )
+
+        cidr = attrs["cidr"]
+        allocation_pools = attrs.get("allocation_pools")
+
+        if allocation_pools:
+            for allocation_pool in allocation_pools:
+                ip_start = ip_address(allocation_pool["start"])
+                ip_end = ip_address(allocation_pool["end"])
+                if ip_start > ip_end:
+                    raise serializers.ValidationError(
+                        _("End IP mast be large that Start IP.")
+                    )
+                if ip_start not in ip_network(cidr, strict=False):
+                    raise serializers.ValidationError(
+                        _("Allocation pool does not match CIDR.")
+                    )
+                if ip_end not in ip_network(cidr, strict=False):
+                    raise serializers.ValidationError(
+                        _("Allocation pool does not match CIDR.")
+                    )
+
+        network = self.context["view"].get_object()
+
+        if not self.instance or cidr != self.instance.cidr:
+            self.check_cidr_overlap(network.tenant, cidr)
+
         if self.instance is None:
-            attrs["network"] = network = self.context["view"].get_object()
+            attrs["network"] = network
             attrs["tenant"] = network.tenant
             if network.subnets.count() >= 1:
                 raise serializers.ValidationError(
                     _("Internal network cannot have more than one subnet.")
                 )
-            if "cidr" not in attrs:
-                attrs["cidr"] = "192.168.42.0/24"
-            cidr = attrs["cidr"]
+
             if models.SubNet.objects.filter(
                 cidr=cidr, network__tenant=network.tenant
             ).exists():
@@ -1429,17 +1453,14 @@ class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializ
             attrs["service_settings"] = network.service_settings
             attrs["project"] = network.project
             options = network.service_settings.options
-            attrs["allocation_pools"] = _generate_subnet_allocation_pool(cidr)
             attrs.setdefault("dns_nameservers", options.get("dns_nameservers", []))
-            self.check_cidr_overlap(network.tenant, cidr)
-
         return attrs
 
     def check_cidr_overlap(self, tenant, new_cidr):
         cidr_list = list(
-            models.SubNet.objects.filter(network__tenant=tenant).values_list(
-                "cidr", flat=True
-            )
+            models.SubNet.objects.filter(network__tenant=tenant)
+            .exclude(cidr="")
+            .values_list("cidr", flat=True)
         )
         for old_cidr in cidr_list:
             old_ipnet = IPNetwork(old_cidr)
@@ -1461,17 +1482,13 @@ class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializ
 
 
 def _generate_subnet_allocation_pool(cidr):
-    first_octet, second_octet, third_octet, _ = cidr.split(".", 3)
-    subnet_settings = settings.WALDUR_OPENSTACK["SUBNET"]
-    format_data = {
-        "first_octet": first_octet,
-        "second_octet": second_octet,
-        "third_octet": third_octet,
-    }
+    network = ip_network(cidr, strict=False)
+    first_host = network.network_address + 1
+    last_host = network.broadcast_address - 1
     return [
         {
-            "start": subnet_settings["ALLOCATION_POOL_START"].format(**format_data),
-            "end": subnet_settings["ALLOCATION_POOL_END"].format(**format_data),
+            "start": str(first_host),
+            "end": str(last_host),
         }
     ]
 

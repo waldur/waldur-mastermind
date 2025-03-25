@@ -1211,7 +1211,7 @@ class OpenStackBackend(ServiceBackend):
         subnet = models.SubNet(
             name=backend_subnet["name"],
             description=backend_subnet["description"],
-            allocation_pools=backend_subnet["allocation_pools"],
+            allocation_pools=backend_subnet.get("allocation_pools"),
             cidr=backend_subnet["cidr"],
             ip_version=backend_subnet["ip_version"],
             enable_dhcp=backend_subnet["enable_dhcp"],
@@ -2322,10 +2322,11 @@ class OpenStackBackend(ServiceBackend):
             "network_id": subnet.network.backend_id,
             "tenant_id": subnet.network.tenant.backend_id,
             "cidr": subnet.cidr,
-            "allocation_pools": subnet.allocation_pools,
             "ip_version": subnet.ip_version,
             "enable_dhcp": subnet.enable_dhcp,
         }
+        if subnet.allocation_pools:
+            data["allocation_pools"] = subnet.allocation_pools
         if subnet.dns_nameservers:
             data["dns_nameservers"] = subnet.dns_nameservers
         if subnet.host_routes:
@@ -2374,6 +2375,12 @@ class OpenStackBackend(ServiceBackend):
 
         if backend_subnet["gateway_ip"] != subnet.gateway_ip:
             data["gateway_ip"] = subnet.gateway_ip
+
+        if backend_subnet["cidr"] != subnet.cidr:
+            data["cidr"] = subnet.cidr
+
+        if backend_subnet["allocation_pools"] != subnet.allocation_pools:
+            data["allocation_pools"] = subnet.allocation_pools
 
         neutron.update_subnet(subnet.backend_id, {"subnet": data})
         event_logger.openstack_subnet.info(

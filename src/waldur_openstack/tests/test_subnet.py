@@ -52,3 +52,48 @@ class SubNetUpdateActionTest(BaseSubNetTest):
 
         subnet.refresh_from_db()
         self.assertEqual(subnet.cidr, CIDR)
+
+    def test_update_allocation_pools(self):
+        CIDR = "192.168.42.0/29"
+        subnet = self.fixture.subnet
+
+        data = {
+            "name": "test_name",
+            "cidr": CIDR,
+            "allocation_pools": [
+                {
+                    "start": "192.168.42.3",
+                    "end": "192.168.42.6",
+                }
+            ],
+        }
+        response = self.client.put(self.url, data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        subnet.refresh_from_db()
+
+        self.assertEqual(
+            subnet.allocation_pools,
+            [
+                {
+                    "start": "192.168.42.3",
+                    "end": "192.168.42.6",
+                }
+            ],
+        )
+
+    def test_validate_allocation_pools(self):
+        CIDR = "192.168.42.0/29"
+
+        data = {
+            "name": "test_name",
+            "cidr": CIDR,
+            "allocation_pools": [
+                {
+                    "start": "192.168.42.3",
+                    "end": "192.168.42.8",
+                }
+            ],
+        }
+        response = self.client.put(self.url, data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

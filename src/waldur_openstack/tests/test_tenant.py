@@ -361,6 +361,21 @@ class TenantCreateTest(BaseTenantActionsTest):
             is_uuid_like(models.Tenant.objects.get(uuid=response.data["uuid"]).task_id)
         )
 
+    def test_tenant_creation_with_subnet_cidr_creates_correct_allocation_pools(self):
+        self.client.force_authenticate(self.fixture.staff)
+        valid_data = self.valid_data
+        valid_data["subnet_cidr"] = "192.168.42.0/29"
+
+        response = self.client.post(self.url, data=self.valid_data)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertTrue(
+            models.Tenant.objects.filter(name=self.valid_data["name"]).exists()
+        )
+        tenant = models.Tenant.objects.get(name=self.valid_data["name"])
+        subnet = models.SubNet.objects.get(tenant=tenant)
+        self.assertFalse(subnet.allocation_pools)
+
 
 @ddt
 class TenantUpdateTest(BaseTenantActionsTest):
