@@ -1742,6 +1742,7 @@ class ProviderOfferingViewSet(
             agent_type=models.IntegrationStatus.AgentTypes.GLAUTH_SYNC,
         )
         integration_status.set_last_request_timestamp()
+        integration_status.service_name = request.headers.get("User-Agent", "")
         integration_status.set_backend_active()
         integration_status.save()
 
@@ -2545,7 +2546,19 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
         utils.refresh_integration_agent_status(
             request, models.IntegrationStatus.AgentTypes.ORDER_PROCESSING
         )
+        utils.refresh_integration_agent_status(
+            request, models.IntegrationStatus.AgentTypes.EVENT_PROCESSING
+        )
         return super().list(request, *args, **kwargs)
+
+    def retrieve(self, request, *args, **kwargs):
+        utils.refresh_integration_agent_status(
+            request, models.IntegrationStatus.AgentTypes.ORDER_PROCESSING
+        )
+        utils.refresh_integration_agent_status(
+            request, models.IntegrationStatus.AgentTypes.EVENT_PROCESSING
+        )
+        return super().retrieve(request, *args, **kwargs)
 
     @extend_schema(
         request=None,
@@ -2822,7 +2835,22 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         utils.refresh_integration_agent_status(
             request, models.IntegrationStatus.AgentTypes.USAGE_REPORTING
         )
+        utils.refresh_integration_agent_status(
+            request, models.IntegrationStatus.AgentTypes.RESOURCE_SYNC
+        )
+        utils.refresh_integration_agent_status(
+            request, models.IntegrationStatus.AgentTypes.EVENT_PROCESSING
+        )
         return super().list(request, *args, **kwargs)
+
+    def retrieve(self, request, *args, **kwargs):
+        utils.refresh_integration_agent_status(
+            request, models.IntegrationStatus.AgentTypes.RESOURCE_SYNC
+        )
+        utils.refresh_integration_agent_status(
+            request, models.IntegrationStatus.AgentTypes.EVENT_PROCESSING
+        )
+        return super().retrieve(request, *args, **kwargs)
 
     @extend_schema(
         filters=False,
@@ -3059,6 +3087,7 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
             agent_type=models.IntegrationStatus.AgentTypes.GLAUTH_SYNC,
         )
         integration_status.set_last_request_timestamp()
+        integration_status.service_name = request.headers.get("User-Agent", "")
         integration_status.set_backend_active()
         integration_status.save()
 

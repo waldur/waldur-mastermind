@@ -1451,6 +1451,7 @@ def refresh_integration_agent_status(request, agent_type):
     )
     integration_status.set_last_request_timestamp()
     integration_status.set_backend_active()
+    integration_status.service_name = request.headers.get("User-Agent", "")
     integration_status.save()
 
 
