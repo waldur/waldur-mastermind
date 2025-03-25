@@ -56,7 +56,7 @@ COPY docker/rootfs /
 RUN cd /usr/src/waldur && find . -name "tests" -exec rm -r {} + && bash docker_build.sh
 
 # Delete .git directories
-RUN find /usr/local/src/ -name ".git" -type d -exec rm -rf {} +
+RUN find -f /usr/src/waldur/ -name ".git" -type d -exec rm -rf {} + || true
 
 # Delete build-base package
 RUN apk del build-base
