@@ -16,3 +16,12 @@ class CommandsTestCase(TestCase):
         call_command("migrate", stdout=result)
         result_string = result.getvalue()
         self.assertFalse("Conflicting migrations detected" in result_string)
+
+    def test_openapi_is_exported(self):
+        result = StringIO()
+        call_command(
+            "spectacular",
+            file="waldur-openapi-schema.yaml",
+            fail_on_warn=True,
+            stdout=result,
+        )
