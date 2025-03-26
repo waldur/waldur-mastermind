@@ -106,10 +106,10 @@ Run unit tests:
         path: coverage.xml
   parallel: 10
 
-Run migration test:
+Run management command test:
   extends: .Unit test runner
   script:
-    - gitlab-ci-test/waldur-test MIGRATIONS
+    - gitlab-ci-test/waldur-test MANAGEMENT
 
 Try building docker image:
   image:

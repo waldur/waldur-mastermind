@@ -44,8 +44,8 @@ if [ "$TEST_MODE" = "UNIT" ]; then
 
   # Check default configuration
   DJANGO_SETTINGS_MODULE=waldur_mastermind.test_settings waldur print_settings > /dev/null
-elif [ "$TEST_MODE" = "MIGRATIONS" ]; then
-  echo "[+] Running migration test"
+elif [ "$TEST_MODE" = "MANAGEMENT" ]; then
+  echo "[+] Running tests for management commands"
   pytest \
       --junitxml=report.xml \
       --cov=src/ \
