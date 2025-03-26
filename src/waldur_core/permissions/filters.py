@@ -3,6 +3,7 @@ from django.db.models.query_utils import Q
 from django_filters.widgets import BooleanWidget
 
 from waldur_core.core.filters import (
+    CreatedModifiedFilter,
     ExtendedOrderingFilter,
     URLFilter,
     filter_by_full_name,
@@ -21,7 +22,7 @@ class RoleFilter(django_filters.FilterSet):
         fields = ["is_active", "name", "description"]
 
 
-class UserPermissionFilter(django_filters.FilterSet):
+class UserPermissionFilter(CreatedModifiedFilter, django_filters.FilterSet):
     user = django_filters.UUIDFilter(field_name="user__uuid")
     user_url = URLFilter(
         view_name="user-detail",
@@ -132,6 +133,7 @@ class UserPermissionFilter(django_filters.FilterSet):
         model = models.UserRole
         fields = [
             "created",
+            "modified",
             "expiration_time",
             "user",
             "user_url",

@@ -3,7 +3,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.utils import timezone
 from model_utils import FieldTracker
-from model_utils.fields import AutoCreatedField
+from model_utils.models import TimeStampedModel
 
 from waldur_core.core.managers import GenericKeyMixin
 from waldur_core.core.mixins import ScopeMixin
@@ -51,7 +51,7 @@ class UserRoleManager(GenericKeyMixin, models.Manager):
     pass
 
 
-class UserRole(ScopeMixin, UuidMixin):
+class UserRole(TimeStampedModel, ScopeMixin, UuidMixin):
     user: User = models.ForeignKey(
         on_delete=models.CASCADE, to=settings.AUTH_USER_MODEL, db_index=True
     )
@@ -63,7 +63,6 @@ class UserRole(ScopeMixin, UuidMixin):
         blank=True,
         related_name="+",
     )
-    created = AutoCreatedField()
     expiration_time = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(null=True, default=True, db_index=True)
     tracker = FieldTracker(fields=["expiration_time", "is_active"])
