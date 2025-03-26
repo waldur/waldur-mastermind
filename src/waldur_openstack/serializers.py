@@ -1395,6 +1395,15 @@ class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializ
             **structure_serializers.BaseResourceSerializer.Meta.extra_kwargs,
         )
 
+    def get_fields(self):
+        fields = super().get_fields()
+
+        # Make cidr read-only on update
+        if self.instance:
+            fields["cidr"].read_only = True
+
+        return fields
+
     def validate(self, attrs):
         if attrs.get("disable_gateway") and attrs.get("gateway_ip"):
             raise serializers.ValidationError(
@@ -1436,10 +1445,10 @@ class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializ
 
         network = self.context["view"].get_object()
 
-        if not self.instance or cidr != self.instance.cidr:
+        # Only check CIDR overlap during subnet creation
+        if self.instance is None:
             self.check_cidr_overlap(network.tenant, cidr)
 
-        if self.instance is None:
             attrs["network"] = network
             attrs["tenant"] = network.tenant
             if network.subnets.count() >= 1:
@@ -1460,20 +1469,16 @@ class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializ
             attrs.setdefault("dns_nameservers", options.get("dns_nameservers", []))
         return attrs
 
+    # Keep the previously defined methods below
     def check_cidr_overlap(self, tenant, new_cidr):
         """
         Check if the new CIDR overlaps with existing CIDRs.
-        Allow extending a subnet's CIDR (going from more specific to less specific).
-        For example, allow changing from 192.168.42.0/24 to 192.168.42.0/20.
+        This is only used during subnet creation since CIDR cannot be updated.
         """
         # Get all subnets in the same tenant
         subnet_cidrs = models.SubNet.objects.filter(network__tenant=tenant).exclude(
             cidr=""
         )
-
-        # If we're updating an existing subnet, exclude its current CIDR from the check
-        if self.instance:
-            subnet_cidrs = subnet_cidrs.exclude(pk=self.instance.pk)
 
         # Check each CIDR for overlap
         for subnet in subnet_cidrs:

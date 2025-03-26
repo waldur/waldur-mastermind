@@ -102,6 +102,73 @@ class NetworkCreateSubnetActionTest(BaseNetworkTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         executor_action_mock.assert_called_once()
 
+    @mock.patch("waldur_openstack.executors.SubNetCreateExecutor.execute")
+    def test_create_subnet_with_allocation_pools(self, executor_action_mock):
+        """Test creating a subnet with allocation pools."""
+        data = {
+            "name": "test_subnet_name",
+            "cidr": "192.168.42.0/24",
+            "allocation_pools": [
+                {
+                    "start": "192.168.42.10",
+                    "end": "192.168.42.50",
+                },
+                {
+                    "start": "192.168.42.60",
+                    "end": "192.168.42.100",
+                },
+            ],
+        }
+        response = self.client.post(self.url, data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        executor_action_mock.assert_called_once()
+
+    @mock.patch("waldur_openstack.executors.SubNetCreateExecutor.execute")
+    def test_create_subnet_with_overlapping_allocation_pools(
+        self, executor_action_mock
+    ):
+        """Test that creating a subnet with overlapping allocation pools is rejected."""
+        data = {
+            "name": "test_subnet_name",
+            "cidr": "192.168.42.0/24",
+            "allocation_pools": [
+                {
+                    "start": "192.168.42.10",
+                    "end": "192.168.42.50",
+                },
+                {
+                    "start": "192.168.42.40",  # Overlaps with the first pool
+                    "end": "192.168.42.100",
+                },
+            ],
+        }
+        response = self.client.post(self.url, data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("overlap", str(response.data))
+        executor_action_mock.assert_not_called()
+
+    @mock.patch("waldur_openstack.executors.SubNetCreateExecutor.execute")
+    def test_create_subnet_with_touching_allocation_pools(self, executor_action_mock):
+        """Test that creating a subnet with touching allocation pools is rejected."""
+        data = {
+            "name": "test_subnet_name",
+            "cidr": "192.168.42.0/24",
+            "allocation_pools": [
+                {
+                    "start": "192.168.42.10",
+                    "end": "192.168.42.50",
+                },
+                {
+                    "start": "192.168.42.50",  # Same as the end of the first pool
+                    "end": "192.168.42.100",
+                },
+            ],
+        }
+        response = self.client.post(self.url, data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("overlap", str(response.data))
+        executor_action_mock.assert_not_called()
+
 
 class NetworkUpdateActionTest(BaseNetworkTest):
     def setUp(self):

@@ -56,10 +56,11 @@ class SubNetUpdateActionTest(BaseSubNetTest):
     def test_update_allocation_pools(self):
         CIDR = "192.168.42.0/29"
         subnet = self.fixture.subnet
+        subnet.cidr = CIDR
+        subnet.save()
 
         data = {
             "name": "test_name",
-            "cidr": CIDR,
             "allocation_pools": [
                 {
                     "start": "192.168.42.3",
@@ -84,10 +85,12 @@ class SubNetUpdateActionTest(BaseSubNetTest):
 
     def test_validate_allocation_pools(self):
         CIDR = "192.168.42.0/29"
+        subnet = self.fixture.subnet
+        subnet.cidr = CIDR
+        subnet.save()
 
         data = {
             "name": "test_name",
-            "cidr": CIDR,
             "allocation_pools": [
                 {
                     "start": "192.168.42.3",
@@ -98,15 +101,15 @@ class SubNetUpdateActionTest(BaseSubNetTest):
         response = self.client.put(self.url, data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_extend_subnet_cidr(self):
-        """Test that subnet CIDR can be extended from more specific to less specific."""
+    def test_cannot_update_cidr(self):
+        """Test that subnet CIDR cannot be modified after creation."""
         # Start with a /24 subnet
         initial_cidr = "192.168.42.0/24"
         subnet = self.fixture.subnet
         subnet.cidr = initial_cidr
         subnet.save()
 
-        # Extend to a /20 subnet (which contains the original /24)
+        # Try to modify the CIDR
         extended_cidr = "192.168.32.0/20"
         data = {
             "name": "test_name",
@@ -116,26 +119,9 @@ class SubNetUpdateActionTest(BaseSubNetTest):
         response = self.client.put(self.url, data)
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
+        # CIDR should not be changed
         subnet.refresh_from_db()
-        self.assertEqual(subnet.cidr, extended_cidr)
-
-    def test_cannot_extend_to_overlapping_subnet(self):
-        """Test that subnet CIDR cannot be changed to one that overlaps with another subnet."""
-        # Create a second subnet in the same tenant
-        # Variable necessary for test but not explicitly referenced
-        # as it exists in the database to cause the overlap error we're testing
-        factories.SubNetFactory(network=self.fixture.network, cidr="192.168.50.0/24")
-
-        # Try to extend the first subnet to overlap with the second one
-        overlapping_cidr = "192.168.0.0/16"  # This would contain both subnets
-        data = {
-            "name": "test_name",
-            "cidr": overlapping_cidr,
-        }
-
-        response = self.client.put(self.url, data)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("overlaps", str(response.data))
+        self.assertEqual(subnet.cidr, initial_cidr)
 
     def test_multiple_non_overlapping_allocation_pools(self):
         """Test that multiple non-overlapping allocation pools are accepted."""
@@ -146,7 +132,6 @@ class SubNetUpdateActionTest(BaseSubNetTest):
 
         data = {
             "name": "test_name",
-            "cidr": CIDR,
             "allocation_pools": [
                 {
                     "start": "192.168.42.10",
@@ -178,7 +163,6 @@ class SubNetUpdateActionTest(BaseSubNetTest):
 
         data = {
             "name": "test_name",
-            "cidr": CIDR,
             "allocation_pools": [
                 {
                     "start": "192.168.42.10",
@@ -204,7 +188,6 @@ class SubNetUpdateActionTest(BaseSubNetTest):
 
         data = {
             "name": "test_name",
-            "cidr": CIDR,
             "allocation_pools": [
                 {
                     "start": "192.168.42.10",
@@ -220,35 +203,3 @@ class SubNetUpdateActionTest(BaseSubNetTest):
         response = self.client.put(self.url, data)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("overlap", str(response.data))
-
-    def test_update_with_allocation_pools_after_extending_cidr(self):
-        """Test updating allocation pools after extending the CIDR."""
-        # Start with a /24 subnet
-        initial_cidr = "192.168.42.0/24"
-        subnet = self.fixture.subnet
-        subnet.cidr = initial_cidr
-        subnet.save()
-
-        # Extend to a /20 subnet and update allocation pools
-        extended_cidr = "192.168.32.0/20"
-        data = {
-            "name": "test_name",
-            "cidr": extended_cidr,
-            "allocation_pools": [
-                {
-                    "start": "192.168.32.10",
-                    "end": "192.168.32.254",
-                },
-                {
-                    "start": "192.168.33.10",
-                    "end": "192.168.33.254",
-                },
-            ],
-        }
-
-        response = self.client.put(self.url, data)
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
-
-        subnet.refresh_from_db()
-        self.assertEqual(subnet.cidr, extended_cidr)
-        self.assertEqual(len(subnet.allocation_pools), 2)
