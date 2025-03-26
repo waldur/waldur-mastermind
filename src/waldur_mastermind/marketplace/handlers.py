@@ -969,10 +969,8 @@ def create_offering_user_for_new_resource(sender, instance, **kwargs):
             username=username,
         )
 
-        offering_user.set_propagation_date()
-
         utils.setup_linux_related_data(offering_user, offering)
-        offering_user.save(update_fields=["propagation_date", "backend_metadata"])
+        offering_user.save(update_fields=["backend_metadata"])
 
         logger.info("The offering user %s has been created", offering_user)
 

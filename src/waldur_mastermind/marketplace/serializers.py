@@ -3497,7 +3497,6 @@ class OfferingUserSerializer(
             "user_full_name",
             "created",
             "modified",
-            "propagation_date",
             "customer_uuid",
             "customer_name",
             "is_restricted",

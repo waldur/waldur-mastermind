@@ -71,17 +71,16 @@ class ListOfferingUsersTest(test.APITransactionTestCase):
 
     def test_user_can_filter_offering_users(self):
         offering_user1 = OfferingUser.objects.get(username="user")
-        offering_user1.set_propagation_date()
         offering_user1.save()
 
         self.client.force_login(self.fixture.staff)
 
         response = self.client.get(
-            reverse("marketplace-offering-user-list"), {"is_not_propagated": False}
+            reverse("marketplace-offering-user-list"),
+            {"provider_uuid": self.offering.customer.uuid.hex},
         )
         self.assertEqual(1, len(response.data))
         self.assertEqual("user", response.data[0]["username"])
-        self.assertIsNotNone(response.data[0]["propagation_date"], response.data[0])
 
     def test_user_can_filter_by_user_username(self):
         offering_user = OfferingUser.objects.get(username="user")

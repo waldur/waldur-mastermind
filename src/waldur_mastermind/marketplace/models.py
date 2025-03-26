@@ -1459,7 +1459,6 @@ class OfferingUser(
     offering = models.ForeignKey(Offering, on_delete=models.CASCADE)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     username = models.CharField(max_length=100, blank=True, null=True)
-    propagation_date = models.DateTimeField(blank=True, null=True)
     is_restricted = models.BooleanField(
         default=False,
         help_text=_("Signal to service if the user account is restricted or not"),
@@ -1472,10 +1471,6 @@ class OfferingUser(
 
     def get_log_fields(self):
         return ("offering", "user", "username", "is_restricted")
-
-    def set_propagation_date(self):
-        now = timezone.datetime.today()
-        self.propagation_date = now
 
     def __str__(self) -> str:
         return f"{self.offering.name}: {self.username}"

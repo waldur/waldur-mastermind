@@ -497,7 +497,6 @@ class OfferingUserAdmin(admin.ModelAdmin):
         "offering",
         "user",
         "username",
-        "propagation_date",
     )
 
 

@@ -1341,7 +1341,6 @@ def user_offerings_mapping(offerings):
             offering_user = models.OfferingUser.objects.create(
                 user=user, offering=offering, username=username
             )
-            offering_user.set_propagation_date()
             offering_user.save()
             logger.info("Offering user %s has been created.")
 
