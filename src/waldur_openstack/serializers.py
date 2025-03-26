@@ -1414,12 +1414,13 @@ class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializ
         allocation_pools = attrs.get("allocation_pools")
 
         if allocation_pools:
+            # Check that each individual allocation pool is valid
             for allocation_pool in allocation_pools:
                 ip_start = ip_address(allocation_pool["start"])
                 ip_end = ip_address(allocation_pool["end"])
                 if ip_start > ip_end:
                     raise serializers.ValidationError(
-                        _("End IP mast be large that Start IP.")
+                        _("End IP must be larger than Start IP.")
                     )
                 if ip_start not in ip_network(cidr, strict=False):
                     raise serializers.ValidationError(
@@ -1429,6 +1430,9 @@ class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializ
                     raise serializers.ValidationError(
                         _("Allocation pool does not match CIDR.")
                     )
+
+            # Check for overlaps between allocation pools
+            self.check_allocation_pools_overlap(allocation_pools)
 
         network = self.context["view"].get_object()
 
@@ -1457,20 +1461,66 @@ class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializ
         return attrs
 
     def check_cidr_overlap(self, tenant, new_cidr):
-        cidr_list = list(
-            models.SubNet.objects.filter(network__tenant=tenant)
-            .exclude(cidr="")
-            .values_list("cidr", flat=True)
+        """
+        Check if the new CIDR overlaps with existing CIDRs.
+        Allow extending a subnet's CIDR (going from more specific to less specific).
+        For example, allow changing from 192.168.42.0/24 to 192.168.42.0/20.
+        """
+        # Get all subnets in the same tenant
+        subnet_cidrs = models.SubNet.objects.filter(network__tenant=tenant).exclude(
+            cidr=""
         )
-        for old_cidr in cidr_list:
-            old_ipnet = IPNetwork(old_cidr)
-            new_ipnet = IPNetwork(new_cidr)
-            if all_matching_cidrs(new_ipnet, [old_cidr]) or all_matching_cidrs(
-                old_ipnet, [new_cidr]
-            ):
+
+        # If we're updating an existing subnet, exclude its current CIDR from the check
+        if self.instance:
+            subnet_cidrs = subnet_cidrs.exclude(pk=self.instance.pk)
+
+        # Check each CIDR for overlap
+        for subnet in subnet_cidrs:
+            old_cidr = subnet.cidr
+            try:
+                old_ipnet = IPNetwork(old_cidr)
+                new_ipnet = IPNetwork(new_cidr)
+
+                # Check if either network contains the other
+                if all_matching_cidrs(new_ipnet, [old_cidr]) or all_matching_cidrs(
+                    old_ipnet, [new_cidr]
+                ):
+                    raise serializers.ValidationError(
+                        _("CIDR %(new_cidr)s overlaps with CIDR %(old_cidr)s")
+                        % dict(new_cidr=new_cidr, old_cidr=old_cidr)
+                    )
+            except (AddrFormatError, ValueError):
+                # Skip invalid CIDRs
+                continue
+
+    def check_allocation_pools_overlap(self, allocation_pools):
+        """
+        Check if any of the allocation pools overlap with each other.
+
+        Args:
+            allocation_pools: List of dictionaries with 'start' and 'end' IP addresses
+
+        Raises:
+            ValidationError: If any allocation pools overlap
+        """
+        if not allocation_pools or len(allocation_pools) <= 1:
+            return
+
+        # Sort pools for easier comparison
+        sorted_pools = sorted(allocation_pools, key=lambda p: ip_address(p["start"]))
+
+        # Check for overlaps between adjacent pools
+        for i in range(len(sorted_pools) - 1):
+            current_end = ip_address(sorted_pools[i]["end"])
+            next_start = ip_address(sorted_pools[i + 1]["start"])
+
+            # If the end of the current pool is greater than or equal to the start of the next pool,
+            # they overlap
+            if current_end >= next_start:
                 raise serializers.ValidationError(
-                    _("CIDR %(new_cidr)s overlaps with CIDR %(old_cidr)s")
-                    % dict(new_cidr=new_cidr, old_cidr=old_cidr)
+                    _("Allocation pools overlap: %(pool1)s and %(pool2)s")
+                    % {"pool1": sorted_pools[i], "pool2": sorted_pools[i + 1]}
                 )
 
     def update(self, instance, validated_data):
