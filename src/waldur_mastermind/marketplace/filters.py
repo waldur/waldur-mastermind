@@ -687,20 +687,9 @@ class OfferingUserFilter(OfferingFilterMixin, core_filters.CreatedModifiedFilter
     user_username = django_filters.CharFilter(
         field_name="user__username", lookup_expr="iexact"
     )
-    is_not_propagated = django_filters.BooleanFilter(
-        field_name="propagation_date", widget=BooleanWidget, lookup_expr="isnull"
-    )
-    propagated_after = django_filters.DateTimeFilter(
-        field_name="propagation_date", lookup_expr="gte"
-    )
-    propagated_before = django_filters.DateTimeFilter(
-        field_name="propagation_date", lookup_expr="lte"
-    )
     provider_uuid = django_filters.UUIDFilter(field_name="offering__customer__uuid")
     is_restricted = django_filters.BooleanFilter(field_name="is_restricted")
-    o = django_filters.OrderingFilter(
-        fields=("created", "modified", "username", "propagation_date")
-    )
+    o = django_filters.OrderingFilter(fields=("created", "modified", "username"))
     query = django_filters.CharFilter(method="filter_query")
 
     class Meta:

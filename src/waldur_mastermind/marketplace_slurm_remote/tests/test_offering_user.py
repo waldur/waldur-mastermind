@@ -82,7 +82,6 @@ class OfferingUserCreationTest(test.APITransactionTestCase):
             offering=self.resource.offering, user=self.offering_admin
         )
         self.assertEqual(offering_user.username, self.offering_admin.username)
-        self.assertIsNotNone(offering_user.propagation_date)
 
     def test_offering_user_unix_data(self):
         self.resource.project.add_user(self.offering_admin, ProjectRole.ADMIN)

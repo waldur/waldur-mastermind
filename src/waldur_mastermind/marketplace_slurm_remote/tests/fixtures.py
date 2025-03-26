@@ -56,7 +56,6 @@ class GlauthUserFixture(marketplace_fixtures.MarketplaceFixture):
         self.offering_user = marketplace_models.OfferingUser.objects.get(
             offering=self.offering, user=self.manager
         )
-        self.offering_user.set_propagation_date()
         self.offering_user.save()
 
         # Set up offering user groups
