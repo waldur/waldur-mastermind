@@ -12,6 +12,7 @@ from django.utils import timezone as django_timezone
 from django.utils.translation import gettext_lazy as _
 from django_fsm import ConcurrentTransitionMixin, FSMIntegerField, transition
 from model_utils import FieldTracker
+from model_utils.fields import AutoLastModifiedField
 from model_utils.models import TimeStampedModel
 from reversion import revisions as reversion
 
@@ -255,6 +256,7 @@ class User(
         ),
     )
     date_joined = models.DateTimeField(_("date joined"), default=django_timezone.now)
+    modified = AutoLastModifiedField(_("modified"))
     registration_method = models.CharField(
         _("registration method"),
         max_length=50,

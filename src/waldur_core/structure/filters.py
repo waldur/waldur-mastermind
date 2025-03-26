@@ -338,6 +338,9 @@ class BaseUserFilter(django_filters.FilterSet):
     job_title = django_filters.CharFilter(lookup_expr="icontains")
     email = django_filters.CharFilter(lookup_expr="icontains")
     is_active = django_filters.BooleanFilter(widget=BooleanWidget)
+    modified = django_filters.DateTimeFilter(
+        lookup_expr="gte", label="Date modified after"
+    )
     date_joined = django_filters.DateTimeFilter(
         lookup_expr="gte", label="Date joined after"
     )
