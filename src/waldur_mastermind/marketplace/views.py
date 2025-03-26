@@ -1055,13 +1055,10 @@ class ProviderOfferingViewSet(
     def draft(self, request, uuid=None):
         return self._update_state("draft")
 
-    @extend_schema(responses=serializers.OrderDetailsSerializer, filters=True)
-    @action(
-        detail=True,
-        methods=["get"],
-        filter_backends=[DjangoFilterBackend],
-        filterset_class=filters.OrderFilter,
+    @extend_schema(
+        responses=serializers.OrderDetailsSerializer(many=True), filters=True
     )
+    @action(detail=True, methods=["get"], filter_backends=[])
     def orders(self, request, uuid=None):
         offering = self.get_object()
         # Only allow staff, support and offering managers
@@ -1081,10 +1078,7 @@ class ProviderOfferingViewSet(
         )
         return self.get_paginated_response(serializer.data)
 
-    @extend_schema(
-        responses=serializers.OrderDetailsSerializer,
-    )
-    @action(detail=True, methods=["get"], url_name="order-detail")
+    @extend_schema(responses=serializers.OrderDetailsSerializer)
     def order_detail(self, request, uuid=None, order_uuid=None):
         offering = self.get_object()
         if not (request.user.is_staff or request.user.is_support):
