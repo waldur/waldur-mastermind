@@ -1935,21 +1935,27 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
         for field in options_serializer.fields.values():
             field.required = False
         options_serializer.is_valid(raise_exception=True)
-        instance.scope.backend_url = options_serializer.validated_data.get(
-            "backend_url"
-        )
-        instance.scope.username = options_serializer.validated_data.get("username")
-        instance.scope.password = options_serializer.validated_data.get("password")
-        instance.scope.domain = options_serializer.validated_data.get("domain")
-        instance.scope.token = options_serializer.validated_data.get("token")
-        instance.scope.options.update(options_serializer.validated_data.get("options"))
-        instance.scope.console_type = options_serializer.validated_data.get(
-            "console_type"
-        )
-        instance.scope.console_domain_override = options_serializer.validated_data.get(
-            "console_domain_override"
-        )
-        instance.scope.save()
+        update_fields = set()
+        for key in (
+            "backend_url",
+            "username",
+            "password",
+            "domain",
+            "token",
+            "options",
+            "console_type",
+            "console_domain_override",
+        ):
+            if instance and key not in service_attributes:
+                continue
+            value = options_serializer.validated_data.get(key)
+            if key == "options":
+                instance.scope.options.update(value)
+            else:
+                setattr(instance.scope, key, value)
+            update_fields.add(key)
+        if update_fields:
+            instance.scope.save(update_fields=update_fields)
 
         if (
             instance.scope.state
