@@ -1538,8 +1538,8 @@ class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializ
 
 def _generate_subnet_allocation_pool(cidr):
     network = ip_network(cidr, strict=False)
-    first_host = network.network_address + 1
-    last_host = network.broadcast_address - 1
+    first_host = network.network_address + 10
+    last_host = network.broadcast_address - 10
     return [
         {
             "start": str(first_host),

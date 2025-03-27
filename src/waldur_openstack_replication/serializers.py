@@ -241,7 +241,9 @@ class MigrationCreateSerializer(serializers.ModelSerializer):
                     cidr=subnet_cidr,
                     dns_nameservers=src_subnet.dns_nameservers,
                     host_routes=src_subnet.host_routes,
-                    allocation_pools=_generate_subnet_allocation_pool(subnet_cidr),
+                    allocation_pools=subnet_mappings.get(src_subnet.cidr)
+                    and _generate_subnet_allocation_pool(subnet_cidr)
+                    or src_subnet.allocation_pools,
                 )
         group_map: dict[str, SecurityGroup] = {}
         rules_map: dict[str, SecurityGroupRule] = {}
