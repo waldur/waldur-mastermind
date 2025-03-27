@@ -14,7 +14,7 @@ class MergedSubnetsTest(test.APITransactionTestCase):
         factories.AccessSubnetFactory(inet="192.168.1.0/24")
         factories.AccessSubnetFactory(inet="192.168.2.0/24")
 
-        merged_subnets = organization_access_subnets.get_merged_subnets()
+        merged_subnets = organization_access_subnets.Command().get_merged_subnets()
         self.assertEqual(len(merged_subnets), 2)  # They remain separate
         merged_subnets_str = sorted([str(subnet) for subnet in merged_subnets])
         self.assertEqual(merged_subnets_str, ["192.168.1.0/24", "192.168.2.0/24"])
@@ -28,7 +28,7 @@ class MergedSubnetsTest(test.APITransactionTestCase):
             inet="192.168.0.128/25"
         )  # 192.168.0.128 - 192.168.0.255
 
-        merged_subnets = organization_access_subnets.get_merged_subnets()
+        merged_subnets = organization_access_subnets.Command().get_merged_subnets()
         self.assertEqual(len(merged_subnets), 1)
         self.assertEqual(str(merged_subnets[0]), "192.168.0.0/24")
 
@@ -36,7 +36,7 @@ class MergedSubnetsTest(test.APITransactionTestCase):
         factories.AccessSubnetFactory(inet="10.0.0.0/24")
         factories.AccessSubnetFactory(inet="10.0.0.128/25")
 
-        merged_subnets = organization_access_subnets.get_merged_subnets()
+        merged_subnets = organization_access_subnets.Command().get_merged_subnets()
         self.assertEqual(len(merged_subnets), 1)
         self.assertEqual(str(merged_subnets[0]), "10.0.0.0/24")
 
@@ -44,7 +44,7 @@ class MergedSubnetsTest(test.APITransactionTestCase):
         factories.AccessSubnetFactory(inet="172.16.0.0/28")
         factories.AccessSubnetFactory(inet="172.16.0.16/28")
 
-        merged_subnets = organization_access_subnets.get_merged_subnets()
+        merged_subnets = organization_access_subnets.Command().get_merged_subnets()
         self.assertEqual(len(merged_subnets), 1)
         self.assertEqual(str(merged_subnets[0]), "172.16.0.0/27")
 
@@ -53,7 +53,7 @@ class MergedSubnetsTest(test.APITransactionTestCase):
         for i in range(1, 11):
             factories.AccessSubnetFactory(inet=f"192.168.1.{i}/32")
 
-        merged_subnets = organization_access_subnets.get_merged_subnets()
+        merged_subnets = organization_access_subnets.Command().get_merged_subnets()
         # The exact number depends on how ipaddress.collapse_addresses() groups them
         # Let's just verify that they've been reduced from 10 individual IPs
         self.assertLess(len(merged_subnets), 10)
@@ -66,7 +66,7 @@ class MergedSubnetsTest(test.APITransactionTestCase):
         factories.AccessSubnetFactory(inet="192.168.1.0/24")
         factories.AccessSubnetFactory(inet="10.0.0.0/24")
 
-        merged_subnets = organization_access_subnets.get_merged_subnets()
+        merged_subnets = organization_access_subnets.Command().get_merged_subnets()
         self.assertEqual(len(merged_subnets), 2)
         merged_subnets_str = sorted([str(subnet) for subnet in merged_subnets])
         self.assertEqual(merged_subnets_str, ["10.0.0.0/24", "192.168.1.0/24"])
@@ -76,7 +76,7 @@ class MergedSubnetsTest(test.APITransactionTestCase):
         factories.AccessSubnetFactory(inet="2001:db8::/64")
         factories.AccessSubnetFactory(inet="2001:db8:0:1::/64")
 
-        merged_subnets = organization_access_subnets.get_merged_subnets()
+        merged_subnets = organization_access_subnets.Command().get_merged_subnets()
         self.assertEqual(len(merged_subnets), 2)
 
         ipv4_subnets = [subnet for subnet in merged_subnets if subnet.version == 4]
