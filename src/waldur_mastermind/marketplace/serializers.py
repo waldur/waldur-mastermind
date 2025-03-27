@@ -1943,10 +1943,8 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
             "domain",
             "token",
             "options",
-            "console_type",
-            "console_domain_override",
         ):
-            if instance and key not in service_attributes:
+            if key not in service_attributes and key != "options":
                 continue
             value = options_serializer.validated_data.get(key)
             if key == "options":

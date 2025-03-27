@@ -1308,6 +1308,28 @@ class OfferingPartialUpdateTest(test.APITransactionTestCase):
         self.assertEqual(self.offering.scope.password, "new_password")
         self.assertEqual(self.offering.scope.backend_url, backend_url)
 
+    def test_update_openstack_tenant_verify_ssl(self):
+        # Arrange
+        self.offering.type = "OpenStack.Tenant"
+        self.offering.scope = structure_factories.ServiceSettingsFactory()
+        self.offering.save()
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.OfferingFactory.get_url(self.offering, "update_integration")
+
+        # Act
+        response = self.client.post(url, {"service_attributes": {"verify_ssl": False}})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.offering.scope.refresh_from_db()
+        self.assertEqual(self.offering.scope.options.get("verify_ssl"), False)
+
+        # Test updating to True
+        response = self.client.post(url, {"service_attributes": {"verify_ssl": True}})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.offering.scope.refresh_from_db()
+        self.assertEqual(self.offering.scope.options.get("verify_ssl"), True)
+
     def test_update_openstack_tenant_certificate(self):
         self.offering.type = "OpenStack.Tenant"
         self.offering.save()
