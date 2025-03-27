@@ -946,8 +946,10 @@ class OpenStackBackend(ServiceBackend):
         for backend_port in backend_ports:
             backend_id = backend_port["id"]
 
+            subnet_id = None
             try:
                 subnet_backend_id = backend_port["fixed_ips"][0]["subnet_id"]
+                subnet_id = subnet_mapping.get(subnet_backend_id)
             except (AttributeError, KeyError, IndexError):
                 pass
 
@@ -960,7 +962,7 @@ class OpenStackBackend(ServiceBackend):
                 "service_settings": tenant.service_settings,
                 "project": tenant.project,
                 "instance_id": instance_id,
-                "subnet_id": subnet_mapping.get(subnet_backend_id),
+                "subnet_id": subnet_id,
                 "state": models.Port.States.OK,
                 "mac_address": backend_port["mac_address"],
                 "fixed_ips": backend_port["fixed_ips"],
