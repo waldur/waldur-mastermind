@@ -1069,6 +1069,7 @@ class OpenStackNestedSubNetSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.SubNet
         fields = (
+            "uuid",
             "name",
             "description",
             "cidr",

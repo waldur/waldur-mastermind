@@ -32,7 +32,17 @@ def _get_version(package_name="waldur_mastermind"):
 
             return description
         except (OSError, subprocess.CalledProcessError):
-            return "unknown"
+            pass
+
+        commit_sha = "unknown"
+        try:
+            cwd = os.getcwd()
+            file_path = f"{cwd}/COMMIT_SHA"
+            with open(file_path, encoding="utf-8") as f:
+                commit_sha = f.read().strip()
+        except FileNotFoundError:
+            pass
+        return commit_sha
     else:
         return package_version
 
