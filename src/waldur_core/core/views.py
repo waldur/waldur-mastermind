@@ -805,6 +805,7 @@ def get_latest_github_tag(timeout=5):
 )
 def version_detail(request):
     """Retrieve version of the application"""
+
     response_data = {
         "version": __version__,
     }
