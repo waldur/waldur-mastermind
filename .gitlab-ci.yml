@@ -267,7 +267,7 @@ Upload Source SBOM:
     SBOM_DIR: "source"
 
 Upload configuration guide:
-  stage: deploy
+  stage: postdeploy
   interruptible: true
   rules:
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
@@ -304,7 +304,7 @@ Upload configuration guide:
   before_script: []
 
 Upload HomePort enums:
-  stage: deploy
+  stage: postdeploy
   interruptible: true
   rules:
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
@@ -334,7 +334,7 @@ Upload HomePort enums:
   before_script: []
 
 Upload MCP metadata:
-  stage: deploy
+  stage: postdeploy
   interruptible: true
   rules:
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
@@ -367,8 +367,8 @@ Generate OpenAPI schema:
   stage: deploy
   interruptible: true
   rules:
-    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
-    - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
+      - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
+      - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
   image: registry.hpc.ut.ee/mirror/$WALDUR_MASTERMIND_TEST_IMAGE
   variables:
     DJANGO_SETTINGS_MODULE: waldur_core.server.doc_settings
@@ -433,7 +433,7 @@ Generate Go SDK:
     expire_in: 1 day
 
 Upload Go SDK:
-  stage: deploy
+  stage: postdeploy
   interruptible: true
   rules:
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
@@ -464,7 +464,7 @@ Upload Go SDK:
     - git config --global user.name "Waldur Gitlab Runner"
 
 Upload Python SDK:
-  stage: deploy
+  stage: postdeploy
   interruptible: true
   rules:
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
@@ -512,7 +512,16 @@ Generate OpenAPI schema diff:
     - echo "Cloning docs repository"
     - git clone "https://github.com/waldur/waldur-docs.git"
     - ls waldur-docs
-    - PREV_SCHEMA=$(ls -v waldur-docs/docs/API/waldur-openapi-schema-*.yaml 2>/dev/null | tail -n 1 || echo "")
+    - |
+      # First try to find the previous version if current tag exists
+      if [ -f "waldur-docs/docs/API/waldur-openapi-schema-${CI_COMMIT_TAG}.yaml" ]; then
+        echo "Current tag file exists, finding previous version"
+        PREV_SCHEMA=$(ls waldur-docs/docs/API/waldur-openapi-schema-*.yaml | sort -V | grep -B1 "waldur-openapi-schema-${CI_COMMIT_TAG}.yaml" | head -n1)
+      else
+        echo "Current tag file does not exist, getting latest version"
+        PREV_SCHEMA=$(ls waldur-docs/docs/API/waldur-openapi-schema-*.yaml | sort -V | tail -n1 || echo "")
+      fi
+
     - echo "Previous schema $PREV_SCHEMA"
     - |
       if [ -z "$PREV_SCHEMA" ]; then
@@ -530,7 +539,7 @@ Generate OpenAPI schema diff:
     expire_in: 1 day
 
 Upload OpenAPI schema diff to docs:
-  stage: deploy
+  stage: postdeploy
   interruptible: true
   needs:
     - Generate OpenAPI schema
@@ -561,7 +570,7 @@ Upload OpenAPI schema diff to docs:
   before_script: []
 
 Upload TypeScript SDK:
-  stage: deploy
+  stage: postdeploy
   interruptible: true
   rules:
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
@@ -597,6 +606,7 @@ Upload OpenAPI schema to docs:
   interruptible: true
   needs:
     - Generate OpenAPI schema
+    - Generate OpenAPI schema diff
   rules:
     - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
   image:
