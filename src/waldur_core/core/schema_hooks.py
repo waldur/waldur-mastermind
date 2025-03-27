@@ -201,3 +201,21 @@ def _make_fields_optional(schema_obj, full_schema):
         if key in schema_obj:
             for sub_schema in schema_obj[key]:
                 _make_fields_optional(sub_schema, full_schema)
+
+
+def remove_waldur_cookie_auth(result, generator, **kwargs):
+    """
+    Remove waldurCookieAuth from security schemes in an OpenAPI schema.
+    """
+    for path in result["paths"].values():
+        for operation in path.values():
+            if "security" in operation:
+                operation["security"] = [
+                    sec_req
+                    for sec_req in operation["security"]
+                    if "waldurCookieAuth" not in sec_req
+                ]
+                # If security becomes empty, remove it
+                if not operation["security"]:
+                    del operation["security"]
+    return result
