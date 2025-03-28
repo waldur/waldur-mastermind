@@ -330,7 +330,7 @@ class MigrationCreateSerializer(serializers.ModelSerializer):
         validated_data["created_by"] = self.context["request"].user
         src_resource: Resource = validated_data["src_resource"]
 
-        name = validated_data.get("name") or src_resource.name
+        name = validated_data.pop("name", None) or src_resource.name
         description = validated_data.get("description") or src_resource.description
         src_tenant: Tenant = src_resource.scope
 

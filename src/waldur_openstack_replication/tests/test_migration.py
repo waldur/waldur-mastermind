@@ -38,12 +38,14 @@ class MigrationTest(test.APITransactionTestCase):
         response = self.client.post(
             reverse("openstack-migrations-list"),
             {
+                "name": "replicated vpc",
                 "src_resource": resource.uuid.hex,
                 "dst_offering": self.offering.uuid.hex,
                 "dst_plan": plan.uuid.hex,
             },
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data["dst_resource_name"], "replicated vpc")
 
     def test_tenant_has_credentials(self):
         plan = PlanFactory(offering=self.offering)
