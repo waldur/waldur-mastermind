@@ -74,8 +74,15 @@ def delete_stale_event_subscriptions():
 
 
 @shared_task
-def publish_mqtt_messages(messages: list[dict[str, str]]) -> None:
-    utils.publish_mqtt_messages(messages)
+def publish_messages(messages: list[dict[str, str]]) -> None:
+    try:
+        utils.publish_mqtt_messages(messages)
+    except Exception as e:
+        logger.error("Error publishing MQTT messages: %s", e)
+    try:
+        utils.publish_stomp_messages(messages)
+    except Exception as e:
+        logger.error("Error publishing STOMP messages: %s", e)
 
 
 @shared_task(name="waldur_core.logging.delete_dangling_event_subscriptions")

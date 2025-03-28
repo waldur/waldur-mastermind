@@ -5,6 +5,7 @@ from django.apps import apps
 from django.conf import settings
 from django.db.models import QuerySet
 
+import stomp
 from paho.mqtt import publish as mqtt_publish
 from waldur_core.logging import backend, models
 from waldur_core.logging.mixins import LoggableMixin
@@ -51,14 +52,17 @@ def delete_stale_subscriptions(
 
 def publish_mqtt_messages(messages_to_send: list[dict[str, str]]) -> None:
     """Helper function to publish prepared MQTT messages"""
-    mqtt_settings: dict = settings.RABBITMQ_MQTT
+    mqtt_settings: dict = settings.RABBITMQ
+    if not mqtt_settings.get("MQTT_PORT"):
+        logger.error("MQTT_PORT is not defined in settings")
+        return
 
     for message_info in messages_to_send:
         try:
             logger.info(
                 "Sending new message to mqtt://%s:%s, topic: %s",
                 mqtt_settings["HOST"],
-                mqtt_settings["PORT"],
+                mqtt_settings["MQTT_PORT"],
                 message_info["topic"],
             )
             mqtt_auth = {
@@ -69,13 +73,60 @@ def publish_mqtt_messages(messages_to_send: list[dict[str, str]]) -> None:
                 message_info["topic"],
                 message_info["payload"],
                 hostname=mqtt_settings["HOST"],
-                port=mqtt_settings["PORT"],
+                port=mqtt_settings["MQTT_PORT"],
                 auth=mqtt_auth,
             )
         except Exception as exc:
             logger.exception(
                 "Unable to send order info to mqtt://%s:%s, reason: %s",
                 mqtt_settings["HOST"],
-                mqtt_settings["PORT"],
+                mqtt_settings["MQTT_PORT"],
                 exc,
             )
+
+
+def publish_stomp_messages(messages_to_send: list[dict[str, str]]) -> None:
+    """
+    Publish messages to RabbitMQ via STOMP protocol.
+    """
+    rabbitmq_settings: dict = settings.RABBITMQ
+    if not rabbitmq_settings.get("STOMP_PORT"):
+        logger.error("STOMP_PORT is not defined in settings")
+        return
+
+    host = rabbitmq_settings["HOST"]
+    port = rabbitmq_settings["STOMP_PORT"]
+    username = rabbitmq_settings["USER"]
+    password = rabbitmq_settings["PASSWORD"]
+
+    for message_info in messages_to_send:
+        connection = None
+        try:
+            connection = stomp.Connection12(
+                host_and_ports=[(host, port)],
+                vhost=message_info["vhost"],
+            )
+            connection.connect(username=username, passcode=password, wait=True)
+            destination = "/queue/" + message_info["topic"].replace("/", "_")
+            headers = {
+                "persistent": "true",  # Ensure message survival
+                "durable": "true",  # Queue survives broker restart
+                "auto-delete": "false",  # Queue exists even without consumers
+                "content-type": "application/json",
+            }
+            logger.info(
+                "Sending message %s to %s", message_info["payload"], destination
+            )
+            connection.send(
+                destination=destination,
+                body=message_info["payload"],
+                headers=headers,
+            )
+        except Exception as e:
+            logger.exception(
+                "Failed to publish message to RabbitMQ STOMP queue: %s",
+                e,
+            )
+
+    if connection and connection.is_connected():
+        connection.disconnect()

@@ -10,7 +10,7 @@ from waldur_mastermind.marketplace_slurm_remote import PLUGIN_NAME, utils
 logger = logging.getLogger(__name__)
 
 
-def send_pending_order_to_mqtt(sender, instance, created=False, **kwargs):
+def send_pending_order_to_message_queue(sender, instance, created=False, **kwargs):
     order: marketplace_models.Order = instance
     if created:
         return
@@ -26,11 +26,11 @@ def send_pending_order_to_mqtt(sender, instance, created=False, **kwargs):
         return
 
     payload = {"order_uuid": order.uuid.hex}
-    messages = utils.prepare_mqtt_messages(
+    messages = utils.prepare_messages(
         offering, payload, logging_utils.ObservableObjectType.ORDER
     )
     if messages:
-        logging_tasks.publish_mqtt_messages.delay(messages)
+        logging_tasks.publish_messages.delay(messages)
 
 
 def process_role_changed(permission: permission_models.UserRole, granted: bool):
@@ -68,13 +68,13 @@ def process_role_changed(permission: permission_models.UserRole, granted: bool):
             "role_name": permission.role.name,
             "granted": granted,
         }
-        messages = utils.prepare_mqtt_messages(
+        messages = utils.prepare_messages(
             offering, payload, logging_utils.ObservableObjectType.USER_ROLE
         )
         all_messages.extend(messages)
 
     if all_messages:
-        logging_tasks.publish_mqtt_messages.delay(all_messages)
+        logging_tasks.publish_messages.delay(all_messages)
 
 
 def send_role_revoked_message_to_mqtt(
