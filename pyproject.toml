@@ -88,6 +88,7 @@ drf-spectacular = "^0.28.0"
 drf-orjson-renderer = "^1.7.3"
 psycopg = {extras = ["binary"], version = "^3.2.6"}
 python-magic = "^0.4.27"
+stomp-py = "^8.2.0"
 
 [tool.poetry.group.dev.dependencies]
 djangorestframework-stubs = {extras = ["compatible-mypy"], version = "^3.14.5"}

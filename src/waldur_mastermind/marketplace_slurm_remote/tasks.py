@@ -104,8 +104,8 @@ def send_messages_about_pending_orders():
     for order in pending_orders:
         payload = {"order_uuid": order.uuid.hex}
         offering = order.offering
-        messages = utils.prepare_mqtt_messages(
+        messages = utils.prepare_messages(
             offering, payload, logging_utils.ObservableObjectType.ORDER
         )
         if messages:
-            logging_tasks.publish_mqtt_messages.delay(messages)
+            logging_tasks.publish_messages.delay(messages)

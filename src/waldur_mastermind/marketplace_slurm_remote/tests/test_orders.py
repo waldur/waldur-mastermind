@@ -41,10 +41,10 @@ class SendMessagesAboutPendingOrdersTest(test.APITransactionTestCase):
             ],
         )
 
-    @mock.patch("waldur_core.logging.tasks.publish_mqtt_messages.delay")
+    @mock.patch("waldur_core.logging.tasks.publish_messages.delay")
     def test_send_messages_about_pending_orders(
         self,
-        mocked_publish_mqtt_messages,
+        mocked_publish_messages,
     ):
         # Arrange
         one_hour_ago = timezone.now() - datetime.timedelta(hours=1)
@@ -55,7 +55,7 @@ class SendMessagesAboutPendingOrdersTest(test.APITransactionTestCase):
         tasks.send_messages_about_pending_orders()
 
         # Assert
-        mocked_publish_mqtt_messages.assert_called_once()
+        mocked_publish_messages.assert_called_once()
 
 
 class AllocationDeleteTest(test.APITransactionTestCase):

@@ -9,9 +9,9 @@ logger = logging.getLogger(__name__)
 
 class RabbitMQManagementBackend:
     def __init__(self) -> None:
-        self.rmq_management_url = f"http://{settings.RABBITMQ_MQTT['HOST']}:{settings.RABBITMQ_MQTT['MANAGEMENT_PORT']}/api"
+        self.rmq_management_url = f"http://{settings.RABBITMQ['HOST']}:{settings.RABBITMQ['MANAGEMENT_PORT']}/api"
         self.rmq_auth = HTTPBasicAuth(
-            settings.RABBITMQ_MQTT["USER"], settings.RABBITMQ_MQTT["PASSWORD"]
+            settings.RABBITMQ["USER"], settings.RABBITMQ["PASSWORD"]
         )
 
     def create_rabbitmq_virtual_host(self, vhost_name: str) -> bool:
@@ -23,6 +23,8 @@ class RabbitMQManagementBackend:
         Returns:
             bool: True if virtual host was created successfully or already exists,
                  False if creation failed or an error occurred
+
+        In terms of Waldur a virtual host corresponds to a user.
         """
         vhost_name_encoded = requests.utils.quote(vhost_name, safe="")
         vhost_url = f"{self.rmq_management_url}/vhosts/{vhost_name_encoded}"
@@ -207,6 +209,8 @@ class RabbitMQManagementBackend:
         Note:
             The user is created without any permissions by default.
             Use assign_rabbitmq_vhost_permissions() to grant specific permissions.
+
+        In terms of Waldur an RMQ user corresponds to an event subscription (i.e. user session).
         """
         url = f"{self.rmq_management_url}/users/{username}"
         payload = {"password": password, "tags": []}

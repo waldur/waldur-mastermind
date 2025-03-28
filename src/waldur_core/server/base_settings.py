@@ -220,9 +220,10 @@ STATIC_URL = "/static/"
 # RabbitMQ requirements:
 # rabbitmq-plugins enable rabbitmq_mqtt
 # rabbitmq-plugins enable rabbitmq_web_mqtt (for websockets)
-RABBITMQ_MQTT = {
+RABBITMQ = {
     "HOST": "localhost",
-    "PORT": 1883,
+    "MQTT_PORT": 1883,
+    "STOMP_PORT": 61613,
     "USER": "test",
     "PASSWORD": "test",
     "MANAGEMENT_PORT": 15672,
