@@ -36,7 +36,7 @@ class HeappeBackend:
         resource = lexis_link.robot_account.resource
         payload = {
             "SessionCode": heappe_session_code,
-            "Name": resource.name,
+            "Name": resource.backend_id,
             "PIEmail": "",  # an empty placeholder, we do not pass PI email to HEAppE
             "Description": resource.description,
             "AccountingString": resource.backend_id,
@@ -215,6 +215,21 @@ class HeappeBackend:
             )
             raise requests_exceptions.RequestException(
                 f"Status code {response.status_code}, body {response.text}"
+            )
+
+    def test_user_access_to_project(self, lexis_link):
+        heappe_session_code = self.get_heappe_session_code()
+        heappe_project_id = lexis_link.heappe_project_id
+        username = lexis_link.robot_account.username
+        url = f"{self.heappe_config.heappe_url}/heappe/Management/TestClusterAccessForAccount?username={username}&projectId={heappe_project_id}&sessionCode={heappe_session_code}"
+        headers = {
+            "accept": "application/json",
+        }
+        response = requests.get(url, headers=headers)
+        if response.status_code != status.HTTP_200_OK:
+            logger.error("Unable to test user access to cluster")
+            raise requests_exceptions.RequestException(
+                f"The user {username} does not have access to the project, details: {response.text}"
             )
 
     def init_cluster_script_directory(self, lexis_link):
