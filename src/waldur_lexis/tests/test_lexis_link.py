@@ -109,6 +109,11 @@ class LexisLinkCreateTest(test.APITransactionTestCase):
             json={},
         )
         responses.add(
+            responses.GET,
+            "https://heappy.example.com/heappe/Management/TestClusterAccessForAccount",
+            json="accessible with selected account",
+        )
+        responses.add(
             responses.POST,
             "https://heappy.example.com/heappe/Management/InitializeClusterScriptDirectory",
             json={},
