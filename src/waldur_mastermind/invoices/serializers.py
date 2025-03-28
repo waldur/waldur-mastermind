@@ -3,7 +3,7 @@ from decimal import ROUND_HALF_UP, Decimal
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db.models.aggregates import Sum
+from django.db.models import F, Sum
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import exceptions, serializers
@@ -264,6 +264,8 @@ class InvoiceSerializer(
     issuer_details = serializers.SerializerMethodField()
     customer_details = CustomerDetailsSerializer(source="customer")
     due_date = serializers.DateField()
+    compensations = serializers.SerializerMethodField()
+    incurred_costs = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Invoice
@@ -287,6 +289,8 @@ class InvoiceSerializer(
             "backend_id",
             "payment_url",
             "reference_number",
+            "compensations",
+            "incurred_costs",
         )
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},
@@ -303,6 +307,22 @@ class InvoiceSerializer(
         items = utils.filter_invoice_items(qs)
         serializer = InvoiceItemSerializer(items, many=True, context=self.context)
         return serializer.data
+
+    @extend_schema_field(Decimal)
+    def get_compensations(self, invoice: models.Invoice):
+        items = invoice.items.filter(credit__isnull=False)
+        compensations = items.aggregate(
+            compensations=Sum(F("quantity") * F("unit_price"), default=0)
+        ).get("compensations", 0)
+        return Decimal(compensations)
+
+    @extend_schema_field(Decimal)
+    def get_incurred_costs(self, invoice: models.Invoice):
+        items = invoice.items.filter(credit__isnull=True)
+        incurred_costs = items.aggregate(
+            incurred=Sum(F("quantity") * F("unit_price"), default=0)
+        ).get("incurred", 0)
+        return Decimal(incurred_costs)
 
 
 class InvoiceItemCostsForPeriodSerializer(serializers.Serializer):
