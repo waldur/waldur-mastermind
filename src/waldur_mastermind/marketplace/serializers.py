@@ -3694,6 +3694,7 @@ def add_service_provider_uuid(sender, fields, **kwargs):
         slug_field="uuid",
         source="serviceprovider",
         read_only=True,
+        allow_null=True,
     )
 
 
@@ -3703,10 +3704,11 @@ def add_service_provider_url(sender, fields, **kwargs):
         view_name="marketplace-service-provider-detail",
         source="serviceprovider",
         read_only=True,
+        allow_null=True,
     )
 
 
-def get_call_managing_organization_uuid(serializer, scope) -> str:
+def get_call_managing_organization_uuid(serializer, scope) -> str | None:
     customer = structure_permissions._get_customer(scope)
     call_managing_organisation = (
         proposal_models.CallManagingOrganisation.objects.filter(customer=customer)
@@ -4573,7 +4575,7 @@ class ComponentUserUsageLimitSerializer(
         return attrs
 
 
-@extend_schema_field(IntegrationStatusSerializer(many=True))
+@extend_schema_field(IntegrationStatusSerializer(many=True, allow_null=True))
 def get_integration_status(serializer, offering):
     if not has_permission(
         serializer.context["request"], PermissionEnum.UPDATE_OFFERING, offering.customer

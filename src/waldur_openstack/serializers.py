@@ -3259,20 +3259,26 @@ def get_instance(openstack_floating_ip) -> models.Instance:
         return instance
 
 
-def get_instance_attr(openstack_floating_ip: models.FloatingIP, name) -> str:
+def get_instance_attr(openstack_floating_ip: models.FloatingIP, name) -> str | None:
     instance = get_instance(openstack_floating_ip)
     return getattr(instance, name, None)
 
 
-def get_instance_uuid(serializer, openstack_floating_ip: models.FloatingIP) -> str:
+def get_instance_uuid(
+    serializer, openstack_floating_ip: models.FloatingIP
+) -> str | None:
     return get_instance_attr(openstack_floating_ip, "uuid")
 
 
-def get_instance_name(serializer, openstack_floating_ip: models.FloatingIP) -> str:
+def get_instance_name(
+    serializer, openstack_floating_ip: models.FloatingIP
+) -> str | None:
     return get_instance_attr(openstack_floating_ip, "name")
 
 
-def get_instance_url(serializer, openstack_floating_ip: models.FloatingIP) -> str:
+def get_instance_url(
+    serializer, openstack_floating_ip: models.FloatingIP
+) -> str | None:
     instance = get_instance(openstack_floating_ip)
     if instance:
         return reverse(

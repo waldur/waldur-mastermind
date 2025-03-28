@@ -35,7 +35,7 @@ class MarketplaceTenantCreateSerializer(
         pass
 
 
-def get_marketplace_resource_uuid(serializer, volume) -> str:
+def get_marketplace_resource_uuid(serializer, volume) -> str | None:
     try:
         resource = marketplace_models.Resource.objects.filter(scope=volume).get()
         return resource.uuid.hex

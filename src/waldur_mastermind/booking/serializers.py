@@ -104,7 +104,7 @@ class OfferingSerializer(marketplace_serializers.PublicOfferingDetailsSerializer
         view_name = "booking-offering-detail"
 
 
-def get_google_calendar_public(serializer, offering: Offering) -> bool:
+def get_google_calendar_public(serializer, offering: Offering) -> bool | None:
     if offering.type != PLUGIN_NAME or not hasattr(offering, "googlecalendar"):
         return
 
