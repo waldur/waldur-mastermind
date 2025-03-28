@@ -1,6 +1,7 @@
 import functools
 import logging
 import mimetypes
+from typing import Any
 from urllib.parse import urlencode
 
 import requests
@@ -689,6 +690,14 @@ class DatabaseStatsViewSet(APIView):
         return Response(data, status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    description="Execute SQL query against readonly database",
+    request=QuerySerializer,
+    responses={
+        200: list[Any],
+        400: None,
+    },
+)
 class QueryViewSet(generics.GenericAPIView):
     permission_classes = [rf_permissions.IsAuthenticated, permissions.IsSupport]
     serializer_class = QuerySerializer
