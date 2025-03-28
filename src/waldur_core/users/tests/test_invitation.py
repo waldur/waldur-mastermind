@@ -1,7 +1,7 @@
 import datetime
 from datetime import timedelta
 
-from constance.test.pytest import override_config
+from constance.test.unittest import override_config
 from ddt import data, ddt
 from django.conf import settings
 from django.core import mail

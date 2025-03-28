@@ -1,6 +1,6 @@
 from unittest import mock
 
-from constance.test.pytest import override_config
+from constance.test.unittest import override_config
 from ddt import data, ddt
 from rest_framework import status, test
 

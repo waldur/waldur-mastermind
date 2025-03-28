@@ -1,7 +1,7 @@
 import json
 from unittest import mock
 
-from constance.test.pytest import override_config
+from constance.test.unittest import override_config
 from ddt import data, ddt
 from django.conf import settings
 from jira import Issue, User

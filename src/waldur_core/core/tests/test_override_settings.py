@@ -1,4 +1,4 @@
-from constance.test.pytest import override_config
+from constance.test.unittest import override_config
 from rest_framework import test
 
 from waldur_core.structure.tests.factories import UserFactory

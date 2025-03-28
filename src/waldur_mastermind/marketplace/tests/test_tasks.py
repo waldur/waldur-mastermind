@@ -1,7 +1,7 @@
 import datetime
 from unittest.mock import patch
 
-from constance.test.pytest import override_config
+from constance.test.unittest import override_config
 from django.core import mail
 from django.utils import timezone
 from freezegun import freeze_time
