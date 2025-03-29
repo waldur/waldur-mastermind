@@ -6,8 +6,11 @@ from ddt import data, ddt
 from rest_framework import status
 
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.support import exceptions, tasks
+from waldur_mastermind.support import exceptions, models
+from waldur_mastermind.support.backend import SupportBackendType
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
+from waldur_mastermind.support.backend.zammad import ZammadServiceBackend
+from waldur_mastermind.support.backend.zammad_utils import User
 from waldur_mastermind.support.tests import base, factories
 
 
@@ -46,6 +49,7 @@ class SupportUserRetrieveTest(base.BaseTest):
 @override_config(WALDUR_SUPPORT_ENABLED=True)
 class SupportUserPullTest(base.BaseTest):
     def setUp(self):
+        super().setUp()
         mock_patch = mock.patch("waldur_mastermind.support.backend.atlassian.JIRA")
         self.mocked_jira = mock_patch.start()
 
@@ -85,7 +89,7 @@ class SupportUserPullTest(base.BaseTest):
         )
 
         # Act
-        tasks.pull_support_users()
+        ServiceDeskBackend().pull_support_users()
 
         # Assert
         alice.refresh_from_db()
@@ -95,14 +99,175 @@ class SupportUserPullTest(base.BaseTest):
 @override_config(WALDUR_SUPPORT_ENABLED=True)
 @mock.patch("waldur_mastermind.support.backend.atlassian.JIRA")
 class SupportUserValidateTest(base.BaseTest):
-    def test_not_create_user_if_user_exists_but_he_inactive(self, mocked_jira):
+    def test_not_create_user_if_user_exists_but_he_inactive(self, mock_jira):
         def side_effect(*args, **kwargs):
             if kwargs.get("includeInactive"):
                 return [jira.User(None, None, raw={"active": False})]
             return []
 
-        mocked_jira().search_users.side_effect = side_effect
+        mock_jira().search_users.side_effect = side_effect
         user = structure_factories.UserFactory()
         self.assertRaises(
             exceptions.SupportUserInactive, ServiceDeskBackend().create_user, user
+        )
+
+
+@override_config(WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE=SupportBackendType.ZAMMAD)
+class ZammadSupportUserPullTest(base.BaseTest):
+    """
+    Test that support users are pulled from Zammad correctly.
+    """
+
+    def setUp(self):
+        super().setUp()
+        # Mock Zammad configuration
+        config_patch = mock.patch(
+            "waldur_mastermind.support.backend.zammad_utils.config"
+        )
+        self.mock_config = config_patch.start()
+        self.mock_config.ZAMMAD_API_URL = "http://test.zammad.com"
+        self.mock_config.ZAMMAD_TOKEN = "test-token"
+
+        # Mock ZammadBackend
+        mock_patch = mock.patch(
+            "waldur_mastermind.support.backend.zammad.ZammadBackend"
+        )
+        self.mock_zammad = mock_patch.start()
+        # Mock get_users to return test data
+        self.mock_zammad().get_users.return_value = [
+            User(
+                id=1,
+                email="alice@example.com",
+                login="alice",
+                firstname="Alice",
+                lastname="Smith",
+                name="Alice Smith",
+                is_active=True,
+            ),
+            User(
+                id=2,
+                email="bob@example.com",
+                login="bob",
+                firstname="Bob",
+                lastname="Jones",
+                name="Bob Jones",
+                is_active=True,
+            ),
+        ]
+
+        self.backend = ZammadServiceBackend()
+
+    def test_new_users_are_created(self):
+        """
+        Test that new users are created correctly.
+        """
+        # Pull support users
+        self.backend.pull_support_users()
+
+        # Assert that 2 support users are created
+        support_users = models.SupportUser.objects.filter(backend_name="zammad")
+        self.assertEqual(
+            support_users.count(),
+            2,
+            f"Expected 2 support users, got {support_users.count()}",
+        )
+        self.assertTrue(
+            support_users.filter(backend_id="1").exists(),
+            "Support user with backend_id 1 should exist",
+        )
+        self.assertTrue(
+            support_users.filter(backend_id="2").exists(),
+            "Support user with backend_id 2 should exist",
+        )
+
+    def test_stale_users_are_marked_as_inactive(self):
+        """
+        Test that stale users are marked as inactive.
+        """
+        # Create two active users and one inactive user
+        alice = factories.SupportUserFactory(
+            backend_id="1", backend_name="zammad", is_active=True
+        )
+        bob = factories.SupportUserFactory(
+            backend_id="2", backend_name="zammad", is_active=True
+        )
+        charlie = factories.SupportUserFactory(
+            backend_id="3", backend_name="zammad", is_active=True
+        )
+
+        # Pull support users
+        self.backend.pull_support_users()
+
+        # Refresh from db
+        alice.refresh_from_db()
+        bob.refresh_from_db()
+        charlie.refresh_from_db()
+        # Assert that alice and bob are active and charlie is inactive
+        self.assertTrue(alice.is_active, "Alice should be active")
+        self.assertTrue(bob.is_active, "Bob should be active")
+        self.assertFalse(
+            charlie.is_active, "Charlie should be inactive because he is not in Zammad"
+        )
+
+    def test_existing_users_are_updated(self):
+        """
+        Test that existing users are updated correctly.
+        """
+        # Create a user with an old name
+        alice = factories.SupportUserFactory(
+            backend_id="1", backend_name="zammad", name="Old Name", is_active=False
+        )
+
+        # Pull support users
+        self.backend.pull_support_users()
+
+        # Refresh from db
+        alice.refresh_from_db()
+        # Assert that the user is updated correctly
+        self.assertEqual(
+            alice.name, "Alice Smith", "Alice should be updated to Alice Smith"
+        )
+        self.assertTrue(alice.is_active, "Alice should be active")
+
+    def test_user_without_waldur_user_is_created(self):
+        """
+        Test that a user without a Waldur user is created correctly.
+        """
+        # Pull support users
+        self.backend.pull_support_users()
+
+        # Assert that the user is created correctly
+        support_user = models.SupportUser.objects.get(backend_id="1")
+        self.assertIsNone(support_user.user, "Support's user should be None")
+        self.assertEqual(
+            support_user.name,
+            "Alice Smith",
+            "Support's user name should be Alice Smith",
+        )
+
+    def test_user_with_waldur_user_is_linked(self):
+        """
+        Test that a user with a Waldur user is linked correctly.
+        """
+        # Create a Waldur user
+        waldur_user = structure_factories.UserFactory(
+            username="alice", email="alice@example.com"
+        )
+        self.mock_zammad().get_user_by_login.return_value = waldur_user
+
+        # Pull support users
+        self.backend.pull_support_users()
+
+        # Refresh from db
+        support_user = models.SupportUser.objects.get(backend_id="1")
+        # Assert that the user is linked correctly
+        self.assertEqual(
+            support_user.user,
+            waldur_user,
+            "Support's user should be linked to the Waldur user",
+        )
+        self.assertEqual(
+            support_user.name,
+            "Alice Smith",
+            "Support's user name should be Alice Smith",
         )
