@@ -498,15 +498,15 @@ Generate OpenAPI schema diff:
   stage: deploy
   interruptible: true
   image:
-    name: registry.hpc.ut.ee/mirror/openapitools/openapi-diff:2.0.1
+    name: registry.hpc.ut.ee/mirror/tufin/oasdiff:latest
     entrypoint: [""]
   needs:
     - Generate OpenAPI schema
   rules:
     - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
   before_script:
-    - apt update
-    - apt install -y git
+    - apk update
+    - apk add --no-cache git
   script:
     - ls -la
     - echo "Cloning docs repository"
@@ -527,9 +527,10 @@ Generate OpenAPI schema diff:
       if [ -z "$PREV_SCHEMA" ]; then
         echo "No previous schema found. Skipping diff generation."
         touch $CI_PROJECT_DIR/openapi-diff.md
+        echo "No previous schema found. Skipping diff generation." > $CI_PROJECT_DIR/openapi-diff.md
       else
         echo "Previous schema found: $PREV_SCHEMA"
-        java -jar /app/openapi-diff.jar "$PREV_SCHEMA" "$CI_PROJECT_DIR/waldur-openapi-schema.yaml" --markdown $CI_PROJECT_DIR/openapi-diff.md
+        /usr/bin/oasdiff diff -f markup $PREV_SCHEMA $CI_PROJECT_DIR/waldur-openapi-schema.yaml > $CI_PROJECT_DIR/openapi-diff.md
         ls -la $CI_PROJECT_DIR/openapi-diff.md
         head -n 30 $CI_PROJECT_DIR/openapi-diff.md || true
       fi
