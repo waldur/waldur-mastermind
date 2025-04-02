@@ -390,7 +390,7 @@ Generate TypeScript SDK:
   needs:
     - Generate OpenAPI schema
   script: |
-    npx --yes @hey-api/openapi-ts -c @hey-api/client-fetch -i waldur-openapi-schema.yaml -o waldur-typescript-sdk
+    npx --yes @hey-api/openapi-ts@0.65.0 -c @hey-api/client-fetch -i waldur-openapi-schema.yaml -o waldur-typescript-sdk
     # drop querySerializer because it is producing explode: false for multiple choice filter
     sed -i '/querySerializer: {/,/},/d' waldur-typescript-sdk/sdk.gen.ts
     ls -l waldur-typescript-sdk
