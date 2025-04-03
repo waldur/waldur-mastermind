@@ -24,6 +24,6 @@ COPY pyproject.toml /tmp/mnt/pyproject.toml
 COPY poetry.lock /tmp/mnt/poetry.lock
 
 RUN python3 -m pip install --upgrade pip && \
-    pip3 install poetry==1.8.3 && \
+    pip3 install poetry==2.1.2 && \
     poetry config virtualenvs.create false && \
     cd /tmp/mnt/ && poetry install
