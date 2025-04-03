@@ -129,85 +129,83 @@ class PushSecurityGroupRulesExecutor(core_executors.ActionExecutor):
         )
 
 
-class TenantCreateExecutor(core_executors.CreateExecutor):
-    @classmethod
-    def get_task_signature(
-        cls, tenant, serialized_tenant, pull_security_groups=True, **kwargs
-    ):
-        """Create tenant, add user to it, create internal network, pull quotas"""
-        # we assume that tenant one network and subnet after creation
-        network = tenant.networks.first()
-        subnet = network.subnets.first()
-        serialized_network = core_utils.serialize_instance(network)
-        serialized_subnet = core_utils.serialize_instance(subnet)
-        creation_tasks = [
-            core_tasks.BackendMethodTask().si(
-                serialized_tenant,
-                "create_tenant_safe",
-                state_transition="begin_creating",
-            ),
-            core_tasks.BackendMethodTask().si(
-                serialized_tenant, "add_admin_user_to_tenant"
-            ),
-            core_tasks.BackendMethodTask().si(serialized_tenant, "create_tenant_user"),
-            core_tasks.BackendMethodTask().si(
-                serialized_network, "create_network", state_transition="begin_creating"
-            ),
-            core_tasks.BackendMethodTask().si(
-                serialized_subnet, "create_subnet", state_transition="begin_creating"
-            ),
-        ]
-        creation_tasks.append(
-            core_tasks.BackendMethodTask().si(
-                serialized_tenant, "push_tenant_quotas", tenant.quota_limits
-            )
-        )
-        # handle security groups
-        # XXX: Create default security groups
-        for security_group in tenant.security_groups.all():
+def get_tenant_create_tasks(tenant: models.Tenant, skip_connection_extnet=False):
+    serialized_tenant = core_utils.serialize_instance(tenant)
+    creation_tasks = [
+        core_tasks.BackendMethodTask().si(
+            serialized_tenant,
+            "create_tenant_safe",
+            state_transition="begin_creating",
+        ),
+        core_tasks.BackendMethodTask().si(
+            serialized_tenant, "add_admin_user_to_tenant"
+        ),
+        core_tasks.BackendMethodTask().si(serialized_tenant, "create_tenant_user"),
+        core_tasks.BackendMethodTask().si(
+            serialized_tenant,
+            "push_tenant_quotas",
+            tenant.quota_limits,
+        ),
+        core_tasks.BackendMethodTask().si(
+            serialized_tenant,
+            "sync_default_security_group",
+        ),
+    ]
+    for router in tenant.routers.all():
+        creation_tasks.append(RouterCreateExecutor.as_signature(router))
+        creation_tasks.append(RouterSetRoutesExecutor.as_signature(router))
+    for network in tenant.networks.all():
+        creation_tasks.append(NetworkCreateExecutor.as_signature(network))
+        for subnet in network.subnets.all():
+            creation_tasks.append(SubNetCreateExecutor.as_signature(subnet))
+    for security_group in tenant.security_groups.all():
+        if security_group.name != "default":
             creation_tasks.append(
                 SecurityGroupCreateExecutor.as_signature(security_group)
             )
 
-        if pull_security_groups:
-            creation_tasks.append(
-                core_tasks.BackendMethodTask().si(
-                    serialized_tenant, "pull_tenant_security_groups"
-                )
+    external_network_id = utils.get_external_network_id(tenant)
+    if external_network_id and not skip_connection_extnet:
+        creation_tasks.append(
+            core_tasks.BackendMethodTask().si(
+                serialized_tenant,
+                "connect_tenant_to_external_network",
+                external_network_id=external_network_id,
             )
+        )
+    creation_tasks += [
+        core_tasks.BackendMethodTask().si(
+            serialized_tenant,
+            backend_method="pull_tenant_routers",
+        ),
+        core_tasks.BackendMethodTask().si(
+            serialized_tenant, backend_method="pull_tenant_ports"
+        ),
+        core_tasks.BackendMethodTask().si(serialized_tenant, "pull_tenant_quotas"),
+        core_tasks.BackendMethodTask().si(serialized_tenant, "pull_tenant_images"),
+        core_tasks.BackendMethodTask().si(serialized_tenant, "pull_tenant_flavors"),
+        core_tasks.BackendMethodTask().si(
+            serialized_tenant, "pull_tenant_volume_types"
+        ),
+        core_tasks.BackendMethodTask().si(
+            serialized_tenant, "pull_tenant_instance_availability_zones"
+        ),
+        core_tasks.BackendMethodTask().si(
+            serialized_tenant, "pull_tenant_volume_availability_zones"
+        ),
+        core_tasks.StateTransitionTask().si(
+            serialized_tenant, state_transition="set_ok"
+        ),
+    ]
+    return chain(*creation_tasks)
 
-        # initialize external network if it defined in service settings
-        external_network_id = utils.get_external_network_id(tenant)
-        if external_network_id and not kwargs.get("skip_connection_extnet"):
-            creation_tasks.append(
-                core_tasks.BackendMethodTask().si(
-                    serialized_tenant,
-                    "connect_tenant_to_external_network",
-                    external_network_id=external_network_id,
-                )
-            )
-            creation_tasks.append(
-                core_tasks.BackendMethodTask().si(
-                    serialized_tenant,
-                    backend_method="pull_tenant_routers",
-                )
-            )
 
-        creation_tasks += [
-            core_tasks.BackendMethodTask().si(serialized_tenant, "pull_tenant_quotas"),
-            core_tasks.BackendMethodTask().si(serialized_tenant, "pull_tenant_images"),
-            core_tasks.BackendMethodTask().si(serialized_tenant, "pull_tenant_flavors"),
-            core_tasks.BackendMethodTask().si(
-                serialized_tenant, "pull_tenant_volume_types"
-            ),
-            core_tasks.BackendMethodTask().si(
-                serialized_tenant, "pull_tenant_instance_availability_zones"
-            ),
-            core_tasks.BackendMethodTask().si(
-                serialized_tenant, "pull_tenant_volume_availability_zones"
-            ),
-        ]
-        return chain(*creation_tasks)
+class TenantCreateExecutor(core_executors.BaseExecutor):
+    @classmethod
+    def get_task_signature(cls, tenant, serialized_tenant, **kwargs):
+        return get_tenant_create_tasks(
+            tenant, skip_connection_extnet=kwargs.get("skip_connection_extnet")
+        )
 
     @classmethod
     def get_success_signature(cls, tenant, serialized_tenant, **kwargs):

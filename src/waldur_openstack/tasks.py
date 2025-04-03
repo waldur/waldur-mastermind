@@ -36,12 +36,6 @@ class TenantCreateErrorTask(core_tasks.ErrorStateTransitionTask):
 
 class TenantCreateSuccessTask(core_tasks.StateTransitionTask):
     def execute(self, tenant):
-        network = tenant.networks.first()
-        subnet = network.subnets.first()
-        self.state_transition(network, "set_ok")
-        self.state_transition(subnet, "set_ok")
-        self.state_transition(tenant, "set_ok")
-
         from . import executors
 
         executors.TenantPullExecutor.execute(tenant)

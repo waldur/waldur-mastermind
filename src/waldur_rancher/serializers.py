@@ -143,11 +143,13 @@ class DataVolumeSerializer(
         return attrs
 
 
+ROLE_CHOICES = ("controlplane", "etcd", "worker")
+
+
 class RancherBaseNodeSerializer(
     structure_serializers.PermissionFieldFilteringMixin,
     serializers.HyperlinkedModelSerializer,
 ):
-    ROLE_CHOICES = ("controlplane", "etcd", "worker")
     subnet = serializers.HyperlinkedRelatedField(
         view_name="openstack-subnet-detail",
         queryset=openstack_models.SubNet.objects.all(),

@@ -28,7 +28,8 @@ class MarketplaceOpenStackConfig(AppConfig):
         from waldur_core.structure import signals as structure_signals
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
         from waldur_mastermind.marketplace import models as marketplace_models
-        from waldur_mastermind.marketplace.plugins import Component, manager
+        from waldur_mastermind.marketplace.plugins import manager
+        from waldur_mastermind.marketplace_openstack.const import TENANT_COMPONENTS
         from waldur_mastermind.marketplace_openstack.registrators import (
             OpenStackTenantRegistrator,
         )
@@ -39,10 +40,7 @@ class MarketplaceOpenStackConfig(AppConfig):
 
         from . import (
             AVAILABLE_LIMITS,
-            CORES_TYPE,
             INSTANCE_TYPE,
-            RAM_TYPE,
-            STORAGE_TYPE,
             TENANT_TYPE,
             VOLUME_TYPE,
             handlers,
@@ -70,40 +68,12 @@ class MarketplaceOpenStackConfig(AppConfig):
         marketplace_handlers.connect_resource_metadata_handlers(*resource_models)
         marketplace_handlers.connect_resource_handlers(*resource_models)
 
-        LIMIT = marketplace_models.OfferingComponent.BillingTypes.LIMIT
-        MONTH = marketplace_models.OfferingComponent.LimitPeriods.MONTH
         manager.register(
             offering_type=TENANT_TYPE,
             create_resource_processor=processors.TenantCreateProcessor,
             update_resource_processor=processors.TenantUpdateProcessor,
             delete_resource_processor=processors.TenantDeleteProcessor,
-            components=(
-                Component(
-                    type=CORES_TYPE,
-                    name="Cores",
-                    measured_unit="cores",
-                    billing_type=LIMIT,
-                    limit_period=MONTH,
-                ),
-                # Price is stored per GiB but size is stored per MiB
-                # therefore we need to divide size by factor when price estimate is calculated.
-                Component(
-                    type=RAM_TYPE,
-                    name="RAM",
-                    measured_unit="GB",
-                    billing_type=LIMIT,
-                    factor=1024,
-                    limit_period=MONTH,
-                ),
-                Component(
-                    type=STORAGE_TYPE,
-                    name="Storage",
-                    measured_unit="GB",
-                    billing_type=LIMIT,
-                    factor=1024,
-                    limit_period=MONTH,
-                ),
-            ),
+            components=TENANT_COMPONENTS,
             service_type=OpenStackConfig.service_name,
             secret_attributes=get_secret_attributes,
             components_filter=components_filter,
