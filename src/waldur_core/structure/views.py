@@ -248,6 +248,11 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
     @extend_schema(
         description="Return statistics about customer resources usage",
         responses=serializers.ComponentsUsageStatsSerializer,
+        parameters=[
+            OpenApiParameter(
+                name="for_current_month", type=bool, location=OpenApiParameter.QUERY
+            ),
+        ],
     )
     @action(detail=True)
     def stats(self, request, *args, **kwargs):
@@ -258,7 +263,13 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
         ).exclude(state=marketplace_models.Resource.States.TERMINATED)
         resources = filter_queryset_for_user(resources, request.user)
 
-        components_data_list = get_components_usage_data_from_resources(resources)
+        for_current_month = request.query_params.get("for_current_month", False)
+        if for_current_month in ["true", "True"]:
+            for_current_month = True
+
+        components_data_list = get_components_usage_data_from_resources(
+            resources, for_current_month
+        )
 
         return Response(
             {
@@ -407,7 +418,15 @@ class ProjectViewSet(
     move_project_serializer_class = serializers.MoveProjectSerializer
     move_project_permissions = [permissions.is_staff]
 
-    @extend_schema(responses=serializers.ComponentsUsageStatsSerializer)
+    @extend_schema(
+        description="Return statistics about project resources usage",
+        responses=serializers.ComponentsUsageStatsSerializer,
+        parameters=[
+            OpenApiParameter(
+                name="for_current_month", type=bool, location=OpenApiParameter.QUERY
+            ),
+        ],
+    )
     @action(detail=True)
     def stats(self, request, *args, **kwargs):
         project = self.get_object()
@@ -417,7 +436,13 @@ class ProjectViewSet(
         )
         resources = filter_queryset_for_user(resources, request.user)
 
-        components_data_list = get_components_usage_data_from_resources(resources)
+        for_current_month = request.query_params.get("for_current_month", False)
+        if for_current_month in ["true", "True"]:
+            for_current_month = True
+
+        components_data_list = get_components_usage_data_from_resources(
+            resources, for_current_month
+        )
 
         return Response(
             {

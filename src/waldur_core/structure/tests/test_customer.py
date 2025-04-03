@@ -980,16 +980,26 @@ class CustomerInetFilterTest(test.APITransactionTestCase):
 class CustomerResourceQuotasTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.CustomerFixture()
+        self.current_date = timezone.now()
+        self.previous_month_date = timezone.now() - datetime.timedelta(days=60)
         self.customer = self.fixture.customer
         self.empty_customer = factories.CustomerFactory()
         self.project1 = factories.ProjectFactory(customer=self.customer)
         self.project2 = factories.ProjectFactory(customer=self.customer)
         self.offering = marketplace_factories.OfferingFactory()
         self.component1 = marketplace_factories.OfferingComponentFactory(
-            offering=self.offering, type="cpu", name="CPU", measured_unit="vCPU"
+            offering=self.offering,
+            type="cpu",
+            name="CPU",
+            measured_unit="vCPU",
+            billing_type=OfferingComponent.BillingTypes.USAGE,
         )
         self.component2 = marketplace_factories.OfferingComponentFactory(
-            offering=self.offering, type="ram", name="RAM", measured_unit="GB"
+            offering=self.offering,
+            type="ram",
+            name="RAM",
+            measured_unit="GB",
+            billing_type=OfferingComponent.BillingTypes.USAGE,
         )
         self.limit_based_component = marketplace_factories.OfferingComponentFactory(
             offering=self.offering,
@@ -1020,7 +1030,52 @@ class CustomerResourceQuotasTest(test.APITransactionTestCase):
             resource=self.limit_based_resource,
             component=self.limit_based_component,
             usage=10,
-            date=timezone.now(),
+            date=self.current_date,
+        )
+        # create another limit_usage with 2 months back date
+        marketplace_factories.ComponentUsageFactory(
+            resource=self.limit_based_resource,
+            component=self.limit_based_component,
+            usage=15,
+            date=self.previous_month_date,
+        )
+        # create new usages for current month
+        self.current_month_cpu_usage1 = marketplace_factories.ComponentUsageFactory(
+            resource=self.resource1,
+            component=self.component1,  # CPU component
+            usage=5,
+            date=self.current_date,
+        )
+        self.previous_month_cpu_usage1 = marketplace_factories.ComponentUsageFactory(
+            resource=self.resource1,
+            component=self.component1,  # CPU component
+            usage=3,
+            date=self.previous_month_date,
+        )
+        self.current_month_cpu_usage2 = marketplace_factories.ComponentUsageFactory(
+            resource=self.resource2,
+            component=self.component1,  # CPU component
+            usage=2,
+            date=self.current_date,
+        )
+
+        self.current_month_ram_usage1 = marketplace_factories.ComponentUsageFactory(
+            resource=self.resource1,
+            component=self.component2,  # RAM component
+            usage=10,
+            date=self.current_date,
+        )
+        self.previous_month_ram_usage1 = marketplace_factories.ComponentUsageFactory(
+            resource=self.resource1,
+            component=self.component2,  # RAM component
+            usage=8,
+            date=self.previous_month_date,
+        )
+        self.current_month_ram_usage2 = marketplace_factories.ComponentUsageFactory(
+            resource=self.resource2,
+            component=self.component2,
+            usage=4,
+            date=self.current_date,
         )
         self.url = factories.CustomerFactory.get_url(self.customer, "stats")
 
@@ -1051,9 +1106,55 @@ class CustomerResourceQuotasTest(test.APITransactionTestCase):
         self.assertEqual(ram_component["limit"], 24)
         self.assertEqual(ram_component["measured_unit"], "GB")
 
+    def test_customer_with_resources_for_current_month(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Request with for_current_month=true
+        url = self.url + "?for_current_month=true"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        components = response.data["components"]
+        print(components)
+
+        # Check component stats for CPU
+        cpu_component = next(
+            component for component in components if component["type"] == "cpu"
+        )
+        # Should only count the current month usage (5+2=7), not previous month or resource.current_usages
+        self.assertEqual(
+            cpu_component["usage"], 7
+        )  # 5 from resource1 + 2 from resource2
+        self.assertEqual(cpu_component["limit"], 12)
+        self.assertEqual(cpu_component["measured_unit"], "vCPU")
+
+        # Check component stats for RAM
+        ram_component = next(
+            component for component in components if component["type"] == "ram"
+        )
+        # Should only count the current month usage (10+4=14), not previous month or resource.current_usages
+        self.assertEqual(
+            ram_component["usage"], 14
+        )  # 10 from resource1 + 4 from resource2
+        self.assertEqual(ram_component["limit"], 24)
+        self.assertEqual(ram_component["measured_unit"], "GB")
+
     def test_customer_with_limit_based_resources(self):
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        components = response.data["components"]
+        disk_component = next(
+            component for component in components if component["type"] == "disk"
+        )
+        self.assertEqual(disk_component["usage"], 0)
+        self.assertEqual(disk_component["limit_usage"], 25)
+        self.assertEqual(disk_component["measured_unit"], "GB")
+
+    def test_customer_with_limit_based_resources_for_current_month(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        url = self.url + "?for_current_month=true"
+        response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         components = response.data["components"]
         disk_component = next(
