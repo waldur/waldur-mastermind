@@ -231,6 +231,7 @@ def move_project(project, customer, current_user=None):
 
 def get_components_usage_data_from_resources(
     resources: QuerySet[marketplace_models.Resource],
+    for_current_month: bool = False,
 ) -> list[dict[str, Any]]:
     offerings = marketplace_models.Offering.objects.filter(
         id__in=resources.values_list("offering_id", flat=True)
@@ -244,20 +245,38 @@ def get_components_usage_data_from_resources(
     component_limit = defaultdict(float)
     component_limit_usage = defaultdict(float)
 
+    current_date = datetime.date.today()
+
     for resource in resources:
         for component_type, usage in resource.current_usages.items():
-            component_usage[component_type] += float(usage)
+            # When filtering for current month, get usage from ComponentUsage instead of current_usages
+            if not for_current_month:
+                component_usage[component_type] += float(usage)
 
         for component_type, limit in resource.limits.items():
             if limit is not None:
                 component_limit[component_type] += float(limit)
 
+        usage_components = resource.offering.components.filter(
+            billing_type=marketplace_models.OfferingComponent.BillingTypes.USAGE
+        )
         limit_components = resource.offering.components.filter(
             billing_type=marketplace_models.OfferingComponent.BillingTypes.LIMIT
         )
 
+        if for_current_month:
+            for component in usage_components:
+                usages = marketplace_models.ComponentUsage.objects.filter(
+                    resource=resource,
+                    component=component,
+                    date__year=current_date.year,
+                    date__month=current_date.month,
+                )
+                total_usage = usages.aggregate(total=Sum("usage"))["total"] or 0
+                component_usage[component.type] += float(total_usage)
+
         for component in limit_components:
-            if component.limit_period in (
+            if not for_current_month and component.limit_period in (
                 None,
                 marketplace_models.OfferingComponent.LimitPeriods.MONTH,
             ):
@@ -269,7 +288,12 @@ def get_components_usage_data_from_resources(
                     resource=resource, component=component
                 ).exclude(plan_period=None)
 
-                if (
+                if for_current_month:
+                    usages = usages.filter(
+                        date__year=current_date.year,
+                        date__month=current_date.month,
+                    )
+                elif (
                     component.limit_period
                     == marketplace_models.OfferingComponent.LimitPeriods.ANNUAL
                 ):
