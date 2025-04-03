@@ -1,7 +1,10 @@
 from django.apps import AppConfig
 from django.db.models import signals
 
-from waldur_mastermind.marketplace_rancher import NODES_COMPONENT_TYPE
+from waldur_mastermind.marketplace_rancher import (
+    MANAGED_RANCHER_PLUGIN,
+    NODES_COMPONENT_TYPE,
+)
 
 
 class MarketplaceRancherConfig(AppConfig):
@@ -13,6 +16,7 @@ class MarketplaceRancherConfig(AppConfig):
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
         from waldur_mastermind.marketplace import models as marketplace_models
         from waldur_mastermind.marketplace.plugins import Component, manager
+        from waldur_mastermind.marketplace_openstack.const import TENANT_COMPONENTS
         from waldur_rancher import models as rancher_models
         from waldur_rancher.apps import RancherConfig
 
@@ -36,6 +40,14 @@ class MarketplaceRancherConfig(AppConfig):
             service_type=RancherConfig.service_name,
             get_importable_resources_backend_method="get_importable_clusters",
             import_resource_backend_method="import_cluster",
+        )
+
+        manager.register(
+            offering_type=MANAGED_RANCHER_PLUGIN,
+            create_resource_processor=processors.ManagedRancherCreateProcessor,
+            delete_resource_processor=processors.ManagedRancherDeleteProcessor,
+            components=TENANT_COMPONENTS,
+            service_type=RancherConfig.service_name,
         )
 
         marketplace_handlers.connect_resource_metadata_handlers(rancher_models.Cluster)

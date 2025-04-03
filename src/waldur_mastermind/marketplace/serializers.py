@@ -202,6 +202,14 @@ class RancherPluginOptionsSerializer(serializers.Serializer):
     )
 
 
+class ManagedRancherPluginOptionsSerializer(serializers.Serializer):
+    openstack_offering_uuid_list = serializers.ListSerializer(
+        child=serializers.UUIDField(),
+        required=False,
+        help_text="List of UUID of OpenStack offerings where tenant can be created",
+    )
+
+
 class AgentPluginOptionsSerializer(serializers.Serializer):
     account_name_generation_policy = serializers.ChoiceField(
         required=False,
@@ -219,6 +227,7 @@ class MergedPluginOptionsSerializer(
     GLAuthPluginOptionsSerializer,
     SupportPluginOptionsSerializer,
     RancherPluginOptionsSerializer,
+    ManagedRancherPluginOptionsSerializer,
     AgentPluginOptionsSerializer,
 ):
     pass
@@ -288,6 +297,16 @@ class RemoteServiceSecretOptionsSerializer(serializers.Serializer):
     customer_uuid = serializers.UUIDField(required=False, help_text="Organization UUID")
 
 
+class ManagedRancherSecretOptionsSerializer(serializers.Serializer):
+    customer_uuid = serializers.UUIDField(
+        required=False, help_text="UUID of organization where project can be created"
+    )
+    rancher_offering_uuid = serializers.UUIDField(
+        required=False,
+        help_text="UUID of Rancher offering where cluster can be created",
+    )
+
+
 class GenericSecretOptionsSerializer(serializers.Serializer):
     pass
 
@@ -300,6 +319,7 @@ class MergedSecretOptionsSerializer(
     ScriptSecretOptionsSerializer,
     GenericSecretOptionsSerializer,
     RemoteServiceSecretOptionsSerializer,
+    ManagedRancherSecretOptionsSerializer,
 ):
     pass
 
