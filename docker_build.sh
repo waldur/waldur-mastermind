@@ -8,7 +8,7 @@ python3 -m pip install poetry==2.1.2 gunicorn==22.0.0
 poetry config virtualenvs.create false
 
 # Install Python dependencies for Waldur MasterMind from PyPI
-poetry install --no-dev
+poetry install --without dev
 
 cp /etc/waldur/settings.py src/waldur_core/server/settings.py
 
