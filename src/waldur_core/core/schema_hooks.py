@@ -228,65 +228,11 @@ def adjust_request_body_content_types(result, generator, **kwargs):
 
     # Iterate through all paths
     for path in result["paths"].values():
-        for method, operation in path.items():
+        for operation in path.values():
             request_body = operation.get("requestBody")
             if not request_body:
                 continue
-            request_body["content"].pop("application/x-www-form-urlencoded", None)
-
-            # Focus only on POST requests with a requestBody
-            if method.lower() not in ("post", "patch", "put"):
-                continue
-
-            # Check if the schema has binary fields
-            schema_ref = (
-                request_body["content"].get("multipart/form-data", {}).get("schema", {})
-            )
-
-            # If no direct schema, try to resolve $ref
-            if "$ref" in schema_ref:
-                schema_ref = _resolve_ref(result, schema_ref["$ref"])
-
-            # Check for binary fields
-            has_binary_fields = _check_for_binary_fields(schema_ref)
-
-            # Adjust content types based on binary field presence
-            if not has_binary_fields:
+            if "application/json" in request_body["content"]:
+                request_body["content"].pop("application/x-www-form-urlencoded", None)
                 request_body["content"].pop("multipart/form-data", None)
-
     return result
-
-
-def _resolve_ref(spec: dict[str, any], ref_path: str) -> dict[str, any]:
-    """
-    Resolves a $ref path in the OpenAPI specification.
-    """
-    # Split the ref path (e.g., '#/components/schemas/SomeSchema')
-    ref_parts = ref_path.split("/")[1:]
-
-    # Navigate through the specification to find the referenced schema
-    current = spec
-    for part in ref_parts:
-        current = current.get(part, {})
-
-    return current
-
-
-def _check_for_binary_fields(schema) -> bool:
-    """
-    Checks if the schema contains any binary fields.
-    """
-    # Check if this is a schema with properties
-    if "properties" in schema:
-        for prop_name, prop_details in schema.get("properties", {}).items():
-            # Check for direct binary format
-            if prop_details.get("format") == "binary":
-                return True
-
-            # Check for binary fields in array items
-            if prop_details.get("type") == "array":
-                items = prop_details.get("items", {})
-                if items.get("format") == "binary":
-                    return True
-
-    return False

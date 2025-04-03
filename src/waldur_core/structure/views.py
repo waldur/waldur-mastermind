@@ -29,6 +29,7 @@ from rest_framework import serializers as rf_serializers
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
+from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 
 from waldur_auth_social.models import ProviderChoices
@@ -76,6 +77,7 @@ class CustomerViewSet(UserRoleMixin, core_mixins.EagerLoadMixin, viewsets.ModelV
         filters.AccountingStartDateFilter,
         filters.ExternalCustomerFilterBackend,
     )
+    parses_classes = [MultiPartParser]
     ordering_fields = (
         "abbreviation",
         "accounting_start_date",
