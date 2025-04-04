@@ -99,7 +99,6 @@ class LexisLinkCreateSerializer(serializers.HyperlinkedModelSerializer):
             number = str(last_number + 1).zfill(3)
         else:
             number = "0".zfill(3)
-
         type_str = f"{prefix}{number}"
         robot_account = marketplace_models.RobotAccount.objects.create(
             username="",

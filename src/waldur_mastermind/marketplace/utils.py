@@ -1193,6 +1193,13 @@ def generate_glauth_records_for_offering_users(offering, offering_users):
 
 
 def generate_glauth_records_for_robot_accounts(offering, robot_accounts):
+    # make sure that only accounts in OK and requested_deletion are exposed e.g. in glauth
+    valid_states = [
+        models.RobotAccount.States.OK,
+        models.RobotAccount.States.REQUESTED_DELETION,
+    ]
+    robot_accounts = robot_accounts.filter(state__in=valid_states)
+
     robot_account_records = []
     for robot_account in robot_accounts:
         ssh_keys = robot_account.keys

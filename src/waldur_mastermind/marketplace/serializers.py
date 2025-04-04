@@ -4322,6 +4322,8 @@ class RobotAccountSerializer(
     url = serializers.HyperlinkedIdentityField(
         view_name="marketplace-robot-account-detail", lookup_field="uuid"
     )
+    state = serializers.CharField(source="get_state_display", read_only=True)
+    error_message = serializers.CharField(read_only=True)
 
     class Meta:
         model = models.RobotAccount
@@ -4338,8 +4340,17 @@ class RobotAccountSerializer(
             "backend_id",
             "responsible_user",
             "fingerprints",
+            "state",
+            "error_message",
+            "error_traceback",
         )
-        read_only_fields = ["backend_id"]
+        read_only_fields = [
+            "backend_id",
+            "state",
+            "state_display",
+            "error_message",
+            "error_traceback",
+        ]
         protected_fields = ["resource"]
         extra_kwargs = dict(
             resource={
@@ -4409,6 +4420,24 @@ class RobotAccountSerializer(
                 "The responsible user should belong to the same project or organization as resource."
             )
         return validated_data
+
+
+class RobotAccountStateSerializer(serializers.Serializer):
+    """Base serializer for state transitions, we don't need to add any fields since there is no payload"""
+
+    pass
+
+
+class StateTransitionErrorSerializer(serializers.Serializer):
+    detail = serializers.CharField(
+        help_text=_("Error message to be displayed to the user")
+    )
+
+
+class RobotAccountErrorSerializer(serializers.Serializer):
+    error_message = serializers.CharField(
+        required=False, help_text=_("Error message to be saved to the robot account")
+    )
 
 
 class RobotAccountDetailsSerializer(RobotAccountSerializer):

@@ -250,6 +250,7 @@ class RobotAccountEventLogger(EventLogger):
             "resource_robot_account_created",
             "resource_robot_account_updated",
             "resource_robot_account_deleted",
+            "resource_robot_account_state_changed",
         )
         event_groups = {
             "resources": event_types,
@@ -269,6 +270,7 @@ class MarketplaceServiceProviderLogger(EventLogger):
             "resource_robot_account_created",
             "resource_robot_account_updated",
             "resource_robot_account_deleted",
+            "resource_robot_account_state_changed",
             "marketplace_resource_create_succeeded",
             "marketplace_resource_update_limits_succeeded",
             "marketplace_resource_terminate_requested",

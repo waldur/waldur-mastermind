@@ -600,3 +600,20 @@ def notify_user_that_order_been_rejected(order_uuid):
         context,
         [order.created_by.email],
     )
+
+
+@shared_task(name="waldur_mastermind.marketplace.remove_deleted_robot_accounts")
+def remove_deleted_robot_accounts():
+    """
+    Remove robot accounts that are in DELETED state.
+    This task runs daily to clean up robot accounts that have been marked for deletion.
+    """
+    logger.info("Daily task: Removing deleted robot accounts")
+    deleted_accounts = marketplace_models.RobotAccount.objects.filter(
+        state=marketplace_models.RobotAccount.States.DELETED
+    )
+    count = deleted_accounts.count()
+    deleted_accounts.delete()
+
+    if count > 0:
+        logger.info(f"Removed {count} robot accounts that were in DELETED state")

@@ -742,13 +742,16 @@ class ResourceRobotAccountPullTask(BackgroundPullTask):
             account for account in remote_accounts if account["uuid"] in new_ids
         ]
         for account in new_accounts:
-            models.RobotAccount.objects.create(
+            robot_account = models.RobotAccount.objects.create(
                 resource=local_resource,
                 backend_id=account["uuid"],
                 type=account["type"],
                 username=account["username"],
                 keys=account["keys"],
             )
+            # Set state to OK
+            robot_account.state = models.RobotAccount.States.OK
+            robot_account.save()
 
         existing_accounts = [
             account for account in remote_accounts if account["uuid"] in existing_ids

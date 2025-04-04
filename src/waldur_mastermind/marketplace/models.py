@@ -1499,7 +1499,25 @@ class RobotAccount(
     LoggableMixin,
     common_mixins.BackendMetadataMixin,
     core_models.BackendMixin,
+    core_models.ErrorMessageMixin,
 ):
+    class States:
+        REQUESTED = 1
+        CREATING = 2
+        OK = 3
+        REQUESTED_DELETION = 4
+        DELETED = 5
+        ERROR = 6
+
+        CHOICES = (
+            (REQUESTED, "Requested"),
+            (CREATING, "Creating"),
+            (OK, "OK"),
+            (REQUESTED_DELETION, "Requested deletion"),
+            (DELETED, "Deleted"),
+            (ERROR, "Error"),
+        )
+
     resource = models.ForeignKey(Resource, on_delete=models.CASCADE)
     type = models.CharField(max_length=5)
     # empty string should be allowed because name is set by
@@ -1514,8 +1532,31 @@ class RobotAccount(
         related_name="+",
     )
     keys = models.JSONField(blank=True, default=list)
+    state = FSMIntegerField(default=States.REQUESTED, choices=States.CHOICES)
 
-    tracker = FieldTracker(fields=["resource", "type", "username", "users", "keys"])
+    tracker = FieldTracker(
+        fields=["resource", "type", "username", "users", "state", "keys"]
+    )
+
+    @transition(field=state, source=States.REQUESTED, target=States.CREATING)
+    def begin_creating(self):
+        pass
+
+    @transition(field=state, source=[States.CREATING, States.ERROR], target=States.OK)
+    def set_ok(self):
+        pass
+
+    @transition(field=state, source=States.OK, target=States.REQUESTED_DELETION)
+    def request_deletion(self):
+        pass
+
+    @transition(field=state, source=States.REQUESTED_DELETION, target=States.DELETED)
+    def set_deleted(self):
+        pass
+
+    @transition(field=state, source="*", target=States.ERROR)
+    def set_error(self):
+        pass
 
     class Meta:
         unique_together = ("resource", "type")
@@ -1525,6 +1566,7 @@ class RobotAccount(
         return (
             "type",
             "username",
+            "state",
         )
 
     def __str__(self):

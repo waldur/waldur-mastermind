@@ -16,6 +16,10 @@ def request_ssh_key_for_heappe_robot_account(
     if not instance.type.startswith("hl"):
         return
 
+    # This should only process if RobotAccount gets the OK state
+    if instance.state != marketplace_models.RobotAccount.States.OK:
+        return
+
     try:
         lexis_link = instance.lexis_link
     except models.LexisLink.DoesNotExist:
@@ -25,12 +29,12 @@ def request_ssh_key_for_heappe_robot_account(
         )
         return
 
-    if not (
-        instance.tracker.previous("username") == ""
-        and instance.tracker.has_changed("username")
-        and instance.username != ""
-    ):
-        logger.warning("The username of the robot account %s is already set", instance)
+    # if a linked Lexis link exists and it has the PENDING state, only then we should start LexisLink processing
+    if lexis_link.state != models.LexisLink.States.PENDING:
+        logger.info(
+            "The lexis link %s is not in PENDING state, skipping ssh key request",
+            lexis_link,
+        )
         return
 
     if instance.username == "":
@@ -42,13 +46,6 @@ def request_ssh_key_for_heappe_robot_account(
             "The backend_id of resource %s is empty, skipping ssh key request",
             instance.resource,
         )
-        return
-
-    if lexis_link.state not in [
-        models.LexisLink.States.PENDING,
-        models.LexisLink.States.ERRED,
-    ]:
-        logger.error("%s has incorrect state, skipping ssh key request", lexis_link)
         return
 
     logger.info("Requesting SSH key for %s", lexis_link)

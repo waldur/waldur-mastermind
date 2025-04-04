@@ -1,6 +1,6 @@
 import textwrap
 
-from rest_framework import test
+from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -28,7 +28,7 @@ class RobotAccountGlauthConfigTest(test.APITransactionTestCase):
         self.resource.save()
 
         self.robot_account = marketplace_factories.RobotAccountFactory(
-            resource=self.resource
+            state=marketplace_models.RobotAccount.States.OK, resource=self.resource
         )
         marketplace_utils.setup_linux_related_data(self.robot_account, self.offering)
         self.robot_account.save()
@@ -63,5 +63,52 @@ class RobotAccountGlauthConfigTest(test.APITransactionTestCase):
           gidnumber = 2001
         """
         )
-
         self.assertEqual(expected_config_file, response.data)
+
+    def test_glauth_exposes_correct_states(self):
+        """Test that only OK and REQUESTED_DELETION states are exposed in glauth due to filtering by state"""
+        # Create additional robot accounts in different states
+        requested_deletion_account = marketplace_factories.RobotAccountFactory(
+            resource=self.resource,
+            username="test2",
+            state=marketplace_models.RobotAccount.States.REQUESTED_DELETION,
+            type="test2",
+        )
+        # This should not be exposed in glauth
+        creating_account = marketplace_factories.RobotAccountFactory(
+            resource=self.resource,
+            username="test3",
+            state=marketplace_models.RobotAccount.States.CREATING,
+            type="test3",
+        )
+        # Set up Linux-related data for new accounts
+        for account in [requested_deletion_account, creating_account]:
+            marketplace_utils.setup_linux_related_data(account, self.offering)
+            account.save()
+
+        self.client.force_login(self.fixture.offering_owner)
+        response = self.client.get(self.url)
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            f"Expected status code 200, but got {response.status_code}",
+        )
+        content = response.content.decode("utf-8")
+        # Check that OK and REQUESTED_DELETION accounts are included
+        self.assertIn(
+            self.robot_account.username,
+            content,
+            f"Expected {self.robot_account.username} to be included",
+        )
+        self.assertIn(
+            requested_deletion_account.username,
+            content,
+            f"Expected {requested_deletion_account.username} to be included",
+        )
+
+        # Check that other states are not included
+        self.assertNotIn(
+            creating_account.username,
+            content,
+            f"Expected {creating_account.username} to be excluded",
+        )
