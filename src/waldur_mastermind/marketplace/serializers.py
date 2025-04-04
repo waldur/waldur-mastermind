@@ -1968,6 +1968,8 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
             if key not in service_attributes and key != "options":
                 continue
             value = options_serializer.validated_data.get(key)
+            if value == serializers.empty:
+                continue
             if key == "options":
                 instance.scope.options.update(value)
             else:
