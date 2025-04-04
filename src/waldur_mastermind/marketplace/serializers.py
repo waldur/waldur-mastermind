@@ -1954,6 +1954,7 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
         )
         for field in options_serializer.fields.values():
             field.required = False
+            field.default = None
         options_serializer.is_valid(raise_exception=True)
         update_fields = set()
         for key in (
