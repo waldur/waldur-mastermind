@@ -1971,7 +1971,8 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
             if value == serializers.empty:
                 continue
             if key == "options":
-                instance.scope.options.update(value)
+                if isinstance(value, dict):
+                    instance.scope.options.update(value)
             else:
                 setattr(instance.scope, key, value)
             update_fields.add(key)
