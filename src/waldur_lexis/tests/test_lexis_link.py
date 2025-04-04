@@ -124,9 +124,15 @@ class LexisLinkCreateTest(test.APITransactionTestCase):
             type="hl001",
             resource=self.resource,
         )
+
+        # Set up proper state transitions
+        robot_account.begin_creating()
+        robot_account.save()
+
         lexis_link = models.LexisLink.objects.create(robot_account=robot_account)
 
         robot_account.username = "test_username"
+        robot_account.set_ok()
         robot_account.save()
         robot_account.refresh_from_db()
         lexis_link.refresh_from_db()
@@ -167,6 +173,7 @@ class LexisLinkCreateTest(test.APITransactionTestCase):
             type="hl001",
             resource=self.resource,
             keys=[self.ssh_key],
+            state=marketplace_models.RobotAccount.States.OK,
         )
 
         lexis_link = models.LexisLink.objects.create(
@@ -182,8 +189,11 @@ class LexisLinkCreateTest(test.APITransactionTestCase):
         self.assertIsNone(
             models.LexisLink.objects.filter(uuid=lexis_link.uuid.hex).first()
         )
-        self.assertIsNone(
-            marketplace_models.RobotAccount.objects.filter(
-                uuid=robot_account.uuid.hex
-            ).first()
+        robot_account.refresh_from_db()
+        # Simulate 3rd party request to delete robot account
+        robot_account.set_deleted()
+        robot_account.save()
+        self.assertEqual(
+            marketplace_models.RobotAccount.States.DELETED,
+            robot_account.state,
         )

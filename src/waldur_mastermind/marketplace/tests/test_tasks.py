@@ -491,3 +491,59 @@ class MarkResourcesAsErredAfterTimeoutTest(test.APITransactionTestCase):
         self.assertNotEqual(
             self.fixture.instance.state, self.fixture.instance.States.ERRED
         )
+
+
+class RemoveDeletedRobotAccountsTest(test.APITransactionTestCase):
+    """
+    Test daily task that removes deleted robot accounts from the database.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.robot_account = models.RobotAccount.objects.create(
+            username="test-robot",
+            state=models.RobotAccount.States.OK,
+            resource=self.resource,
+        )
+
+    def test_remove_deleted_robot_accounts(self):
+        """
+        Test that robot accounts with state DELETED are removed from the database.
+        """
+        # Set robot account to DELETED state
+        self.robot_account.state = models.RobotAccount.States.DELETED
+        self.robot_account.save()
+
+        # Call task to remove deleted robot accounts
+        tasks.remove_deleted_robot_accounts()
+
+        # Assert that robot account is removed from the database
+        with self.assertRaises(models.RobotAccount.DoesNotExist):
+            self.robot_account.refresh_from_db()
+
+        self.assertIsNone(
+            models.RobotAccount.objects.filter(
+                uuid=self.robot_account.uuid.hex
+            ).first(),
+            f"Robot account {self.robot_account.uuid.hex} should not exist",
+        )
+
+    def test_do_not_remove_active_robot_accounts(self):
+        """
+        Test that robot accounts with other states, for example REQUESTED, are not removed from the database.
+        """
+        # Set robot account to OK state
+        self.robot_account.state = models.RobotAccount.States.REQUESTED
+        self.robot_account.save()
+
+        # Call task to remove deleted robot accounts
+        tasks.remove_deleted_robot_accounts()
+
+        # Assert that robot account is not removed from the database
+        self.robot_account.refresh_from_db()
+        self.assertEqual(
+            self.robot_account.state,
+            models.RobotAccount.States.REQUESTED,
+            f"Robot account {self.robot_account.uuid.hex} should not be removed from the database",
+        )

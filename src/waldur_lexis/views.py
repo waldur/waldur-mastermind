@@ -1,3 +1,5 @@
+import logging
+
 from django.db.models import Q
 from django_filters.rest_framework import DjangoFilterBackend
 
@@ -10,6 +12,8 @@ from waldur_core.structure.managers import (
 )
 
 from . import executors, filters, models, serializers
+
+logger = logging.getLogger(__name__)
 
 
 class LexisLinkViewSet(core_views.ActionsViewSet):
@@ -48,4 +52,16 @@ class LexisLinkViewSet(core_views.ActionsViewSet):
         return qs.filter(subquery)
 
     def perform_destroy(self, instance):
+        # Set robot account to requested deletion state
+        try:
+            robot_account = instance.robot_account
+            robot_account.request_deletion()
+            robot_account.save()
+        except Exception as e:
+            logger.error(
+                "Failed to set robot account %s to deletion state: %s",
+                robot_account,
+                str(e),
+            )
+
         executors.SshKeyDeleteExecutor().execute(instance)

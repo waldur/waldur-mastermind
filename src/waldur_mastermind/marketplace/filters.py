@@ -481,10 +481,11 @@ class RobotAccountFilter(core_filters.CreatedModifiedFilter, django_filters.Filt
     provider_uuid = django_filters.UUIDFilter(
         field_name="resource__offering__customer__uuid"
     )
+    state = django_filters.ChoiceFilter(choices=models.RobotAccount.States.CHOICES)
 
     class Meta:
         model = models.RobotAccount
-        fields = ["type"]
+        fields = ["type", "state"]
 
 
 class ResourceUserFilter(django_filters.FilterSet):

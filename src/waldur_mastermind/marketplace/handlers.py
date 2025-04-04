@@ -866,9 +866,12 @@ def generate_changes_string(changed_dict, instance):
         changes_string += f"Robot account {instance.username} has been updated. "
 
     for key in changed_dict:
-        change_string = (
-            f"{key} had changed from {changed_dict[key]} to {getattr(instance, key)}. "
-        )
+        if key == "state":
+            old_state = models.RobotAccount(state=changed_dict[key]).get_state_display()
+            new_state = instance.get_state_display()
+            change_string = f"Robot account '{instance.username}' state changed from '{old_state}' to '{new_state}'."
+        else:
+            change_string = f"{key} had changed from {changed_dict[key]} to {getattr(instance, key)}. "
         changes_string += change_string
     return changes_string
 

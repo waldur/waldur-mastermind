@@ -79,4 +79,9 @@ class MarketplaceExtension(WaldurExtension):
                 "schedule": timedelta(hours=2),
                 "args": (),
             },
+            "remove_deleted_robot_accounts": {
+                "task": "waldur_mastermind.marketplace.remove_deleted_robot_accounts",
+                "schedule": timedelta(days=1),
+                "args": (),
+            },
         }

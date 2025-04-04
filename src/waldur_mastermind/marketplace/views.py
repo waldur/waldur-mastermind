@@ -406,8 +406,13 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
     @action(detail=True, methods=["GET"])
     def robot_account_customers(self, request, uuid=None):
         service_provider = self.get_object()
+        valid_states = [
+            models.RobotAccount.States.OK,
+            models.RobotAccount.States.REQUESTED_DELETION,
+        ]
         qs = models.RobotAccount.objects.filter(
-            resource__offering__customer=service_provider.customer
+            resource__offering__customer=service_provider.customer,
+            state__in=valid_states,
         )
         customer_name = request.query_params.get("customer_name")
         if customer_name:
@@ -439,8 +444,13 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
     @action(detail=True, methods=["GET"])
     def robot_account_projects(self, request, uuid=None):
         service_provider = self.get_object()
+        valid_states = [
+            models.RobotAccount.States.OK,
+            models.RobotAccount.States.REQUESTED_DELETION,
+        ]
         qs = models.RobotAccount.objects.filter(
-            resource__offering__customer=service_provider.customer
+            resource__offering__customer=service_provider.customer,
+            state__in=valid_states,
         )
         project_name = request.query_params.get("project_name")
         if project_name:
@@ -4660,6 +4670,9 @@ class RobotAccountViewSet(core_views.ActionsViewSet):
         instance = serializer.save()
         offering = instance.resource.offering
         utils.setup_linux_related_data(instance, offering)
+        # Set state to CREATING and OK since setup is complete
+        instance.begin_creating()
+        instance.set_ok()
         instance.save()
 
     def perform_update(self, serializer):
@@ -4667,6 +4680,140 @@ class RobotAccountViewSet(core_views.ActionsViewSet):
         offering = instance.resource.offering
         utils.setup_linux_related_data(instance, offering)
         instance.save()
+
+    @extend_schema(
+        request=serializers.RobotAccountStateSerializer,
+        responses={
+            200: serializers.RobotAccountDetailsSerializer,
+            400: serializers.StateTransitionErrorSerializer,
+        },
+    )
+    @action(detail=True, methods=["post"])
+    def set_state_creating(self, request, uuid=None):
+        robot_account = self.get_object()
+        try:
+            robot_account.begin_creating()
+            robot_account.save()
+            serializer = self.get_serializer(robot_account)
+            return Response(serializer.data)
+        except TransitionNotAllowed:
+            error_serializer = serializers.StateTransitionErrorSerializer(
+                {"detail": "This transition is not allowed in the current state."}
+            )
+            return Response(error_serializer.data, status=status.HTTP_400_BAD_REQUEST)
+
+    @extend_schema(
+        request=serializers.RobotAccountStateSerializer,
+        responses=serializers.RobotAccountDetailsSerializer,
+    )
+    @action(detail=True, methods=["post"])
+    def set_state_ok(self, request, uuid=None):
+        robot_account = self.get_object()
+        try:
+            robot_account.set_ok()
+            robot_account.save()
+            serializer = self.get_serializer(robot_account)
+            return Response(serializer.data)
+        except TransitionNotAllowed:
+            error_serializer = serializers.StateTransitionErrorSerializer(
+                {
+                    "detail": f"This transition is not allowed in the current state: {robot_account.state}"
+                }
+            )
+            return Response(error_serializer.data, status=status.HTTP_400_BAD_REQUEST)
+
+    @extend_schema(
+        request=serializers.RobotAccountStateSerializer,
+        responses=serializers.RobotAccountDetailsSerializer,
+    )
+    @action(detail=True, methods=["post"])
+    def set_state_request_deletion(self, request, uuid=None):
+        robot_account = self.get_object()
+        try:
+            robot_account.request_deletion()
+            robot_account.save()
+            serializer = self.get_serializer(robot_account)
+            return Response(serializer.data)
+        except TransitionNotAllowed:
+            error_serializer = serializers.StateTransitionErrorSerializer(
+                {
+                    "detail": f"This transition is not allowed in the current state: {robot_account.state}"
+                }
+            )
+            return Response(error_serializer.data, status=status.HTTP_400_BAD_REQUEST)
+
+    @extend_schema(
+        request=serializers.RobotAccountStateSerializer,
+        responses=serializers.RobotAccountDetailsSerializer,
+    )
+    @action(detail=True, methods=["post"])
+    def set_state_deleted(self, request, uuid=None):
+        robot_account = self.get_object()
+        try:
+            robot_account.set_deleted()
+            robot_account.save()
+            serializer = self.get_serializer(robot_account)
+            return Response(serializer.data)
+        except TransitionNotAllowed:
+            error_serializer = serializers.StateTransitionErrorSerializer(
+                {
+                    "detail": f"This transition is not allowed in the current state: {robot_account.state}"
+                }
+            )
+            return Response(error_serializer.data, status=status.HTTP_400_BAD_REQUEST)
+
+    @extend_schema(
+        request=serializers.RobotAccountErrorSerializer,
+        responses=serializers.RobotAccountDetailsSerializer,
+    )
+    @action(detail=True, methods=["post"])
+    def set_state_erred(self, request, uuid=None):
+        robot_account = self.get_object()
+        error_serializer = serializers.RobotAccountErrorSerializer(data=request.data)
+        error_serializer.is_valid(raise_exception=True)
+
+        try:
+            robot_account.set_error()
+            if error_serializer.validated_data.get("error_message"):
+                robot_account.error_message = error_serializer.validated_data.get(
+                    "error_message"
+                )
+            robot_account.save()
+            response_serializer = self.get_serializer(robot_account)
+            return Response(response_serializer.data)
+        except TransitionNotAllowed:
+            error_serializer = serializers.StateTransitionErrorSerializer(
+                {
+                    "detail": f"This transition is not allowed in the current state: {robot_account.state}"
+                }
+            )
+            return Response(error_serializer.data, status=status.HTTP_400_BAD_REQUEST)
+
+    set_state_creating_permissions = set_state_ok_permissions = (
+        set_state_request_deletion_permissions
+    ) = set_state_deleted_permissions = set_state_erred_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_RESOURCE_ROBOT_ACCOUNT,
+            ["resource.offering.customer"],
+        )
+    ]
+
+    # Validators for state transitions
+    set_state_creating_validators = [
+        core_validators.StateValidator(models.RobotAccount.States.REQUESTED)
+    ]
+    set_state_ok_validators = [
+        core_validators.StateValidator(models.RobotAccount.States.CREATING)
+    ]
+    set_state_request_deletion_validators = [
+        core_validators.StateValidator(models.RobotAccount.States.OK)
+    ]
+    set_state_deleted_validators = [
+        core_validators.StateValidator(models.RobotAccount.States.REQUESTED_DELETION)
+    ]
+    set_state_erred_validators = [
+        core_validators.StateValidator(models.RobotAccount.States.OK)
+    ]
 
 
 class SectionViewSet(rf_viewsets.ModelViewSet):

@@ -4,13 +4,14 @@ from celery import chain
 
 from waldur_core.core import executors
 from waldur_core.core import tasks as core_tasks
-from waldur_core.core import utils as core_utils
 
 logger = logging.getLogger(__name__)
 
 
 class SshKeyCreateExecutor(
-    executors.SuccessExecutorMixin, executors.ErrorExecutorMixin, executors.BaseExecutor
+    executors.SuccessExecutorMixin,  # Handle LexisLink state transition
+    executors.ErrorExecutorMixin,
+    executors.BaseExecutor,
 ):
     @classmethod
     def get_task_signature(cls, instance, serialized_instance):
@@ -35,12 +36,10 @@ class SshKeyCreateExecutor(
 class SshKeyDeleteExecutor(executors.BaseExecutor):
     @classmethod
     def get_task_signature(cls, instance, serialized_instance):
-        serialized_robot_account = core_utils.serialize_instance(instance.robot_account)
         return chain(
             core_tasks.BackendMethodTask().si(serialized_instance, "delete_ssh_key"),
             core_tasks.BackendMethodTask().si(
                 serialized_instance, "delete_heappe_project"
             ),
             core_tasks.DeletionTask().si(serialized_instance),
-            core_tasks.DeletionTask().si(serialized_robot_account),
         )
