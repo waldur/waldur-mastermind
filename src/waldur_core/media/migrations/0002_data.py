@@ -101,6 +101,14 @@ def copy_whitelabeling(apps, schema_editor):
     File = apps.get_model("media", "File")
 
     with schema_editor.connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'binary_database_files_file')"
+        )
+        table_exists = cursor.fetchone()[0]
+        if not table_exists:
+            print("Table binary_database_files_file does not exist")
+            return
+
         for param in ICONS:
             cursor.execute("SELECT value FROM constance_config WHERE key=%s", [param])
             row = cursor.fetchone()
