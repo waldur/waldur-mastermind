@@ -23,6 +23,6 @@ COPY poetry.lock /tmp/mnt/poetry.lock
 
 # Install dependencies
 RUN poetry config virtualenvs.create false
-RUN cd /tmp/mnt && poetry install -vvv
+RUN cd /tmp/mnt && poetry install -vvv --no-root
 
 CMD ["/bin/sh"]
