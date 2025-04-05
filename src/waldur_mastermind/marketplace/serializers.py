@@ -1475,8 +1475,23 @@ class ProviderOfferingDetailsSerializer(
             "url": {
                 "lookup_field": "uuid",
             },
-            "customer": {"lookup_field": "uuid", "view_name": "customer-detail"},
-            "project": {"lookup_field": "uuid", "view_name": "project-detail"},
+            "customer": {
+                "lookup_field": "uuid",
+                "view_name": "customer-detail",
+                "allow_null": True,
+            },
+            "customer_name": {"allow_null": True},
+            "customer_uuid": {"allow_null": True},
+            "project": {
+                "lookup_field": "uuid",
+                "view_name": "project-detail",
+                "allow_null": True,
+            },
+            "project_name": {"allow_null": True},
+            "project_uuid": {"allow_null": True},
+            "parent_name": {"allow_null": True},
+            "parent_uuid": {"allow_null": True},
+            "parent_description": {"allow_null": True},
             "category": {
                 "lookup_field": "uuid",
                 "view_name": "marketplace-category-detail",
