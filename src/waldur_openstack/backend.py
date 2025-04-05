@@ -243,27 +243,63 @@ class OpenStackBackend(ServiceBackend):
 
     def pull_tenants(self):
         keystone = get_keystone_client(self.admin_session)
+        logger.info("Starting to pull tenants for service settings %s", self.settings)
 
         try:
-            backend_tenants = keystone.projects.list(domain=self._get_domain())
+            domain = self._get_domain()
+            logger.debug("Using domain: %s (type: %s)", domain, type(domain).__name__)
+            backend_tenants = keystone.projects.list(domain=domain)
+        except keystone_exceptions.Forbidden as e:
+            if "identity:list_projects" in str(e):
+                logger.warning(
+                    "User is not authorized to list all projects. This might be expected if the user only has access to specific projects. Error: %s",
+                    str(e),
+                )
+                # Get only the projects the user has access to
+                try:
+                    backend_tenants = keystone.projects.list()
+                    logger.info(
+                        "Successfully retrieved accessible projects. Count: %d",
+                        len(backend_tenants),
+                    )
+                except keystone_exceptions.ClientException as e2:
+                    logger.error("Failed to list accessible projects: %s", str(e2))
+                    raise OpenStackBackendError(e2)
+            else:
+                logger.error("Permission denied while listing projects: %s", str(e))
+                raise OpenStackBackendError(e)
         except keystone_exceptions.ClientException as e:
+            logger.error("Failed to list projects: %s", str(e))
             raise OpenStackBackendError(e)
 
         backend_tenants_mapping = {tenant.id: tenant for tenant in backend_tenants}
+        logger.info("Retrieved %d tenants from backend", len(backend_tenants_mapping))
 
         tenants = models.Tenant.objects.filter(
             state__in=[models.Tenant.States.OK, models.Tenant.States.ERRED],
             service_settings=self.settings,
         )
+        logger.info("Found %d tenants in database to sync", tenants.count())
+
         for tenant in tenants:
             backend_tenant = backend_tenants_mapping.get(tenant.backend_id)
             if backend_tenant is None:
+                logger.warning(
+                    "Tenant %s (backend_id: %s) not found in backend",
+                    tenant.name,
+                    tenant.backend_id,
+                )
                 handle_resource_not_found(tenant)
                 signals.tenant_does_not_exist_in_backend.send(
                     models.Tenant, instance=tenant
                 )
                 continue
 
+            logger.debug(
+                "Updating tenant %s (backend_id: %s) from backend data",
+                tenant.name,
+                tenant.backend_id,
+            )
             imported_backend_tenant = models.Tenant(
                 name=backend_tenant.name,
                 description=backend_tenant.description,
@@ -278,17 +314,25 @@ class OpenStackBackend(ServiceBackend):
     def _get_domain(self):
         """Get current domain"""
         keystone = get_keystone_client(self.admin_session)
+        domain_name = self.settings.domain or "Default"
+        logger.debug("Attempting to get domain with name: %s", domain_name)
+
         try:
-            return keystone.domains.find(name=self.settings.domain or "Default")
+            domain = keystone.domains.find(name=domain_name)
+            logger.debug("Successfully found domain object for %s", domain_name)
+            return domain
         except keystone_exceptions.Forbidden as e:
             if "identity:list_domains" in str(e):
                 logger.warning(
-                    "User is not authorized to list domains. Using domain name as string: %s",
-                    self.settings.domain or "Default",
+                    "User is not authorized to list domains. Using domain name as string: %s. Error: %s",
+                    domain_name,
+                    str(e),
                 )
-                return self.settings.domain or "Default"
+                return domain_name
+            logger.error("Permission denied while getting domain: %s", str(e))
             raise OpenStackBackendError(e)
         except keystone_exceptions.ClientException as e:
+            logger.error("Failed to get domain: %s", str(e))
             raise OpenStackBackendError(e)
 
     def remove_ssh_key_from_tenant(
