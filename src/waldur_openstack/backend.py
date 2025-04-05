@@ -278,7 +278,18 @@ class OpenStackBackend(ServiceBackend):
     def _get_domain(self):
         """Get current domain"""
         keystone = get_keystone_client(self.admin_session)
-        return keystone.domains.find(name=self.settings.domain or "Default")
+        try:
+            return keystone.domains.find(name=self.settings.domain or "Default")
+        except keystone_exceptions.Forbidden as e:
+            if "identity:list_domains" in str(e):
+                logger.warning(
+                    "User is not authorized to list domains. Using domain name as string: %s",
+                    self.settings.domain or "Default",
+                )
+                return self.settings.domain or "Default"
+            raise OpenStackBackendError(e)
+        except keystone_exceptions.ClientException as e:
+            raise OpenStackBackendError(e)
 
     def remove_ssh_key_from_tenant(
         self, tenant: models.Tenant, key_name, fingerprint_md5
