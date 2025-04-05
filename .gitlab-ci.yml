@@ -480,7 +480,7 @@ Upload Python SDK:
     - git pull
     - rm -rf waldur_api_client && cp -a "$CI_PROJECT_DIR/py-client/waldur_api_client" waldur_api_client
     - git add waldur_api_client
-    - git commit -m "Update Waldur Go SDK" || exit 0
+    - git commit -m "Update Waldur Python SDK" || exit 0
     - git push
   before_script:
     - echo "[+] Adding ssh keys to the home directory"
