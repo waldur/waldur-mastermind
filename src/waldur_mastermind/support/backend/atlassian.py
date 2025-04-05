@@ -568,47 +568,112 @@ class ServiceDeskBackend(SupportBackend):
 
     @reraise_exceptions
     def create_issue(self, issue: models.Issue):
+        logger.info(
+            "Creating JIRA issue for caller %s (email: %s)",
+            issue.caller.username,
+            issue.caller.email,
+        )
+
         if not issue.caller.email:
+            logger.error("Cannot create issue - caller user does not have email")
             raise ServiceBackendError(
                 "Issue is not created because caller user does not have email."
             )
 
-        self.create_user(issue.caller)
+        try:
+            logger.debug("Creating JIRA user for caller")
+            self.create_user(issue.caller)
+        except Exception as e:
+            logger.exception(
+                "Failed to create/verify JIRA user for caller %s. Error: %s",
+                issue.caller.username,
+                str(e),
+            )
+            raise
 
         args = self._issue_to_dict(issue)
-        args["serviceDeskId"] = self.manager.waldur_service_desk(
-            config.ATLASSIAN_PROJECT_ID
-        )
+        logger.debug("Prepared issue arguments: %s", args)
+
+        try:
+            logger.debug(
+                "Getting service desk with project ID: %s", config.ATLASSIAN_PROJECT_ID
+            )
+            args["serviceDeskId"] = self.manager.waldur_service_desk(
+                config.ATLASSIAN_PROJECT_ID
+            )
+        except Exception as e:
+            logger.exception(
+                "Failed to get service desk ID. Project ID: %s, Error: %s",
+                config.ATLASSIAN_PROJECT_ID,
+                str(e),
+            )
+            raise
+
         if not models.RequestType.objects.filter(issue_type_name=issue.type).count():
+            logger.info("Request type not found, pulling request types from JIRA")
             self.pull_request_types()
 
         if not models.RequestType.objects.filter(issue_type_name=issue.type).count():
+            logger.error(
+                "Request type not found for issue type %s after pulling from JIRA",
+                issue.type,
+            )
             raise ServiceBackendError(
                 f"Issue is not created because request type is not found for issue type {issue.type}."
             )
 
-        args["requestTypeId"] = (
-            models.RequestType.objects.filter(issue_type_name=issue.type)
-            .first()
-            .backend_id
+        request_type = models.RequestType.objects.filter(
+            issue_type_name=issue.type
+        ).first()
+        logger.debug(
+            "Found request type: %s (backend_id: %s)",
+            request_type.name,
+            request_type.backend_id,
         )
+        args["requestTypeId"] = request_type.backend_id
+
         on_behalf_username = (
             issue.caller.username if config.ATLASSIAN_SHARED_USERNAME else None
         )
-        backend_issue = self.manager.waldur_create_customer_request(
-            args, use_old_api=self.use_old_api, username=on_behalf_username
+        logger.debug(
+            "Using on behalf username: %s (shared username mode: %s)",
+            on_behalf_username,
+            config.ATLASSIAN_SHARED_USERNAME,
         )
+
+        try:
+            logger.info("Creating customer request in JIRA")
+            backend_issue = self.manager.waldur_create_customer_request(
+                args, use_old_api=self.use_old_api, username=on_behalf_username
+            )
+            logger.info(
+                "Successfully created JIRA issue with key: %s", backend_issue.key
+            )
+        except Exception as e:
+            logger.exception(
+                "Failed to create customer request in JIRA. Error: %s", str(e)
+            )
+            raise
+
         if config.ATLASSIAN_CUSTOM_ISSUE_FIELD_MAPPING_ENABLED:
+            logger.debug("Custom field mapping is enabled, setting custom fields")
             args = self._get_custom_fields(issue)
+            logger.debug("Prepared custom fields: %s", args)
 
             try:
                 # Update an issue, because create_customer_request doesn't allow setting custom fields.
                 backend_issue.update(**args)
+                logger.info("Successfully updated issue with custom fields")
             except JIRAError as e:
-                logger.error("Error when setting custom field via JIRA API: %s" % e)
+                logger.error("Error when setting custom field via JIRA API: %s", e)
 
         self._backend_issue_to_issue(backend_issue, issue)
         issue.save()
+        logger.info(
+            "Issue creation completed. Local issue ID: %s, JIRA key: %s",
+            issue.id,
+            issue.key,
+        )
 
     @reraise_exceptions
     def create_confirmation_comment(self, issue, comment_tmpl=""):
@@ -626,11 +691,21 @@ class ServiceDeskBackend(SupportBackend):
         return self._add_comment(issue.backend_id, body, is_internal=False)
 
     def create_user(self, user: User):
+        logger.info(
+            "Creating user in JIRA. Username: %s, Email: %s, Shared username mode: %s",
+            user.username,
+            user.email,
+            config.ATLASSIAN_SHARED_USERNAME,
+        )
         # in case usernames are shared, skip lookups and create SupportCustomer if it is missing
         if config.ATLASSIAN_SHARED_USERNAME:
             try:
                 user.supportcustomer
+                logger.info(
+                    "Support customer already exists for user %s", user.username
+                )
             except ObjectDoesNotExist:
+                logger.info("Creating new support customer for user %s", user.username)
                 support_customer = models.SupportCustomer(
                     user=user, backend_id=user.username
                 )
@@ -639,17 +714,24 @@ class ServiceDeskBackend(SupportBackend):
 
         # Temporary workaround as JIRA returns 500 error if user already exists
         if self.use_old_api or self.use_teenage_api:
+            logger.info(
+                "Using old/teenage API to search for user. API mode: %s",
+                "old" if self.use_old_api else "teenage",
+            )
             # old API has a bug that causes user active status to be set to False if includeInactive is passed as True
             existing_support_user = self.manager.search_users(user.email)
         else:
+            logger.info("Using GDPR-compliant API to search for user")
             # user GDPR-compliant version of user search
             existing_support_user = self.manager.waldur_search_users(
                 user.email, includeInactive=True
             )
 
         if existing_support_user:
+            logger.info("Found existing user(s) in JIRA with email %s", user.email)
             active_user = [u for u in existing_support_user if u.active]
             if not active_user:
+                logger.info("User %s exists in JIRA but is inactive", user.email)
                 raise SupportUserInactive(
                     "Issue is not created because caller user is disabled."
                 )
@@ -659,23 +741,44 @@ class ServiceDeskBackend(SupportBackend):
             )
             backend_customer = active_user[0]
         else:
-            if self.use_old_api:
-                backend_customer = self.manager.waldur_create_customer(
-                    user.email, user.full_name
+            logger.info("Creating new user in JIRA for %s", user.email)
+            try:
+                if self.use_old_api:
+                    logger.info("Using old API to create user")
+                    backend_customer = self.manager.waldur_create_customer(
+                        user.email, user.full_name
+                    )
+                else:
+                    logger.info("Using cloud API to create user")
+                    backend_customer = self.manager.waldur_create_customer_cloud(
+                        user.email, config.ATLASSIAN_PROJECT_ID
+                    )
+                logger.info("Successfully created user in JIRA")
+            except Exception as e:
+                logger.exception(
+                    "Failed to create user in JIRA. Email: %s, Error: %s",
+                    user.email,
+                    str(e),
                 )
-            else:
-                backend_customer = self.manager.waldur_create_customer_cloud(
-                    user.email, config.ATLASSIAN_PROJECT_ID
-                )
+                raise
+
         backend_id = self.get_user_id(backend_customer)
+        logger.info("Got backend ID for user: %s", backend_id)
+
         try:
             user.supportcustomer
+            logger.debug("Support customer already exists for user %s", user.username)
         except ObjectDoesNotExist:
             if models.SupportCustomer.objects.filter(backend_id=backend_id).exists():
+                logger.error(
+                    "Cannot create support customer - JIRA user with email %s is already associated with another user",
+                    user.email,
+                )
                 raise ServiceBackendError(
                     "Issue is not created because JIRA user with the same "
                     "email is already associated with another user."
                 )
+            logger.info("Creating new support customer with backend_id %s", backend_id)
             support_customer = models.SupportCustomer(user=user, backend_id=backend_id)
             support_customer.save()
 

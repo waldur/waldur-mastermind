@@ -192,8 +192,17 @@ def format_delete_description(order):
 
 
 def create_issue_about_project_team_changes(project, created_by, summary, description):
+    logger.info(
+        "Creating issue about project team changes. Project: %s, Created by: %s",
+        project.name,
+        created_by.username,
+    )
+
     active_backend = support_backend.get_active_backend()
+    logger.debug("Using support backend: %s", active_backend.backend_name)
+
     issue_details = active_backend.get_issue_details()
+    logger.debug("Got issue details from backend: %s", issue_details)
 
     issue_details.update(
         dict(
@@ -210,21 +219,48 @@ def create_issue_about_project_team_changes(project, created_by, summary, descri
         == support_backend.SupportedFormat.HTML
     ):
         issue_details["description"] = text2html(issue_details["description"])
+        logger.debug("Converted description to HTML format")
 
-    issue = support_models.Issue.objects.create(**issue_details)
     try:
-        active_backend.create_issue(issue)
-        issue.refresh_from_db()
-    except support_exceptions.SupportUserInactive:
-        issue.delete()
-        raise rf_exceptions.ValidationError(
-            _(
-                "Delete resource process is cancelled and issue not created "
-                "because a caller is inactive."
-            )
+        logger.info(
+            "Creating issue with details: %s",
+            {k: v for k, v in issue_details.items() if k != "description"},
         )
-    except ServiceBackendError as e:
-        issue.delete()
-        raise rf_exceptions.ValidationError(e)
+        issue = support_models.Issue.objects.create(**issue_details)
+        logger.info("Created issue object in database with ID: %s", issue.id)
+
+        try:
+            active_backend.create_issue(issue)
+            logger.info("Successfully created issue in backend system")
+            issue.refresh_from_db()
+        except support_exceptions.SupportUserInactive:
+            logger.error(
+                "Failed to create issue - caller %s is inactive in support system",
+                created_by.username,
+            )
+            issue.delete()
+            raise rf_exceptions.ValidationError(
+                _(
+                    "Delete resource process is cancelled and issue not created "
+                    "because a caller is inactive."
+                )
+            )
+        except ServiceBackendError as e:
+            logger.error(
+                "Service backend error while creating issue: %s. User: %s, Project: %s",
+                str(e),
+                created_by.username,
+                project.name,
+            )
+            issue.delete()
+            raise rf_exceptions.ValidationError(e)
+    except Exception as e:
+        logger.exception(
+            "Unexpected error while creating issue. User: %s, Project: %s. Error: %s",
+            created_by.username,
+            project.name,
+            str(e),
+        )
+        raise
 
     return issue

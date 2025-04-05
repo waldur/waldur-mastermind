@@ -106,11 +106,25 @@ def notify_about_request_based_item_creation(sender, instance, created=False, **
 
 def _create_issue_if_membership_changed(instance, summary):
     user_role = instance
+    logger.info(
+        "Processing membership change for user %s (id: %s) in scope %s",
+        user_role.user.username,
+        user_role.user.id,
+        user_role.scope,
+    )
 
     if not isinstance(user_role.scope, structure_models.Project):
+        logger.debug("Skipping membership change processing - scope is not a project")
         return
 
     project = user_role.scope
+    logger.info(
+        "Checking resources for project %s (id: %s) with PLUGIN_NAME %s",
+        project.name,
+        project.id,
+        PLUGIN_NAME,
+    )
+
     resources = marketplace_models.Resource.objects.exclude(
         state=marketplace_models.Resource.States.TERMINATED
     ).filter(
@@ -120,10 +134,15 @@ def _create_issue_if_membership_changed(instance, summary):
     )
 
     if resources.exists():
+        logger.info(
+            "Found %d active resources with enabled membership change notifications",
+            resources.count(),
+        )
         offering_ids = resources.values_list("offering_id", flat=True).distinct()
         offerings = marketplace_models.Offering.objects.filter(id__in=offering_ids)
 
         for offering in offerings:
+            logger.debug("Processing offering %s (id: %s)", offering.name, offering.id)
             resources = marketplace_models.Resource.objects.filter(
                 offering=offering, project=project
             )
@@ -149,27 +168,61 @@ def _create_issue_if_membership_changed(instance, summary):
                 autoescape=False,
             )
         )
-        marketplace_support_utils.create_issue_about_project_team_changes(
-            project,
-            created_by=user_role.user,
-            summary=summary.format(
-                user=user_role.user.full_name,
-                project=project.name,
-                organization=project.customer.get_display_name(),
-            ),
-            description=description,
-        )
+        try:
+            logger.info(
+                "Creating issue for membership change. User: %s, Project: %s, Organization: %s",
+                user_role.user.full_name,
+                project.name,
+                project.customer.get_display_name(),
+            )
+            marketplace_support_utils.create_issue_about_project_team_changes(
+                project,
+                created_by=user_role.user,
+                summary=summary.format(
+                    user=user_role.user.full_name,
+                    project=project.name,
+                    organization=project.customer.get_display_name(),
+                ),
+                description=description,
+            )
+        except Exception as e:
+            logger.exception(
+                "Failed to create issue for membership change. User: %s, Project: %s. Error: %s",
+                user_role.user.full_name,
+                project.name,
+                str(e),
+            )
+            raise
+    else:
+        logger.debug("No eligible resources found for membership change notification")
 
 
 def create_issue_if_membership_changed(sender, instance, created=False, **kwargs):
+    logger.info(
+        "Handling membership change event. Created: %s, Instance: %s, Is active: %s",
+        created,
+        instance,
+        instance.is_active if hasattr(instance, "is_active") else "N/A",
+    )
+
     if created and not instance.is_active:
+        logger.debug("Skipping - newly created inactive instance")
         return
 
     if not isinstance(instance.scope, structure_models.Project):
+        logger.debug("Skipping - scope is not a project")
         return
 
     if not instance.tracker.has_changed("is_active"):
+        logger.debug("Skipping - is_active status hasn't changed")
         return
+
+    logger.info(
+        "Processing membership change. User: %s, Project: %s, New status: %s",
+        instance.user.username if hasattr(instance, "user") else "unknown",
+        instance.scope,
+        "active" if instance.is_active else "inactive",
+    )
 
     if instance.is_active:
         _create_issue_if_membership_changed(
