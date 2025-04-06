@@ -1993,11 +1993,9 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
             value = options_serializer.validated_data.get(key)
             if value == serializers.empty:
                 continue
-            values_to_update = {
-                k: value[k] for k in value.keys() if k in service_attributes.keys()
-            }
             if key == "options":
-                instance.scope.options.update(values_to_update)
+                if isinstance(value, dict):
+                    instance.scope.options.update(value)
             else:
                 setattr(instance.scope, key, value)
             update_fields.add(key)
