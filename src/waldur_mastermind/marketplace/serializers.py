@@ -1376,6 +1376,7 @@ class ProviderOfferingDetailsSerializer(
         read_only=True, source="scope.name", allow_null=True
     )
     scope_state = serializers.SerializerMethodField()
+    scope_error_message = serializers.SerializerMethodField()
     files = NestedOfferingFileSerializer(many=True, read_only=True)
     quotas = serializers.SerializerMethodField()
     organization_groups = structure_serializers.OrganizationGroupSerializer(
@@ -1435,6 +1436,7 @@ class ProviderOfferingDetailsSerializer(
             "scope_uuid",
             "scope_name",
             "scope_state",
+            "scope_error_message",
             "files",
             "quotas",
             "paused_reason",
@@ -1564,6 +1566,12 @@ class ProviderOfferingDetailsSerializer(
     def get_scope_state(self, offering: models.Offering) -> CoreStateType | None:
         try:
             return offering.scope.get_state_display()
+        except AttributeError:
+            return None
+
+    def get_scope_error_message(self, offering: models.Offering) -> str | None:
+        try:
+            return offering.scope.error_message
         except AttributeError:
             return None
 
@@ -1985,9 +1993,11 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
             value = options_serializer.validated_data.get(key)
             if value == serializers.empty:
                 continue
+            values_to_update = {
+                k: value[k] for k in value.keys() if k in service_attributes.keys()
+            }
             if key == "options":
-                if isinstance(value, dict):
-                    instance.scope.options.update(value)
+                instance.scope.options.update(values_to_update)
             else:
                 setattr(instance.scope, key, value)
             update_fields.add(key)
