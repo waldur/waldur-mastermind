@@ -506,7 +506,8 @@ Generate OpenAPI schema diff:
     - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
   before_script:
     - apk update
-    - apk add --no-cache git
+    - apk add --no-cache git nodejs npm
+    - npm install -g markdownlint-cli
   script:
     - ls -la
     - echo "Cloning docs repository"
@@ -532,6 +533,9 @@ Generate OpenAPI schema diff:
         echo "Previous schema found: $PREV_SCHEMA"
         /usr/bin/oasdiff diff -f markup $PREV_SCHEMA $CI_PROJECT_DIR/waldur-openapi-schema.yaml > $CI_PROJECT_DIR/openapi-diff.md
         ls -la $CI_PROJECT_DIR/openapi-diff.md
+        head -n 30 $CI_PROJECT_DIR/openapi-diff.md || true
+        sed -i "1i # OpenApi Schema Diff\n\n## For version ${CI_COMMIT_TAG}" $CI_PROJECT_DIR/openapi-diff.md
+        markdownlint  --disable MD041 MD035 --fix $CI_PROJECT_DIR/openapi-diff.md || true
         head -n 30 $CI_PROJECT_DIR/openapi-diff.md || true
       fi
   artifacts:
