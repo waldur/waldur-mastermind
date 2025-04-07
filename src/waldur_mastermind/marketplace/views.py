@@ -1350,6 +1350,7 @@ class ProviderOfferingViewSet(
 
     @extend_schema(
         request=serializers.OfferingLocationUpdateSerializer,
+        response={200: None},
     )
     @action(detail=True, methods=["post"])
     def update_location(self, request, uuid=None):
@@ -1366,6 +1367,7 @@ class ProviderOfferingViewSet(
 
     @extend_schema(
         request=serializers.OfferingDescriptionUpdateSerializer,
+        response={200: None},
     )
     @action(detail=True, methods=["post"])
     def update_description(self, request, uuid=None):
@@ -1384,6 +1386,7 @@ class ProviderOfferingViewSet(
 
     @extend_schema(
         request=serializers.OfferingOverviewUpdateSerializer,
+        response={200: None},
     )
     @action(detail=True, methods=["post"])
     def update_overview(self, request, uuid=None):
@@ -1395,6 +1398,7 @@ class ProviderOfferingViewSet(
 
     @extend_schema(
         request=serializers.OfferingOptionsUpdateSerializer,
+        response={200: None},
     )
     @action(detail=True, methods=["post"])
     def update_options(self, request, uuid=None):
@@ -1411,6 +1415,7 @@ class ProviderOfferingViewSet(
 
     @extend_schema(
         request=serializers.OfferingResourceOptionsUpdateSerializer,
+        response={200: None},
     )
     @action(detail=True, methods=["post"])
     def update_resource_options(self, request, uuid=None):
@@ -1429,6 +1434,7 @@ class ProviderOfferingViewSet(
 
     @extend_schema(
         request=serializers.OfferingIntegrationUpdateSerializer,
+        response={200: None},
     )
     @action(detail=True, methods=["post"])
     def update_integration(self, request, uuid=None):
@@ -1465,6 +1471,7 @@ class ProviderOfferingViewSet(
     @extend_schema(
         request=serializers.OfferingThumbnailSerializer,
         description="Update offering thumbnail.",
+        response={200: None},
     )
     @action(detail=True, methods=["post"])
     def update_thumbnail(self, request, uuid=None):
@@ -1472,7 +1479,7 @@ class ProviderOfferingViewSet(
 
     @extend_schema(
         request=None,
-        responses=None,
+        responses={204: None},
         description="Delete offering thumbnail.",
     )
     @action(detail=True, methods=["post"])
@@ -1489,7 +1496,7 @@ class ProviderOfferingViewSet(
 
     @extend_schema(
         request=None,
-        responses=None,
+        responses={200: None},
         description="Delete offering image.",
     )
     @action(detail=True, methods=["post"])
@@ -1650,6 +1657,7 @@ class ProviderOfferingViewSet(
     @extend_schema(
         request=serializers.OrganizationGroupsSerializer,
         description="Update organization groups for offering.",
+        response={200: None},
     )
     @action(detail=True, methods=["post"])
     def update_organization_groups(self, request, uuid):
@@ -1681,6 +1689,7 @@ class ProviderOfferingViewSet(
     @extend_schema(
         request=serializers.NestedEndpointSerializer,
         description="Add endpoint to offering.",
+        response={201: serializers.UUIDSerializer},
     )
     @action(detail=True, methods=["post"])
     def add_endpoint(self, request, uuid=None):
@@ -1708,7 +1717,7 @@ class ProviderOfferingViewSet(
     add_endpoint_validators = update_validators
 
     @extend_schema(
-        request=serializers.EndpointDeleteSerializer,
+        request=serializers.UUIDSerializer,
         responses={204: None},
         description="Delete endpoint from offering.",
     )
@@ -1722,7 +1731,7 @@ class ProviderOfferingViewSet(
             status=status.HTTP_204_NO_CONTENT,
         )
 
-    delete_endpoint_serializer_class = serializers.EndpointDeleteSerializer
+    delete_endpoint_serializer_class = serializers.UUIDSerializer
     delete_endpoint_permissions = [
         permission_factory(
             PermissionEnum.DELETE_OFFERING_ENDPOINT,
