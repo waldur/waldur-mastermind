@@ -10,9 +10,9 @@ class Command(BaseCommand):
     help = "Dumps information about organization access subnets, merging adjacent or overlapping networks."
 
     def get_merged_subnets(self):
-        subnets_queryset = models.AccessSubnet.objects.all().values_list(
-            "inet", flat=True
-        )
+        subnets_queryset = models.AccessSubnet.objects.exclude(
+            inet__isnull=True
+        ).values_list("inet", flat=True)
 
         # Convert string representations to IPv4Network/IPv6Network objects
         networks = []
