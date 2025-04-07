@@ -301,3 +301,7 @@ class UserRoleUpdateSerializer(UserRoleMutateSerializer):
 class UserRoleDeleteSerializer(UserRoleMutateSerializer):
     def get_permission(self, scope):
         return get_delete_permission(scope)
+
+
+class UserRoleExpirationTimeSerializer(serializers.Serializer):
+    expiration_time = serializers.DateTimeField(allow_null=True)

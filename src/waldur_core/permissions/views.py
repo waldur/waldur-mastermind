@@ -241,7 +241,7 @@ class UserRoleMixin:
 
     @extend_schema(
         request=serializers.UserRoleCreateSerializer,
-        responses=None,
+        responses={201: serializers.UserRoleExpirationTimeSerializer},
     )
     @action(detail=True, methods=["POST"])
     def add_user(self, request, uuid=None):
@@ -268,7 +268,7 @@ class UserRoleMixin:
 
     @extend_schema(
         request=serializers.UserRoleUpdateSerializer,
-        responses=None,
+        responses={200: serializers.UserRoleExpirationTimeSerializer},
     )
     @action(detail=True, methods=["POST"])
     def update_user(self, request, uuid=None):
@@ -294,7 +294,7 @@ class UserRoleMixin:
 
     @extend_schema(
         request=serializers.UserRoleDeleteSerializer,
-        responses=None,
+        responses={200: None},
     )
     @action(detail=True, methods=["POST"])
     def delete_user(self, request, uuid=None):
