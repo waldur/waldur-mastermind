@@ -27,36 +27,31 @@ def log(instance, current_user, message, event_type):
 
 
 def log_role_granted(sender, instance, current_user=None, **kwargs):
-    affected_user = instance.user.full_name or instance.user.username
-    role_name = instance.role.name
     log(
         instance,
         current_user,
-        message=f"User {affected_user} has gained role of {role_name} "
-        f"in {get_scope_name(instance.scope)}.",
+        message="User {affected_user_full_name} ({affected_user_username}) has gained role of {role_name} in {scope_name}.",
         event_type="role_granted",
     )
 
 
 def log_role_revoked(sender, instance, current_user=None, **kwargs):
-    affected_user = instance.user.full_name or instance.user.username
-    role_name = instance.role.name
     log(
         instance,
         current_user,
-        message=f"User {affected_user} has lost role of {role_name} in {get_scope_name(instance.scope)}.",
+        message="User {affected_user_full_name} ({affected_user_username}) has lost role of {role_name} in {scope_name}.",
         event_type="role_revoked",
     )
 
 
 def log_role_updated(sender, instance, current_user=None, **kwargs):
-    affected_user = instance.user.full_name or instance.user.username
-    old_time = instance.tracker.previous("expiration_time")
-    new_time = instance.expiration_time
+    old_time = (instance.tracker.previous("expiration_time"),)
+    new_time = (instance.expiration_time,)
     log(
         instance,
         current_user,
-        message=f"Permission expiration time for user {affected_user} "
-        f"in {get_scope_name(instance.scope)} is updated from {old_time} to {new_time}.",
+        message="Permission expiration time for user {affected_user_full_name} ({affected_user_username}) "
+        "in {scope_name} is updated from "
+        f"{old_time} to {new_time}.",
         event_type="role_updated",
     )
