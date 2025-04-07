@@ -1322,7 +1322,7 @@ class NestedEndpointSerializer(serializers.ModelSerializer):
     url = serializers.CharField(validators=[core_validators.BackendURLValidator])
 
 
-class UUIDSerializer(serializers.Serializer):
+class EndpointUUIDSerializer(serializers.Serializer):
     uuid = serializers.UUIDField()
 
 

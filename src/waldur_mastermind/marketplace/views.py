@@ -1689,7 +1689,7 @@ class ProviderOfferingViewSet(
     @extend_schema(
         request=serializers.NestedEndpointSerializer,
         description="Add endpoint to offering.",
-        responses={201: serializers.UUIDSerializer},
+        responses={201: serializers.EndpointUUIDSerializer},
     )
     @action(detail=True, methods=["post"])
     def add_endpoint(self, request, uuid=None):
@@ -1717,7 +1717,7 @@ class ProviderOfferingViewSet(
     add_endpoint_validators = update_validators
 
     @extend_schema(
-        request=serializers.UUIDSerializer,
+        request=serializers.EndpointUUIDSerializer,
         responses={204: None},
         description="Delete endpoint from offering.",
     )
@@ -1731,7 +1731,7 @@ class ProviderOfferingViewSet(
             status=status.HTTP_204_NO_CONTENT,
         )
 
-    delete_endpoint_serializer_class = serializers.UUIDSerializer
+    delete_endpoint_serializer_class = serializers.EndpointUUIDSerializer
     delete_endpoint_permissions = [
         permission_factory(
             PermissionEnum.DELETE_OFFERING_ENDPOINT,
