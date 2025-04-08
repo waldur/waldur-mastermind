@@ -1,8 +1,13 @@
 from rest_framework import serializers as rf_serializers
 from rest_framework.reverse import reverse
 
-from waldur_core.structure.models import Customer, Project
-from waldur_mastermind.marketplace import processors
+from waldur_core.structure.models import Customer, Project, ServiceSettings
+from waldur_mastermind.marketplace import (
+    processors,
+)
+from waldur_mastermind.marketplace import (
+    serializers as marketplace_serializers,
+)
 from waldur_mastermind.marketplace.models import Offering, Order, Plan, Resource
 from waldur_mastermind.marketplace_openstack import (
     CORES_TYPE,
@@ -21,7 +26,7 @@ from waldur_openstack.utils import volume_type_name_to_quota_name
 from waldur_rancher import models as rancher_models
 from waldur_rancher import views as rancher_views
 
-from . import serializers
+from . import PLUGIN_NAME, serializers
 
 
 class RancherCreateProcessor(processors.BaseCreateResourceProcessor):
@@ -93,13 +98,35 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
     def create_cluster(
         self, user, project: Project, tenants: list[os_models.Tenant]
     ) -> rancher_models.Cluster:
-        rancher_offering_uuid = self.order.offering.secret_options[
-            "rancher_offering_uuid"
-        ]
-        rancher_offering = Offering.objects.get(uuid=rancher_offering_uuid)
+        offering: Offering = self.order.offering
+        rancher_offering: Offering = offering.scope
+        if not rancher_offering:
+            rancher_offering = Offering.objects.create(
+                type=PLUGIN_NAME,
+                shared=False,
+                billable=False,
+                customer=offering.customer,
+                name=offering.name,
+                description=offering.description,
+                plugin_options=offering.plugin_options,
+                secret_options=offering.secret_options,
+            )
+            marketplace_serializers.update_or_create_service_settings_for_offering(
+                rancher_offering, offering.secret_options
+            )
+            offering.scope = rancher_offering
+            offering.save()
+            settings: ServiceSettings = rancher_offering.scope
+            settings.begin_creating()
+            settings.save()
+            backend = settings.get_backend()
+            backend.sync()
+            settings.set_ok()
+            settings.save()
+
         plan = Plan.objects.get(
             offering=rancher_offering,
-            name=self.order.offering.attributes["rancher_plan_name"],
+            name=offering.attributes["rancher_plan_name"],
         )
 
         nodes = []

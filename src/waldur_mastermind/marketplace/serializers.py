@@ -29,7 +29,7 @@ from waldur_core.core.enums import CoreStateType
 from waldur_core.core.fields import NaturalChoiceField
 from waldur_core.core.mixins import GetValueMixin
 from waldur_core.core.models import User, get_ssh_key_fingerprints
-from waldur_core.core.validators import validate_ssh_public_key
+from waldur_core.core.validators import BackendURLValidator, validate_ssh_public_key
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import count_users, get_permissions, has_permission
@@ -298,12 +298,25 @@ class RemoteServiceSecretOptionsSerializer(serializers.Serializer):
 
 
 class ManagedRancherSecretOptionsSerializer(serializers.Serializer):
+    backend_url = serializers.CharField(
+        max_length=200,
+        label=_("Rancher server URL"),
+        validators=[BackendURLValidator],
+        required=False,
+    )
+
+    username = serializers.CharField(
+        max_length=100, label=_("Rancher access key"), required=False
+    )
+
+    password = serializers.CharField(
+        max_length=100,
+        label=_("Rancher secret key"),
+        required=False,
+    )
+
     customer_uuid = serializers.UUIDField(
         required=False, help_text="UUID of organization where project can be created"
-    )
-    rancher_offering_uuid = serializers.UUIDField(
-        required=False,
-        help_text="UUID of Rancher offering where cluster can be created",
     )
 
 
@@ -1927,6 +1940,65 @@ class OfferingResourceOptionsUpdateSerializer(serializers.ModelSerializer):
         fields = ("resource_options",)
 
 
+def update_or_create_service_settings_for_offering(
+    offering: models.Offering, service_attributes: dict, certificate: str | None = None
+):
+    service_type = plugins.manager.get_service_type(offering.type)
+
+    if not service_type:
+        return
+
+    if not offering.scope:
+        offering.scope = structure_models.ServiceSettings.objects.create(
+            name=offering.name,
+            customer=offering.customer,
+            type=service_type,
+            shared=offering.shared,
+        )
+        offering.save()
+
+    if certificate:
+        offering.scope.options["certificate"] = certificate
+    else:
+        offering.scope.options.pop("certificate", None)
+
+    offering.scope.save()
+
+    if not service_attributes:
+        return
+
+    options_serializer_class = get_options_serializer_class(service_type)
+    options_serializer = options_serializer_class(
+        instance=offering.scope, data=service_attributes
+    )
+    for field in options_serializer.fields.values():
+        field.required = False
+        field.default = serializers.empty
+    options_serializer.is_valid(raise_exception=True)
+    update_fields = set()
+    for key in (
+        "backend_url",
+        "username",
+        "password",
+        "domain",
+        "token",
+        "options",
+    ):
+        if key not in service_attributes and key != "options":
+            continue
+        value = options_serializer.validated_data.get(key)
+        if value == serializers.empty:
+            continue
+        if key == "options":
+            if isinstance(value, dict):
+                offering.scope.options.update(value)
+        else:
+            setattr(offering.scope, key, value)
+        update_fields.add(key)
+    if update_fields:
+        offering.scope.save(update_fields=update_fields)
+
+
 class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
     service_attributes = serializers.JSONField(required=False)
     secret_options = MergedSecretOptionsSerializer(required=False)
@@ -1947,63 +2019,13 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
             "openstack_api_tls_certificate"
         )
 
-        service_type = plugins.manager.get_service_type(instance.type)
-
-        if not service_type:
-            return
-
-        if not instance.scope:
-            instance.scope = structure_models.ServiceSettings.objects.create(
-                name=instance.name,
-                customer=instance.customer,
-                type=service_type,
-                shared=instance.shared,
-            )
-            instance.save()
-
-        if certificate:
-            instance.scope.options["certificate"] = certificate
-        else:
-            instance.scope.options.pop("certificate", None)
-
-        instance.scope.save()
-
-        if not service_attributes:
-            return
-
-        options_serializer_class = get_options_serializer_class(service_type)
-        options_serializer = options_serializer_class(
-            instance=instance.scope, data=service_attributes, context=self.context
+        update_or_create_service_settings_for_offering(
+            instance, service_attributes, certificate
         )
-        for field in options_serializer.fields.values():
-            field.required = False
-            field.default = serializers.empty
-        options_serializer.is_valid(raise_exception=True)
-        update_fields = set()
-        for key in (
-            "backend_url",
-            "username",
-            "password",
-            "domain",
-            "token",
-            "options",
-        ):
-            if key not in service_attributes and key != "options":
-                continue
-            value = options_serializer.validated_data.get(key)
-            if value == serializers.empty:
-                continue
-            if key == "options":
-                if isinstance(value, dict):
-                    instance.scope.options.update(value)
-            else:
-                setattr(instance.scope, key, value)
-            update_fields.add(key)
-        if update_fields:
-            instance.scope.save(update_fields=update_fields)
 
         if (
-            instance.scope.state
+            instance.scope
+            and instance.scope.state
             == structure_models.ServiceSettings.States.CREATION_SCHEDULED
         ):
             transaction.on_commit(
