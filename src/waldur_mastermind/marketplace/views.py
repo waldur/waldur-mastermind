@@ -2979,6 +2979,10 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
 
         return Response({"order_uuid": order.uuid.hex}, status=status.HTTP_200_OK)
 
+    @extend_schema(
+        responses=serializers.OrderUUIDSerializer,
+        description="Create marketplace order for resource termination.",
+    )
     @action(detail=True, methods=["post"])
     def terminate(self, request, uuid=None):
         resource: models.Resource = self.get_object()
@@ -3253,6 +3257,10 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
 
     suggest_name_serializer_class = serializers.ResourceSuggestNameSerializer
 
+    @extend_schema(
+        responses=serializers.OrderUUIDSerializer,
+        description="Create marketplace order for resource plan switch.",
+    )
     @action(detail=True, methods=["post"])
     def switch_plan(self, request, uuid=None):
         resource = self.get_object()
@@ -3272,6 +3280,10 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
 
     switch_plan_serializer_class = serializers.ResourceSwitchPlanSerializer
 
+    @extend_schema(
+        responses=serializers.OrderUUIDSerializer,
+        description="Create marketplace order for resource limits update.",
+    )
     @action(detail=True, methods=["post"])
     def update_limits(self, request, uuid=None):
         resource = self.get_object()

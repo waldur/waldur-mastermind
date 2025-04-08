@@ -2865,6 +2865,10 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
         return fields
 
 
+class OrderUUIDSerializer(serializers.Serializer):
+    order_uuid = serializers.UUIDField(read_only=True)
+
+
 class ResourceSwitchPlanSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = models.Resource
