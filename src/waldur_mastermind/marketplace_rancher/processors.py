@@ -132,7 +132,7 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
         nodes = []
         tenant = tenants[0]  # TODO: Support multiple tenants
 
-        for node_index, node_spec in enumerate(self.order.attributes["nodes"]):
+        for node_spec in self.order.attributes["nodes"]:
             system_volume_type = os_models.VolumeType.objects.get(
                 settings=tenant.service_settings,
                 name=node_spec["system_volume_type_name"],

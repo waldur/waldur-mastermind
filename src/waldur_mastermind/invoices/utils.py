@@ -2,7 +2,6 @@ import base64
 import datetime
 import logging
 import re
-from calendar import monthrange
 from decimal import ROUND_UP, Decimal
 from uuid import UUID
 
@@ -19,7 +18,6 @@ from django.utils.translation import gettext_lazy as _
 
 from waldur_core.core import utils as core_utils
 from waldur_core.structure.models import Customer
-from waldur_mastermind.common.mixins import UnitPriceMixin
 
 from . import models
 
@@ -49,12 +47,6 @@ def get_full_days(start, end):
         full_days += 1
 
     return int(full_days)
-
-
-def get_current_month_days():
-    now = timezone.now()
-    range = monthrange(now.year, now.month)
-    return range[1]
 
 
 def get_full_hours(start, end):
@@ -162,19 +154,6 @@ def create_invoice_html(invoice):
         items=all_items,
     )
     return render_to_string("invoices/invoice.html", context)
-
-
-def get_price_per_day(price, unit):
-    if unit == UnitPriceMixin.Units.PER_DAY:
-        return price
-    elif unit == UnitPriceMixin.Units.PER_MONTH:
-        return price / Decimal(30)
-    elif unit == UnitPriceMixin.Units.PER_HALF_MONTH:
-        return price / Decimal(15)
-    elif unit == UnitPriceMixin.Units.PER_HOUR:
-        return price * 24
-    else:
-        return price
 
 
 def get_end_date_for_profile(profile):

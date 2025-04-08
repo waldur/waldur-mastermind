@@ -208,26 +208,6 @@ def get_service_provider_info(source):
         return {}
 
 
-def get_offering_details(offering):
-    if not isinstance(offering, models.Offering):
-        return {}
-
-    return {
-        "offering_type": offering.type,
-        "offering_name": offering.name,
-        "offering_uuid": offering.uuid.hex,
-        "service_provider_name": offering.customer.name,
-        "service_provider_uuid": offering.customer.uuid.hex,
-    }
-
-
-def format_list(resources):
-    """
-    Format comma-separated list of IDs from Django queryset.
-    """
-    return ", ".join(map(str, sorted(resources.values_list("id", flat=True))))
-
-
 def get_order_url(order):
     return core_utils.format_homeport_link(
         "marketplace-order-details/{order_uuid}/",
@@ -273,13 +253,6 @@ def get_info_about_missing_usage_reports():
             )
 
     return result
-
-
-def get_public_resources_url(customer):
-    return core_utils.format_homeport_link(
-        "organizations/{organization_uuid}/marketplace-public-resources/",
-        organization_uuid=customer.uuid,
-    )
 
 
 def validate_limit_amount(value, component):

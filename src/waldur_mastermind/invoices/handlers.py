@@ -7,8 +7,6 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
-from django.utils.translation import gettext_lazy as _
-from rest_framework.exceptions import ValidationError
 
 from waldur_core.core import utils as core_utils
 from waldur_mastermind.invoices import signals as cost_signals
@@ -110,17 +108,6 @@ def emit_invoice_created_event(sender, instance, created=False, **kwargs):
         invoice=instance,
         issuer_details=settings.WALDUR_INVOICES["ISSUER_DETAILS"],
     )
-
-
-def prevent_deletion_of_customer_with_invoice(sender, instance, user, **kwargs):
-    if user.is_staff:
-        return
-    PENDING = models.Invoice.States.PENDING
-    for invoice in models.Invoice.objects.filter(customer=instance):
-        if invoice.state != PENDING or invoice.price > 0:
-            raise ValidationError(
-                _("Can't delete organization with invoice %s.") % invoice
-            )
 
 
 def update_cache_when_invoice_item_is_updated(

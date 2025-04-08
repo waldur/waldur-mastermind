@@ -289,16 +289,6 @@ def filter_visible_users(queryset, user, extra=None):
     )
 
 
-def filter_visible_user_permissions(queryset, user):
-    if user.is_staff or user.is_support:
-        return queryset
-    return (
-        queryset.filter(user__is_staff=False)
-        .filter(Q(user__id__in=get_visible_users(user)) | Q(user__id=user.id))
-        .distinct()
-    )
-
-
 class UserFilterBackend(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
         user = request.user

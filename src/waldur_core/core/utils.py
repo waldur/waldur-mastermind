@@ -9,9 +9,7 @@ import time
 import unicodedata
 import uuid
 import warnings
-from collections import OrderedDict
 from itertools import chain
-from operator import itemgetter
 from secrets import choice
 from string import ascii_letters, digits
 
@@ -47,17 +45,6 @@ def flatten(*xs):
     return tuple(chain.from_iterable(xs))
 
 
-def sort_dict(unsorted_dict):
-    """
-    Return a OrderedDict ordered by key names from the :unsorted_dict:
-    """
-    sorted_dict = OrderedDict()
-    # sort items before inserting them into a dict
-    for key, value in sorted(unsorted_dict.items(), key=itemgetter(0)):
-        sorted_dict[key] = value
-    return sorted_dict
-
-
 def datetime_to_timestamp(datetime):
     return int(time.mktime(datetime.timetuple()))
 
@@ -71,17 +58,6 @@ def timestamp_to_datetime(timestamp, replace_tz=True):
 
 def timeshift(**kwargs):
     return timezone.now().replace(microsecond=0) + datetime.timedelta(**kwargs)
-
-
-def hours_in_month(month=None, year=None):
-    now = datetime.datetime.now()
-    if not month:
-        month = now.month
-    if not year:
-        year = now.year
-
-    days_in_month = calendar.monthrange(year, month)[1]
-    return 24 * days_in_month
 
 
 def month_start(date):
@@ -178,16 +154,6 @@ def get_detail_view_name(model):
         return "%s-detail" % model.get_url_name()
 
     return "%s-detail" % model.__name__.lower()
-
-
-def get_list_view_name(model):
-    if model is NotImplemented:
-        raise AttributeError("Cannot get list view name for not implemented model")
-
-    if hasattr(model, "get_url_name") and callable(model.get_url_name):
-        return "%s-list" % model.get_url_name()
-
-    return "%s-list" % model.__name__.lower()
 
 
 def get_fake_context(user=None):

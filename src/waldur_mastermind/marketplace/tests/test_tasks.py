@@ -126,7 +126,7 @@ class NotificationTest(test.APITransactionTestCase):
         self.assertIn("order_type", context, "Context is missing the order type")
 
 
-class ResourceEndDateTest(test.APITransactionTestCase):
+class ResourceEndDateNotificationTest(test.APITransactionTestCase):
     def test_notify_about_resource_scheduled_termination(self):
         fixture = fixtures.MarketplaceFixture()
         admin = fixture.admin
@@ -198,7 +198,7 @@ class TerminateResource(test.APITransactionTestCase):
         )
 
 
-class ProjectEndDate(test.APITransactionTestCase):
+class ProjectEndDateTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.fixture.project.end_date = datetime.datetime(
@@ -355,7 +355,7 @@ class NotificationAboutStaleResourceTest(test.APITransactionTestCase):
         self.assertEqual(len(mail.outbox), 0)
 
 
-class ResourceEndDate(test.APITransactionTestCase):
+class ResourceEndDateTest(test.APITransactionTestCase):
     def setUp(self):
         # We need create a system robot account because
         # account created in a migration does not exist when test is running

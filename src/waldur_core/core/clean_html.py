@@ -41,7 +41,3 @@ def clean_html(value):
         tags=ALLOWED_TAGS,
         attributes=ALLOWED_ATTRIBUTES,
     )
-
-
-def unescape_html(value):
-    return value.replace("&lt;", "<").replace("&gt;", ">")

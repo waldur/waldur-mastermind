@@ -36,10 +36,6 @@ logger = logging.getLogger(__name__)
 TenantQuotas = openstack_models.Tenant.Quotas
 
 
-def get_offering_category_for_tenant():
-    return marketplace_models.Category.objects.get(default_tenant_category=True)
-
-
 def get_offering_name_for_instance(tenant):
     return "Virtual machine in %s" % tenant.name
 
