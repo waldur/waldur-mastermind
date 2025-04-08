@@ -385,6 +385,9 @@ class ResourceFilter(
     visible_to_username = django_filters.CharFilter(
         method="filter_visible_to_username", label="Visible to username"
     )
+    offering_shared = django_filters.BooleanFilter(
+        field_name="offering__shared", label="Offering shared"
+    )
     o = django_filters.OrderingFilter(
         fields=(
             ("name", "name"),
