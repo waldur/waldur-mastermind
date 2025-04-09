@@ -407,8 +407,9 @@ class ProjectViewSet(
         serializer.is_valid(raise_exception=True)
 
         customer = serializer.validated_data["customer"]
+        preserve_permissions = serializer.validated_data["preserve_permissions"]
 
-        utils.move_project(project, customer, request.user)
+        utils.move_project(project, customer, request.user, preserve_permissions)
         serialized_project = serializers.ProjectSerializer(
             project, context={"request": self.request}
         )

@@ -598,7 +598,10 @@ class ProjectMoveTest(test.APITransactionTestCase):
 
     def get_response(self, role, customer):
         self.client.force_authenticate(role)
-        payload = {"customer": factories.CustomerFactory.get_url(customer)}
+        payload = {
+            "customer": factories.CustomerFactory.get_url(customer),
+            "preserve_permissions": True,
+        }
         return self.client.post(self.url, payload)
 
     def test_move_project_rest(self):
@@ -611,7 +614,6 @@ class ProjectMoveTest(test.APITransactionTestCase):
     def test_move_project_is_not_possible_when_customer_the_same(self):
         old_customer = self.project.customer
         response = self.get_response(self.fixture.staff, old_customer)
-
         self.project.refresh_from_db()
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(self.project.customer, old_customer)

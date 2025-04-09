@@ -206,7 +206,7 @@ def check_project_end_date(obj):
 
 
 @transaction.atomic
-def move_project(project, customer, current_user=None):
+def move_project(project, customer, current_user=None, preserve_permissions=False):
     if customer.blocked:
         raise ValidationError(_("New customer must be not blocked"))
 
@@ -217,9 +217,10 @@ def move_project(project, customer, current_user=None):
     project.customer = customer
     project.save(update_fields=["customer"])
 
-    for permission in get_permissions(project):
-        permission.revoke(current_user)
-        logger.info("Permission %s has been revoked" % permission)
+    if not preserve_permissions:
+        for permission in get_permissions(project):
+            permission.revoke(current_user)
+            logger.info(f"Permission {permission} has been revoked")
 
     project_moved.send(
         sender=project.__class__,
