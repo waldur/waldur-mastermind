@@ -76,6 +76,11 @@ class CustomerFilter(NameFilterSet):
         field_name="organization_groups__name",
         lookup_expr="icontains",
     )
+    owned_by_current_user = django_filters.BooleanFilter(
+        widget=BooleanWidget,
+        method="filter_owned_by_current_user",
+        label="Return a list of customers where current user is owner.",
+    )
 
     class Meta:
         model = models.Customer
@@ -103,19 +108,9 @@ class CustomerFilter(NameFilterSet):
             ).distinct()
         return queryset
 
-
-class OwnedByCurrentUserFilterBackend(BaseFilterBackend):
-    def filter_queryset(self, request, queryset, view):
-        value = request.query_params.get("owned_by_current_user")
-        boolean_field = forms.NullBooleanField()
-
-        try:
-            value = boolean_field.to_python(value)
-        except exceptions.ValidationError:
-            value = None
-
+    def filter_owned_by_current_user(self, queryset, name, value):
         if value:
-            ids = get_connected_customers(request.user, RoleEnum.CUSTOMER_OWNER)
+            ids = get_connected_customers(self.request.user, RoleEnum.CUSTOMER_OWNER)
             return queryset.filter(id__in=ids)
         return queryset
 
