@@ -1079,6 +1079,7 @@ class MoveProjectSerializer(serializers.Serializer):
         view_name="customer-detail",
         lookup_field="uuid",
     )
+    preserve_permissions = serializers.BooleanField(required=True)
 
 
 class ServiceOptionsSerializer(serializers.Serializer):

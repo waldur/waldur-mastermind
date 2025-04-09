@@ -22,8 +22,17 @@ class Command(BaseCommand):
             required=True,
             help="Target organization UUID",
         )
+        parser.add_argument(
+            "--preserve-user-permissions",
+            dest="preserve_permissions",
+            required=False,
+            help="Preserve user permissions",
+            action="store_true",
+        )
 
-    def handle(self, project_uuid, customer_uuid, *args, **options):
+    def handle(
+        self, project_uuid, customer_uuid, preserve_permissions=False, *args, **options
+    ):
         try:
             project = structure_models.Project.available_objects.get(uuid=project_uuid)
         except structure_models.Project.DoesNotExist:
@@ -42,7 +51,7 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR("Organization UUID is not valid."))
             return
 
-        move_project(project, customer)
+        move_project(project, customer, preserve_permissions)
         self.stdout.write(
             self.style.SUCCESS("Project has been moved to another organization.")
         )
