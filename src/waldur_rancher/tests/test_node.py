@@ -272,7 +272,7 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         node = factories.NodeFactory(
             cluster=cluster, initial_data={"data_volumes": [{"mount_point": "path"}]}
         )
-        result = rancher_utils.format_node_cloud_config(node)
+        result = rancher_utils.format_node_cloud_config(node, {"command": " "})
         expected_config = """
             fs_setup:
                 - device: /dev/vdb

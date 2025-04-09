@@ -96,7 +96,10 @@ class ManagedRancherCreateProcessor(processors.AbstractCreateResourceProcessor):
         return [order.resource.scope for order in Order.objects.filter(uuid__in=orders)]
 
     def create_cluster(
-        self, user, project: Project, tenants: list[os_models.Tenant]
+        self,
+        user,
+        project: Project,
+        tenants: list[os_models.Tenant],
     ) -> rancher_models.Cluster:
         offering: Offering = self.order.offering
         rancher_offering: Offering = offering.scope

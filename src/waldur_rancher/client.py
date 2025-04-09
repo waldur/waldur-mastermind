@@ -149,13 +149,6 @@ class RancherClient:
             json={"type": "clusterRegistrationToken", "clusterId": cluster_id},
         )
 
-    def get_node_command(self, cluster_id):
-        cluster_list = self.list_cluster_registration_tokens()
-        cluster = list(filter(lambda x: x["clusterId"] == cluster_id, cluster_list))
-        if cluster:
-            node_command = cluster[0]["nodeCommand"]
-            return node_command
-
     def update_cluster(self, cluster_id, new_params):
         return self._put(f"clusters/{cluster_id}", json=new_params)
 

@@ -17,12 +17,23 @@ from waldur_openstack.views import MarketplaceInstanceViewSet
 from waldur_rancher.enums import LONGHORN_NAME, LONGHORN_NAMESPACE
 from waldur_rancher.utils import SyncUser
 
-from . import exceptions, models, utils
+from . import backend, exceptions, models, utils
 
 logger = logging.getLogger(__name__)
 
 
 class CreateNodeTask(core_tasks.Task):
+    def get_vault_temp_credentials(
+        self, node, vault_host, vault_port, vault_token, vault_tls_verify
+    ):
+        vault_backend = backend.VaultBackend(
+            vault_host, vault_port, vault_token, vault_tls_verify
+        )
+        role_name = f"rancher-provisioning-role-{node.cluster.uuid.hex}"
+        role_id = vault_backend.get_role_id(role_name)
+        role_secret_id = vault_backend.generate_role_secret_id(role_name)
+        return role_id, role_secret_id
+
     def execute(self, instance, user_id):
         node = instance
         content_type = ContentType.objects.get_for_model(openstack_models.Instance)
@@ -38,6 +49,32 @@ class CreateNodeTask(core_tasks.Task):
         project: str = node.initial_data["project"]
         user = auth.get_user_model().objects.get(pk=user_id)
         ssh_public_key = node.initial_data.get("ssh_public_key")
+
+        cloud_init_extra_params = {}
+        if node.cluster.service_settings.get_option("vault_host"):
+            vault_host = node.cluster.service_settings.get_option("vault_host")
+            vault_port = node.cluster.service_settings.get_option("vault_port")
+            vault_token = node.cluster.service_settings.get_option("vault_token")
+            vault_tls_verify_raw = node.cluster.service_settings.get_option(
+                "vault_tls_verify"
+            )
+            vault_tls_verify = (
+                vault_tls_verify_raw if vault_tls_verify_raw is not None else True
+            )
+            role_id, role_secret_id = self.get_vault_temp_credentials(
+                instance,
+                vault_host,
+                vault_port,
+                vault_token,
+                vault_tls_verify,
+            )
+            cloud_init_extra_params.update(
+                {
+                    "vault_secret_path": f"rancher/cluster-{node.cluster.uuid.hex}",
+                    "vault_role_id": role_id,
+                    "vault_role_secret_id": role_secret_id,
+                }
+            )
 
         post_data = {
             "name": node.name,
@@ -72,7 +109,7 @@ class CreateNodeTask(core_tasks.Task):
             "ports": [
                 {"subnet": reverse("openstack-subnet-detail", kwargs={"uuid": subnet})}
             ],
-            "user_data": utils.format_node_cloud_config(node),
+            "user_data": utils.format_node_cloud_config(node, cloud_init_extra_params),
         }
 
         if node.cluster.settings.get_option("allocate_floating_ip_to_all_nodes"):
@@ -245,3 +282,50 @@ class PollLonghornApplicationTask(core_tasks.Task):
             )
 
         return app
+
+
+class CreateVaultCredentialsTask(core_tasks.Task):
+    @classmethod
+    def get_description(cls, cluster, *args, **kwargs):
+        cluster = core_utils.deserialize_instance(cluster)
+        return "Create secret and temporary secret id for it in Vault for cluster %s"
+
+    def execute(self, cluster: models.Cluster, *args, **kwargs):
+        policy_name = f"rancher-provisioning-policy-{cluster.uuid.hex}"
+        role_name = f"rancher-provisioning-role-{cluster.uuid.hex}"
+        secret_name = f"rancher/cluster-{cluster.uuid.hex}"
+
+        vault_host = cluster.service_settings.get_option("vault_host")
+        vault_port = cluster.service_settings.get_option("vault_port")
+        vault_token = cluster.service_settings.get_option("vault_token")
+        vault_tls_verify_raw = cluster.service_settings.get_option("vault_tls_verify")
+        vault_tls_verify = (
+            vault_tls_verify_raw if vault_tls_verify_raw is not None else True
+        )
+        vault_backend = backend.VaultBackend(
+            vault_host, vault_port, vault_token, vault_tls_verify
+        )
+        policy_body = {
+            "path": {
+                f"secret/data/rancher/cluster-{cluster.uuid.hex}": {
+                    "capabilities": ["read"],
+                },
+            },
+        }
+        vault_backend.create_or_update_policy(policy_name, policy_body)
+        role_params = {
+            "secret_id_ttl": "60m",
+            "secret_id_num_uses": 1,
+            "token_num_uses": 1,
+            "token_ttl": "60m",
+            "token_max_ttl": "60m",
+        }
+        vault_backend.create_or_update_role(role_name, policy_name, role_params)
+
+        all_tokens = [{"clusterId": "test-00", "token": "secretdata"}]
+        cluster_tokens = [
+            token for token in all_tokens if token["clusterId"] == cluster.backend_id
+        ]
+        token = cluster_tokens[0]["token"]
+
+        vault_backend.create_or_update_secret(secret_name, {"token": token})

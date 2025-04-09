@@ -8,6 +8,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.utils.functional import cached_property
 
+import hvac
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.media.utils import guess_image_extension
@@ -22,7 +23,7 @@ from waldur_rancher.enums import (
     ClusterRoles,
     GlobalRoles,
 )
-from waldur_rancher.exceptions import NotFound, RancherException
+from waldur_rancher.exceptions import NotFound, RancherException, VaultException
 
 from . import client, models, signals, utils
 
@@ -125,7 +126,6 @@ class RancherBackend(ServiceBackend):
         # as rancher API is not transactional, give it 2s to write cluster state to etcd
         time.sleep(2)
         self.client.create_cluster_registration_token(cluster.backend_id)
-        cluster.node_command = self.client.get_node_command(cluster.backend_id)
         cluster.save()
 
     def delete_cluster(self, cluster):
@@ -1494,3 +1494,89 @@ class RancherBackend(ServiceBackend):
 
     def ping(self, *args, **kwargs):
         return
+
+
+class VaultBackend:
+    def __init__(
+        self,
+        vault_host: str,
+        vault_port: int,
+        vault_token: str,
+        vault_tls_verify: bool = True,
+    ):
+        self.client = hvac.Client(
+            url=f"https://{vault_host}:{vault_port}",
+            token=vault_token,
+            verify=vault_tls_verify,
+        )
+
+    def create_or_update_policy(self, name: str, policy: dict):
+        try:
+            logger.info("Creating (updating) %s policy in Vault", name)
+            response = self.client.sys.create_or_update_policy(name=name, policy=policy)
+            if response.status_code != 204:
+                raise VaultException(
+                    f"Vault server responded with {response.status_code} code: {response.json()}"
+                )
+        except Exception as e:
+            logger.error("Unable to create a vault policy %s, reason: %s", name, e)
+            raise
+
+    def create_or_update_role(self, role_name: str, policy_name: str, params=None):
+        try:
+            if params is None:
+                params = {}
+            logger.info(
+                "Creating (updating) role %s for with %s in Vault",
+                role_name,
+                policy_name,
+            )
+            # Requires: vault auth enable approle
+            response = self.client.auth.approle.create_or_update_approle(
+                role_name=role_name, token_policies=[policy_name], **params
+            )
+            if response.status_code != 204:
+                raise VaultException(
+                    f"Vault server responded with {response.status_code} code: {response.json()}"
+                )
+        except Exception as e:
+            logger.error("Unable to create a Vault role %s, reason: %s", role_name, e)
+            raise
+
+    def get_role_id(self, role_name):
+        try:
+            logger.info("Reading role ID for %s role", role_name)
+            role_id_data = self.client.auth.approle.read_role_id(role_name=role_name)
+            return role_id_data["data"]["role_id"]
+        except Exception as e:
+            logger.error(
+                "Unable to read an ID of the Vault role %s, reason: %s", role_name, e
+            )
+            raise
+
+    def generate_role_secret_id(self, role_name: str):
+        try:
+            logger.info("Generating secret ID for role %s", role_name)
+            secret_id_data = self.client.auth.approle.generate_secret_id(
+                role_name=role_name
+            )
+            return secret_id_data["data"]["secret_id"]
+        except Exception as e:
+            logger.error(
+                "Unable to get client ID for the Vault role %s, reason: %s",
+                role_name,
+                e,
+            )
+            raise
+
+    def create_or_update_secret(self, path: str, secret: dict[str, str]):
+        try:
+            logger.info("Creating (updating) secret %s in Vault", path)
+            secret_data = self.client.secrets.kv.v2.create_or_update_secret(
+                path=path,
+                secret=secret,
+            )
+            return secret_data
+        except Exception as e:
+            logger.error("Unable to create a Vault secret %s, reason: %s", path, e)
+            raise
