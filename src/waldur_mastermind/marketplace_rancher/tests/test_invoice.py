@@ -66,6 +66,7 @@ class InvoiceTest(test.APITransactionTestCase):
             name="default", tenant=self.fixture.tenant
         )
         service_settings.options["base_image_name"] = image.name
+        service_settings.options["cloud_init_template"] = ""
         service_settings.save()
 
         self.resource = None

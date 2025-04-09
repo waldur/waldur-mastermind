@@ -37,20 +37,6 @@ class Cluster(SettingsMixin, BaseResource):
     class RuntimeStates:
         ACTIVE = "active"
 
-    """
-    Rancher generated node installation command base. For example:
-    sudo docker run -d --privileged --restart=unless-stopped --net=host
-    -v /etc/kubernetes:/etc/kubernetes -v /var/run:/var/run rancher/rancher-agent:v2.2.8
-    --server https://192.168.33.13
-    --token df8vrttmcmz8qzfbp74t6nkl5t5pbkrjh8wgkv27zrk8ldhfj6sp4w
-    --ca-checksum e3596989da2fa5f8a7bdfbfd1079f87033217152db4dfc93532932b17aad1567
-    --etcd --controlplane --worker
-    """
-    node_command = models.CharField(
-        max_length=1024,
-        blank=True,
-        help_text="Rancher generated node installation command base.",
-    )
     tracker = FieldTracker()
     tenant = models.ForeignKey(
         to=openstack_models.Tenant,
@@ -127,19 +113,6 @@ class Node(
     annotations = models.JSONField(blank=True, default=dict)
 
     tracker = FieldTracker()
-
-    def get_node_command(self) -> str:
-        roles_command = []
-        if self.controlplane_role:
-            roles_command.append("--controlplane")
-
-        if self.etcd_role:
-            roles_command.append("--etcd")
-
-        if self.worker_role:
-            roles_command.append("--worker")
-
-        return self.cluster.node_command + " " + " ".join(roles_command)
 
     class Meta:
         ordering = ("name",)

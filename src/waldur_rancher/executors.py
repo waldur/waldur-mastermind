@@ -10,12 +10,24 @@ from . import models, tasks
 
 class ClusterCreateExecutor(core_executors.CreateExecutor):
     @classmethod
-    def get_task_signature(cls, instance, serialized_instance, user, install_longhorn):
+    def get_task_signature(
+        cls,
+        instance,
+        serialized_instance,
+        user,
+        install_longhorn,
+    ):
         _tasks = [
             core_tasks.BackendMethodTask().si(
                 serialized_instance, "create_cluster", state_transition="begin_creating"
             )
         ]
+        if instance.service_settings.get_option("vault_host"):
+            _tasks += [
+                tasks.CreateVaultCredentialsTask().si(
+                    serialized_instance,
+                )
+            ]
         _tasks += cls.create_nodes(instance.node_set.all(), user)
         _tasks += [
             core_tasks.PollRuntimeStateTask()
@@ -56,7 +68,12 @@ class ClusterCreateExecutor(core_executors.CreateExecutor):
         # TODO: need to assure that also etcd is registered - probably parallel Node creation can be a solution
         # TODO: need to validate once controlled deployment is working
         for node in nodes.order_by("-controlplane_role"):
-            _tasks.append(NodeCreateExecutor.as_signature(node, user_id=user.id))
+            _tasks.append(
+                NodeCreateExecutor.as_signature(
+                    node,
+                    user_id=user.id,
+                )
+            )
         return _tasks
 
 
@@ -98,7 +115,12 @@ class ClusterUpdateExecutor(core_executors.UpdateExecutor):
 
 class NodeCreateExecutor(core_executors.CreateExecutor):
     @classmethod
-    def get_task_signature(cls, instance, serialized_instance, user_id):
+    def get_task_signature(
+        cls,
+        instance,
+        serialized_instance,
+        user_id,
+    ):
         return chain(
             tasks.CreateNodeTask().si(
                 serialized_instance,

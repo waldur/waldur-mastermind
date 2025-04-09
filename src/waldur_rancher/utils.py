@@ -247,25 +247,15 @@ def format_disk_id(index):
     return "/dev/vd" + (chr(ord("a") + index))
 
 
-def format_node_command(node):
-    roles_command = []
-
-    if node.controlplane_role:
-        roles_command.append("--controlplane")
-
-    if node.etcd_role:
-        roles_command.append("--etcd")
-
-    if node.worker_role:
-        roles_command.append("--worker")
-
-    return node.cluster.node_command + " " + " ".join(roles_command)
-
-
-def format_node_cloud_config(node: models.Node):
-    node_command = format_node_command(node)
+def format_node_cloud_config(
+    node: models.Node,
+    cloud_init_extra_params: dict = None,
+):
+    cloud_init_extra_params = cloud_init_extra_params or {}
     config_template = node.cluster.service_settings.get_option("cloud_init_template")
-    user_data = config_template.format(command=node_command)
+    user_data = config_template.format(
+        **cloud_init_extra_params,
+    )
     data_volumes = node.initial_data.get("data_volumes")
 
     if data_volumes:

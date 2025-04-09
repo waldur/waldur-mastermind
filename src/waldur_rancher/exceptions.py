@@ -14,3 +14,7 @@ class Unauthorized(BadRequest):
 
 class NotFound(BadRequest):
     pass
+
+
+class VaultException(Exception):
+    pass

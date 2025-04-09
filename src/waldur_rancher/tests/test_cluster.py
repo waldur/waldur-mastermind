@@ -93,6 +93,7 @@ class BaseClusterCreateTest(test.APITransactionTestCase):
             name="default", tenant=self.tenant
         )
         self.fixture.settings.options["base_image_name"] = image.name
+        self.fixture.settings.options["cloud_init_template"] = ""
         self.fixture.settings.save()
 
         self.network = openstack_factories.NetworkFactory(tenant=self.tenant)
@@ -337,11 +338,6 @@ class ClusterCreateTest(BaseClusterCreateTest):
             "waldur_rancher.backend.RancherBackend._backend_cluster_to_cluster"
         )
         mock_backend_patch.start()
-        mock_command_patch = mock.patch(
-            "waldur_rancher.client.RancherClient.get_node_command"
-        )
-        mock_command = mock_command_patch.start()
-        mock_command.return_value = ""
 
     @mock.patch("waldur_rancher.client.RancherClient._post")
     def test_create_private_cluster(self, mock_client_post):

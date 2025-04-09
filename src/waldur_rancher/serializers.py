@@ -32,6 +32,10 @@ class RancherServiceSettingsSerializer(structure_serializers.ServiceOptionsSeria
             "private_registry_url",
             "private_registry_user",
             "private_registry_password",
+            "vault_host",
+            "vault_port",
+            "vault_token",
+            "vault_verify",
         )
 
     backend_url = serializers.CharField(
@@ -94,6 +98,29 @@ class RancherServiceSettingsSerializer(structure_serializers.ServiceOptionsSeria
         source="options.management_tenant_access_port",
         help_text=_("Management tenant access port"),
         required=False,
+    )
+
+    vault_host = serializers.CharField(
+        source="options.vault_host",
+        help_text=_("Host of the Vault server"),
+        required=False,
+    )
+
+    vault_port = serializers.IntegerField(
+        source="options.vault_port",
+        help_text=_("Port of the Vault server"),
+        required=False,
+    )
+    vault_token = serializers.CharField(
+        source="options.vault_token",
+        help_text=_("Token for the Vault server"),
+        required=False,
+    )
+    vault_tls_verify = serializers.BooleanField(
+        source="options.vault_tls_verify",
+        help_text=_("Whether to verify the Vault server certificate"),
+        required=False,
+        default=True,
     )
 
     def validate_management_tenant_uuid(self, tenant_uuid):
@@ -288,7 +315,6 @@ class RancherClusterSerializer(
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Cluster
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
-            "node_command",
             "nodes",
             "tenant",
             "tenant_uuid",
@@ -300,7 +326,7 @@ class RancherClusterSerializer(
         )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
-            + ("node_command", "runtime_state")
+            + ("runtime_state",)
         )
         protected_fields = (
             structure_serializers.BaseResourceSerializer.Meta.protected_fields
@@ -423,7 +449,6 @@ class RancherNodeSerializer(serializers.HyperlinkedModelSerializer):
             "controlplane_role",
             "etcd_role",
             "worker_role",
-            "get_node_command",
             "k8s_version",
             "docker_version",
             "cpu_allocated",
