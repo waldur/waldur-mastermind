@@ -229,7 +229,7 @@ class AccessSubnet(core_models.UuidMixin, core_models.DescribableMixin, Loggable
         return self.customer.name + " | " + str(self.inet)
 
     def get_log_fields(self):
-        return "description", "inet"
+        return "description", "inet", "customer"
 
 
 class CustomerDetailsMixin(core_models.NameMixin, VATMixin, CoordinatesMixin):
