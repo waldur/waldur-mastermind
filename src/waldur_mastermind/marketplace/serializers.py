@@ -2563,6 +2563,13 @@ class OrderCreateSerializer(
             "consumer_reviewed_by": {
                 "lookup_field": "uuid",
                 "view_name": "user-detail",
+                "allow_null": True,
+            },
+            "consumer_reviewed_by_username": {
+                "allow_null": True,
+            },
+            "consumer_reviewed_by_full_name": {
+                "allow_null": True,
             },
             "project": {"lookup_field": "uuid", "view_name": "project-detail"},
         }
