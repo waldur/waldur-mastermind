@@ -1,8 +1,8 @@
 import time
 
 from rest_framework import status
+from rest_framework.exceptions import ValidationError
 from rest_framework.reverse import reverse
-from waldur_client import WaldurClientException
 
 from waldur_core.core.utils import get_system_robot
 from waldur_mastermind.common.utils import create_request
@@ -51,7 +51,7 @@ def submit_creation_order(
     response = create_request(view, get_system_robot(), post_data)
 
     if response.status_code != status.HTTP_201_CREATED:
-        raise WaldurClientException(response.data)
+        raise ValidationError(response.data)
     order_uuid = response.data["uuid"]
     wait_for_order(order_uuid)
     return order_uuid
@@ -61,7 +61,7 @@ def submit_termination_order(resource: Resource):
     view = BaseResourceViewSet.as_view({"post": "terminate"})
     response = create_request(view, get_system_robot(), uuid=resource.uuid.hex)
     if response.status_code != status.HTTP_200_OK:
-        raise WaldurClientException(response.data)
+        raise ValidationError(response.data)
     order_uuid = response.data["order_uuid"]
     wait_for_order(order_uuid)
     return order_uuid

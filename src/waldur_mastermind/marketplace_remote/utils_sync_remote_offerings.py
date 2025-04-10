@@ -2,8 +2,15 @@ import logging
 
 from django.db.models.query import QuerySet
 from django.utils import timezone
-from waldur_client import WaldurClient
+from waldur_api_client.api.marketplace_categories import marketplace_categories_list
+from waldur_api_client.errors import UnexpectedStatus
+from waldur_api_client.models.marketplace_categories_list_field_item import (
+    MarketplaceCategoriesListFieldItem,
+)
+from waldur_api_client.models.public_offering_details import PublicOfferingDetails
 
+from httpx import TimeoutException
+from waldur_core.core.client import get_waldur_client
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace_remote import models as remote_models
 from waldur_mastermind.marketplace_remote.constants import (
@@ -25,7 +32,7 @@ class RemoteSynchronisationRunner:
             self._process_sync()
             self.sync.state = remote_models.RemoteSynchronisation.States.OK
 
-        except Exception as e:
+        except (UnexpectedStatus, TimeoutException) as e:
             self._handle_sync_error(e)
             self.sync.state = remote_models.RemoteSynchronisation.States.ERRED
 
@@ -47,12 +54,17 @@ class RemoteSynchronisationRunner:
         )
         processed_offering_ids: set[int] = set()
 
-        client = WaldurClient(self.sync.api_url, self.sync.token)
-
-        remote_categories = utils.get_remote_categories_names(client)
+        client = get_waldur_client(self.sync.api_url, self.sync.token)
+        remote_categories = marketplace_categories_list.sync(
+            client=client,
+            field=[
+                MarketplaceCategoriesListFieldItem.UUID,
+                MarketplaceCategoriesListFieldItem.TITLE,
+            ],
+        )
 
         remote_categories_mapping = {
-            item["uuid"]: item["title"] for item in remote_categories
+            item.uuid.hex: item.title for item in remote_categories
         }
         mappings_to_update = []
 
@@ -83,9 +95,9 @@ class RemoteSynchronisationRunner:
             )
 
             for remote_offering in remote_offerings:
-                self.sync.last_output += f'\tProcessing {remote_offering["name"]}...'
+                self.sync.last_output += f"\tProcessing {remote_offering.name}..."
                 local_offering = existing_offerings.filter(
-                    backend_id=remote_offering["uuid"],
+                    backend_id=remote_offering.uuid.hex,
                 ).first()
 
                 if local_offering:
@@ -110,13 +122,14 @@ class RemoteSynchronisationRunner:
     def _update_existing_offering(
         self,
         local_offering: models.Offering,
-        remote_offering: dict,
+        remote_offering: PublicOfferingDetails,
         local_category: models.Category,
     ) -> None:
+        state = utils.parse_offering_state(remote_offering.state.value)
         models.Offering.objects.filter(id=local_offering.id).update(
-            state=remote_offering["state_code"],
+            state=state,
             category=local_category,
-            **{key: remote_offering[key] for key in OFFERING_FIELDS},
+            **utils.extract_fields(OFFERING_FIELDS, remote_offering.to_dict()),
         )
         self.sync.last_output += f"The offering {local_offering} / {local_category.title} has been updated successfully. \n"
         logger.info(
@@ -126,7 +139,7 @@ class RemoteSynchronisationRunner:
 
     def _create_new_offering(
         self,
-        remote_offering: dict,
+        remote_offering: PublicOfferingDetails,
         local_category: models.Category,
     ) -> models.Offering:
         secret_options = {
@@ -148,11 +161,11 @@ class RemoteSynchronisationRunner:
         return local_offering
 
     def _handle_sync_error(self, error: Exception) -> None:
-        self.sync.error_message = str(error)
-        logger.error(
-            "Sync %s failed.",
-            self.sync,
-        )
+        if isinstance(error, UnexpectedStatus):
+            self.sync.error_message = error.content.decode("utf-8")
+        else:
+            self.sync.error_message = str(error)
+        logger.error("Sync %s failed.", self.sync)
 
     def _archive_stale_offerings(
         self,

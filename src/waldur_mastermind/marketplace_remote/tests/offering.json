@@ -37,7 +37,6 @@
     "support_email": "user@example.com"
   },
   "state": "Active",
-  "state_code": 2,
   "vendor_details": "",
   "type": "Marketplace.Rancher",
   "shared": true,

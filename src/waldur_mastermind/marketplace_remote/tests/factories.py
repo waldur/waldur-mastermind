@@ -4,15 +4,19 @@ import factory
 from django.utils import timezone
 from rest_framework.reverse import reverse
 
+from waldur_core.core.tests.types import BaseMetaFactory
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_remote import models
 
 
-class RemoteSynchronisationFactory(factory.django.DjangoModelFactory):
+class RemoteSynchronisationFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.RemoteSynchronisation],
+):
     class Meta:
         model = models.RemoteSynchronisation
 
-    api_url = factory.Sequence(lambda n: "url-%s" % n)
+    api_url = "http://example.com"
     token = factory.LazyFunction(lambda: uuid4().hex)
     remote_organization_uuid = factory.LazyFunction(uuid4)
     remote_organization_name = factory.Sequence(
@@ -39,7 +43,10 @@ class RemoteSynchronisationFactory(factory.django.DjangoModelFactory):
         return url if action is None else url + action + "/"
 
 
-class RemoteLocalCategoryFactory(factory.django.DjangoModelFactory):
+class RemoteLocalCategoryFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.RemoteLocalCategory],
+):
     class Meta:
         model = models.RemoteLocalCategory
 

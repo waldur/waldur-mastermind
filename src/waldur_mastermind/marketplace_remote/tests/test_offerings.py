@@ -1,11 +1,15 @@
+import json
 from unittest import mock, skip
-from urllib.parse import urlencode
 from uuid import uuid4
 
-import responses
+from django.core.serializers.json import DjangoJSONEncoder
 from django.test import override_settings
 from rest_framework import status, test
+from rest_framework.request import Request
+from rest_framework.test import APIRequestFactory
 
+import respx
+from waldur_core.core.fields import StringUUID
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
@@ -13,6 +17,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests.factories import UserFactory
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.serializers import OrderCreateSerializer
 from waldur_mastermind.marketplace.tests import factories, fixtures
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests.factories import OfferingFactory
@@ -24,31 +29,56 @@ from waldur_mastermind.marketplace_remote.tasks import OfferingPullTask
 from .. import PLUGIN_NAME
 
 
+class WaldurJsonEncoder(DjangoJSONEncoder):
+    def default(self, o):
+        if isinstance(o, StringUUID):
+            return str(o)
+        return super().default(o)
+
+
+def serialize_data(serializer_class, instance):
+    factory = APIRequestFactory()
+    request = Request(factory.get("/api/marketplace-orders/"))
+    view = mock.Mock(request=request)
+    serialized_order = serializer_class(
+        instance,
+        context={
+            "view": view,
+            "request": request,
+        },
+    ).data
+    return json.loads(json.dumps(serialized_order, cls=WaldurJsonEncoder))
+
+
 class RemoteCustomersTest(test.APITransactionTestCase):
-    @responses.activate
+    @respx.mock
     def test_remote_customers_are_listed_for_given_token_and_api_url(self):
-        responses.add(responses.GET, "https://remote-waldur.com/customers/", json=[])
+        mock_customer = respx.get("https://remote-waldur.com/api/customers/").respond(
+            200, json=[]
+        )
         self.client.force_login(UserFactory())
         response = self.client.post(
             "/api/remote-waldur-api/remote_customers/",
             {
-                "api_url": "https://remote-waldur.com/",
+                "api_url": "https://remote-waldur.com",
                 "token": "valid_token",
             },
         )
-        self.assertEqual(
-            responses.calls[0].request.headers["Authorization"], "token valid_token"
-        )
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(response.data, [])
+        self.assertTrue(mock_customer.called)
+        self.assertEqual(
+            mock_customer.calls.last.request.headers["Authorization"],
+            "Token valid_token",
+        )
 
 
 class RemoteСategoriesTest(test.APITransactionTestCase):
-    @responses.activate
+    @respx.mock
     def test_remote_сategories_are_listed_for_given_token_and_api_url(self):
-        responses.add(
-            responses.GET, "https://remote-waldur.com/marketplace-categories/", json=[]
-        )
+        categories_mock = respx.get(
+            "https://remote-waldur.com/api/marketplace-categories/"
+        ).respond(200, json=[])
         self.client.force_login(UserFactory())
         response = self.client.post(
             "/api/remote-waldur-api/remote_categories/",
@@ -58,7 +88,8 @@ class RemoteСategoriesTest(test.APITransactionTestCase):
             },
         )
         self.assertEqual(
-            responses.calls[0].request.headers["Authorization"], "token valid_token"
+            categories_mock.calls.last.request.headers["Authorization"],
+            "Token valid_token",
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, [])
@@ -71,9 +102,10 @@ class OfferingDetailsPullTest(test.APITransactionTestCase):
         self.plan: models.Plan = fixture.plan
         self.plan_component: models.PlanComponent = fixture.plan_component
         self.component = fixture.offering_component
-        self.offering.backend_id = "offering-backend-id"
+        self.offering.backend_id = uuid4().hex
+        self.api_url = "https://remote-waldur.com"
         self.offering.secret_options = {
-            "api_url": "https://remote-waldur.com/",
+            "api_url": self.api_url,
             "token": uuid4().hex,
             "customer_uuid": uuid4().hex,
         }
@@ -140,27 +172,27 @@ class OfferingDetailsPullTest(test.APITransactionTestCase):
             ],
             "access_url": "http://test-access-url.example.com/",
         }
+        respx.start()
 
     def tearDown(self) -> None:
-        responses.reset()
+        respx.stop()
         return super().tearDown()
 
-    @responses.activate
+    def mock_offering_details(self, remote_offering):
+        respx.get(
+            f"{self.api_url}/api/marketplace-public-offerings/{self.offering.backend_id}/"
+        ).respond(200, json=remote_offering)
+
     @override_settings(task_always_eager=True)
     def test_update_component(self):
         new_billing_type = "usage"
         self.remote_offering["components"][0]["billing_type"] = new_billing_type
-        responses.add(
-            responses.GET,
-            f"https://remote-waldur.com/marketplace-public-offerings/{self.offering.backend_id}/",
-            json=self.remote_offering,
-        )
+        self.mock_offering_details(self.remote_offering)
         self.task.pull(self.offering)
         self.component.refresh_from_db()
         self.assertEqual(new_billing_type, self.component.billing_type)
         self.assertEqual(1, self.offering.components.count())
 
-    @responses.activate
     @override_settings(task_always_eager=True)
     def test_stale_and_new_components(self):
         new_type = "gpu"
@@ -171,11 +203,7 @@ class OfferingDetailsPullTest(test.APITransactionTestCase):
         self.remote_offering["plans"][0]["quotas"] = {
             new_type: self.plan_component.amount
         }
-        responses.add(
-            responses.GET,
-            f"https://remote-waldur.com/marketplace-public-offerings/{self.offering.backend_id}/",
-            json=self.remote_offering,
-        )
+        self.mock_offering_details(self.remote_offering)
 
         self.task.pull(self.offering)
 
@@ -193,7 +221,6 @@ class OfferingDetailsPullTest(test.APITransactionTestCase):
             1, self.plan.components.filter(component=new_component).count()
         )
 
-    @responses.activate
     @skip("Unstable in CI/CD")
     @override_settings(task_always_eager=True)
     def test_update_plan(self):
@@ -218,11 +245,7 @@ class OfferingDetailsPullTest(test.APITransactionTestCase):
             new_plan_component_amount
         )
 
-        responses.add(
-            responses.GET,
-            f"https://remote-waldur.com/marketplace-public-offerings/{self.offering.backend_id}/",
-            json=self.remote_offering,
-        )
+        self.mock_offering_details(self.remote_offering)
 
         self.task.pull(self.offering)
 
@@ -242,17 +265,12 @@ class OfferingDetailsPullTest(test.APITransactionTestCase):
         self.assertEqual(new_plan_component_price, new_plan_component.price)
         self.assertEqual(new_plan_component_amount, new_plan_component.amount)
 
-    @responses.activate
     @override_settings(task_always_eager=True)
     def test_stale_and_new_plan(self):
         new_plan_uuid = uuid4().hex
         remote_plan = self.remote_offering["plans"][0]
         remote_plan["uuid"] = new_plan_uuid
-        responses.add(
-            responses.GET,
-            f"https://remote-waldur.com/marketplace-public-offerings/{self.offering.backend_id}/",
-            json=self.remote_offering,
-        )
+        self.mock_offering_details(self.remote_offering)
 
         self.task.pull(self.offering)
 
@@ -271,7 +289,6 @@ class OfferingDetailsPullTest(test.APITransactionTestCase):
         new_plan_component = new_plan.components.first()
         self.assertEqual(self.component, new_plan_component.component)
 
-    @responses.activate
     @override_settings(task_always_eager=True)
     def test_endpoints_update(self):
         marketplace_models.OfferingAccessEndpoint.objects.create(
@@ -286,11 +303,7 @@ class OfferingDetailsPullTest(test.APITransactionTestCase):
             url="https://existing-endpoint.example.com/",
         )
 
-        responses.add(
-            responses.GET,
-            f"https://remote-waldur.com/marketplace-public-offerings/{self.offering.backend_id}/",
-            json=self.remote_offering,
-        )
+        self.mock_offering_details(self.remote_offering)
 
         self.task.pull(self.offering)
         existing_endpoint.refresh_from_db()
@@ -332,23 +345,9 @@ class OfferingRemoteVersionTest(test.APITransactionTestCase):
         self.offering = self.fixture.offering
         self.offering.type = PLUGIN_NAME
         self.offering.save()
+        self.api_url = "http://example.com"
 
-        self.get_request_mock_patcher = mock.patch("waldur_client.requests.get")
-        self.get_request_mock = self.get_request_mock_patcher.start()
-        self.get_request_mock.side_effect = lambda url, **kwargs: self.client.get(
-            url + "?" + urlencode(kwargs.get("params", {})), **kwargs
-        )
-
-        self.post_request_mock_patcher = mock.patch("waldur_client.requests.post")
-        self.post_request_mock = self.post_request_mock_patcher.start()
-
-        def post_request_mock(url, **kwargs):
-            response = self.client.post(url, kwargs["json"])
-            response.text = response.content
-            return response
-
-        self.post_request_mock.side_effect = post_request_mock
-
+    @respx.mock
     def test_creating_remote_order(self):
         self.client.force_authenticate(user=self.fixture.staff)
 
@@ -357,7 +356,7 @@ class OfferingRemoteVersionTest(test.APITransactionTestCase):
         )
         self.offering.secret_options = {
             "token": "0b67edfecdda37fe4b6e7d6c3e6360acb3a1f2bf",
-            "api_url": "http://localhost/api/",
+            "api_url": self.api_url,
             "customer_uuid": remote_offering.customer.uuid.hex,
         }
         self.offering.plugin_options = {
@@ -373,6 +372,16 @@ class OfferingRemoteVersionTest(test.APITransactionTestCase):
             plan=self.fixture.plan,
         )
 
+        serialized_order = serialize_data(OrderCreateSerializer, order)
+
+        respx.get(f"{self.api_url}/api/projects/").respond(200, json=[])
+        respx.post(f"{self.api_url}/api/projects/").respond(
+            201, json={"uuid": uuid4().hex}
+        )
+        respx.post(f"{self.api_url}/api/marketplace-orders/").respond(
+            201, json=serialized_order
+        )
+
         processor = RemoteCreateResourceProcessor(order)
         processor.process_order(self.fixture.staff)
 
@@ -382,10 +391,7 @@ class OfferingRemoteVersionTest(test.APITransactionTestCase):
 
 class OfferingCreateTest(test.APITransactionTestCase):
     def setUp(self) -> None:
-        self.patcher = mock.patch(
-            "waldur_mastermind.marketplace_remote.views.WaldurClient"
-        )
-        client_mock = self.patcher.start()
+        respx.start()
         mock.patch(
             "waldur_mastermind.marketplace_remote.utils.import_offering_thumbnail"
         ).start()
@@ -393,35 +399,47 @@ class OfferingCreateTest(test.APITransactionTestCase):
             "waldur_mastermind.marketplace_remote.utils.import_offering_components"
         ).start()
         mock.patch("waldur_mastermind.marketplace_remote.utils.import_plans").start()
-        client_mock().get_marketplace_public_offering.return_value = {
-            "uuid": uuid4().hex,
-            "name": "Offering",
-            "description": "Description",
-            "full_description": "",
-            "terms_of_service": "",
-            "terms_of_service_link": "",
-            "privacy_policy_link": "",
-            "getting_started": "",
-            "integration_guide": "",
-            "country": "",
-            "options": "",
-            "resource_options": "",
-            "access_url": "",
-        }
-        self.client_mock = client_mock
-
         self.user = UserFactory()
         self.customer = structure_factories.CustomerFactory()
         self.customer.add_user(self.user, CustomerRole.OWNER)
+        self.remote_offering_uuid = uuid4().hex
+        self.api_url = "https://remote-waldur.com"
         self.payload = {
-            "api_url": "https://remote-waldur.com/",
+            "api_url": self.api_url,
             "token": uuid4().hex,
-            "remote_offering_uuid": uuid4().hex,
+            "remote_offering_uuid": self.remote_offering_uuid,
             "remote_customer_uuid": self.customer.uuid.hex,
             "local_customer_uuid": self.customer.uuid.hex,
             "local_category_uuid": factories.CategoryFactory().uuid.hex,
         }
         self.url = "/api/remote-waldur-api/import_offering/"
+
+    def tearDown(self):
+        super().tearDown()
+        mock.patch.stopall()
+        respx.stop()
+
+    def mock_public_offering_retrieve(self, api_url, offering_uuid):
+        return respx.get(
+            f"{api_url}/api/marketplace-public-offerings/{offering_uuid}/"
+        ).respond(
+            200,
+            json={
+                "uuid": offering_uuid,
+                "name": "Offering",
+                "description": "Description",
+                "full_description": "",
+                "terms_of_service": "",
+                "terms_of_service_link": "",
+                "privacy_policy_link": "",
+                "getting_started": "",
+                "integration_guide": "",
+                "country": "",
+                "options": "",
+                "resource_options": {},
+                "access_url": "",
+            },
+        )
 
     def test_offering_with_incorrect_permissions(self) -> None:
         self.client.force_authenticate(self.user)
@@ -431,21 +449,26 @@ class OfferingCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_offering_with_correct_permissions(self) -> None:
+        public_offering_retrieve = self.mock_public_offering_retrieve(
+            self.api_url, self.remote_offering_uuid
+        )
+
         self.client.force_authenticate(self.user)
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_OFFERING)
 
         response = self.client.post(self.url, self.payload)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.client_mock().get_marketplace_public_offering.assert_called_once()
+        self.assertTrue(public_offering_retrieve.called)
 
     def test_multiple_remote_offerings_can_be_mapped_to_single_local_category(
         self,
     ) -> None:
+        self.mock_public_offering_retrieve(self.api_url, self.remote_offering_uuid)
         self.client.force_authenticate(self.user)
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_OFFERING)
 
         response = self.client.post(self.url, self.payload)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertTrue(
             marketplace_models.Offering.objects.filter(
                 uuid=response.data["uuid"]
@@ -457,15 +480,18 @@ class OfferingCreateTest(test.APITransactionTestCase):
         )
 
         new_payload = {
-            "api_url": "https://other-remote-waldur.com/",
+            "api_url": "https://other-remote-waldur.com",
             "token": uuid4().hex,
             "remote_offering_uuid": uuid4().hex,
             "remote_customer_uuid": uuid4().hex,
             "local_customer_uuid": self.customer.uuid.hex,
             "local_category_uuid": self.payload["local_category_uuid"],
         }
+        self.mock_public_offering_retrieve(
+            new_payload["api_url"], new_payload["remote_offering_uuid"]
+        )
         response = self.client.post(self.url, new_payload)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertTrue(
             marketplace_models.Offering.objects.filter(
                 uuid=response.data["uuid"]

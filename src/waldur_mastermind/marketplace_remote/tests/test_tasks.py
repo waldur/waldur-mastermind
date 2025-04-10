@@ -3,11 +3,10 @@ from unittest import mock
 
 from django.core import mail
 from django.core.exceptions import ObjectDoesNotExist
-from django.test import override_settings
+from django.test import override_settings, testcases
 from django.utils import timezone
-from rest_framework import test
-from waldur_client import WaldurClientException
 
+import respx
 from waldur_auth_social.models import ProviderChoices
 from waldur_core.core.utils import format_text, serialize_instance
 from waldur_core.permissions.enums import RoleEnum
@@ -22,15 +21,13 @@ from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.tests import factories, fixtures
 from waldur_mastermind.marketplace_remote import PLUGIN_NAME, tasks, utils
 from waldur_mastermind.marketplace_remote.models import ProjectUpdateRequest
+from waldur_mastermind.marketplace_remote.tests.utils import get_request_data
 
 
 @override_settings(WALDUR_AUTH_SOCIAL={"ENABLE_EDUTEAMS_SYNC": True})
-class SyncRemoteProjectPermissionsTest(test.APITransactionTestCase):
+class SyncRemoteProjectPermissionsTest(testcases.TransactionTestCase):
     def setUp(self):
-        self.patcher = mock.patch(
-            "waldur_mastermind.marketplace_remote.utils.WaldurClient"
-        )
-        self.client = self.patcher.start()()
+        respx.start()
         self.remote_customer_uuid = uuid.uuid4().hex
         self.remote_project_uuid = uuid.uuid4().hex
         self.remote_user_uuid = uuid.uuid4().hex
@@ -41,93 +38,135 @@ class SyncRemoteProjectPermissionsTest(test.APITransactionTestCase):
         self.resource.state = models.Resource.States.OK
         self.resource.save()
         self.resource.offering.type = PLUGIN_NAME
+        self.api_url = "https://example.com"
         self.resource.offering.secret_options = {
-            "api_url": "https://example.com/",
+            "api_url": self.api_url,
             "token": remote_api_token,
             "customer_uuid": self.remote_customer_uuid,
         }
         self.resource.offering.save()
 
     def tearDown(self):
+        respx.stop()
         super().tearDown()
         mock.patch.stopall()
 
-    def test_project_is_not_created_if_there_are_no_users_in_project(self):
-        tasks.sync_remote_project_permissions()
+    def mock_project_exists(self, exists=False):
+        projects = [{"uuid": self.remote_project_uuid}] if exists else []
+        respx.get(f"{self.api_url}/api/projects/").respond(200, json=projects)
 
-        self.assertEqual(self.client.create_project.call_count, 0)
+    def mock_user_creation(self):
+        respx.post(f"{self.api_url}/api/remote-eduteams/").respond(
+            200, json={"uuid": self.remote_user_uuid}
+        )
+
+    def mock_permissions(self, permissions=None):
+        if permissions is None:
+            permissions = []
+        respx.get(
+            f"{self.api_url}/api/projects/{self.remote_project_uuid}/list_users/"
+        ).respond(200, json=permissions)
+
+    def mock_create_permission(self):
+        return respx.post(
+            f"{self.api_url}/api/projects/{self.remote_project_uuid}/add_user/"
+        ).respond(201, json={"expiration_time": None})
+
+    def mock_update_permission(self):
+        return respx.post(
+            f"{self.api_url}/api/projects/{self.remote_project_uuid}/update_user/"
+        ).respond(200, json={"expiration_time": None})
+
+    def mock_delete_permission(self):
+        return respx.post(
+            f"{self.api_url}/api/projects/{self.remote_project_uuid}/delete_user/"
+        ).respond(200)
+
+    def mock_project_creation(self):
+        return respx.post(f"{self.api_url}/api/projects/").respond(
+            201, json={"uuid": self.remote_project_uuid}
+        )
+
+    def test_project_is_not_created_if_there_are_no_users_in_project(self):
+        self.mock_project_exists(True)
+        self.mock_permissions()
+        router = self.mock_project_creation()
+        tasks.sync_remote_project_permissions()
+        self.assertFalse(router.called)
 
     def test_project_is_not_created_if_there_are_no_valid_resources(self):
         self.fixture.manager
         self.resource.state = models.Resource.States.TERMINATED
         self.resource.save()
 
+        router = self.mock_project_creation()
         tasks.sync_remote_project_permissions()
-
-        self.assertEqual(self.client.create_project.call_count, 0)
+        self.assertFalse(router.called)
 
     def test_project_is_not_created_if_there_are_no_eduteams_users(self):
+        respx.get(f"{self.api_url}/api/projects/").respond(200, json=[])
+
         self.fixture.manager
 
+        router = self.mock_project_creation()
         tasks.sync_remote_project_permissions()
-
-        self.assertEqual(self.client.create_project.call_count, 0)
+        self.assertFalse(router.called)
 
     def test_project_is_created_if_it_does_not_exist_yet(self):
         # Arrange
         self.fixture.manager.registration_method = ProviderChoices.EDUTEAMS
         self.fixture.manager.save()
 
-        self.client.list_projects.return_value = []
-        self.client.create_project.return_value = {"uuid": self.remote_project_uuid}
-        self.client.get_remote_eduteams_user.return_value = {
-            "uuid": self.remote_user_uuid
-        }
-        self.client.get_project_permissions.return_value = []
+        self.mock_project_exists(exists=False)
+        project_creation_mock = self.mock_project_creation()
+        self.mock_user_creation()
+        self.mock_permissions()
+        self.mock_create_permission()
 
         # Act
         tasks.sync_remote_project_permissions()
 
         # Assert
-        self.client.create_project.assert_called_once()
+        self.assertTrue(project_creation_mock.called)
 
     def test_project_is_not_created_if_it_already_exists(self):
         # Arrange
         self.fixture.manager.registration_method = ProviderChoices.EDUTEAMS
         self.fixture.manager.save()
 
-        self.client.list_projects.return_value = [{"uuid": self.remote_project_uuid}]
-        self.client.get_remote_eduteams_user.return_value = {
-            "uuid": self.remote_user_uuid
-        }
-        self.client.get_project_permissions.return_value = []
+        self.mock_project_exists(exists=True)
+        self.mock_user_creation()
+        self.mock_permissions()
+        self.mock_create_permission()
+        router = self.mock_project_creation()
 
         # Act
         tasks.sync_remote_project_permissions()
 
         # Assert
-        self.assertEqual(self.client.create_project.call_count, 0)
+        self.assertFalse(router.called)
 
     def test_project_permission_is_created_if_it_does_not_exist_yet(self):
         # Arrange
         self.fixture.manager.registration_method = ProviderChoices.EDUTEAMS
         self.fixture.manager.save()
 
-        self.client.list_projects.return_value = [{"uuid": self.remote_project_uuid}]
-        self.client.get_remote_eduteams_user.return_value = {
-            "uuid": self.remote_user_uuid
-        }
-        self.client.get_project_permissions.return_value = []
+        self.mock_project_exists(exists=True)
+        self.mock_user_creation()
+        self.mock_permissions()
+        create_permission_mock = self.mock_create_permission()
 
         # Act
         tasks.sync_remote_project_permissions()
 
         # Assert
-        self.client.create_project_permission.assert_called_once_with(
-            self.remote_project_uuid,
-            self.remote_user_uuid,
-            RoleEnum.PROJECT_MANAGER,
-            None,
+        self.assertEqual(
+            get_request_data(create_permission_mock),
+            {
+                "user": self.remote_user_uuid,
+                "role": RoleEnum.PROJECT_MANAGER.value,
+                "expiration_time": None,
+            },
         )
 
     def test_project_permission_is_not_created_if_it_already_exists(self):
@@ -135,52 +174,56 @@ class SyncRemoteProjectPermissionsTest(test.APITransactionTestCase):
         self.fixture.manager.registration_method = ProviderChoices.EDUTEAMS
         self.fixture.manager.save()
 
-        self.client.list_projects.return_value = [{"uuid": self.remote_project_uuid}]
-        self.client.get_remote_eduteams_user.return_value = {
-            "uuid": self.remote_user_uuid
-        }
-        self.client.get_project_permissions.return_value = [
-            {
-                "expiration_time": None,
-                "role_name": RoleEnum.PROJECT_MANAGER,
-                "user_username": self.fixture.manager.username,
-                "user_uuid": self.remote_user_uuid,
-            }
-        ]
+        self.mock_project_exists(exists=True)
+        self.mock_user_creation()
+        self.mock_permissions(
+            permissions=[
+                {
+                    "expiration_time": None,
+                    "role_name": RoleEnum.PROJECT_MANAGER,
+                    "user_username": self.fixture.manager.username,
+                    "user_uuid": self.remote_user_uuid,
+                }
+            ]
+        )
+        router = self.mock_create_permission()
 
         # Act
         tasks.sync_remote_project_permissions()
 
         # Assert
-        self.assertEqual(self.client.create_project_permission.call_count, 0)
+        self.assertFalse(router.called)
 
     def test_project_permission_is_updated_if_expiration_time_differs(self):
         # Arrange
         self.fixture.manager.registration_method = ProviderChoices.EDUTEAMS
         self.fixture.manager.save()
 
-        self.client.list_projects.return_value = [{"uuid": self.remote_project_uuid}]
-        self.client.get_remote_eduteams_user.return_value = {
-            "uuid": self.remote_user_uuid
-        }
-        self.client.get_project_permissions.return_value = [
-            {
-                "expiration_time": timezone.now().isoformat(),
-                "role_name": RoleEnum.PROJECT_MANAGER,
-                "user_username": self.fixture.manager.username,
-                "user_uuid": self.remote_user_uuid,
-            }
-        ]
+        self.mock_project_exists(exists=True)
+        self.mock_user_creation()
+        self.mock_permissions(
+            permissions=[
+                {
+                    "expiration_time": timezone.now().isoformat(),
+                    "role_name": RoleEnum.PROJECT_MANAGER,
+                    "user_username": self.fixture.manager.username,
+                    "user_uuid": self.remote_user_uuid,
+                }
+            ]
+        )
+        update_mock = self.mock_update_permission()
 
         # Act
         tasks.sync_remote_project_permissions()
 
         # Assert
-        self.client.update_project_permission.assert_called_once_with(
-            self.remote_project_uuid,
-            self.remote_user_uuid,
-            RoleEnum.PROJECT_MANAGER,
-            None,
+        self.assertEqual(
+            get_request_data(update_mock),
+            {
+                "user": self.remote_user_uuid,
+                "role": RoleEnum.PROJECT_MANAGER.value,
+                "expiration_time": None,
+            },
         )
 
     def test_project_permission_is_updated_if_role_differs(self):
@@ -188,31 +231,39 @@ class SyncRemoteProjectPermissionsTest(test.APITransactionTestCase):
         self.fixture.manager.registration_method = ProviderChoices.EDUTEAMS
         self.fixture.manager.save()
 
-        self.client.list_projects.return_value = [{"uuid": self.remote_project_uuid}]
-        self.client.get_remote_eduteams_user.return_value = {
-            "uuid": self.remote_user_uuid
-        }
-        self.client.get_project_permissions.return_value = [
-            {
-                "expiration_time": timezone.now().isoformat(),
-                "role_name": RoleEnum.PROJECT_ADMIN,
-                "user_username": self.fixture.manager.username,
-                "user_uuid": self.remote_user_uuid,
-            }
-        ]
+        self.mock_project_exists(exists=True)
+        self.mock_user_creation()
+        self.mock_permissions(
+            permissions=[
+                {
+                    "expiration_time": timezone.now().isoformat(),
+                    "role_name": RoleEnum.PROJECT_ADMIN,
+                    "user_username": self.fixture.manager.username,
+                    "user_uuid": self.remote_user_uuid,
+                }
+            ]
+        )
+        delete_mock = self.mock_delete_permission()
+        create_mock = self.mock_create_permission()
 
         # Act
         tasks.sync_remote_project_permissions()
 
         # Assert
-        self.client.remove_project_permission.assert_called_once_with(
-            self.remote_project_uuid, self.remote_user_uuid, RoleEnum.PROJECT_ADMIN
+        self.assertEqual(
+            get_request_data(delete_mock),
+            {
+                "user": self.remote_user_uuid,
+                "role": RoleEnum.PROJECT_ADMIN.value,
+            },
         )
-        self.client.create_project_permission.assert_called_once_with(
-            self.remote_project_uuid,
-            self.remote_user_uuid,
-            RoleEnum.PROJECT_MANAGER,
-            None,
+        self.assertEqual(
+            get_request_data(create_mock),
+            {
+                "user": self.remote_user_uuid,
+                "role": RoleEnum.PROJECT_MANAGER.value,
+                "expiration_time": None,
+            },
         )
 
     def test_if_user_is_owner_and_admin_then_manager_role_is_created(self):
@@ -221,21 +272,22 @@ class SyncRemoteProjectPermissionsTest(test.APITransactionTestCase):
         self.fixture.admin.save()
         self.fixture.customer.add_user(self.fixture.admin, CustomerRole.OWNER)
 
-        self.client.list_projects.return_value = [{"uuid": self.remote_project_uuid}]
-        self.client.get_remote_eduteams_user.return_value = {
-            "uuid": self.remote_user_uuid
-        }
-        self.client.get_project_permissions.return_value = []
+        self.mock_project_exists(exists=True)
+        self.mock_user_creation()
+        self.mock_permissions()
+        create_mock = self.mock_create_permission()
 
         # Act
         tasks.sync_remote_project_permissions()
 
         # Assert
-        self.client.create_project_permission.assert_called_once_with(
-            self.remote_project_uuid,
-            self.remote_user_uuid,
-            RoleEnum.PROJECT_MANAGER,
-            None,
+        self.assertEqual(
+            get_request_data(create_mock),
+            {
+                "user": self.remote_user_uuid,
+                "role": RoleEnum.PROJECT_MANAGER.value,
+                "expiration_time": None,
+            },
         )
 
     def test_skip_mapping_for_owners_if_offering_belongs_to_the_same_customer(self):
@@ -246,62 +298,79 @@ class SyncRemoteProjectPermissionsTest(test.APITransactionTestCase):
         self.resource.project.customer = self.fixture.resource.offering.customer
         self.resource.project.save()
 
-        self.client.list_projects.return_value = [{"uuid": self.remote_project_uuid}]
-        self.client.get_remote_eduteams_user.return_value = {
-            "uuid": self.remote_user_uuid
-        }
-        self.client.get_project_permissions.return_value = []
+        self.mock_project_exists(exists=True)
+        self.mock_user_creation()
+        self.mock_permissions()
+        create_mock = self.mock_create_permission()
 
         # Act
         tasks.sync_remote_project_permissions()
 
         # Assert
-        self.assertEqual(self.client.create_project_permission.call_count, 0)
+        self.assertFalse(create_mock.called)
 
     def test_project_permission_is_deleted_if_it_is_absent_in_local_database(self):
         # Arrange
-        self.client.list_projects.return_value = [{"uuid": self.remote_project_uuid}]
-        self.client.get_remote_eduteams_user.return_value = {
-            "uuid": self.remote_user_uuid
-        }
-        self.client.get_project_permissions.return_value = [
-            {
-                "expiration_time": timezone.now().isoformat(),
-                "role_name": RoleEnum.PROJECT_ADMIN,
-                "user_username": self.fixture.manager.username,
-                "user_uuid": self.remote_user_uuid,
-            }
-        ]
+        self.fixture.manager.registration_method = ProviderChoices.EDUTEAMS
+        self.fixture.manager.save()
+
+        self.mock_create_permission()
+        self.mock_project_exists(exists=True)
+        self.mock_user_creation()
+        self.mock_permissions(
+            permissions=[
+                {
+                    "expiration_time": timezone.now().isoformat(),
+                    "role_name": RoleEnum.PROJECT_ADMIN.value,
+                    "user_username": self.fixture.manager.username,
+                    "user_uuid": self.remote_user_uuid,
+                }
+            ]
+        )
+        delete_mock = self.mock_delete_permission()
 
         # Act
         tasks.sync_remote_project_permissions()
 
         # Assert
-        self.client.remove_project_permission.assert_called_once_with(
-            self.remote_project_uuid, self.remote_user_uuid, RoleEnum.PROJECT_ADMIN
+        self.assertTrue(delete_mock.called)
+        self.assertEqual(
+            get_request_data(delete_mock),
+            {
+                "user": self.remote_user_uuid,
+                "role": RoleEnum.PROJECT_ADMIN.value,
+            },
         )
 
 
-class DeleteRemoteProjectsTest(test.APITransactionTestCase):
+class DeleteRemoteProjectsTest(testcases.TransactionTestCase):
     def setUp(self):
         self.project = ProjectFactory()
         self.backend_id = f"{self.project.customer.uuid}_{self.project.uuid}"
+        self.api_url = "http://example.com"
         self.offering = factories.OfferingFactory(
-            type=PLUGIN_NAME, state=models.Offering.States.ACTIVE
+            type=PLUGIN_NAME,
+            state=models.Offering.States.ACTIVE,
+            secret_options={"api_url": self.api_url, "token": "token"},
         )
-        self.offering.secret_options = {"api_url": "api_url", "token": "token"}
-        self.offering.save()
         self.remote_project_uuid = uuid.uuid4().hex
 
-    @mock.patch("waldur_mastermind.marketplace_remote.tasks.WaldurClient")
-    def test_clean_remote_projects(self, mock_client):
+    @respx.mock
+    def test_clean_remote_projects(self):
+        respx.get(f"{self.api_url}/api/projects/").respond(
+            200,
+            json=[{"backend_id": self.backend_id, "uuid": self.remote_project_uuid}],
+        )
+
+        delete_mock = respx.delete(
+            f"{self.api_url}/api/projects/{self.remote_project_uuid}/"
+        ).respond(204)
+
         self.project.delete()
 
-        mock_client().list_projects.return_value = [
-            {"backend_id": self.backend_id, "uuid": self.remote_project_uuid}
-        ]
         tasks.clean_remote_projects()
-        mock_client().delete_project.assert_called_once_with(self.remote_project_uuid)
+
+        self.assertTrue(delete_mock.called)
 
     @mock.patch("waldur_mastermind.marketplace_remote.tasks.delete_remote_project")
     def test_handler(self, mock_task):
@@ -309,151 +378,193 @@ class DeleteRemoteProjectsTest(test.APITransactionTestCase):
         self.project.delete()
         mock_task.delay.assert_called_once_with(serialized_project)
 
-    @mock.patch("waldur_mastermind.marketplace_remote.tasks.WaldurClient")
-    def test_delete_remote_project(self, mock_client):
+    @respx.mock
+    def test_delete_remote_project(self):
         factories.ResourceFactory(offering=self.offering, project=self.project)
-        mock_client().list_projects.return_value = [
-            {"backend_id": self.backend_id, "uuid": self.remote_project_uuid}
-        ]
         serialized_project = serialize_instance(self.project)
         self.project.delete()
+
+        respx.get(f"{self.api_url}/api/projects/").respond(
+            200,
+            json=[{"backend_id": self.backend_id, "uuid": self.remote_project_uuid}],
+        )
+        delete_mock = respx.delete(
+            f"{self.api_url}/api/projects/{self.remote_project_uuid}/"
+        ).respond(204)
+
         tasks.delete_remote_project(serialized_project)
-        mock_client().delete_project.assert_called_once_with(self.remote_project_uuid)
+        self.assertTrue(delete_mock.called)
 
 
-class OfferingUserPullTest(test.APITransactionTestCase):
+class OfferingUserPullTest(testcases.TransactionTestCase):
     def setUp(self):
+        self.api_url = "http://example.com"
         self.offering = factories.OfferingFactory(
-            secret_options={"api_url": "api_url", "token": "token"}
+            secret_options={"api_url": self.api_url, "token": "token"}
+        )
+        respx.start()
+
+    def tearDown(self):
+        respx.stop()
+        super().tearDown()
+
+    def mock_offering_users(self, users):
+        respx.get(f"{self.api_url}/api/marketplace-offering-users/").respond(
+            200, json=users
         )
 
-    @mock.patch("waldur_mastermind.marketplace_remote.utils.WaldurClient")
-    def test_offering_user_is_skipped_if_there_is_no_user_in_local_db(
-        self, mock_client
-    ):
-        mock_client().list_remote_offering_users.return_value = [
-            {"user_username": "alice@myaccessid.org", "username": "alice"}
-        ]
+    def test_offering_user_is_skipped_if_there_is_no_user_in_local_db(self):
+        self.mock_offering_users(
+            [{"user_username": "alice@myaccessid.org", "username": "alice"}]
+        )
         tasks.OfferingUserPullTask().pull(self.offering)
 
-    @mock.patch("waldur_mastermind.marketplace_remote.utils.WaldurClient")
-    def test_missing_offering_user_is_created_if_there_is_user_in_local_db(
-        self, mock_client
-    ):
+    def test_missing_offering_user_is_created_if_there_is_user_in_local_db(self):
         user = UserFactory(username="alice@myaccessid.org")
-        mock_client().list_remote_offering_users.return_value = [
-            {"user_username": "alice@myaccessid.org", "username": "alice"}
-        ]
+        self.mock_offering_users(
+            [{"user_username": "alice@myaccessid.org", "username": "alice"}]
+        )
         tasks.OfferingUserPullTask().pull(self.offering)
         self.assertEqual(
             models.OfferingUser.objects.get(user=user, offering=self.offering).username,
             "alice",
         )
 
-    @mock.patch("waldur_mastermind.marketplace_remote.utils.WaldurClient")
-    def test_stale_offering_user_is_deleted(self, mock_client):
+    def test_stale_offering_user_is_deleted(self):
+        self.mock_offering_users([])
         user = UserFactory(username="alice@myaccessid.org")
         offering_user = models.OfferingUser.objects.create(
             user=user, offering=self.offering, username="alice"
         )
-        mock_client().list_remote_offering_users.return_value = []
         tasks.OfferingUserPullTask().pull(self.offering)
         self.assertRaises(ObjectDoesNotExist, offering_user.refresh_from_db)
 
-    @mock.patch("waldur_mastermind.marketplace_remote.utils.WaldurClient")
-    def test_existing_offering_user_is_updated(self, mock_client):
+    def test_existing_offering_user_is_updated(self):
         user = UserFactory(username="alice@myaccessid.org")
         offering_user = models.OfferingUser.objects.create(
             user=user, offering=self.offering, username="bob"
         )
-        mock_client().list_remote_offering_users.return_value = [
-            {"user_username": "alice@myaccessid.org", "username": "alice"}
-        ]
+        self.mock_offering_users(
+            [{"user_username": "alice@myaccessid.org", "username": "alice"}]
+        )
         tasks.OfferingUserPullTask().pull(self.offering)
         offering_user.refresh_from_db()
         self.assertEqual(offering_user.username, "alice")
 
 
-class ResourceOrderImportTest(test.APITransactionTestCase):
+class ResourceOrderImportTest(testcases.TransactionTestCase):
     def setUp(self):
-        self.patcher = mock.patch(
-            "waldur_mastermind.marketplace_remote.utils.WaldurClient"
-        )
-        self.client = self.patcher.start()()
-
         self.fixture = fixtures.MarketplaceFixture()
         self.resource = self.fixture.resource
         self.resource.backend_id = uuid.uuid4().hex
         self.resource.save()
         self.resource.offering.type = PLUGIN_NAME
+        self.api_url = "https://example.com"
         self.resource.offering.secret_options = {
-            "api_url": "https://example.com/",
+            "api_url": self.api_url,
             "token": uuid.uuid4().hex,
         }
         self.resource.offering.save()
+        respx.start()
 
     def tearDown(self):
+        respx.stop()
         super().tearDown()
         mock.patch.stopall()
 
+    def mock_marketplace_orders(self, orders):
+        respx.get(f"{self.api_url}/api/marketplace-orders/").respond(200, json=orders)
+
+    def mock_marketplace_order(self, order_uuid, order_data):
+        respx.get(f"{self.api_url}/api/marketplace-orders/{order_uuid}/").respond(
+            200, json=order_data
+        )
+
+    def mock_marketplace_resource(self, resource_uuid, resource_data):
+        respx.get(f"{self.api_url}/api/marketplace-resources/{resource_uuid}/").respond(
+            200, json=resource_data
+        )
+
+    def mock_marketplace_resource_details(self, resource_uuid, resource_data):
+        respx.get(
+            f"{self.api_url}/api/marketplace-resources/{resource_uuid}/details/"
+        ).respond(200, json=resource_data)
+
     def test_when_there_are_no_orders(self):
-        self.client.list_orders.return_value = []
+        self.mock_marketplace_orders([])
         actual = utils.import_resource_orders(self.resource)
         self.assertEqual([], actual)
 
     def test_there_is_one_order(self):
         remote_order_uuid = uuid.uuid4().hex
-        remote_order_uuid = uuid.uuid4().hex
-        self.client.list_orders.return_value = [
-            {"uuid": remote_order_uuid, "order_uuid": remote_order_uuid}
-        ]
-        self.client.get_order.return_value = {
+        order_data = {
             "uuid": remote_order_uuid,
             "state": "done",
             "created": "2021-12-12T01:01:01",
             "created_by_username": "alice",
             "type": "Terminate",
         }
+        self.mock_marketplace_orders(
+            [{"uuid": remote_order_uuid, "order_uuid": remote_order_uuid}]
+        )
+        self.mock_marketplace_order(remote_order_uuid, order_data)
+
         actual = utils.import_resource_orders(self.resource)
         self.assertEqual(1, len(actual))
         self.assertEqual(actual[0].backend_id, remote_order_uuid)
 
     def test_existing_order_is_skipped(self):
         remote_order_uuid = uuid.uuid4().hex
-        remote_order_uuid = uuid.uuid4().hex
         factories.OrderFactory(
             backend_id=remote_order_uuid, resource=self.fixture.resource
         )
-        self.client.list_orders.return_value = [
-            {"uuid": remote_order_uuid, "order_uuid": remote_order_uuid}
-        ]
-        self.client.get_order.return_value = {
+        order_data = {
             "uuid": remote_order_uuid,
             "state": "done",
             "created": "2021-12-12T01:01:01",
             "created_by_username": "alice",
             "type": "Terminate",
         }
+        self.mock_marketplace_orders(
+            [{"uuid": remote_order_uuid, "order_uuid": remote_order_uuid}]
+        )
+        self.mock_marketplace_order(remote_order_uuid, order_data)
         actual = utils.import_resource_orders(self.resource)
         self.assertEqual(0, len(actual))
 
+    @respx.mock
     def test_resource_state(self):
-        self.client.get_marketplace_resource.return_value = {"state": "Erred"}
+        resource_uuid = self.resource.backend_id
+        self.mock_marketplace_resource(resource_uuid, {"state": "Erred"})
         utils.pull_resource_state(self.fixture.resource)
         self.fixture.resource.refresh_from_db()
         self.assertEqual(self.fixture.resource.state, models.Resource.States.ERRED)
 
+    @respx.mock
     def test_remote_resource_backend_id_is_saved_as_local_resource_effective_id(self):
         # Arrange
         self.fixture.resource.state = models.Resource.States.OK
         self.fixture.resource.save()
-        self.client.get_marketplace_resource.return_value = {
-            "report": "",
-            "backend_id": "effective_id",
-            "state": "OK",
-            "attributes": {"sample_attr": 1},
-            "options": {},
-        }
+        resource_uuid = self.resource.backend_id
+
+        respx.get(
+            f"{self.api_url}/api/marketplace-orders/?field=uuid&resource_uuid={resource_uuid}"
+        ).respond(200, json=[])
+
+        respx.post(
+            f"{self.api_url}/api/marketplace-resources/{resource_uuid}/update_options/"
+        ).respond(200, json=[])
+
+        self.mock_marketplace_resource_details(
+            resource_uuid,
+            {
+                "report": "",
+                "backend_id": "effective_id",
+                "state": "OK",
+                "attributes": {"sample_attr": 1},
+                "options": {},
+            },
+        )
 
         # Act
         tasks.ResourcePullTask().pull(self.resource)
@@ -464,7 +575,7 @@ class ResourceOrderImportTest(test.APITransactionTestCase):
         self.assertEqual(self.fixture.resource.attributes, {"sample_attr": 1})
 
 
-class NotificationAboutPendingProjectUpdatesTest(test.APITransactionTestCase):
+class NotificationAboutPendingProjectUpdatesTest(testcases.TransactionTestCase):
     def setUp(self):
         from datetime import datetime, timedelta
 
@@ -514,7 +625,7 @@ class NotificationAboutPendingProjectUpdatesTest(test.APITransactionTestCase):
         self.assertEqual(len(mail.outbox), 0)
 
 
-class NotificationAboutProjectUpdatesTest(test.APITransactionTestCase):
+class NotificationAboutProjectUpdatesTest(testcases.TransactionTestCase):
     def setUp(self):
         project_fixture = ProjectFixture()
         fixture = fixtures.MarketplaceFixture()
@@ -544,34 +655,32 @@ class NotificationAboutProjectUpdatesTest(test.APITransactionTestCase):
         self.assertEqual(len(mail.outbox), 2)
 
 
-class OfferingListPullTaskTest(test.APITransactionTestCase):
+class OfferingListPullTaskTest(testcases.TransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
         self.offering.type = PLUGIN_NAME
+        self.api_url = "https://example.com"
         self.offering.secret_options = {
-            "api_url": "https://example.com/",
+            "api_url": self.api_url,
             "token": "token",
         }
+        self.offering.backend_id = uuid.uuid4().hex
         self.offering.save()
 
-    @mock.patch("waldur_mastermind.marketplace_remote.utils.WaldurClient")
+    @respx.mock
     @mock.patch("waldur_mastermind.marketplace_remote.tasks.logger")
-    def test_archived_offering_does_not_raise_exception(self, mock_logger, mock_client):
+    def test_archived_offering_does_not_raise_exception(self, mock_logger):
         """
         Test that archived offerings do not raise an exception when pulled.
         """
-        # Set offering to archived state
+        respx.get(
+            f"{self.api_url}/api/marketplace-public-offerings/{self.offering.backend_id}/"
+        ).respond(404)
+
         self.offering.state = models.Offering.States.ARCHIVED
         self.offering.save()
 
-        # Setup mock client
-        mock_client_instance = mock_client.return_value
-        mock_client_instance.get_marketplace_public_offering.side_effect = WaldurClientException(
-            "Status: 404. Reason: Not Found. {'detail': 'No Offering matches the given query.'}."
-        )
-
-        # Pull offerings
         pulled_objects = tasks.OfferingListPullTask().get_pulled_objects()
 
         # Check that the offering was pulled
@@ -584,7 +693,6 @@ class OfferingListPullTaskTest(test.APITransactionTestCase):
         # Check that the pull call was made
         task = tasks.OfferingPullTask()
         task.pull(self.offering)
-        mock_client_instance.get_marketplace_public_offering.assert_called_once()
 
         # Check that the offering is still archived
         self.offering.refresh_from_db()
@@ -595,25 +703,19 @@ class OfferingListPullTaskTest(test.APITransactionTestCase):
             "Offering %s is archived: ", self.offering
         )
 
-    @mock.patch("waldur_mastermind.marketplace_remote.utils.WaldurClient")
+    @respx.mock
     @mock.patch("waldur_mastermind.marketplace_remote.tasks.logger")
-    def test_active_offering_that_does_not_exist_raises_warning(
-        self, mock_logger, mock_client
-    ):
+    def test_active_offering_that_does_not_exist_raises_warning(self, mock_logger):
         """
         Test that active offerings that do not exist raise an exception when pulled.
         """
-        # Set offering to active state
         self.offering.state = models.Offering.States.ACTIVE
         self.offering.save()
 
-        # Setup mock client
-        mock_client_instance = mock_client.return_value
-        mock_client_instance.get_marketplace_public_offering.side_effect = WaldurClientException(
-            "Status: 404. Reason: Not Found. {'detail': 'No Offering matches the given query.'}."
-        )
+        respx.get(
+            f"{self.api_url}/api/marketplace-public-offerings/{self.offering.backend_id}/"
+        ).respond(404)
 
-        # Pull offerings
         pulled_objects = tasks.OfferingListPullTask().get_pulled_objects()
 
         # Check that the offering was pulled
@@ -626,7 +728,6 @@ class OfferingListPullTaskTest(test.APITransactionTestCase):
         # Check that the pull call was made
         task = tasks.OfferingPullTask()
         task.pull(self.offering)
-        mock_client_instance.get_marketplace_public_offering.assert_called_once()
 
         # Check that the offering is set to archived
         self.offering.refresh_from_db()
@@ -659,9 +760,8 @@ class OfferingListPullTaskTest(test.APITransactionTestCase):
     task_always_eager=True,
     task_eager_propagates=True,
 )
-class OfferingUserPullTaskTest(test.APITransactionTestCase):
+class OfferingUserPullTaskTest(testcases.TransactionTestCase):
     def setUp(self):
-        # Create test data using MarketplaceFixture
         self.fixture = fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
         self.offering.type = PLUGIN_NAME
@@ -672,7 +772,6 @@ class OfferingUserPullTaskTest(test.APITransactionTestCase):
         }
         self.offering.save()
 
-        # Create a deactivated user with offering user
         self.deactivated_user = UserFactory(is_active=False)
         self.offering_user = models.OfferingUser.objects.create(
             user=self.deactivated_user,
@@ -680,23 +779,18 @@ class OfferingUserPullTaskTest(test.APITransactionTestCase):
             username=self.deactivated_user.username,
         )
 
-        # Mock the client
-        self.patcher = mock.patch(
-            "waldur_mastermind.marketplace_remote.utils.WaldurClient"
-        )
-        self.client_mock = self.patcher.start()
-
-        # Simulate a case that the user does not exist in remote portal
-        self.client_mock().list_remote_offering_users.return_value = []
-
-    def tearDown(self):
-        self.patcher.stop()
-
+    @respx.mock
     def test_deactivated_user_handling_in_offering_user_pull(self):
         """
         Test that deactivated users are handled correctly during offering user pull,
         specifically that no KeyError is raised when a deactivated user is not in user_map
         """
+
+        # Simulate a case that the user does not exist in remote portal
+        respx.get("https://example.com/api/marketplace-offering-users/").respond(
+            200, json=[]
+        )
+
         # Pull offering users
         task = tasks.OfferingUserPullTask()
         task.pull(self.offering)
