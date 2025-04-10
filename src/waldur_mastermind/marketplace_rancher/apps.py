@@ -77,3 +77,9 @@ class MarketplaceRancherConfig(AppConfig):
             sender=rancher_models.RancherUser,
             dispatch_uid="waldur_mastermind.marketplace_rancher.drop_offering_user_for_rancher_user",
         )
+
+        signals.post_save.connect(
+            handlers.update_argocd_secret_when_resource_options_changed,
+            sender=marketplace_models.Resource,
+            dispatch_uid="waldur_mastermind.marketplace_rancher.update_argocd_secret_when_resource_options_changed",
+        )
