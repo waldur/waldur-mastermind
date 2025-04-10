@@ -559,6 +559,28 @@ class BaseResourceFilter(NameFilterSet):
     uuid = django_filters.UUIDFilter(lookup_expr="exact")
     backend_id = django_filters.CharFilter(field_name="backend_id", lookup_expr="exact")
     external_ip = core_filters.EmptyFilter()
+    can_manage = django_filters.BooleanFilter(
+        label="Can manage", method="filter_can_manage"
+    )
+
+    def filter_can_manage(self, queryset, name, value):
+        user = self.request.user
+
+        if user.is_staff:
+            return queryset
+
+        # Get projects where user is admin or manager
+        managed_projects = get_connected_projects(
+            user, [RoleEnum.PROJECT_ADMIN, RoleEnum.PROJECT_MANAGER]
+        )
+
+        # Get customers where user is owner
+        owned_customers = get_connected_customers(user, RoleEnum.CUSTOMER_OWNER)
+
+        # Filter resources by project or customer
+        return queryset.filter(
+            Q(project__in=managed_projects) | Q(project__customer__in=owned_customers)
+        ).distinct()
 
     ORDERING_FIELDS = (
         ("name", "name"),

@@ -4,7 +4,12 @@ from django.conf import settings
 from django.db.models import Count
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.utils import OpenApiExample, OpenApiParameter, extend_schema
+from drf_spectacular.utils import (
+    OpenApiExample,
+    OpenApiParameter,
+    OpenApiTypes,
+    extend_schema,
+)
 from keystoneauth1.exceptions.connection import ConnectFailure
 from rest_framework import decorators, exceptions, generics, response, status
 
@@ -15,6 +20,7 @@ from waldur_core.core import views as core_views
 from waldur_core.core.serializers import EmptySerializer
 from waldur_core.logging.loggers import event_logger
 from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.permissions.utils import has_permission
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
@@ -807,6 +813,106 @@ class NetworkViewSet(structure_views.ResourceViewSet):
     create_port_serializer_class = serializers.OpenStackPortSerializer
 
     create_port_validators = [core_validators.StateValidator(models.Network.States.OK)]
+
+    def _check_rbac_policy_permissions(self, user, network, target_tenant):
+        if user.is_staff:
+            return
+
+        if (
+            network.project.has_user(user, ProjectRole.ADMIN)
+            or network.project.has_user(user, ProjectRole.MANAGER)
+            or network.project.customer.has_user(user, CustomerRole.OWNER)
+        ) and (
+            target_tenant.project.has_user(user, ProjectRole.ADMIN)
+            or target_tenant.project.has_user(user, ProjectRole.MANAGER)
+            or target_tenant.project.customer.has_user(user, CustomerRole.OWNER)
+        ):
+            return
+
+        raise exceptions.PermissionDenied()
+
+    @extend_schema(
+        description="Create RBAC policy for the network",
+        request=serializers.NetworkRBACPolicySerializer,
+        responses=serializers.NetworkRBACPolicySerializer,
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def rbac_policy_create(self, request, uuid=None):
+        network = self.get_object()
+        serializer = self.get_serializer(
+            data=request.data, context={"request": request, "network": network}
+        )
+        serializer.is_valid(raise_exception=True)
+
+        target_tenant = serializer.validated_data["target_tenant"]
+        policy_type = serializer.validated_data["policy_type"]
+
+        self._check_rbac_policy_permissions(request.user, network, target_tenant)
+
+        backend = network.tenant.get_backend()
+
+        backend_id = backend.create_network_rbac_policy(
+            network=network,
+            target_tenant=target_tenant,
+            policy_type=policy_type,
+        )
+
+        logger.info("RBAC policy created in backend with ID: %s", backend_id)
+
+        policy = models.NetworkRBACPolicy.objects.create(
+            network=network,
+            target_tenant=target_tenant,
+            backend_id=backend_id,
+            policy_type=policy_type,
+        )
+
+        logger.info("RBAC policy record created in database with UUID: %s", policy.uuid)
+
+        result_serializer = self.get_serializer(policy, context={"request": request})
+        return response.Response(result_serializer.data, status=status.HTTP_201_CREATED)
+
+    rbac_policy_create_validators = [
+        core_validators.StateValidator(models.Network.States.OK)
+    ]
+    rbac_policy_create_serializer_class = serializers.NetworkRBACPolicySerializer
+
+    @extend_schema(
+        description="Delete RBAC policy for the network",
+        request=None,
+        responses={204: None},
+        parameters=[
+            OpenApiParameter(
+                "rbac_policy_uuid",
+                OpenApiTypes.UUID,
+                OpenApiParameter.PATH,
+                description="UUID of the RBAC policy to delete",
+            )
+        ],
+    )
+    @decorators.action(
+        detail=True,
+        methods=["delete"],
+        url_path="rbac_policy_delete/(?P<rbac_policy_uuid>[^/.]+)",
+    )
+    def rbac_policy_delete(self, request, uuid=None, rbac_policy_uuid=None):
+        network = self.get_object()
+        backend = network.tenant.get_backend()
+
+        try:
+            rbac_policy = models.NetworkRBACPolicy.objects.get(uuid=rbac_policy_uuid)
+            self._check_rbac_policy_permissions(
+                request.user, network, rbac_policy.target_tenant
+            )
+        except models.NetworkRBACPolicy.DoesNotExist:
+            raise exceptions.NotFound(
+                _("RBAC policy with backend ID %s does not exist.") % uuid
+            )
+
+        backend.delete_network_rbac_policy(
+            rbac_id=rbac_policy.backend_id,
+        )
+        rbac_policy.delete()
+        return response.Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class SubNetViewSet(structure_views.ResourceViewSet):

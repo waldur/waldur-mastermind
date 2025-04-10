@@ -3763,11 +3763,13 @@ class OpenStackBackend(ServiceBackend):
                     "Current installation cannot create instance without a system volume."
                 )
 
-            nics = [
-                {"port-id": port.backend_id}
-                for port in instance.ports.all()
-                if port.backend_id
-            ]
+            nics = []
+
+            for port in instance.ports.all():
+                if port.network.tenant != instance.tenant:
+                    nics.append({"net-id": port.network.backend_id})
+                else:
+                    nics.append({"port-id": port.backend_id})
 
             if (
                 settings.WALDUR_OPENSTACK["ALLOW_DIRECT_EXTERNAL_NETWORK_CONNECTION"]
@@ -4518,15 +4520,38 @@ class OpenStackBackend(ServiceBackend):
         for port in instance.ports.all():
             self.create_instance_port(port, security_groups)
 
-    def create_instance_port(self, port: models.Port, security_groups):
+    def create_instance_port(self, port: models.Port, instance_security_groups):
         session = get_tenant_session(port.tenant)
         neutron = get_neutron_client(session)
+        security_groups = []
 
         logger.debug(
             "About to create network port. Network ID: %s. Subnet ID: %s.",
             port.subnet.network.backend_id,
             port.subnet.backend_id,
         )
+
+        if port.network.tenant != port.instance.tenant:
+            for s in instance_security_groups:
+                group_name = models.SecurityGroup.objects.get(backend_id=s).name
+                network_group = models.SecurityGroup.objects.filter(
+                    tenant=port.network.tenant, name=group_name
+                ).first()
+                if network_group:
+                    logger.info(
+                        "Found matching security group %s (backend_id: %s) in network tenant.",
+                        network_group.name,
+                        network_group.backend_id,
+                    )
+                    security_groups.append(network_group.backend_id)
+                else:
+                    logger.warning(
+                        "Security group %s not found in network tenant %s.",
+                        group_name,
+                        port.network.tenant.uuid,
+                    )
+        else:
+            security_groups = instance_security_groups
 
         port_payload = {
             "network_id": port.subnet.network.backend_id,
@@ -4823,3 +4848,24 @@ class OpenStackBackend(ServiceBackend):
             raise OpenStackBackendError(e)
 
         self._pull_zones(tenant, backend_zones, models.VolumeAvailabilityZone)
+
+    @reraise_exceptions
+    def create_network_rbac_policy(
+        self, network, target_tenant, policy_type="access_as_shared"
+    ):
+        neutron = get_neutron_client(self.admin_session)
+        rbac_policy = {
+            "rbac_policy": {
+                "object_type": "network",
+                "object_id": network.backend_id,
+                "action": policy_type,
+                "target_tenant": target_tenant.backend_id,
+            }
+        }
+        response = neutron.create_rbac_policy(rbac_policy)
+        return response.get("rbac_policy", {}).get("id")
+
+    @reraise_exceptions
+    def delete_network_rbac_policy(self, rbac_id):
+        neutron = get_neutron_client(self.admin_session)
+        neutron.delete_rbac_policy(rbac_id)

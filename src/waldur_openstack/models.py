@@ -946,3 +946,47 @@ class BackupRestoration(core_models.UuidMixin, TimeStampedModel):
     class Permissions:
         customer_path = "backup__project__customer"
         project_path = "backup__project"
+
+
+class NetworkRBACPolicy(
+    core_models.UuidMixin, core_models.BackendMixin, core_models.TimeStampedModel
+):
+    class NetworkShareType:
+        SHARED = "access_as_shared"
+        EXTERNAL = "access_as_external"
+
+        CHOICES = (
+            (SHARED, "Shared"),
+            (EXTERNAL, "External"),
+        )
+
+    network = models.ForeignKey(
+        Network,
+        on_delete=models.CASCADE,
+        related_name="rbac_policies",
+    )
+
+    target_tenant = models.ForeignKey(
+        "openstack.Tenant",
+        on_delete=models.CASCADE,
+        related_name="network_rbac_policies",
+    )
+
+    policy_type = models.CharField(
+        max_length=255,
+        default=NetworkShareType.SHARED,
+        choices=NetworkShareType.CHOICES,
+    )
+
+    class Meta:
+        verbose_name = "Network RBAC Policy"
+        verbose_name_plural = "Network RBAC Policies"
+        unique_together = ("network", "target_tenant", "policy_type")
+        ordering = ["-created"]
+
+    class Permissions:
+        customer_path = "network__tenant__project__customer"
+        project_path = "network__tenant__project"
+
+    def __str__(self):
+        return f"RBAC policy for {self.network} to {self.target_tenant}"

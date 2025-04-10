@@ -315,6 +315,10 @@ class BackupAdmin(MetadataMixin, admin.ModelAdmin):
     project.short_description = _("Project")
 
 
+class NetworkRBACPolicyAdmin(admin.ModelAdmin):
+    list_display = ("uuid", "network", "target_tenant")
+
+
 admin.site.register(models.Network, NetworkAdmin)
 admin.site.register(models.SubNet, SubNetAdmin)
 admin.site.register(models.SecurityGroup, structure_admin.ResourceAdmin)
@@ -335,5 +339,6 @@ admin.site.register(
 )
 admin.site.register(models.Instance, InstanceAdmin)
 admin.site.register(models.Backup, BackupAdmin)
+admin.site.register(models.NetworkRBACPolicy, NetworkRBACPolicyAdmin)
 
 structure_admin.CustomerAdmin.inlines += [CustomerOpenStackInline]
