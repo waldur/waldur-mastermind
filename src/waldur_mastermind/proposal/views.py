@@ -22,10 +22,9 @@ from waldur_core.core.views import (
 from waldur_core.permissions import utils as permissions_utils
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import ProposalRole
-from waldur_core.permissions.utils import add_user, permission_factory
+from waldur_core.permissions.utils import add_user, has_permission, permission_factory
 from waldur_core.permissions.views import UserRoleMixin
 from waldur_core.structure import filters as structure_filters
-from waldur_core.structure import permissions
 from waldur_core.structure.managers import get_connected_customers
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.views import BaseMarketplaceView, PublicViewsetMixin
@@ -38,6 +37,7 @@ from waldur_mastermind.proposal import (
 from waldur_mastermind.proposal import permissions as proposal_permissions
 
 from . import log
+from .managers import get_connected_call_organizers
 from .serializers import ReviewSubmitSerializer
 
 User = auth.get_user_model()
@@ -639,7 +639,6 @@ class ReviewViewSet(ActionsViewSet):
     serializer_class = serializers.ProposalReviewSerializer
     filterset_class = filters.ReviewFilter
     queryset = models.Review.objects.all()
-    create_permissions = destroy_permissions = [permissions.is_staff]
 
     update_validators = partial_update_validators = [
         core_validators.StateValidator(
@@ -655,6 +654,11 @@ class ReviewViewSet(ActionsViewSet):
 
         return models.Review.objects.filter(
             Q(
+                proposal__round__call__manager__customer__in=get_connected_call_organizers(
+                    user
+                )
+            )
+            | Q(
                 proposal__round__call__manager__customer__in=get_connected_customers(
                     user
                 )
@@ -662,6 +666,24 @@ class ReviewViewSet(ActionsViewSet):
             | Q(reviewer=user)
             | Q(state=models.Review.States.SUBMITTED, proposal__created_by=user)
         )
+
+    def perform_create(self, serializer):
+        proposal = serializer.validated_data["proposal"]
+
+        if not has_permission(
+            self.request, PermissionEnum.MANAGE_PROPOSAL_REVIEW, proposal.round.call
+        ):
+            raise exceptions.PermissionDenied()
+        return super().perform_create(serializer)
+
+    def perform_destroy(self, instance):
+        if not has_permission(
+            self.request,
+            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+            instance.proposal.round.call,
+        ):
+            raise exceptions.PermissionDenied()
+        super().perform_destroy(instance)
 
     def action_permission_check(request, view, obj: models.Review = None):
         if not obj:

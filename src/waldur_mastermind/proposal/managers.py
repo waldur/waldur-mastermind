@@ -1,8 +1,12 @@
+from django.contrib.contenttypes.models import ContentType
 from django.db import models as django_models
 
 from waldur_core.core.models import User
+from waldur_core.permissions.utils import get_scope_ids
 from waldur_core.structure.managers import get_connected_customers
 from waldur_mastermind.marketplace.managers import MixinManager
+
+from . import models
 
 
 class CallQuerySet(django_models.QuerySet):
@@ -19,3 +23,8 @@ class CallQuerySet(django_models.QuerySet):
 class CallManager(MixinManager):
     def get_queryset(self):
         return CallQuerySet(self.model, using=self._db)
+
+
+def get_connected_call_organizers(user):
+    ctype = ContentType.objects.get_for_model(models.CallManagingOrganisation)
+    return get_scope_ids(user, ctype)

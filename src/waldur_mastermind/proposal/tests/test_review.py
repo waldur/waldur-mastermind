@@ -51,7 +51,7 @@ class ReviewCreateTest(test.APITransactionTestCase):
         self.fixture = fixtures.ProposalFixture()
         self.url = factories.ReviewFactory.get_list_url()
 
-    @data("staff")
+    @data("staff", "call_manager")
     def test_user_can_add(self, user):
         response = self.create(user)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -124,14 +124,13 @@ class ReviewDeleteTest(test.APITransactionTestCase):
     @data(
         "staff",
     )
-    def test_user_can_delete(self, user):
+    def test_staff_can_delete(self, user):
         response = self.run_delete(user)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
     @data(
         "owner",
         "customer_support",
-        "proposal_submitted_creator",
     )
     def test_customer_user_can_not_delete(self, user):
         response = self.run_delete(user)
