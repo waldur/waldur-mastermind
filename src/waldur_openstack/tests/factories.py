@@ -586,3 +586,12 @@ class VolumeAvailabilityZoneFactory(
     @classmethod
     def get_list_url(cls):
         return "http://testserver" + reverse("openstack-volume-availability-zone-list")
+
+
+class NetworkRBACPolicyFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = models.NetworkRBACPolicy
+
+    network = factory.SubFactory(NetworkFactory)
+    target_tenant = factory.SubFactory(TenantFactory)
+    policy_type = models.NetworkRBACPolicy.NetworkShareType.SHARED

@@ -110,7 +110,28 @@ class PortFilter(TenantFilterSet, structure_filters.NameFilterSet):
         fields = ()
 
 
-class NetworkFilter(TenantFilterSet, structure_filters.BaseResourceFilter):
+class NetworkFilter(structure_filters.BaseResourceFilter):
+    tenant_uuid = django_filters.UUIDFilter(method="filter_tenant", label="Tenant UUID")
+    tenant = core_filters.URLFilter(
+        view_name="openstack-tenant-detail", method="filter_tenant", label="Tenant URL"
+    )
+
+    def filter_tenant(self, queryset, name, value):
+        if name == "tenant":
+            uuid = list(filter(None, value.split("/")))[-1]
+        else:
+            uuid = value
+
+        try:
+            tenant = models.Tenant.objects.get(uuid=uuid)
+        except models.Tenant.DoesNotExist:
+            return queryset.none()
+
+        direct_networks = queryset.filter(tenant=tenant)
+        rbac_networks = queryset.filter(rbac_policies__target_tenant=tenant)
+
+        return (direct_networks | rbac_networks).distinct()
+
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.Network
         fields = structure_filters.BaseResourceFilter.Meta.fields + (
@@ -119,11 +140,32 @@ class NetworkFilter(TenantFilterSet, structure_filters.BaseResourceFilter):
         )
 
 
-class SubNetFilter(TenantFilterSet, structure_filters.BaseResourceFilter):
+class SubNetFilter(structure_filters.BaseResourceFilter):
     network_uuid = django_filters.UUIDFilter(field_name="network__uuid")
     network = core_filters.URLFilter(
         view_name="openstack-network-detail", field_name="network__uuid"
     )
+
+    tenant_uuid = django_filters.UUIDFilter(method="filter_tenant", label="Tenant UUID")
+    tenant = core_filters.URLFilter(
+        view_name="openstack-tenant-detail", method="filter_tenant", label="Tenant URL"
+    )
+
+    def filter_tenant(self, queryset, name, value):
+        if name == "tenant":
+            uuid = list(filter(None, value.split("/")))[-1]
+        else:
+            uuid = value
+
+        try:
+            tenant = models.Tenant.objects.get(uuid=uuid)
+        except models.Tenant.DoesNotExist:
+            return queryset.none()
+
+        direct_networks = queryset.filter(network__tenant=tenant)
+        rbac_networks = queryset.filter(network__rbac_policies__target_tenant=tenant)
+
+        return (direct_networks | rbac_networks).distinct()
 
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.SubNet

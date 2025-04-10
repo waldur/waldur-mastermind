@@ -1273,6 +1273,62 @@ class OpenStackPortSerializer(structure_serializers.BaseResourceActionSerializer
         return super().validate(attrs)
 
 
+class NetworkRBACPolicySerializer(
+    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
+):
+    network = serializers.HyperlinkedRelatedField(
+        view_name="openstack-network-detail",
+        lookup_field="uuid",
+        read_only=True,
+    )
+
+    target_tenant = serializers.HyperlinkedRelatedField(
+        view_name="openstack-tenant-detail",
+        lookup_field="uuid",
+        queryset=models.Tenant.objects.filter(state=models.Tenant.States.OK).all(),
+    )
+
+    class Meta:
+        model = models.NetworkRBACPolicy
+        fields = (
+            "uuid",
+            "network",
+            "target_tenant",
+            "backend_id",
+            "policy_type",
+            "created",
+        )
+        read_only_fields = ("uuid", "created", "backend_id")
+
+    def validate_target_tenant(self, target_tenant):
+        network = self.context["network"]
+        if target_tenant.service_settings != network.tenant.service_settings:
+            raise serializers.ValidationError(
+                _(
+                    "Target tenant must belong to the same service settings as the network's tenant."
+                )
+            )
+        return target_tenant
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        network = self.context["network"]
+        target_tenant = attrs["target_tenant"]
+        policy_type = attrs["policy_type"]
+
+        # Check if policy with the same network, tenant and type already exists
+        if models.NetworkRBACPolicy.objects.filter(
+            network=network, target_tenant=target_tenant, policy_type=policy_type
+        ).exists():
+            raise serializers.ValidationError(
+                _(
+                    "Policy with this network, target tenant and policy type already exists."
+                )
+            )
+
+        return attrs
+
+
 class OpenStackNetworkSerializer(
     structure_serializers.FieldFilteringMixin,
     structure_serializers.BaseResourceActionSerializer,
@@ -1280,6 +1336,7 @@ class OpenStackNetworkSerializer(
     subnets = OpenStackNestedSubNetSerializer(many=True, read_only=True)
     tenant_name = serializers.CharField(source="tenant.name", read_only=True)
     tenant_uuid = serializers.UUIDField(source="tenant.uuid", read_only=True)
+    rbac_policies = NetworkRBACPolicySerializer(many=True, read_only=True)
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Network
@@ -1292,6 +1349,7 @@ class OpenStackNetworkSerializer(
             "segmentation_id",
             "subnets",
             "mtu",
+            "rbac_policies",
         )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields
@@ -1303,6 +1361,7 @@ class OpenStackNetworkSerializer(
                 "mtu",
                 "service_settings",
                 "project",
+                "rbac_policies",
             )
         )
         extra_kwargs = dict(
@@ -2210,8 +2269,15 @@ def _validate_instance_ports(ports, tenant):
     if not ports:
         return
     subnets = [port.subnet for port in ports]
+    tenants_ids = list(
+        models.NetworkRBACPolicy.objects.filter(target_tenant=tenant).values_list(
+            "network__tenant", flat=True
+        )
+    )
+    tenants_ids.append(tenant.id)
+
     for subnet in subnets:
-        if subnet.tenant != tenant:
+        if subnet.tenant.id not in tenants_ids:
             message = (
                 _("Subnet %s does not belong to the same tenant as instance.") % subnet
             )
