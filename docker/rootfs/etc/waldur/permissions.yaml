@@ -240,6 +240,7 @@
     - CALL.LIST
     - ROUND.LIST
     - PROPOSAL.LIST
+    - PROPOSAL.MANAGE_REVIEW
 
 - role: PROPOSAL.MANAGER
   description: Proposal manager
@@ -267,3 +268,4 @@
     - CALL.LIST
     - ROUND.LIST
     - PROPOSAL.LIST
+    - PROPOSAL.MANAGE_REVIEW

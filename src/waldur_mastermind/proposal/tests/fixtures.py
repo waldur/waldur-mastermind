@@ -29,6 +29,7 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
             enums.PermissionEnum.LIST_PROPOSALS,
             enums.PermissionEnum.LIST_CALLS,
             enums.PermissionEnum.LIST_ROUNDS,
+            enums.PermissionEnum.MANAGE_PROPOSAL_REVIEW,
         ):
             CallRole.MANAGER.add_permission(perm)
 
