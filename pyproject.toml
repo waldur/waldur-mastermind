@@ -68,7 +68,6 @@ django-health-check = "^3.16.2"
 django-dbtemplates = "4.0"
 pydantic = "^2.10.6"
 cryptography = "44.0.1"
-python-waldur-client = "^0.5.5"
 kubernetes = ">=31.0.0"
 Django = "^4.2.17"
 azure-mgmt-consumption = "^9.0.0"
@@ -90,6 +89,7 @@ python-magic = "^0.4.27"
 stomp-py = "^8.2.0"
 setuptools = "^78.1.0"
 hvac = "^2.3.0"
+waldur-api-client = {git = "https://github.com/waldur/py-client.git"}
 
 [tool.poetry.group.dev.dependencies]
 djangorestframework-stubs = {extras = ["compatible-mypy"], version = "^3.14.5"}
@@ -104,6 +104,7 @@ mock-django = "0.6.10"
 django-cors-headers = "^4.5.0"
 pre-commit = "^2.13.0"
 pytest-split-tests = "^1.0.9"
+respx = "^0.22.0"
 
 [tool.poetry.plugins.console_scripts]
 waldur = "waldur_core.server.manage:main"
@@ -236,7 +237,7 @@ known-first-party = [
   "six",
   "tablib",
   "urllib3",
-  "waldur_client",
+  "waldur_api_client",
   "yaml",
   "zammad_py",
   "drf_spectacular",

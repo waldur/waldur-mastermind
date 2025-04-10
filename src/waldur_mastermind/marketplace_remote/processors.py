@@ -4,6 +4,21 @@ from django.conf import settings
 from django.db import transaction
 from django.urls import reverse
 from django.utils.functional import cached_property
+from waldur_api_client.api.marketplace_orders import marketplace_orders_create
+from waldur_api_client.api.marketplace_resources import (
+    marketplace_resources_terminate,
+    marketplace_resources_update_limits,
+)
+from waldur_api_client.models.order_create_request import OrderCreateRequest
+from waldur_api_client.models.order_create_request_limits import (
+    OrderCreateRequestLimits,
+)
+from waldur_api_client.models.resource_update_limits_request import (
+    ResourceUpdateLimitsRequest,
+)
+from waldur_api_client.models.resource_update_limits_request_limits import (
+    ResourceUpdateLimitsRequestLimits,
+)
 
 from waldur_core.core.utils import serialize_instance
 from waldur_mastermind.marketplace import models, processors
@@ -12,8 +27,6 @@ from waldur_mastermind.marketplace_remote.tasks import OrderStatePullTask
 
 logger = logging.getLogger(__name__)
 
-ResourceInvertStates = {key: val for val, key in models.Resource.States.CHOICES}
-
 
 class RemoteClientMixin:
     @cached_property
@@ -21,7 +34,7 @@ class RemoteClientMixin:
         return utils.get_client_for_offering(self.order.offering)
 
 
-def build_callback_url(order):
+def build_callback_url(order: models.Order):
     return settings.WALDUR_CORE["MASTERMIND_URL"] + reverse(
         "pull_remote_order", kwargs={"uuid": order.uuid.hex}
     )
@@ -36,23 +49,27 @@ class RemoteCreateResourceProcessor(RemoteClientMixin, processors.BaseOrderProce
         remote_project, _ = utils.get_or_create_remote_project(
             self.order.offering, self.order.project, self.client
         )
-        response = self.client.marketplace_resource_create_order(
-            project_uuid=remote_project["uuid"],
-            offering_uuid=self.order.offering.backend_id,
-            plan_uuid=self.order.plan.backend_id,
-            attributes=self.order.attributes,
-            limits=self.order.limits,
-            callback_url=build_callback_url(self.order),
+        response = marketplace_orders_create.sync(
+            client=self.client,
+            body=OrderCreateRequest(
+                project=f"{self.client._base_url}/projects/{remote_project.uuid.hex}/",
+                offering=f"{self.client._base_url}/marketplace-public-offerings/{self.order.offering.backend_id}/",
+                plan=f"{self.client._base_url}/marketplace-public-offerings/{self.order.offering.backend_id}/plans/{self.order.plan.backend_id}/",
+                attributes=self.order.attributes,
+                limits=OrderCreateRequestLimits(**self.order.limits),
+                callback_url=build_callback_url(self.order),
+                accepting_terms_of_service=True,
+            ),
         )
         # NB: As a backend_id of local Order, uuid of a remote Order is used
-        self.order.backend_id = response["uuid"]
+        self.order.backend_id = response.uuid.hex
         self.order.save()
 
         if settings.WALDUR_AUTH_SOCIAL["ENABLE_EDUTEAMS_SYNC"]:
             utils.push_project_users(
                 self.order.offering,
                 self.order.project,
-                remote_project["uuid"],
+                remote_project.uuid.hex,
             )
 
         transaction.on_commit(
@@ -66,12 +83,14 @@ class RemoteUpdateResourceProcessor(
     RemoteClientMixin, processors.BasicUpdateResourceProcessor
 ):
     def update_limits_process(self, user):
-        response = self.client.marketplace_resource_update_limits_order(
-            self.order.resource.backend_id,
-            self.order.limits,
-            callback_url=build_callback_url(self.order),
+        response = marketplace_resources_update_limits.sync(
+            client=self.client,
+            uuid=self.order.resource.backend_id,
+            body=ResourceUpdateLimitsRequest(
+                limits=ResourceUpdateLimitsRequestLimits(**self.order.limits),
+            ),
         )
-        self.order.backend_id = response
+        self.order.backend_id = response.order_uuid.hex
         self.order.save()
 
         transaction.on_commit(
@@ -86,7 +105,7 @@ class RemoteUpdateResourceProcessor(
 class RemoteDeleteResourceProcessor(
     RemoteClientMixin, processors.BasicDeleteResourceProcessor
 ):
-    def send_request(self, user, resource):
+    def send_request(self, user, resource: models.Resource):
         # Resource is switched to terminated state by caller method
         if not resource.backend_id:
             return True
@@ -102,11 +121,11 @@ class RemoteDeleteResourceProcessor(
             self.order.save()
             return False
 
-        response = self.client.marketplace_resource_terminate_order(
-            self.order.resource.backend_id,
-            callback_url=build_callback_url(self.order),
+        response = marketplace_resources_terminate.sync(
+            client=self.client,
+            uuid=self.order.resource.backend_id,
         )
-        self.order.backend_id = response
+        self.order.backend_id = response.order_uuid.hex
         self.order.save()
 
         transaction.on_commit(

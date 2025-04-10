@@ -1,11 +1,12 @@
 import datetime
 import uuid
-from unittest import mock
 
 from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import test
+from waldur_api_client.models.billing_unit import BillingUnit
 
+import respx
 from waldur_core.core.utils import month_end, month_start, serialize_instance
 from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_mastermind.invoices.models import Invoice, InvoiceItem
@@ -24,13 +25,13 @@ from waldur_mastermind.marketplace_remote.tasks import ResourceInvoicePullTask
 class InvoiceItemPullTest(test.APITransactionTestCase):
     def setUp(self) -> None:
         super().setUp()
-        patcher = mock.patch("waldur_mastermind.marketplace_remote.utils.WaldurClient")
-        self.client_mock = patcher.start()
+        respx.start()
         self.fixture = ProjectFixture()
+        self.api_url = "https://remote-waldur.com"
         offering = OfferingFactory(
             type=PLUGIN_NAME,
             secret_options={
-                "api_url": "https://remote-waldur.com/",
+                "api_url": self.api_url,
                 "token": "valid_token",
                 "customer_uuid": "customer-uuid",
             },
@@ -42,7 +43,7 @@ class InvoiceItemPullTest(test.APITransactionTestCase):
 
     def tearDown(self):
         super().tearDown()
-        mock.patch.stopall()
+        respx.stop()
 
     def get_common_data(self, start=None, end=None, quantity=100):
         now = timezone.now()
@@ -51,7 +52,8 @@ class InvoiceItemPullTest(test.APITransactionTestCase):
         if end is None:
             end = month_end(now)
         return {
-            "unit": "sample-unit",
+            "invoice": f"/api/invoices/{uuid.uuid4().hex}/",
+            "unit": BillingUnit.DAY.value,
             "name": "Fake invoice item",
             "measured_unit": "sample-m-unit",
             "article_code": "",
@@ -63,9 +65,12 @@ class InvoiceItemPullTest(test.APITransactionTestCase):
             "uuid": uuid.uuid4().hex,
         }
 
+    def mock_invoice_items(self, json):
+        respx.get(f"{self.api_url}/api/invoice-items/").respond(200, json=json)
+
     @freeze_time("2021-08-17")
     def test_invoice_is_created_after_pull(self):
-        self.client_mock().list_invoice_items.return_value = []
+        self.mock_invoice_items([])
         today = datetime.date.today()
 
         self.assertEqual(
@@ -93,9 +98,9 @@ class InvoiceItemPullTest(test.APITransactionTestCase):
 
     def test_invoice_items_creation(self):
         item_data = self.get_common_data()
-        self.client_mock().list_invoice_items.return_value = [
-            {"resource_uuid": self.resource.backend_id, **item_data}
-        ]
+        self.mock_invoice_items(
+            [{"resource_uuid": self.resource.backend_id, **item_data}]
+        )
         today = datetime.date.today()
         ResourceInvoicePullTask().run(serialize_instance(self.resource))
         invoice = Invoice.objects.get(
@@ -114,8 +119,9 @@ class InvoiceItemPullTest(test.APITransactionTestCase):
 
     def test_invoice_item_deletion(self):
         item_data = self.get_common_data()
-        self.client_mock().list_invoice_items.return_value = []
+        self.mock_invoice_items([])
         invoice = InvoiceFactory(customer=self.customer)
+        item_data.pop("invoice")
         InvoiceItemFactory(
             invoice=invoice,
             resource=self.resource,
@@ -134,9 +140,12 @@ class InvoiceItemPullTest(test.APITransactionTestCase):
         new_month_end = month_end(timezone.now() + datetime.timedelta(weeks=5))
         new_item_data = self.get_common_data(quantity=new_quantity, end=new_month_end)
         old_item_data = self.get_common_data()
-        self.client_mock().list_invoice_items.return_value = [
-            {"resource_uuid": self.resource.backend_id, **new_item_data}
-        ]
+        old_item_data.pop("invoice")
+
+        self.mock_invoice_items(
+            [{"resource_uuid": self.resource.backend_id, **new_item_data}]
+        )
+
         invoice = InvoiceFactory(customer=self.customer)
         item = InvoiceItemFactory(
             invoice=invoice,

@@ -8,10 +8,24 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.generics import GenericAPIView
 from rest_framework.response import Response
-from waldur_client import WaldurClient, WaldurClientException
+from waldur_api_client.api.customers import customers_list
+from waldur_api_client.api.marketplace_categories import marketplace_categories_list
+from waldur_api_client.api.marketplace_orders import (
+    marketplace_orders_reject_by_consumer,
+)
+from waldur_api_client.api.marketplace_public_offerings import (
+    marketplace_public_offerings_retrieve,
+)
+from waldur_api_client.errors import UnexpectedStatus
+from waldur_api_client.models.customers_list_field_item import CustomersListFieldItem
+from waldur_api_client.models.marketplace_public_offerings_list_field_item import (
+    MarketplacePublicOfferingsListFieldItem,
+)
 
+from httpx import TimeoutException
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import views as core_views
+from waldur_core.core.client import get_waldur_client
 from waldur_core.core.mixins import ReviewMixin
 from waldur_core.core.serializers import EmptySerializer, ReviewCommentSerializer
 from waldur_core.core.utils import is_uuid_like, serialize_instance
@@ -36,7 +50,7 @@ from . import filters, serializers, tasks, utils, utils_sync_remote_offerings
 
 
 class RemoteView(GenericAPIView):
-    """View for handling remote credentials for waldur client."""
+    """View for handling remote credentials for waldur client"""
 
     serializer_class = serializers.RemoteCredentialsSerializer
     filter_backends = []
@@ -46,7 +60,7 @@ class RemoteView(GenericAPIView):
         serializer.is_valid(raise_exception=True)
         api_url = serializer.validated_data["api_url"]
         token = serializer.validated_data["token"]
-        return WaldurClient(api_url, token)
+        return get_waldur_client(api_url, token)
 
 
 class CustomersView(RemoteView):
@@ -57,13 +71,19 @@ class CustomersView(RemoteView):
     )
     def post(self, request, *args, **kwargs):
         client = self.get_client(request)
-        params = {
-            "owned_by_current_user": True,
-            "field": ["uuid", "name", "abbreviation", "phone_number", "email"],
-        }
         try:
-            customers = client.list_customers(params)
-        except WaldurClientException as e:
+            customers = customers_list.sync(
+                client=client,
+                owned_by_current_user=True,
+                field=[
+                    CustomersListFieldItem.UUID,
+                    CustomersListFieldItem.NAME,
+                    CustomersListFieldItem.ABBREVIATION,
+                    CustomersListFieldItem.PHONE_NUMBER,
+                    CustomersListFieldItem.EMAIL,
+                ],
+            )
+        except (UnexpectedStatus, TimeoutException) as e:
             return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
         return Response(customers)
 
@@ -77,8 +97,8 @@ class СategoriesView(RemoteView):
     def post(self, request, *args, **kwargs):
         client = self.get_client(request)
         try:
-            сategories = client.list_marketplace_categories()
-        except WaldurClientException as e:
+            сategories = marketplace_categories_list.sync(client=client)
+        except (UnexpectedStatus, TimeoutException) as e:
             return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
         return Response(сategories)
 
@@ -106,9 +126,15 @@ class OfferingsListView(RemoteView):
             remote_offerings = utils.get_remote_offerings(
                 client,
                 remote_customer_uuid,
-                fields=["uuid", "name", "type", "state", "category_title"],
+                fields=[
+                    MarketplacePublicOfferingsListFieldItem.UUID,
+                    MarketplacePublicOfferingsListFieldItem.NAME,
+                    MarketplacePublicOfferingsListFieldItem.TYPE,
+                    MarketplacePublicOfferingsListFieldItem.STATE,
+                    MarketplacePublicOfferingsListFieldItem.CATEGORY_TITLE,
+                ],
             )
-        except WaldurClientException as e:
+        except (UnexpectedStatus, TimeoutException) as e:
             return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
 
         local_offerings = list(
@@ -120,7 +146,7 @@ class OfferingsListView(RemoteView):
         importable_offerings = [
             offering
             for offering in remote_offerings
-            if offering["uuid"] not in local_offerings
+            if offering.uuid.hex not in local_offerings
         ]
         return Response(importable_offerings)
 
@@ -150,10 +176,10 @@ class OfferingCreateView(RemoteView):
             raise PermissionDenied()
 
         try:
-            remote_offering = client.get_marketplace_public_offering(
-                remote_offering_uuid
+            remote_offering = marketplace_public_offerings_retrieve.sync(
+                client=client, uuid=remote_offering_uuid.hex
             )
-        except WaldurClientException as e:
+        except (UnexpectedStatus, TimeoutException) as e:
             return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
 
         secret_options = {
@@ -257,7 +283,7 @@ class CancelTerminationOrderView(GenericAPIView):
     def get_order(self):
         item_uuid = self.kwargs["uuid"]
         if not is_uuid_like(item_uuid):
-            return Response(status=status.HTTP_400_BAD_REQUEST, data="UUID is invalid.")
+            raise ValidationError("UUID is invalid.")
         qs = models.Order.objects.filter(
             offering__type=PLUGIN_NAME,
             state=models.Order.States.EXECUTING,
@@ -276,8 +302,10 @@ class CancelTerminationOrderView(GenericAPIView):
         client = utils.get_client_for_offering(order.resource.offering)
 
         try:
-            client.marketplace_order_reject_by_consumer(order.backend_id)
-        except WaldurClientException as exc:
+            marketplace_orders_reject_by_consumer.sync_detailed(
+                client=client, uuid=order.backend_id
+            )
+        except (UnexpectedStatus, TimeoutException) as exc:
             raise ValidationError(exc)
         callbacks.sync_order_state(order, models.Order.States.CANCELED)
 

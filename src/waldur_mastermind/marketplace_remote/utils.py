@@ -1,16 +1,67 @@
+import datetime
 import io
 import logging
 from collections import defaultdict
 from decimal import Decimal
 
-import requests
 from django.db.models import Q
-from django.utils import dateparse
 from django.utils.dateparse import parse_datetime
 from rest_framework.exceptions import ValidationError
-from waldur_client import WaldurClient, WaldurClientException
+from waldur_api_client.api.marketplace_orders import (
+    marketplace_orders_list,
+    marketplace_orders_retrieve,
+)
+from waldur_api_client.api.marketplace_provider_resources import (
+    marketplace_provider_resources_team_list,
+)
+from waldur_api_client.api.marketplace_public_offerings import (
+    marketplace_public_offerings_list,
+)
+from waldur_api_client.api.marketplace_resources import (
+    marketplace_resources_retrieve,
+    marketplace_resources_update_options,
+)
+from waldur_api_client.api.projects import (
+    projects_add_user,
+    projects_create,
+    projects_delete_user,
+    projects_list,
+    projects_list_users_list,
+    projects_partial_update,
+    projects_update_user,
+)
+from waldur_api_client.api.remote_eduteams import (
+    remote_eduteams as get_remote_eduteams_user,
+)
+from waldur_api_client.errors import UnexpectedStatus
+from waldur_api_client.models.base_public_plan import BasePublicPlan
+from waldur_api_client.models.marketplace_orders_list_field_item import (
+    MarketplaceOrdersListFieldItem,
+)
+from waldur_api_client.models.offering_component import OfferingComponent
+from waldur_api_client.models.order_details import (
+    OrderDetails,
+)
+from waldur_api_client.models.patched_project_request import (
+    PatchedProjectRequest,
+)
+from waldur_api_client.models.project import Project
+from waldur_api_client.models.project_request import (
+    ProjectRequest,
+)
+from waldur_api_client.models.public_offering_details import PublicOfferingDetails
+from waldur_api_client.models.remote_eduteams_request_request import (
+    RemoteEduteamsRequestRequest as RemoteEduteamsRequest,
+)
+from waldur_api_client.models.resource_options_request import ResourceOptionsRequest
+from waldur_api_client.models.user_role_create_request import UserRoleCreateRequest
+from waldur_api_client.models.user_role_delete_request import UserRoleDeleteRequest
+from waldur_api_client.models.user_role_update_request import UserRoleUpdateRequest
 
+import httpx
+from httpx import TimeoutException
 from waldur_auth_social.models import ProviderChoices
+from waldur_core.core.client import get_waldur_client
 from waldur_core.core.utils import get_system_robot
 from waldur_core.media import models as media_models
 from waldur_core.media import utils as media_utils
@@ -27,7 +78,7 @@ from waldur_mastermind.marketplace_remote.constants import (
     PLAN_FIELDS,
 )
 
-from . import PLUGIN_NAME
+from . import PLUGIN_NAME, models
 
 logger = logging.getLogger(__name__)
 
@@ -37,24 +88,38 @@ INVALID_RESOURCE_STATES = (
 )
 
 
-def get_client_for_offering(offering):
-    options = offering.secret_options
-    api_url = options["api_url"]
-    token = options["token"]
-    return WaldurClient(api_url, token)
+def get_client_for_offering(offering: marketplace_models.Offering):
+    return get_waldur_client(
+        offering.secret_options["api_url"],
+        offering.secret_options["token"],
+    )
 
 
-def get_project_backend_id(project):
+def get_remote_user_uuid(client, username: str) -> str:
+    return get_remote_eduteams_user.sync(
+        client=client, body=RemoteEduteamsRequest(cuid=username)
+    ).uuid.hex
+
+
+def get_project_backend_id(project: structure_models.Project):
     return f"{project.customer.uuid}_{project.uuid}"
 
 
-def pull_fields(fields, local_object, remote_object):
+def extract_fields(fields: list[str], remote_dict: dict):
+    extracted_fields = {}
+    for field in fields:
+        if field in remote_dict:
+            extracted_fields[field] = remote_dict[field]
+    return extracted_fields
+
+
+def pull_fields(fields: list[str], local_object, remote_dict):
     changed_fields = set()
     for field in fields:
-        if field not in remote_object:
+        if field not in remote_dict:
             logger.warning(f'Remote offering does not expose field "{field}"')
             continue
-        remote_value = remote_object[field]
+        remote_value = remote_dict[field]
         local_value = getattr(local_object, field)
 
         if isinstance(local_value, int | float | Decimal):
@@ -74,7 +139,7 @@ def pull_fields(fields, local_object, remote_object):
     return changed_fields
 
 
-def get_remote_offerings_for_project(project):
+def get_remote_offerings_for_project(project: structure_models.Project):
     offering_ids = (
         marketplace_models.Resource.objects.filter(
             project=project,
@@ -101,7 +166,7 @@ def get_projects_with_remote_offerings():
             project = structure_models.Project.available_objects.get(pk=pair["project"])
         except structure_models.Project.DoesNotExist:
             logger.debug(
-                f'Skipping resource from a removed project with PK {pair["project"]}'
+                f"Skipping resource from a removed project with PK {pair['project']}"
             )
             continue
         offering = marketplace_models.Offering.objects.get(pk=pair["offering"])
@@ -124,7 +189,7 @@ def get_projects_with_remote_offerings():
             project = structure_models.Project.available_objects.get(pk=pair["project"])
         except structure_models.Project.DoesNotExist:
             logger.debug(
-                f'Skipping order from a removed project with PK {pair["project"]}'
+                f"Skipping order from a removed project with PK {pair['project']}"
             )
             continue
         offering = marketplace_models.Offering.objects.get(pk=pair["offering"])
@@ -133,11 +198,15 @@ def get_projects_with_remote_offerings():
     return projects_with_offerings
 
 
-def get_remote_project(offering, project, client=None):
+def get_remote_project(
+    offering: marketplace_models.Offering,
+    project: structure_models.Project,
+    client=None,
+) -> Project | None:
     if not client:
         client = get_client_for_offering(offering)
     remote_project_uuid = get_project_backend_id(project)
-    remote_projects = client.list_projects({"backend_id": remote_project_uuid})
+    remote_projects = projects_list.sync(client=client, backend_id=remote_project_uuid)
     if len(remote_projects) == 0:
         return None
     elif len(remote_projects) == 1:
@@ -146,26 +215,38 @@ def get_remote_project(offering, project, client=None):
         raise ValidationError("There are multiple projects in remote Waldur.")
 
 
-def create_remote_project(offering, project, client=None):
+def create_remote_project(
+    offering: marketplace_models.Offering,
+    project: structure_models.Project,
+    client=None,
+):
     if not client:
         client = get_client_for_offering(offering)
     options = offering.secret_options
     remote_customer_uuid = options["customer_uuid"]
     remote_project_name = f"{project.customer.name} / {project.name}"
     remote_project_uuid = get_project_backend_id(project)
-    return client.create_project(
-        customer_uuid=remote_customer_uuid,
-        name=remote_project_name,
-        backend_id=remote_project_uuid,
-        description=project.description,
-        end_date=project.end_date and project.end_date.isoformat(),
-        oecd_fos_2007_code=project.oecd_fos_2007_code,
-        is_industry=project.is_industry,
-        type_uuid=project.type and project.type.uuid.hex,
+    return projects_create.sync(
+        client=client,
+        body=ProjectRequest(
+            customer=f"{client._base_url}/api/customers/{remote_customer_uuid}/",
+            name=remote_project_name,
+            backend_id=remote_project_uuid,
+            description=project.description,
+            end_date=project.end_date,
+            oecd_fos_2007_code=project.oecd_fos_2007_code,
+            is_industry=project.is_industry,
+            type_=project.type
+            and f"{client._base_url}/api/project-types/{project.type.uuid.hex}/",
+        ),
     )
 
 
-def get_or_create_remote_project(offering, project, client=None):
+def get_or_create_remote_project(
+    offering: marketplace_models.Offering,
+    project: structure_models.Project,
+    client=None,
+) -> tuple[Project, bool]:
     remote_project = get_remote_project(offering, project, client)
     if not remote_project:
         remote_project = create_remote_project(offering, project, client)
@@ -174,33 +255,39 @@ def get_or_create_remote_project(offering, project, client=None):
         return remote_project, False
 
 
-def update_remote_project(request):
+def update_remote_project(request: models.ProjectUpdateRequest):
     client = get_client_for_offering(request.offering)
     remote_project_name = f"{request.project.customer.name} / {request.new_name}"
     remote_project_uuid = get_project_backend_id(request.project)
-    remote_projects = client.list_projects({"backend_id": remote_project_uuid})
+    remote_projects = projects_list.sync(client=client, backend_id=remote_project_uuid)
     if len(remote_projects) == 1:
         remote_project = remote_projects[0]
         payload = dict(
             name=remote_project_name,
             description=request.new_description,
-            end_date=request.new_end_date and request.new_end_date.isoformat(),
+            end_date=request.new_end_date,
             oecd_fos_2007_code=request.new_oecd_fos_2007_code,
             is_industry=request.new_is_industry,
         )
-        if any(remote_project.get(key) != value for key, value in payload.items()):
-            client.update_project(project_uuid=remote_project["uuid"], **payload)
+        if any(getattr(remote_project, key) != value for key, value in payload.items()):
+            projects_partial_update.sync(
+                client=client,
+                uuid=remote_project.uuid.hex,
+                body=PatchedProjectRequest(**payload),
+            )
 
 
-def sync_resource_team(resource):
+def sync_resource_team(resource: marketplace_models.Resource):
     offering = resource.offering
     client = get_client_for_offering(resource.offering)
-    project = resource.project
+    project: structure_models.Project = resource.project
     remote_project, _ = get_or_create_remote_project(offering, project, client)
 
-    remote_team = client.marketplace_resource_get_team(resource.uuid.hex)
+    remote_team = marketplace_provider_resources_team_list.sync(
+        client=client, uuid=resource.uuid.hex
+    )
     remote_permissions = {
-        (record["username"], record["role"]): record["uuid"] for record in remote_team
+        (record.username, record.role): record.uuid.hex for record in remote_team
     }
 
     local_roles = UserRole.objects.filter(scope=project, is_active=True)
@@ -212,7 +299,7 @@ def sync_resource_team(resource):
 
     for username, role_name in stale_permissions:
         user_uuid = remote_permissions[username, role_name]
-        remove_project_permission(client, remote_project["uuid"], user_uuid, role_name)
+        remove_project_permission(client, remote_project.uuid.hex, user_uuid, role_name)
 
     new_and_existing_users = (
         set(local_permissions) | set(remote_permissions)
@@ -221,59 +308,77 @@ def sync_resource_team(resource):
     for username, role_name in new_and_existing_users:
         user_uuid = remote_permissions.get((username, role_name))
         if user_uuid is None:
-            user_uuid = client.get_remote_eduteams_user(username)["uuid"]
+            user_uuid = get_remote_user_uuid(client, username)
+
         expiration_time = local_permissions[username, role_name].expiration_time
         create_or_update_project_permission(
-            client, remote_project["uuid"], user_uuid, role_name, expiration_time
+            client, remote_project.uuid.hex, user_uuid, role_name, expiration_time
         )
 
 
 def create_or_update_project_permission(
-    client, remote_project_uuid, remote_user_uuid, role_name, expiration_time
+    client,
+    remote_project_uuid: str,
+    remote_user_uuid: str,
+    role_name: str,
+    expiration_time: datetime.datetime,
 ):
-    permissions = client.get_project_permissions(
-        remote_project_uuid, remote_user_uuid, role_name
+    permissions = projects_list_users_list.sync(
+        client=client, uuid=remote_project_uuid, user=remote_user_uuid, role=role_name
     )
     if not permissions:
-        return client.create_project_permission(
-            remote_project_uuid,
-            remote_user_uuid,
-            role_name,
-            expiration_time.isoformat() if expiration_time else expiration_time,
+        return projects_add_user.sync(
+            client=client,
+            uuid=remote_project_uuid,
+            body=UserRoleCreateRequest(
+                user=remote_user_uuid, role=role_name, expiration_time=expiration_time
+            ),
         )
     permission = permissions[0]
-    old_expiration_time = (
-        dateparse.parse_datetime(permission["expiration_time"])
-        if permission["expiration_time"]
-        else permission["expiration_time"]
-    )
-    if old_expiration_time != expiration_time:
-        return client.update_project_permission(
-            remote_project_uuid,
-            remote_user_uuid,
-            role_name,
-            expiration_time.isoformat() if expiration_time else expiration_time,
+    if permission.expiration_time != expiration_time:
+        return projects_update_user.sync(
+            client=client,
+            uuid=remote_project_uuid,
+            body=UserRoleUpdateRequest(
+                user=remote_user_uuid,
+                role=role_name,
+                expiration_time=expiration_time,
+            ),
         )
 
 
-def remove_project_permission(client, remote_project_uuid, remote_user_uuid, role_name):
-    remote_permissions = client.get_project_permissions(
-        remote_project_uuid, remote_user_uuid, role_name
+def remove_project_permission(
+    client, remote_project_uuid: str, remote_user_uuid: str, role_name: str
+):
+    remote_permissions = projects_list_users_list.sync(
+        client=client, uuid=remote_project_uuid, user=remote_user_uuid, role=role_name
     )
     if remote_permissions:
-        client.remove_project_permission(
-            remote_project_uuid, remote_user_uuid, role_name
+        projects_delete_user.sync_detailed(
+            client=client,
+            uuid=remote_project_uuid,
+            body=UserRoleDeleteRequest(
+                user=remote_user_uuid,
+                role=role_name,
+            ),
         )
         return True
     return False
 
 
-def sync_project_permission(grant, project, role_name, user, expiration_time):
+def sync_project_permission(
+    grant,
+    project: structure_models.Project,
+    role_name: str,
+    user,
+    expiration_time: datetime.datetime,
+):
     for offering in get_remote_offerings_for_project(project):
         client = get_client_for_offering(offering)
         try:
-            remote_user_uuid = client.get_remote_eduteams_user(user.username)["uuid"]
-        except WaldurClientException as e:
+            remote_user_uuid = get_remote_user_uuid(client, user.username)
+
+        except (UnexpectedStatus, TimeoutException) as e:
             logger.debug(
                 f"Unable to fetch remote user {user.username} in offering {offering}: {e}"
             )
@@ -281,8 +386,8 @@ def sync_project_permission(grant, project, role_name, user, expiration_time):
 
         try:
             remote_project, _ = get_or_create_remote_project(offering, project, client)
-            remote_project_uuid = remote_project["uuid"]
-        except WaldurClientException as e:
+            remote_project_uuid = remote_project.uuid.hex
+        except (UnexpectedStatus, TimeoutException) as e:
             logger.debug(
                 f"Unable to create remote project {project} in offering {offering}: {e}"
             )
@@ -297,7 +402,7 @@ def sync_project_permission(grant, project, role_name, user, expiration_time):
                     role_name,
                     expiration_time,
                 )
-            except WaldurClientException as e:
+            except (UnexpectedStatus, TimeoutException) as e:
                 logger.debug(
                     f"Unable to create permission for user [{remote_user_uuid}] with role {role_name} (until {expiration_time}) "
                     f"and project [{remote_project_uuid}] in offering [{offering}]: {e}"
@@ -307,22 +412,26 @@ def sync_project_permission(grant, project, role_name, user, expiration_time):
                 remove_project_permission(
                     client, remote_project_uuid, remote_user_uuid, role_name
                 )
-            except WaldurClientException as e:
+            except (UnexpectedStatus, TimeoutException) as e:
                 logger.debug(
                     f"Unable to remove permission for user [{remote_user_uuid}] with role {role_name} "
                     f"and project [{remote_project_uuid}] in offering [{offering}]: {e}"
                 )
 
 
-def push_project_users(offering, project, remote_project_uuid):
+def push_project_users(
+    offering: marketplace_models.Offering,
+    project: structure_models.Project,
+    remote_project_uuid: str,
+):
     client = get_client_for_offering(offering)
 
     permissions = collect_local_permissions(offering, project)
 
     for username, (role_name, expiration_time) in permissions.items():
         try:
-            remote_user_uuid = client.get_remote_eduteams_user(username)["uuid"]
-        except WaldurClientException as e:
+            remote_user_uuid = get_remote_user_uuid(client, username)
+        except (UnexpectedStatus, TimeoutException) as e:
             logger.debug(
                 f"Unable to fetch remote user {username} in offering {offering}: {e}"
             )
@@ -336,7 +445,7 @@ def push_project_users(offering, project, remote_project_uuid):
                 role_name,
                 expiration_time,
             )
-        except WaldurClientException as e:
+        except (UnexpectedStatus, TimeoutException) as e:
             logger.debug(
                 f"Unable to create permission for user [{remote_user_uuid}] with role {role_name} "
                 f"and project [{remote_project_uuid}] in offering [{offering}]: {e}"
@@ -345,7 +454,7 @@ def push_project_users(offering, project, remote_project_uuid):
 
 def collect_local_permissions(
     offering: marketplace_models.Offering, project: structure_models.Project
-):
+) -> dict[str, tuple[str, datetime.datetime | None]]:
     permissions = defaultdict()
     for permission in get_permissions(project).filter(
         Q(role__is_system_role=True)
@@ -376,23 +485,35 @@ def collect_local_permissions(
     return permissions
 
 
-def parse_resource_state(serialized_state):
+def parse_resource_state(serialized_state: str) -> int:
     return {v: k for (k, v) in marketplace_models.Resource.States.CHOICES}[
         serialized_state
     ]
 
 
-def parse_order_state(serialized_state):
+def parse_order_state(serialized_state: str) -> int:
     return {v: k for (k, v) in marketplace_models.Order.States.CHOICES}[
         serialized_state
     ]
 
 
-def parse_order_type(serialized_state):
+def parse_order_type(serialized_state: str) -> int:
     return {v: k for (k, v) in marketplace_models.Order.Types.CHOICES}[serialized_state]
 
 
-def import_order(remote_order, project, resource, remote_order_uuid):
+def parse_offering_state(serialized_state: str) -> int:
+    return {
+        state_name: state_id for state_id, state_name in OfferingStates.CHOICES
+    }.get(serialized_state, OfferingStates.DRAFT)
+
+
+def import_order(
+    remote_order: OrderDetails,
+    project: structure_models.Project,
+    resource: marketplace_models.Resource,
+    remote_order_uuid,
+):
+    remote_order = remote_order.to_dict()
     consumer_reviewed_at = None
     if (
         "consumer_reviewed_at" in remote_order
@@ -419,46 +540,57 @@ def import_order(remote_order, project, resource, remote_order_uuid):
 
 
 def get_new_order_ids(client, backend_id):
-    remote_orders = client.list_orders({"resource_uuid": backend_id, "field": ["uuid"]})
+    remote_orders = marketplace_orders_list.sync(
+        client=client,
+        resource_uuid=backend_id,
+        field=[MarketplaceOrdersListFieldItem.UUID],
+    )
     local_order_ids = set(
         marketplace_models.Order.objects.filter(
             resource__backend_id=backend_id
         ).values_list("backend_id", flat=True)
     )
-    remote_order_ids = {order["uuid"] for order in remote_orders}
+    remote_order_ids = {order.uuid.hex for order in remote_orders}
     return remote_order_ids - local_order_ids
 
 
-def import_resource_orders(resource):
+def import_resource_orders(
+    resource: marketplace_models.Resource,
+) -> list[marketplace_models.Order]:
     if not resource.backend_id:
         return []
     client = get_client_for_offering(resource.offering)
     new_order_ids = get_new_order_ids(client, resource.backend_id)
     imported_orders = []
     for order_id in new_order_ids:
-        remote_order = client.get_order(order_id)
+        remote_order = marketplace_orders_retrieve.sync(client=client, uuid=order_id)
         local_order = import_order(remote_order, resource.project, resource, order_id)
         imported_orders.append(local_order)
     return imported_orders
 
 
-def pull_resource_state(local_resource):
+def pull_resource_state(local_resource: marketplace_models.Resource):
     if not local_resource.backend_id:
         return
     client = get_client_for_offering(local_resource.offering)
-    remote_resource = client.get_marketplace_resource(local_resource.backend_id)
-    remote_state = parse_resource_state(remote_resource["state"])
+    remote_resource = marketplace_resources_retrieve.sync(
+        client=client, uuid=local_resource.backend_id
+    )
+    remote_state = parse_resource_state(remote_resource.state.value)
     if local_resource.state != remote_state:
         local_resource.state = remote_state
         local_resource.save(update_fields=["state"])
 
 
-def import_offering_components(local_offering, remote_offering):
+def import_offering_components(
+    local_offering: marketplace_models.Offering,
+    remote_components: list[OfferingComponent],
+):
     local_components_map = {}
-    for remote_component in remote_offering["components"]:
+    for remote_component in remote_components:
         local_component = marketplace_models.OfferingComponent.objects.create(
             offering=local_offering,
-            **{key: remote_component[key] for key in OFFERING_COMPONENT_FIELDS},
+            **extract_fields(OFFERING_COMPONENT_FIELDS, remote_component.to_dict()),
         )
         local_components_map[local_component.type] = local_component
         logger.info(
@@ -470,15 +602,19 @@ def import_offering_components(local_offering, remote_offering):
     return local_components_map
 
 
-def import_plans(local_offering, remote_offering, local_components_map):
-    for remote_plan in remote_offering["plans"]:
+def import_plans(
+    local_offering: marketplace_models.Offering,
+    remote_plans: list[BasePublicPlan],
+    local_components_map,
+):
+    for remote_plan in remote_plans:
         local_plan = marketplace_models.Plan.objects.create(
             offering=local_offering,
-            backend_id=remote_plan["uuid"],
-            **{key: remote_plan[key] for key in PLAN_FIELDS},
+            backend_id=remote_plan.uuid.hex,
+            **extract_fields(PLAN_FIELDS, remote_plan.to_dict()),
         )
-        remote_prices = remote_plan["prices"]
-        remote_quotas = remote_plan["quotas"]
+        remote_prices = remote_plan.prices.to_dict()
+        remote_quotas = remote_plan.quotas.to_dict()
         components = set(remote_prices.keys()) | set(remote_quotas.keys())
         for component_type in components:
             plan_component = marketplace_models.PlanComponent.objects.create(
@@ -496,11 +632,10 @@ def import_plans(local_offering, remote_offering, local_components_map):
 
 
 def import_offering_thumbnail(
-    local_offering: marketplace_models.Offering, remote_offering
+    local_offering: marketplace_models.Offering, thumbnail_url: str
 ):
-    thumbnail_url = remote_offering["thumbnail"]
     if thumbnail_url:
-        thumbnail_resp = requests.get(thumbnail_url)
+        thumbnail_resp = httpx.get(thumbnail_url)
         content = io.BytesIO(thumbnail_resp.content)
         file_name = local_offering.uuid.hex
         if local_offering.thumbnail:
@@ -519,7 +654,7 @@ def import_offering_thumbnail(
     local_offering.save(update_fields=["thumbnail"])
 
 
-def push_resource_options(local_resource):
+def push_resource_options(local_resource: marketplace_models.Resource):
     offering = local_resource.offering
     client = get_client_for_offering(offering)
     try:
@@ -527,18 +662,18 @@ def push_resource_options(local_resource):
             f"Pushing resource {local_resource} with backend ID {local_resource.backend_id} and"
             f" options {local_resource.options} to remote Waldur"
         )
-        client.marketplace_resource_update_options(
-            local_resource.backend_id, local_resource.options
+        marketplace_resources_update_options.sync(
+            client=client,
+            uuid=local_resource.backend_id,
+            body=ResourceOptionsRequest(options=local_resource.options),
         )
-    except WaldurClientException as exc:
+    except (UnexpectedStatus, TimeoutException) as exc:
         logger.error("Unable to push resource options: %s", exc)
 
 
-def get_remote_categories_names(client):
-    return client.list_marketplace_categories(filters={"field": ["uuid", "title"]})
-
-
-def get_remote_offerings(client, remote_customer_uuid, category_uuid=None, fields=None):
+def get_remote_offerings(
+    client, remote_customer_uuid: str, category_uuid=None, fields=None
+):
     whitelist_types = [
         offering_type
         for offering_type in plugins.manager.get_offering_types()
@@ -548,61 +683,43 @@ def get_remote_offerings(client, remote_customer_uuid, category_uuid=None, field
     params = {
         "shared": True,
         "allowed_customer_uuid": remote_customer_uuid,
-        "type": whitelist_types,
+        "type_": whitelist_types,
     }
     if category_uuid:
         params.update({"category_uuid": category_uuid})
 
     if fields:
         params.update({"field": fields})
-    return client.list_marketplace_public_offerings(params)
+    return marketplace_public_offerings_list.sync(client=client, **params)
 
 
 def upsert_offering(
-    remote_offering: dict,
+    remote_offering: PublicOfferingDetails,
     local_customer: structure_models.Customer,
     local_category: marketplace_models.Category,
     secret_options: dict,
-):
-    # Create mapping from OfferingStates.CHOICES
-    STATE_MAPPING = {
-        state_name: state_id for state_id, state_name in OfferingStates.CHOICES
-    }
-
-    # Extract only the fields that exist in remote_offering
-    offering_fields = {
-        key: remote_offering[key] for key in OFFERING_FIELDS if key in remote_offering
-    }
-
+) -> marketplace_models.Offering:
     # Map the state if it exists in remote_offering
-    if "state" in remote_offering:
-        remote_state = remote_offering["state"].title()  # Normalize state string
-        state = STATE_MAPPING.get(
-            remote_state, OfferingStates.DRAFT
-        )  # Default to DRAFT if unknown state
+    if hasattr(remote_offering, "state") and remote_offering.state:
+        state = parse_offering_state(remote_offering.state.value)
     else:
         state = OfferingStates.DRAFT  # Default state if not provided
 
     local_offering, _ = marketplace_models.Offering.objects.update_or_create(
         type=PLUGIN_NAME,
-        backend_id=remote_offering["uuid"],
+        backend_id=remote_offering.uuid.hex,
         customer=local_customer,
         defaults={
             "state": state,
-            **offering_fields,
+            **extract_fields(OFFERING_FIELDS, remote_offering.to_dict()),
             "category": local_category,
             "secret_options": secret_options,
             "billable": True,
         },
     )
-    # Update related data
-    update_offering_related_data(local_offering, remote_offering)
-    return local_offering
-
-
-def update_offering_related_data(existing_offering, remote_offering):
-    import_offering_thumbnail(existing_offering, remote_offering)
+    import_offering_thumbnail(local_offering, remote_offering.thumbnail)
     local_components_map = import_offering_components(
-        existing_offering, remote_offering
+        local_offering, remote_offering.components
     )
-    import_plans(existing_offering, remote_offering, local_components_map)
+    import_plans(local_offering, remote_offering.plans, local_components_map)
+    return local_offering

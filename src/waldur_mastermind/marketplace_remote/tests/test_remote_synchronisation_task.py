@@ -5,6 +5,7 @@ from unittest import mock
 
 from rest_framework import test
 
+import respx
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_remote import (
@@ -16,10 +17,10 @@ from waldur_mastermind.marketplace_remote import (
 from . import factories, fixtures
 
 
-@mock.patch("waldur_mastermind.marketplace_remote.utils.get_remote_offerings")
 class RemoteOfferingsSyncTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceRemoteFixture()
+        self.api_url = self.fixture.remote_synchronisation.api_url
 
         self.fixture.remote_local_category.remote_category
         current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -28,29 +29,41 @@ class RemoteOfferingsSyncTest(test.APITransactionTestCase):
         with open(self.offering_file_path, encoding="utf-8") as file:
             self.remote_offering = json.load(file)
 
-        self.remote_categories = [
-            {
-                "title": "Hosting",
-                "uuid": self.fixture.remote_local_category.remote_category.hex,
-            },
-        ]
-
         mock.patch(
             "waldur_mastermind.marketplace_remote.utils.import_offering_thumbnail"
         ).start()
         mock.patch(
             "waldur_mastermind.marketplace_remote.utils.import_offering_thumbnail"
         ).start()
-        self.remote_category_mock = mock.patch(
-            "waldur_mastermind.marketplace_remote.utils.get_remote_categories_names"
-        ).start()
-        self.remote_category_mock.return_value = self.remote_categories
-
+        respx.start()
+        self.mock_marketplace_categories()
         mock.patch("waldur_mastermind.marketplace_remote.utils.import_plans").start()
 
     def tearDown(self):
+        respx.stop()
         super().tearDown()
         mock.patch.stopall()
+
+    def mock_marketplace_categories(self):
+        respx.get(f"{self.api_url}/api/marketplace-categories/").respond(
+            200,
+            json=[
+                {
+                    "title": "Hosting",
+                    "uuid": self.fixture.remote_local_category.remote_category.hex,
+                },
+            ],
+        )
+
+    def mock_public_offerings(self, offerings):
+        respx.get(f"{self.api_url}/api/marketplace-public-offerings/").respond(
+            200, json=offerings
+        )
+
+    def mock_offering_categories(self, offerings):
+        respx.get(f"{self.api_url}/api/public-offerings-categories/").respond(
+            200, json=offerings
+        )
 
     def _create_local_offering(self, **kwargs):
         params = dict(
@@ -58,7 +71,7 @@ class RemoteOfferingsSyncTest(test.APITransactionTestCase):
             type=PLUGIN_NAME,
             backend_id=self.remote_offering["uuid"],
             secret_options={
-                "api_url": self.fixture.remote_synchronisation.api_url,
+                "api_url": self.api_url,
                 "token": self.fixture.remote_synchronisation.token,
                 "customer_uuid": self.fixture.remote_synchronisation.remote_organization_uuid.hex,
             },
@@ -68,8 +81,8 @@ class RemoteOfferingsSyncTest(test.APITransactionTestCase):
         offering = marketplace_factories.OfferingFactory(**params)
         return offering
 
-    def test_sync_updates_existing_offerings(self, mock_get_remote_offerings):
-        mock_get_remote_offerings.return_value = [self.remote_offering]
+    def test_sync_updates_existing_offerings(self):
+        self.mock_public_offerings([self.remote_offering])
         offering = self._create_local_offering()
         tasks.remote_offerings_sync()
         offering.refresh_from_db()
@@ -80,8 +93,8 @@ class RemoteOfferingsSyncTest(test.APITransactionTestCase):
         )
         self.assertEqual(offering.name, self.remote_offering["name"])
 
-    def test_sync_creates_new_offerings(self, mock_get_remote_offerings):
-        mock_get_remote_offerings.return_value = [self.remote_offering]
+    def test_sync_creates_new_offerings(self):
+        self.mock_public_offerings([self.remote_offering])
 
         tasks.remote_offerings_sync()
 
@@ -96,8 +109,10 @@ class RemoteOfferingsSyncTest(test.APITransactionTestCase):
             ).exists()
         )
 
-    def test_sync_handles_errors(self, mock_get_remote_offerings):
-        mock_get_remote_offerings.side_effect = Exception("Test error")
+    def test_sync_handles_errors(self):
+        respx.get(f"{self.api_url}/api/marketplace-public-offerings/").respond(
+            500, text="Internal Server Error"
+        )
 
         tasks.remote_offerings_sync()
 
@@ -107,13 +122,12 @@ class RemoteOfferingsSyncTest(test.APITransactionTestCase):
             models.RemoteSynchronisation.States.ERRED,
         )
         self.assertEqual(
-            "Test error", self.fixture.remote_synchronisation.error_message
+            "Internal Server Error", self.fixture.remote_synchronisation.error_message
         )
 
-    def test_sync_removes_stale_offerings(self, mock_get_remote_offerings):
-        mock_get_remote_offerings.return_value = [self.remote_offering]
+    def test_sync_removes_stale_offerings(self):
         self.remote_offering["state"] = "Archived"
-        self.remote_offering["state_code"] = marketplace_models.Offering.States.ARCHIVED
+        self.mock_public_offerings([self.remote_offering])
 
         stale_offering = self._create_local_offering()
 
@@ -130,10 +144,9 @@ class RemoteOfferingsSyncTest(test.APITransactionTestCase):
             models.RemoteSynchronisation.States.OK,
         )
 
-    def test_category_of_remote_offering_has_been_changed(
-        self, mock_get_remote_offerings
-    ):
-        mock_get_remote_offerings.return_value = []
+    def test_category_of_remote_offering_has_been_changed(self):
+        self.mock_public_offerings([])
+        self.mock_offering_categories([])
         stale_offering = self._create_local_offering()
 
         tasks.remote_offerings_sync()
@@ -149,8 +162,8 @@ class RemoteOfferingsSyncTest(test.APITransactionTestCase):
             models.RemoteSynchronisation.States.OK,
         )
 
-    def test_category_of_sync_has_been_changed(self, mock_get_remote_offerings):
-        mock_get_remote_offerings.return_value = [self.remote_offering]
+    def test_category_of_sync_has_been_changed(self):
+        self.mock_public_offerings([self.remote_offering])
         stale_offering = self._create_local_offering(
             state=marketplace_models.Offering.States.ARCHIVED,
             category=marketplace_factories.CategoryFactory(),
@@ -172,10 +185,8 @@ class RemoteOfferingsSyncTest(test.APITransactionTestCase):
             models.RemoteSynchronisation.States.OK,
         )
 
-    def test_two_service_providers_import_the_same_offerings(
-        self, mock_get_remote_offerings
-    ):
-        mock_get_remote_offerings.return_value = [self.remote_offering]
+    def test_two_service_providers_import_the_same_offerings(self):
+        self.mock_public_offerings([self.remote_offering])
         remote_organization_uuid = (
             self.fixture.remote_synchronisation.remote_organization_uuid
         )
@@ -202,9 +213,7 @@ class RemoteOfferingsSyncTest(test.APITransactionTestCase):
             2,
         )
 
-    def test_imports_multiple_offerings_into_same_local_category(
-        self, mock_get_remote_offerings
-    ):
+    def test_imports_multiple_offerings_into_same_local_category(self):
         with open(self.offering_file_path, encoding="utf-8") as file:
             second_remote_offering = json.load(file)
 
@@ -212,10 +221,7 @@ class RemoteOfferingsSyncTest(test.APITransactionTestCase):
         second_remote_offering["uuid"] = uuid.uuid4().hex
         second_remote_offering["category_uuid"] = uuid.uuid4().hex
 
-        mock_get_remote_offerings.return_value = [
-            self.remote_offering,
-            second_remote_offering,
-        ]
+        self.mock_public_offerings([self.remote_offering, second_remote_offering])
 
         tasks.remote_offerings_sync()
 
@@ -223,6 +229,7 @@ class RemoteOfferingsSyncTest(test.APITransactionTestCase):
         self.assertEqual(
             self.fixture.remote_synchronisation.state,
             models.RemoteSynchronisation.States.OK,
+            self.fixture.remote_synchronisation.error_message,
         )
         self.assertTrue(
             marketplace_models.Offering.objects.filter(
