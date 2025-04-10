@@ -2336,30 +2336,41 @@ class OrderDetailsSerializer(BaseOrderSerializer):
         )
 
     consumer_reviewed_by = serializers.ReadOnlyField(
-        source="consumer_reviewed_by.username"
+        source="consumer_reviewed_by.username",
+        allow_null=True,
     )
     consumer_reviewed_by_full_name = serializers.ReadOnlyField(
-        source="consumer_reviewed_by.full_name"
+        source="consumer_reviewed_by.full_name",
+        allow_null=True,
     )
     consumer_reviewed_by_username = serializers.ReadOnlyField(
-        source="consumer_reviewed_by.username"
+        source="consumer_reviewed_by.username",
+        allow_null=True,
     )
-    consumer_reviewed_at = serializers.ReadOnlyField()
+    consumer_reviewed_at = serializers.ReadOnlyField(
+        allow_null=True,
+    )
     provider_reviewed_by = serializers.ReadOnlyField(
-        source="provider_reviewed_by.username"
+        source="provider_reviewed_by.username",
+        allow_null=True,
     )
     provider_reviewed_by_full_name = serializers.ReadOnlyField(
-        source="provider_reviewed_by.full_name"
+        source="provider_reviewed_by.full_name",
+        allow_null=True,
     )
     provider_reviewed_by_username = serializers.ReadOnlyField(
-        source="provider_reviewed_by.username"
+        source="provider_reviewed_by.username",
+        allow_null=True,
     )
-    provider_reviewed_at = serializers.ReadOnlyField()
+    provider_reviewed_at = serializers.ReadOnlyField(
+        allow_null=True,
+    )
 
     created_by_username = serializers.ReadOnlyField(source="created_by.username")
     created_by_full_name = serializers.ReadOnlyField(source="created_by.full_name")
     created_by_civil_number = serializers.ReadOnlyField(
-        source="created_by.civil_number"
+        source="created_by.civil_number",
+        allow_null=True,
     )
 
     customer_name = serializers.ReadOnlyField(source="project.customer.name")
@@ -2373,14 +2384,34 @@ class OrderDetailsSerializer(BaseOrderSerializer):
     project_description = serializers.ReadOnlyField(source="project.description")
     project_slug = serializers.ReadOnlyField(source="project.slug")
 
-    old_plan_name = serializers.ReadOnlyField(source="old_plan.name")
-    new_plan_name = serializers.ReadOnlyField(source="plan.name")
+    old_plan_name = serializers.ReadOnlyField(
+        source="old_plan.name",
+        allow_null=True,
+    )
+    new_plan_name = serializers.ReadOnlyField(
+        source="plan.name",
+        allow_null=True,
+    )
 
-    old_plan_uuid = serializers.UUIDField(read_only=True, source="old_plan.uuid")
-    new_plan_uuid = serializers.UUIDField(read_only=True, source="plan.uuid")
+    old_plan_uuid = serializers.UUIDField(
+        read_only=True,
+        source="old_plan.uuid",
+        allow_null=True,
+    )
+    new_plan_uuid = serializers.UUIDField(
+        read_only=True,
+        source="plan.uuid",
+        allow_null=True,
+    )
 
-    old_cost_estimate = serializers.ReadOnlyField(source="resource.cost")
-    new_cost_estimate = serializers.ReadOnlyField(source="cost")
+    old_cost_estimate = serializers.ReadOnlyField(
+        source="resource.cost",
+        allow_null=True,
+    )
+    new_cost_estimate = serializers.ReadOnlyField(
+        source="cost",
+        allow_null=True,
+    )
 
     can_terminate = serializers.SerializerMethodField()
     termination_comment = serializers.ReadOnlyField()
