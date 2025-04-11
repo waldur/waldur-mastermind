@@ -32,6 +32,7 @@ from django.urls import resolve
 from django.utils import timezone
 from django.utils.crypto import get_random_string
 from requests.packages.urllib3 import exceptions
+from rest_framework.serializers import ValidationError
 from rest_framework.settings import api_settings
 
 import textile
@@ -318,6 +319,13 @@ def order_with_nulls(queryset, field):
         return queryset.order_by(F(col).desc(nulls_last=True))
     else:
         return queryset.order_by(F(col).asc(nulls_first=True))
+
+
+def validate_uuid(value):
+    try:
+        return str(uuid.UUID(value))
+    except ValueError:
+        raise ValidationError("Invalid UUID format")
 
 
 def is_uuid_like(val):

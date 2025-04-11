@@ -204,7 +204,7 @@ class RancherPluginOptionsSerializer(serializers.Serializer):
 
 class ManagedRancherPluginOptionsSerializer(serializers.Serializer):
     openstack_offering_uuid_list = serializers.ListSerializer(
-        child=serializers.UUIDField(),
+        child=serializers.CharField(validators=[core_utils.validate_uuid]),
         required=False,
         help_text="List of UUID of OpenStack offerings where tenant can be created",
     )
