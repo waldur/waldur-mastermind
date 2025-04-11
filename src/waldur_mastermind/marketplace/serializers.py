@@ -294,7 +294,11 @@ class ScriptSecretOptionsSerializer(serializers.Serializer):
 class RemoteServiceSecretOptionsSerializer(serializers.Serializer):
     api_url = serializers.CharField(required=False, help_text="API URL")
     token = serializers.CharField(required=False, help_text="Waldur access token")
-    customer_uuid = serializers.UUIDField(required=False, help_text="Organization UUID")
+    customer_uuid = serializers.CharField(
+        validators=[core_utils.validate_uuid],
+        required=False,
+        help_text="Organization UUID",
+    )
 
 
 class ManagedRancherSecretOptionsSerializer(serializers.Serializer):
