@@ -23,5 +23,5 @@ class CommandsTestCase(TestCase):
             "spectacular",
             file="waldur-openapi-schema.yaml",
             fail_on_warn=True,
-            stdout=result,
+            stderr=result,
         )
