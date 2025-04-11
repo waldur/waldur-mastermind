@@ -315,8 +315,10 @@ class ManagedRancherSecretOptionsSerializer(serializers.Serializer):
         required=False,
     )
 
-    customer_uuid = serializers.UUIDField(
-        required=False, help_text="UUID of organization where project can be created"
+    customer_uuid = serializers.CharField(
+        validators=[core_utils.validate_uuid],
+        required=False,
+        help_text="UUID of organization where project can be created",
     )
 
 
