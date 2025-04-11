@@ -47,7 +47,6 @@ class MarketplaceRancherConfig(AppConfig):
             create_resource_processor=processors.ManagedRancherCreateProcessor,
             delete_resource_processor=processors.ManagedRancherDeleteProcessor,
             components=TENANT_COMPONENTS,
-            service_type=RancherConfig.service_name,
         )
 
         marketplace_handlers.connect_resource_metadata_handlers(rancher_models.Cluster)
