@@ -1459,7 +1459,7 @@ class OpenStackSubNetSerializer(structure_serializers.BaseResourceActionSerializ
         fields = super().get_fields()
 
         # Make cidr read-only on update
-        if self.instance:
+        if self.instance and "cidr" in fields:
             fields["cidr"].read_only = True
 
         return fields
