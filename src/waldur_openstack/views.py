@@ -255,6 +255,23 @@ class SecurityGroupViewSet(structure_views.ResourceViewSet):
         serializers.OpenStackSecurityGroupRuleListUpdateSerializer
     )
 
+    @extend_schema(
+        description="Delete security group",
+        request=None,
+        responses=None,
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def unlink(self, request, uuid=None):
+        """
+        Delete security group from database without scheduling a task or checking the state.
+        This intended to be used for removing security groups that are stuck.
+        """
+        obj = self.get_object()
+        obj.delete()
+        return response.Response(status=status.HTTP_204_NO_CONTENT)
+
+    unlink_permissions = [structure_permissions.is_staff]
+
 
 class ServerGroupViewSet(structure_views.ResourceViewSet):
     queryset = models.ServerGroup.objects.all().order_by("tenant__name")
