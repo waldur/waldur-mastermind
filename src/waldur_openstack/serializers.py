@@ -1126,6 +1126,35 @@ class OpenStackFixedIpSerializer(serializers.Serializer):
     ip_address = serializers.IPAddressField()
     subnet_id = serializers.CharField()
 
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        subnet_id = attrs.get("subnet_id")
+        port_ip = attrs.get("ip_address")
+
+        try:
+            subnet = models.SubNet.objects.get(backend_id=subnet_id)
+        except models.SubNet.DoesNotExist:
+            raise serializers.ValidationError(_("Subnet with this ID does not exist."))
+
+        ip_addr = ip_address(port_ip)
+
+        if subnet.allocation_pools:
+            in_allocation_pool = False
+            for pool in subnet.allocation_pools:
+                start_ip = ip_address(pool["start"])
+                end_ip = ip_address(pool["end"])
+                if start_ip <= ip_addr <= end_ip:
+                    in_allocation_pool = True
+                    break
+
+            if not in_allocation_pool:
+                logger.info(
+                    "IP address %s must be within one of the allocation pools.",
+                    ip_address,
+                )
+
+        return attrs
+
 
 @extend_schema_field(OpenStackFixedIpSerializer(many=True))
 class OpenStackFixedIpField(serializers.JSONField):
@@ -1634,7 +1663,7 @@ class OpenStackNestedPortSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
     allowed_address_pairs = OpenStackAllowedAddressPairField(read_only=True)
-    fixed_ips = OpenStackFixedIpField(read_only=True)
+    fixed_ips = OpenStackFixedIpField(required=False)
 
     class Meta:
         model = models.Port
@@ -1651,7 +1680,6 @@ class OpenStackNestedPortSerializer(
             "device_owner",
         )
         read_only_fields = (
-            "fixed_ips",
             "mac_address",
             "subnet_uuid",
             "subnet_name",
@@ -1671,15 +1699,21 @@ class OpenStackNestedPortSerializer(
             },
         }
 
+    def validate_fixed_ips(self, value):
+        OpenStackFixedIpSerializer(data=value, many=True).is_valid(raise_exception=True)
+        return value
+
     def to_internal_value(self, data):
         internal_value = super().to_internal_value(data)
         subnet: models.SubNet = internal_value["subnet"]
+        fixed_ips = internal_value.get("fixed_ips")
         return models.Port(
             subnet=subnet,
             network=subnet.network,
             tenant=subnet.tenant,
             project=subnet.project,
             service_settings=subnet.service_settings,
+            fixed_ips=fixed_ips,
         )
 
 

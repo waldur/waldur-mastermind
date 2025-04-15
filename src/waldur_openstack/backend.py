@@ -4562,6 +4562,10 @@ class OpenStackBackend(ServiceBackend):
             ],
             "security_groups": security_groups,
         }
+
+        if port.fixed_ips:
+            port_payload["fixed_ips"] = port.fixed_ips
+
         try:
             backend_port = neutron.create_port({"port": port_payload})["port"]
         except neutron_exceptions.NeutronClientException as e:

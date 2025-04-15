@@ -838,7 +838,11 @@ class Instance(
             floating_ips = floating_ips.union(
                 set(self.directly_connected_ips.split(","))
             )
-        return list(floating_ips - set(self.internal_ips))
+        return (
+            list(floating_ips - set(self.internal_ips))
+            if self.internal_ips
+            else list(floating_ips)
+        )
 
     @property
     def external_address(self) -> set[str]:
@@ -846,11 +850,10 @@ class Instance(
 
     @property
     def internal_ips(self):
-        return [
-            val["ip_address"]
-            for ip_list in self.ports.values_list("fixed_ips", flat=True)
-            for val in ip_list
-        ]
+        for ip_list in self.ports.values_list("fixed_ips", flat=True):
+            if ip_list:
+                return [val["ip_address"] for val in ip_list]
+        return []
 
     @property
     def size(self) -> int:
