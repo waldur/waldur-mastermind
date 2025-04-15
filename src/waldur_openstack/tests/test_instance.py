@@ -170,6 +170,15 @@ class InstanceCreateTest(test.APITransactionTestCase):
         response = self.create_instance(self.get_valid_data())
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
+    def test_user_can_define_fixed_ips(self):
+        post_data = self.get_valid_data()
+        fixed_ips = [{"ip_address": "192.168.0.1", "subnet_id": self.subnet.backend_id}]
+        post_data["ports"][0]["fixed_ips"] = fixed_ips
+        response = self.create_instance(post_data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        instance = models.Instance.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(instance.ports.first().fixed_ips, fixed_ips)
+
     def test_user_can_define_instance_subnets(self):
         subnet = self.fixture.subnet
         data = self.get_valid_data(
