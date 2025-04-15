@@ -37,6 +37,16 @@ def register_in(router):
     router.register(
         r"rancher-services", views.ServiceViewSet, basename="rancher-service"
     )
+    router.register(
+        r"keycloak-groups",
+        views.KeycloakGroupViewSet,
+        basename="keycloak-group",
+    )
+    router.register(
+        r"keycloak-user-group-memberships",
+        views.KeycloakUserGroupMembershipViewSet,
+        basename="keycloak-user-group-membership",
+    )
 
 
 urlpatterns = [

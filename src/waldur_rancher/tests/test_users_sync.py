@@ -77,7 +77,7 @@ class UserSyncTest(test.APITransactionTestCase):
         mock_backend_class().client.get_projects_roles.return_value = [
             {
                 "projectId": project.backend_id,
-                "roleTemplateId": enums.ProjectRoleId.project_owner,
+                "roleTemplateId": enums.ProjectRoles.project_owner,
                 "id": "project_role_id",
                 "userId": "backend_id",
             }

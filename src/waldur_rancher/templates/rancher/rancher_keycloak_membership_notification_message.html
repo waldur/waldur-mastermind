@@ -1,0 +1,33 @@
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Access to Rancher resource</title>
+</head>
+<body>
+<p>Hello,</p>
+
+<p>You have been granted access to a Rancher resource in our system.</p>
+
+<p>Details:
+<ul>
+    <li>{{ scope_type }}: {{ scope_name }}</li>
+    <li>Role: {{ role }}</li>
+</ul>
+</p>
+
+<p>You can access Rancher at: <a href="{{ rancher_url }}">{{ rancher_url }}</a></p>
+
+{% if not user_exists %}
+<p><strong>Important note:</strong> Your user account does not appear to exist in our system yet.
+Your permissions will be automatically activated within {{ sync_frequency_minutes }} minutes after you log in to Rancher for the first time.</p>
+{% endif %}
+
+<p>If you have any questions or issues accessing the system, please contact your administrator.</p>
+<p>
+    If you have any additional questions, please contact support.
+</p>
+<p>
+    Email: {{ support_email }}
+</p>
+</body>
+</html>

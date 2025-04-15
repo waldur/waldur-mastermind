@@ -28,7 +28,12 @@ from waldur_mastermind.proposal.enums import (
     ProposalStates,
     RequestedOfferingStates,
 )
-from waldur_rancher.enums import RANCHER_TEMPLATE_QUESTION_TYPE
+from waldur_rancher.enums import (
+    RANCHER_TEMPLATE_QUESTION_TYPE,
+    CatalogScopeTypeChoices,
+    KeycloakGroupScopeType,
+    KeycloakUserGroupMembershipState,
+)
 
 encoding = locale.getpreferredencoding()
 if encoding.lower() != "utf-8":
@@ -1038,5 +1043,8 @@ SPECTACULAR_SETTINGS = {
         "RequestedOfferingStates": RequestedOfferingStates.CHOICES,
         "RequestTypes": RequestTypes.VALUES,
         "RancherTemplateQuestionType": RANCHER_TEMPLATE_QUESTION_TYPE,
+        "RancherKeycloakGroupScopeType": KeycloakGroupScopeType.CHOICES,
+        "KeycloakUserGroupMembershipState": KeycloakUserGroupMembershipState.CHOICES,
+        "RancherCatalogScopeType": CatalogScopeTypeChoices,
     },
 }

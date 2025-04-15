@@ -90,6 +90,7 @@ stomp-py = "^8.2.0"
 setuptools = "^78.1.0"
 hvac = "^2.3.0"
 waldur-api-client = {git = "https://github.com/waldur/py-client.git"}
+python-keycloak = "^5.5.0"
 
 [tool.poetry.group.dev.dependencies]
 djangorestframework-stubs = {extras = ["compatible-mypy"], version = "^3.14.5"}

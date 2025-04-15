@@ -1,12 +1,14 @@
 import logging
 
 import yaml
+from constance import config
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
+from waldur_core.core import utils as core_utils
 from waldur_core.core.models import User
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.fixtures import ProjectRole
@@ -20,6 +22,10 @@ from waldur_openstack.utils import (
 )
 from waldur_openstack.views import InstanceViewSet
 from waldur_rancher.backend import RancherBackend
+from waldur_rancher.enums import (
+    KeycloakGroupScopeType,
+    KeycloakUserGroupMembershipState,
+)
 
 from . import exceptions, models
 
@@ -623,3 +629,32 @@ def get_management_tenant(cluster):
         pass
 
     return tenant
+
+
+def send_user_membership_notification_email(
+    user: models.KeycloakUserGroupMembership, scope, rancher_url, sync_frequency_minutes
+):
+    context = {
+        "rancher_url": rancher_url,
+        "support_email": config.SITE_EMAIL,
+        "scope_type": user.group.scope_type.capitalize(),  # 'cluster' or 'project'
+        "scope_name": scope.name,
+        "role": user.group.role,
+        "user_exists": user.state == KeycloakUserGroupMembershipState.ACTIVE,
+        "sync_frequency_minutes": sync_frequency_minutes,
+    }
+
+    core_utils.broadcast_mail(
+        "rancher", "rancher_keycloak_membership_notification", context, [user.email]
+    )
+
+
+def get_keycloak_group_scope_and_settings(group: models.KeycloakGroup):
+    scope_type = group.scope_type
+    scope_uuid = group.scope_uuid
+    if scope_type == KeycloakGroupScopeType.CLUSTER:
+        scope = models.Cluster.objects.get(uuid=scope_uuid)
+        return scope, scope.settings
+    else:
+        scope = models.Project.objects.get(uuid=scope_uuid)
+        return scope, scope.cluster.settings

@@ -1,4 +1,5 @@
 import logging
+import traceback
 
 from celery import shared_task
 from django.conf import settings
@@ -7,6 +8,7 @@ from django.contrib.contenttypes.models import ContentType
 from rest_framework import status
 from rest_framework.reverse import reverse
 
+from keycloak import exceptions as keycloak_exceptions
 from waldur_core.core import tasks as core_tasks
 from waldur_core.core import utils as core_utils
 from waldur_core.core.exceptions import RuntimeStateException
@@ -14,7 +16,11 @@ from waldur_core.structure.signals import resource_imported
 from waldur_mastermind.common import utils as common_utils
 from waldur_openstack import models as openstack_models
 from waldur_openstack.views import MarketplaceInstanceViewSet
-from waldur_rancher.enums import LONGHORN_NAME, LONGHORN_NAMESPACE
+from waldur_rancher.enums import (
+    LONGHORN_NAME,
+    LONGHORN_NAMESPACE,
+    KeycloakUserGroupMembershipState,
+)
 from waldur_rancher.utils import SyncUser
 
 from . import backend, exceptions, models, utils
@@ -329,3 +335,48 @@ class CreateVaultCredentialsTask(core_tasks.Task):
         token = cluster_tokens[0]["token"]
 
         vault_backend.create_or_update_secret(secret_name, {"token": token})
+
+
+@shared_task(name="waldur_rancher.sync_keycloak_users")
+def sync_keycloak_users():
+    pending_users_memberships = models.KeycloakUserGroupMembership.objects.filter(
+        state=KeycloakUserGroupMembershipState.PENDING
+    )
+
+    for user_membership in pending_users_memberships:
+        try:
+            group = user_membership.group
+            _, settings = utils.get_keycloak_group_scope_and_settings(group)
+            keycloak = backend.KeycloakBackend(settings)
+            backend_user = keycloak.find_user_by_username(user_membership.username)
+            if backend_user is None:
+                logger.info(
+                    "The user %s does not exist in Keycloak yet, skipping adding user to the group %s (%s)",
+                    user_membership.username,
+                    group.name,
+                    group.backend_id,
+                )
+            else:
+                logger.info(
+                    "Adding user %s to the group %s",
+                    user_membership.username,
+                    group.backend_id,
+                )
+                keycloak.add_user_to_group(backend_user["id"], group.backend_id)
+                user_membership.activate()
+            user_membership.error_message = ""
+            user_membership.error_traceback = ""
+            user_membership.refresh_last_checked()
+            user_membership.save()
+        except keycloak_exceptions.KeycloakError as e:
+            # Log error but keep as pending to retry
+            logger.error(
+                "Failed to assign role in Keycloak for user %s in group %s: %s",
+                user_membership.username,
+                user_membership.group.backend_id,
+                e,
+            )
+            user_membership.error_message = str(e)
+            user_membership.error_traceback = traceback.format_exc()
+            user_membership.refresh_last_checked()
+            user_membership.save()

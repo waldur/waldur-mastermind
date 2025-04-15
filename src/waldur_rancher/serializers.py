@@ -1,5 +1,3 @@
-from typing import Literal
-
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core import validators as django_validators
@@ -18,7 +16,12 @@ from waldur_core.structure.models import VirtualMachine
 from waldur_openstack import models as openstack_models
 from waldur_openstack import serializers as openstack_serializers
 from waldur_openstack.serializers import _validate_instance_security_groups
-from waldur_rancher.enums import RANCHER_TEMPLATE_QUESTION_TYPE
+from waldur_rancher.enums import (
+    RANCHER_TEMPLATE_QUESTION_TYPE,
+    CatalogScopeType,
+    KeycloakGroupScopeType,
+    NodeRoleType,
+)
 
 from . import models, utils, validators
 
@@ -36,6 +39,12 @@ class RancherServiceSettingsSerializer(structure_serializers.ServiceOptionsSeria
             "vault_port",
             "vault_token",
             "vault_verify",
+            "keycloak_url",
+            "keycloak_realm",
+            "keycloak_user_realm",
+            "keycloak_username",
+            "keycloak_password",
+            "keycloak_sync_frequency",
         )
 
     backend_url = serializers.CharField(
@@ -119,6 +128,51 @@ class RancherServiceSettingsSerializer(structure_serializers.ServiceOptionsSeria
     vault_tls_verify = serializers.BooleanField(
         source="options.vault_tls_verify",
         help_text=_("Whether to verify the Vault server certificate"),
+        required=False,
+        default=True,
+    )
+
+    keycloak_url = serializers.CharField(
+        source="options.keycloak_url",
+        help_text=_("URL of the Keycloak server"),
+        required=False,
+    )
+
+    keycloak_realm = serializers.CharField(
+        source="options.keycloak_realm",
+        help_text=_("Keycloak realm for Rancher"),
+        required=False,
+    )
+
+    keycloak_user_realm = serializers.CharField(
+        source="options.keycloak_user_realm",
+        help_text=_("Keycloak user realm for auth"),
+        default="master",
+        required=False,
+    )
+
+    keycloak_username = serializers.CharField(
+        source="options.keycloak_username",
+        help_text=_("Username of the Keycloak integration user"),
+        required=False,
+    )
+
+    keycloak_password = serializers.CharField(
+        source="options.keycloak_password",
+        help_text=_("Password of the Keycloak integration user"),
+        required=False,
+    )
+
+    keycloak_sync_frequency = serializers.IntegerField(
+        source="options.keycloak_sync_frequency",
+        help_text=_("Frequency in minutes for syncing Keycloak users"),
+        required=False,
+        default=15,
+    )
+
+    keycloak_ssl_verify = serializers.BooleanField(
+        source="options.keycloak_ssl_verify",
+        help_text=_("Indicates whether verify SSL certificates"),
         required=False,
         default=True,
     )
@@ -960,7 +1014,7 @@ class RancherClusterTemplateNodeSerializer(serializers.HyperlinkedModelSerialize
 
     roles = serializers.SerializerMethodField()
 
-    def get_roles(self, node) -> list[Literal["controlplane", "etcd", "worker"]]:
+    def get_roles(self, node) -> list[NodeRoleType]:
         roles = []
         if node.controlplane_role:
             roles.append("controlplane")
@@ -1190,3 +1244,136 @@ class TemplateVersionSerializer(serializers.Serializer):
     readme = serializers.CharField(read_only=True)
     app_readme = serializers.CharField(read_only=True)
     questions = RancherTemplateQuestionSerializer(many=True, read_only=True)
+
+
+class KeycloakGroupSerializer(serializers.HyperlinkedModelSerializer):
+    scope_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = models.KeycloakGroup
+        fields = (
+            "uuid",
+            "url",
+            "name",
+            "backend_id",
+            "scope_type",
+            "scope_uuid",
+            "scope_name",
+            "role",
+            "created",
+            "modified",
+        )
+        read_only_fields = ("uuid", "url", "created", "modified", "backend_id", "name")
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "keycloak-group-detail",
+            },
+        }
+
+    def get_scope_name(self, obj) -> str:
+        """Get the name of the cluster or project"""
+        scope_type = obj.scope_type
+        scope_uuid = obj.scope_uuid
+        if scope_type == KeycloakGroupScopeType.CLUSTER:
+            try:
+                return models.Cluster.objects.get(uuid=scope_uuid).name
+            except models.Cluster.DoesNotExist:
+                return None
+        elif obj.scope_type == KeycloakGroupScopeType.PROJECT:
+            try:
+                return models.Project.objects.get(uuid=scope_uuid).name
+            except models.Project.DoesNotExist:
+                return None
+        return None
+
+    def validate(self, attrs):
+        scope_type = attrs.get("scope_type")
+        scope_uuid = attrs.get("scope_uuid")
+        role = attrs.get("role")
+
+        # Validate that the scope exists
+        if scope_type == KeycloakGroupScopeType.CLUSTER:
+            try:
+                # Validate role for clusters
+                if role not in [r[0] for r in models.ClusterRole.CHOICES]:
+                    raise serializers.ValidationError(
+                        _("Invalid role for cluster: {}. Valid roles are: {}").format(
+                            role, ", ".join([r[0] for r in models.ClusterRole.CHOICES])
+                        )
+                    )
+            except models.Cluster.DoesNotExist:
+                raise serializers.ValidationError(
+                    _("Cluster with UUID {} does not exist.").format(scope_uuid)
+                )
+
+        # Check if assignment already exists
+        if models.KeycloakGroup.objects.filter(
+            scope_type=scope_type,
+            scope_uuid=scope_uuid,
+            role=role,
+        ).exists():
+            raise serializers.ValidationError(_("This keycloak group already exists."))
+
+        return attrs
+
+
+class KeycloakUserGroupMembershipSerializer(serializers.HyperlinkedModelSerializer):
+    group = serializers.HyperlinkedRelatedField(
+        view_name="keycloak-group-detail",
+        lookup_field="uuid",
+        queryset=models.KeycloakGroup.objects.all(),
+    )
+    group_name = serializers.CharField(source="group.name", read_only=True)
+    group_role = serializers.CharField(source="group.role", read_only=True)
+    group_scope_type = serializers.SerializerMethodField()
+
+    class Meta:
+        model = models.KeycloakUserGroupMembership
+        fields = (
+            "uuid",
+            "url",
+            "username",
+            "email",
+            "group",
+            "group_name",
+            "group_role",
+            "group_scope_type",
+            "state",
+            "created",
+            "modified",
+            "last_checked",
+            "error_message",
+            "error_traceback",
+        )
+        read_only_fields = (
+            "uuid",
+            "state",
+            "created",
+            "modified",
+            "last_checked",
+            "error_message",
+            "error_traceback",
+        )
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "keycloak-user-group-membership-detail",
+            },
+        }
+
+    def get_group_scope_type(self, obj) -> CatalogScopeType:
+        return obj.group.scope_type
+
+    def validate(self, attrs):
+        group = attrs.get("group")
+        # Check if assignment already exists
+        if models.KeycloakUserGroupMembership.objects.filter(
+            username=attrs["username"],
+            group=group,
+        ).exists():
+            raise serializers.ValidationError(
+                _("This keycloak user group membership already exists.")
+            )
+
+        return attrs
