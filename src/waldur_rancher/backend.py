@@ -9,6 +9,9 @@ from django.db.models import Q
 from django.utils.functional import cached_property
 
 import hvac
+from hvac import exceptions as vault_exceptions
+from keycloak import KeycloakAdmin
+from keycloak import exceptions as keycloak_exceptions
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.media.utils import guess_image_extension
@@ -45,6 +48,16 @@ class RancherBackend(ServiceBackend):
         "private_registry_user": None,
         "private_registry_password": None,
         "management_tenant_access_port": 443,
+        "vault_host": None,
+        "vault_port": "8200",
+        "vault_token": "root",
+        "vault_verify": True,
+        "keycloak_url": "http://localhost:8080/auth/",
+        "keycloak_realm": "Waldur",
+        "keycloak_user_realm": "master",
+        "keycloak_username": "admin",
+        "keycloak_password": "admin",
+        "keycloak_sync_frequency": 15,
     }
 
     def __init__(self, settings):
@@ -1518,7 +1531,7 @@ class VaultBackend:
                 raise VaultException(
                     f"Vault server responded with {response.status_code} code: {response.json()}"
                 )
-        except Exception as e:
+        except vault_exceptions.VaultError as e:
             logger.error("Unable to create a vault policy %s, reason: %s", name, e)
             raise
 
@@ -1539,7 +1552,7 @@ class VaultBackend:
                 raise VaultException(
                     f"Vault server responded with {response.status_code} code: {response.json()}"
                 )
-        except Exception as e:
+        except vault_exceptions.VaultError as e:
             logger.error("Unable to create a Vault role %s, reason: %s", role_name, e)
             raise
 
@@ -1548,7 +1561,7 @@ class VaultBackend:
             logger.info("Reading role ID for %s role", role_name)
             role_id_data = self.client.auth.approle.read_role_id(role_name=role_name)
             return role_id_data["data"]["role_id"]
-        except Exception as e:
+        except vault_exceptions.VaultError as e:
             logger.error(
                 "Unable to read an ID of the Vault role %s, reason: %s", role_name, e
             )
@@ -1561,7 +1574,7 @@ class VaultBackend:
                 role_name=role_name
             )
             return secret_id_data["data"]["secret_id"]
-        except Exception as e:
+        except vault_exceptions.VaultError as e:
             logger.error(
                 "Unable to get client ID for the Vault role %s, reason: %s",
                 role_name,
@@ -1577,6 +1590,122 @@ class VaultBackend:
                 secret=secret,
             )
             return secret_data
-        except Exception as e:
+        except vault_exceptions.VaultError as e:
             logger.error("Unable to create a Vault secret %s, reason: %s", path, e)
             raise
+
+
+class KeycloakBackend:
+    def __init__(self, settings):
+        # Initialize Keycloak client using settings from Rancher settings
+        keycloak_url = settings.get_option("keycloak_url")
+        keycloak_realm = settings.get_option("keycloak_realm")
+        keycloak_user_realm = settings.get_option("keycloak_user_realm") or "master"
+        keycloak_username = settings.get_option("keycloak_username")
+        keycloak_password = settings.get_option("keycloak_password")
+        keycloak_verify = settings.get_option("keycloak_ssl_verify")
+        keycloak_verify = keycloak_verify if keycloak_verify is not None else True
+
+        # Set up Keycloak client
+        self.keycloak = KeycloakAdmin(
+            server_url=keycloak_url,
+            user_realm_name=keycloak_user_realm,
+            realm_name=keycloak_realm,
+            username=keycloak_username,
+            password=keycloak_password,
+            verify=keycloak_verify,
+        )
+
+    def find_user_by_username(self, username):
+        """Find a user by their username in Keycloak"""
+        users = self.keycloak.get_users({"username": username})
+        return users[0] if users else None
+
+    def get_group(self, group_id):
+        """
+        Fetching group data from Keycloak
+        """
+        try:
+            return self.keycloak.get_group(group_id)
+        except keycloak_exceptions.KeycloakError as e:
+            logger.error("Failed to fetch the group %s in Keycloak: %s", group_id, e)
+            raise
+
+    def create_group(self, group_name: str, parent_id: str = None):
+        """
+        Creating group in Keycloak
+        """
+        try:
+            # Try to find group
+            groups = self.keycloak.get_groups({"search": group_name})
+            group = next((g for g in groups if g["name"] == group_name), None)
+
+            if group:
+                logger.info(
+                    "The group %s already exists, skipping creation", group_name
+                )
+            else:
+                logger.info("Creating a group %s, parent %s", group_name, parent_id)
+                payload = {"name": group_name}
+                if parent_id is None:
+                    group_id = self.keycloak.create_group(payload)
+                else:
+                    group_id = self.keycloak.create_group(payload, parent=parent_id)
+                group = {"id": group_id}
+            return group
+
+        except keycloak_exceptions.KeycloakError as e:
+            logger.error("Failed to create the group %s in Keycloak: %s", group_name, e)
+            raise
+
+    def delete_group(self, group_id):
+        """
+        Delete group from Keycloak
+        """
+        try:
+            # Try to find group
+            group = self.get_group(group_id)
+            if group:
+                logger.info(
+                    "Deleting group %s (%s) in Keycloak", group["name"], group_id
+                )
+                self.keycloak.delete_group(group_id)
+            else:
+                logger.info("The group %s is already deleted in Keycloak", group_id)
+        except keycloak_exceptions.KeycloakError as e:
+            logger.error("Failed to delete the group %s in Keycloak: %s", group_id, e)
+            raise
+
+    def add_user_to_group(self, user_id, group_id):
+        """
+        Add user to the Keycloak group
+        """
+        try:
+            logger.info("Adding user %s to group %s", user_id, group_id)
+            self.keycloak.group_user_add(user_id, group_id)
+            return True
+        except keycloak_exceptions.KeycloakError as e:
+            logger.error(
+                "Failed to add user %s to group %s in Keycloak: %s",
+                user_id,
+                group_id,
+                e,
+            )
+            return False
+
+    def remove_user_from_group(self, user_id, group_id):
+        """
+        Remove user from the Keycloak group
+        """
+        try:
+            logger.info("Removing user %s from group %s", user_id, group_id)
+            self.keycloak.group_user_remove(user_id, group_id)
+            return True
+        except keycloak_exceptions.KeycloakError as e:
+            logger.error(
+                "Failed to revoke user %s role in Keycloak group %s: %s",
+                user_id,
+                group_id,
+                e,
+            )
+            return False

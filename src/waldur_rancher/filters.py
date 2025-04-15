@@ -186,3 +186,25 @@ class ServiceFilter(structure_filters.BaseResourceFilter):
 
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.Service
+
+
+class KeycloakGroupFilter(django_filters.FilterSet):
+    scope_uuid = django_filters.UUIDFilter(field_name="scope_uuid")
+    scope_type = django_filters.CharFilter(field_name="scope_type")
+    role = django_filters.CharFilter(field_name="role")
+
+    class Meta:
+        model = models.KeycloakGroup
+        fields = (
+            "scope_uuid",
+            "scope_type",
+            "role",
+        )
+
+
+class KeycloakUserGroupMembershipFilter(django_filters.FilterSet):
+    group_uuid = django_filters.UUIDFilter(field_name="group_uuid")
+
+    class Meta:
+        model = models.KeycloakUserGroupMembership
+        fields = ("group_uuid",)

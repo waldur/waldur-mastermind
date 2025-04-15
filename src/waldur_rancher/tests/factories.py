@@ -175,5 +175,5 @@ class RancherUserProjectLinkFactory(factory.django.DjangoModelFactory):
 
     user = factory.SubFactory(RancherUserFactory)
     project = factory.SubFactory(ProjectFactory)
-    role = enums.ProjectRoleId.project_owner
+    role = enums.ProjectRoles.project_owner
     backend_id = factory.Sequence(lambda n: "rancher-user-project-link-%s" % n)

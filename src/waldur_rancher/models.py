@@ -1,12 +1,13 @@
 import logging
-from typing import Literal
 from urllib.parse import urljoin
 
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import ArrayField
 from django.db import models
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+from django_fsm import FSMField, transition
 from model_utils import FieldTracker
 from model_utils.models import TimeStampedModel
 
@@ -15,6 +16,11 @@ from waldur_core.core.models import BackendMixin
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.models import BaseResource, ServiceSettings
 from waldur_openstack import models as openstack_models
+from waldur_rancher.enums import (
+    CatalogScopeType,
+    KeycloakGroupScopeType,
+    KeycloakUserGroupMembershipState,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -216,7 +222,7 @@ class Catalog(
         return self.scope.get_backend()
 
     @property
-    def scope_type(self) -> Literal["global", "cluster", "project"]:
+    def scope_type(self) -> CatalogScopeType:
         if isinstance(self.scope, ServiceSettings):
             return "global"
         elif isinstance(self.scope, Cluster):
@@ -462,3 +468,40 @@ class Service(SettingsMixin, core_models.RuntimeStateMixin, BaseResource):
 
     def __str__(self):
         return self.name
+
+
+class KeycloakGroup(
+    core_models.UuidMixin,
+    core_models.BackendMixin,
+    TimeStampedModel,
+):
+    name = models.CharField(_("Group name"), max_length=150, blank=True)
+    scope_type = models.CharField(
+        choices=KeycloakGroupScopeType.CHOICES, max_length=10, db_index=True
+    )
+    scope_uuid = models.UUIDField(help_text=_("UUID of the cluster or project"))
+    role = models.CharField(max_length=100)
+
+
+class KeycloakUserGroupMembership(
+    core_models.UuidMixin, TimeStampedModel, core_models.ErrorMessageMixin
+):
+    username = models.CharField(max_length=255, help_text=_("Keycloak user username"))
+    email = models.EmailField(help_text=_("User's email for notifications"))
+    state = FSMField(
+        choices=KeycloakUserGroupMembershipState.CHOICES,
+        default=KeycloakUserGroupMembershipState.PENDING,
+    )
+    last_checked = models.DateTimeField(auto_now=True)
+    group = models.ForeignKey(to=KeycloakGroup, on_delete=models.CASCADE)
+
+    @transition(
+        field=state,
+        source=KeycloakUserGroupMembershipState.PENDING,
+        target=KeycloakUserGroupMembershipState.ACTIVE,
+    )
+    def activate(self):
+        pass
+
+    def refresh_last_checked(self):
+        self.last_checked = timezone.now()

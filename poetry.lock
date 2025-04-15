@@ -19,6 +19,18 @@ python-dateutil = ">=2.1.0,<3"
 requests = ">=2.0.0,<3"
 
 [[package]]
+name = "aiofiles"
+version = "24.1.0"
+description = "File support for asyncio."
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "aiofiles-24.1.0-py3-none-any.whl", hash = "sha256:b4ec55f4195e3eb5d7abd1bf7e061763e864dd4954231fb8539a0ef8bb8260e5"},
+    {file = "aiofiles-24.1.0.tar.gz", hash = "sha256:22a075c9e5a3810f0c2e48f3008c94d68c65d763b9b03857924c99e57355166c"},
+]
+
+[[package]]
 name = "amqp"
 version = "5.3.1"
 description = "Low-level AMQP client for Python (fork of amqplib)."
@@ -100,6 +112,18 @@ typing-extensions = {version = ">=4", markers = "python_version < \"3.11\""}
 
 [package.extras]
 tests = ["mypy (>=0.800)", "pytest", "pytest-asyncio"]
+
+[[package]]
+name = "async-property"
+version = "0.2.2"
+description = "Python decorator for async properties."
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "async_property-0.2.2-py2.py3-none-any.whl", hash = "sha256:8924d792b5843994537f8ed411165700b27b2bd966cefc4daeefc1253442a9d7"},
+    {file = "async_property-0.2.2.tar.gz", hash = "sha256:17d9bd6ca67e27915a75d92549df64b5c7174e9dc806b30a3934dc4ff0506380"},
+]
 
 [[package]]
 name = "attrs"
@@ -973,6 +997,21 @@ files = [
     {file = "defusedxml-0.7.1-py2.py3-none-any.whl", hash = "sha256:a352e7e428770286cc899e2542b6cdaedb2b4953ff269a210103ec58f6198a61"},
     {file = "defusedxml-0.7.1.tar.gz", hash = "sha256:1bb3032db185915b62d7c6209c5a8792be6a32ab2fedacc84e01b52c51aa3e69"},
 ]
+
+[[package]]
+name = "deprecation"
+version = "2.1.0"
+description = "A library to handle automated deprecations"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "deprecation-2.1.0-py2.py3-none-any.whl", hash = "sha256:a10811591210e1fb0e768a8c25517cabeabcba6f0bf96564f8ff45189f90b14a"},
+    {file = "deprecation-2.1.0.tar.gz", hash = "sha256:72b3bde64e5d778694b0cf68178aed03d15e15477116add3fb773e581f9518ff"},
+]
+
+[package.dependencies]
+packaging = "*"
 
 [[package]]
 name = "distlib"
@@ -2158,6 +2197,22 @@ six = ">=1.11.0"
 [package.extras]
 format = ["idna", "jsonpointer (>1.13)", "rfc3987", "strict-rfc3339", "webcolors"]
 format-nongpl = ["idna", "jsonpointer (>1.13)", "rfc3339-validator", "rfc3986-validator (>0.1.0)", "webcolors"]
+
+[[package]]
+name = "jwcrypto"
+version = "1.5.6"
+description = "Implementation of JOSE Web standards"
+optional = false
+python-versions = ">= 3.8"
+groups = ["main"]
+files = [
+    {file = "jwcrypto-1.5.6-py3-none-any.whl", hash = "sha256:150d2b0ebbdb8f40b77f543fb44ffd2baeff48788be71f67f03566692fd55789"},
+    {file = "jwcrypto-1.5.6.tar.gz", hash = "sha256:771a87762a0c081ae6166958a954f80848820b2ab066937dc8b8379d65b1b039"},
+]
+
+[package.dependencies]
+cryptography = ">=3.4"
+typing-extensions = ">=4.5.0"
 
 [[package]]
 name = "keystoneauth1"
@@ -3867,6 +3922,27 @@ warlock = ">=1.2.0,<2"
 wrapt = ">=1.7.0"
 
 [[package]]
+name = "python-keycloak"
+version = "5.5.0"
+description = "python-keycloak is a Python package providing access to the Keycloak API."
+optional = false
+python-versions = "<4.0,>=3.9"
+groups = ["main"]
+files = [
+    {file = "python_keycloak-5.5.0-py3-none-any.whl", hash = "sha256:325ada6c354703b58a944efe5cf711798459bf61e52cdd89b33aad30f07532b2"},
+    {file = "python_keycloak-5.5.0.tar.gz", hash = "sha256:f9485f694e2b8ad6f66d6ba79c1eaf6b5190050fcdd1175f0001403edfc1c357"},
+]
+
+[package.dependencies]
+aiofiles = ">=24.1.0"
+async-property = ">=0.2.2"
+deprecation = ">=2.1.0"
+httpx = ">=0.23.2"
+jwcrypto = ">=1.5.4"
+requests = ">=2.20.0"
+requests-toolbelt = ">=0.6.0"
+
+[[package]]
 name = "python-keystoneclient"
 version = "3.16.0"
 description = "Client Library for OpenStack Identity"
@@ -5135,4 +5211,4 @@ requests = ">=2.25.1,<3.0.0"
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10,<3.12"
-content-hash = "c26312034f374a0feb50cdc774d7c445b66505be60dd8f4ebb82fba71655677c"
+content-hash = "dfb2974370c7d80fcf6daced35a4c1bed30fd905ec4ce367d394a2e163680791"
