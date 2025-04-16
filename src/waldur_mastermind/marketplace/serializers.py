@@ -208,6 +208,9 @@ class ManagedRancherPluginOptionsSerializer(serializers.Serializer):
         required=False,
         help_text="List of UUID of OpenStack offerings where tenant can be created",
     )
+    managed_rancher_server_flavor_name = serializers.CharField(required=False)
+    managed_rancher_system_volume_size_gb = serializers.IntegerField(required=False)
+    managed_rancher_system_volume_type_name = serializers.CharField(required=False)
 
 
 class AgentPluginOptionsSerializer(serializers.Serializer):
