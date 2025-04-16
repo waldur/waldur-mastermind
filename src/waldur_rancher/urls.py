@@ -38,6 +38,11 @@ def register_in(router):
         r"rancher-services", views.ServiceViewSet, basename="rancher-service"
     )
     router.register(
+        r"rancher-role-templates",
+        views.RoleTemplateViewSet,
+        basename="rancher-role-template",
+    )
+    router.register(
         r"keycloak-groups",
         views.KeycloakGroupViewSet,
         basename="keycloak-group",

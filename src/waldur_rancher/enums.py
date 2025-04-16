@@ -5,15 +5,6 @@ class GlobalRoles:
     user_base = "user-base"
 
 
-class ClusterRoles:
-    cluster_member = "cluster-member"
-    cluster_owner = "cluster-owner"
-
-
-class ProjectRoles:
-    project_owner = "project-owner"
-
-
 LONGHORN_NAME = "longhorn"
 
 
@@ -29,7 +20,7 @@ CatalogScopeType = Literal["global", "cluster", "project"]
 CatalogScopeTypeChoices = ["global", "cluster", "project"]
 
 
-class KeycloakGroupScopeType:
+class RoleScopeType:
     CLUSTER = "cluster"
     PROJECT = "project"
 

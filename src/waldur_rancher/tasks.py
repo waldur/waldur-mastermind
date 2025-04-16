@@ -1,4 +1,5 @@
 import logging
+import re
 import traceback
 
 from celery import shared_task
@@ -9,9 +10,11 @@ from rest_framework import status
 from rest_framework.reverse import reverse
 
 from keycloak import exceptions as keycloak_exceptions
+from waldur_core.core import models as core_models
 from waldur_core.core import tasks as core_tasks
 from waldur_core.core import utils as core_utils
 from waldur_core.core.exceptions import RuntimeStateException
+from waldur_core.structure import models as structure_models
 from waldur_core.structure.signals import resource_imported
 from waldur_mastermind.common import utils as common_utils
 from waldur_openstack import models as openstack_models
@@ -23,7 +26,7 @@ from waldur_rancher.enums import (
 )
 from waldur_rancher.utils import SyncUser
 
-from . import backend, exceptions, models, utils
+from . import backend, enums, exceptions, models, utils
 
 logger = logging.getLogger(__name__)
 
@@ -380,3 +383,154 @@ def sync_keycloak_users():
             user_membership.error_traceback = traceback.format_exc()
             user_membership.refresh_last_checked()
             user_membership.save()
+
+
+@shared_task(name="waldur_rancher.sync_rancher_roles")
+def sync_rancher_roles():
+    def create_role(remote_role, scope_type, settings):
+        logger.info(
+            "Creating new %s role %s for Rancher %s",
+            scope_type,
+            remote_role["id"],
+            settings.backend_url,
+        )
+        role = models.RoleTemplate(
+            name=remote_role["id"],
+            display_name=remote_role["name"],
+            scope_type=scope_type,
+            settings=settings,
+        )
+        role.save()
+
+    def sync_roles(
+        remote_roles_all: dict[str, dict],
+        scope_type: enums.RoleScopeType,
+        settings: structure_models.ServiceSettings,
+    ):
+        # Collecting roles
+        remote_roles = {
+            role["id"]: role
+            for role in remote_roles_all
+            if role["context"] == scope_type
+        }
+        local_roles = models.RoleTemplate.objects.filter(
+            settings=settings, scope_type=scope_type
+        )
+        # Remove local stale roles
+        stale_roles = local_roles.exclude(name__in=remote_roles.keys())
+        logger.info(
+            "Removing %s %s roles for Rancher %s",
+            stale_roles.count(),
+            scope_type,
+            settings.backend_url,
+        )
+        stale_roles.delete()
+        # Create new roles
+        local_role_names = local_roles.values_list("name", flat=True)
+        new_roles = [
+            remote_role
+            for remote_role_name, remote_role in remote_roles.items()
+            if remote_role_name not in local_role_names
+        ]
+        for new_role in new_roles:
+            create_role(new_role, scope_type, settings)
+        # Update the existing roles
+        existing_roles = local_roles.filter(name__in=remote_roles.keys())
+        for existing_role in existing_roles:
+            existing_role.display_name = remote_roles[existing_role.name]["name"]
+            existing_role.save(update_fields=["display_name"])
+
+    clusters = models.Cluster.objects.filter(state=core_models.StateMixin.States.OK)
+    rancher_settings_ids = clusters.values_list("settings", flat=True).distinct()
+    for rancher_settings_id in rancher_settings_ids:
+        settings = structure_models.ServiceSettings.objects.get(id=rancher_settings_id)
+        try:
+            rancher_backend = backend.RancherBackend(settings)
+            # Collecting remote roles
+            remote_roles = rancher_backend.list_roles()
+            # Syncing roles
+            sync_roles(remote_roles, enums.RoleScopeType.CLUSTER, settings)
+            sync_roles(remote_roles, enums.RoleScopeType.PROJECT, settings)
+        except exceptions.RancherException as e:
+            logger.error(
+                "Unable to sync roles for rancher cluster %s, reason: %s",
+                settings.backend_url,
+                e,
+            )
+
+
+@shared_task(name="waldur_rancher.delete_dangling_keycloak_groups")
+def delete_leftover_keycloak_groups():
+    """
+    Delete remote Keycloak groups with no linked groups in Waldur
+    """
+    clusters = models.Cluster.objects.filter(state=core_models.StateMixin.States.OK)
+    rancher_settings_ids = clusters.values_list("settings", flat=True).distinct()
+    for rancher_settings_id in rancher_settings_ids:
+        settings = structure_models.ServiceSettings.objects.get(id=rancher_settings_id)
+        try:
+            local_groups = models.KeycloakGroup.objects.filter(role__settings=settings)
+            local_group_ids = local_groups.values_list("backend_id", flat=True)
+            keycloak = backend.KeycloakBackend(settings)
+            # Get all groups and filter out only parent ones created by Waldur
+            # For this, use name matching to format: "c_<CLUSTER_UUID>"
+            remote_all_parent_groups = keycloak.list_groups()
+            remote_parent_groups = [
+                group
+                for group in remote_all_parent_groups
+                if re.match(r"^[cp]_[0-9a-f]{32}$", group["name"], re.IGNORECASE)
+            ]
+            for remote_parent_group in remote_parent_groups:
+                # Get all the subgroups with no linked groups in Waldur and with names matching the patterns: "c_<CLUSTER_UUID>_<ROLE_NAME>" or "p_<PROJECT_UUID>_<ROLE_NAME>"
+                remote_groups = remote_parent_group.get("subGroups", [])
+                remote_stale_groups = [
+                    group
+                    for group in remote_groups
+                    if group["id"] not in local_group_ids
+                    and re.match(
+                        r"^[cp]_[0-9a-f]{32}_.*$", group["name"], re.IGNORECASE
+                    )
+                ]
+                for remote_stale_group in remote_stale_groups:
+                    keycloak.delete_group(remote_stale_group["id"])
+                parent_group_id = remote_parent_group["id"]
+                # Refresh local parent group cache and delete the group if no children left
+                parent_group = keycloak.get_group(parent_group_id)
+                if len(parent_group.get("subGroups", [])) == 0:
+                    keycloak.delete_group(parent_group_id)
+        except keycloak_exceptions.KeycloakError as e:
+            logger.info("Unable to delete leftover groups in Keycloak, reason: %s", e)
+
+
+@shared_task(name="waldur_rancher.delete_leftover_keycloak_memberships")
+def delete_leftover_keycloak_memberships():
+    """
+    Delete remote Keycloak user memberships in groups with no linked instances in Waldur
+    """
+    clusters = models.Cluster.objects.filter(state=core_models.StateMixin.States.OK)
+    rancher_settings_ids = clusters.values_list("settings", flat=True).distinct()
+    for rancher_settings_id in rancher_settings_ids:
+        settings = structure_models.ServiceSettings.objects.get(id=rancher_settings_id)
+        try:
+            keycloak = backend.KeycloakBackend(settings)
+            local_groups = models.KeycloakGroup.objects.filter(role__settings=settings)
+            for local_group in local_groups:
+                local_member_usernames = (
+                    models.KeycloakUserGroupMembership.objects.filter(
+                        group=local_group
+                    ).values_list("username", flat=True)
+                )
+                remote_members = keycloak.list_group_members(local_group.backend_id)
+                remote_stale_member_ids = [
+                    member["id"]
+                    for member in remote_members
+                    if member["username"] not in local_member_usernames
+                ]
+                for remote_state_member_id in remote_stale_member_ids:
+                    keycloak.remove_user_from_group(
+                        remote_state_member_id, local_group.backend_id
+                    )
+        except keycloak_exceptions.KeycloakError as e:
+            logger.info(
+                "Unable to delete leftover memberships in Keycloak, reason: %s", e
+            )

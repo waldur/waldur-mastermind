@@ -18,8 +18,8 @@ from waldur_core.structure.models import BaseResource, ServiceSettings
 from waldur_openstack import models as openstack_models
 from waldur_rancher.enums import (
     CatalogScopeType,
-    KeycloakGroupScopeType,
     KeycloakUserGroupMembershipState,
+    RoleScopeType,
 )
 
 logger = logging.getLogger(__name__)
@@ -164,6 +164,7 @@ class RancherUser(
         return self.user.username
 
 
+# We keep this class, because 0001_squashed_0037_json_field fails without it
 class ClusterRole(models.CharField):
     CLUSTER_OWNER = "owner"
     CLUSTER_MEMBER = "member"
@@ -179,10 +180,24 @@ class ClusterRole(models.CharField):
         super().__init__(*args, **kwargs)
 
 
+class RoleTemplate(SettingsMixin, core_models.UuidMixin):
+    scope_type = models.CharField(
+        choices=RoleScopeType.CHOICES, max_length=10, db_index=True
+    )
+    name = models.CharField(max_length=50, help_text=_("Role internal name"))
+    display_name = models.CharField(max_length=50, help_text=_("Role public name"))
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        unique_together = (("scope_type", "name", "settings"),)
+
+
 class RancherUserClusterLink(BackendMixin):
     user = models.ForeignKey(RancherUser, on_delete=models.CASCADE)
     cluster = models.ForeignKey(Cluster, on_delete=models.CASCADE)
-    role = ClusterRole(db_index=True)
+    role = models.ForeignKey(RoleTemplate, on_delete=models.CASCADE)
 
     class Meta:
         unique_together = (("user", "cluster", "role"),)
@@ -191,7 +206,7 @@ class RancherUserClusterLink(BackendMixin):
 class RancherUserProjectLink(BackendMixin):
     user = models.ForeignKey(RancherUser, on_delete=models.CASCADE)
     project = models.ForeignKey("Project", on_delete=models.CASCADE)
-    role = models.CharField(max_length=255, blank=False)
+    role = models.ForeignKey(RoleTemplate, on_delete=models.CASCADE)
 
     class Meta:
         unique_together = (("user", "project", "role"),)
@@ -476,11 +491,14 @@ class KeycloakGroup(
     TimeStampedModel,
 ):
     name = models.CharField(_("Group name"), max_length=150, blank=True)
-    scope_type = models.CharField(
-        choices=KeycloakGroupScopeType.CHOICES, max_length=10, db_index=True
-    )
     scope_uuid = models.UUIDField(help_text=_("UUID of the cluster or project"))
-    role = models.CharField(max_length=100)
+    role = models.ForeignKey(RoleTemplate, on_delete=models.CASCADE)
+
+    class Meta:
+        unique_together = (("scope_uuid", "role"),)
+
+    def __str__(self):
+        return self.name
 
 
 class KeycloakUserGroupMembership(
@@ -505,3 +523,6 @@ class KeycloakUserGroupMembership(
 
     def refresh_last_checked(self):
         self.last_checked = timezone.now()
+
+    def __str__(self):
+        return f"{self.username} in {self.group}"

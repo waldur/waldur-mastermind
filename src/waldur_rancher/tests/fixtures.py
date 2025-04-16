@@ -5,7 +5,7 @@ from waldur_core.core.models import StateMixin
 from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_openstack.models import Tenant
 from waldur_openstack.tests import factories as openstack_factories
-from waldur_rancher import models
+from waldur_rancher import enums, models
 
 from . import factories
 
@@ -51,4 +51,29 @@ class RancherFixture(ProjectFixture):
             object_id=self.instance.id,
             content_type=content_type,
             state=models.Node.States.OK,
+        )
+
+    @cached_property
+    def cluster_owner_role(self):
+        return factories.RoleTemplateFactory(
+            name="cluster-owner",
+            display_name="Cluster Owner",
+            settings=self.settings,
+        )
+
+    @cached_property
+    def cluster_member_role(self):
+        return factories.RoleTemplateFactory(
+            name="cluster-member",
+            display_name="Cluster Member",
+            settings=self.settings,
+        )
+
+    @cached_property
+    def project_owner_role(self):
+        return factories.RoleTemplateFactory(
+            name="project-owner",
+            display_name="Project Owner",
+            settings=self.settings,
+            scope_type=enums.RoleScopeType.PROJECT,
         )

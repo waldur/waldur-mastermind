@@ -31,7 +31,7 @@ from waldur_mastermind.proposal.enums import (
 from waldur_rancher.enums import (
     RANCHER_TEMPLATE_QUESTION_TYPE,
     CatalogScopeTypeChoices,
-    KeycloakGroupScopeType,
+    RoleScopeType,
     KeycloakUserGroupMembershipState,
 )
 
@@ -1043,7 +1043,7 @@ SPECTACULAR_SETTINGS = {
         "RequestedOfferingStates": RequestedOfferingStates.CHOICES,
         "RequestTypes": RequestTypes.VALUES,
         "RancherTemplateQuestionType": RANCHER_TEMPLATE_QUESTION_TYPE,
-        "RancherKeycloakGroupScopeType": KeycloakGroupScopeType.CHOICES,
+        "RancherRoleScopeType": RoleScopeType.CHOICES,
         "KeycloakUserGroupMembershipState": KeycloakUserGroupMembershipState.CHOICES,
         "RancherCatalogScopeType": CatalogScopeTypeChoices,
     },

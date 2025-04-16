@@ -62,6 +62,21 @@ class RancherExtension(WaldurExtension):
                 "schedule": timedelta(minutes=15),
                 "args": (),
             },
+            "waldur-rancher-sync-rancher-roles": {
+                "task": "waldur_rancher.sync_rancher_roles",
+                "schedule": timedelta(hours=1),
+                "args": (),
+            },
+            "waldur-rancher-delete-leftover-keycloak-groups": {
+                "task": "waldur_rancher.delete_leftover_keycloak_groups",
+                "schedule": timedelta(hours=1),
+                "args": (),
+            },
+            "waldur-rancher-delete-leftover-keycloak-memberships": {
+                "task": "waldur_rancher.delete_leftover_keycloak_memberships",
+                "schedule": timedelta(hours=1),
+                "args": (),
+            },
         }
 
     @staticmethod

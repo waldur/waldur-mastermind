@@ -18,9 +18,8 @@ from waldur_openstack import serializers as openstack_serializers
 from waldur_openstack.serializers import _validate_instance_security_groups
 from waldur_rancher.enums import (
     RANCHER_TEMPLATE_QUESTION_TYPE,
-    CatalogScopeType,
-    KeycloakGroupScopeType,
     NodeRoleType,
+    RoleScopeType,
 )
 
 from . import models, utils, validators
@@ -935,6 +934,10 @@ class RancherUserClusterLinkSerializer(serializers.HyperlinkedModelSerializer):
         fields = ("cluster", "role", "cluster_name", "cluster_uuid")
         extra_kwargs = {
             "cluster": {"lookup_field": "uuid", "view_name": "rancher-cluster-detail"},
+            "role": {
+                "lookup_field": "uuid",
+                "view_name": "rancher-role-template-detail",
+            },
         }
 
 
@@ -947,6 +950,10 @@ class RancherUserProjectLinkSerializer(serializers.HyperlinkedModelSerializer):
         fields = ("project", "role", "project_name", "project_uuid")
         extra_kwargs = {
             "project": {"lookup_field": "uuid", "view_name": "rancher-project-detail"},
+            "role": {
+                "lookup_field": "uuid",
+                "view_name": "rancher-role-template-detail",
+            },
         }
 
 
@@ -1246,8 +1253,30 @@ class TemplateVersionSerializer(serializers.Serializer):
     questions = RancherTemplateQuestionSerializer(many=True, read_only=True)
 
 
+class RoleTemplateSerializer(serializers.HyperlinkedModelSerializer):
+    class Meta:
+        model = models.RoleTemplate
+        fields = (
+            "url",
+            "uuid",
+            "name",
+            "scope_type",
+            "display_name",
+            "settings",
+        )
+        read_only_fields = fields
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "keycloak-group-detail",
+            },
+            "settings": {"lookup_field": "uuid"},
+        }
+
+
 class KeycloakGroupSerializer(serializers.HyperlinkedModelSerializer):
     scope_name = serializers.SerializerMethodField()
+    scope_type = serializers.CharField(source="role.scope_type", read_only=True)
 
     class Meta:
         model = models.KeycloakGroup
@@ -1269,18 +1298,22 @@ class KeycloakGroupSerializer(serializers.HyperlinkedModelSerializer):
                 "lookup_field": "uuid",
                 "view_name": "keycloak-group-detail",
             },
+            "role": {
+                "lookup_field": "uuid",
+                "view_name": "rancher-role-template-detail",
+            },
         }
 
     def get_scope_name(self, obj) -> str:
         """Get the name of the cluster or project"""
-        scope_type = obj.scope_type
+        scope_type = obj.role.scope_type
         scope_uuid = obj.scope_uuid
-        if scope_type == KeycloakGroupScopeType.CLUSTER:
+        if scope_type == RoleScopeType.CLUSTER:
             try:
                 return models.Cluster.objects.get(uuid=scope_uuid).name
             except models.Cluster.DoesNotExist:
                 return None
-        elif obj.scope_type == KeycloakGroupScopeType.PROJECT:
+        elif scope_type == RoleScopeType.PROJECT:
             try:
                 return models.Project.objects.get(uuid=scope_uuid).name
             except models.Project.DoesNotExist:
@@ -1288,28 +1321,27 @@ class KeycloakGroupSerializer(serializers.HyperlinkedModelSerializer):
         return None
 
     def validate(self, attrs):
-        scope_type = attrs.get("scope_type")
+        role = attrs.get("role")
         scope_uuid = attrs.get("scope_uuid")
         role = attrs.get("role")
 
         # Validate that the scope exists
-        if scope_type == KeycloakGroupScopeType.CLUSTER:
-            try:
-                # Validate role for clusters
-                if role not in [r[0] for r in models.ClusterRole.CHOICES]:
-                    raise serializers.ValidationError(
-                        _("Invalid role for cluster: {}. Valid roles are: {}").format(
-                            role, ", ".join([r[0] for r in models.ClusterRole.CHOICES])
-                        )
-                    )
-            except models.Cluster.DoesNotExist:
-                raise serializers.ValidationError(
-                    _("Cluster with UUID {} does not exist.").format(scope_uuid)
-                )
+        try:
+            utils.get_keycloak_group_scope_and_settings(
+                models.KeycloakGroup(role=role, scope_uuid=scope_uuid)
+            )
+        except models.Cluster.DoesNotExist:
+            raise serializers.ValidationError(
+                _("Cluster with UUID {} does not exist.").format(scope_uuid)
+            )
+        except models.Project.DoesNotExist:
+            raise serializers.ValidationError(
+                _("Project with UUID {} does not exist.").format(scope_uuid)
+            )
 
-        # Check if assignment already exists
+        # Check if a local Keycloak group already exists
+        # TODO: drop possibly
         if models.KeycloakGroup.objects.filter(
-            scope_type=scope_type,
             scope_uuid=scope_uuid,
             role=role,
         ).exists():
@@ -1326,7 +1358,9 @@ class KeycloakUserGroupMembershipSerializer(serializers.HyperlinkedModelSerializ
     )
     group_name = serializers.CharField(source="group.name", read_only=True)
     group_role = serializers.CharField(source="group.role", read_only=True)
-    group_scope_type = serializers.SerializerMethodField()
+    group_scope_type = serializers.CharField(
+        source="group.role.scope_type", read_only=True
+    )
 
     class Meta:
         model = models.KeycloakUserGroupMembership
@@ -1361,9 +1395,6 @@ class KeycloakUserGroupMembershipSerializer(serializers.HyperlinkedModelSerializ
                 "view_name": "keycloak-user-group-membership-detail",
             },
         }
-
-    def get_group_scope_type(self, obj) -> CatalogScopeType:
-        return obj.group.scope_type
 
     def validate(self, attrs):
         group = attrs.get("group")
