@@ -328,6 +328,8 @@ class ManagedRancherSecretOptionsSerializer(serializers.Serializer):
         help_text="UUID of organization where project can be created",
     )
 
+    cloud_init_template = serializers.CharField(required=False)
+
 
 class GenericSecretOptionsSerializer(serializers.Serializer):
     pass
