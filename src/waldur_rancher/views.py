@@ -39,7 +39,7 @@ from waldur_rancher import (
     validators,
 )
 from waldur_rancher.apps import RancherConfig
-from waldur_rancher.enums import KeycloakGroupScopeType
+from waldur_rancher.enums import RoleScopeType
 from waldur_rancher.exceptions import RancherException
 
 logger = logging.getLogger(__name__)
@@ -647,6 +647,13 @@ class ServiceViewSet(
     delete_scope_method = "delete_service"
 
 
+class RoleTemplateViewSet(core_views.ReadOnlyActionsViewSet):
+    queryset = models.RoleTemplate.objects.all().order_by("scope_type")
+    serializer_class = serializers.RoleTemplateSerializer
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    lookup_field = "uuid"
+
+
 class KeycloakGroupViewSet(core_views.ActionsViewSet):
     queryset = models.KeycloakGroup.objects.all().order_by("-created")
     serializer_class = serializers.KeycloakGroupSerializer
@@ -673,11 +680,11 @@ class KeycloakGroupViewSet(core_views.ActionsViewSet):
             # Filter assignments based on permissions
             return queryset.filter(
                 Q(
-                    scope_type=KeycloakGroupScopeType.CLUSTER,
+                    role__scope_type=RoleScopeType.CLUSTER,
                     scope_uuid__in=cluster_uuids,
                 )
                 | Q(
-                    scope_type=KeycloakGroupScopeType.PROJECT,
+                    role__scope_type=RoleScopeType.PROJECT,
                     scope_uuid__in=project_uuids,
                 )
             )
@@ -685,16 +692,17 @@ class KeycloakGroupViewSet(core_views.ActionsViewSet):
         return queryset
 
     def perform_create(self, serializer):
-        scope_type = serializer.validated_data["scope_type"]
+        role = serializer.validated_data["role"]
+        scope_type = role.scope_type
         scope_uuid = serializer.validated_data["scope_uuid"]
         scope, settings = utils.get_keycloak_group_scope_and_settings(
-            models.KeycloakGroup(scope_type=scope_type, scope_uuid=scope_uuid)
+            models.KeycloakGroup(role=role, scope_uuid=scope_uuid)
         )
 
         try:
             keycloak = backend.KeycloakBackend(settings)
             # Create the parent group for the cluster
-            if scope_type == KeycloakGroupScopeType.CLUSTER:
+            if scope_type == RoleScopeType.CLUSTER:
                 parent_group_name = f"c_{scope.uuid.hex}"
             else:
                 parent_group_name = f"c_{scope.cluster.uuid.hex}"
@@ -711,27 +719,6 @@ class KeycloakGroupViewSet(core_views.ActionsViewSet):
             group.save()
         except keycloak_exceptions.KeycloakError as e:
             raise ValidationError(f"Unable to create a group in Keycloak: {e}")
-
-    def perform_destroy(self, instance):
-        _, settings = utils.get_keycloak_group_scope_and_settings(instance)
-        try:
-            keycloak = backend.KeycloakBackend(settings)
-            # Delete the group
-            backend_group = keycloak.get_group(instance.backend_id)
-            if backend_group is None:
-                # If the group is already removed in Keycloak, delete from DB
-                instance.delete()
-                return
-            keycloak.delete_group(instance.backend_id)
-            instance.delete()
-            # Delete the parent group if it has no subgroups
-            group_parent_id = backend_group.get("parentId")
-            if group_parent_id:
-                backend_parent_group = keycloak.get_group(group_parent_id)
-                if len(backend_parent_group["subGroups"]) == 0:
-                    keycloak.delete_group(group_parent_id)
-        except keycloak_exceptions.KeycloakError as e:
-            raise ValidationError(f"Unable to create a delete group in Keycloak: {e}")
 
 
 class KeycloakUserGroupMembershipViewSet(core_views.ActionsViewSet):
@@ -760,11 +747,11 @@ class KeycloakUserGroupMembershipViewSet(core_views.ActionsViewSet):
             # Filter assignments based on permissions
             return queryset.filter(
                 Q(
-                    group__scope_type=KeycloakGroupScopeType.CLUSTER,
+                    group__role__scope_type=RoleScopeType.CLUSTER,
                     group__scope_uuid__in=cluster_uuids,
                 )
                 | Q(
-                    group__scope_type=KeycloakGroupScopeType.PROJECT,
+                    group__role__scope_type=RoleScopeType.PROJECT,
                     group__scope_uuid__in=project_uuids,
                 )
             )
@@ -802,24 +789,3 @@ class KeycloakUserGroupMembershipViewSet(core_views.ActionsViewSet):
             )
         except keycloak_exceptions.KeycloakError as e:
             raise ValidationError(f"Unable to add a user to the Keycloak group: {e}")
-
-    def perform_destroy(self, instance):
-        group = instance.group
-        _, settings = utils.get_keycloak_group_scope_and_settings(group)
-        try:
-            keycloak = backend.KeycloakBackend(settings)
-            backend_user = keycloak.find_user_by_username(instance.username)
-            if backend_user is None:
-                logger.info(
-                    "The user %s does not exist in Keycloak, skipping removal from group %s (%s)",
-                    instance.username,
-                    group.name,
-                    group.backend_id,
-                )
-            else:
-                keycloak.remove_user_from_group(backend_user["id"], group.backend_id)
-            super().perform_destroy(instance)
-        except keycloak_exceptions.KeycloakError as e:
-            raise ValidationError(
-                f"Unable to remove a user from the Keycloak group: {e}"
-            )

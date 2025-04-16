@@ -48,6 +48,18 @@ class RancherConfig(AppConfig):
             dispatch_uid="waldur_rancher.set_error_state_for_cluster_if_related_node_deleting_is_failed",
         )
 
+        signals.post_delete.connect(
+            handlers.delete_keycloak_group_from_backend,
+            sender=models.KeycloakGroup,
+            dispatch_uid="waldur_rancher.delete_keycloak_group_from_backend",
+        )
+
+        signals.post_delete.connect(
+            handlers.delete_keycloak_user_group_membership_from_backend,
+            sender=models.KeycloakUserGroupMembership,
+            dispatch_uid="waldur_rancher.delete_keycloak_user_group_membership_from_backend",
+        )
+
         for klass in (models.Project, models.Cluster, structure_models.ServiceSettings):
             signals.post_delete.connect(
                 handlers.delete_catalog_if_scope_has_been_deleted,

@@ -5,7 +5,7 @@ from rest_framework import test
 
 import waldur_core.structure.tests.factories as structure_factories
 from waldur_core.permissions.fixtures import ProjectRole
-from waldur_rancher import enums, models, tasks, utils
+from waldur_rancher import models, tasks, utils
 from waldur_rancher.tests import factories, fixtures
 from waldur_rancher.tests.base import override_rancher_settings
 
@@ -17,6 +17,9 @@ class UserSyncTest(test.APITransactionTestCase):
         self.fixture.admin
         self.fixture.manager
         self.fixture.owner
+        self.fixture.cluster_owner_role
+        self.fixture.cluster_member_role
+        self.fixture.project_owner_role
 
     @mock.patch("waldur_rancher.utils.RancherBackend")
     def test_create_user(self, mock_backend_class):
@@ -77,7 +80,7 @@ class UserSyncTest(test.APITransactionTestCase):
         mock_backend_class().client.get_projects_roles.return_value = [
             {
                 "projectId": project.backend_id,
-                "roleTemplateId": enums.ProjectRoles.project_owner,
+                "roleTemplateId": "project-owner",
                 "id": "project_role_id",
                 "userId": "backend_id",
             }

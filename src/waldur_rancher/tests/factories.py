@@ -56,6 +56,16 @@ class NodeFactory(factory.django.DjangoModelFactory):
         return "http://testserver" + reverse("rancher-node-list")
 
 
+class RoleTemplateFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = models.RoleTemplate
+
+    scope_type = enums.RoleScopeType.CLUSTER
+    settings = factory.SubFactory(RancherServiceSettingsFactory)
+    name = factory.Sequence(lambda n: f"test-role-template-{n}")
+    display_name = factory.Sequence(lambda n: f"test-role-template-display-{n}")
+
+
 class RancherUserFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = models.RancherUser
@@ -84,7 +94,7 @@ class RancherUserClusterLinkFactory(factory.django.DjangoModelFactory):
 
     user = factory.SubFactory(RancherUserFactory)
     cluster = factory.SubFactory(ClusterFactory)
-    role = models.ClusterRole.CLUSTER_OWNER
+    role = factory.SubFactory(RoleTemplateFactory)
     backend_id = factory.Sequence(lambda n: "rancher-user-cluster-link-%s" % n)
 
 
@@ -175,5 +185,12 @@ class RancherUserProjectLinkFactory(factory.django.DjangoModelFactory):
 
     user = factory.SubFactory(RancherUserFactory)
     project = factory.SubFactory(ProjectFactory)
-    role = enums.ProjectRoles.project_owner
+    role = factory.SubFactory(
+        RoleTemplateFactory,
+        defaults={
+            "scope_type": enums.RoleScopeType.PROJECT,
+            "name": "project-owner",
+            "display_name": "Project Owner",
+        },
+    )
     backend_id = factory.Sequence(lambda n: "rancher-user-project-link-%s" % n)

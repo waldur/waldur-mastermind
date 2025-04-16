@@ -190,7 +190,7 @@ class ServiceFilter(structure_filters.BaseResourceFilter):
 
 class KeycloakGroupFilter(django_filters.FilterSet):
     scope_uuid = django_filters.UUIDFilter(field_name="scope_uuid")
-    scope_type = django_filters.CharFilter(field_name="scope_type")
+    scope_type = django_filters.CharFilter(field_name="role__scope_type")
     role = django_filters.CharFilter(field_name="role")
 
     class Meta:

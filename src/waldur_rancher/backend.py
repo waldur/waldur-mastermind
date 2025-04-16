@@ -23,7 +23,6 @@ from waldur_mastermind.common.utils import parse_datetime
 from waldur_rancher.enums import (
     LONGHORN_NAME,
     LONGHORN_NAMESPACE,
-    ClusterRoles,
     GlobalRoles,
 )
 from waldur_rancher.exceptions import NotFound, RancherException, VaultException
@@ -412,17 +411,12 @@ class RancherBackend(ServiceBackend):
             return True
         return False
 
-    def create_cluster_user_role(self, link):
-        role = None
-
-        if link.role == models.ClusterRole.CLUSTER_OWNER:
-            role = ClusterRoles.cluster_owner
-
-        if link.role == models.ClusterRole.CLUSTER_MEMBER:
-            role = ClusterRoles.cluster_member
+    def create_cluster_user_role(self, link: models.RancherUserClusterLink):
+        role = link.role
+        role_name = role.name if role else None
 
         response = self.client.create_cluster_user_role(
-            link.user.backend_id, link.cluster.backend_id, role
+            link.user.backend_id, link.cluster.backend_id, role_name
         )
         link_id = response["id"]
         link.backend_id = link_id
@@ -438,6 +432,9 @@ class RancherBackend(ServiceBackend):
                 )
 
         link.delete()
+
+    def list_roles(self):
+        return self.client.list_role_templates()
 
     def pull_catalogs_for_cluster(self, cluster: models.Cluster):
         self.pull_cluster_catalogs_for_cluster(cluster)
@@ -1676,6 +1673,26 @@ class KeycloakBackend:
             logger.error("Failed to delete the group %s in Keycloak: %s", group_id, e)
             raise
 
+    def list_groups(self):
+        """
+        List groups in Keycloak
+        """
+        try:
+            return self.keycloak.get_groups()
+        except keycloak_exceptions.KeycloakError as e:
+            logger.error("Failed to list groups in Keycloak: %s", e)
+            raise
+
+    def list_group_members(self, group_id: str):
+        """
+        Get members of the group in Keycloak
+        """
+        try:
+            return self.keycloak.get_group_members(group_id)
+        except keycloak_exceptions.KeycloakError as e:
+            logger.error("Failed to get group members in Keycloak: %s", e)
+            raise
+
     def add_user_to_group(self, user_id, group_id):
         """
         Add user to the Keycloak group
@@ -1683,7 +1700,6 @@ class KeycloakBackend:
         try:
             logger.info("Adding user %s to group %s", user_id, group_id)
             self.keycloak.group_user_add(user_id, group_id)
-            return True
         except keycloak_exceptions.KeycloakError as e:
             logger.error(
                 "Failed to add user %s to group %s in Keycloak: %s",
@@ -1691,7 +1707,7 @@ class KeycloakBackend:
                 group_id,
                 e,
             )
-            return False
+            raise
 
     def remove_user_from_group(self, user_id, group_id):
         """
@@ -1700,7 +1716,6 @@ class KeycloakBackend:
         try:
             logger.info("Removing user %s from group %s", user_id, group_id)
             self.keycloak.group_user_remove(user_id, group_id)
-            return True
         except keycloak_exceptions.KeycloakError as e:
             logger.error(
                 "Failed to revoke user %s role in Keycloak group %s: %s",
@@ -1708,4 +1723,4 @@ class KeycloakBackend:
                 group_id,
                 e,
             )
-            return False
+            raise

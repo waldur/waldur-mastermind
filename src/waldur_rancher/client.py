@@ -267,6 +267,9 @@ class RancherClient:
             params=params,
         )["data"]
 
+    def list_role_templates(self):
+        return self._get("roletemplates")["data"]
+
     def delete_user(self, user_id):
         return self._delete(f"users/{user_id}")
 

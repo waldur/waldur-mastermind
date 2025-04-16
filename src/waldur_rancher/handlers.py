@@ -4,9 +4,10 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 
+from keycloak import exceptions as keycloak_exceptions
 from waldur_core.core.models import StateMixin
 
-from . import models, tasks
+from . import backend, models, tasks, utils
 
 logger = logging.getLogger(__name__)
 
@@ -83,3 +84,54 @@ def delete_catalog_if_scope_has_been_deleted(sender, instance, **kwargs):
     models.Catalog.objects.filter(
         object_id=instance.id, content_type=content_type
     ).delete()
+
+
+def delete_keycloak_group_from_backend(sender, instance, **kwargs):
+    group = instance
+    try:
+        _, settings = utils.get_keycloak_group_scope_and_settings(group)
+        keycloak = backend.KeycloakBackend(settings)
+        # Delete the group
+        backend_group = keycloak.get_group(group.backend_id)
+        if backend_group is None:
+            # If the group is already removed in Keycloak, delete from DB
+            group.delete()
+            return
+        keycloak.delete_group(group.backend_id)
+        group.delete()
+        # Delete the parent group if it has no subgroups
+        group_parent_id = backend_group.get("parentId")
+        if group_parent_id:
+            backend_parent_group = keycloak.get_group(group_parent_id)
+            if len(backend_parent_group["subGroups"]) == 0:
+                keycloak.delete_group(group_parent_id)
+    except keycloak_exceptions.KeycloakError as e:
+        logger.error("Unable to delete the group %s in Keycloak: %s", group, e)
+
+
+def delete_keycloak_user_group_membership_from_backend(sender, instance, **kwargs):
+    group = instance.group
+    _, settings = utils.get_keycloak_group_scope_and_settings(group)
+    try:
+        keycloak = backend.KeycloakBackend(settings)
+        backend_user = keycloak.find_user_by_username(instance.username)
+        if backend_user is None:
+            logger.info(
+                "The user %s does not exist in Keycloak, skipping removal from group %s (%s)",
+                instance.username,
+                group.name,
+                group.backend_id,
+            )
+            return
+        remote_group = keycloak.get_group(group.backend_id)
+        if remote_group is None:
+            logger.info(
+                "The group %s (%s) does not exist in Keycloak, skipping removal of user %s",
+                group.name,
+                group.backend_id,
+                instance,
+            )
+            return
+        keycloak.remove_user_from_group(backend_user["id"], group.backend_id)
+    except keycloak_exceptions.KeycloakError as e:
+        logger.error("Unable to remove a user from the Keycloak group: %s", e)

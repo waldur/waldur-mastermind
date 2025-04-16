@@ -8,11 +8,13 @@ from django.db import transaction
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
+from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.models import User
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.quotas import exceptions as quotas_exceptions
+from waldur_core.structure import models as structure_models
 from waldur_core.structure.models import ServiceSettings
 from waldur_openstack import models as openstack_models
 from waldur_openstack.models import Flavor, Image, SecurityGroup, Tenant
@@ -23,11 +25,11 @@ from waldur_openstack.utils import (
 from waldur_openstack.views import InstanceViewSet
 from waldur_rancher.backend import RancherBackend
 from waldur_rancher.enums import (
-    KeycloakGroupScopeType,
     KeycloakUserGroupMembershipState,
+    RoleScopeType,
 )
 
-from . import exceptions, models
+from . import enums, exceptions, models
 
 logger = logging.getLogger(__name__)
 
@@ -287,10 +289,17 @@ def format_node_cloud_config(
 
 class SyncUser:
     @staticmethod
-    def get_users():
+    def get_users() -> (
+        dict[
+            core_models.User,
+            dict[
+                structure_models.ServiceSettings, (models.Cluster, models.RoleTemplate)
+            ],
+        ]
+    ):
         result = {}
 
-        def add_to_result():
+        def add_to_result(user, cluster, role, service_settings):
             if user not in result.keys():
                 result[user] = {}
 
@@ -306,18 +315,25 @@ class SyncUser:
             owners = project.customer.get_users(RoleEnum.CUSTOMER_OWNER)
 
             for user in users:
-                role = (
-                    "manager"
+                role_name = (
+                    "cluster-owner"
                     if project.has_user(user, ProjectRole.MANAGER)
-                    else "admin"
+                    else "cluster-member"
                     if project.has_user(user, ProjectRole.ADMIN)
                     else None
                 )
-                add_to_result()
+                if role_name:
+                    role = models.RoleTemplate.objects.filter(
+                        name=role_name, settings=service_settings
+                    ).first()
+                    add_to_result(user, cluster, role, service_settings)
 
             for user in owners:
-                role = "owner"
-                add_to_result()
+                role_name = "cluster-owner"
+                role = models.RoleTemplate.objects.filter(
+                    name=role_name, settings=service_settings
+                ).first()
+                add_to_result(user, cluster, role, service_settings)
 
         return result
 
@@ -376,21 +392,17 @@ class SyncUser:
                 current_links = models.RancherUserClusterLink.objects.filter(
                     user=rancher_user
                 )
-                actual_links = users[user][service_settings]
+                actual_links: set[(models.Cluster, models.RoleTemplate)] = users[user][
+                    service_settings
+                ]
                 current_links_set = {
                     (link.cluster.id, link.role) for link in current_links
                 }
 
-                actual_links_set = set()
+                actual_links_set: set[(int, models.RoleTemplate)] = set()
 
                 for link in actual_links:
-                    role = (
-                        models.ClusterRole.CLUSTER_OWNER
-                        if link[1] in ["owner", "manager"]
-                        else models.ClusterRole.CLUSTER_MEMBER
-                        if link[1] in ["admin"]
-                        else None
-                    )
+                    role = link[1]
                     actual_links_set.add((link[0].id, role))
 
                 remove_links = current_links_set - actual_links_set
@@ -486,6 +498,18 @@ class SyncUser:
                         project = models.Project.objects.get(
                             backend_id=role["project_id"]
                         )
+                        local_role = models.RoleTemplate.objects.filter(
+                            name=role["role_template_id"],
+                            scope_type=enums.RoleScopeType.PROJECT,
+                            settings=service_settings,
+                        ).first()
+                        if not local_role:
+                            logger.warning(
+                                "The project role %s from %s is not found is not found locally, skipping link setup",
+                                role["role_template_id"],
+                                service_settings.backend_url,
+                            )
+                            continue
                         (
                             _,
                             created,
@@ -493,7 +517,7 @@ class SyncUser:
                             backend_id=role["id"],
                             user=rancher_user,
                             project=project,
-                            defaults={"role": role["role_template_id"]},
+                            defaults={"role": local_role},
                         )
                         count_created += created
                     except models.Project.DoesNotExist:
@@ -637,7 +661,7 @@ def send_user_membership_notification_email(
     context = {
         "rancher_url": rancher_url,
         "support_email": config.SITE_EMAIL,
-        "scope_type": user.group.scope_type.capitalize(),  # 'cluster' or 'project'
+        "scope_type": user.group.role.scope_type.capitalize(),  # 'cluster' or 'project'
         "scope_name": scope.name,
         "role": user.group.role,
         "user_exists": user.state == KeycloakUserGroupMembershipState.ACTIVE,
@@ -650,9 +674,9 @@ def send_user_membership_notification_email(
 
 
 def get_keycloak_group_scope_and_settings(group: models.KeycloakGroup):
-    scope_type = group.scope_type
+    scope_type = group.role.scope_type
     scope_uuid = group.scope_uuid
-    if scope_type == KeycloakGroupScopeType.CLUSTER:
+    if scope_type == RoleScopeType.CLUSTER:
         scope = models.Cluster.objects.get(uuid=scope_uuid)
         return scope, scope.settings
     else:
