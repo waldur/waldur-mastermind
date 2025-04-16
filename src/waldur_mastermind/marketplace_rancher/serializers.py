@@ -24,3 +24,4 @@ class ClusterCreateSerializer(serializers.Serializer):
         default=False,
         help_text="Longhorn is a distributed block storage deployed on top of Kubernetes cluster",
     )
+    longhorn_volume_size = serializers.IntegerField(required=False)
