@@ -1,0 +1,2 @@
+class RabbitMQError(Exception):
+    pass

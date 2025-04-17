@@ -76,6 +76,7 @@ from waldur_mastermind.marketplace_remote.constants import (
     PLAN_FIELDS,
     RESOURCE_FIELDS,
 )
+from waldur_mastermind.marketplace_remote.exceptions import RemoteWaldurError
 from waldur_mastermind.marketplace_remote.utils import (
     get_client_for_offering,
     pull_fields,
@@ -459,7 +460,7 @@ class OrderPullTask(BackgroundPullTask):
         if correct_local_order_state is None:
             message = f"The order in remote Waldur has unexpected state {remote_order.state.value}."
             logger.error(message)
-            raise Exception(message)
+            raise RemoteWaldurError(message)
 
         if local_order.state != correct_local_order_state:
             logger.info(
@@ -529,7 +530,7 @@ class ErredOrderPullTask(OrderPullTask):
         if correct_local_order_state is None:
             message = f"The order in remote Waldur has unexpected state {remote_order.state.value}."
             logger.error(message)
-            raise Exception(message)
+            raise RemoteWaldurError(message)
 
         if (
             local_order.state != correct_local_order_state

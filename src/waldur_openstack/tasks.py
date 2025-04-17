@@ -11,6 +11,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.structure import tasks as structure_tasks
 from waldur_core.structure.registry import get_resource_type
 from waldur_openstack.backend import OpenStackBackend
+from waldur_openstack.exceptions import OpenStackTenantNotFound
 
 from . import models, signals
 
@@ -81,7 +82,7 @@ def check_existence_of_tenant(serialized_tenant):
     backend = tenant.get_backend()
 
     if backend.does_tenant_exist_in_backend(tenant) is False:
-        raise Exception(f"Tenant {tenant} does not exist in backend.")
+        raise OpenStackTenantNotFound(f"Tenant {tenant} does not exist in backend.")
 
 
 @shared_task

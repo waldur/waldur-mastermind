@@ -4,6 +4,8 @@ import requests
 from django.conf import settings
 from requests.auth import HTTPBasicAuth
 
+from waldur_core.logging.exceptions import RabbitMQError
+
 logger = logging.getLogger(__name__)
 
 
@@ -408,7 +410,7 @@ class RabbitMQManagementBackend:
                     response.status_code,
                     response.text,
                 )
-                raise Exception(f"Failed to get user {username} info")
+                raise RabbitMQError(f"Failed to get user {username} info")
         except requests.ConnectionError as exc:
             logger.error(
                 "Unable to get user %s info from RabbitMQ, error: %s", username, exc
@@ -445,7 +447,7 @@ class RabbitMQManagementBackend:
                     response.status_code,
                     response.text,
                 )
-                raise Exception(f"Failed to get user {username} connections")
+                raise RabbitMQError(f"Failed to get user {username} connections")
         except requests.ConnectionError as exc:
             logger.error(
                 "Unable to get user %s connections from RabbitMQ, error: %s",
