@@ -1,0 +1,2 @@
+class RemoteWaldurError(Exception):
+    pass
