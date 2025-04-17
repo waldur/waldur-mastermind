@@ -560,7 +560,7 @@ class Port(structure_models.BaseResource):
         return "openstack-port"
 
     def __str__(self):
-        return self.name
+        return ",".join([fixed_ip.get("ip_address") for fixed_ip in self.fixed_ips])
 
 
 class CustomerOpenStack(TimeStampedModel):

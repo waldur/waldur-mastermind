@@ -54,6 +54,7 @@ class MappingSerializer(serializers.Serializer):
     volume_types = VolumeTypeMappingSerializer(many=True, required=False)
     subnets = SubNetMappingSerializer(many=True, required=False)
     skip_connection_extnet = serializers.BooleanField(required=False, default=False)
+    sync_instance_ports = serializers.BooleanField(required=False, default=False)
     networks = serializers.SlugRelatedField(
         queryset=Network.objects.all(), slug_field="uuid", required=False, many=True
     )
@@ -180,6 +181,13 @@ class MigrationCreateSerializer(serializers.ModelSerializer):
             )
 
         mappings = attrs.get("mappings", {})
+
+        # Check that sync_instance_ports cannot be used together with networks or subnets
+        if mappings.get("sync_instance_ports") and mappings.get("subnets"):
+            raise serializers.ValidationError(
+                "sync_instance_ports cannot be used together with subnets mappings."
+            )
+
         for volume_type_mapping in mappings.get("volume_types", []):
             src_type_uuid = volume_type_mapping["src_type_uuid"]
             dst_type_uuid = volume_type_mapping["dst_type_uuid"]
@@ -232,8 +240,8 @@ class MigrationCreateSerializer(serializers.ModelSerializer):
             for src_subnet in src_subnets:
                 subnet_cidr = subnet_mappings.get(src_subnet.cidr) or src_subnet.cidr
                 SubNet.objects.create(
-                    name=src_network.name,
-                    description=src_network.description,
+                    name=src_subnet.name,
+                    description=src_subnet.description,
                     service_settings=dst_settings,
                     project=dst_project,
                     tenant=dst_tenant,
