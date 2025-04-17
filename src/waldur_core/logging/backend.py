@@ -33,40 +33,26 @@ class RabbitMQManagementBackend:
         try:
             logger.info("Creating a virtual host '%s' in RabbitMQ", vhost_name)
             response = requests.put(vhost_url, auth=self.rmq_auth, timeout=10)
+        except requests.RequestException as exc:
+            logger.error(
+                "Failed to create virtual host '%s' in RabbitMQ: %s",
+                vhost_name,
+                exc,
+            )
+            return False
 
-            if response.status_code == 201:
-                logger.info("Virtual host '%s' created successfully", vhost_name)
-            elif response.status_code == 204:
-                logger.warning("Virtual host '%s' already exists", vhost_name)
-            else:
-                logger.error(
-                    "Failed to create virtual host '%s', status code: %s, response: %s",
-                    vhost_name,
-                    response.status_code,
-                    response.text,
-                )
-                return False
-
+        if response.status_code == 201:
+            logger.info("Virtual host '%s' created successfully", vhost_name)
             return True
-        except requests.ConnectionError as exc:
+        elif response.status_code == 204:
+            logger.warning("Virtual host '%s' already exists", vhost_name)
+            return True
+        else:
             logger.error(
-                "Connection error while creating virtual host '%s' in RabbitMQ: %s",
+                "Failed to create virtual host '%s', status code: %s, response: %s",
                 vhost_name,
-                exc,
-            )
-            return False
-        except requests.Timeout as exc:
-            logger.error(
-                "Timeout occurred while creating virtual host '%s' in RabbitMQ: %s",
-                vhost_name,
-                exc,
-            )
-            return False
-        except Exception as exc:
-            logger.error(
-                "An unexpected error occurred while creating virtual host '%s': %s",
-                vhost_name,
-                exc,
+                response.status_code,
+                response.text,
             )
             return False
 
@@ -84,37 +70,23 @@ class RabbitMQManagementBackend:
 
         try:
             response = requests.delete(url, auth=self.rmq_auth, timeout=10)
-
-            if response.status_code == 204:
-                logger.info("Virtual host %s deleted successfully.", vhost_name)
-                return True
-            else:
-                logger.error(
-                    "Failed to delete virtual host %s, status code: %s, response: %s",
-                    vhost_name,
-                    response.status_code,
-                    response.text,
-                )
-                return False
-        except requests.ConnectionError as exc:
+        except requests.RequestException as exc:
             logger.error(
                 "Unable to delete vhost %s from RabbitMQ, error: %s", vhost_name, exc
             )
             return False
-        except requests.Timeout as exc:
+
+        if response.status_code != 204:
             logger.error(
-                "Timeout occurred while deleting vhost %s from RabbitMQ: %s",
+                "Failed to delete virtual host %s, status code: %s, response: %s",
                 vhost_name,
-                exc,
+                response.status_code,
+                response.text,
             )
             return False
-        except Exception as exc:
-            logger.error(
-                "An unexpected error occurred while deleting vhost %s: %s",
-                vhost_name,
-                exc,
-            )
-            return False
+
+        logger.info("Virtual host %s deleted successfully.", vhost_name)
+        return True
 
     def list_rabbitmq_virtual_hosts(self) -> list[str]:
         """List all virtual hosts in RabbitMQ.
@@ -126,27 +98,25 @@ class RabbitMQManagementBackend:
 
         try:
             response = requests.get(url, auth=self.rmq_auth, timeout=10)
-
-            if response.status_code == 200:
-                return [vhost["name"] for vhost in response.json()]
-            else:
-                logger.error(
-                    "Failed to list virtual hosts, status code: %s, response: %s",
-                    response.status_code,
-                    response.text,
-                )
-                return []
-        except requests.ConnectionError as exc:
+        except requests.RequestException as exc:
             logger.error("Unable to list virtual hosts in RabbitMQ, error: %s", exc)
             return []
-        except requests.Timeout as exc:
+
+        if response.status_code != 200:
             logger.error(
-                "Timeout occurred while listing virtual hosts in RabbitMQ: %s", exc
+                "Failed to list virtual hosts, status code: %s, response: %s",
+                response.status_code,
+                response.text,
             )
             return []
-        except Exception as exc:
+
+        try:
+            vhosts = response.json()
+            return [vhost["name"] for vhost in vhosts]
+        except (requests.JSONDecodeError, TypeError, KeyError):
             logger.error(
-                "An unexpected error occurred while listing virtual hosts: %s", exc
+                "Failed to parse JSON response while listing virtual hosts, response: %s",
+                response.text,
             )
             return []
 
@@ -164,37 +134,28 @@ class RabbitMQManagementBackend:
 
         try:
             response = requests.get(url, auth=self.rmq_auth, timeout=10)
-
-            if response.status_code == 200:
-                return [permission["user"] for permission in response.json()]
-            else:
-                logger.error(
-                    "Failed to list permissions for vhost %s, status code: %s, response: %s",
-                    vhost_name,
-                    response.status_code,
-                    response.text,
-                )
-                return []
-        except requests.ConnectionError as exc:
+        except requests.RequestException as exc:
             logger.error(
                 "Unable to list permissions for vhost %s in RabbitMQ, error: %s",
                 vhost_name,
                 exc,
             )
             return []
-        except requests.Timeout as exc:
+
+        if response.status_code != 200:
             logger.error(
-                "Timeout occurred while listing permissions for vhost %s in RabbitMQ: %s",
+                "Failed to list permissions for vhost %s, status code: %s, response: %s",
                 vhost_name,
-                exc,
+                response.status_code,
+                response.text,
             )
             return []
-        except Exception as exc:
-            logger.error(
-                "An unexpected error occurred while listing permissions for vhost %s: %s",
-                vhost_name,
-                exc,
-            )
+
+        try:
+            permissions = response.json()
+            return [permission["user"] for permission in permissions]
+        except (requests.JSONDecodeError, TypeError, KeyError):
+            logger.error("Failed to parse permissions: %s", permissions)
             return []
 
     def create_rabbitmq_user(self, username: str, password: str) -> bool:
@@ -364,24 +325,23 @@ class RabbitMQManagementBackend:
 
         try:
             response = requests.get(url, auth=self.rmq_auth, timeout=10)
-
-            if response.status_code == 200:
-                return [user["name"] for user in response.json()]
-            else:
-                logger.error(
-                    "Failed to list users, status code: %s, response: %s",
-                    response.status_code,
-                    response.text,
-                )
-                return []
-        except requests.ConnectionError as exc:
+        except requests.RequestException as exc:
             logger.error("Unable to list users in RabbitMQ, error: %s", exc)
             return []
-        except requests.Timeout as exc:
-            logger.error("Timeout occurred while listing users in RabbitMQ: %s", exc)
+
+        if response.status_code != 200:
+            logger.error(
+                "Failed to list users, status code: %s, response: %s",
+                response.status_code,
+                response.text,
+            )
             return []
-        except Exception as exc:
-            logger.error("An unexpected error occurred while listing users: %s", exc)
+
+        try:
+            users = response.json()
+            return [user["name"] for user in users]
+        except (requests.JSONDecodeError, TypeError, KeyError):
+            logger.error("Failed to parse users: %s", users)
             return []
 
     def get_user(self, username: str) -> dict | None:
@@ -397,61 +357,64 @@ class RabbitMQManagementBackend:
         url = f"{self.rmq_management_url}/users/{username}"
         try:
             response = requests.get(url, auth=self.rmq_auth, timeout=10)
-
-            if response.status_code == 200:
-                return response.json()
-            elif response.status_code == 404:
-                logger.debug("User %s not found in RabbitMQ", username)
-                return None
-            else:
-                logger.error(
-                    "Failed to get user %s info, status code: %s, response: %s",
-                    username,
-                    response.status_code,
-                    response.text,
-                )
-                raise RabbitMQError(f"Failed to get user {username} info")
-        except requests.ConnectionError as exc:
+        except requests.RequestException as exc:
             logger.error(
                 "Unable to get user %s info from RabbitMQ, error: %s", username, exc
             )
             raise
-        except requests.Timeout as exc:
+
+        if response.status_code == 404:
+            logger.debug("User %s not found in RabbitMQ", username)
+            return None
+        elif response.status_code == 200:
+            try:
+                return response.json()
+            except requests.JSONDecodeError:
+                logger.error(
+                    "Failed to decode JSON response while getting user %s info: %s",
+                    username,
+                    response,
+                )
+                raise RabbitMQError(f"Failed to get user {username} info")
+        else:
             logger.error(
-                "Timeout occurred while getting user %s info from RabbitMQ: %s",
+                "Failed to get user %s info, status code: %s, response: %s",
                 username,
-                exc,
+                response.status_code,
+                response.text,
             )
-            raise
-        except Exception as exc:
-            logger.error(
-                "An unexpected error occurred while getting user %s info: %s",
-                username,
-                exc,
-            )
-            raise
+            raise RabbitMQError(f"Failed to get user {username} info")
 
     def get_user_connections(self, username: str) -> list[dict]:
         url = f"{self.rmq_management_url}/connections/username/{username}/"
         try:
             response = requests.get(url, auth=self.rmq_auth, timeout=10)
-            if response.status_code == 200:
-                return response.json()
-            elif response.status_code == 404:
-                logger.debug("User %s connections not found in RabbitMQ", username)
-                return []
-            else:
-                logger.error(
-                    "Failed to get user %s connections, status code: %s, response: %s",
-                    username,
-                    response.status_code,
-                    response.text,
-                )
-                raise RabbitMQError(f"Failed to get user {username} connections")
-        except requests.ConnectionError as exc:
+        except requests.RequestException as exc:
             logger.error(
                 "Unable to get user %s connections from RabbitMQ, error: %s",
                 username,
                 exc,
             )
             raise
+
+        if response.status_code == 404:
+            logger.debug("User %s connections not found in RabbitMQ", username)
+            return []
+        elif response.status_code == 200:
+            try:
+                return response.json()
+            except requests.JSONDecodeError:
+                logger.error(
+                    "Failed to decode JSON response while getting user %s connections: %s",
+                    username,
+                    response,
+                )
+                raise RabbitMQError(f"Failed to get user {username} connections")
+        else:
+            logger.error(
+                "Failed to get user %s connections, status code: %s, response: %s",
+                username,
+                response.status_code,
+                response.text,
+            )
+            raise RabbitMQError(f"Failed to get user {username} connections")

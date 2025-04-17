@@ -1524,13 +1524,13 @@ class VaultBackend:
         try:
             logger.info("Creating (updating) %s policy in Vault", name)
             response = self.client.sys.create_or_update_policy(name=name, policy=policy)
-            if response.status_code != 204:
-                raise VaultException(
-                    f"Vault server responded with {response.status_code} code: {response.json()}"
-                )
         except vault_exceptions.VaultError as e:
             logger.error("Unable to create a vault policy %s, reason: %s", name, e)
             raise
+        if response.status_code != 204:
+            raise VaultException(
+                f"Vault server responded with {response.status_code} code: {response.content}"
+            )
 
     def create_or_update_role(self, role_name: str, policy_name: str, params=None):
         try:
@@ -1545,13 +1545,13 @@ class VaultBackend:
             response = self.client.auth.approle.create_or_update_approle(
                 role_name=role_name, token_policies=[policy_name], **params
             )
-            if response.status_code != 204:
-                raise VaultException(
-                    f"Vault server responded with {response.status_code} code: {response.json()}"
-                )
         except vault_exceptions.VaultError as e:
             logger.error("Unable to create a Vault role %s, reason: %s", role_name, e)
             raise
+        if response.status_code != 204:
+            raise VaultException(
+                f"Vault server responded with {response.status_code} code: {response.text}"
+            )
 
     def get_role_id(self, role_name):
         try:

@@ -780,24 +780,27 @@ def get_latest_github_tag(timeout=5):
             timeout=timeout,
         )
         response.raise_for_status()
-
-        tags = response.json()
-        if not tags:
-            return None
-
-        # Get the last tag (most recent one)
-        latest_tag = tags[-1]["ref"].replace("refs/tags/", "")
-
-        # Check if the tag is a valid version
-        version.parse(latest_tag)
-
-        # Cache for 1 hour
-        cache.set(cache_key, latest_tag, timeout=3600)
-        return latest_tag
-
-    except (requests.RequestException, KeyError, ValueError) as e:
+    except requests.RequestException as e:
         logger.error(f"Failed to fetch latest GitHub tag: {str(e)}")
         return None
+
+    try:
+        tags = response.json()
+    except requests.JSONDecodeError:
+        logger.error("Failed to decode JSON response from GitHub")
+        return None
+
+    # Get the last tag (most recent one)
+    try:
+        latest_tag = tags[-1]["ref"].replace("refs/tags/", "")
+        version.parse(latest_tag)
+    except (TypeError, KeyError, version.InvalidVersion):
+        logger.error("Invalid tag format in the GitHub response %s", tags)
+        return None
+
+    # Cache for 1 hour
+    cache.set(cache_key, latest_tag, timeout=3600)
+    return latest_tag
 
 
 @extend_schema(

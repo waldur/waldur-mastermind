@@ -127,7 +127,7 @@ class DataciteBackend(ServiceBackend):
             )
 
     def get_datacite_data(self, doi):
-        logger.debug("Looking up DOI %s" % doi)
+        logger.debug("Looking up DOI %s", doi)
         response = self.get(doi)
 
         if response.status_code == 200:
