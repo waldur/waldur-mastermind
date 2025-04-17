@@ -4531,7 +4531,7 @@ class OpenStackBackend(ServiceBackend):
             port.subnet.backend_id,
         )
 
-        if port.network.tenant != port.instance.tenant:
+        if port.instance and (port.network.tenant != port.instance.tenant):
             for s in instance_security_groups:
                 group_name = models.SecurityGroup.objects.get(backend_id=s).name
                 network_group = models.SecurityGroup.objects.filter(

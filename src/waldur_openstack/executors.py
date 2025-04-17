@@ -163,7 +163,6 @@ def get_tenant_create_tasks(tenant: models.Tenant, skip_connection_extnet=False)
             creation_tasks.append(
                 SecurityGroupCreateExecutor.as_signature(security_group)
             )
-
     external_network_id = utils.get_external_network_id(tenant)
     if external_network_id and not skip_connection_extnet:
         creation_tasks.append(
