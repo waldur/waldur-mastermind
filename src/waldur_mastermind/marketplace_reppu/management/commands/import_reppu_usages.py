@@ -45,7 +45,7 @@ class Command(BaseCommand):
         if response.status_code != 200:
             self.stdout.write(
                 self.style.ERROR(
-                    f"Unable to fetch usages: status code {response.status_code}, {response.json()}"
+                    f"Unable to fetch usages: status code {response.status_code}, {response.text}"
                 )
             )
             return

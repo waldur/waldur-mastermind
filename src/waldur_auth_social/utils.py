@@ -239,7 +239,7 @@ def pull_remote_eduteams_user(username):
 
 def get_remote_eduteams_user_info(username):
     user_url = (
-        f'{settings.WALDUR_AUTH_SOCIAL["REMOTE_EDUTEAMS_USERINFO_URL"]}/{username}'
+        f"{settings.WALDUR_AUTH_SOCIAL['REMOTE_EDUTEAMS_USERINFO_URL']}/{username}"
     )
     access_token = refresh_remote_eduteams_token()
     try:
@@ -247,18 +247,18 @@ def get_remote_eduteams_user_info(username):
             user_url, headers={"Authorization": f"Bearer {access_token}"}
         )
     except requests.exceptions.RequestException as e:
-        logger.warning("Unable to get eduTEAMS user info. Error is %s", e)
-        raise ParseError("Unable to get user info for %s" % user_url)
+        logger.warning("Unable to get eduTEAMS user info %s", e)
+        raise ParseError(f"Unable to get user info for {user_url}")
 
     if user_response.status_code == 404:
-        raise NotFound("User %s does not exist" % user_url)
+        raise NotFound(f"User {user_url} does not exist")
 
     if user_response.status_code != 200:
-        raise ParseError("Unable to get user info for %s" % user_url)
+        raise ParseError(f"Unable to get user info for {user_url}")
 
     try:
         return user_response.json()
-    except (ValueError, TypeError):
+    except requests.JSONDecodeError:
         raise ParseError("Unable to parse JSON in user info response.")
 
 
@@ -288,18 +288,21 @@ def get_remote_eduteams_ssh_keys():
         basic_auth = HTTPBasicAuth(ssh_api_username, ssh_api_password)
         response = requests.get(ssh_api_endpoint, auth=basic_auth)
     except requests.exceptions.RequestException as e:
-        logger.warning("Unable to get eduTEAMS ssh keys. Error is %s", e)
-        raise ParseError("Unable to get eduTEAMS ssh keys for %s" % ssh_api_endpoint)
+        logger.warning("Unable to get eduTEAMS ssh keys: %s", e)
+        raise ParseError(f"Unable to get eduTEAMS ssh keys for {ssh_api_endpoint}")
 
     if response.status_code != 200:
-        raise ParseError("Unable to get eduTEAMS ssh keys for %s" % ssh_api_endpoint)
+        raise ParseError(f"Unable to get eduTEAMS ssh keys for {ssh_api_endpoint}")
 
     try:
-        ssh_keys_json = response.json()
-        ssh_keys_list = ssh_keys_json["data"]
-        return ssh_keys_list
-    except (ValueError, TypeError) as exc:
-        raise ParseError("Unable to parse JSON in user info response: %s" % exc)
+        ssh_keys = response.json()
+    except requests.JSONDecodeError:
+        raise ParseError("Unable to parse JSON for SSH keys")
+
+    try:
+        return ssh_keys["data"]
+    except (TypeError, KeyError):
+        raise ParseError("Unable to parse SSH keys")
 
 
 def refresh_remote_eduteams_token():
@@ -321,15 +324,19 @@ def refresh_remote_eduteams_token():
                 "scope": "openid",
             },
         )
-        if token_response.status_code != 200:
-            message = f"Unable to get access token. Reason: {token_response.json()}"
-            raise ParseError(message)
-        try:
-            access_token = token_response.json()["access_token"]
-            cache.set("REMOTE_EDUTEAMS_ACCESS_TOKEN", access_token, 30 * 60)
-            return access_token
-        except (ValueError, TypeError):
-            raise ParseError("Unable to parse JSON in access token response.")
     except requests.exceptions.RequestException as e:
         logger.warning("Unable to get eduTEAMS access token. Error is %s", e)
         raise ParseError("Unable to get access token.")
+
+    if token_response.status_code != 200:
+        raise ParseError(
+            f"Unable to get access token. Reason: {token_response.content}"
+        )
+
+    try:
+        access_token = token_response.json()["access_token"]
+    except (requests.JSONDecodeError, TypeError, KeyError):
+        raise ParseError("Unable to parse JSON in access token response.")
+
+    cache.set("REMOTE_EDUTEAMS_ACCESS_TOKEN", access_token, 30 * 60)
+    return access_token

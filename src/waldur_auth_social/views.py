@@ -190,7 +190,7 @@ class OAuthViewComplete(BaseOAuthView):
                 data = response.json()
                 error_message = data["error"]
                 error_description = data.get("error_description", "")
-            except (TypeError, ValueError, KeyError):
+            except (requests.JSONDecodeError, TypeError, KeyError):
                 values = (response.reason, response.status_code)
                 error_message = "Message: {}, status code: {}".format(*values)
                 error_description = ""
@@ -211,7 +211,7 @@ class OAuthViewComplete(BaseOAuthView):
 
         try:
             return user_response.json()
-        except (ValueError, TypeError):
+        except requests.JSONDecodeError:
             raise OAuthException(
                 self.config.provider, "Unable to parse JSON in user info response."
             )
@@ -254,7 +254,7 @@ class OAuthViewComplete(BaseOAuthView):
 
         try:
             return token_response.json()
-        except (ValueError, TypeError):
+        except requests.JSONDecodeError:
             raise OAuthException(
                 self.config.provider, "Unable to parse JSON in authentication response."
             )
