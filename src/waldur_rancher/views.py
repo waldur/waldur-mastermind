@@ -654,7 +654,7 @@ class RoleTemplateViewSet(core_views.ReadOnlyActionsViewSet):
     lookup_field = "uuid"
 
 
-class KeycloakGroupViewSet(core_views.ActionsViewSet):
+class KeycloakGroupViewSet(core_views.ReadOnlyActionsViewSet):
     queryset = models.KeycloakGroup.objects.all().order_by("-created")
     serializer_class = serializers.KeycloakGroupSerializer
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
@@ -690,35 +690,6 @@ class KeycloakGroupViewSet(core_views.ActionsViewSet):
             )
 
         return queryset
-
-    def perform_create(self, serializer):
-        role = serializer.validated_data["role"]
-        scope_type = role.scope_type
-        scope_uuid = serializer.validated_data["scope_uuid"]
-        scope, settings = utils.get_keycloak_group_scope_and_settings(
-            models.KeycloakGroup(role=role, scope_uuid=scope_uuid)
-        )
-
-        try:
-            keycloak = backend.KeycloakBackend(settings)
-            # Create the parent group for the cluster
-            if scope_type == RoleScopeType.CLUSTER:
-                parent_group_name = f"c_{scope.uuid.hex}"
-            else:
-                parent_group_name = f"c_{scope.cluster.uuid.hex}"
-            parent_group = keycloak.create_group(parent_group_name)
-            # Create the child group
-            group_name_prefix = scope_type[0].lower()
-            group_name = f"{group_name_prefix}_{scope.uuid.hex}_{serializer.validated_data['role']}"
-            backend_group = keycloak.create_group(
-                group_name, parent_id=parent_group["id"]
-            )
-            group = serializer.save()
-            group.backend_id = backend_group["id"]
-            group.name = group_name
-            group.save()
-        except keycloak_exceptions.KeycloakError as e:
-            raise ValidationError(f"Unable to create a group in Keycloak: {e}")
 
 
 class KeycloakUserGroupMembershipViewSet(core_views.ActionsViewSet):
@@ -759,22 +730,68 @@ class KeycloakUserGroupMembershipViewSet(core_views.ActionsViewSet):
         return queryset
 
     def perform_create(self, serializer):
-        user_membership = serializer.save()
-        group = user_membership.group
-        scope, settings = utils.get_keycloak_group_scope_and_settings(group)
+        def create_keycloak_group(
+            keycloak: backend.KeycloakBackend,
+            scope,
+            scope_type: str,
+            role: models.RoleTemplate,
+        ):
+            # Create the parent group for the cluster
+            if scope_type == RoleScopeType.CLUSTER:
+                parent_group_name = f"c_{scope.uuid.hex}"
+            else:
+                parent_group_name = f"c_{scope.cluster.uuid.hex}"
+            parent_group = keycloak.create_group(parent_group_name)
+            # Optionally create the child group
+            group = models.KeycloakGroup.objects.filter(
+                role=role,
+                scope_uuid=scope_uuid,
+            ).first()
+            if not group:
+                # Create group if does not exist
+                group_name_prefix = scope_type[0].lower()
+                group_name = f"{group_name_prefix}_{scope.uuid.hex}_{role.name}"
+                backend_group = keycloak.create_group(
+                    group_name, parent_id=parent_group["id"]
+                )
+                group = models.KeycloakGroup(
+                    name=group_name,
+                    role=role,
+                    scope_uuid=scope_uuid,
+                )
+                group.backend_id = backend_group["id"]
+                group.save()
+
+        scope_uuid = serializer.validated_data["scope_uuid"]
+        role = serializer.validated_data["role"]
+        scope_type = role.scope_type
+        scope, settings = utils.get_keycloak_group_scope_and_settings(
+            models.KeycloakGroup(
+                role=role,
+                scope_uuid=scope_uuid,
+            )
+        )
+
         try:
             keycloak = backend.KeycloakBackend(settings)
+            create_keycloak_group(keycloak, scope, scope_type, role)
+            # Create a user membership
+            user_membership = serializer.save()
             backend_user = keycloak.find_user_by_username(user_membership.username)
             if backend_user is None:
                 # The user might not exist in Keycloak yet
                 logger.info(
                     "The user %s does not exist in Keycloak yet, skipping adding user to the group %s (%s)",
                     user_membership.username,
-                    group.name,
-                    group.backend_id,
+                    user_membership.group.name,
+                    user_membership.group.backend_id,
                 )
             else:
-                keycloak.add_user_to_group(backend_user["id"], group.backend_id)
+                keycloak.add_user_to_group(
+                    backend_user["id"], user_membership.group.backend_id
+                )
+                user_membership.first_name = backend_user.get("firstName", "")
+                user_membership.last_name = backend_user.get("lastName", "")
                 user_membership.activate()
                 user_membership.save()
             sync_frequency = settings.get_option("keycloak_sync_frequency") or 15
