@@ -1320,41 +1320,22 @@ class KeycloakGroupSerializer(serializers.HyperlinkedModelSerializer):
                 return None
         return None
 
-    def validate(self, attrs):
-        role = attrs.get("role")
-        scope_uuid = attrs.get("scope_uuid")
-        role = attrs.get("role")
-
-        # Validate that the scope exists
-        try:
-            utils.get_keycloak_group_scope_and_settings(
-                models.KeycloakGroup(role=role, scope_uuid=scope_uuid)
-            )
-        except models.Cluster.DoesNotExist:
-            raise serializers.ValidationError(
-                _("Cluster with UUID {} does not exist.").format(scope_uuid)
-            )
-        except models.Project.DoesNotExist:
-            raise serializers.ValidationError(
-                _("Project with UUID {} does not exist.").format(scope_uuid)
-            )
-
-        # Check if a local Keycloak group already exists
-        # TODO: drop possibly
-        if models.KeycloakGroup.objects.filter(
-            scope_uuid=scope_uuid,
-            role=role,
-        ).exists():
-            raise serializers.ValidationError(_("This keycloak group already exists."))
-
-        return attrs
-
 
 class KeycloakUserGroupMembershipSerializer(serializers.HyperlinkedModelSerializer):
+    scope_uuid = serializers.UUIDField(
+        help_text=_("UUID of a cluster or a project in Rancher"),
+        write_only=True,
+    )
+    role = serializers.HyperlinkedRelatedField(
+        view_name="rancher-role-template-detail",
+        lookup_field="uuid",
+        queryset=models.RoleTemplate.objects.all(),
+        write_only=True,
+    )
     group = serializers.HyperlinkedRelatedField(
         view_name="keycloak-group-detail",
         lookup_field="uuid",
-        queryset=models.KeycloakGroup.objects.all(),
+        read_only=True,
     )
     group_name = serializers.CharField(source="group.name", read_only=True)
     group_role = serializers.CharField(source="group.role", read_only=True)
@@ -1369,10 +1350,14 @@ class KeycloakUserGroupMembershipSerializer(serializers.HyperlinkedModelSerializ
             "url",
             "username",
             "email",
+            "first_name",
+            "last_name",
             "group",
             "group_name",
             "group_role",
             "group_scope_type",
+            "scope_uuid",
+            "role",
             "state",
             "created",
             "modified",
@@ -1382,6 +1367,8 @@ class KeycloakUserGroupMembershipSerializer(serializers.HyperlinkedModelSerializ
         )
         read_only_fields = (
             "uuid",
+            "first_name",
+            "last_name",
             "state",
             "created",
             "modified",
@@ -1397,14 +1384,39 @@ class KeycloakUserGroupMembershipSerializer(serializers.HyperlinkedModelSerializ
         }
 
     def validate(self, attrs):
-        group = attrs.get("group")
+        role = attrs.get("role")
+        scope_uuid = attrs.get("scope_uuid")
+
+        # Validate that the scope exists
+        try:
+            utils.get_keycloak_group_scope_and_settings(
+                models.KeycloakGroup(role=role, scope_uuid=scope_uuid)
+            )
+        except models.Cluster.DoesNotExist:
+            raise serializers.ValidationError(
+                _("Cluster with UUID %s does not exist.") % scope_uuid
+            )
+        except models.Project.DoesNotExist:
+            raise serializers.ValidationError(
+                _("Project with UUID %s does not exist.") % scope_uuid
+            )
+
         # Check if assignment already exists
         if models.KeycloakUserGroupMembership.objects.filter(
             username=attrs["username"],
-            group=group,
+            group__role=role,
         ).exists():
             raise serializers.ValidationError(
                 _("This keycloak user group membership already exists.")
             )
 
         return attrs
+
+    def create(self, validated_data):
+        scope_uuid = validated_data.pop("scope_uuid")
+        role = validated_data.pop("role")
+        group = models.KeycloakGroup.objects.filter(
+            role=role, scope_uuid=scope_uuid
+        ).first()
+        validated_data["group"] = group
+        return super().create(validated_data)

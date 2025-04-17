@@ -366,6 +366,8 @@ def sync_keycloak_users():
                     group.backend_id,
                 )
                 keycloak.add_user_to_group(backend_user["id"], group.backend_id)
+                user_membership.first_name = backend_user["firstName"]
+                user_membership.last_name = backend_user["lastName"]
                 user_membership.activate()
             user_membership.error_message = ""
             user_membership.error_traceback = ""

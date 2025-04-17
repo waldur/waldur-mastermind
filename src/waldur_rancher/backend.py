@@ -1635,7 +1635,18 @@ class KeycloakBackend:
         try:
             # Try to find group
             groups = self.keycloak.get_groups({"search": group_name})
-            group = next((g for g in groups if g["name"] == group_name), None)
+            group = next(
+                (
+                    g
+                    for g in groups
+                    if g["name"] == group_name
+                    or (
+                        group_name
+                        in {sub_group["name"] for sub_group in g["subGroups"]}
+                    )
+                ),
+                None,
+            )
 
             if group:
                 logger.info(
