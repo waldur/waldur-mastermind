@@ -202,7 +202,8 @@ def _send_email(
             html_message=html_message,
         )
     except SMTPException as e:
-        message = f"Failed to notify a user about an issue update. Issue uuid: {issue.uuid.hex}. Error: {e.message}"
+        error_message = str(e)
+        message = f"Failed to notify a user about an issue update. Issue uuid: {issue.uuid.hex}. Error: {error_message}"
         logger.warning(message)
 
 
