@@ -556,7 +556,7 @@ class ErredOrderPullTask(OrderPullTask):
             local_resource.backend_id = backend_id
             local_resource.save(update_fields=["backend_id"])
 
-        pull_fields(("error_message",), local_order, remote_order.to_dict())
+        pull_fields(["error_message"], local_order, remote_order.to_dict())
 
 
 class ErredOrderListPullTask(BackgroundListPullTask):
@@ -607,16 +607,12 @@ class UsagePullTask(BackgroundPullTask):
         else:
             start_date = month_start(today - relativedelta(months=4))
 
-        start_date_str = start_date.strftime("%Y-%m-%d")
-
-        logger.info(
-            "Pulling resource %s usages from %s", local_resource, start_date_str
-        )
+        logger.info("Pulling resource %s usages from %s", local_resource, start_date)
 
         remote_usages = marketplace_component_usages_list.sync(
             client=client,
             resource_uuid=local_resource.backend_id,
-            date_after=start_date_str,
+            date_after=start_date,
         )
 
         for remote_usage in remote_usages:

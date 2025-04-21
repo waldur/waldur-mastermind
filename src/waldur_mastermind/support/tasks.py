@@ -131,7 +131,7 @@ def _send_email(
 
     # Since support email notifications are sent out through this function rather that broadcast_email()
     # we need to check if the notification is enabled here. For that we introduce a new parameter notification_key
-    # which is used to identify the notification..
+    # which is used to identify the notification.
     if notification_key:
         try:
             notification = core_models.Notification.objects.get(key=notification_key)
