@@ -200,15 +200,15 @@ class Saml2LoginCompleteView(BaseSaml2View):
             response = client.parse_authn_request_response(
                 xmlstr, BINDING_HTTP_POST, outstanding_queries
             )
-        except Exception as e:
-            if isinstance(e, StatusRequestDenied):
-                return login_failed(
-                    _(
-                        "Authentication request has been denied by identity provider. "
-                        "Please check your credentials."
-                    )
+        except StatusRequestDenied:
+            return login_failed(
+                _(
+                    "Authentication request has been denied by identity provider. "
+                    "Please check your credentials."
                 )
-            logger.error("SAML response parsing failed %s" % e)
+            )
+        except Exception as e:
+            logger.error("SAML response parsing failed %s", e)
             return login_failed(_("SAML2 response has errors."))
 
         if response is None:
