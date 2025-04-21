@@ -225,7 +225,9 @@ class RancherClient:
             },
         )
 
-    def get_cluster_group_role(self, group_id, cluster_id, role):
+    def get_cluster_group_role(
+        self, group_id=None, cluster_id=None, role=None
+    ) -> list[dict]:
         return self._get(
             "clusterroletemplatebindings",
             params={
@@ -234,6 +236,9 @@ class RancherClient:
                 "groupPrincipalId": group_id,
             },
         )["data"]
+
+    def delete_cluster_group_role(self, cluster_id, binding_name):
+        return self._delete(f"clusterroletemplatebindings/{cluster_id}:{binding_name}")
 
     def create_project(self, cluster_id, project_name):
         return self._post(
@@ -255,6 +260,31 @@ class RancherClient:
                 "userId": user_id,
             },
         )
+
+    def get_project_group_role(
+        self, group_id=None, project_id=None, role=None
+    ) -> list[dict]:
+        return self._get(
+            "projectroletemplatebindings",
+            params={
+                "roleTemplateId": role,
+                "clusterId": project_id,
+                "groupPrincipalId": group_id,
+            },
+        )["data"]
+
+    def create_project_group_role(self, group_id, project_id, role):
+        return self._post(
+            "projectroletemplatebindings",
+            json={
+                "roleTemplateId": role,
+                "projectId": project_id,
+                "groupPrincipalId": group_id,
+            },
+        )
+
+    def delete_project_group_role(self, project_id, binding_name):
+        return self._delete(f"projectroletemplatebindings/{project_id}:{binding_name}")
 
     def get_projects_roles(self, projectId=None, roleTemplateId=None):
         params = {}

@@ -411,6 +411,36 @@ class RancherBackend(ServiceBackend):
             return True
         return False
 
+    def delete_cluster_group_role(self, group_id, cluster_id, role):
+        existing_bindings = self.client.get_cluster_group_role(
+            group_id, cluster_id, role
+        )
+        if existing_bindings:
+            binding_name = existing_bindings[0]["name"]
+            logger.info("Deleting project group role binding %s", binding_name)
+            self.client.delete_cluster_group_role(cluster_id, binding_name)
+            return True
+        return False
+
+    def delete_project_group_role(self, group_id, project_id, role):
+        existing_bindings = self.client.get_project_group_role(
+            group_id, project_id, role
+        )
+        # Expects project_id to be in the format of 'cluster_id:project_id'
+        project_id = project_id.split(":")[-1]
+        if existing_bindings:
+            binding_name = existing_bindings[0]["name"]
+            logger.info("Deleting project group role binding %s", binding_name)
+            self.client.delete_project_group_role(project_id, binding_name)
+            return True
+        return False
+
+    def get_or_create_project_group_role(self, group_id, project_id, role):
+        if not self.client.get_project_group_role(group_id, project_id, role):
+            self.client.create_project_group_role(group_id, project_id, role)
+            return True
+        return False
+
     def create_cluster_user_role(self, link: models.RancherUserClusterLink):
         role = link.role
         role_name = role.name if role else None

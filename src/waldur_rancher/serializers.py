@@ -1401,7 +1401,7 @@ class KeycloakUserGroupMembershipSerializer(serializers.HyperlinkedModelSerializ
                 _("Project with UUID %s does not exist.") % scope_uuid
             )
 
-        # Check if assignment already exists
+        # Check if membership already exists
         if models.KeycloakUserGroupMembership.objects.filter(
             username=attrs["username"],
             group__role=role,

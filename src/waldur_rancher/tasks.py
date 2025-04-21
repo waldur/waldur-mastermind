@@ -536,3 +536,144 @@ def delete_leftover_keycloak_memberships():
             logger.info(
                 "Unable to delete leftover memberships in Keycloak, reason: %s", e
             )
+
+
+@shared_task(name="waldur_rancher.sync_rancher_group_bindings")
+def sync_rancher_group_bindings():
+    """
+    Sync group bindings in Rancher with the groups in Waldur.
+    """
+
+    def create_missing_cluster_groups(
+        rancher_backend: backend.RancherBackend,
+        cluster: models.Cluster,
+        local_cluster_groups: list[models.KeycloakGroup],
+    ):
+        for local_cluster_group in local_cluster_groups:
+            try:
+                reference_group_name = (
+                    f"keycloakoidc_group://{local_cluster_group.name}"
+                )
+                rancher_backend.get_or_create_cluster_group_role(
+                    reference_group_name,
+                    cluster.backend_id,
+                    local_cluster_group.role.name,
+                )
+            except exceptions.RancherException as e:
+                logger.error(
+                    "Unable to sync group %s binding for cluster %s, reason: %s",
+                    local_cluster_group.name,
+                    cluster.name,
+                    e,
+                )
+
+    def remove_stale_cluster_groups(
+        rancher_backend: backend.RancherBackend,
+        cluster: models.Cluster,
+        local_cluster_groups: list[models.KeycloakGroup],
+    ):
+        remote_cluster_groups = rancher_backend.client.get_cluster_group_role(
+            cluster_id=cluster.backend_id
+        )
+        remote_cluster_groups = {
+            group["groupPrincipalId"]: group for group in remote_cluster_groups
+        }
+        local_cluster_group_principal_names = [
+            f"keycloakoidc_group://{group.name}" for group in local_cluster_groups
+        ]
+        remote_stale_cluster_group_ids = (
+            remote_cluster_groups.keys() - local_cluster_group_principal_names
+        )
+        for remote_stale_group_id in remote_stale_cluster_group_ids:
+            try:
+                remote_group = remote_cluster_groups[remote_stale_group_id]
+                rancher_backend.delete_cluster_group_role(
+                    remote_group["name"],
+                    cluster.backend_id,
+                    remote_group["roleTemplateId"],
+                )
+            except exceptions.RancherException as e:
+                logger.error(
+                    "Unable to delete group %s binding for cluster %s, reason: %s",
+                    remote_stale_group_id,
+                    cluster.name,
+                    e,
+                )
+
+    def create_missing_project_groups(
+        rancher_backend: backend.RancherBackend,
+        project: models.Project,
+        local_project_groups: list[models.KeycloakGroup],
+    ):
+        for local_project_group in local_project_groups:
+            try:
+                reference_group_name = (
+                    f"keycloakoidc_group://{local_project_group.name}"
+                )
+                rancher_backend.get_or_create_project_group_role(
+                    reference_group_name,
+                    project.backend_id,
+                    local_project_group.role.name,
+                )
+            except exceptions.RancherException as e:
+                logger.error(
+                    "Unable to sync group %s binding for project %s, reason: %s",
+                    local_project_group.name,
+                    project.name,
+                    e,
+                )
+
+    def remote_stale_project_groups(
+        rancher_backend: backend.RancherBackend,
+        project: models.Project,
+        local_project_groups: list[models.KeycloakGroup],
+    ):
+        remote_project_groups = rancher_backend.client.get_project_group_role(
+            project_id=project.backend_id
+        )
+        remote_project_groups = {
+            group["groupPrincipalId"]: group for group in remote_project_groups
+        }
+        local_project_group_principal_names = [
+            f"keycloakoidc_group://{group.name}" for group in local_project_groups
+        ]
+        remote_stale_project_group_ids = (
+            remote_project_groups.keys() - local_project_group_principal_names
+        )
+        for remote_stale_group_id in remote_stale_project_group_ids:
+            try:
+                remote_group = remote_project_groups[remote_stale_group_id]
+                rancher_backend.delete_project_group_role(
+                    remote_group["name"],
+                    project.backend_id,
+                    remote_group["roleTemplateId"],
+                )
+            except exceptions.RancherException as e:
+                logger.error(
+                    "Unable to delete group %s binding for project %s, reason: %s",
+                    remote_stale_group_id,
+                    project.name,
+                    e,
+                )
+
+    clusters = models.Cluster.objects.filter(state=core_models.StateMixin.States.OK)
+    for cluster in clusters:
+        rancher_backend: backend.RancherBackend = cluster.get_backend()
+        local_cluster_groups = models.KeycloakGroup.objects.filter(
+            role__settings=settings, role__scope_type=enums.RoleScopeType.CLUSTER
+        )
+        # Create missing cluster groups in Rancher
+        create_missing_cluster_groups(rancher_backend, cluster, local_cluster_groups)
+        # Delete stale cluster groups in Rancher
+        remove_stale_cluster_groups(rancher_backend, cluster, local_cluster_groups)
+
+        projects = models.Project.objects.filter(cluster=cluster)
+        for project in projects:
+            local_project_groups = models.KeycloakGroup.objects.filter(
+                role__settings=project.settings,
+                role__scope_type=enums.RoleScopeType.CLUSTER,
+            )
+            # Create missing project groups in Rancher
+            create_missing_project_groups(rancher_backend, local_project_groups)
+            # Delete stale project groups in Rancher
+            remote_stale_project_groups(rancher_backend, project, local_project_groups)
