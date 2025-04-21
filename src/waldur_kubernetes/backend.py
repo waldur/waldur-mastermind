@@ -36,14 +36,16 @@ class KubernetesBackend:
         self,
         name: str,
         namespace: str,
-        data: dict,
-        labels: dict,
+        labels: dict = None,
+        data: dict = None,
+        string_data: dict = None,
     ):
         secret = k8s.client.V1Secret(
             api_version="v1",
             kind="Secret",
             metadata=k8s.client.V1ObjectMeta(name=name, labels=labels),
             data=data,
+            string_data=string_data,
         )
         self.core_api.create_namespaced_secret(namespace=namespace, body=secret)
 

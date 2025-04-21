@@ -44,6 +44,8 @@ class RancherServiceSettingsSerializer(structure_serializers.ServiceOptionsSeria
             "keycloak_username",
             "keycloak_password",
             "keycloak_sync_frequency",
+            "argocd_k8s_namespace",
+            "argocd_k8s_kubeconfig",
         )
 
     backend_url = serializers.CharField(
@@ -174,6 +176,17 @@ class RancherServiceSettingsSerializer(structure_serializers.ServiceOptionsSeria
         help_text=_("Indicates whether verify SSL certificates"),
         required=False,
         default=True,
+    )
+
+    argocd_k8s_namespace = serializers.CharField(
+        source="options.argocd_k8s_namespace",
+        help_text=_("Namespace where ArgoCD is deployed"),
+        required=False,
+    )
+    argocd_k8s_kubeconfig = serializers.CharField(
+        source="options.argocd_k8s_kubeconfig",
+        help_text=_("Kubeconfig with access to namespace where ArgoCD is deployed"),
+        required=False,
     )
 
     def validate_management_tenant_uuid(self, tenant_uuid):
