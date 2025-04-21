@@ -77,6 +77,11 @@ class RancherExtension(WaldurExtension):
                 "schedule": timedelta(hours=1),
                 "args": (),
             },
+            "waldur-rancher-sync-rancher-group-bindings": {
+                "task": "waldur_rancher.sync_rancher_group_bindings",
+                "schedule": timedelta(hours=1),
+                "args": (),
+            },
         }
 
     @staticmethod

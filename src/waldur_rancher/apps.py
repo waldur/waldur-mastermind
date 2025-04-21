@@ -60,6 +60,18 @@ class RancherConfig(AppConfig):
             dispatch_uid="waldur_rancher.delete_keycloak_user_group_membership_from_backend",
         )
 
+        signals.post_save.connect(
+            handlers.add_group_to_rancher_scope,
+            sender=models.KeycloakGroup,
+            dispatch_uid="waldur_rancher.add_group_to_rancher_scope",
+        )
+
+        signals.post_delete.connect(
+            handlers.remove_group_from_rancher_scope,
+            sender=models.KeycloakGroup,
+            dispatch_uid="waldur_rancher.remove_group_from_rancher_scope",
+        )
+
         for klass in (models.Project, models.Cluster, structure_models.ServiceSettings):
             signals.post_delete.connect(
                 handlers.delete_catalog_if_scope_has_been_deleted,

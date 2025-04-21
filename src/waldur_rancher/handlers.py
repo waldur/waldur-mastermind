@@ -6,8 +6,9 @@ from django.db import transaction
 
 from keycloak import exceptions as keycloak_exceptions
 from waldur_core.core.models import StateMixin
+from waldur_rancher.exceptions import RancherException
 
-from . import backend, models, tasks, utils
+from . import backend, enums, models, tasks, utils
 
 logger = logging.getLogger(__name__)
 
@@ -133,5 +134,69 @@ def delete_keycloak_user_group_membership_from_backend(sender, instance, **kwarg
             )
             return
         keycloak.remove_user_from_group(backend_user["id"], group.backend_id)
+        local_members = group.keycloakusergroupmembership_set.all()
+        if len(local_members) == 0:
+            # If the group has no local members, delete it from DB
+            group.delete()
     except keycloak_exceptions.KeycloakError as e:
         logger.error("Unable to remove a user from the Keycloak group: %s", e)
+
+
+def add_group_to_rancher_scope(sender, instance, created=False, **kwargs):
+    if not created:
+        return
+
+    group = instance
+    try:
+        scope, settings = utils.get_keycloak_group_scope_and_settings(group)
+        logger.info(
+            "Adding group %s to Rancher %s %s", group, group.role.scope_type, scope.name
+        )
+        rancher_backend = backend.RancherBackend(settings)
+        reference_group_name = f"keycloakoidc_group://{group.name}"
+        if group.role.scope_type == enums.RoleScopeType.CLUSTER:
+            rancher_backend.get_or_create_cluster_group_role(
+                reference_group_name, scope.backend_id, group.role.name
+            )
+        elif group.role.scope_type == enums.RoleScopeType.PROJECT:
+            rancher_backend.get_or_create_project_group_role(
+                reference_group_name, scope.backend_id, group.role.name
+            )
+    except RancherException as e:
+        logger.error(
+            "Unable to add the group %s to Rancher %s %s: %s",
+            group,
+            group.role.scope_type,
+            scope.name,
+            e,
+        )
+
+
+def remove_group_from_rancher_scope(sender, instance, **kwargs):
+    group = instance
+    try:
+        scope, settings = utils.get_keycloak_group_scope_and_settings(group)
+        logger.info(
+            "Removing group %s from Rancher %s %s",
+            group,
+            group.role.scope_type,
+            scope.name,
+        )
+        rancher_backend = backend.RancherBackend(settings)
+        reference_group_name = f"keycloakoidc_group://{group.name}"
+        if group.role.scope_type == enums.RoleScopeType.CLUSTER:
+            rancher_backend.delete_cluster_group_role(
+                reference_group_name, scope.backend_id, group.role.name
+            )
+        elif group.role.scope_type == enums.RoleScopeType.PROJECT:
+            rancher_backend.delete_project_group_role(
+                reference_group_name, scope.backend_id, group.role.name
+            )
+    except RancherException as e:
+        logger.error(
+            "Unable to remove the group %s from Rancher %s %s: %s",
+            group,
+            group.role.scope_type,
+            scope.name,
+            e,
+        )
