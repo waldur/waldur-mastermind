@@ -59,6 +59,12 @@ class ClusterCreateExecutor(core_executors.CreateExecutor):
                     "pull_cluster_workloads",
                 ),
             ]
+        if instance.service_settings.get_option("argocd_k8s_kubeconfig"):
+            _tasks += [
+                tasks.CreateArgoCDClusterSecretTask().si(
+                    serialized_instance,
+                )
+            ]
         return chain(*_tasks)
 
     @classmethod

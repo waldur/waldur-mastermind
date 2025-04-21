@@ -113,10 +113,10 @@ def update_argocd_secret_when_resource_options_changed(sender, instance, **kwarg
         return
 
     options = resource.options
-    secret_options = resource.offering.secret_options
-    kubeconfig_str = secret_options.get("k8s_kubeconfig")
-    namespace = secret_options.get("k8s_namespace")
-    secret_name = resource.slug
+    service_settings = resource.offering.secret_options
+    kubeconfig_str = service_settings.options.get("argocd_k8s_kubeconfig")
+    namespace = service_settings.options.get("argocd_k8s_namespace")
+    secret_name = f"cluster-{resource.scope.uuid}"
     k8s_backend = KubernetesBackend(kubeconfig_str)
     try:
         k8s_backend.update_k8s_secret(secret_name, namespace, data=None, labels=options)

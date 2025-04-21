@@ -2,6 +2,8 @@ import logging
 import re
 import traceback
 
+import kubernetes
+import yaml
 from celery import shared_task
 from django.conf import settings
 from django.contrib import auth
@@ -16,6 +18,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.exceptions import RuntimeStateException
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.signals import resource_imported
+from waldur_kubernetes.backend import KubernetesBackend
 from waldur_mastermind.common import utils as common_utils
 from waldur_openstack import models as openstack_models
 from waldur_openstack.views import MarketplaceInstanceViewSet
@@ -338,6 +341,54 @@ class CreateVaultCredentialsTask(core_tasks.Task):
         token = cluster_tokens[0]["token"]
 
         vault_backend.create_or_update_secret(secret_name, {"token": token})
+
+
+class CreateArgoCDClusterSecretTask(core_tasks.Task):
+    @classmethod
+    def get_description(cls, cluster, *args, **kwargs):
+        cluster = core_utils.deserialize_instance(cluster)
+        return f"Create an ArgoCD cluster secret for cluster {cluster}"
+
+    def execute(self, instance: models.Cluster, *args, **kwargs):
+        kubeconfig_str = instance.settings.get_option("argocd_k8s_kubeconfig")
+        if not kubeconfig_str:
+            logger.warning(
+                "Unable to get argocd kubeconfig file from the %s cluster settings, skipping ArgoCD secret creation"
+            )
+            return
+
+        k8s = KubernetesBackend(kubeconfig_str)
+        secret_name = f"cluster-{instance.uuid.hex}"
+        argocd_namespace = instance.settings.get_option("argocd_k8s_namespace")
+        cluster_backend: backend.RancherBackend = instance.get_backend()
+        cluster_kubeconfig_str = cluster_backend.get_kubeconfig_file(instance)
+        cluster_kubecofnig = yaml.safe_load(cluster_kubeconfig_str)
+        cluster_info = cluster_kubecofnig["clusters"][0]
+        user_info = cluster_kubecofnig["users"][0]
+        secret_data = {
+            "name": cluster_info["name"],
+            "server": cluster_info["cluster"]["server"],
+            "config": """
+                {
+                    "bearerToken": "%s"
+                }
+            """
+            % user_info["user"]["token"],
+        }
+        secret_labels = {"argocd.argoproj.io/secret-type": "cluster"}
+        try:
+            k8s.create_k8s_secret(
+                secret_name,
+                argocd_namespace,
+                string_data=secret_data,
+                labels=secret_labels,
+            )
+        except kubernetes.client.ApiException as e:
+            logger.error(
+                "Unable to create an ArgoCD secret for cluster %s, reason: %s",
+                instance,
+                e,
+            )
 
 
 @shared_task(name="waldur_rancher.sync_keycloak_users")
