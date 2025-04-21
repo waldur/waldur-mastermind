@@ -731,14 +731,7 @@ class QueryViewSet(generics.GenericAPIView):
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
-@extend_schema(
-    description="Retrieve whitelabeling logo",
-    request=None,
-    responses={
-        200: bytes,
-        404: None,
-    },
-)
+@extend_schema(exclude=True)
 @api_view(["GET"])
 @permission_classes((rf_permissions.AllowAny,))
 def get_whitelabeling_logo(request, logo_type, default_image=None):
