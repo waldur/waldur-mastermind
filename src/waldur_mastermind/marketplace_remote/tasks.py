@@ -612,7 +612,7 @@ class UsagePullTask(BackgroundPullTask):
         remote_usages = marketplace_component_usages_list.sync(
             client=client,
             resource_uuid=local_resource.backend_id,
-            date_after=start_date,
+            date_after=start_date.date(),
         )
 
         for remote_usage in remote_usages:
