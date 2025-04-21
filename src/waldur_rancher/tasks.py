@@ -512,7 +512,7 @@ def sync_rancher_roles():
             )
 
 
-@shared_task(name="waldur_rancher.delete_dangling_keycloak_groups")
+@shared_task(name="waldur_rancher.delete_leftover_keycloak_groups")
 def delete_leftover_keycloak_groups():
     """
     Delete remote Keycloak groups with no linked groups in Waldur
