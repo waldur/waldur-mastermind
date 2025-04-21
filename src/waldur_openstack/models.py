@@ -854,7 +854,7 @@ class Instance(
         for ip_list in self.ports.values_list("fixed_ips", flat=True):
             if ip_list:
                 internal_ips.update({val["ip_address"] for val in ip_list})
-        return internal_ips
+        return list(internal_ips)
 
     @property
     def size(self) -> int:

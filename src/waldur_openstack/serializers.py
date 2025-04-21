@@ -1149,7 +1149,7 @@ class OpenStackFixedIpSerializer(serializers.Serializer):
 
             if not in_allocation_pool:
                 logger.info(
-                    "IP address %s must be within one of the allocation pools.",
+                    "Requested IP address %s is outside the allocation pools.",
                     ip_address,
                 )
 
