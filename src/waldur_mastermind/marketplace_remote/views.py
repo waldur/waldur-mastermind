@@ -85,7 +85,7 @@ class CustomersView(RemoteView):
             )
         except (UnexpectedStatus, TimeoutException) as e:
             return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
-        return Response(customers)
+        return Response([customer.to_dict() for customer in customers])
 
 
 class СategoriesView(RemoteView):
@@ -100,7 +100,7 @@ class СategoriesView(RemoteView):
             сategories = marketplace_categories_list.sync(client=client)
         except (UnexpectedStatus, TimeoutException) as e:
             return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
-        return Response(сategories)
+        return Response([category.to_dict() for category in сategories])
 
 
 class OfferingsListView(RemoteView):
