@@ -44,7 +44,7 @@ class RancherClient:
             content_type = response.headers["Content-Type"].lower()
             if content_type == "application/json":
                 data = response.json()
-            elif content_type == "text/plain":
+            elif content_type in ("text/plain", "application/yaml"):
                 data = data.decode("utf-8")
 
         status_code = response.status_code

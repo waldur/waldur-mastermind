@@ -16,7 +16,6 @@ class MarketplaceRancherConfig(AppConfig):
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
         from waldur_mastermind.marketplace import models as marketplace_models
         from waldur_mastermind.marketplace.plugins import Component, manager
-        from waldur_mastermind.marketplace_openstack.const import TENANT_COMPONENTS
         from waldur_rancher import models as rancher_models
         from waldur_rancher.apps import RancherConfig
 
@@ -46,7 +45,6 @@ class MarketplaceRancherConfig(AppConfig):
             offering_type=MANAGED_RANCHER_PLUGIN,
             create_resource_processor=processors.ManagedRancherCreateProcessor,
             delete_resource_processor=processors.ManagedRancherDeleteProcessor,
-            components=TENANT_COMPONENTS,
         )
 
         marketplace_handlers.connect_resource_metadata_handlers(rancher_models.Cluster)
