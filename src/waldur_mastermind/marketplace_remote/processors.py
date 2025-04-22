@@ -13,6 +13,7 @@ from waldur_api_client.models.order_create_request import OrderCreateRequest
 from waldur_api_client.models.order_create_request_limits import (
     OrderCreateRequestLimits,
 )
+from waldur_api_client.models.resource_terminate_request import ResourceTerminateRequest
 from waldur_api_client.models.resource_update_limits_request import (
     ResourceUpdateLimitsRequest,
 )
@@ -124,6 +125,7 @@ class RemoteDeleteResourceProcessor(
         response = marketplace_resources_terminate.sync(
             client=self.client,
             uuid=self.order.resource.backend_id,
+            body=ResourceTerminateRequest(),
         )
         self.order.backend_id = response.order_uuid.hex
         self.order.save()
