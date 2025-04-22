@@ -237,6 +237,7 @@ class OpenStackBackend(ServiceBackend):
     def pull_service_properties(self):
         self.pull_service_settings_quotas()
         self.pull_global_volume_types()
+        self.pull_global_flavors()
 
     def pull_resources(self):
         self.pull_tenants()
@@ -480,6 +481,27 @@ class OpenStackBackend(ServiceBackend):
         for flavor_backend_id in existing_flavor_ids:
             remote_flavor = remote_flavor_mapping[flavor_backend_id]
             local_flavor, _ = models.Flavor.objects.update_or_create(
+                settings=self.settings,
+                backend_id=remote_flavor.id,
+                defaults={
+                    "name": remote_flavor.name,
+                    "cores": remote_flavor.vcpus,
+                    "ram": remote_flavor.ram,
+                    "disk": self.gb2mb(remote_flavor.disk),
+                },
+            )
+
+    def pull_global_flavors(self):
+        nova = get_nova_client(self.admin_session)
+        try:
+            remote_flavors = nova.flavors.list()
+        except nova_exceptions.ClientException as e:
+            raise OpenStackBackendError(e)
+        models.Flavor.objects.filter(settings=self.settings).exclude(
+            backend_id__in=[volume_type.id for volume_type in remote_flavors]
+        ).delete()
+        for remote_flavor in remote_flavors:
+            models.Flavor.objects.update_or_create(
                 settings=self.settings,
                 backend_id=remote_flavor.id,
                 defaults={
