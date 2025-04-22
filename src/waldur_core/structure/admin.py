@@ -89,7 +89,7 @@ class BackendModelAdmin(admin.ModelAdmin):
     def get_list_filter(self, request):
         try:
             self.model._meta.get_field("settings")
-            return ("settings__shared", ("settings", RelatedOnlyDropdownFilter))
+            return "settings__shared", ("settings", RelatedOnlyDropdownFilter)
         except FieldDoesNotExist:
             return self.list_filter
 

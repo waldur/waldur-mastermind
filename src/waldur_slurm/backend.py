@@ -90,7 +90,7 @@ class SlurmBackend(ServiceBackend):
                         profile.user,
                     )
                 except models.Association.DoesNotExist:
-                    logger.warn(
+                    logger.warning(
                         "Association between %s and %s has been already deleted",
                         allocation,
                         profile.user,

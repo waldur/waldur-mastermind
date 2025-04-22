@@ -1,7 +1,7 @@
+import importlib.resources
 import json
 from unittest import mock
 
-import pkg_resources
 from rest_framework import status, test
 
 from waldur_core.structure.tests.factories import SshPublicKeyFactory
@@ -176,9 +176,12 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
     def test_not_pulling_if_node_has_been_created(
         self, mock_retry, mock_client, mock_pull_node
     ):
-        backend_node = json.loads(
-            pkg_resources.resource_stream(__name__, "backend_node.json").read().decode()
-        )
+        # Using importlib.resources instead of pkg_resources
+        with importlib.resources.open_text(
+            "waldur_rancher.tests", "backend_node.json"
+        ) as f:
+            backend_node = json.loads(f.read())
+
         self.fixture.node.backend_id = ""
         self.fixture.node.name = backend_node["requestedHostname"]
         self.fixture.node.runtime_state = models.Node.RuntimeStates.ACTIVE
@@ -351,19 +354,20 @@ class NodePullBackendTest(test.APITransactionTestCase):
         self.patcher_client = mock.patch("waldur_rancher.backend.RancherBackend.client")
         self.mock_client = self.patcher_client.start()
 
-        self.mock_client.get_node.return_value = json.loads(
-            pkg_resources.resource_stream(__name__, "backend_node.json").read().decode()
-        )
-        self.mock_client.get_cluster.return_value = json.loads(
-            pkg_resources.resource_stream(__name__, "backend_cluster.json")
-            .read()
-            .decode()
-        )
-        self.mock_client.get_cluster_nodes.return_value = [
-            json.loads(
-                pkg_resources.resource_stream(__name__, "backend_node.json").read()
-            )
-        ]
+        with importlib.resources.open_text(
+            "waldur_rancher.tests", "backend_node.json"
+        ) as f:
+            self.mock_client.get_node.return_value = json.loads(f.read())
+
+        with importlib.resources.open_text(
+            "waldur_rancher.tests", "backend_cluster.json"
+        ) as f:
+            self.mock_client.get_cluster.return_value = json.loads(f.read())
+
+        with importlib.resources.open_text(
+            "waldur_rancher.tests", "backend_node.json"
+        ) as f:
+            self.mock_client.get_cluster_nodes.return_value = [json.loads(f.read())]
 
     def _check_node_fields(self, node):
         node.refresh_from_db()
@@ -378,9 +382,12 @@ class NodePullBackendTest(test.APITransactionTestCase):
         self.assertEqual(node.state, models.Node.States.OK)
 
     def test_update_node_if_key_does_not_exists(self):
-        backend_node = json.loads(
-            pkg_resources.resource_stream(__name__, "backend_node.json").read().decode()
-        )
+        # Replace pkg_resources usage with importlib.resources
+        with importlib.resources.open_text(
+            "waldur_rancher.tests", "backend_node.json"
+        ) as f:
+            backend_node = json.loads(f.read())
+
         backend_node.pop("annotations")
         self.mock_client.get_node.return_value = backend_node
         tasks.pull_cluster_nodes(self.fixture.cluster.id)

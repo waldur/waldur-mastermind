@@ -128,10 +128,10 @@ class ExtendedEC2NodeDriver(EC2NodeDriver):
         :param ex_volume_type: Type of volume to create.
         :type ex_volume_type: ``str``
 
-        :param iops: The number of I/O operations per second (IOPS)
+        :param ex_iops: The number of I/O operations per second (IOPS)
                      that the volume supports. Only used if ex_volume_type
                      is io1.
-        :type iops: ``int``
+        :type ex_iops: ``int``
 
         :return: The newly created volume.
         :rtype: :class:`StorageVolume`

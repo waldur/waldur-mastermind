@@ -1,13 +1,12 @@
 import copy
+import importlib.resources
 import json
 
-import pkg_resources
 from django.conf import settings
 from django.test import override_settings
 
-backend_node_response = json.loads(
-    pkg_resources.resource_stream(__name__, "backend_node.json").read().decode()
-)
+with importlib.resources.open_text("waldur_rancher.tests", "backend_node.json") as f:
+    backend_node_response = json.loads(f.read())
 
 
 def override_plugin_settings(**kwargs):

@@ -268,7 +268,7 @@ def post_invitation_to_url(url: str, context):
         url, json=invitation_payload, headers=invitation_headers
     )
 
-    if invitation_response.status_code >= 200 and invitation_response.status_code < 300:
+    if 200 <= invitation_response.status_code < 300:
         logger.info("Invitation has been successfully sent to %s", url)
     else:
         raise RuntimeError(

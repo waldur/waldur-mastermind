@@ -245,7 +245,7 @@ def broadcast_mail(
     """
     Shorthand to format email message from template file and sent it to all recipients.
 
-    It is assumed that there are there are 3 templates available for event type in application.
+    It is assumed that there are 3 templates available for event type in application.
     For example, if app is 'users' and event_type is 'invitation_rejected', then there should be 3 files:
 
     1) users/invitation_rejected_subject.txt is template for email subject
@@ -264,6 +264,7 @@ def broadcast_mail(
     :param filename: name of the attached file
     :param attachment: content of attachment
     :param content_type: the content type of attachment
+    :param bcc: list of emails for sending as bcc
     """
     from .models import Notification
 

@@ -314,7 +314,7 @@ class User(
 
     @property
     def full_name(self) -> str:
-        return (f"{self.first_name} {self.last_name}").strip()
+        return f"{self.first_name} {self.last_name}".strip()
 
     @full_name.setter
     def full_name(self, value: str):

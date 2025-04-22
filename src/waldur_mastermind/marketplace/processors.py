@@ -124,7 +124,7 @@ class CreateResourceProcessor(AbstractCreateResourceProcessor):
     4) Create marketplace resource object from order and plugin resource.
     5) Store link from order to the resource.
 
-    Therefore this class implements template method design pattern.
+    Therefore, this class implements template method design pattern.
     """
 
     def validate_order(self, request):
